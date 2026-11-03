@@ -7,7 +7,10 @@ import Statistics
 import Random
 using LinearAlgebra: SVD
 
-export FaerLinearOperator,
+export partial_eigen,
+    partial_self_adjoint_eigen,
+    partial_svd,
+    FaerLinearOperator,
     FaerNpyMatrix,
     loadnpy,
     npyview,
@@ -202,6 +205,7 @@ include("rotations.jl")
 include("householder.jl")
 include("householder_sequence.jl")
 include("operators.jl")
+include("partial_spectra.jl")
 include("jacobi.jl")
 include("statistics.jl")
 include("balance.jl")

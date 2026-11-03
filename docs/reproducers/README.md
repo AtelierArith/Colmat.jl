@@ -77,3 +77,12 @@ complete Cargo.toml and build instructions and require no NumPy installation.
 Both modes were executed against d5be1473eed9314fca6f80ad8b4072d86282e890 and
 exit 101. Colmat validates and normalizes into aligned native-endian storage
 before using faer, without modifying the dependency checkout.
+
+### Small/full-projection partial SVD panic
+
+`faer-partial-svd-small.rs` reproduces a panic for a 4×4 identity and one
+requested singular triplet. The public driver caps its minimum projection
+space at the matrix dimension, while its callee requires a strict inequality.
+Reported with complete executable crate and proposed full-projection correction:
+<https://github.com/tensor4all/faer/issues/213>. Colmat reports a native dense
+fallback for this boundary; larger partial requests keep the iterative path.

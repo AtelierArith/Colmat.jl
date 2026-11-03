@@ -835,3 +835,25 @@ of the bytes and uses faer's aligned-reference API for reads. It does not alias
 the input bytes or memory-map a file. Entries are read-only. `copy` materializes
 a native matrix; `deepcopy` preserves the view type with independent storage.
 Closing a view invalidates its reads, while materialized/deep copies remain valid.
+
+### Partial eigenvalues and singular values
+
+```julia
+using Colmat, LinearAlgebra
+op = FaerLinearOperator(Diagonal(collect(1.0:96)))
+F = partial_self_adjoint_eigen(op, 2; tol=1e-8)
+@assert F.nconverged == 2
+@assert F.values ≈ [96.0, 95.0]
+@assert maximum(F.residuals) < 1e-5
+S = partial_svd(op, 2; tol=1e-8)
+@assert S.S ≈ [96.0, 95.0]
+```
+
+`partial_eigen`, `partial_self_adjoint_eigen` and `partial_svd` call native
+restarted projection methods and return only reported converged columns, with
+independently recomputed residuals. Set `v0`, `min_dim`, `max_dim`, `tol` and
+`max_restarts` to control the search. The self-adjoint variant assumes Hermitian
+input. A start orthogonal to a desired invariant subspace can miss it. Inspect
+`nconverged` and residuals before using results. Small/full-projection
+self-adjoint and SVD requests use native dense decompositions to avoid upstream
+panics, with `algorithm == :dense_fallback`; iterative results report `:partial`.

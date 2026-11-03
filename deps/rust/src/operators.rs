@@ -1220,3 +1220,141 @@ impl TypedMatrix {
         })
     }
 }
+
+// Partial spectra export primitive buffers with dimensions rechecked against
+// the current native owner before any write.
+#[julia]
+impl OwnedLinearOperator {
+    #[julia]
+    pub fn operator_partial(
+        &self,
+        kind: i32,
+        k: usize,
+        m: usize,
+        n: usize,
+        tag: i32,
+        start: *const u8,
+        tolerance: f64,
+        min_dim: usize,
+        max_dim: usize,
+        max_restarts: usize,
+        vectors: *mut u8,
+        values: *mut u8,
+        right: *mut u8,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            use faer::matrix_free::eigen as pe;
+            let mut params = pe::PartialEigenParams::default();
+            params.min_dim = min_dim;
+            params.max_dim = max_dim;
+            params.max_restarts = max_restarts;
+            if !(0..=2).contains(&kind) || !tolerance.is_finite() || tolerance < 0.0 {
+                return Err("invalid partial spectrum parameters".into());
+            }
+            macro_rules! run {
+                ($a:expr, $t:ty, $c:ty, $tag:expr) => {{
+                    let a = $a;
+                    if tag != $tag || a.shape() != (m, n) || k > m.min(n) || (kind != 2 && m != n) {
+                        return Err("partial spectrum owner/type/dimensions mismatch".into());
+                    }
+                    if k == 0 {
+                        return Ok(0);
+                    }
+                    // Upstream self-adjoint code panics when its subspace spans n.
+                    if kind != 0 && max_dim.max(64).max(2 * k) >= m.min(n) {
+                        return Err(
+                            "self-adjoint partial spectrum requires a smaller projection subspace"
+                                .into(),
+                        );
+                    }
+                    let v = faer::Col::<$t>::from_fn(n, |i| unsafe {
+                        start.cast::<$t>().add(i).read()
+                    });
+                    if !v.norm_l2().is_finite() || v.norm_l2() == 0.0 {
+                        return Err("partial spectrum start must have finite nonzero norm".into());
+                    }
+                    let req = match kind {
+                        0 => pe::partial_eigen_scratch(a, k, Par::Seq.shape(), params),
+                        1 => pe::partial_self_adjoint_eigen_scratch(a, k, Par::Seq.shape(), params),
+                        _ => pe::partial_svd_scratch(a, k, Par::Seq.shape(), params),
+                    };
+                    let mut mem = MemBuffer::new(req);
+                    let stack = MemStack::new(&mut mem);
+                    if kind == 0 {
+                        let mut u = Mat::<$c>::zeros(n, k);
+                        let mut s = vec![<$c>::new(0.0, 0.0); k];
+                        let info = pe::partial_eigen(
+                            u.as_mut(),
+                            &mut s,
+                            a,
+                            v.as_ref(),
+                            tolerance as _,
+                            Par::Seq,
+                            stack,
+                            params,
+                        );
+                        let count = info.n_converged_eigen.min(k);
+                        for j in 0..count {
+                            unsafe {
+                                values.cast::<$c>().add(j).write(s[j]);
+                                for i in 0..n {
+                                    vectors.cast::<$c>().add(i + j * n).write(u[(i, j)]);
+                                }
+                            }
+                        }
+                        Ok(count)
+                    } else {
+                        let mut u = Mat::<$t>::zeros(m, k);
+                        let mut w = Mat::<$t>::zeros(n, k);
+                        let mut s = vec![from_f64::<$t>(0.0); k];
+                        let info = if kind == 1 {
+                            pe::partial_self_adjoint_eigen(
+                                u.as_mut(),
+                                &mut s,
+                                a,
+                                v.as_ref(),
+                                tolerance as _,
+                                Par::Seq,
+                                stack,
+                                params,
+                            )
+                        } else {
+                            pe::partial_svd(
+                                u.as_mut(),
+                                w.as_mut(),
+                                &mut s,
+                                a,
+                                v.as_ref(),
+                                tolerance as _,
+                                Par::Seq,
+                                stack,
+                                params,
+                            )
+                        };
+                        let count = info.n_converged_eigen.min(k);
+                        for j in 0..count {
+                            unsafe {
+                                values.cast::<$t>().add(j).write(s[j]);
+                                for i in 0..m {
+                                    vectors.cast::<$t>().add(i + j * m).write(u[(i, j)]);
+                                }
+                                if kind == 2 {
+                                    for i in 0..n {
+                                        right.cast::<$t>().add(i + j * n).write(w[(i, j)]);
+                                    }
+                                }
+                            }
+                        }
+                        Ok(count)
+                    }
+                }};
+            }
+            match self.data()? {
+                Data::F32(a) => run!(a, f32, c32, 0),
+                Data::F64(a) => run!(a, f64, c64, 1),
+                Data::C32(a) => run!(a, c32, c32, 2),
+                Data::C64(a) => run!(a, c64, c64, 3),
+            }
+        })
+    }
+}

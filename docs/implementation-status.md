@@ -906,3 +906,32 @@ examples, cargo check, Rust/Julia formatting and git diff --check pass. The
 dependency checkout remains unchanged. Other Issue #1 work,
 including matrix-free callbacks/partial spectra, teams and caller-owned scratch,
 remains open.
+
+### Native partial eigen and singular spectra
+
+Added `partial_eigen`, `partial_self_adjoint_eigen` and `partial_svd` for
+`FaerLinearOperator`. All four scalar types use faer's restarted projection
+methods with configurable start, tolerance, projection dimensions and restart
+limit. Native owner dtype and dimensions are rechecked before exporting primitive
+buffers. Julia returns sorted reported converged columns, requested/converged
+counts and independently recomputed residuals. SVD checks both singular equations.
+The self-adjoint entry point assumes Hermitian input; the chosen initial vector
+must have a component in the desired invariant subspace.
+
+faer's full-projection self-adjoint branch panics (#204); partial SVD likewise
+asserts max_dim<min(m,n) although its public driver selects equality for small
+matrices and full-spectrum requests. The latter was executed in standalone Rust
+and reported with complete crate, observed assertion and proposed correction in
+faer #213. Both boundaries use explicitly reported `:dense_fallback` through
+native EVD/SVD. Other requests retain `:partial` and do not materialize the
+operator. Zero requested count/restarts return empty outputs. Callback operators,
+iteration histories and caller-owned scratch remain unimplemented.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **65,116 assertions across
+37 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. Partial spectrum tests contribute 341 assertions across all four
+types, diagonal/sparse/rectangular operators, complex eigenvalues, full-space
+general eigen, small/native-dense boundaries, empty shapes, zero restarts,
+initial vectors, closed owners and invalid controls. All 29 README Julia blocks,
+method ambiguity checks, cargo check, Julia/Rust formatting and git diff --check
+pass. Dependency sources remain unchanged. The full Issue #1 goal stays open.
