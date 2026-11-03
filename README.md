@@ -978,8 +978,8 @@ borrows a `Par::Team` only during the native call. Four scalar types, promotion,
 views, transposes, coefficients and aliased destinations are supported. Copies
 reserve independent teams. Close teams promptly; GC also owns their handles.
 
-`team_mul`, `mul!(dest, team, A, B[, alpha, beta])` and `pfaffian(A; team=team)`
-use this explicit team. Other routines retain sequential execution. Calls are serialized
+`team_mul`, `mul!(dest, team, A, B[, alpha, beta])`, `pfaffian(A; team=team)`
+and SVD entry points with `team=` use this explicit team. Other routines retain sequential execution. Calls are serialized
 by Colmat's owner lock, and faer may choose a narrower region for small work.
 The API controls worker reservations; it does not promise a speedup for every
 matrix size. Inputs needing conversion and destination writes use temporaries.
@@ -1007,7 +1007,7 @@ capacity/alignment directly. Calls never grow the workspace implicitly; copy
 and deepcopy allocate independent storage. Contents are scratch, not user data.
 Pfaffian validates shape, finiteness and skew-symmetry and leaves A unchanged.
 `team=` works with supplied scratch or with a temporary workspace released after
-the call. Pfaffian is currently the connected consumer; other kernels still
+the call. Pfaffian and SVD are currently connected consumers; other kernels still
 allocate their own workspaces. Julia/FFI bookkeeping may still allocate even
 when the native workspace is reused.
 
@@ -1038,3 +1038,40 @@ split block representation. `F.packed` is always lower-oriented. Failed
 `ldlt!(...; check=false)` leaves input unchanged because no factor is available;
 allowed singular full-pivot LU/block LDLT write the available packed factors.
 These entry points allocate factors and writeback buffers.
+
+### SVD workspace, teams and destructive entry points
+
+```julia
+using Colmat, LinearAlgebra
+original = [1.0 2; 3 4; 5 7]
+A = FaerMatrix(original)
+FaerTeam(2) do team
+    workspace = FaerScratch(svd, A; team=team)
+    F = svd!(A; scratch=workspace, team=team)
+    @assert F.U * Diagonal(F.S) * F.Vt ≈ original
+    sigma = zeros(size(original))
+    for i in eachindex(F.S)
+        sigma[i, i] = F.S[i]
+    end
+    @assert Matrix(A) == sigma
+    close(workspace)
+end
+B = FaerMatrix(original)
+values = svdvals!(B)
+@assert diag(Matrix(B)) ≈ values
+```
+
+`svd`/`svdvals` accept `scratch=` and `team=` for low-level native SVD; existing
+calls without these keywords retain their prior route. `scratch_requirements`
+and `FaerScratch` accept `svd`, `svdvals`, `svd!` and `svdvals!`; specify matching
+`full` and `team` options. The query uses the actual team's execution conditions.
+Singular values are real for all four input types. Thin/full and empty factors
+follow Julia's SVD conventions. Factor output arrays are Julia allocations;
+temporary diagonal values and algorithm workspace use the supplied native buffer.
+
+`svd!` and `svdvals!` replace input by rectangular Sigma only after success.
+Same-shape views observe Sigma; returned factors remain independent. This is an
+explicit writeback convention, not a LAPACK work matrix. Insufficient scratch,
+invalid input or native failure leaves input unchanged. Source/factor bookkeeping
+and writeback allocate; neither entry point promises whole-call zero allocation.
+Temporary scratch created for a call is closed in a finally block.

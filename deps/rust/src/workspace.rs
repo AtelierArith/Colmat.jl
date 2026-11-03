@@ -210,3 +210,16 @@ impl TypedMatrix {
         })
     }
 }
+
+impl OwnedScratch {
+    pub(crate) fn stack(&mut self, req: StackReq) -> Result<&mut MemStack, String> {
+        if self.bytes < req.size_bytes() || self.alignment < req.align_bytes() {
+            return Err("scratch capacity/alignment is insufficient".into());
+        }
+        Ok(MemStack::new(
+            self.memory
+                .as_mut()
+                .ok_or("scratch is closed or uninitialized")?,
+        ))
+    }
+}

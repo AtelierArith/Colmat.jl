@@ -4,7 +4,7 @@
 
 Own an aligned native workspace for reuse across operations. `reserve!` grows
 capacity/alignment explicitly; computations never grow the buffer automatically.
-Currently `pfaffian(A; scratch=workspace, team=nothing)` consumes it; an optional
+Pfaffian and SVD entry points consume it through `scratch=workspace`; an optional
 FaerTeam supplies parallel execution. The workspace is mutably
 borrowed during the native call and operations are serialized by the owner lock.
 Copy/deepcopy allocate independent empty workspaces of the same capacity; their

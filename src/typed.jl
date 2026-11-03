@@ -210,7 +210,14 @@ function LinearAlgebra.mul!(
 end
 LinearAlgebra.mul!(c::FaerMatrix, a::FaerMatrix, b::FaerMatrix) =
     LinearAlgebra.mul!(c, a, b, 1, 0)
-function LinearAlgebra.svd(a::FaerMatrix{T}; full::Bool = false) where {T<:_ExtraScalar}
+function LinearAlgebra.svd(
+    a::FaerMatrix{T};
+    full::Bool = false,
+    scratch = nothing,
+    team = nothing,
+) where {T<:_ExtraScalar}
+    (!isnothing(scratch) || !isnothing(team)) &&
+        return _svd_workspace_result(a; full, scratch, team)
     m, n=size(a)
     k=min(m, n)
     R=_realtype(T)
@@ -228,7 +235,13 @@ function LinearAlgebra.svd(a::FaerMatrix{T}; full::Bool = false) where {T<:_Extr
     )
     return SVD(u, s, copy(adjoint(v)))
 end
-function LinearAlgebra.svdvals(a::FaerMatrix{T}) where {T<:_ExtraScalar}
+function LinearAlgebra.svdvals(
+    a::FaerMatrix{T};
+    scratch = nothing,
+    team = nothing,
+) where {T<:_ExtraScalar}
+    (!isnothing(scratch) || !isnothing(team)) &&
+        return _svd_workspace_result(a; values_only = true, scratch, team)
     s=Vector{_realtype(T)}(undef, min(size(a)...))
     GC.@preserve s _native_call(
         RustCrate.svd_buffers,

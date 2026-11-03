@@ -1157,3 +1157,34 @@ reconstruction from written factors, solve residuals, live views, factor lifetim
 and singular/failure transactions. All 36 README Julia blocks, method ambiguity
 checks, cargo check, Julia/Rust formatting and git diff --check pass. Dependency
 sources remain unchanged. The remaining Issue #1 requirements stay open.
+
+### SVD low-level workspace, teams and destructive Sigma writeback
+
+Connected faer's low-level SVD for all four scalar types with thin/full/value-only
+modes, ephemeral team authority and caller-owned FaerScratch. Requirements include
+scratch-resident temporary singular values for complex inputs; the adapter exports
+real Julia singular values and independently allocated Julia U/V factors. Queries
+with a team borrow its actual Par shape/costs rather than estimating conditions.
+The native boundary checks current owner shape and scalar tag before buffer writes.
+
+`svd`/`svdvals` accept scratch/team keywords while unchanged calls retain their
+existing route. `svd!`/`svdvals!` compute first, then replace the input by rectangular
+Sigma on success. Views observe this writeback; factor outputs survive input close.
+This is an explicit staged convention, not a LAPACK temporary-factor layout.
+Failed capacity checks, invalid input and native errors preserve input. Temporary
+workspaces are closed in finally blocks. Queries/factories/reserve also accept the
+bang-function aliases with the same computational mode.
+
+Input/output staging, factor arrays and FFI bookkeeping allocate. Caller-owned
+scratch removes implicit workspace growth, not every allocation. EVD destructive
+interfaces, other scratch consumers and remaining Issue #1 requirements remain open.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **69,337 assertions across
+45 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. New SVD tests contribute 884 assertions across four types,
+empty/tall/wide/square, thin/full/value-only modes, reconstruction/orthogonality,
+real singular values, exact Sigma writeback/views, factor independence, team
+execution, query aliases, insufficient scratch, invalid inputs and native shape
+guards. All six native Rust tests, 37 README Julia blocks, method ambiguity
+checks, cargo check, Julia/Rust formatting and git diff --check pass. Dependency
+sources remain unchanged. The full Issue #1 scope stays open.

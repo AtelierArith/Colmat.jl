@@ -226,7 +226,14 @@ Compute the SVD directly from the Rust-owned matrix using t4a-faer. Return a
 This method uses faer's SVD algorithm; LAPACK-specific algorithm and tolerance
 keywords are not supported.
 """
-function LinearAlgebra.svd(a::FaerMatrix{Float64}; full::Bool = false)
+function LinearAlgebra.svd(
+    a::FaerMatrix{Float64};
+    full::Bool = false,
+    scratch = nothing,
+    team = nothing,
+)
+    (!isnothing(scratch) || !isnothing(team)) &&
+        return _svd_workspace_result(a; full, scratch, team)
     m, n = size(a)
     k = min(m, n)
     u = Matrix{Float64}(undef, m, full ? m : k)
@@ -244,7 +251,9 @@ end
 Compute singular values directly from Rust-owned storage, without singular
 vectors. Values are nonnegative and sorted in descending order.
 """
-function LinearAlgebra.svdvals(a::FaerMatrix{Float64})
+function LinearAlgebra.svdvals(a::FaerMatrix{Float64}; scratch = nothing, team = nothing)
+    (!isnothing(scratch) || !isnothing(team)) &&
+        return _svd_workspace_result(a; values_only = true, scratch, team)
     s = Vector{Float64}(undef, min(size(a)...))
     GC.@preserve s _native_call(RustCrate.singular_values_buffer, a, pointer(s))
     return s

@@ -1336,3 +1336,5 @@ mod sparse_lu_components;
 pub mod teams;
 
 pub mod workspace;
+
+pub mod svd_workspace;
