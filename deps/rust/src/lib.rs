@@ -1296,3 +1296,5 @@ pub mod tridiagonal;
 pub mod bidiagonal;
 
 pub mod random;
+
+pub mod npy;

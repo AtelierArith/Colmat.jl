@@ -8,6 +8,10 @@ import Random
 using LinearAlgebra: SVD
 
 export FaerLinearOperator,
+    FaerNpyMatrix,
+    loadnpy,
+    npyview,
+    npyinfo,
     FaerRNG,
     randunitary,
     FaerBidiagonalization,
@@ -204,5 +208,6 @@ include("balance.jl")
 include("tridiagonal.jl")
 include("bidiagonal.jl")
 include("random.jl")
+include("npy.jl")
 
 end

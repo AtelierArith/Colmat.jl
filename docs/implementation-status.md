@@ -870,3 +870,39 @@ seed consumption, empty/invalid cases, views, uniform ranges, normal moments
 and complex normalization, and orthogonality/unitarity. All README Julia blocks,
 method ambiguity checks, cargo check, Rust/Julia formatting and git diff --check
 pass. Dependency sources remain unchanged.
+
+### NPY import and owned read-only views
+
+Enabled faer's npy feature. `loadnpy`, `npyview` and `npyinfo` accept bytes,
+IO streams and file paths for Float32/Float64/ComplexF32/ComplexF64, NPY versions
+1–3, C/Fortran order and either byte order. Scalar/vector input maps to 1×1/n×1;
+original shape, version, order and byte order remain available as metadata.
+Malformed headers, unsupported dtypes/ranks, dimension overflow, truncated
+payloads and trailing bytes are rejected before native reads. Native copies
+preserve NaN payloads, Inf and signed zeros.
+
+Read-only views own a 64-byte-aligned native-endian snapshot. Their owner stays
+alive across GC; source mutation cannot alter it. `copy` materializes an
+independent mutable FaerMatrix and `deepcopy` duplicates the read-only owner
+without changing its concrete Julia type. Close, bounds and native dtype/shape
+checks protect reads and exports, including private-owner reload regressions.
+These views are not memory maps or aliases of the input bytes.
+
+Standalone Rust MWEs demonstrated nonnative-endian misreading and unaligned
+C-order copying panics in faer. Reports #210/#211 include executed complete
+crates, observed results and proposed corrections; source is retained under
+`docs/reproducers/faer-npy.rs`. The adapter normalizes endian and alignment
+without modifying the dependency checkout. The header parser also runs on a
+scoped Rust OS thread with a 2 MiB stack: pest's stack guard otherwise mistakes
+Julia Task switched stacks for exhausted OS stacks during parallel tests. The
+stack guard remains enabled for malformed input. Parsing/thread startup adds
+cost to view reads; materializing once is appropriate for repeated arithmetic.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **64,775 assertions across
+36 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. NPY contributes 5,752 assertions, including an independently
+encoded golden fixture and an explicit Julia Task regression. All README Julia
+examples, cargo check, Rust/Julia formatting and git diff --check pass. The
+dependency checkout remains unchanged. Other Issue #1 work,
+including matrix-free callbacks/partial spectra, teams and caller-owned scratch,
+remains open.

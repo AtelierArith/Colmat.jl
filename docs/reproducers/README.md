@@ -57,3 +57,23 @@ and a concrete fix. The locally executed copies are retained here:
 All three independent examples exit 101 at their expected correctness assertion
 on the pinned revision. Colmat already compensates for these cases in its
 wrappers; the dependency checkout remains unmodified.
+
+
+## NPY endianness and unaligned copying
+
+`faer-npy.rs` is a standalone Rust MWE with two modes. Both reports contain
+complete Cargo.toml and build instructions and require no NumPy installation.
+
+- [faer#210](https://github.com/tensor4all/faer/issues/210): default mode constructs
+  an aligned foreign-endian file containing 1.5; both native reference and copy
+  return 3.139837e-319 on the tested little-endian host. Proposed fix: preserve
+  byte-order metadata, swap real components on copy and reject foreign-endian
+  zero-copy references.
+- [faer#211](https://github.com/tensor4all/faer/issues/211): `cargo run -- unaligned`
+  uses valid native-endian C-order bytes at offset one; to_mat panics on a
+  bytemuck alignment check. Proposed fix: pod_read_unaligned for the copying
+  path, keeping alignment requirements for references.
+
+Both modes were executed against d5be1473eed9314fca6f80ad8b4072d86282e890 and
+exit 101. Colmat validates and normalizes into aligned native-endian storage
+before using faer, without modifying the dependency checkout.

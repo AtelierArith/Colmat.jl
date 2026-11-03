@@ -804,3 +804,34 @@ stream; copy and reseed it independently, and close it when no longer needed.
 Native sampling is reproducible for the same dependency versions and call
 sequence, without promising Julia's random sequence. Scalar/ordinary Julia-array
 draws from `FaerRNG` use Julia's sampling algorithms over its native random bits.
+
+### NPY loading and read-only views
+
+`loadnpy` reads NPY bytes, an IO or a file path into an independent native matrix.
+This example uses a small fixture included with the package:
+
+```julia
+using Colmat
+path = joinpath(pkgdir(Colmat), "test", "fixtures", "npy_c_f64.npy")
+A = loadnpy(path)
+@assert Matrix(A) == [1.0 2 3; 4 5 6]
+V = npyview(path)
+@assert npyinfo(V).shape == (2, 3)
+@assert V[2, 3] == 6.0
+B = copy(V) # independent, mutable FaerMatrix
+close(V)
+@assert Matrix(B) == Matrix(A)
+```
+
+Float32/Float64 and ComplexF32/ComplexF64, NPY versions 1–3, C/Fortran order and
+both byte orders are supported. Scalars become 1×1 matrices and vectors become
+n×1 matrices; `npyinfo` retains original shape/version/order metadata. NaN/Inf,
+NaN payloads and signed zero are preserved. Higher ranks and other dtypes are
+rejected, as are inconsistent lengths and trailing bytes. IO inputs are read
+from their current position to EOF as one array.
+
+`npyview` (or `loadnpy(...; view=true)`) owns an aligned, native-endian snapshot
+of the bytes and uses faer's aligned-reference API for reads. It does not alias
+the input bytes or memory-map a file. Entries are read-only. `copy` materializes
+a native matrix; `deepcopy` preserves the view type with independent storage.
+Closing a view invalidates its reads, while materialized/deep copies remain valid.
