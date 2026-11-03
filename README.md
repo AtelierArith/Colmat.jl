@@ -599,3 +599,24 @@ CG requires a Hermitian positive definite operator and preconditioner action.
 `FaerCgError`, whose `result` contains the last iterate and residual diagnostics;
 `check=false` returns that result directly. Convergence includes an independently
 recomputed true residual check. Julia function callbacks are not yet supported.
+
+For a nonsymmetric square matrix, use `bicgstab` or `bicgstab!`. `M` and `N`
+apply left and right approximate inverses, respectively:
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A = sparse([5.0 2 0; -1 4 1; 0 -1 3])
+b = [1.0, 2, 3]
+result = bicgstab(A, b; N = diagonal_preconditioner(diag(A)))
+@assert issuccess(result)
+@assert A * result.x ≈ b
+x = zeros(3)
+@assert bicgstab!(x, A, b).x === x
+@assert A * x ≈ b
+```
+
+`FaerBicgstabResult` reports the true and estimated residuals, iteration count
+and termination reason. Checked failures throw `FaerBicgstabError` retaining
+the result; `check=false` returns the last iterate. Multiple right-hand sides
+use faer's block algorithm. Unlike CG, BiCGSTAB does not require Hermitian
+positive definite coefficients.

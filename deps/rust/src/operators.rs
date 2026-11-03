@@ -673,3 +673,269 @@ impl TypedMatrix {
         })
     }
 }
+
+fn solve_bicg<T: ComplexField>(
+    a: &Operator<T>,
+    m: Option<&Operator<T>>,
+    right: Option<&Operator<T>>,
+    b: MatRef<'_, T>,
+    initial: MatRef<'_, T>,
+    atol: f64,
+    rtol: f64,
+    maxiter: usize,
+    stats: *mut u8,
+    iterations: *mut usize,
+) -> Result<Mat<T>, String> {
+    if a.nrows() != a.ncols() || a.ncols() != b.nrows() || initial.shape() != b.shape() {
+        return Err("BiCGSTAB dimensions must match".into());
+    }
+    let identity = Operator::<T>::new(Base::Identity(IdentityPrecond { dim: a.nrows() }));
+    let m = m.unwrap_or(&identity);
+    if m.shape() != a.shape() {
+        return Err("BiCGSTAB preconditioner dimensions must match".into());
+    }
+    let right = right.unwrap_or(&identity);
+    if right.shape() != a.shape() {
+        return Err("BiCGSTAB right preconditioner dimensions must match".into());
+    }
+    let mut out = initial.to_owned();
+    let mut callbacks = 0usize;
+    let par = Par::Seq;
+    let mut mem = MemBuffer::try_new(faer::matrix_free::bicgstab::bicgstab_scratch(
+        m,
+        right,
+        a,
+        b.ncols(),
+        par.shape(),
+    ))
+    .map_err(|e| format!("{e:?}"))?;
+    let result = faer::matrix_free::bicgstab::bicgstab(
+        out.as_mut(),
+        m,
+        right,
+        a,
+        b,
+        faer::matrix_free::bicgstab::BicgParams {
+            initial_guess: InitialGuessStatus::MaybeNonZero,
+            abs_tolerance: from_f64::<T::Real>(atol),
+            rel_tolerance: from_f64::<T::Real>(rtol),
+            max_iters: maxiter,
+            ..Default::default()
+        },
+        |_| {
+            callbacks += 1;
+        },
+        par,
+        MemStack::new(&mut mem),
+    );
+    let (mut status, estimate_abs, estimate_rel, count) = match result {
+        Ok(info) => (0, info.abs_residual, info.rel_residual, info.iter_count),
+        Err(faer::matrix_free::bicgstab::BicgError::NoConvergence {
+            abs_residual,
+            rel_residual,
+        }) => (1, abs_residual, rel_residual, callbacks),
+    };
+    let mut residual = product(a, out.as_ref())?;
+    for j in 0..b.ncols() {
+        for i in 0..b.nrows() {
+            residual[(i, j)] = &b[(i, j)] - &residual[(i, j)];
+        }
+    }
+    let actual = residual.norm_l2();
+    let bnorm = b.norm_l2();
+    let relative = if bnorm == zero::<T::Real>() {
+        copy(&actual)
+    } else {
+        &actual / &bnorm
+    };
+    let abs_tol = from_f64::<T::Real>(atol);
+    let rel_tol = from_f64::<T::Real>(rtol) * bnorm;
+    let threshold = if abs_tol > rel_tol { abs_tol } else { rel_tol };
+    if status == 0 && (!is_finite(&actual) || actual > threshold) {
+        status = 4;
+    }
+    unsafe {
+        let values = [
+            from_f64::<T>(status as f64),
+            from_real::<T>(&actual),
+            from_real::<T>(&relative),
+            from_real::<T>(&estimate_abs),
+            from_real::<T>(&estimate_rel),
+        ];
+        for (i, v) in values.into_iter().enumerate() {
+            stats.cast::<T>().add(i).write(v);
+        }
+        iterations.write(count);
+    }
+    Ok(out)
+}
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn operator_bicgstab(
+        &mut self,
+        operator: *const u8,
+        left: *const u8,
+        right: *const u8,
+        rhs: *const u8,
+        initial: *const u8,
+        atol: f64,
+        rtol: f64,
+        maxiter: usize,
+        stats: *mut u8,
+        iterations: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let left = if left.is_null() {
+                None
+            } else {
+                Some(unsafe { &*left.cast::<OwnedLinearOperator>() }.data()?)
+            };
+            let right = if right.is_null() {
+                None
+            } else {
+                Some(unsafe { &*right.cast::<OwnedLinearOperator>() }.data()?)
+            };
+            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
+            let x = unsafe { &*initial.cast::<OwnedMatrix>() };
+            let Data::F64(a) = a else {
+                return Err("operator scalar types must match".into());
+            };
+            let left = match left {
+                None => None,
+                Some(Data::F64(m)) => Some(m),
+                _ => return Err("preconditioner scalar types must match".into()),
+            };
+            let right = match right {
+                None => None,
+                Some(Data::F64(m)) => Some(m),
+                _ => return Err("preconditioner scalar types must match".into()),
+            };
+            self.matrix = solve_bicg(
+                a,
+                left,
+                right,
+                b.matrix.as_ref(),
+                x.matrix.as_ref(),
+                atol,
+                rtol,
+                maxiter,
+                stats,
+                iterations,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn operator_bicgstab(
+        &mut self,
+        operator: *const u8,
+        left: *const u8,
+        right: *const u8,
+        rhs: *const u8,
+        initial: *const u8,
+        atol: f64,
+        rtol: f64,
+        maxiter: usize,
+        stats: *mut u8,
+        iterations: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let left = if left.is_null() {
+                None
+            } else {
+                Some(unsafe { &*left.cast::<OwnedLinearOperator>() }.data()?)
+            };
+            let right = if right.is_null() {
+                None
+            } else {
+                Some(unsafe { &*right.cast::<OwnedLinearOperator>() }.data()?)
+            };
+            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
+            let x = unsafe { &*initial.cast::<TypedMatrix>() }.data()?;
+            self.data = Some(match (a, b, x) {
+                (Data::F32(a), MatrixData::F32(b), MatrixData::F32(x)) => {
+                    let left = match left {
+                        None => None,
+                        Some(Data::F32(m)) => Some(m),
+                        _ => return Err("preconditioner scalar types must match".into()),
+                    };
+                    let right = match right {
+                        None => None,
+                        Some(Data::F32(m)) => Some(m),
+                        _ => return Err("preconditioner scalar types must match".into()),
+                    };
+                    MatrixData::F32(solve_bicg(
+                        a,
+                        left,
+                        right,
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                (Data::C32(a), MatrixData::C32(b), MatrixData::C32(x)) => {
+                    let left = match left {
+                        None => None,
+                        Some(Data::C32(m)) => Some(m),
+                        _ => return Err("preconditioner scalar types must match".into()),
+                    };
+                    let right = match right {
+                        None => None,
+                        Some(Data::C32(m)) => Some(m),
+                        _ => return Err("preconditioner scalar types must match".into()),
+                    };
+                    MatrixData::C32(solve_bicg(
+                        a,
+                        left,
+                        right,
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                (Data::C64(a), MatrixData::C64(b), MatrixData::C64(x)) => {
+                    let left = match left {
+                        None => None,
+                        Some(Data::C64(m)) => Some(m),
+                        _ => return Err("preconditioner scalar types must match".into()),
+                    };
+                    let right = match right {
+                        None => None,
+                        Some(Data::C64(m)) => Some(m),
+                        _ => return Err("preconditioner scalar types must match".into()),
+                    };
+                    MatrixData::C64(solve_bicg(
+                        a,
+                        left,
+                        right,
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                _ => return Err("operator scalar types must match".into()),
+            });
+            Ok(())
+        })
+    }
+}

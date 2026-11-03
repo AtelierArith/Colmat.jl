@@ -352,10 +352,10 @@ Base.showerror(io::IO, e::FaerCgError) = print(
 LinearAlgebra.issuccess(result::FaerCgResult) = result.converged
 function _cg_matrix(a, ::Type{T}) where {T}
     a isa _RotationArray && _rotation_open(a)
-    result=_householder_matrix_source(a, T)
-    all(isfinite, Matrix(result)) ||
-        throw(ArgumentError("CG RHS/initial guess must be finite"))
-    return result
+    buffer = a isa AbstractVector ? Vector(a) : Matrix(a)
+    all(isfinite, buffer) ||
+        throw(ArgumentError("iterative solver RHS/initial guess must be finite"))
+    return _householder_matrix_source(a, T)
 end
 """
     cg(A, b; M=nothing, x0=nothing, atol=0, rtol=nothing,
@@ -477,6 +477,172 @@ function cg!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
         )
         _operator_copy_result!(x, result.x)
         return FaerCgResult(
+            x,
+            result.converged,
+            result.iterations,
+            result.abs_residual,
+            result.rel_residual,
+            result.estimated_abs_residual,
+            result.estimated_rel_residual,
+            result.reason,
+        )
+    end
+end
+
+"""BiCGSTAB solution and independently verified residual diagnostics."""
+struct FaerBicgstabResult{X,R}
+    x::X
+    converged::Bool
+    iterations::Int
+    abs_residual::R
+    rel_residual::R
+    estimated_abs_residual::R
+    estimated_rel_residual::R
+    reason::Symbol
+end
+"""BiCGSTAB failed; `.result` retains its last iterate and diagnostics."""
+struct FaerBicgstabError{R} <: Exception
+    result::R
+end
+Base.showerror(io::IO, e::FaerBicgstabError) = print(
+    io,
+    "BiCGSTAB stopped: ",
+    e.result.reason,
+    " after ",
+    e.result.iterations,
+    " updates (true residual ",
+    e.result.abs_residual,
+    ")",
+)
+LinearAlgebra.issuccess(result::FaerBicgstabResult) = result.converged
+
+"""
+    bicgstab(A, b; M=nothing, N=nothing, x0=nothing, atol=0,
+             rtol=nothing, maxiter=max(1,size(A,1)), check=true)
+
+Run faer's block BiCGSTAB for a square, possibly nonsymmetric operator.
+M and N apply left and right approximate inverses, respectively. Native
+operators preserve sparse/diagonal/identity storage. Scalar promotion, output
+ownership, tolerances and true-residual verification follow [`cg`](@ref).
+Returns `FaerBicgstabResult`; checked failures throw `FaerBicgstabError` retaining
+the last iterate. No Hermitian or positive definite assumption is required.
+"""
+function bicgstab(
+    A,
+    b::Union{AbstractVector{<:Number},AbstractMatrix{<:Number}};
+    M = nothing,
+    N = nothing,
+    x0 = nothing,
+    atol::Real = 0,
+    rtol = nothing,
+    maxiter::Integer = max(1, size(A, 1)),
+    check::Bool = true,
+)
+    lock(_matrix_lock) do
+        op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
+        _handle(op)
+        size(op, 1)==size(op, 2) ||
+            throw(DimensionMismatch("BiCGSTAB operator must be square"))
+        size(b, 1)==size(op, 1) ||
+            throw(DimensionMismatch("BiCGSTAB RHS rows must match operator"))
+        precond=isnothing(M) ? nothing :
+                M isa FaerLinearOperator ? M : FaerLinearOperator(M)
+        !isnothing(precond) && (
+            _handle(precond);
+            size(precond)==size(op) || throw(
+                DimensionMismatch("BiCGSTAB preconditioner shape must match operator"),
+            )
+        )
+        right=isnothing(N) ? nothing : N isa FaerLinearOperator ? N : FaerLinearOperator(N)
+        !isnothing(right) && (
+            _handle(right);
+            size(right)==size(op) || throw(
+                DimensionMismatch(
+                    "BiCGSTAB right preconditioner shape must match operator",
+                ),
+            )
+        )
+        !isnothing(x0) &&
+            size(x0)!=size(b) &&
+            throw(DimensionMismatch("BiCGSTAB initial guess shape must match RHS"))
+        P=promote_type(
+            eltype(op),
+            _reflector_type(eltype(b)),
+            isnothing(x0) ? eltype(op) : _reflector_type(eltype(x0)),
+            isnothing(precond) ? eltype(op) : eltype(precond),
+            isnothing(right) ? eltype(op) : eltype(right),
+        )
+        R=_realtype(P)
+        abs_tol=R(atol)
+        rel_tol=isnothing(rtol) ? R(128)*eps(R) : R(rtol)
+        isfinite(abs_tol)&&isfinite(rel_tol)&&abs_tol>=0&&rel_tol>=0 ||
+            throw(ArgumentError("BiCGSTAB tolerances must be finite and nonnegative"))
+        limit=Int(maxiter)
+        limit>=0 || throw(ArgumentError("BiCGSTAB maxiter must be nonnegative"))
+        rhs=_cg_matrix(b, P)
+        initial=isnothing(x0) ? _zeros(P, size(rhs)) : _cg_matrix(x0, P)
+        operator=_operator_coerce(op, P)
+        preconditioner=isnothing(precond) ? Ptr{UInt8}(C_NULL) :
+                       _operator_coerce(precond, P)
+        right_preconditioner=isnothing(right) ? Ptr{UInt8}(C_NULL) :
+                             _operator_coerce(right, P)
+        stats=Vector{P}(undef, 5)
+        iterations=Ref{UInt}(0)
+        args=(
+            operator,
+            preconditioner,
+            right_preconditioner,
+            rhs,
+            initial,
+            Float64(abs_tol),
+            Float64(rel_tol),
+            UInt(limit),
+            Ptr{UInt8}(pointer(stats)),
+            Base.unsafe_convert(Ptr{UInt}, iterations),
+        )
+        solution=GC.@preserve stats iterations (
+            P===Float64 ? _matrix_result(RustCrate.operator_bicgstab, size(rhs), args...) :
+            _typed_result(P, RustCrate.operator_bicgstab, size(rhs), args...)
+        )
+        status=Int(real(stats[1]))
+        x=b isa _BorrowVector ? _vector_from_source(solution) :
+          b isa AbstractVector ? vec(Matrix(solution)) : solution
+        reason=(
+            :converged,
+            :no_convergence,
+            :nonpositive_operator,
+            :nonpositive_preconditioner,
+            :residual_mismatch,
+        )[status+1]
+        result=FaerBicgstabResult(
+            x,
+            status==0,
+            Int(iterations[]),
+            R(real(stats[2])),
+            R(real(stats[3])),
+            R(real(stats[4])),
+            R(real(stats[5])),
+            reason,
+        )
+        check && !result.converged && throw(FaerBicgstabError(result))
+        return result
+    end
+end
+
+"""Use x as the initial guess for BiCGSTAB; checked failures leave x unchanged. See [`cg!`](@ref)."""
+function bicgstab!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
+    lock(_matrix_lock) do
+        size(x)==size(b) ||
+            throw(DimensionMismatch("BiCGSTAB destination shape must match RHS"))
+        x isa _RotationArray && _rotation_open(x)
+        result=bicgstab(A, b; x0 = x, check, kwargs...)
+        eltype(x)===eltype(result.x) || throw(
+            ArgumentError(
+                "bicgstab! destination must match the promoted solver scalar type",
+            ),
+        )
+        _operator_copy_result!(x, result.x)
+        return FaerBicgstabResult(
             x,
             result.converged,
             result.iterations,

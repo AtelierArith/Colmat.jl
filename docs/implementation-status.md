@@ -607,3 +607,26 @@ and identity preconditioners and native block conjugate gradients through
 Arbitrary Julia callbacks, composed operators, other iterative solvers and
 partial spectra remain unimplemented. Focused operator tests pass 348 assertions;
 the full ParallelTestRunner suite passes 49,266 assertions across 26 files.
+
+### Native block BiCGSTAB
+
+Added `bicgstab` and `bicgstab!`, directly calling faer's native block solver
+with independently optional left and right preconditioner actions (`M`/`N`).
+Dense, CSC/CSR, diagonal and identity operators retain their storage. All four
+native scalar types, mixed precision, initial guesses, tolerances and iteration
+limits are supported. `FaerBicgstabResult` retains native termination diagnostics
+and independently recomputed true residuals. Checked failures throw
+`FaerBicgstabError` containing the last iterate and leave in-place destinations
+unchanged; unchecked calls return/copy that iterate. Shared CG input validation
+now rejects nonfinite RHS/initial values before native conversion.
+
+The dedicated suite covers nonsymmetric real/complex systems, left/right/both
+preconditioners, multiple RHS, aliases, native vectors, promotion, zero RHS,
+exact initial guesses, failure preservation, invalid/closed inputs and a
+50,000-dimensional sparse system. Arbitrary callbacks, iteration histories,
+external scratch and other remaining Issue #1 categories are still incomplete.
+
+Validation: `Pkg.test()` passes **49,747 assertions across 27 independent files
+with ParallelTestRunner.jl and 16 workers**; BiCGSTAB contributes 481 assertions.
+All README Julia examples, method ambiguity checks, `cargo check`, Rust/Julia
+formatting and `git diff --check` pass. Dependency sources remain unchanged.
