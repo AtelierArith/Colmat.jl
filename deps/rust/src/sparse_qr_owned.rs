@@ -39,6 +39,14 @@ impl<T: ComplexField> Factors<T> {
             values,
         })
     }
+    pub(crate) fn permutation(&self) -> faer::perm::Perm<usize> {
+        let (p, inv) = self.symbolic.col_perm().arrays();
+        faer::perm::Perm::new_checked(
+            p.to_vec().into_boxed_slice(),
+            inv.to_vec().into_boxed_slice(),
+            self.symbolic.ncols(),
+        )
+    }
     pub(crate) fn solve_requirements(&self, k: usize) -> faer::dyn_stack::StackReq {
         self.symbolic
             .solve_in_place_scratch::<T>(k, Par::Seq.shape())

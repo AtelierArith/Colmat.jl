@@ -17,7 +17,8 @@ column ordering and exposes thin Q, sparse R and column permutation on numeric
 factors. Explicit simplicial LU/QR additionally accept `ordering=:colamd` with
 `dense_row=0.5, dense_col=0.5, aggressive=true`. COLAMD is computed once from the
 stored pattern and retained by symbolic reuse and numeric updates. AMD tuning
-and supernodal selection remain Cholesky-only.
+remains Cholesky-only. Auto/supernodal QR accepts default/COLAMD ordering with
+`dense_row`, `dense_col`, `aggressive`, and exposes `F.p/F.pcol`.
 """
 mutable struct FaerSparseSymbolic{K,H}
     handle::Union{Nothing,H}
@@ -108,18 +109,19 @@ function FaerSparseSymbolic(
          algorithm===:supernodal ? 2 :
          throw(ArgumentError("algorithm must be :auto, :simplicial or :supernodal"))
     use_colamd=kind in (:lu, :qr) && algo==1 && ordering===:colamd
+    native_colamd=kind===:qr && algo!=1 && ordering in (:default, :colamd)
     row, col=Float64(dense_row), Float64(dense_col)
     isfinite(row)&&isfinite(col) || throw(ArgumentError("COLAMD thresholds must be finite"))
-    !use_colamd &&
+    !(use_colamd || native_colamd) &&
         (row!=0.5 || col!=0.5) &&
         throw(
             ArgumentError(
-                "dense_row/dense_col require simplicial LU/QR with ordering=:colamd",
+                "dense_row/dense_col require COLAMD ordering for QR or explicit simplicial LU",
             ),
         )
     if kind!==:cholesky &&
        !(kind in (:lu, :qr) && algo==1 && threshold==10.0 && (aggressive || use_colamd)) &&
-       !(kind===:qr && algo==2 && ordering===:default && threshold==10.0 && aggressive) &&
+       !(native_colamd && threshold==10.0) &&
        (ordering!==:default || threshold!=10.0 || !aggressive || algo!=0)
         throw(
             ArgumentError(
@@ -137,7 +139,7 @@ function FaerSparseSymbolic(
         )
     custom=use_colamd || ordering isa AbstractVector{<:Integer}
     ordercode=custom ? 2 :
-              ordering in (:default, :amd) ? 0 :
+              (native_colamd || ordering in (:default, :amd)) ? 0 :
               ordering===:identity ? 1 :
               throw(
         ArgumentError(
@@ -161,6 +163,8 @@ function FaerSparseSymbolic(
                 threshold,
                 aggressive,
                 Int32(algo),
+                row,
+                col,
             )
             return FaerSparseSymbolic{kind,typeof(h)}(h, size(p), uplo)
         finally

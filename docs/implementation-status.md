@@ -1771,3 +1771,19 @@ rectangular inputs, repeated workspace reuse, source mutation, close, invalid
 inputs, reserve and insufficient capacity preserving the destination. Canonical Pkg.test passed 83,371 assertions / 63 files with 16 workers.
 All 10 native tests and 53 README blocks passed, as did method ambiguity
 detection, Julia/Rust formatting and git diff --check. Issues #1/#2 remain incomplete.
+
+### Auto/supernodal QR COLAMD controls and permutation
+
+Auto and explicit supernodal sparse QR now forward `dense_row`, `dense_col`
+and `aggressive` to the public native symbolic COLAMD analysis. Both
+`ordering=:default` and `ordering=:colamd` select that path. `F.p/F.pcol`
+returns an independent copy of the actual retained column permutation for
+these factors. Numeric updates preserve immutable symbolic analysis and its
+ordering. Identity/custom permutations remain explicit simplicial features.
+
+Focused verification passed 576 assertions across four types, CSC/CSR,
+auto/supernodal, empty/single-column/tall inputs and aggressive absorption
+on/off. Permutations match standalone native COLAMD, and solves/copies/numeric
+updates preserve the expected results. Canonical Pkg.test passed 83,947 assertions / 64 files with 16 workers.
+All 10 native tests and 53 README blocks passed; ambiguity detection,
+Julia/Rust formatting and git diff --check passed. This does not complete Issues #1/#2.
