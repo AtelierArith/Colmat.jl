@@ -25,6 +25,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 enum Analysis {
     SimplicialLu(faer::perm::Perm<usize>),
+    SimplicialQr(crate::sparse_qr_components::Plan),
     Lu(SymbolicLu<usize>),
     Qr(SymbolicQr<usize>),
     Llt(Arc<SymbolicCholesky<usize>>),
@@ -96,6 +97,28 @@ impl SparseSymbolic {
                 0 => Analysis::Lu(
                     SymbolicLu::try_new(pattern.as_ref()).map_err(|e| format!("{e:?}"))?,
                 ),
+                1 if supernodal == 1 => {
+                    let owned;
+                    let cols = if ordering == 2 {
+                        unsafe { &*permutation.cast::<OwnedPermutation>() }
+                            .data()?
+                            .as_ref()
+                    } else {
+                        owned = faer::perm::Perm::new_checked(
+                            (0..n).collect::<Vec<_>>().into_boxed_slice(),
+                            (0..n).collect::<Vec<_>>().into_boxed_slice(),
+                            n,
+                        );
+                        owned.as_ref()
+                    };
+                    if cols.len() != n {
+                        return Err("QR column permutation length mismatch".into());
+                    }
+                    Analysis::SimplicialQr(crate::sparse_qr_components::Plan::new(
+                        pattern.as_ref(),
+                        cols,
+                    )?)
+                }
                 1 => Analysis::Qr(
                     SymbolicQr::try_new(pattern.as_ref()).map_err(|e| format!("{e:?}"))?,
                 ),
@@ -164,6 +187,7 @@ struct SparseLlt<T> {
 #[derive(Clone)]
 enum Numeric<T> {
     SimplicialLu(crate::sparse_lu_components::SimplicialFactors<T>),
+    SimplicialQr(crate::sparse_qr_components::Factors<T>),
     Lu(Lu<usize, T>),
     Qr(Qr<usize, T>),
     Llt(SparseLlt<T>),
@@ -215,6 +239,9 @@ fn numeric<T: ComplexField>(p: &Plan, a: &Storage<T>) -> Result<Result<Numeric<T
             }
             Err(e) => return Err(format!("{e:?}")),
         },
+        Analysis::SimplicialQr(sym) => {
+            Numeric::SimplicialQr(crate::sparse_qr_components::Factors::new(sym, a.as_ref())?)
+        }
         Analysis::Qr(sym) => Numeric::Qr(
             Qr::try_new_with_symbolic(sym.clone(), a.as_ref(), Par::Seq)
                 .map_err(|e| format!("{e:?}"))?,
@@ -352,6 +379,12 @@ fn solve<T: ComplexField>(
                 MemStack::new(&mut mem),
             );
             out
+        }
+        Numeric::SimplicialQr(f) => {
+            if trans {
+                return Err("transpose/adjoint sparse QR solve is not provided".into());
+            }
+            f.solve(b)?
         }
         Numeric::Qr(f) => {
             if trans {
@@ -668,6 +701,119 @@ impl OwnedPermutation {
                 Factors::C32(Numeric::SimplicialLu(f)) => get!(f),
                 Factors::C64(Numeric::SimplicialLu(f)) => get!(f),
                 _ => return Err("LU permutations require algorithm=:simplicial".into()),
+            });
+            Ok(())
+        })
+    }
+}
+
+#[julia]
+impl SparseOwner {
+    #[julia]
+    pub fn sparse_qr_r(&mut self, factor: &SparseFactor) -> Result<(), String> {
+        guarded(|| {
+            fn export<T: ComplexField>(
+                f: &crate::sparse_qr_components::Factors<T>,
+            ) -> Result<Storage<T>, String> {
+                let entries: Vec<_> =
+                    f.r.as_ref()
+                        .triplet_iter()
+                        .map(|e| faer::sparse::Triplet {
+                            row: e.row,
+                            col: e.col,
+                            val: copy(e.val),
+                        })
+                        .collect();
+                Ok(Storage::Csc(
+                    faer::sparse::SparseColMat::try_new_from_triplets(
+                        f.r.nrows(),
+                        f.r.ncols(),
+                        &entries,
+                    )
+                    .map_err(|e| format!("{e:?}"))?,
+                ))
+            }
+            self.data = Some(match factor.factors()? {
+                Factors::F32(Numeric::SimplicialQr(f)) => SparseData::F32(export(f)?),
+                Factors::F64(Numeric::SimplicialQr(f)) => SparseData::F64(export(f)?),
+                Factors::C32(Numeric::SimplicialQr(f)) => SparseData::C32(export(f)?),
+                Factors::C64(Numeric::SimplicialQr(f)) => SparseData::C64(export(f)?),
+                _ => return Err("QR components require algorithm=:simplicial".into()),
+            });
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn sparse_qr_q(&mut self, factor: &SparseFactor) -> Result<(), String> {
+        guarded(|| {
+            let Factors::F64(Numeric::SimplicialQr(f)) = factor.factors()? else {
+                return Err("QR Q requires Float64 simplicial factors".into());
+            };
+            self.matrix = f.q();
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn sparse_qr_q(&mut self, factor: &SparseFactor) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(match factor.factors()? {
+                Factors::F32(Numeric::SimplicialQr(f)) => MatrixData::F32(f.q()),
+                Factors::F64(Numeric::SimplicialQr(f)) => MatrixData::F64(f.q()),
+                Factors::C32(Numeric::SimplicialQr(f)) => MatrixData::C32(f.q()),
+                Factors::C64(Numeric::SimplicialQr(f)) => MatrixData::C64(f.q()),
+                _ => return Err("QR Q requires simplicial factors".into()),
+            });
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl OwnedPermutation {
+    #[julia]
+    pub fn sparse_qr_permutation(&mut self, factor: &SparseFactor) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(match factor.factors()? {
+                Factors::F32(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
+                Factors::F64(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
+                Factors::C32(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
+                Factors::C64(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
+                _ => return Err("QR permutation requires simplicial factors".into()),
+            });
+            Ok(())
+        })
+    }
+}
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn sparse_qr_reconstruct(&mut self, factor: &SparseFactor) -> Result<(), String> {
+        guarded(|| {
+            let Factors::F64(Numeric::SimplicialQr(f)) = factor.factors()? else {
+                return Err("QR reconstruction requires Float64 simplicial factors".into());
+            };
+            self.matrix = f.reconstruct();
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn sparse_qr_reconstruct(&mut self, factor: &SparseFactor) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(match factor.factors()? {
+                Factors::F32(Numeric::SimplicialQr(f)) => MatrixData::F32(f.reconstruct()),
+                Factors::F64(Numeric::SimplicialQr(f)) => MatrixData::F64(f.reconstruct()),
+                Factors::C32(Numeric::SimplicialQr(f)) => MatrixData::C32(f.reconstruct()),
+                Factors::C64(Numeric::SimplicialQr(f)) => MatrixData::C64(f.reconstruct()),
+                _ => return Err("QR reconstruction requires simplicial factors".into()),
             });
             Ok(())
         })

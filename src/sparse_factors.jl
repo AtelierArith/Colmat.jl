@@ -12,7 +12,9 @@ Cholesky accepts `ordering=:default/:amd/:identity` or a permutation, AMD tuning
 `dense=10.0, aggressive=true`, and `algorithm=:auto/:simplicial/:supernodal`.
 `plan.p` returns an independent FaerPermutation; `plan.algorithm` reports the
 actual chosen algorithm. `plan.factor_storage` counts numeric scalar slots,
-including supernodal padding. These controls currently apply only to Cholesky.
+including supernodal padding. Explicit `kind=:qr, algorithm=:simplicial` accepts identity/default or custom
+column ordering and exposes thin Q, sparse R and column permutation on numeric
+factors. AMD tuning and supernodal selection remain Cholesky-only.
 """
 mutable struct FaerSparseSymbolic{K,H}
     handle::Union{Nothing,H}
@@ -34,8 +36,9 @@ with `F.L * F.U ≈ A[F.p,F.p]`, and supports `Matrix(F)`, `FaerSparseMatrix(F)`
 order. Extracted components remain usable after F is updated or closed.
 Explicit `algorithm=:simplicial` LU also supports `Matrix(F)`, `FaerMatrix(F)`,
 `FaerSparseMatrix(F)` and `reconstruct(F)`, from current native L/U and inverse
-row/column permutations. Auto/supernodal LU and sparse QR reconstruction are
-not yet exposed.
+row/column permutations. Explicit simplicial QR exposes independent thin `Q`, sparse `R`, `p/pcol`
+and dense reconstruction. Auto/supernodal LU and auto QR components remain
+unexposed.
 It also exposes independent `F.p`, the actual `F.algorithm`
 and `F.factor_storage` (numeric scalar slots, including supernodal padding).
 `cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;
@@ -98,20 +101,20 @@ function FaerSparseSymbolic(
          algorithm===:supernodal ? 2 :
          throw(ArgumentError("algorithm must be :auto, :simplicial or :supernodal"))
     if kind!==:cholesky &&
-       !(kind===:lu && algo==1 && threshold==10.0 && aggressive) &&
+       !(kind in (:lu, :qr) && algo==1 && threshold==10.0 && aggressive) &&
        (ordering!==:default || threshold!=10.0 || !aggressive || algo!=0)
         throw(
             ArgumentError(
-                "ordering, AMD controls and algorithm selection currently require kind=:cholesky",
+                "these controls require Cholesky, or explicit simplicial LU/QR with identity/custom ordering",
             ),
         )
     end
-    kind===:lu &&
+    kind in (:lu, :qr) &&
         algo==1 &&
         ordering===:amd &&
         throw(
             ArgumentError(
-                "simplicial LU ordering supports :default (identity), :identity or a permutation",
+                "simplicial LU/QR ordering supports :default (identity), :identity or a permutation",
             ),
         )
     custom=ordering isa AbstractVector{<:Integer}
@@ -215,8 +218,8 @@ LinearAlgebra.lu(
 )
 LinearAlgebra.lu(a::FaerSparseMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
     LinearAlgebra.lu(a; kwargs...)
-LinearAlgebra.qr(a::FaerSparseMatrix) =
-    LinearAlgebra.factorize(FaerSparseSymbolic(a; kind = :qr), a)
+LinearAlgebra.qr(a::FaerSparseMatrix; algorithm = :auto, ordering = :default) =
+    LinearAlgebra.factorize(FaerSparseSymbolic(a; kind = :qr, algorithm, ordering), a)
 const _SparseSelfAdjoint=Union{
     LinearAlgebra.Hermitian{<:Any,<:FaerSparseMatrix},
     LinearAlgebra.Symmetric{<:Real,<:FaerSparseMatrix},
@@ -515,3 +518,58 @@ function Base.getproperty(f::FaerSparseFactorization{T,:lu}, name::Symbol) where
 end
 Base.propertynames(f::FaerSparseFactorization{T,:lu}, private::Bool = false) where {T} =
     private ? (fieldnames(typeof(f))..., :L, :U, :p, :q) : (:dims, :info, :L, :U, :p, :q)
+
+function Base.getproperty(f::FaerSparseFactorization{T,:qr}, name::Symbol) where {T}
+    if name in (:Q, :R, :p, :pcol)
+        return lock(_matrix_lock) do
+            _handle(f)
+            LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+            name in (:p, :pcol) &&
+                return _permutation_result(size(f, 2), RustCrate.sparse_qr_permutation, f)
+            name===:R && return _sparse_result(
+                T,
+                (size(f, 2), size(f, 2)),
+                :csc,
+                RustCrate.sparse_qr_r,
+                f,
+            )
+            return T===Float64 ? _matrix_result(RustCrate.sparse_qr_q, size(f), f) :
+                   _typed_result(T, RustCrate.sparse_qr_q, size(f), f)
+        end
+    end
+    return getfield(f, name)
+end
+Base.propertynames(f::FaerSparseFactorization{T,:qr}, private::Bool = false) where {T} =
+    private ? (fieldnames(typeof(f))..., :Q, :R, :p, :pcol) :
+    (:dims, :info, :Q, :R, :p, :pcol)
+function reconstruct(f::FaerSparseFactorization{T,:qr}) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        return T===Float64 ? _matrix_result(RustCrate.sparse_qr_reconstruct, size(f), f) :
+               _typed_result(T, RustCrate.sparse_qr_reconstruct, size(f), f)
+    end
+end
+FaerMatrix(f::FaerSparseFactorization{T,:qr}) where {T} = reconstruct(f)
+Base.Matrix(f::FaerSparseFactorization{T,:qr}) where {T} = (a = reconstruct(f); try
+    Matrix(a)
+finally
+    close(a)
+end)
+
+function FaerMatrix{T}(f::FaerSparseFactorization{S,:qr}) where {T<:_NativeScalar,S}
+    a=reconstruct(f)
+    T===S && return a
+    try
+        return FaerMatrix{T}(a)
+    finally
+        close(a)
+    end
+end
+function Base.Matrix{T}(f::FaerSparseFactorization{S,:qr}) where {T,S}
+    a=reconstruct(f)
+    try
+        return Matrix{T}(a)
+    finally
+        close(a)
+    end
+end

@@ -32,8 +32,8 @@ Base.Array(f::_NativeSchur) = Matrix(f)
 
 Reconstruct independent native CSC storage from explicit simplicial LU factors
 and inverse row/column permutations. Uses current numeric factors, including
-updates; original input snapshots are not used. Auto/supernodal LU components
-and sparse QR reconstruction remain unavailable.
+updates; original input snapshots are not used. Auto/supernodal LU components remain unavailable. Explicit simplicial QR
+supports independent dense reconstruction through `reconstruct(F)`.
 """
 function FaerSparseMatrix(f::_SparseLU)
     lock(_matrix_lock) do
@@ -95,7 +95,8 @@ end
 Reconstruct independent native matrices from owned factors. Dense LU/QR/
 Cholesky/LDLT, Schur/Hessenberg and tridiagonal/bidiagonal reductions return a
 `FaerMatrix`; retained spectral factors also support reconstruction. Sparse Cholesky and explicit simplicial LU return a
-`FaerSparseMatrix` in original row/column order. Generalized Schur/Hessenberg
+`FaerSparseMatrix` in original row/column order. Explicit simplicial sparse QR
+returns a dense `FaerMatrix` in original column order. Generalized Schur/Hessenberg
 return `(A=...,B=...)` with `A=Q*S*Z'` (or `Q*H*Z'`) and `B=Q*T*Z'`.
 Inputs and factors are preserved; returned owners survive closing F.
 """

@@ -1463,3 +1463,33 @@ apply to the stored singular/eigenvalues. The independent result matrix allocate
 outside scratch. Empty factors need no kernel workspace but still require an
 open buffer. This interface controls saved-factor pseudoinverse workspace;
 native factor construction and direct `pinv(A)` keep their existing interfaces.
+
+### Sparse simplicial QR components
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = [1.0 0; 2 3; 0 4]
+A = FaerSparseMatrix(sparse(A0))
+F = qr(A; algorithm=:simplicial, ordering=[2, 1])
+Q, R, p = F.Q, F.R, F.pcol
+@assert Matrix(Q) * Matrix(R) ≈ A0[:, Vector(p)]
+@assert Matrix(reconstruct(F)) ≈ A0
+close(F)
+@assert Matrix(Q)' * Matrix(Q) ≈ Matrix{Float64}(I, 2, 2)
+close(Q)
+close(R)
+close(p)
+close(A)
+```
+
+Explicit simplicial sparse QR retains faer's native Householder/R factors and
+symbolic analysis. `F.Q` is an independent thin `FaerMatrix` with dimensions
+`(m,n)`; `F.R` is an independent sparse CSC `(n,n)` factor. `F.pcol` (also `F.p`)
+is the column permutation satisfying `Q*R ≈ A[:,pcol]`. Extraction, reconstruction,
+copy and numeric updates use retained factors. `reconstruct(F)`, `Matrix(F)` and
+`FaerMatrix(F)` recover the original column order without using the stored input
+snapshot. Four scalar types and CSC/CSR inputs are supported. Ordering is identity
+by default, or an explicit permutation; COLAMD/AMD controls, full Q,
+rank-deficient minimum-norm solves, transpose/adjoint solves, and caller scratch
+are not exposed for this path. The default `algorithm=:auto` keeps the existing
+faer solver; its components remain unavailable.

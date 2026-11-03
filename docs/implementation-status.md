@@ -1652,3 +1652,32 @@ Validation: Julia 1.13.3 / RustCall 0.9.2, canonical
 blocks passed. Method ambiguity detection returned none. Julia/Rust formatting
 and `git diff --check` passed. The dependency checkout remains untouched. The
 full Issue #1 objective remains incomplete.
+
+### Explicit simplicial sparse QR components
+
+`qr(A; algorithm=:simplicial, ordering=:identity|permutation)` now retains
+public native simplicial symbolic and numeric QR components. The default
+ordering for this path is identity. `F.Q` returns an independent thin native
+m-by-n matrix, `F.R` an independent sparse CSC n-by-n factor, and `F.pcol`
+(or `F.p`) the column permutation satisfying `Q*R = A[:,pcol]`. Q extraction
+reverses the retained Householder reflectors with m-by-n storage; it does not
+materialize an m-by-m identity. Reconstruction multiplies the current native
+factors and undoes the column permutation entirely in Rust. It does not reuse
+the stored source snapshot or refactorize. Typed Matrix/FaerMatrix conversions,
+copy/deepcopy and symbolic numeric updates are supported.
+
+The new independent test file passes 1,078 assertions across all four native
+scalar types, CSC/CSR, empty/tall/square shapes, custom column ordering, Q
+orthogonality and Q*R reconstruction, least-squares solutions, source mutation,
+closed owners, copied factors, numeric updates, and typed reconstruction.
+Method ambiguity detection is empty. Auto/supernodal components, full Q,
+rank-deficient minimum-norm and transpose/adjoint QR solves, and caller-owned
+QR scratch remain unimplemented. The full Issue #1 objective remains active.
+
+Final validation on Julia 1.13.3 / RustCall 0.9.2: canonical
+`Pkg.test(; allow_reresolve=false)` passed 80,173 assertions across 59 files with
+16 ParallelTestRunner workers. The old sparse-QR unsupported-algorithm assertion
+was updated to verify the newly supported simplicial analysis. All nine native
+Rust tests and 50 README Julia blocks passed; method ambiguity detection,
+Julia/Rust formatting and `git diff --check` passed. Both inventories retain 76
+feature rows. The dependency checkout remains clean at d5be1473.

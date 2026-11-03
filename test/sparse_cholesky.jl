@@ -109,16 +109,8 @@ end
     @test_throws ArgumentError cholesky(source; ordering = p)
     for kind in (:lu, :qr)
         @test_throws ArgumentError FaerSparseSymbolic(source; kind, ordering = :identity)
-        if kind===:lu
-            @test FaerSparseSymbolic(source; kind, algorithm = :simplicial) isa
-                  FaerSparseSymbolic{:lu}
-        else
-            @test_throws ArgumentError FaerSparseSymbolic(
-                source;
-                kind,
-                algorithm = :simplicial,
-            )
-        end
+        @test FaerSparseSymbolic(source; kind, algorithm = :simplicial) isa
+              FaerSparseSymbolic{kind}
         @test_throws ArgumentError FaerSparseSymbolic(source; kind, dense = 2.0)
     end
     for n in (0, 1),
