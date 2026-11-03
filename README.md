@@ -1565,6 +1565,30 @@ supernodal QR. Both retain public low-level symbolic analysis and adapter-owned
 numeric buffers. Normal least-squares solves, independent copies, symbolic
 reuse and numeric `qr!` updates support all four scalar types and CSC/CSR.
 This path uses faer's default COLAMD ordering. Custom ordering controls, factor
-component getters, transpose/adjoint solves and caller-owned scratch are not
-yet exposed for supernodal QR. The explicit simplicial path retains its existing
+component getters and transpose/adjoint solves are not yet exposed for
+supernodal QR. Solve workspace is available through the interface below. The explicit simplicial path retains its existing
 component and transpose/adjoint interfaces.
+
+
+### Reuse workspace for retained sparse QR solves
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = [2.0 0; 0 3; 1 0]
+F = qr(FaerSparseMatrix(sparse(A0)); algorithm=:supernodal)
+B = ones(3, 2)
+s = FaerScratch(ldiv!, F, B)
+X = zeros(2, 2)
+ldiv!(X, F, B; scratch=s)
+@assert X ≈ A0 \ B
+@assert scratch_capacity(s).bytes >= scratch_requirements(ldiv!, F, B).bytes
+close(s)
+close(F)
+```
+
+This interface accepts matrix RHS matching the factor's scalar type for normal
+auto/supernodal QR solves. `reserve!(s,ldiv!,F,B)` explicitly grows an existing
+buffer. Insufficient capacity/alignment is rejected before writing the result;
+the buffer never grows implicitly. Native RHS/result storage and destination
+copying allocate outside scratch. Factor construction, simplicial QR and
+transpose/adjoint solves use their existing workspace paths.

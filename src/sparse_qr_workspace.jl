@@ -1,0 +1,67 @@
+"""
+    scratch_requirements(ldiv!, F::FaerSparseFactorization, B::AbstractMatrix)
+
+Query native solve workspace for retained auto/supernodal sparse QR. Use
+`ldiv!(X,F,B; scratch=FaerScratch(ldiv!,F,B))` to reuse it. Factorization,
+RHS/result storage and destination copying allocate outside scratch. RHS must
+have the factor's scalar type; transposed and explicit simplicial QR are not
+supported by this workspace interface. The buffer never grows implicitly.
+"""
+function scratch_requirements(
+    ::typeof(LinearAlgebra.ldiv!),
+    f::FaerSparseFactorization{T,:qr},
+    b::AbstractMatrix,
+) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        size(b, 1)==size(f, 1) || throw(DimensionMismatch("factor and RHS rows must match"))
+        eltype(b)===T ||
+            throw(ArgumentError("workspace solve requires matching RHS scalar type"))
+        info=zeros(UInt, 2)
+        GC.@preserve info _native_call(
+            RustCrate.sparse_qr_solve_requirements,
+            f,
+            UInt(size(b, 2)),
+            pointer(info),
+        )
+        return (bytes = Int(info[1]), alignment = Int(info[2]))
+    end
+end
+function FaerScratch(
+    fun::typeof(LinearAlgebra.ldiv!),
+    f::FaerSparseFactorization,
+    b::AbstractMatrix,
+)
+    req=scratch_requirements(fun, f, b)
+    FaerScratch(req.bytes; alignment = req.alignment)
+end
+function reserve!(
+    s::FaerScratch,
+    fun::typeof(LinearAlgebra.ldiv!),
+    f::FaerSparseFactorization,
+    b::AbstractMatrix,
+)
+    req=scratch_requirements(fun, f, b)
+    reserve!(s, req.bytes; alignment = req.alignment)
+end
+function _sparse_qr_workspace_solve(
+    f::FaerSparseFactorization{T,:qr},
+    b::AbstractMatrix,
+    s::FaerScratch,
+) where {T}
+    lock(_matrix_lock) do
+        req=scratch_requirements(LinearAlgebra.ldiv!, f, b)
+        cap=scratch_capacity(s)
+        cap.bytes>=req.bytes && cap.alignment>=req.alignment ||
+            throw(ArgumentError("insufficient scratch; call reserve!"))
+        rhs=b isa FaerMatrix ? b : FaerMatrix{T}(b)
+        dims=(size(f, 2), size(b, 2))
+        T===Float64 ? _matrix_result(RustCrate.sparse_qr_solve_workspace, dims, f, rhs, s) :
+        _typed_result(T, RustCrate.sparse_qr_solve_workspace, dims, f, rhs, s)
+    end
+end
+_sparse_qr_workspace_solve(f::_SparseSolveFactor, b::AbstractMatrix, scratch) = throw(
+    ArgumentError(
+        "scratch requires FaerScratch and a normal auto/supernodal sparse QR factor",
+    ),
+)

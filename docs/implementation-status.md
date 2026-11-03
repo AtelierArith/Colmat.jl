@@ -1755,3 +1755,19 @@ with 16 workers. All 10 native tests, 52 README blocks, method ambiguity detecti
 Julia/Rust formatting and git diff --check passed. The first full run mixed an
 updated test with already loaded code; the next identified a Matrix(Vector)
 conversion error in the new test. The final fixed-source run passed completely.
+
+### Retained auto/supernodal QR solve workspace
+
+`scratch_requirements(ldiv!, F, B)`, `FaerScratch(ldiv!, F, B)` and
+`reserve!(s, ldiv!, F, B)` query and reserve native sparse QR solve workspace.
+`ldiv!(X, F, B; scratch=s)` supplies the caller's aligned buffer to the retained
+QrRef solve. This interface supports normal auto/supernodal QR and matrix RHS
+matching the factor scalar type. Native RHS/result storage and destination copy
+allocate outside scratch. No source refactorization is performed. Factor
+construction and simplicial/transpose/adjoint solves retain their previous paths.
+
+Focused verification passed 587 assertions: all four types, CSC/CSR, empty and
+rectangular inputs, repeated workspace reuse, source mutation, close, invalid
+inputs, reserve and insufficient capacity preserving the destination. Canonical Pkg.test passed 83,371 assertions / 63 files with 16 workers.
+All 10 native tests and 53 README blocks passed, as did method ambiguity
+detection, Julia/Rust formatting and git diff --check. Issues #1/#2 remain incomplete.
