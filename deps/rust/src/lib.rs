@@ -1296,3 +1296,5 @@ pub mod householder;
 pub mod householder_sequence;
 
 pub mod operators;
+
+pub mod statistics;

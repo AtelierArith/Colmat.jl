@@ -665,3 +665,27 @@ G = LinearAlgebra.Givens(J, 2, 4) # embed the same rotation in a larger array
 `apply_on_the_right_2x2` accept four entries and return them in row order.
 Standalone rotations require an axis of length two; embedded `Givens` rotations
 use the existing native array kernels.
+
+### Native statistics
+
+`Statistics.mean`, `var`, and `varm` use faer's row/column kernels for native
+matrices, vectors, rows and views. Dimension reductions return Julia arrays;
+full reductions return scalars:
+
+```julia
+using Colmat, Statistics
+A = FaerMatrix([1.0 2; 3 4; 5 6])
+@assert mean(A; dims=1) ≈ [3.0 4.0]
+@assert var(A; dims=1) ≈ [4.0 4.0]
+@assert varm(A, mean(A; dims=1); dims=1) ≈ var(A; dims=1)
+A[1, 1] = NaN
+@assert isnan(mean(A))
+@assert mean(A; dims=1, nan=:ignore) ≈ [4.0 4.0]
+```
+
+The default `nan=:propagate` retains NaNs; `nan=:ignore` excludes entries with
+any NaN component and adjusts each slice's count. `corrected=false` uses
+population variance. Complex variances are real, empty slices return NaN, and
+singleton sample variances follow Julia's NaN convention. Supplied means promote
+the working scalar type. Calls snapshot native data to primitive buffers before
+running faer's kernels; they leave the input unchanged.

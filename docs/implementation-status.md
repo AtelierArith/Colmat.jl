@@ -689,3 +689,33 @@ with ParallelTestRunner.jl and 16 workers**; standalone Jacobi contributes 512
 assertions. All README Julia examples, method ambiguity checks, `cargo check`,
 Rust/Julia formatting and `git diff --check` pass. Dependency sources are clean.
 The separate upstream probe terminates with the expected panic/exit code 101.
+
+### Native mean and variance
+
+Connected `Statistics.mean`, `var` and `varm` for native matrices/vectors/rows
+and views to faer's `row_mean/col_mean/row_varm/col_varm` kernels. Calls snapshot
+native data to exact primitive buffers without using finite-only matrix loaders,
+so NaNs and infinities retain statistical meaning. Results are Julia scalars or
+arrays with standard `dims` shapes, including tuples, empty/no-op reductions
+and dimensions beyond the input rank. All four scalar types are supported;
+complex variances are real, and explicitly supplied means promote working type.
+
+`nan=:propagate` is the default; `nan=:ignore` excludes entries containing a NaN
+component and uses each slice's included count. The bridge adapts faer's fixed
+N-1 denominator and singleton-zero behavior to Julia's `corrected` option and
+supplied-mean arithmetic, including empty/singleton/all-NaN slices. Explicit
+reduced means accept trailing singleton dimensions. No dependency sources change.
+
+The focused suite compares against Statistics for all scalar types, empty and
+wide/tall SIMD-sized inputs, reductions, sample/population variance, supplied
+means, NaN/Inf handling, native rows/vectors, views and closed inputs. Third-party
+Statistics-only method ambiguities are excluded from the ownership check;
+ambiguities involving Colmat methods are checked. Random generation, NPY,
+parallel teams and the other remaining Issue #1 categories remain incomplete.
+
+Validation: full `Pkg.test()` passes **53,316 assertions across 30 independent
+files with ParallelTestRunner.jl and 16 workers**. After adding closed-empty-mean
+validation and imaginary-component NaN regression cases, the complete focused
+statistics suite passes 2,621 assertions. All README Julia examples, owned-method
+ambiguity checks, `cargo check`, Rust/Julia formatting and `git diff --check`
+pass. Dependency sources remain clean.

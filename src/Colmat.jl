@@ -3,6 +3,7 @@ module Colmat
 using RustCall
 import LinearAlgebra
 import SparseArrays
+import Statistics
 using LinearAlgebra: SVD
 
 export FaerLinearOperator,
@@ -181,5 +182,6 @@ include("householder.jl")
 include("householder_sequence.jl")
 include("operators.jl")
 include("jacobi.jl")
+include("statistics.jl")
 
 end
