@@ -1767,5 +1767,27 @@ solve without an inverse or refactorization. Both selected input triangles,
 normal/conjugate/transpose/adjoint, copy/composition and mixed native scalar
 promotion are supported. Zero diagonal pivots are rejected. Indefinite inverse
 actions are suitable for general solvers such as BiCGSTAB; they do not satisfy
-CG's positive-definiteness requirement. Block-pivoted LDLT and sparse factor
+CG's positive-definiteness requirement. Sparse factor preconditioners remain pending.
+
+### Retained Bunch–Kaufman preconditioners
+
+```julia
+using Colmat, LinearAlgebra
+A0 = ComplexF64[0 1im; -1im 0]
+F = bunchkaufman(Hermitian(FaerMatrix(A0), :U))
+M = FaerLinearOperator(F)
+close(F)
+b = ones(ComplexF64, 2)
+@assert M * b ≈ A0 \ b
+@assert transpose(M) * b ≈ transpose(A0) \ b
+@assert adjoint(M) * b ≈ adjoint(A0) \ b
+close(M)
+```
+
+Block-pivoted LDLT inverse actions retain L, the block diagonal's diagonal and
+subdiagonal, and the pivot permutation. Native Bunch–Kaufman solves consume
+operator scratch; valid 2×2 blocks with zero diagonal entries are preserved.
+Mixed promotion copies both block components and the permutation, without an
+inverse or refactorization. These indefinite actions can be used with BiCGSTAB;
+CG's positive-definiteness requirement still applies. Sparse factor
 preconditioners remain pending.

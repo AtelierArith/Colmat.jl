@@ -1531,6 +1531,13 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
             Base::InverseLdlt(Box::new(InverseLdlt {
                 l: Mat::from_fn(f.l.nrows(), f.l.ncols(), |i, j| cast(&f.l[(i, j)])),
                 diagonal: d,
+                block: f.block.as_ref().map(|(d, p)| {
+                    let mut out = Diag::zeros(d.dim());
+                    for i in 0..d.dim() {
+                        out.column_vector_mut()[i] = cast(&d.column_vector()[i]);
+                    }
+                    (out, p.clone())
+                }),
             }))
         }
         Base::InverseQr(f) => Base::InverseQr(Box::new(InverseQr {
@@ -1834,6 +1841,12 @@ impl OwnedLinearOperator {
     ) -> Result<(), String> {
         guarded(|| {
             match factor.get()? {
+                crate::DenseFactor::Lblt(f) => {
+                    self.data = Some(Data::F64(Operator::new(Base::InverseLdlt(Box::new(
+                        InverseLdlt::block(f)?,
+                    )))));
+                    return Ok(());
+                }
                 crate::DenseFactor::Ldlt(f) => {
                     self.data = Some(Data::F64(Operator::new(Base::InverseLdlt(Box::new(
                         InverseLdlt::new(f.L(), f.D())?,
@@ -1888,6 +1901,9 @@ impl OwnedLinearOperator {
             }
             self.data = Some(match factor.data()? {
                 FactorData::F32(Factor::Lu(f)) => Data::F32(make(f)?),
+                FactorData::F32(Factor::Lblt(f)) => Data::F32(Operator::new(Base::InverseLdlt(
+                    Box::new(InverseLdlt::block(f)?),
+                ))),
                 FactorData::F32(Factor::Ldlt(f)) => Data::F32(Operator::new(Base::InverseLdlt(
                     Box::new(InverseLdlt::new(f.L(), f.D())?),
                 ))),
@@ -1909,6 +1925,9 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::F64(Factor::Lu(f)) => Data::F64(make(f)?),
+                FactorData::F64(Factor::Lblt(f)) => Data::F64(Operator::new(Base::InverseLdlt(
+                    Box::new(InverseLdlt::block(f)?),
+                ))),
                 FactorData::F64(Factor::Ldlt(f)) => Data::F64(Operator::new(Base::InverseLdlt(
                     Box::new(InverseLdlt::new(f.L(), f.D())?),
                 ))),
@@ -1930,6 +1949,9 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::C32(Factor::Lu(f)) => Data::C32(make(f)?),
+                FactorData::C32(Factor::Lblt(f)) => Data::C32(Operator::new(Base::InverseLdlt(
+                    Box::new(InverseLdlt::block(f)?),
+                ))),
                 FactorData::C32(Factor::Ldlt(f)) => Data::C32(Operator::new(Base::InverseLdlt(
                     Box::new(InverseLdlt::new(f.L(), f.D())?),
                 ))),
@@ -1951,6 +1973,9 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::C64(Factor::Lu(f)) => Data::C64(make(f)?),
+                FactorData::C64(Factor::Lblt(f)) => Data::C64(Operator::new(Base::InverseLdlt(
+                    Box::new(InverseLdlt::block(f)?),
+                ))),
                 FactorData::C64(Factor::Ldlt(f)) => Data::C64(Operator::new(Base::InverseLdlt(
                     Box::new(InverseLdlt::new(f.L(), f.D())?),
                 ))),
@@ -2111,6 +2136,7 @@ impl<T: ComplexField> BiLinOp<T> for InverseQr<T> {
 struct InverseLdlt<T> {
     l: Mat<T>,
     diagonal: Diag<T>,
+    block: Option<(Diag<T>, faer::perm::Perm<usize>)>,
 }
 impl<T> std::fmt::Debug for InverseLdlt<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -2118,6 +2144,29 @@ impl<T> std::fmt::Debug for InverseLdlt<T> {
     }
 }
 impl<T: ComplexField> InverseLdlt<T> {
+    fn block(f: &faer::linalg::solvers::Lblt<T>) -> Result<Self, String> {
+        let n = f.L().nrows();
+        let mut diagonal = Diag::zeros(n);
+        let mut sub = Diag::zeros(n);
+        for i in 0..n {
+            diagonal.column_vector_mut()[i] = copy(&f.B_diag()[i]);
+            sub.column_vector_mut()[i] = copy(&f.B_subdiag()[i]);
+        }
+        let (p, inv) = f.P().arrays();
+        Ok(Self {
+            l: f.L().to_owned(),
+            diagonal,
+            block: Some((
+                sub,
+                faer::perm::Perm::new_checked(
+                    p.to_vec().into_boxed_slice(),
+                    inv.to_vec().into_boxed_slice(),
+                    n,
+                ),
+            )),
+        })
+    }
+
     fn new(l: MatRef<'_, T>, d: faer::diag::DiagRef<'_, T>) -> Result<Self, String> {
         if l.nrows() != l.ncols() || d.dim() != l.nrows() {
             return Err("LDLT preconditioner requires square factors".into());
@@ -2132,10 +2181,24 @@ impl<T: ComplexField> InverseLdlt<T> {
         Ok(Self {
             l: l.to_owned(),
             diagonal,
+            block: None,
         })
     }
     fn run(&self, mut out: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack, c: bool) {
         out.copy_from(b);
+        if let Some((sub, perm)) = &self.block {
+            faer::linalg::cholesky::lblt::solve::solve_in_place_with_conj(
+                self.l.as_ref(),
+                self.diagonal.as_ref(),
+                sub.as_ref(),
+                if c { faer::Conj::Yes } else { faer::Conj::No },
+                perm.as_ref(),
+                out,
+                p,
+                s,
+            );
+            return;
+        }
         faer::linalg::cholesky::ldlt::solve::solve_in_place_with_conj(
             self.l.as_ref(),
             self.diagonal.as_ref(),
@@ -2154,6 +2217,13 @@ impl<T: ComplexField> LinOp<T> for InverseLdlt<T> {
         self.l.ncols()
     }
     fn apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        if self.block.is_some() {
+            return faer::linalg::cholesky::lblt::solve::solve_in_place_scratch::<usize, T>(
+                self.nrows(),
+                k,
+                p,
+            );
+        }
         faer::linalg::cholesky::ldlt::solve::solve_in_place_scratch::<T>(self.nrows(), k, p)
     }
     fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
