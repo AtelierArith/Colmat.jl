@@ -511,3 +511,44 @@ files using ParallelTestRunner.jl and 16 workers**. The new rotation suite
 contributes 2166 assertions. README Julia examples, JuliaFormatter,
 `cargo fmt --check`, `git diff --check` and method ambiguity checks pass.
 The t4a-faer dependency checkout remains unmodified.
+
+
+## Owned elementary Householder checkpoint
+
+- `FaerHouseholder` / `householder(x)` own faer's elementary reflection in
+  compact O(n) native storage. Generation calls make_householder_in_place after
+  componentwise real scaling; complex division by a real scale avoids squared
+  denominator underflow. The source is copied, all four scalars are retained,
+  and nonfinite inputs are rejected. Empty/zero-tail inputs yield identity.
+- The public convention is faer's `H = I - v*v'/tau`, with real denominator tau.
+  Independent native `H.v` and beta/tau/input_norm/head_with_beta_inv metadata
+  are exposed. Clone/deepcopy/close and native conjugation support independent
+  adjoint, transpose and inverse objects; indexing is read-only.
+- Left/right application uses faer's block-Householder routines with block
+  width one and queried scratch. Native matrices/vectors/rows update owned
+  storage; native views stage independent results and copy back. Julia strided
+  arrays are supported, with in-place output limited to the four native types.
+- Allocating products promote compact coefficients and source arrays. In-place
+  calls convert coefficients/metadata before mutation. Mixed-precision tests
+  use the promoted compact formula as oracle, avoiding a lower-precision dense
+  materialization as an assumed higher-precision reference.
+- Three/five-argument mul! supports left matrix/vector and right matrix forms,
+  alpha/beta and aliases. It stages native products and converts the entire
+  result buffer to the destination type before copying, preserving outputs on
+  conversion failure. Application does not form an n-by-n reflection; explicit
+  Matrix/FaerMatrix conversion and composition of two reflections do.
+- Tests cover unitary/Hermitian properties and annihilation, metadata,
+  independent lifetimes and exported vectors, four scalars, mixed promotion,
+  both sides, stdlib strided buffers, strided/reversed native views, stale/closed
+  views, failed conversions and shapes, empty/identity cases, large/subnormal
+  scales, alpha/beta and aliases. A 100,000-element application verifies linear
+  reflection storage without a dense coefficient matrix.
+- Arbitrary block basis/factor construction, upgrade and block-sequence APIs,
+  external scratch, standalone Jacobi APIs, matrix-free and all other remaining
+  Issue #1 categories remain incomplete.
+
+Validation: default `Pkg.test()` passed **35486 assertions across 24 independent
+files using ParallelTestRunner.jl and 16 workers**. The Householder suite
+contributes 2768 assertions. README Julia examples, JuliaFormatter,
+`cargo fmt --check`, `git diff --check` and method ambiguity checks pass.
+The dependency checkout has no modifications.

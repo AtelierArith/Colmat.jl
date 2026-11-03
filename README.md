@@ -432,7 +432,43 @@ lmul!(G, V)                       # ビューは native の一時結果を書き
 係数を出力の型に変換してから更新します。変換に失敗すれば出力は変わりません。
 回転の cosine は実数が必要です。生成対象の2要素は有限値に限定しています。
 スカラー形式の `givens(f,g,i,j)` は Julia 標準の実装です。
-独立した Jacobi オブジェクト・transpose/conjugate API と Householder は未対応です。
+独立した Jacobi オブジェクト・transpose/conjugate 専用 API は未対応です。
+
+Householder 反射は `householder(x)` または `FaerHouseholder(x)` で生成できます。
+faer と同じ `H = I - v*v'/tau` の規約で、`tau` は実数の分母です。
+
+```julia
+using Colmat, LinearAlgebra
+
+x = FaerVector([3.0, 4.0, 5.0])
+H = householder(x)
+y = H * x
+@assert Vector(y) ≈ [H.beta, 0.0, 0.0]
+@assert Matrix(H)' ≈ Matrix(H)
+@assert Matrix(H) * Matrix(H) ≈ Matrix{Float64}(I, 3, 3)
+@assert Matrix(H) ≈ I - Vector(H.v) * Vector(H.v)' / H.tau
+
+A = FaerMatrix([1.0 2; 3 4; 5 6])
+B = H * A                        # 反射の密行列を作らずに適用
+lmul!(H, A)
+@assert Matrix(A) ≈ Matrix(B)
+C = FaerMatrix(zeros(3, 2))
+mul!(C, H, A, 2.0, 0.0)
+@assert Matrix(C) ≈ 2Matrix(H) * Matrix(A)
+R = FaerRow([1.0, 2.0, 3.0])
+rmul!(R, H)
+```
+
+生成は入力をコピーしてスケーリングしてから行い、4数値型を保持します。
+入力は有限値に限定し、空の入力と末尾がゼロの場合は恒等反射になります。
+`H.v` は独立した native ベクトル、`H.beta`・`H.tau`・`H.input_norm`・
+`H.head_with_beta_inv` は faer の生成情報です。`tau` は LAPACK の乗数とは異なります。
+`H'`・`transpose(H)`・`conj(H)`・`inv(H)`・コピーは独立した所有者を返します。
+`H * A`・`A * H`・`H \ b`、左右の in-place 適用、3引数・5引数の `mul!` に対応します。
+通常の Julia strided 配列も使え、in-place の出力は4数値型に限定します。
+係数・生成情報を出力型に変換できない場合は更新前に失敗します。ビューは一時結果を
+書き戻します。`Matrix(H)` と反射同士の積は密行列を作ります。
+block Householder factor の直接構築・upgrade・sequence API と外部 scratch は未対応です。
 
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に

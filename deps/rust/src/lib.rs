@@ -1290,3 +1290,5 @@ pub mod sparse_factors;
 pub mod ordering;
 
 pub mod rotations;
+
+pub mod householder;
