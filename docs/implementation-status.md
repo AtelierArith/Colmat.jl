@@ -1973,3 +1973,24 @@ Canonical Pkg.test passed 89,520 assertions / 74 files with 16 workers.
 All 10 native tests and 62 README blocks passed, along with ambiguity detection,
 Julia/Rust formatting and git diff --check. Sparse factor preconditioners,
 callbacks and remaining Issue #1/#2 work remain pending.
+
+### Native simplicial sparse LU preconditioners
+
+FaerLinearOperator accepts explicit simplicial sparse LU factors, exporting
+current native sparse L/U and both permutations into an independent operator.
+Application gathers the RHS, performs sparse triangular solves and scatters the
+solution using a scratch-backed RHS-sized intermediate. Normal/conjugate/
+transpose/adjoint and mixed scalar promotion preserve sparse factor storage.
+No source snapshot, dense coefficient matrix, inverse or refactorization is used.
+Construction validates square components, diagonal positions, triangular entries
+and nonzero U pivots at the native boundary.
+
+Focused verification passed 867 assertions across scalar pairs, CSC/CSR,
+empty/singleton/pivoted systems, forced column ordering, source snapshot zeroing
+before operator construction, close/copy, all transforms and BiCGSTAB. A 20,000
+order sparse diagonal case also passes a promoted complex-vector application.
+Canonical Pkg.test passed 90,387 assertions / 75 files with 16 workers.
+All 10 native tests and 63 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. Auto/supernodal sparse LU and
+other sparse factor preconditioners, callbacks and remaining Issue #1/#2 scope
+remain pending.

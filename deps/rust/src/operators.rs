@@ -23,6 +23,7 @@ enum Base<T> {
     InverseQr(Box<InverseQr<T>>),
     InverseLdlt(Box<InverseLdlt<T>>),
     InverseSpectral(Box<InverseSpectral<T>>),
+    InverseSparseLu(Box<InverseSparseLu<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -38,6 +39,10 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
+            Base::InverseSparseLu($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
             Base::InverseSpectral($a) => {
                 let $a = $a.as_ref();
                 $expr
@@ -1528,6 +1533,18 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
+        Base::InverseSparseLu(f) => {
+            let convert=|a:&faer::sparse::SparseColMat<usize,S>|->Result<faer::sparse::SparseColMat<usize,T>,String> {
+                let entries:Vec<_>=a.as_ref().triplet_iter().map(|e|faer::sparse::Triplet{row:e.row,col:e.col,val:cast(e.val)}).collect();
+                faer::sparse::SparseColMat::try_new_from_triplets(a.nrows(),a.ncols(),&entries).map_err(|e|format!("{e:?}"))
+            };
+            Base::InverseSparseLu(Box::new(InverseSparseLu {
+                l: convert(&f.l)?,
+                u: convert(&f.u)?,
+                rows: f.rows.clone(),
+                cols: f.cols.clone(),
+            }))
+        }
         Base::InverseSpectral(f) => Base::InverseSpectral(Box::new(InverseSpectral {
             u: Mat::from_fn(f.u.nrows(), f.u.ncols(), |i, j| cast(&f.u[(i, j)])),
             v: Mat::from_fn(f.v.nrows(), f.v.ncols(), |i, j| cast(&f.v[(i, j)])),
@@ -2398,6 +2415,180 @@ impl OwnedLinearOperator {
                 SpectralData::C64(f) => Data::C64(Operator::new(Base::InverseSpectral(Box::new(
                     InverseSpectral::new(f, atol, rtol, relative_f32)?,
                 )))),
+            });
+            Ok(())
+        })
+    }
+}
+
+#[derive(Clone)]
+struct InverseSparseLu<T> {
+    l: faer::sparse::SparseColMat<usize, T>,
+    u: faer::sparse::SparseColMat<usize, T>,
+    rows: faer::perm::Perm<usize>,
+    cols: faer::perm::Perm<usize>,
+}
+impl<T> std::fmt::Debug for InverseSparseLu<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("InverseSparseLu")
+    }
+}
+impl<T: ComplexField> InverseSparseLu<T> {
+    fn new(
+        l: &Storage<T>,
+        u: &Storage<T>,
+        rows: &crate::permutations::OwnedPermutation,
+        cols: &crate::permutations::OwnedPermutation,
+    ) -> Result<Self, String> {
+        let (l, u) = (l.csc()?, u.csc()?);
+        let n = l.nrows();
+        if l.ncols() != n
+            || u.nrows() != n
+            || u.ncols() != n
+            || rows.data()?.len() != n
+            || cols.data()?.len() != n
+        {
+            return Err(
+                "sparse LU components must have matching square shapes and permutations".into(),
+            );
+        }
+        for j in 0..n {
+            if l.as_ref().row_idx_of_col_raw(j).first() != Some(&j)
+                || u.as_ref().row_idx_of_col_raw(j).last() != Some(&j)
+            {
+                return Err(
+                    "sparse LU factors require stored leading L/trailing U diagonals".into(),
+                );
+            }
+        }
+        for j in 0..n {
+            if l.as_ref().row_idx_of_col_raw(j).iter().any(|&i| i < j)
+                || u.as_ref().row_idx_of_col_raw(j).iter().any(|&i| i > j)
+            {
+                return Err("sparse LU components must be lower/upper triangular".into());
+            }
+            if u.as_ref()
+                .val_of_col(j)
+                .last()
+                .is_none_or(|x| abs(x) == zero::<T::Real>())
+            {
+                return Err("sparse LU preconditioner requires nonzero U pivots".into());
+            }
+        }
+        Ok(Self {
+            l,
+            u,
+            rows: rows.data()?.clone(),
+            cols: cols.data()?.clone(),
+        })
+    }
+    fn run(
+        &self,
+        mut out: MatMut<'_, T>,
+        b: MatRef<'_, T>,
+        mut p: Par,
+        s: &mut MemStack,
+        t: bool,
+        c: bool,
+    ) {
+        let n = self.l.nrows();
+        let (mut tmp, _) = faer::linalg::temp_mat_zeroed::<T, _, _>(n, b.ncols(), s);
+        let (gather, scatter) = if t {
+            (&self.cols, &self.rows)
+        } else {
+            (&self.rows, &self.cols)
+        };
+        let g = gather.as_ref().arrays().0;
+        let q = scatter.as_ref().arrays().0;
+        for j in 0..b.ncols() {
+            for i in 0..n {
+                tmp.as_mat_mut()[(i, j)] = copy(&b[(g[i], j)]);
+            }
+        }
+        let conj = if c { faer::Conj::Yes } else { faer::Conj::No };
+        use faer::sparse::linalg::triangular_solve as tri;
+        if t {
+            tri::solve_upper_triangular_transpose_in_place(
+                self.u.as_ref(),
+                conj,
+                tmp.as_mat_mut(),
+                p.reborrow(),
+            );
+            tri::solve_unit_lower_triangular_transpose_in_place(
+                self.l.as_ref(),
+                conj,
+                tmp.as_mat_mut(),
+                p,
+            );
+        } else {
+            tri::solve_unit_lower_triangular_in_place(
+                self.l.as_ref(),
+                conj,
+                tmp.as_mat_mut(),
+                p.reborrow(),
+            );
+            tri::solve_upper_triangular_in_place(self.u.as_ref(), conj, tmp.as_mat_mut(), p);
+        }
+        for j in 0..b.ncols() {
+            for i in 0..n {
+                out[(q[i], j)] = copy(&tmp.as_mat_ref()[(i, j)]);
+            }
+        }
+    }
+}
+impl<T: ComplexField> LinOp<T> for InverseSparseLu<T> {
+    fn nrows(&self) -> usize {
+        self.l.nrows()
+    }
+    fn ncols(&self) -> usize {
+        self.u.ncols()
+    }
+    fn apply_scratch(&self, k: usize, _: ParShape) -> StackReq {
+        faer::linalg::temp_mat_scratch::<T>(self.nrows(), k)
+    }
+    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, false)
+    }
+    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, true)
+    }
+}
+impl<T: ComplexField> BiLinOp<T> for InverseSparseLu<T> {
+    fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        self.apply_scratch(k, p)
+    }
+    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, false)
+    }
+    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, true)
+    }
+}
+#[julia]
+impl OwnedLinearOperator {
+    #[julia]
+    pub fn operator_sparse_lu_inverse(
+        &mut self,
+        l: &SparseOwner,
+        u: &SparseOwner,
+        rows: &crate::permutations::OwnedPermutation,
+        cols: &crate::permutations::OwnedPermutation,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(match (l.data()?, u.data()?) {
+                (SparseData::F32(l), SparseData::F32(u)) => Data::F32(Operator::new(
+                    Base::InverseSparseLu(Box::new(InverseSparseLu::new(l, u, rows, cols)?)),
+                )),
+                (SparseData::F64(l), SparseData::F64(u)) => Data::F64(Operator::new(
+                    Base::InverseSparseLu(Box::new(InverseSparseLu::new(l, u, rows, cols)?)),
+                )),
+                (SparseData::C32(l), SparseData::C32(u)) => Data::C32(Operator::new(
+                    Base::InverseSparseLu(Box::new(InverseSparseLu::new(l, u, rows, cols)?)),
+                )),
+                (SparseData::C64(l), SparseData::C64(u)) => Data::C64(Operator::new(
+                    Base::InverseSparseLu(Box::new(InverseSparseLu::new(l, u, rows, cols)?)),
+                )),
+                _ => return Err("sparse LU component scalar types must match".into()),
             });
             Ok(())
         })

@@ -886,3 +886,30 @@ function FaerLinearOperator(f::FaerFactorization{T,K}) where {T,K}
         FaerLinearOperator{T,typeof(h)}(h, size(f), :factorization, false, false)
     end
 end
+
+"""
+    FaerLinearOperator(F::FaerSparseFactorization{T,:lu})
+
+Own a sparse inverse-action snapshot of explicit simplicial LU factors. Native
+CSC L/U and row/column permutations are retained independently; mixed scalar
+promotion converts these factors without refactorizing the stored input.
+Application uses sparse triangular solves and an intermediate in native scratch.
+Auto/supernodal LU components are not yet available through this constructor.
+"""
+function FaerLinearOperator(f::FaerSparseFactorization{T,:lu}) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+        l, u, rows, cols=f.L, f.U, f.p, f.q
+        try
+            h=RustCrate.OwnedLinearOperator()
+            _native_call(RustCrate.operator_sparse_lu_inverse, h, l, u, rows, cols)
+            FaerLinearOperator{T,typeof(h)}(h, size(f), :factorization, false, false)
+        finally
+            close(l)
+            close(u)
+            close(rows)
+            close(cols)
+        end
+    end
+end
