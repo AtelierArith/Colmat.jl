@@ -1647,6 +1647,6 @@ Operator multiplication retains independent copies of both operands and applies
 them in sequence without materializing their coefficient product. Composition
 supports nested products, conjugation, transpose and adjoint; intermediate RHS
 storage comes from native scratch. Explicit `Matrix(op)` materializes the result.
-A composition has no single `.coefficients` representation. Promoting an existing
-composition to another scalar type is currently unsupported; construct operands
-in the target scalar type before composing.
+A composition has no single `.coefficients` representation. Mixed native scalar types are promoted recursively through the operator tree.
+Dense, CSC/CSR, diagonal and identity leaves preserve their representations;
+composition never forms a dense coefficient product during promotion.

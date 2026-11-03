@@ -1463,3 +1463,106 @@ impl OwnedLinearOperator {
         })
     }
 }
+
+trait NativeValue: ComplexField {
+    fn parts(&self) -> (f64, f64);
+    fn from_parts(re: f64, im: f64) -> Self;
+}
+impl NativeValue for f32 {
+    fn parts(&self) -> (f64, f64) {
+        (*self as f64, 0.0)
+    }
+    fn from_parts(r: f64, _: f64) -> Self {
+        r as f32
+    }
+}
+impl NativeValue for f64 {
+    fn parts(&self) -> (f64, f64) {
+        (*self, 0.0)
+    }
+    fn from_parts(r: f64, _: f64) -> Self {
+        r
+    }
+}
+impl NativeValue for c32 {
+    fn parts(&self) -> (f64, f64) {
+        (self.re as f64, self.im as f64)
+    }
+    fn from_parts(r: f64, i: f64) -> Self {
+        Self::new(r as f32, i as f32)
+    }
+}
+impl NativeValue for c64 {
+    fn parts(&self) -> (f64, f64) {
+        (self.re, self.im)
+    }
+    fn from_parts(r: f64, i: f64) -> Self {
+        Self::new(r, i)
+    }
+}
+fn convert_operator<S: NativeValue, T: NativeValue>(
+    a: &Operator<S>,
+) -> Result<Operator<T>, String> {
+    let cast = |x: &S| {
+        let (r, i) = x.parts();
+        T::from_parts(r, i)
+    };
+    let base = match &a.base {
+        Base::Dense(m) => Base::Dense(Mat::from_fn(m.nrows(), m.ncols(), |i, j| cast(&m[(i, j)]))),
+        Base::Diagonal(d) => {
+            let mut out = Diag::zeros(d.dim());
+            for i in 0..d.dim() {
+                out.column_vector_mut()[i] = cast(&d.column_vector()[i]);
+            }
+            Base::Diagonal(out)
+        }
+        Base::Identity(i) => Base::Identity(IdentityPrecond { dim: i.dim }),
+        Base::Product(p) => Base::Product(Box::new(OperatorProduct {
+            left: convert_operator(&p.left)?,
+            right: convert_operator(&p.right)?,
+        })),
+        Base::Sparse(s) => {
+            let csr = matches!(s, Storage::Csr(_));
+            let m = s.csc()?;
+            let entries: Vec<_> = m
+                .as_ref()
+                .triplet_iter()
+                .map(|e| faer::sparse::Triplet {
+                    row: e.row,
+                    col: e.col,
+                    val: cast(e.val),
+                })
+                .collect();
+            let m =
+                faer::sparse::SparseColMat::try_new_from_triplets(m.nrows(), m.ncols(), &entries)
+                    .map_err(|e| format!("{e:?}"))?;
+            Base::Sparse(Storage::Csc(m).converted(csr)?)
+        }
+    };
+    Ok(Operator {
+        base,
+        transpose: a.transpose,
+        conjugate: a.conjugate,
+    })
+}
+#[julia]
+impl OwnedLinearOperator {
+    #[julia]
+    pub fn operator_promote(&mut self, source: &Self, tag: i32) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(match (source.data()?, tag) {
+                (Data::F32(a), 0) => Data::F32(a.clone()),
+                (Data::F32(a), 1) => Data::F64(convert_operator(a)?),
+                (Data::F32(a), 2) => Data::C32(convert_operator(a)?),
+                (Data::F32(a), 3) => Data::C64(convert_operator(a)?),
+                (Data::F64(a), 1) => Data::F64(a.clone()),
+                (Data::F64(a), 3) => Data::C64(convert_operator(a)?),
+                (Data::C32(a), 2) => Data::C32(a.clone()),
+                (Data::C32(a), 3) => Data::C64(convert_operator(a)?),
+                (Data::C64(a), 3) => Data::C64(a.clone()),
+                _ => return Err("operator conversion requires widening scalar promotion".into()),
+            });
+            Ok(())
+        })
+    }
+}
