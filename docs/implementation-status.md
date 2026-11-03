@@ -780,3 +780,39 @@ Validation: `Pkg.test()` passes **55,571 assertions across 32 independent files
 with ParallelTestRunner.jl and 16 workers**; the new suite contributes 1,621
 assertions. All README Julia examples, method ambiguity checks, `cargo check`,
 Rust/Julia formatting and `git diff --check` pass. Dependency sources are clean.
+
+### Native bidiagonalization and bidiagonal SVD
+
+Added `bidiagonalize`/`bidiagonalize!` and owned `FaerBidiagonalization` with
+native U/V and a Julia Bidiagonal core. Tall/square problems use upper B;
+wide problems reduce the adjoint and return lower B. Thin bases are the default,
+with optional full bases and configurable Householder blocksize. Existing
+compact Householder application, including scalar-tail correction, forms the
+bases. Destructive facades stage an independent result before storing B's
+rectangular embedding. Input matrices and compact metadata are not aliased.
+
+Added `bidiagonal_svd`, `svd/svdvals` on the reduction, and native-vector
+Bidiagonal overloads. The public native square band kernel handles upper/lower,
+real/complex coefficients, real descending singular values and its small/large
+recursion threshold. All four scalar types and promotion are supported. The
+native kernel computes dense factors/workspace even for svdvals; no linear-space
+values-only claim is made. Thin rectangular reduction avoids full-square bases
+for high-aspect matrices.
+
+Enabled faer's rayon feature to work around a confirmed blocked-reduction bug:
+the essential Y update is incorrectly cfg-gated on rayon. Numerical calls still
+use Par::Seq. A pure-Rust, zero-scratch-initialized MWE gives relative residual
+0.6180742 without rayon and 9.783102e-16 with it. Reported as tensor4all/faer#203,
+with removal of the erroneous cfg and feature-matrix regression tests proposed.
+No dependency sources are patched. Additional native issues are reported with
+executed Rust MWEs as #204 (small partial eigen panic), #205 (complex zero-q
+rotg), #206 (complex right 2×2 Jacobi) and #207 (LSMR absolute tolerance).
+
+Validation on the isolated baseline: Pkg.test(allow_reresolve=false) passes
+58,236 assertions in 33 independent files using ParallelTestRunner and 16 workers;
+the new suite contributes 2,665 assertions. It covers empty/rectangular/wide,
+complex phases, thin/full bases and SVD, both native band paths, blocked sizes
+above 128, tiny/huge scales, aliases/close/failure behavior, and a 20,000×2 thin
+problem. All README examples pass. External scratch, compact controls and other
+remaining Issue #1 requirements retain their scope. Integration with the
+concurrently edited RustCall migration must be verified separately.

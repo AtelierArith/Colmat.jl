@@ -109,8 +109,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 前処理 | `Precond/BiPrecond/IdentityPrecond` | 反復法の前処理（標準外） | R: native in-place 適用、`identity_preconditioner`、`diagonal_preconditioner` | callback・分解を用いる前処理 |
 | 共役勾配法 | `conjugate_gradient::{conjugate_gradient,CgParams,CgInfo,CgError}` | CG solver（標準外） | R: `cg/cg!`、block RHS、4 型、初期値・許容誤差・反復上限、失敗 iterate・独立した真の残差 | callback・履歴・独立 scratch API |
 | BiCGSTAB | `bicgstab::{bicgstab,BicgParams,BicgInfo,BicgError}` | BiCGSTAB solver（標準外） | R: `bicgstab/bicgstab!`、左右前処理・block RHS・4 型・初期値・許容誤差・反復上限、失敗 iterate・真の残差 | callback・履歴・独立 scratch API |
-| LSMR | `lsmr::{lsmr,LsmrParams,LsmrInfo,LsmrError}` | 最小二乗反復 solver（標準外） | R: `lsmr/lsmr!`、長方形・block RHS・右前処理・4 型・初期値・許容誤差・反復上限、真の前処理付き正規残差 | callback・履歴・独立 scratch API。upstream の絶対許容誤差は有効な相対値へ換算 |
-| 部分固有値・部分 SVD | `matrix_free::eigen::{partial_eigen,partial_self_adjoint_eigen,partial_svd}` と params/info/scratch | 部分スペクトルを求める Krylov 法（標準外） | — | 未。self-adjoint の小規模行列で upstream panic を再現（`docs/reproducers/faer-partial-small.rs`）。引き続き実装対象 |
+| LSMR | `lsmr::{lsmr,LsmrParams,LsmrInfo,LsmrError}` | 最小二乗反復 solver（標準外） | R: `lsmr/lsmr!`、長方形・block RHS・右前処理・4 型・初期値・許容誤差・反復上限、真の前処理付き正規残差 | callback・履歴・独立 scratch API。upstream の絶対許容誤差は有効な相対値へ換算（[faer #207](https://github.com/tensor4all/faer/issues/207)） |
+| 部分固有値・部分 SVD | `matrix_free::eigen::{partial_eigen,partial_self_adjoint_eigen,partial_svd}` と params/info/scratch | 部分スペクトルを求める Krylov 法（標準外） | — | 未。self-adjoint の小規模行列で upstream panic を再現（[faer #204](https://github.com/tensor4all/faer/issues/204)、`docs/reproducers/faer-partial-small.rs`）。引き続き実装対象 |
 
 ## 7. 低水準の数値プリミティブ
 
@@ -121,7 +121,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転。`FaerJacobiRotation`、`rotg/make_givens`、2×2左右適用、transpose/conj/adjoint、Givens 埋め込み | — |
 | Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | R: 4 型の `hessenberg/hessenberg!`、明示的な Rust 所有 H/Q、Schur 段階への再利用。`balance/balance!`、`FaerBalance` の B/perm/scale/active、右固有ベクトルの `balance_eigenvectors[!]` | compact Householder 形式・全パラメータ・外部 scratch |
 | 対称三重対角化・三重対角 EVD | `evd::tridiag::tridiag_in_place`, `tridiagonal_self_adjoint_evd` | `SymTridiagonal`、構造化固有値分解 | R: `tridiagonalize[!]`、native self-adjoint wrapper の `hessenberg[!]`、実 H/明示 Q、`eigen/eigvals(F)`、native ベクトルを持つ SymTridiagonal、`tridiagonal_eigen/eigvals`、4 型・複素位相・QR/分割統治 | compact reflector の直接公開、外部 scratch・全 tuning |
-| 二重対角化・二重対角 SVD | `svd::bidiag::bidiag_in_place`, `bidiagonal_svd` | `Bidiagonal`、LAPACK bidiagonal SVD 相当 | — | 未 |
+| 二重対角化・二重対角 SVD | `svd::bidiag::bidiag_in_place`, `bidiagonal_svd` | `Bidiagonal`、LAPACK bidiagonal SVD 相当 | R: `bidiagonalize[!]`、thin/full U/B/V・縦長/横長・4 型、`bidiagonal_svd`、`svd/svdvals(F)` と native ベクトルを持つ Bidiagonal | compact reflector の直接公開・外部 scratch・全 tuning。values-only も native の dense factors/workspace を使用 |
 | Pfaffian | `linalg::pfaffian::{pfaffian,pfaffian_scratch,PfaffianError}` | 反対称行列の Pfaffian。LinearAlgebra に直接同名の高水準 API はない | R: `pfaffian`、反対称性の検査・複素対応 | scratch・低水準アルゴリズム制御 |
 
 ## 8. 並列実行・統計・I/O・補助 API
@@ -140,13 +140,15 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 「R」は専用 Rust 経路、「J」は Julia 汎用実装であり、区別する。一部の操作は一時所有行列へコピーする。
 - `FaerMatrix` は上記 4 型を保持する。疎入力を密行列化できても疎行列サポートには数えない。
-- Cargo は `default-features=false, features=["std","linalg"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
+- `rayon` はブロック二重対角化で必要な Y 更新が feature gate 内にある不具合の回避（[faer #203](https://github.com/tensor4all/faer/issues/203)）。数値呼び出しは `Par::Seq` のまま。
+- Cargo は `default-features=false, features=["std","linalg","rayon"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
 - 疎 LU/QR の成分公開・横長/ランク落ち QR・LU/QR への ordering 指定、matrix-free、残りの破壊的分解・scratch、並列 team、乱数・NPY は今後の実装対象。一般化 Schur の並べ替えにも未対応。
 - `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - 実 Schur の共役対は 2×2 ブロックとして扱い、選択では対を分割しない。Hessenberg の Q は明示行列で、compact reflector 形式とは区別する。
 - QZ の α/β は無限固有値と 0/0 を保つ同次形式。検査した faer real-QZ の scratch 推奨量には偶数丸め window・index 配列数の不足があるため、依存クローンを変更せずラッパーで再帰的な割当上限を補正した。blocked 経路もテスト済み。
+- Jacobi の複素 zero-q r と 2×2 右適用の補正は [faer #205](https://github.com/tensor4all/faer/issues/205)、[#206](https://github.com/tensor4all/faer/issues/206) に Rust MWE 付きで報告。
 - RustCall [#564](https://github.com/AtelierArith/RustCall.jl/issues/564)・[#565](https://github.com/AtelierArith/RustCall.jl/issues/565) は v0.9.2 で解消。`FaerMatrix` のコピーは `Result<Self, String>` を返すメソッドを使用し、型が決まっている所有者の引数は `&T` / `&mut T` として検査する。型を実行時に切り替える引数と省略可能な所有者には明示的な生ポインタ経路を残す。
 
 ## ソース

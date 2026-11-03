@@ -417,3 +417,12 @@ pub(crate) fn apply_compact<T: ComplexField>(
 ) -> Result<(), String> {
     apply(&Sequence { basis, factor }, out, false, false, false)
 }
+
+pub(crate) fn apply_compact_conj<T: ComplexField>(
+    basis: Mat<T>,
+    factor: Mat<T>,
+    out: MatMut<'_, T>,
+    conjugate: bool,
+) -> Result<(), String> {
+    apply(&Sequence { basis, factor }, out, false, false, conjugate)
+}

@@ -742,3 +742,30 @@ superdiagonal. Values are real and ascending; eigenvectors are native matrices.
 `sortby` changes ordering. Eigenvalues-only calls use linear coefficient/work
 storage and do not form a dense matrix. All four native types, complex
 subdiagonals and scaling for extreme finite inputs are supported.
+
+### Bidiagonal reduction and SVD
+
+`bidiagonalize` uses faer's native reduction for square or rectangular matrices:
+
+```julia
+using Colmat, LinearAlgebra
+A = [1.0 2; 3 4; 5 6]
+F = bidiagonalize(A)
+@assert Matrix(F) ≈ A
+@assert Matrix(F.U) * Matrix(F.B) * Matrix(F.V)' ≈ A
+S = svd(F) # reuse the reduction and call the dedicated bidiagonal SVD
+@assert Matrix(S.U) * Diagonal(S.S) * Matrix(S.Vt) ≈ A
+B = Bidiagonal(FaerVector([3.0, -2]), FaerVector([0.5]), :U)
+@assert svdvals(B) ≈ bidiagonal_svd([3.0, -2], [0.5]).S
+```
+
+The default factors are thin; `bidiagonalize(A; full=true)` retains complete
+bases for `svd(F; full=true)`. B is upper for tall/square inputs and lower for
+wide inputs. `bidiagonalize!` stages its result before replacing a native input
+by the rectangular embedding of B. Compact reflectors stay internal.
+
+`bidiagonal_svd(d,e; uplo=:U)` supports real or complex diagonals and either
+selected offdiagonal, returning native U/Vt and nonnegative descending real S.
+`recursion_threshold` selects the native small/large SVD paths. Inputs remain
+unchanged. The public native bidiagonal SVD computes dense factors/workspace,
+including when `svdvals` requests only values.

@@ -26,3 +26,34 @@ rmdir deps/rust/examples
 
 No source under `deps/t4a-faer` is modified. Partial spectrum integration remains
 an open Issue #1 requirement; this probe does not replace implementing it.
+
+
+## Blocked bidiagonalization without rayon
+
+Reported with full Cargo.toml, Rust MWE, measured outputs and a concrete fix in
+[tensor4all/faer#203](https://github.com/tensor4all/faer/issues/203).
+`faer-bidiag-no-rayon.rs` contains the standalone Rust example. With
+`default-features=false, features=["std","linalg"]` it has relative residual
+`6.180742e-1`; adding `rayon` gives `9.783102e-16`. Both calls pass `Par::Seq`.
+The scratch bytes are explicitly zeroed to make the omitted Y update's effect
+deterministic. The issue includes copy/paste build instructions.
+
+The small partial-eigenvalue panic above is also reported with its standalone
+MWE and fallback implementation proposal in
+[tensor4all/faer#204](https://github.com/tensor4all/faer/issues/204).
+
+
+## Other confirmed native API issues
+
+Each report includes its standalone Cargo.toml, full Rust MWE, observed output
+and a concrete fix. The locally executed copies are retained here:
+
+| MWE | faer issue | Observed failure |
+|---|---|---|
+| `faer-rotg-zero.rs` | [#205](https://github.com/tensor4all/faer/issues/205) | Complex zero-q rotg returns r=1 instead of p |
+| `faer-jacobi-right.rs` | [#206](https://github.com/tensor4all/faer/issues/206) | Complex right 2×2 application applies conjugated J |
+| `faer-lsmr-atol.rs` | [#207](https://github.com/tensor4all/faer/issues/207) | Absolute tolerance is omitted from LSMR threshold |
+
+All three independent examples exit 101 at their expected correctness assertion
+on the pinned revision. Colmat already compensates for these cases in its
+wrappers; the dependency checkout remains unmodified.

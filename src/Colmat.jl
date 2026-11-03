@@ -7,6 +7,10 @@ import Statistics
 using LinearAlgebra: SVD
 
 export FaerLinearOperator,
+    FaerBidiagonalization,
+    bidiagonalize,
+    bidiagonalize!,
+    bidiagonal_svd,
     FaerTridiagonalization,
     tridiagonalize,
     tridiagonalize!,
@@ -195,5 +199,6 @@ include("jacobi.jl")
 include("statistics.jl")
 include("balance.jl")
 include("tridiagonal.jl")
+include("bidiagonal.jl")
 
 end
