@@ -88,3 +88,39 @@ and scratch interfaces, rotations/reflectors, teams, statistics, random and NPY.
 Complex symmetric (non-Hermitian) structured decompositions and advanced
 keyword/error coverage also remain to be audited. This checkpoint does not
 complete Issue #1.
+
+## Owned collections and borrowed views checkpoint
+
+- `FaerVector`, `FaerRow` and `FaerDiagonal` own faer `Col`, `Row` and `Diag`
+  storage in all four native scalar types. Construction, independent copies,
+  scalar promotion, arithmetic, sums, norms, conjugation, dot products and
+  lifecycle checks use native calls. Stored diagonal entries can be changed via
+  `filldiagonal!` or `diagonalview`; off-diagonal values remain implicit zeros.
+- Matrix/vector products and matrix/factor solves with Rust-owned vector RHS
+  return Rust-owned vectors. Vector `mul!` and `ldiv!` handle overlapping input
+  and output. Row/column capacity and length management are available.
+- Range-based matrix, row and column views retain their owner. Nested,
+  reversed, strided and repeated-index ranges are supported. Native products
+  and copies create genuine MatRef/MatMut only within synchronous calls;
+  references never escape a retained owner lifetime. Equal-type view products
+  borrow input buffers directly.
+- Capacity reservation preserves views. Shape changes permanently invalidate
+  earlier views; closing an owner also rejects further view accesses. Closing
+  an intermediate view does not close its owner or nested independent view.
+- View assignment stages its source before borrowing the destination mutably.
+  Repeated indices use ordered scalar writes, avoiding aliased mutable refs.
+  Broadcast and zero-dimensional nested views retain Julia array behavior.
+  `deepcopy(view)` clones its parent and preserves the view type.
+
+Validation: the final `Pkg.test(; julia_args=["--threads=2"])` run passes
+**2666 tests**, including view-copy and array-integration checks.
+README Julia examples pass, Julia method ambiguity detection is empty, and
+`cargo fmt --check` passes.
+
+Still required: the complete remaining 76-row inventory. In particular, generic
+integer-vector indexing is not a native range view; arbitrary borrowed Julia
+buffers, specialized diagonal/matrix products and all row/column operation
+combinations are not finished. Permutations, extended precision/custom fields,
+pseudoinverse/rank/condition interfaces, Schur/QZ, sparse, matrix-free,
+destructive/scratch/reflector/rotation APIs, teams, statistics, random and NPY
+remain. This checkpoint does not complete Issue #1.

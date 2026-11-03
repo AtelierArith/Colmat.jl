@@ -4,7 +4,14 @@ using RustCall
 import LinearAlgebra
 using LinearAlgebra: SVD
 
-export FaerMatrix,
+export FaerMatrixView,
+    FaerVectorView,
+    diagonalview,
+    FaerVector,
+    FaerRow,
+    FaerDiagonal,
+    filldiagonal!,
+    FaerMatrix,
     FaerFactorization,
     reserve!,
     truncate!,
@@ -109,5 +116,7 @@ include("eigen.jl")
 include("structured.jl")
 include("typed.jl")
 include("storage.jl")
+include("collections.jl")
+include("views.jl")
 
 end

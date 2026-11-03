@@ -58,6 +58,7 @@ function Base.resize!(a::FaerMatrix{T}, m::Integer, n::Integer; fill = zero(T)) 
             UInt(n),
             Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, value)),
         )
+        dims!=a.dims && (a.epoch+=1)
         a.dims=dims
     end
     return a
@@ -75,6 +76,7 @@ function truncate!(a::FaerMatrix, m::Integer, n::Integer)
         m<=size(a, 1)&&n<=size(a, 2) ||
             throw(DimensionMismatch("truncate! cannot grow a matrix"))
         _native_call(RustCrate.truncate_storage, a, UInt(m), UInt(n))
+        dims!=a.dims && (a.epoch+=1)
         a.dims=dims
     end
     return a

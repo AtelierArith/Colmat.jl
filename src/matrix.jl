@@ -15,7 +15,10 @@ independent Julia copy. Operations currently use `Par::Seq`.
 mutable struct FaerMatrix{T,H} <: AbstractMatrix{T}
     handle::Union{Nothing,H}
     dims::Tuple{Int,Int}
+    epoch::UInt
 end
+FaerMatrix{T,H}(handle, dims::Tuple{Int,Int}) where {T,H} =
+    FaerMatrix{T,H}(handle, dims, UInt(0))
 
 _owned(handle::H, dims) where {H} = FaerMatrix{Float64,H}(handle, dims)
 function _handle(a::FaerMatrix)
@@ -113,6 +116,7 @@ end
 function Base.close(a::FaerMatrix)
     lock(_matrix_lock) do
         a.handle = nothing
+        a.epoch += 1
     end
     return nothing
 end

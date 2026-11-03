@@ -61,3 +61,6 @@ include("structured.jl")
 
 include("typed.jl")
 include("storage.jl")
+
+include("collections.jl")
+include("views.jl")

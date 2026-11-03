@@ -58,6 +58,40 @@ E = copy(A)               # Rust の行列を複製
 snapshot = Matrix(A)      # Julia へ独立したコピーを取得
 ```
 
+Rust が所有する列ベクトル・行ベクトル・対角行列も使えます。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix([4.0 1; 1 3])
+v = FaerVector([1.0, 2.0])
+w = A * v                       # Rust の Col を所有する FaerVector
+x = lu(A) \ v                    # 結果も FaerVector
+@assert Vector(w) ≈ Matrix(A) * Vector(v)
+@assert Vector(x) ≈ Matrix(A) \ Vector(v)
+@assert v' * v ≈ dot(Vector(v), Vector(v))
+r = FaerRow([1.0, 2.0])          # 共役しない 1×2 行列
+D = FaerDiagonal([2.0, 3.0])
+filldiagonal!(D, 4)
+@assert Matrix(D) == Matrix(Diagonal([4.0, 4.0]))
+
+V = view(A, 2:-1:1, :)           # 逆順・間引きの範囲を扱える
+@assert Matrix(V' * V) ≈ Matrix(V)' * Matrix(V)
+copyto!(view(A, :, 1), v)         # 重複する領域からのコピーにも対応
+fill!(diagonalview(D), 5)         # 対角の格納領域を借用
+reserve!(A, 8, 8)                # 容量確保後も V は有効
+@assert isopen(V)
+close(V)                        # A 自体は閉じない
+```
+
+`view` は親の所有者を保持し、ネイティブ呼び出しの間だけ Rust の
+`MatRef` / `MatMut` を作ります。部分行列・行・列・入れ子の範囲ビューに
+対応します。親の形状を変える `resize!` / `truncate!` は既存のビューを
+失効させます。親を閉じた場合もアクセスは例外になります。
+`copy(view(...))` は独立した Rust 所有行列・ベクトルを返します。
+ビューへの `copyto!` は入力を一時コピーし、代入先と重なる場合も値を保ちます。
+`FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
+
 密行列の分解は Rust に保持して再利用できます。
 
 ```julia

@@ -9,7 +9,7 @@ use faer::{c32, c64, Accum, Conj, Mat, MatRef, Par, Side};
 use rustcall_julia_macros::julia;
 
 #[derive(Clone)]
-enum MatrixData {
+pub(crate) enum MatrixData {
     F32(Mat<f32>),
     F64(Mat<f64>),
     C32(Mat<c32>),
@@ -67,14 +67,14 @@ unsafe fn read_matrix<T: ComplexField + Copy>(
     finite(a.as_ref())?;
     Ok(a)
 }
-unsafe fn write_matrix<T: ComplexField>(a: MatRef<'_, T>, p: *mut u8) {
+pub(crate) unsafe fn write_matrix<T: ComplexField>(a: MatRef<'_, T>, p: *mut u8) {
     for j in 0..a.ncols() {
         for i in 0..a.nrows() {
             p.cast::<T>().add(i + j * a.nrows()).write(copy(&a[(i, j)]));
         }
     }
 }
-fn arithmetic<T: ComplexField>(
+pub(crate) fn arithmetic<T: ComplexField>(
     a: MatRef<'_, T>,
     b: MatRef<'_, T>,
     op: i32,
@@ -140,7 +140,7 @@ unsafe fn scalar_output<T: ComplexField>(
     out.cast::<T>().write(value);
     Ok(())
 }
-unsafe fn norm_output<T: ComplexField>(
+pub(crate) unsafe fn norm_output<T: ComplexField>(
     a: MatRef<'_, T>,
     out: *mut u8,
     code: i32,
@@ -221,10 +221,10 @@ unsafe fn svd_output<T: ComplexField>(
 
 #[julia]
 pub struct TypedMatrix {
-    data: Option<MatrixData>,
+    pub(crate) data: Option<MatrixData>,
 }
 impl TypedMatrix {
-    fn data(&self) -> Result<&MatrixData, String> {
+    pub(crate) fn data(&self) -> Result<&MatrixData, String> {
         self.data.as_ref().ok_or("matrix is not initialized".into())
     }
 }
@@ -786,7 +786,7 @@ macro_rules! paired {
         }
     };
 }
-unsafe fn inner_output<T: ComplexField>(
+pub(crate) unsafe fn inner_output<T: ComplexField>(
     a: MatRef<'_, T>,
     b: MatRef<'_, T>,
     out: *mut u8,
