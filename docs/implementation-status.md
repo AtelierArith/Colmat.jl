@@ -1867,3 +1867,20 @@ check used A=[0 2;3 1] (complex variant adds 0.2im to A[1,2]) to verify
 row-pivoted normal/transpose/adjoint actions across all four types.
 Other dense and sparse decomposition preconditioners,
 callbacks and the remaining Issue #1/#2 work are still pending.
+
+### Retained Cholesky preconditioners
+
+Native Cholesky factors can now construct FaerLinearOperator inverse actions.
+The operator independently owns lower/upper triangular factors and applies
+native nonunit triangular solves. It shares ownership, composition and saved
+factor scalar-promotion machinery with LU preconditioners; Cholesky uses no
+LU-specific solve workspace. Normal/conjugate/transpose/adjoint actions do not
+form an inverse or refactor. Failed factors raise PosDefException.
+
+Focused verification passed 737 assertions across four factor/RHS scalar types,
+both input triangle choices, empty/singleton/square shapes, copies, closed source
+factors, mixed promotion, transpose/adjoint, CG and failed-factor rejection.
+Canonical Pkg.test passed 85,870 assertions / 69 files with 16 workers.
+All 10 native tests and 57 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. Other factor types, sparse
+preconditioners, callbacks and remaining Issue #1/#2 scope are pending.
