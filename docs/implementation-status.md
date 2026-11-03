@@ -4,6 +4,10 @@ The complete objective is the feature inventory in
 <https://github.com/AtelierArith/Colmat.jl/issues/1>. This checklist records
 progress; completing one phase does not complete the issue.
 
+The remaining implementation work and acceptance criteria are tracked in
+[follow-up Issue #2](https://github.com/AtelierArith/Colmat.jl/issues/2) and the
+[handoff plan](issue-1-follow-up.md). Issue #1 remains the canonical overall mapping.
+
 - [ ] Owned matrix/vector/diagonal types, scalar types, views and capacity management
 - [ ] Native arithmetic, reductions, structured products, permutations and Kronecker product
 - [ ] Reusable LU, full-pivot LU, QR, pivoted QR, LLT, LDLT and block LDLT factorizations
