@@ -51,9 +51,22 @@ Compute eigenvalues and right eigenvectors using t4a-faer. Self-adjoint
 wrappers read only the specified triangle. Results own independent Julia
 arrays. General real matrices produce complex eigenpairs.
 """
-LinearAlgebra.eigen(a::FaerMatrix{Float64}; sortby = _eigensort) = _eigen(a, 0; sortby)
-LinearAlgebra.eigvals(a::FaerMatrix{Float64}; sortby = _eigensort) =
-    _eigen(a, 0; vectors = false, sortby)
+LinearAlgebra.eigen(
+    a::FaerMatrix{Float64};
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) =
+    isnothing(scratch) && isnothing(team) ? _eigen(a, 0; sortby) :
+    _general_evd_workspace_result(a; sortby, scratch, team)
+LinearAlgebra.eigvals(
+    a::FaerMatrix{Float64};
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) =
+    isnothing(scratch) && isnothing(team) ? _eigen(a, 0; vectors = false, sortby) :
+    _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_FaerSelfAdjoint;
     sortby = _eigensort,

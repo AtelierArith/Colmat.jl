@@ -1,7 +1,24 @@
-function _general_eigen_writeback!(a::FaerMatrix, vectors::Bool, sortby)
+function _general_eigen_writeback!(
+    a::FaerMatrix,
+    vectors::Bool,
+    sortby;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         _handle(a)
         LinearAlgebra.checksquare(a)
+        if !isnothing(scratch) || !isnothing(team)
+            result=vectors ? LinearAlgebra.eigen(a; sortby, scratch, team) :
+                   LinearAlgebra.eigvals(a; sortby, scratch, team)
+            form=LinearAlgebra.schur(a)
+            try
+                copyto!(a, form.T)
+                return result
+            finally
+                close(form)
+            end
+        end
         schur=LinearAlgebra.schur(a)
         try
             values=copy(schur.values)
@@ -50,10 +67,18 @@ triangle is read. Generalized pairs use QZ S/T writeback, or eigenvectors and a
 diagonal eigenvalue matrix for self-adjoint pairs. Pair scalar types must match
 and their parents must have distinct storage.
 """
-LinearAlgebra.eigen!(a::FaerMatrix; sortby = _eigensort) =
-    _general_eigen_writeback!(a, true, sortby)
-LinearAlgebra.eigvals!(a::FaerMatrix; sortby = _eigensort) =
-    _general_eigen_writeback!(a, false, sortby)
+LinearAlgebra.eigen!(
+    a::FaerMatrix;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) = _general_eigen_writeback!(a, true, sortby; scratch, team)
+LinearAlgebra.eigvals!(
+    a::FaerMatrix;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) = _general_eigen_writeback!(a, false, sortby; scratch, team)
 function _selfadjoint_eigen_writeback!(
     a::_AnyFaerSelfAdjoint,
     vectors::Bool,

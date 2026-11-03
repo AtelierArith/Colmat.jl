@@ -656,10 +656,22 @@ function _typed_eigen(
     end
     return vectors ? LinearAlgebra.Eigen(values, eigenvectors) : values
 end
-LinearAlgebra.eigen(a::FaerMatrix{T}; sortby = _eigensort) where {T<:_ExtraScalar} =
-    _typed_eigen(a; sortby)
-LinearAlgebra.eigvals(a::FaerMatrix{T}; sortby = _eigensort) where {T<:_ExtraScalar} =
-    _typed_eigen(a; vectors = false, sortby)
+LinearAlgebra.eigen(
+    a::FaerMatrix{T};
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) where {T<:_ExtraScalar} =
+    isnothing(scratch) && isnothing(team) ? _typed_eigen(a; sortby) :
+    _general_evd_workspace_result(a; sortby, scratch, team)
+LinearAlgebra.eigvals(
+    a::FaerMatrix{T};
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) where {T<:_ExtraScalar} =
+    isnothing(scratch) && isnothing(team) ? _typed_eigen(a; vectors = false, sortby) :
+    _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_ExtraSelfAdjoint;
     sortby = _eigensort,

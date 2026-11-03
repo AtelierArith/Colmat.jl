@@ -1252,3 +1252,35 @@ imaginary diagonal NaNs, sorting/failure transactions and native shape guards.
 All six native Rust tests, 39 README Julia blocks, method ambiguity checks,
 cargo check, Julia/Rust formatting and git diff --check pass. Dependency sources
 remain unchanged. Other Issue #1 requirements remain open.
+
+### General EVD workspace and team execution
+
+Added low-level general real/complex EVD adapters behind eigen/eigvals scratch/team
+keywords. Real kernels use scratch-resident real/imaginary values and paired real
+vectors, then export matching complex conjugate eigenpairs; complex kernels write
+complex outputs directly. Native normalization, scalar precision and sorting are
+preserved. Requirements/factories/reserve support bang aliases and actual team
+conditions. Shape/tag checks precede writes into Julia output arrays.
+
+General eigen!/eigvals! use these options for their eigen pass, then independently
+compute the existing sequential native Schur form for staged writeback. The query
+describes the eigen pass; it does not cover the additional Schur computation's
+internal workspace. Output arrays, sorting and writeback factors allocate.
+Unchanged calls retain their former route. Temporary workspace and Schur owners
+are closed on errors. Generalized-pair scratch/team and broader controls remain
+part of the full Issue #1 objective.
+
+Tests cover four types, real conjugate pairs, normalized right vectors, zero/
+empty matrices, values-only, query modes, repeated workspaces, staged writes,
+error transactions and shape guards. A cyclic matrix with analytically known
+roots tests the larger real/complex paths and orthogonality.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **70,675 assertions across
+48 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. General EVD workspace contributes 367 assertions across four
+types, width one/two, empty/scalar/zero/nonnormal/conjugate-pair systems, values
+only, normalization, cyclic spectra, query aliases, workspaces, staged writes,
+sorting/error transactions and native shape guards. All six native Rust tests,
+40 README Julia blocks, method ambiguity checks, cargo check, Julia/Rust
+formatting and git diff --check pass. Dependency sources remain unchanged.
+The complete Issue #1 objective remains active.
