@@ -1075,3 +1075,35 @@ explicit writeback convention, not a LAPACK work matrix. Insufficient scratch,
 invalid input or native failure leaves input unchanged. Source/factor bookkeeping
 and writeback allocate; neither entry point promises whole-call zero allocation.
 Temporary scratch created for a call is closed in a finally block.
+
+### Destructive eigenvalue decompositions
+
+```julia
+using Colmat, LinearAlgebra
+original = [2.0 -1; -1 2]
+A = FaerMatrix(original)
+F = eigen!(Hermitian(A, :L))
+@assert Matrix(A) == F.vectors
+@assert original * F.vectors ≈ F.vectors * Diagonal(F.values)
+rotation = [0.0 -1; 1 0]
+B = FaerMatrix(rotation)
+G = eigen!(B)
+@assert rotation * G.vectors ≈ G.vectors * Diagonal(G.values)
+@assert eltype(B) == Float64
+```
+
+`eigen!` and `eigvals!` support four native types and preserve the input scalar
+type. General matrices receive their real quasi-triangular or complex triangular
+Schur form. Right eigenvectors are normalized and copied to independent Julia
+arrays; `sortby` follows the existing eigen API. Native Hermitian/real Symmetric
+wrappers read the selected triangle. Their `eigen!` writes eigenvectors to the
+parent, while `eigvals!` writes a diagonal matrix of sorted eigenvalues.
+
+For generalized pairs, native general eigen and QZ passes produce the result
+and S/T writeback. Self-adjoint pairs write eigenvectors (or diagonal values for
+`eigvals!`) to the first parent and a diagonal eigenvalue matrix to the second.
+These are explicit staged formats; they do not expose LAPACK work buffers.
+Pair parents must be distinct with matching scalar types. Convergence/sort errors
+before writeback preserve inputs. Returned arrays remain independent of later
+input changes/close. Factorization, sorting and writeback allocate; EVD scratch
+and team keywords are not yet exposed.

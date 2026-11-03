@@ -1188,3 +1188,35 @@ execution, query aliases, insufficient scratch, invalid inputs and native shape
 guards. All six native Rust tests, 37 README Julia blocks, method ambiguity
 checks, cargo check, Julia/Rust formatting and git diff --check pass. Dependency
 sources remain unchanged. The full Issue #1 scope stays open.
+
+### Staged ordinary and generalized eigen mutation
+
+Added `eigen!`/`eigvals!` for four native scalar types, general matrices and
+selected Hermitian/real Symmetric wrappers, including generalized pairs. General
+single-matrix calls reuse native Schur/eigenvectors-from-Schur, normalize right
+vectors and sort independent Julia outputs before Schur-form writeback. Real
+inputs retain real quasi-triangular storage even for complex conjugate pairs.
+Self-adjoint eigen! writes eigenvectors; values-only writes a diagonal matrix.
+
+Generalized general pairs use existing native eigen and QZ passes, then write
+QZ S/T. Self-adjoint pairs write eigenvectors (or diagonal values for values-only)
+to the first parent and diagonal eigenvalues to the second. Distinct parent
+storage and matching scalar types are required. These explicitly defined staged
+formats do not claim LAPACK work-buffer compatibility. Sort/convergence failures
+before writeback preserve inputs; output arrays are independent of later changes.
+Temporary Schur/QZ owners are closed in finally blocks.
+
+Checks cover residuals, structural Schur/QZ invariants, specified triangles with
+ignored NaNs, orthogonality, sorting, aliases/type rejection and failure input
+preservation. EVD caller-owned scratch/team integration, direct allocation-free
+updates and other Issue #1 limitations remain open.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **69,703 assertions across
+46 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. Eigen mutation contributes 366 assertions across four types,
+empty/scalar/general/self-adjoint/generalized systems, real complex-pair Schur
+forms, QZ structure, residuals, normalization/orthogonality, selected triangles,
+values-only pair policies, sorting and failure/alias/type guards. All 38 README
+Julia blocks, method ambiguity checks, Julia formatting and git diff --check pass.
+Native dependency sources remain unchanged. The complete Issue #1 objective is
+still active with the remaining limitations above.
