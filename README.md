@@ -1698,3 +1698,26 @@ all four native scalar types, mixed RHS promotion, copy/composition and
 transpose/adjoint without inverse construction or refactorization. Failed
 Cholesky factors are rejected with `PosDefException`. Sparse and other dense
 factor preconditioners remain pending.
+
+### Retained full-pivot LU inverse actions
+
+```julia
+using Colmat, LinearAlgebra
+A0 = [0.0 2; 3 100]
+F = full_piv_lu(FaerMatrix(A0))
+M = FaerLinearOperator(F)
+close(F)
+b = ones(2)
+@assert M * b ≈ A0 \ b
+@assert transpose(M) * b ≈ transpose(A0) \ b
+N = M * FaerLinearOperator(A0)
+@assert Matrix(N) ≈ Matrix{Float64}(I, 2, 2)
+close(M)
+close(N)
+```
+
+Full-pivot LU inverse actions retain both row and column permutations with their
+triangular factors. Normal, transpose and adjoint application use native
+full-pivot solves and the corresponding scratch requirement. Mixed scalar
+promotion copies factor values and preserves both permutations, without
+refactorization. Singular and rectangular factors are rejected.
