@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `4b9cfc6`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、66970 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 40 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `b376353`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、67244 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 41 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -96,7 +96,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 疎加減算・構造の結合 | `sparse::ops::{add,sub,add_assign,sub_assign,add_into,sub_into,union_symbolic,...}` | 疎行列の `+/-` | R: native `+/-`、`pattern_union`、固定構造の `add_assign!/sub_assign!/add_into!/sub_into!` | 任意 callback、全体 broadcast/map の native 経路 |
 | 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | R: 4 型・型 promotion、CSC/CSR の native 積、`mul!`、ベクトルとの積 | symbolic/numeric 積計画の再利用、低水準制御 |
 | 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | R: CSC/CSR・4 型、`cholesky`、選択三角、`FaerSparseSymbolic`、`cholesky!`、求解、AMD/恒等/任意 ordering、分解方式指定、`p/algorithm/factor_storage`、疎 `L/U` 抽出・再構成、分解対角からの `det/logdet/logabsdet` | 外部 scratch・追加の低水準制御 |
-| 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解 | L/U・置換成分の公開、ordering 指定、低水準制御 |
+| 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解。`algorithm=:simplicial` の native L/U・p/q、恒等/任意 column ordering | auto/supernodal の L/U・置換成分と低水準制御。明示的 simplicial の既定列順序は恒等 |
 | 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、`qr!`、symbolic 再利用、`ldiv!` | 横長・rank-deficient、Q/R 成分、転置/随伴 QR 求解、低水準制御 |
 | 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | R: CSC/CSR・4 型、通常/単位の上下三角、転置/随伴、matrix/vector RHS、`ldiv!` | 作業領域の外部指定、割り当てを伴わない直接 in-place 経路 |
 | Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | R: `amd/colamd`、numeric/symbolic CSC/CSR、長方形 COLAMD、制御値・AMD 演算数見積もり、`FaerPermutation` 返却、Cholesky への直接 ordering 指定 | LU/QR への直接指定、caller-owned scratch |
@@ -144,7 +144,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - Cargo は `default-features=false, features=["std","linalg","rayon","rand","npy"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
-- 疎 LU/QR の成分公開・横長/ランク落ち QR・LU/QR への ordering 指定、matrix-free、残りの破壊的分解・scratch、並列 team は今後の実装対象。一般化 Schur の並べ替えにも未対応。
+- auto/supernodal 疎 LU と疎 QR の成分公開・横長/ランク落ち QR・auto LU/QR への ordering 指定、matrix-free、残りの破壊的分解・scratch、並列 team は今後の実装対象。一般化 Schur の並べ替えにも未対応。
 - `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - 実 Schur の共役対は 2×2 ブロックとして扱い、選択では対を分割しない。Hessenberg の Q は明示行列で、compact reflector 形式とは区別する。
 - QZ の α/β は無限固有値と 0/0 を保つ同次形式。検査した faer real-QZ の scratch 推奨量には偶数丸め window・index 配列数の不足があるため、依存クローンを変更せずラッパーで再帰的な割当上限を補正した。blocked 経路もテスト済み。
