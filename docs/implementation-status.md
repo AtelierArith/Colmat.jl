@@ -1628,3 +1628,27 @@ owner/shape checks, and 64-dimensional retained-factor reconstruction kernels.
 Method ambiguity checks, all nine native tests and 49 README Julia blocks
 pass. Cargo check, Julia/Rust formatting and git diff --check pass. The frozen
 inventory retains 76 rows. The full Issue #1 objective remains incomplete.
+
+### Retained spectral factor solves
+
+Retained native SVD and self-adjoint EVD now support left/right solves,
+transpose/adjoint factors, three-argument `ldiv!`/`rdiv!`, square two-argument
+mutation, and square nonsingular `inv`. Native matrix products apply the
+truncated minimum-norm solution to each RHS without constructing a full
+pseudoinverse or decomposing again. Signed eigenvalues are retained; scalar
+promotion affects computation while clipping follows the factor's precision.
+The same native factor can be used after closing its source matrix.
+
+Projection/result arrays allocate internally. Right solves stage adjointed
+RHS/results. Destination scalar conversion precedes writeback. Caller-owned
+solve scratch and allocation-free mutation remain unimplemented. The new focused
+file checks 2,476 assertions including all four scalar types and RHS promotions,
+thin/full tall/wide SVD, transpose/adjoint, signed/singular EVD, tolerance/team,
+closed owners, destination conversion failure, aliasing and empty dimensions.
+
+Validation: Julia 1.13.3 / RustCall 0.9.2, canonical
+`Pkg.test(; allow_reresolve=false)` passed 79,095 assertions across 58 files with
+16 ParallelTestRunner workers. All nine native tests and all 49 README Julia
+blocks passed. Method ambiguity detection returned none. Julia/Rust formatting
+and `git diff --check` passed. The dependency checkout remains untouched. The
+full Issue #1 objective remains incomplete.

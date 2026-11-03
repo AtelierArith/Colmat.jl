@@ -1389,6 +1389,10 @@ F = svd(A; native=true)
 close(A)
 P = pinv(F)
 @assert A0 * Matrix(P) * A0 ≈ A0
+B = ones(3, 2)
+X = F \ B
+@assert Matrix(X) ≈ pinv(A0) * B
+close(X)
 @assert Matrix(reconstruct(F)) ≈ A0
 U, S, V = F
 close(F)
@@ -1418,6 +1422,17 @@ matrices, S/values are real Julia vectors. Eigen sorting applies a common
 permutation to values/vectors. Extracted components survive closing F; modifying
 them does not update F. General EVD native ownership, native bang construction
 and caller-controlled spectral-owner construction workspace remain unexposed.
+
+Saved factors also support `F \ B`, `B / F`, `ldiv!`, `rdiv!`, and square
+`inv(F)`, including transpose/adjoint and mixed scalar types. Solves project the
+RHS through the retained native factors, applying a truncated minimum-norm
+solution without building a full pseudoinverse. `atol`, `rtol`, and `team` are
+accepted; cutoff precision follows the stored factor even when the RHS promotes
+the computation. Signed self-adjoint eigenvalues are preserved. Three-argument
+mutation supports rectangular factors; two-argument mutation requires square
+factors. Destination conversion is staged before writeback. Solve work arrays
+are backend allocated; caller scratch is not exposed. Singular inverses throw
+`SingularException`.
 
 ### Reusable workspace for saved-factor pseudoinverses
 

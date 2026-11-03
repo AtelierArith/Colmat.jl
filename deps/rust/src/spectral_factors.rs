@@ -10,7 +10,7 @@ use faer::traits::{math_utils::*, ComplexField};
 use faer::{Mat, MatRef, Par, ParShape, Side};
 use rustcall_julia_macros::julia;
 #[derive(Clone)]
-enum Decomposition<T> {
+pub(crate) enum Decomposition<T> {
     Svd(Svd<T>),
     Eigen(SelfAdjointEigen<T>),
 }
@@ -43,25 +43,25 @@ where
             ))
         }
     }
-    fn u(&self) -> MatRef<'_, T> {
+    pub(crate) fn u(&self) -> MatRef<'_, T> {
         match self {
             Self::Svd(f) => f.U(),
             Self::Eigen(f) => f.U(),
         }
     }
-    fn v(&self) -> MatRef<'_, T> {
+    pub(crate) fn v(&self) -> MatRef<'_, T> {
         match self {
             Self::Svd(f) => f.V(),
             Self::Eigen(f) => f.U(),
         }
     }
-    fn s(&self) -> DiagRef<'_, T> {
+    pub(crate) fn s(&self) -> DiagRef<'_, T> {
         match self {
             Self::Svd(f) => f.S(),
             Self::Eigen(f) => f.S(),
         }
     }
-    fn eigen(&self) -> bool {
+    pub(crate) fn eigen(&self) -> bool {
         matches!(self, Self::Eigen(_))
     }
     fn pinv_requirement(&self, par: ParShape) -> StackReq {
@@ -137,6 +137,10 @@ where
             }),
             1 => Ok(self.u().to_owned()),
             2 => Ok(self.v().to_owned()),
+            4 => Ok(match self {
+                Self::Svd(f) => f.inverse(par),
+                Self::Eigen(f) => f.inverse(par),
+            }),
             3 => {
                 let mut memory = MemBuffer::new(self.pinv_requirement(par.shape()));
                 self.pinv_in(atol, rtol, relative_f32, par, MemStack::new(&mut memory))
@@ -146,7 +150,7 @@ where
     }
 }
 #[derive(Clone)]
-enum SpectralData {
+pub(crate) enum SpectralData {
     F32(Decomposition<f32>),
     F64(Decomposition<f64>),
     C32(Decomposition<faer::c32>),
@@ -158,12 +162,12 @@ pub struct OwnedSpectral {
     data: Option<SpectralData>,
 }
 impl OwnedSpectral {
-    fn data(&self) -> Result<&SpectralData, String> {
+    pub(crate) fn data(&self) -> Result<&SpectralData, String> {
         self.data
             .as_ref()
             .ok_or("spectral factor is closed or uninitialized".into())
     }
-    fn check(&self, tag: i32, eigen: bool) -> Result<(), String> {
+    pub(crate) fn check(&self, tag: i32, eigen: bool) -> Result<(), String> {
         let (actual, mode) = match self.data()? {
             SpectralData::F32(f) => (0, f.eigen()),
             SpectralData::F64(f) => (1, f.eigen()),
