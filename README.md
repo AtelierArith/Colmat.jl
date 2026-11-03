@@ -1271,14 +1271,15 @@ end
 to compute normalized left eigenvectors through faer's left-vector driver,
 using four scalar types, promotion, scratch and explicit teams. Sorting keeps
 vectors aligned with their eigenvalues or α/β pairs. The returned `vectors`
-field contains the selected side. Requirements are common to the two one-sided
+field contains the selected side. Left-only quotient output is a named tuple
+`(values,vectors)`, rather than a factorization for subsequent solves. Requirements are common to the two one-sided
 modes in the current backend; the same `FaerScratch(eigen, A, B; team=team)`
 works for either. If the direct left driver produces nonfinite outputs
 ([faer #219](https://github.com/tensor4all/faer/issues/219)), Colmat recomputes the
 equivalent adjoint pencil with the native right driver. This reuses the selected
 scratch/team and allocates additional input/output copies. Invalid repeated left
 vectors can also use adjoint homogeneous nullspaces, including infinite values. Simultaneous output is available with `side=:both` below. Side selection for
-single matrices or destructive routines remains unexposed.
+single matrices is described below; destructive routines retain their current API.
 
 ### Simultaneous left and right generalized eigenvectors
 
@@ -1309,3 +1310,33 @@ constructors must include `side=:both`: real input needs an extra packed matrix
 inside the caller workspace. `reserve!(workspace, eigen, A, B; side=:both, team=team)`
 can enlarge an existing buffer. Julia output arrays and exceptional repeated-value
 SVD recovery allocate separately. Inputs are preserved.
+
+### Left and simultaneous eigenvectors of one matrix
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([1.0 -3; 2 4])
+FaerTeam(2) do team
+    workspace = FaerScratch(eigen, A; side=:both, team=team)
+    F = eigen(A; side=:both, scratch=workspace, team=team)
+    @assert Matrix(A) * F.right ≈ F.right * Diagonal(F.values)
+    @assert F.left' * Matrix(A) ≈ Diagonal(F.values) * F.left'
+    G = eigen(A; side=:left, scratch=workspace, team=team)
+    @assert G.vectors' * Matrix(A) ≈ Diagonal(G.values) * G.vectors'
+    close(workspace)
+end
+```
+
+General native matrices accept `side=:left/:right/:both` for four scalar types.
+The default right result remains `Eigen`; left-only returns `(values,vectors)`,
+and simultaneous output returns `(values,left,right)` as named tuples. These
+left output containers carry eigenvectors without exposing ordinary right-vector
+factorization solve/reconstruction operations. Generalized left-only quotient
+output follows the same named-tuple convention; homogeneous output is unchanged.
+
+The left columns are normalized and satisfy the adjoint equations above. Both
+sides are computed in one native EVD call, then share the same sorting
+permutation. Query or construct workspace with the requested side; real
+simultaneous output includes two packed matrices. Output arrays and sorting
+allocate independently. Explicit teams are propagated through the EVD driver.
+Self-adjoint wrappers and destructive routines retain their current APIs.

@@ -1473,3 +1473,43 @@ reserve and owner errors. Method ambiguity checks pass. All six native Rust
 tests and 45 README Julia blocks pass. Cargo check, Julia/Rust formatting and
 git diff --check pass. The frozen inventory retains 76 rows and dependency
 sources are unchanged. The full Issue #1 goal remains active and incomplete.
+
+## Single-matrix left and simultaneous EVD
+
+General native matrices now accept `eigen(A;side=:left/:right/:both)` across
+four scalar types. The public native EVD driver's left/right output flags are
+connected directly. Simultaneous output uses one EVD call and a common spectrum;
+real input stores a second packed vector matrix in caller scratch, while
+complex output writes directly to two independent Julia arrays. EVD's packed
+real left-vector convention differs from generalized EVD; no imaginary-sign
+flip is applied for the single-matrix driver. Independent left/right residuals
+verify that conversion rather than assuming the two drivers share a layout.
+
+The default right return remains `Eigen`. Left-only quotient results use named
+`(values,vectors)` tuples and both-side output uses `(values,left,right)`.
+Generalized left-only quotient output follows the same named-tuple convention,
+preserving its values/vectors fields and homogeneous mode. Left output data
+therefore does not expose ordinary right-factorization solve/reconstruction
+operations. Self-adjoint wrappers and bang routine return types are unchanged.
+
+Queries, factories and reserve accept the requested side and actual team;
+real simultaneous mode needs additional packed scratch. All selected vector
+columns are normalized; sorting applies a common column permutation. Inputs
+remain unchanged and native shape/tag checks guard output writes. Julia output
+arrays and sorting allocate independently. No new upstream RustCall or faer
+defect was observed. The dependency checkout is unchanged.
+
+Single-matrix tuning/balancing controls, destructive side selection, remaining
+workspace kernels and the broader Issue #1 requirements remain unfinished.
+
+Validation: canonical `Pkg.test(;allow_reresolve=false)` passes **73,002
+assertions across 54 files** on Julia 1.13.3 / RustCall 0.9.2, using
+ParallelTestRunner 2.10.0 and 16 workers. The new sided-EVD file contributes
+435 assertions across four types, width one/two, empty/scalar/conjugate-pair
+systems, both residual equations, shared sorting, dense nonnormal
+64-dimensional analytic spectra, capacity/reserve and owner guards. A further
+24 assertions verify the generalized left result's named-tuple contract.
+Method ambiguity checks, all six native tests and all 46 README Julia blocks
+pass. Cargo check, Julia/Rust formatting and git diff --check pass. The frozen
+inventory retains 76 rows and dependency sources remain unchanged. The full
+Issue #1 objective remains active and incomplete.

@@ -188,6 +188,7 @@ function _general_gevd_workspace_result(
                 return vectors ? (α = alpha, β = beta, vectors = eigenvectors) :
                        (α = alpha, β = beta)
             end
+            vectors && side===:left && return (values = values, vectors = eigenvectors)
             return vectors ? LinearAlgebra.GeneralizedEigen(values, eigenvectors) : values
         finally
             temp && close(work)

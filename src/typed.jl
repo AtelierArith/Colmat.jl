@@ -658,12 +658,13 @@ function _typed_eigen(
 end
 LinearAlgebra.eigen(
     a::FaerMatrix{T};
+    side::Symbol = :right,
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
 ) where {T<:_ExtraScalar} =
-    isnothing(scratch) && isnothing(team) ? _typed_eigen(a; sortby) :
-    _general_evd_workspace_result(a; sortby, scratch, team)
+    side===:right && isnothing(scratch) && isnothing(team) ? _typed_eigen(a; sortby) :
+    _general_evd_workspace_result(a; sortby, scratch, team, side)
 LinearAlgebra.eigvals(
     a::FaerMatrix{T};
     sortby = _eigensort,

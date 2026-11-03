@@ -44,21 +44,28 @@ function _eigen(
 end
 
 """
-    eigen(A::FaerMatrix{Float64}; sortby)
+    eigen(A::FaerMatrix; side=:right, sortby, scratch, team)
     eigen(A::Union{Hermitian,Symmetric}; sortby)
 
 Compute eigenvalues and right eigenvectors using t4a-faer. Self-adjoint
 wrappers read only the specified triangle. Results own independent Julia
-arrays. General real matrices produce complex eigenpairs.
+arrays. General real matrices produce complex eigenpairs. General native
+matrices accept `side=:left` or `side=:both`. The left-only result is a named
+tuple `(values,vectors)` satisfying `vectors'*A ≈ Diagonal(values)*vectors'`.
+Both-sided results are `(values,left,right)` sharing one eigenvalue sequence.
+The default right-sided result remains `Eigen`. Construct/query scratch with
+the requested `side`; output arrays and sorting allocate separately. Side
+selection applies to general matrices, not self-adjoint wrappers or bang calls.
 """
 LinearAlgebra.eigen(
     a::FaerMatrix{Float64};
+    side::Symbol = :right,
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
 ) =
-    isnothing(scratch) && isnothing(team) ? _eigen(a, 0; sortby) :
-    _general_evd_workspace_result(a; sortby, scratch, team)
+    side===:right && isnothing(scratch) && isnothing(team) ? _eigen(a, 0; sortby) :
+    _general_evd_workspace_result(a; sortby, scratch, team, side)
 LinearAlgebra.eigvals(
     a::FaerMatrix{Float64};
     sortby = _eigensort,
@@ -95,7 +102,8 @@ with `A*V ≈ B*V*Diagonal(values)`. With `homogeneous=true`, return the named t
 `A*V*Diagonal(β) ≈ B*V*Diagonal(α)`. This mode defaults to `sortby=nothing` and
 performs no eigenvalue division. Explicit `sortby` sorts by the quotient while
 retaining the homogeneous pairs. `eigvals(A,B; homogeneous=true)` returns `(α,β)`.
-With `side=:left`, `vectors` instead contains normalized left eigenvectors,
+With `side=:left`, quotient mode returns the named tuple `(values,vectors)`
+containing normalized left eigenvectors,
 satisfying `V'*A ≈ Diagonal(values)*V'*B`, or
 `Diagonal(β)*V'*A ≈ Diagonal(α)*V'*B` in homogeneous mode.
 With `side=:both`, compute both sides in one native driver call and return

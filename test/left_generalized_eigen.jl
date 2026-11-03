@@ -14,6 +14,7 @@ using Test, Colmat, LinearAlgebra, SparseArrays
         FaerTeam(width) do team
             s=FaerScratch(eigen, a, b; team)
             F=eigen(a, b; side = :left, scratch = s, team)
+            @test keys(F)==(:values, :vectors)
             @test F.vectors'*A≈Diagonal(F.values)*F.vectors'*B atol=1e-3
             @test all(v->isapprox(norm(v), 1; atol = 1e-4), eachcol(F.vectors))
             H=eigen(a, b; side = :left, homogeneous = true, scratch = s, team)
