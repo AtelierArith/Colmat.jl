@@ -1650,3 +1650,28 @@ storage comes from native scratch. Explicit `Matrix(op)` materializes the result
 A composition has no single `.coefficients` representation. Mixed native scalar types are promoted recursively through the operator tree.
 Dense, CSC/CSR, diagonal and identity leaves preserve their representations;
 composition never forms a dense coefficient product during promotion.
+
+### Use retained LU factors as a native preconditioner
+
+```julia
+using Colmat, LinearAlgebra
+A0 = [4.0 1; 1 3]
+A = FaerMatrix(A0)
+F = lu(A)
+M = FaerLinearOperator(F)
+close(F)
+b = ones(2)
+@assert cg(A, b; M=M).x ≈ A0 \ b
+@assert M * b ≈ A0 \ b
+close(M)
+close(A)
+```
+
+`FaerLinearOperator(F)` for a square nonsingular native partial-pivot LU owns
+copies of L/U and the pivot permutation. It applies the inverse action using
+native triangular solves and scratch, without forming an inverse or repeating
+factorization. Normal/conjugate/transpose/adjoint application, independent copies,
+composition and mixed native scalar promotion reuse those saved factors. There
+is no single `.coefficients` matrix. CG requires a positive-definite inverse
+action; general LU actions can be used with BiCGSTAB. Other decomposition and
+sparse factor preconditioners remain pending.

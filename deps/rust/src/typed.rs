@@ -396,7 +396,7 @@ fn symmetric<T: ComplexField>(a: MatRef<'_, T>, hermitian: bool) -> bool {
 }
 
 #[derive(Clone)]
-enum Factor<T: ComplexField> {
+pub(crate) enum Factor<T: ComplexField> {
     Lu(PartialPivLu<T>),
     FullLu(FullPivLu<T>),
     Qr(Qr<T>),
@@ -421,7 +421,7 @@ macro_rules! factor_dispatch {
     };
 }
 #[derive(Clone)]
-enum FactorData {
+pub(crate) enum FactorData {
     F32(Factor<f32>),
     F64(Factor<f64>),
     C32(Factor<c32>),
@@ -714,7 +714,7 @@ pub struct TypedFactor {
     info: usize,
 }
 impl TypedFactor {
-    fn data(&self) -> Result<&FactorData, String> {
+    pub(crate) fn data(&self) -> Result<&FactorData, String> {
         self.data
             .as_ref()
             .ok_or("factorization is not available".into())

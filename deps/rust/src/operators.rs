@@ -19,6 +19,7 @@ enum Base<T> {
     Diagonal(Diag<T>),
     Identity(IdentityPrecond),
     Product(Box<OperatorProduct<T>>),
+    InverseLu(Box<InverseLu<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -34,6 +35,10 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
+            Base::InverseLu($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
             Base::Product($a) => {
                 let $a = $a.as_ref();
                 $expr
@@ -1508,6 +1513,11 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
+        Base::InverseLu(f) => Base::InverseLu(Box::new(InverseLu {
+            l: Mat::from_fn(f.l.nrows(), f.l.ncols(), |i, j| cast(&f.l[(i, j)])),
+            u: Mat::from_fn(f.u.nrows(), f.u.ncols(), |i, j| cast(&f.u[(i, j)])),
+            permutation: f.permutation.clone(),
+        })),
         Base::Dense(m) => Base::Dense(Mat::from_fn(m.nrows(), m.ncols(), |i, j| cast(&m[(i, j)]))),
         Base::Diagonal(d) => {
             let mut out = Diag::zeros(d.dim());
@@ -1561,6 +1571,159 @@ impl OwnedLinearOperator {
                 (Data::C32(a), 3) => Data::C64(convert_operator(a)?),
                 (Data::C64(a), 3) => Data::C64(a.clone()),
                 _ => return Err("operator conversion requires widening scalar promotion".into()),
+            });
+            Ok(())
+        })
+    }
+}
+
+#[derive(Clone)]
+struct InverseLu<T> {
+    l: Mat<T>,
+    u: Mat<T>,
+    permutation: faer::perm::Perm<usize>,
+}
+impl<T> std::fmt::Debug for InverseLu<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("InverseLu")
+    }
+}
+impl<T: ComplexField> InverseLu<T> {
+    fn new(f: &faer::linalg::solvers::PartialPivLu<T>) -> Result<Self, String> {
+        let n = f.L().nrows();
+        if n != f.U().ncols() {
+            return Err("LU preconditioner must be square".into());
+        }
+        if (0..n).any(|i| abs(&f.U()[(i, i)]) == zero::<T::Real>()) {
+            return Err("LU preconditioner must be nonsingular".into());
+        }
+        let (p, inv) = f.P().arrays();
+        Ok(Self {
+            l: f.L().to_owned(),
+            u: f.U().to_owned(),
+            permutation: faer::perm::Perm::new_checked(
+                p.to_vec().into_boxed_slice(),
+                inv.to_vec().into_boxed_slice(),
+                n,
+            ),
+        })
+    }
+
+    fn run(
+        &self,
+        mut out: MatMut<'_, T>,
+        b: MatRef<'_, T>,
+        p: Par,
+        s: &mut MemStack,
+        t: bool,
+        c: bool,
+    ) {
+        out.copy_from(b);
+        let conj = if c { faer::Conj::Yes } else { faer::Conj::No };
+        use faer::linalg::lu::partial_pivoting::solve;
+        if t {
+            solve::solve_transpose_in_place_with_conj(
+                self.l.as_ref(),
+                self.u.as_ref(),
+                self.permutation.as_ref(),
+                conj,
+                out,
+                p,
+                s,
+            )
+        } else {
+            solve::solve_in_place_with_conj(
+                self.l.as_ref(),
+                self.u.as_ref(),
+                self.permutation.as_ref(),
+                conj,
+                out,
+                p,
+                s,
+            )
+        }
+    }
+}
+impl<T: ComplexField> LinOp<T> for InverseLu<T> {
+    fn nrows(&self) -> usize {
+        self.l.as_ref().nrows()
+    }
+    fn ncols(&self) -> usize {
+        self.u.as_ref().ncols()
+    }
+    fn apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        faer::linalg::lu::partial_pivoting::solve::solve_in_place_scratch::<usize, T>(
+            self.nrows(),
+            k,
+            p,
+        )
+    }
+    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, false)
+    }
+    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, true)
+    }
+}
+impl<T: ComplexField> BiLinOp<T> for InverseLu<T> {
+    fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        faer::linalg::lu::partial_pivoting::solve::solve_transpose_in_place_scratch::<usize, T>(
+            self.nrows(),
+            k,
+            p,
+        )
+    }
+    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, false)
+    }
+    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, true)
+    }
+}
+#[julia]
+impl OwnedLinearOperator {
+    #[julia]
+    pub fn operator_lu_preconditioner(
+        &mut self,
+        factor: &crate::OwnedFactor,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let crate::DenseFactor::Lu(f) = factor.get()? else {
+                return Err("preconditioner requires partial-pivot LU".into());
+            };
+            if f.L().nrows() != f.U().ncols() {
+                return Err("preconditioner requires square LU".into());
+            }
+            self.data = Some(Data::F64(Operator::new(Base::InverseLu(Box::new(
+                InverseLu::new(f)?,
+            )))));
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl OwnedLinearOperator {
+    #[julia]
+    pub fn operator_typed_lu_preconditioner(
+        &mut self,
+        factor: &crate::typed::TypedFactor,
+    ) -> Result<(), String> {
+        guarded(|| {
+            use crate::typed::{Factor, FactorData};
+            fn make<T: ComplexField>(
+                f: &faer::linalg::solvers::PartialPivLu<T>,
+            ) -> Result<Operator<T>, String> {
+                if f.L().nrows() != f.U().ncols() {
+                    return Err("preconditioner requires square LU".into());
+                }
+                Ok(Operator::new(Base::InverseLu(Box::new(InverseLu::new(f)?))))
+            }
+            self.data = Some(match factor.data()? {
+                FactorData::F32(Factor::Lu(f)) => Data::F32(make(f)?),
+                FactorData::F64(Factor::Lu(f)) => Data::F64(make(f)?),
+                FactorData::C32(Factor::Lu(f)) => Data::C32(make(f)?),
+                FactorData::C64(Factor::Lu(f)) => Data::C64(make(f)?),
+                _ => return Err("preconditioner requires partial-pivot LU".into()),
             });
             Ok(())
         })

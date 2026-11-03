@@ -128,7 +128,7 @@ function _operator_coefficients(op::FaerLinearOperator{T}) where {T}
     lock(_matrix_lock) do
         _handle(op)
         dims=op.transposed ? reverse(size(op)) : size(op)
-        op.storage===:composition && throw(
+        op.storage in (:composition, :factorization) && throw(
             ArgumentError(
                 "composite operator has no single coefficient storage; use Matrix(op)",
             ),
@@ -853,5 +853,28 @@ function Base.:*(a::FaerLinearOperator, b::FaerLinearOperator)
             false,
             false,
         )
+    end
+end
+
+"""
+    FaerLinearOperator(F::FaerFactorization{T,:lu})
+
+Own an independent inverse-action operator from a square nonsingular native LU.
+Apply it as a preconditioner with `cg(A,b; M=FaerLinearOperator(F))` when that
+inverse action is positive definite, or with BiCGSTAB for general systems. No
+inverse matrix or new factorization is formed; each apply solves using saved
+L/U and pivots with native scratch. Mixed native scalar types promote saved factors without refactorization.
+"""
+function FaerLinearOperator(f::FaerFactorization{T,:lu}) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        size(f, 1)==size(f, 2) ||
+            throw(DimensionMismatch("LU preconditioner must be square"))
+        LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+        h=RustCrate.OwnedLinearOperator()
+        fun=T===Float64 ? RustCrate.operator_lu_preconditioner :
+            RustCrate.operator_typed_lu_preconditioner
+        _native_call(fun, h, f)
+        FaerLinearOperator{T,typeof(h)}(h, size(f), :factorization, false, false)
     end
 end
