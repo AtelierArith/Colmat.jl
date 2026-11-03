@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-04
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `4d939b3`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、76619 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 57 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `516452c`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、79095 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 58 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -77,12 +77,12 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 正方連立方程式 | `Solve::solve/solve_in_place` | `A\B`, `ldiv!` | R: `A\B`、再利用可能な `F\B`、alias-safe `ldiv!` | 真の無割当 in-place 求解・全引数形式 |
+| 正方連立方程式 | `Solve::solve/solve_in_place` | `A\B`, `ldiv!` | R: `A\B`、再利用可能な `F\B`、保存済み native SVD/EVD の混合型・許容誤差付き求解、alias-safe `ldiv!` | 真の無割当 in-place 求解・全引数形式 |
 | 共役・転置・随伴の求解 | `solve_conjugate/solve_transpose/solve_adjoint` と in-place 版 | `conj(A)\B`, `transpose(A)\B`, `A'\B` | R: 転置・随伴分解の求解、行列ラッパーの求解 | 行列ラッパーはコピー経由。全共役 in-place 形式 |
-| 右側からの求解 | `rsolve_*_in_place` | `B/A`, `rdiv!` | R: `B/A`、`B/F`、`rdiv!` | 全型・全入力組合せの専用最適化 |
-| 最小二乗 | `SolveLstsq::{solve_lstsq,solve_lstsq_in_place,...}`（QR/SVD 等） | 長方形 `A\b`, `ldiv!` | R: 長方形の求解、QR と広幅・ランク不足時の SVD 経路 | 全アルゴリズム選択・許容誤差設定 |
+| 右側からの求解 | `rsolve_*_in_place` | `B/A`, `rdiv!` | R: `B/A`、`B/F`、保存済み native SVD/EVD の転置/随伴・混合型を含む右求解、`rdiv!` | 全型・全入力組合せの専用最適化 |
+| 最小二乗 | `SolveLstsq::{solve_lstsq,solve_lstsq_in_place,...}`（QR/SVD 等） | 長方形 `A\b`, `ldiv!` | R: 長方形の求解、QR と広幅・ランク不足時の SVD 経路、保存済み native SVD の `F\B`/3 引数 `ldiv!`（`atol/rtol/team`） | 全アルゴリズム選択・許容誤差設定 |
 | 三角連立方程式 | `solve_{unit_}{lower,upper}_triangular_in_place`, `linalg::triangular_solve` | `LowerTriangular/UpperTriangular/UnitLowerTriangular/UnitUpperTriangular` の `\` | R: lower/upper/unit の三角ラッパーの求解 | 全 mixed-operand と低水準 scratch 公開 |
-| 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`、三角 inverse | 破壊的 inverse・全オプション |
+| 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`（保存済み native SVD/EVD・転置/随伴を含む。数値的特異性を検査）、三角 inverse | 破壊的 inverse・全オプション |
 | 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | R: 4 型の `pinv(A;atol,rtol)`、native SVD 再構成、Hermitian/実 Symmetric の EVD 再構成、保存済み native SVD/EVD の `pinv(F;atol,rtol,team,scratch)`・必要量照会/reserve | 残りの分解形式、非標準スカラー・高度なアルゴリズム制御 |
 | 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT・Schur/Hessenberg・三重/二重対角化の `reconstruct/Matrix/FaerMatrix`・型指定変換、疎 Cholesky/simplicial LU の native 疎再構成、一般化 Schur/Hessenberg の `(A,B)` | auto/supernodal 疎 LU・疎 QR 等の残りの形式 |
 | ランク・条件数 | SVD/QR などを組み合わせて構成（同名の高水準 API としては扱わない） | `rank/cond/opnorm` | R: native スペクトル・分解を使う `rank(;atol,rtol)`、`cond(A,1/2/Inf)`、4 型の `opnorm` | 推定条件数・全構造化入力の最適化。faer 同名の高水準 API としての主張ではない |
