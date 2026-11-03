@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: ローカルの検証済みコミット `d05b9cd`。リモート main は `d4f5a51` のため、以下の実装済み機能の多くはまだ push されていない。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、11548 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 16 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: ローカルの検証済みコミット `49db02c`。リモート main は `d4f5a51` のため、以下の実装済み機能の多くはまだ push されていない。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、13027 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 17 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -98,7 +98,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | — | 未: symbolic/numeric の分離と再利用 |
 | 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | — | 未 |
 | 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | — | 未 |
-| 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | — | 未 |
+| 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | R: CSC/CSR・4 型、通常/単位の上下三角、転置/随伴、matrix/vector RHS、`ldiv!` | 作業領域の外部指定、割り当てを伴わない直接 in-place 経路 |
 | Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | — | 未: ordering を独立に公開する API |
 
 ## 6. Matrix-free・反復法
