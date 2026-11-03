@@ -1900,3 +1900,21 @@ and singular rejection. The nontrivial fixture includes A=[0 2;3 100] (complex
 variant adds 0.3im at A[1,2]), forcing both row and column pivoting. Canonical Pkg.test passed 86,207 assertions / 70 files with 16 workers.
 All 10 native tests and 58 README blocks passed, along with ambiguity detection,
 Julia/Rust formatting and git diff --check. Issues #1/#2 remain incomplete.
+
+### Retained QR inverse-action preconditioners
+
+FaerLinearOperator accepts square native QR and column-pivoted QR factors. It
+owns compact Householder basis/coefficients, R and column permutation and applies
+native column-pivoted QR solve kernels (identity permutation for unpivoted QR).
+No explicit Q or inverse is constructed, and factors are never recomputed.
+Mixed scalar promotion converts retained components; transpose/adjoint and
+independent copy/close reuse the same native representation. Empty square
+factors are handled without entering kernels requiring nonzero block size.
+Zero R pivots and rectangular factors are rejected; rank tolerance and
+rank-deficient pseudoinverse preconditioning remain unsupported.
+
+Focused verification passed 677 assertions across all factor/RHS scalar pairs,
+pivoted/unpivoted, empty/singleton/square, source closure, copies, transpose versus
+adjoint, CG and zero-pivot rejection. Canonical Pkg.test passed 86,884 assertions / 71 files with 16 workers.
+All 10 native tests and 59 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. Remaining Issue #1/#2 work is still pending.

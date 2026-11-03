@@ -1721,3 +1721,26 @@ triangular factors. Normal, transpose and adjoint application use native
 full-pivot solves and the corresponding scratch requirement. Mixed scalar
 promotion copies factor values and preserves both permutations, without
 refactorization. Singular and rectangular factors are rejected.
+
+### Retained QR inverse-action preconditioners
+
+```julia
+using Colmat, LinearAlgebra
+A0 = ComplexF64[4 1im; 1 3]
+F = qr(FaerMatrix(A0), ColumnNorm())
+M = FaerLinearOperator(F)
+close(F)
+b = ones(ComplexF64, 2)
+@assert M * b ≈ A0 \ b
+@assert transpose(M) * b ≈ transpose(A0) \ b
+@assert adjoint(M) * b ≈ adjoint(A0) \ b
+close(M)
+```
+
+Square native QR and column-pivoted QR factors can provide inverse actions.
+Their compact Householder basis/coefficients, R and column permutation are copied
+into an independent native owner. No explicit Q, inverse or refactorization is
+needed. Native QR solve kernels consume operator scratch, and mixed scalar
+promotion converts the saved components. Empty square factors are supported;
+rectangular factors and zero R pivots are rejected. This interface does not
+provide rank-tolerance control or rank-deficient pseudoinverse preconditioning.

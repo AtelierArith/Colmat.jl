@@ -20,6 +20,7 @@ enum Base<T> {
     Identity(IdentityPrecond),
     Product(Box<OperatorProduct<T>>),
     InverseFactors(Box<InverseFactors<T>>),
+    InverseQr(Box<InverseQr<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -35,6 +36,10 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
+            Base::InverseQr($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
             Base::InverseFactors($a) => {
                 let $a = $a.as_ref();
                 $expr
@@ -1513,6 +1518,16 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
+        Base::InverseQr(f) => Base::InverseQr(Box::new(InverseQr {
+            basis: Mat::from_fn(f.basis.nrows(), f.basis.ncols(), |i, j| {
+                cast(&f.basis[(i, j)])
+            }),
+            coeff: Mat::from_fn(f.coeff.nrows(), f.coeff.ncols(), |i, j| {
+                cast(&f.coeff[(i, j)])
+            }),
+            r: Mat::from_fn(f.r.nrows(), f.r.ncols(), |i, j| cast(&f.r[(i, j)])),
+            permutation: f.permutation.clone(),
+        })),
         Base::InverseFactors(f) => Base::InverseFactors(Box::new(InverseFactors {
             l: Mat::from_fn(f.l.nrows(), f.l.ncols(), |i, j| cast(&f.l[(i, j)])),
             u: Mat::from_fn(f.u.nrows(), f.u.ncols(), |i, j| cast(&f.u[(i, j)])),
@@ -1803,6 +1818,21 @@ impl OwnedLinearOperator {
         factor: &crate::OwnedFactor,
     ) -> Result<(), String> {
         guarded(|| {
+            match factor.get()? {
+                crate::DenseFactor::Qr(f) => {
+                    self.data = Some(Data::F64(Operator::new(Base::InverseQr(Box::new(
+                        InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?,
+                    )))));
+                    return Ok(());
+                }
+                crate::DenseFactor::PivotQr(f) => {
+                    self.data = Some(Data::F64(Operator::new(Base::InverseQr(Box::new(
+                        InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), Some(f.P()))?,
+                    )))));
+                    return Ok(());
+                }
+                _ => (),
+            }
             let saved = match factor.get()? {
                 crate::DenseFactor::Lu(f) => InverseFactors::new(f)?,
                 crate::DenseFactor::FullLu(f) => InverseFactors::full_lu(f)?,
@@ -1837,6 +1867,17 @@ impl OwnedLinearOperator {
             }
             self.data = Some(match factor.data()? {
                 FactorData::F32(Factor::Lu(f)) => Data::F32(make(f)?),
+                FactorData::F32(Factor::Qr(f)) => Data::F32(Operator::new(Base::InverseQr(
+                    Box::new(InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?),
+                ))),
+                FactorData::F32(Factor::PivotQr(f)) => {
+                    Data::F32(Operator::new(Base::InverseQr(Box::new(InverseQr::new(
+                        f.Q_basis(),
+                        f.Q_coeff(),
+                        f.R(),
+                        Some(f.P()),
+                    )?))))
+                }
                 FactorData::F32(Factor::FullLu(f)) => Data::F32(Operator::new(
                     Base::InverseFactors(Box::new(InverseFactors::full_lu(f)?)),
                 )),
@@ -1844,6 +1885,17 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::F64(Factor::Lu(f)) => Data::F64(make(f)?),
+                FactorData::F64(Factor::Qr(f)) => Data::F64(Operator::new(Base::InverseQr(
+                    Box::new(InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?),
+                ))),
+                FactorData::F64(Factor::PivotQr(f)) => {
+                    Data::F64(Operator::new(Base::InverseQr(Box::new(InverseQr::new(
+                        f.Q_basis(),
+                        f.Q_coeff(),
+                        f.R(),
+                        Some(f.P()),
+                    )?))))
+                }
                 FactorData::F64(Factor::FullLu(f)) => Data::F64(Operator::new(
                     Base::InverseFactors(Box::new(InverseFactors::full_lu(f)?)),
                 )),
@@ -1851,6 +1903,17 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::C32(Factor::Lu(f)) => Data::C32(make(f)?),
+                FactorData::C32(Factor::Qr(f)) => Data::C32(Operator::new(Base::InverseQr(
+                    Box::new(InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?),
+                ))),
+                FactorData::C32(Factor::PivotQr(f)) => {
+                    Data::C32(Operator::new(Base::InverseQr(Box::new(InverseQr::new(
+                        f.Q_basis(),
+                        f.Q_coeff(),
+                        f.R(),
+                        Some(f.P()),
+                    )?))))
+                }
                 FactorData::C32(Factor::FullLu(f)) => Data::C32(Operator::new(
                     Base::InverseFactors(Box::new(InverseFactors::full_lu(f)?)),
                 )),
@@ -1858,6 +1921,17 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::C64(Factor::Lu(f)) => Data::C64(make(f)?),
+                FactorData::C64(Factor::Qr(f)) => Data::C64(Operator::new(Base::InverseQr(
+                    Box::new(InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?),
+                ))),
+                FactorData::C64(Factor::PivotQr(f)) => {
+                    Data::C64(Operator::new(Base::InverseQr(Box::new(InverseQr::new(
+                        f.Q_basis(),
+                        f.Q_coeff(),
+                        f.R(),
+                        Some(f.P()),
+                    )?))))
+                }
                 FactorData::C64(Factor::FullLu(f)) => Data::C64(Operator::new(
                     Base::InverseFactors(Box::new(InverseFactors::full_lu(f)?)),
                 )),
@@ -1868,5 +1942,134 @@ impl OwnedLinearOperator {
             });
             Ok(())
         })
+    }
+}
+
+#[derive(Clone)]
+struct InverseQr<T> {
+    basis: Mat<T>,
+    coeff: Mat<T>,
+    r: Mat<T>,
+    permutation: faer::perm::Perm<usize>,
+}
+impl<T> std::fmt::Debug for InverseQr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("InverseQr")
+    }
+}
+impl<T: ComplexField> InverseQr<T> {
+    fn new(
+        b: MatRef<'_, T>,
+        c: MatRef<'_, T>,
+        r: MatRef<'_, T>,
+        p: Option<faer::perm::PermRef<'_, usize>>,
+    ) -> Result<Self, String> {
+        let n = b.nrows();
+        if b.ncols() != n || r.nrows() != n || r.ncols() != n {
+            return Err("QR preconditioner requires square factors".into());
+        }
+        if (0..n).any(|i| abs(&r[(i, i)]) == zero::<T::Real>()) {
+            return Err("QR preconditioner requires full rank".into());
+        }
+        let owned = if let Some(p) = p {
+            let (a, b) = p.arrays();
+            faer::perm::Perm::new_checked(
+                a.to_vec().into_boxed_slice(),
+                b.to_vec().into_boxed_slice(),
+                n,
+            )
+        } else {
+            let a: Vec<_> = (0..n).collect();
+            faer::perm::Perm::new_checked(a.clone().into_boxed_slice(), a.into_boxed_slice(), n)
+        };
+        Ok(Self {
+            basis: b.to_owned(),
+            coeff: c.to_owned(),
+            r: r.to_owned(),
+            permutation: owned,
+        })
+    }
+    fn run(
+        &self,
+        mut out: MatMut<'_, T>,
+        b: MatRef<'_, T>,
+        p: Par,
+        s: &mut MemStack,
+        t: bool,
+        c: bool,
+    ) {
+        out.copy_from(b);
+        if self.nrows() == 0 {
+            return;
+        }
+        let conj = if c { faer::Conj::Yes } else { faer::Conj::No };
+        use faer::linalg::qr::col_pivoting::solve;
+        if t {
+            solve::solve_transpose_in_place_with_conj(
+                self.basis.as_ref(),
+                self.coeff.as_ref(),
+                self.r.as_ref(),
+                self.permutation.as_ref(),
+                conj,
+                out,
+                p,
+                s,
+            )
+        } else {
+            solve::solve_in_place_with_conj(
+                self.basis.as_ref(),
+                self.coeff.as_ref(),
+                self.r.as_ref(),
+                self.permutation.as_ref(),
+                conj,
+                out,
+                p,
+                s,
+            )
+        }
+    }
+}
+impl<T: ComplexField> LinOp<T> for InverseQr<T> {
+    fn nrows(&self) -> usize {
+        self.r.nrows()
+    }
+    fn ncols(&self) -> usize {
+        self.r.ncols()
+    }
+    fn apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        if self.nrows() == 0 {
+            return StackReq::EMPTY;
+        }
+        faer::linalg::qr::col_pivoting::solve::solve_in_place_scratch::<usize, T>(
+            self.nrows(),
+            self.coeff.nrows(),
+            k,
+            p,
+        )
+    }
+    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, false)
+    }
+    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, true)
+    }
+}
+impl<T: ComplexField> BiLinOp<T> for InverseQr<T> {
+    fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        if self.nrows() == 0 {
+            return StackReq::EMPTY;
+        }
+        faer::linalg::qr::col_pivoting::solve::solve_transpose_in_place_scratch::<usize, T>(
+            self.nrows(),
+            self.coeff.nrows(),
+            k,
+            p,
+        )
+    }
+    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, false)
+    }
+    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, true)
     }
 }

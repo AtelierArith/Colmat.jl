@@ -859,16 +859,18 @@ end
 """
     FaerLinearOperator(F::FaerFactorization{T,:lu})
 
-Own an independent inverse-action operator from a square nonsingular native partial/full-pivot LU
-or Cholesky factorization.
+Own an independent inverse-action operator from a square nonsingular native LU, QR (optionally pivoted), or Cholesky factorization.
 Apply it as a preconditioner with `cg(A,b; M=FaerLinearOperator(F))` when that
 inverse action is positive definite, or with BiCGSTAB for general systems. No
 inverse matrix or new factorization is formed; each apply solves using saved
 triangular factors and any pivots with native scratch. Mixed native scalar types promote saved factors without refactorization.
 """
 function FaerLinearOperator(f::FaerFactorization{T,K}) where {T,K}
-    K in (:lu, :full_lu, :cholesky) ||
-        throw(ArgumentError("factor preconditioner requires LU, full-pivot LU or Cholesky"))
+    K in (:lu, :full_lu, :qr, :pivoted_qr, :cholesky) || throw(
+        ArgumentError(
+            "factor preconditioner requires LU, QR (optionally pivoted), or Cholesky",
+        ),
+    )
     lock(_matrix_lock) do
         _handle(f)
         size(f, 1)==size(f, 2) ||
