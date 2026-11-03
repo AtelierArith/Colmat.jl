@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `80f83c2`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、73002 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 54 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `da9c51b`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、74442 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 55 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -84,7 +84,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 三角連立方程式 | `solve_{unit_}{lower,upper}_triangular_in_place`, `linalg::triangular_solve` | `LowerTriangular/UpperTriangular/UnitLowerTriangular/UnitUpperTriangular` の `\` | R: lower/upper/unit の三角ラッパーの求解 | 全 mixed-operand と低水準 scratch 公開 |
 | 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`、三角 inverse | 破壊的 inverse・全オプション |
 | 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | R: 4 型の `pinv(A;atol,rtol)`、native SVD 再構成、Hermitian/実 Symmetric の EVD 再構成 | 保存済み分解からの全疑似逆形式、非標準スカラー・高度なアルゴリズム制御 |
-| 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT 等から `FaerMatrix(F)` / `Matrix(F)` | 全分解形式（Schur・疎分解等） |
+| 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT・Schur/Hessenberg・三重/二重対角化の `reconstruct/Matrix/FaerMatrix`・型指定変換、疎 Cholesky/simplicial LU の native 疎再構成、一般化 Schur/Hessenberg の `(A,B)` | auto/supernodal 疎 LU・疎 QR 等の残りの形式 |
 | ランク・条件数 | SVD/QR などを組み合わせて構成（同名の高水準 API としては扱わない） | `rank/cond/opnorm` | R: native スペクトル・分解を使う `rank(;atol,rtol)`、`cond(A,1/2/Inf)`、4 型の `opnorm` | 推定条件数・全構造化入力の最適化。faer 同名の高水準 API としての主張ではない |
 
 ## 5. 疎行列
@@ -96,7 +96,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 疎加減算・構造の結合 | `sparse::ops::{add,sub,add_assign,sub_assign,add_into,sub_into,union_symbolic,...}` | 疎行列の `+/-` | R: native `+/-`、`pattern_union`、固定構造の `add_assign!/sub_assign!/add_into!/sub_into!` | 任意 callback、全体 broadcast/map の native 経路 |
 | 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | R: 4 型・型 promotion、CSC/CSR の native 積、`mul!`、ベクトルとの積 | symbolic/numeric 積計画の再利用、低水準制御 |
 | 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | R: CSC/CSR・4 型、`cholesky`、選択三角、`FaerSparseSymbolic`、`cholesky!`、求解、AMD/恒等/任意 ordering、分解方式指定、`p/algorithm/factor_storage`、疎 `L/U` 抽出・再構成、分解対角からの `det/logdet/logabsdet` | 外部 scratch・追加の低水準制御 |
-| 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解。`algorithm=:simplicial` の native L/U・p/q、恒等/任意 column ordering | auto/supernodal の L/U・置換成分と低水準制御。明示的 simplicial の既定列順序は恒等 |
+| 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解。`algorithm=:simplicial` の native L/U・p/q、元順序への疎再構成・型指定変換、恒等/任意 column ordering | auto/supernodal の L/U・置換成分と低水準制御。明示的 simplicial の既定列順序は恒等 |
 | 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、`qr!`、symbolic 再利用、`ldiv!` | 横長・rank-deficient、Q/R 成分、転置/随伴 QR 求解、低水準制御 |
 | 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | R: CSC/CSR・4 型、通常/単位の上下三角、転置/随伴、matrix/vector RHS、`ldiv!` | 作業領域の外部指定、割り当てを伴わない直接 in-place 経路 |
 | Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | R: `amd/colamd`、numeric/symbolic CSC/CSR、長方形 COLAMD、制御値・AMD 演算数見積もり、`FaerPermutation` 返却、Cholesky への直接 ordering 指定 | LU/QR への直接指定、caller-owned scratch |
