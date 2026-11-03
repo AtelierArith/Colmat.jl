@@ -32,6 +32,10 @@ Sparse Cholesky additionally exposes independent sparse CSC `F.L` and `F.U`,
 with `F.L * F.U ≈ A[F.p,F.p]`, and supports `Matrix(F)`, `FaerSparseMatrix(F)`,
 `det`, `logdet` and `logabsdet`. Reconstruction returns the original row/column
 order. Extracted components remain usable after F is updated or closed.
+Explicit `algorithm=:simplicial` LU also supports `Matrix(F)`, `FaerMatrix(F)`,
+`FaerSparseMatrix(F)` and `reconstruct(F)`, from current native L/U and inverse
+row/column permutations. Auto/supernodal LU and sparse QR reconstruction are
+not yet exposed.
 It also exposes independent `F.p`, the actual `F.algorithm`
 and `F.factor_storage` (numeric scalar slots, including supernodal padding).
 `cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;

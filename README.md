@@ -1340,3 +1340,41 @@ permutation. Query or construct workspace with the requested side; real
 simultaneous output includes two packed matrices. Output arrays and sorting
 allocate independently. Explicit teams are propagated through the EVD driver.
 Self-adjoint wrappers and destructive routines retain their current APIs.
+
+### Reconstructing native factorizations
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = [0.0 2 1; 3 1 0; 0 1 4]
+F = lu(FaerSparseMatrix(sparse(A0)); algorithm=:simplicial, ordering=[3,1,2])
+R = reconstruct(F)
+@assert R isa FaerSparseMatrix
+@assert Matrix(R) ≈ A0
+@assert Matrix{ComplexF64}(F) ≈ A0
+close(F)
+@assert Matrix(R) ≈ A0
+close(R)
+B0 = [2.0 0 0; 0 1 0; 0 0 3]
+QZ = schur(FaerMatrix(A0), FaerMatrix(B0))
+pair = reconstruct(QZ)
+close(QZ)
+@assert Matrix(pair.A) ≈ A0
+@assert Matrix(pair.B) ≈ B0
+close(pair.A)
+close(pair.B)
+```
+
+`reconstruct(F)` returns independent native storage. Dense owned LU/QR/
+Cholesky/LDLT, Schur/Hessenberg and tridiagonal/bidiagonal reductions return
+`FaerMatrix`; sparse Cholesky and explicit simplicial LU return `FaerSparseMatrix`
+in original row/column order. Generalized Schur/Hessenberg return `(A,B)` named
+fields, reconstructing both members through Q/S-or-H/T/Z. The sparse LU path
+uses current native factors and permutations, including numeric updates; it
+never copies the retained input snapshot. Its default output is CSC. Auto/
+supernodal sparse LU and sparse QR reconstruction remain unavailable.
+
+`Matrix{T}(F)` and `FaerMatrix{T}(F)` also support the dense owned decompositions
+above; simplicial sparse LU adds these conversions and typed sparse CSC output.
+Numeric conversion follows Julia rules, including errors for nonrepresentable
+complex-to-real values. Conversion temporaries are closed on errors. Reconstructed
+owners remain valid after the original factors are updated or closed.

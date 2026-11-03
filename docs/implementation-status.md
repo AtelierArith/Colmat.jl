@@ -1513,3 +1513,39 @@ Method ambiguity checks, all six native tests and all 46 README Julia blocks
 pass. Cargo check, Julia/Rust formatting and git diff --check pass. The frozen
 inventory retains 76 rows and dependency sources remain unchanged. The full
 Issue #1 objective remains active and incomplete.
+
+## Factor reconstruction, typed conversion and native matrix pairs
+
+`reconstruct(F)` now returns independent native storage for the supported dense
+owned LU/QR/Cholesky/LDLT factors, Schur/Hessenberg and tridiagonal/bidiagonal
+reductions. Typed `Matrix{T}(F)` and `FaerMatrix{T}(F)` conversions are available
+for these formats. Same-type native conversion returns a freshly reconstructed
+owner; different scalar types follow Julia conversion rules. Temporary owners
+are closed when conversion fails, preserving the factorization.
+
+Explicit simplicial sparse LU adds `reconstruct/Matrix/FaerMatrix/
+FaerSparseMatrix/SparseMatrixCSC/sparse`, including typed conversions. The
+implementation multiplies actual native L/U and applies independent inverse
+row/column permutations through native sparse kernels. It never copies the
+retained input snapshot. Tests poison that snapshot and verify reconstruction
+still reflects the numeric factors, then verify lu! updates. Reconstruction
+returns CSC storage and does not promise the original stored-zero pattern.
+Auto/supernodal sparse LU and sparse QR reconstruction remain unexposed.
+
+Generalized Schur/Hessenberg return `(A,B)` named fields through native products
+Q*S*Z' (or Q*H*Z') and Q*T*Z'. Both outputs own independent native storage and
+remain usable after closing F. Pair shape/owner checks precede products and
+partial outputs are closed if the second reconstruction fails. Existing Schur/
+Hessenberg reconstruction was already present; the mapping no longer lists it
+as entirely missing. No new upstream RustCall or faer defect was observed.
+
+Validation: canonical `Pkg.test(;allow_reresolve=false)` passes **74,442
+assertions across 55 files**, using ParallelTestRunner 2.10.0 with 16 workers
+on Julia 1.13.3 / RustCall 0.9.2. The new reconstruction file contributes 1,440
+assertions across four scalar types, empty/3-dimensional factors, nine dense
+factorization/reduction families, CSC/CSR, custom row/column permutations,
+actual-factor provenance, numeric updates, typed CSC index conversion,
+closed-owner independence, conversion errors and pair shape guards. Method
+ambiguity checks pass. All six native tests and 47 README Julia blocks pass.
+Julia/Rust formatting and git diff --check pass. The frozen inventory retains
+76 rows and dependency sources are unchanged. Issue #1 remains incomplete.
