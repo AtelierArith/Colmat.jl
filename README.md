@@ -769,3 +769,38 @@ selected offdiagonal, returning native U/Vt and nonnegative descending real S.
 `recursion_threshold` selects the native small/large SVD paths. Inputs remain
 unchanged. The public native bidiagonal SVD computes dense factors/workspace,
 including when `svdvals` requests only values.
+
+### Native random matrices and unitary samples
+
+`FaerRNG` owns a Rust random stream. Native array sampling uses faer's matrix,
+column and row distributions directly:
+
+```julia
+using Colmat, Random, LinearAlgebra
+rng = FaerRNG(42)
+A = randn(rng, FaerMatrix{ComplexF64}, 3, 2)
+snapshot = copy(rng)
+v = rand(rng, FaerVector{Float64}, 4)
+@assert Vector(v) == Vector(rand(snapshot, FaerVector{Float64}, 4))
+Q = randunitary(rng, ComplexF64, 4)
+@assert adjoint(Matrix(Q)) * Matrix(Q) ≈ Matrix{ComplexF64}(I, 4, 4)
+Random.seed!(rng, 42)
+@assert Matrix(randn(rng, FaerMatrix{ComplexF64}, 3, 2)) == Matrix(A)
+row = rand(MersenneTwister(1), FaerRow{Float32}, (8,))
+@assert size(row) == (1, 8)
+randn!(rng, view(A, 1:2, 1:2))
+```
+
+`rand` gives independent uniform real/imaginary components in [0,1). `randn`
+gives real standard normals; complex components each have variance 1/2, matching
+Julia's unit expected squared modulus. `rand!`/`randn!` fill native matrices,
+vectors, rows and views after staging the result. `randunitary(Float64,n)` gives
+an orthogonal sample; complex types give unitary samples through faer's
+sequential QR and phase correction.
+
+Another Julia RNG can supply a UInt64 seed for each nonempty native sampling
+call. Empty calls consume no seed. Use `FaerRNG` to keep a continuous native
+stream; copy and reseed it independently, and close it when no longer needed.
+Native sampling is reproducible for the same dependency versions and call
+sequence, without promising Julia's random sequence. Scalar/ordinary Julia-array
+draws from `FaerRNG` use Julia's sampling algorithms over its native random bits.

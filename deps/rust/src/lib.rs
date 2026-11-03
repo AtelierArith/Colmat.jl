@@ -1294,3 +1294,5 @@ pub mod balance;
 pub mod tridiagonal;
 
 pub mod bidiagonal;
+
+pub mod random;

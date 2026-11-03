@@ -2,7 +2,7 @@
 
 julia_version = "1.13.3"
 manifest_format = "2.1"
-project_hash = "daab4be8f0f8c251a2f81594208bf7c8ff82afda"
+project_hash = "a76daa4e6cf0cda006477c706636d9df840e77c9"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -17,7 +17,7 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
 
 [[deps.Colmat]]
-deps = ["LinearAlgebra", "RustCall", "SparseArrays", "Statistics"]
+deps = ["LinearAlgebra", "Random", "RustCall", "SparseArrays", "Statistics"]
 path = "."
 uuid = "dcd86e8a-e18c-4a45-9bc6-b65a8e7b2bd3"
 version = "0.1.0"

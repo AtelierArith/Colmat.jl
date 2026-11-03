@@ -837,3 +837,36 @@ All README Julia examples, cargo check, Rust/Julia formatting and git diff
 to contain Cargo.toml, complete Rust main and invocation instructions. Dependency
 sources remain at d5be1473eed9314fca6f80ad8b4072d86282e890 without local changes.
 Other Issue #1 categories remain incomplete.
+
+### Native RNG, distribution sampling and orthogonal/unitary matrices
+
+Enabled faer's rand feature and connected CwiseMatDistribution,
+CwiseColDistribution, CwiseRowDistribution, ComplexDistribution and UnitaryMat.
+`rand`/`randn` construct native matrices/vectors/rows; `rand!`/`randn!` stage fills
+for native owners and views. All four scalar types, integer/tuple dimensions,
+empty shapes and default RNG conveniences are supported. Complex uniforms have
+independent [0,1) components; complex normals use independent variance-1/2
+components, matching Julia's expected squared modulus of one.
+
+Added the independently owned `FaerRNG <: Random.AbstractRNG` over Rust StdRng.
+It supports UInt64 bit sampling (and Julia's derived scalar/array algorithms),
+seeding, independent copy/deepcopy and close/GC lifecycle. Native constructors
+use the continuous Rust stream directly through checked mutable owner borrows.
+Other Julia RNGs provide exactly one UInt64 seed per nonempty native call;
+empty calls consume none. Invalid dimensions/closed destinations are checked
+before drawing. Reproducibility is for matching dependency versions and call
+sequences; native sampling does not promise Julia's generated value sequence.
+
+`randunitary` calls faer's sequential QR and diagonal-phase correction to produce
+real orthogonal or complex unitary matrices. The native RNG and output owners
+are independent. Arbitrary Rust Distribution instances/Julia callbacks remain
+unexposed, and the rest of the original Issue #1 scope stays open.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **59,023 assertions across
+35 independent files using ParallelTestRunner 2.10.0 and 16 workers**, on Julia
+1.13.3 / RustCall 0.9.2. Random tests contribute 752 assertions, covering stream
+clones/reseed/close, scalar/Julia-array RNG use, all native shapes/types/layouts,
+seed consumption, empty/invalid cases, views, uniform ranges, normal moments
+and complex normalization, and orthogonality/unitarity. All README Julia blocks,
+method ambiguity checks, cargo check, Rust/Julia formatting and git diff --check
+pass. Dependency sources remain unchanged.

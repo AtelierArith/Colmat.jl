@@ -4,9 +4,12 @@ using RustCall
 import LinearAlgebra
 import SparseArrays
 import Statistics
+import Random
 using LinearAlgebra: SVD
 
 export FaerLinearOperator,
+    FaerRNG,
+    randunitary,
     FaerBidiagonalization,
     bidiagonalize,
     bidiagonalize!,
@@ -200,5 +203,6 @@ include("statistics.jl")
 include("balance.jl")
 include("tridiagonal.jl")
 include("bidiagonal.jl")
+include("random.jl")
 
 end
