@@ -814,5 +814,26 @@ the new suite contributes 2,665 assertions. It covers empty/rectangular/wide,
 complex phases, thin/full bases and SVD, both native band paths, blocked sizes
 above 128, tiny/huge scales, aliases/close/failure behavior, and a 20,000×2 thin
 problem. All README examples pass. External scratch, compact controls and other
-remaining Issue #1 requirements retain their scope. Integration with the
-concurrently edited RustCall migration must be verified separately.
+remaining Issue #1 requirements retain their scope. The initial isolated run was followed by integrated RustCall migration
+verification below.
+
+
+### Integrated RustCall 0.9.2 / macros 0.6 validation
+
+Integrated the owner-binding migration with the bidiagonal implementation.
+RustCall compat is the caret range "0.9.2"; Cargo uses rustcall_julia_macros
+0.6.0. Native typed owner arguments use checked &T/&mut T borrows; explicit raw
+owner paths remain only for type-erased or optional arguments. FaerMatrix copy
+uses duplicate(&self) -> Result<Self,String> directly. Regression tests verify
+independent storage, errors without allocation, aliased mutable borrows, wrong
+owner types, finalized/closed owners and allowed shared aliases.
+
+Canonical integrated validation: Pkg.test(allow_reresolve=false) passes
+**58,271 assertions across 34 independent files using ParallelTestRunner.jl
+2.10.0 and 16 workers**, on Julia 1.13.3 / RustCall 0.9.2. The owner-binding
+suite contributes 35 assertions and the bidiagonal suite contributes 2,665.
+All README Julia examples, cargo check, Rust/Julia formatting and git diff
+--check pass. All five faer reports (#203–#207) were checked after publication
+to contain Cargo.toml, complete Rust main and invocation instructions. Dependency
+sources remain at d5be1473eed9314fca6f80ad8b4072d86282e890 without local changes.
+Other Issue #1 categories remain incomplete.
