@@ -138,3 +138,123 @@ impl VectorOwner {
         })
     }
 }
+
+#[julia]
+pub fn jacobi_parameters(
+    input: *const u8,
+    output: *mut u8,
+    tag: i32,
+    kind: i32,
+) -> Result<(), String> {
+    guarded(|| {
+        unsafe fn run<T: ComplexField>(
+            input: *const u8,
+            output: *mut u8,
+            kind: i32,
+        ) -> Result<(), String> {
+            let p = copy(&*input.cast::<T>());
+            let q = copy(&*input.cast::<T>().add(1));
+            let (j, r) = match kind {
+                0 => {
+                    let scale = if abs(&p) > abs(&q) { abs(&p) } else { abs(&q) };
+                    let (j, mut r) = if T::IS_REAL && scale > zero::<T::Real>() {
+                        let scale = from_real::<T>(&scale);
+                        let (j, r) = JacobiRotation::rotg(&p / &scale, &q / &scale);
+                        (j, r * scale)
+                    } else {
+                        JacobiRotation::rotg(copy(&p), copy(&q))
+                    };
+                    if q == zero::<T>() {
+                        r = copy(&p);
+                    }
+                    (j, r)
+                }
+                2 => (JacobiRotation { c: p, s: q }.transpose(), zero::<T>()),
+                3 => (JacobiRotation { c: p, s: q }.conjugate(), zero::<T>()),
+                4 => (JacobiRotation { c: p, s: q }.adjoint(), zero::<T>()),
+                _ => return Err("invalid Jacobi operation".into()),
+            };
+            output.cast::<T>().write(j.c);
+            output.cast::<T>().add(1).write(j.s);
+            output.cast::<T>().add(2).write(r);
+            Ok(())
+        }
+        unsafe {
+            match tag {
+                0 => run::<f32>(input, output, kind),
+                1 => run::<f64>(input, output, kind),
+                2 => run::<faer::c32>(input, output, kind),
+                3 => run::<faer::c64>(input, output, kind),
+                _ => Err("unsupported Jacobi scalar".into()),
+            }
+        }
+    })
+}
+#[julia]
+pub fn jacobi_make_givens(input: *const u8, output: *mut u8, tag: i32) -> Result<(), String> {
+    guarded(|| {
+        unsafe {
+            match tag {
+                0 => {
+                    let j = JacobiRotation::make_givens(
+                        *input.cast::<f32>(),
+                        *input.cast::<f32>().add(1),
+                    );
+                    output.cast::<f32>().write(j.c);
+                    output.cast::<f32>().add(1).write(j.s);
+                }
+                1 => {
+                    let j = JacobiRotation::make_givens(
+                        *input.cast::<f64>(),
+                        *input.cast::<f64>().add(1),
+                    );
+                    output.cast::<f64>().write(j.c);
+                    output.cast::<f64>().add(1).write(j.s);
+                }
+                _ => return Err("make_givens requires real scalars".into()),
+            }
+        }
+        Ok(())
+    })
+}
+#[julia]
+pub fn jacobi_apply_2x2(
+    input: *const u8,
+    output: *mut u8,
+    tag: i32,
+    right: bool,
+) -> Result<(), String> {
+    guarded(|| {
+        unsafe fn run<T: ComplexField>(input: *const u8, output: *mut u8, right: bool) {
+            let x = std::slice::from_raw_parts(input.cast::<T>(), 6);
+            let j = JacobiRotation {
+                c: copy(&x[0]),
+                s: copy(&x[1]),
+            };
+            let (a, b, c, d) = if right {
+                // Upstream transposes an adjoint application, giving conj(J).
+                j.conjugate().apply_on_the_right_2x2(
+                    copy(&x[2]),
+                    copy(&x[3]),
+                    copy(&x[4]),
+                    copy(&x[5]),
+                )
+            } else {
+                j.apply_on_the_left_2x2(copy(&x[2]), copy(&x[3]), copy(&x[4]), copy(&x[5]))
+            };
+            for (i, v) in [a, b, c, d].into_iter().enumerate() {
+                output.cast::<T>().add(i).write(v);
+            }
+        }
+        unsafe {
+            match tag {
+                0 => run::<f32>(input, output, right),
+                1 => run::<f64>(input, output, right),
+                2 => run::<faer::c32>(input, output, right),
+                3 => run::<faer::c64>(input, output, right),
+                _ => return Err("unsupported Jacobi scalar".into()),
+            }
+        }
+        Ok(())
+    })
+}

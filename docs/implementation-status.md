@@ -661,3 +661,31 @@ Validation: `Pkg.test()` passes **50,186 assertions across 28 independent files
 with ParallelTestRunner.jl and 16 workers**; LSMR contributes 439 assertions.
 All README Julia examples, method ambiguity checks, `cargo check`, Rust/Julia
 formatting and `git diff --check` pass. Dependency sources remain unchanged.
+
+### Standalone native Jacobi rotations
+
+Added the immutable 2×2 `FaerJacobiRotation`, native `rotg`/real `make_givens`,
+transpose/conjugate/adjoint, left/right 2×2 helpers, multiplication and in-place
+application to Julia/native arrays and views. `LinearAlgebra.Givens(J,i,j)`
+embeds a rotation in a larger array through existing native kernels. Native
+scalar promotion and staged destination conversion preserve outputs on failure.
+
+The bridge corrects two upstream details without modifying the dependency:
+complex `rotg(p,0)` returns the original p as r (the native branch returns 1),
+and native complex 2×2 right application is conjugated before use to compensate
+for its adjoint-then-transpose implementation. Real rotg inputs are scaled
+before the native call to preserve unit coefficients for subnormal inputs.
+Tests compare against independent 2×2 matrix multiplication for all four types,
+transforms, embedding, views, zero/sign/complex cases and failure preservation.
+
+Partial spectra remain unimplemented. A separate native probe reproduces an
+upstream panic for a 4×4 identity matrix in `partial_self_adjoint_eigen` at
+`operator/self_adjoint_eigen/mod.rs:290` (full projection-space branch).
+The probe and invocation instructions are in `docs/reproducers/`. This is a faer
+limitation, not a RustCall defect, and does not reduce the remaining Issue #1 scope.
+
+Validation: `Pkg.test()` passes **50,698 assertions across 29 independent files
+with ParallelTestRunner.jl and 16 workers**; standalone Jacobi contributes 512
+assertions. All README Julia examples, method ambiguity checks, `cargo check`,
+Rust/Julia formatting and `git diff --check` pass. Dependency sources are clean.
+The separate upstream probe terminates with the expected panic/exit code 101.

@@ -644,3 +644,24 @@ residuals; an inconsistent least squares problem can converge with a nonzero
 ordinary residual. Checked failures throw `FaerLsmrError` retaining the last
 iterate. A nonzero initial guess can retain nullspace components, and right
 preconditioning changes the minimum-norm metric.
+
+### Standalone Jacobi rotations
+
+`rotg` returns faer's 2×2 unitary rotation, using its native sign convention:
+
+```julia
+using Colmat, LinearAlgebra
+J, r = rotg(3.0, 4.0)
+@assert J * [3.0, 4.0] ≈ [r, 0.0]
+@assert Matrix(J') * Matrix(J) ≈ Matrix{Float64}(I, 2, 2)
+A = FaerMatrix([1.0 2; 3 4])
+lmul!(J, A)
+@assert Matrix(A) ≈ Matrix(J) * [1.0 2; 3 4]
+G = LinearAlgebra.Givens(J, 2, 4) # embed the same rotation in a larger array
+```
+
+`make_givens(p,q)` exposes faer's real constructor. `transpose`, `conj` and
+`adjoint` use its native transforms. `apply_on_the_left_2x2` and
+`apply_on_the_right_2x2` accept four entries and return them in row order.
+Standalone rotations require an axis of length two; embedded `Givens` rotations
+use the existing native array kernels.

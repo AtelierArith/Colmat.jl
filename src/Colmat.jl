@@ -6,6 +6,11 @@ import SparseArrays
 using LinearAlgebra: SVD
 
 export FaerLinearOperator,
+    FaerJacobiRotation,
+    rotg,
+    make_givens,
+    apply_on_the_left_2x2,
+    apply_on_the_right_2x2,
     FaerLsmrResult,
     FaerLsmrError,
     lsmr,
@@ -175,5 +180,6 @@ include("rotations.jl")
 include("householder.jl")
 include("householder_sequence.jl")
 include("operators.jl")
+include("jacobi.jl")
 
 end
