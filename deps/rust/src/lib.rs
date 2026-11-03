@@ -1298,3 +1298,5 @@ pub mod bidiagonal;
 pub mod random;
 
 pub mod npy;
+
+pub mod structured_products;

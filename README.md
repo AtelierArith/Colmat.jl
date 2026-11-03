@@ -857,3 +857,26 @@ input. A start orthogonal to a desired invariant subspace can miss it. Inspect
 `nconverged` and residuals before using results. Small/full-projection
 self-adjoint and SVD requests use native dense decompositions to avoid upstream
 panics, with `algorithm == :dense_fallback`; iterative results report `:partial`.
+
+### Structured products
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([2.0 99; 3 4])
+L = LowerTriangular(A)
+B = FaerMatrix([1.0 2; 3 4])
+C = L * B
+@assert Matrix(C) == [2.0 4; 15 22]
+D = FaerDiagonal([2.0, 3.0])
+@assert Matrix(D * B) == [2.0 4; 9 12]
+mul!(B, L, B, 2.0, 0.0)
+@assert Matrix(B) == 2Matrix(C)
+```
+
+Lower/upper and unit-triangular wrappers use faer's structured multiplication;
+`FaerDiagonal` and Julia `Diagonal` with native matrices use native diagonal
+products. These methods return a `FaerMatrix`, including triangular×triangular
+products. Native destination `mul!` supports coefficients and aliasing. Operand
+snapshots and a temporary result are allocated; even diagonal operands are
+currently snapshotted through a dense representation. Unused triangles and
+implicit unit diagonals are ignored, including nonfinite values stored there.

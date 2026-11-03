@@ -935,3 +935,35 @@ general eigen, small/native-dense boundaries, empty shapes, zero restarts,
 initial vectors, closed owners and invalid controls. All 29 README Julia blocks,
 method ambiguity checks, cargo check, Julia/Rust formatting and git diff --check
 pass. Dependency sources remain unchanged. The full Issue #1 goal stays open.
+
+### Native triangular and diagonal products
+
+Connected faer's `matmul::triangular::matmul_with_conj` through Base `*` for
+lower/upper/unit triangular wrappers and native dense matrices/views, including
+native triangular pairs. Exact primitive snapshots carry physical parent data;
+block-structure flags ignore unused halves and stored unit diagonals, including
+NaNs there. All four scalar types and mixed-type promotion are supported.
+Triangular-pair results are dense FaerMatrix objects.
+
+Native diagonal multiplication handles FaerDiagonal/Julia Diagonal with native
+dense matrices, plus native diagonal/triangular pairs. The native adapter masks
+ignored triangular entries before the diagonal kernel. Inputs are currently
+snapshotted densely, even diagonal storage; zero-copy and allocation-free paths
+remain work to do. Rust operations produce independently owned native outputs.
+
+Three/five-argument `mul!` supports native matrices and strided/reversed native
+views as outputs, alpha/beta and either-input aliasing. The operation locks the
+owner lifecycle, checks shapes/open owners even for zero alpha, skips ignored
+input values for alpha=0 and avoids reading old output for beta=0. A temporary
+result precedes all writes. External-array/vector combinations and low-level
+structured destination controls are not yet fully connected.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **65,974 assertions across
+38 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. Structured products contribute 858 assertions: four types,
+empty/rectangular/unit/triangular/diagonal combinations, poisoned unused entries,
+coefficients including complex alpha on real operands, ignored zero coefficients,
+input aliasing, reversed views, mixed precision, closed owners and invalid shapes.
+All 30 README Julia blocks, method ambiguity checks, cargo check, Julia/Rust
+formatting and git diff --check pass. Dependency sources remain unchanged.
+Remaining Issue #1 categories and limitations listed above remain open.
