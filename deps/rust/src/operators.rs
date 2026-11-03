@@ -21,6 +21,7 @@ enum Base<T> {
     Product(Box<OperatorProduct<T>>),
     InverseFactors(Box<InverseFactors<T>>),
     InverseQr(Box<InverseQr<T>>),
+    InverseLdlt(Box<InverseLdlt<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -36,6 +37,10 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
+            Base::InverseLdlt($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
             Base::InverseQr($a) => {
                 let $a = $a.as_ref();
                 $expr
@@ -1518,6 +1523,16 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
+        Base::InverseLdlt(f) => {
+            let mut d = Diag::zeros(f.diagonal.dim());
+            for i in 0..d.dim() {
+                d.column_vector_mut()[i] = cast(&f.diagonal.column_vector()[i]);
+            }
+            Base::InverseLdlt(Box::new(InverseLdlt {
+                l: Mat::from_fn(f.l.nrows(), f.l.ncols(), |i, j| cast(&f.l[(i, j)])),
+                diagonal: d,
+            }))
+        }
         Base::InverseQr(f) => Base::InverseQr(Box::new(InverseQr {
             basis: Mat::from_fn(f.basis.nrows(), f.basis.ncols(), |i, j| {
                 cast(&f.basis[(i, j)])
@@ -1819,6 +1834,12 @@ impl OwnedLinearOperator {
     ) -> Result<(), String> {
         guarded(|| {
             match factor.get()? {
+                crate::DenseFactor::Ldlt(f) => {
+                    self.data = Some(Data::F64(Operator::new(Base::InverseLdlt(Box::new(
+                        InverseLdlt::new(f.L(), f.D())?,
+                    )))));
+                    return Ok(());
+                }
                 crate::DenseFactor::Qr(f) => {
                     self.data = Some(Data::F64(Operator::new(Base::InverseQr(Box::new(
                         InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?,
@@ -1867,6 +1888,9 @@ impl OwnedLinearOperator {
             }
             self.data = Some(match factor.data()? {
                 FactorData::F32(Factor::Lu(f)) => Data::F32(make(f)?),
+                FactorData::F32(Factor::Ldlt(f)) => Data::F32(Operator::new(Base::InverseLdlt(
+                    Box::new(InverseLdlt::new(f.L(), f.D())?),
+                ))),
                 FactorData::F32(Factor::Qr(f)) => Data::F32(Operator::new(Base::InverseQr(
                     Box::new(InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?),
                 ))),
@@ -1885,6 +1909,9 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::F64(Factor::Lu(f)) => Data::F64(make(f)?),
+                FactorData::F64(Factor::Ldlt(f)) => Data::F64(Operator::new(Base::InverseLdlt(
+                    Box::new(InverseLdlt::new(f.L(), f.D())?),
+                ))),
                 FactorData::F64(Factor::Qr(f)) => Data::F64(Operator::new(Base::InverseQr(
                     Box::new(InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?),
                 ))),
@@ -1903,6 +1930,9 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::C32(Factor::Lu(f)) => Data::C32(make(f)?),
+                FactorData::C32(Factor::Ldlt(f)) => Data::C32(Operator::new(Base::InverseLdlt(
+                    Box::new(InverseLdlt::new(f.L(), f.D())?),
+                ))),
                 FactorData::C32(Factor::Qr(f)) => Data::C32(Operator::new(Base::InverseQr(
                     Box::new(InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?),
                 ))),
@@ -1921,6 +1951,9 @@ impl OwnedLinearOperator {
                     Box::new(InverseFactors::cholesky(f)?),
                 ))),
                 FactorData::C64(Factor::Lu(f)) => Data::C64(make(f)?),
+                FactorData::C64(Factor::Ldlt(f)) => Data::C64(Operator::new(Base::InverseLdlt(
+                    Box::new(InverseLdlt::new(f.L(), f.D())?),
+                ))),
                 FactorData::C64(Factor::Qr(f)) => Data::C64(Operator::new(Base::InverseQr(
                     Box::new(InverseQr::new(f.Q_basis(), f.Q_coeff(), f.R(), None)?),
                 ))),
@@ -2071,5 +2104,73 @@ impl<T: ComplexField> BiLinOp<T> for InverseQr<T> {
     }
     fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
         self.run(o, b, p, s, true, true)
+    }
+}
+
+#[derive(Clone)]
+struct InverseLdlt<T> {
+    l: Mat<T>,
+    diagonal: Diag<T>,
+}
+impl<T> std::fmt::Debug for InverseLdlt<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("InverseLdlt")
+    }
+}
+impl<T: ComplexField> InverseLdlt<T> {
+    fn new(l: MatRef<'_, T>, d: faer::diag::DiagRef<'_, T>) -> Result<Self, String> {
+        if l.nrows() != l.ncols() || d.dim() != l.nrows() {
+            return Err("LDLT preconditioner requires square factors".into());
+        }
+        let mut diagonal = Diag::zeros(d.dim());
+        for i in 0..d.dim() {
+            if abs(&d[i]) == zero::<T::Real>() {
+                return Err("LDLT preconditioner requires nonzero pivots".into());
+            }
+            diagonal.column_vector_mut()[i] = copy(&d[i]);
+        }
+        Ok(Self {
+            l: l.to_owned(),
+            diagonal,
+        })
+    }
+    fn run(&self, mut out: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack, c: bool) {
+        out.copy_from(b);
+        faer::linalg::cholesky::ldlt::solve::solve_in_place_with_conj(
+            self.l.as_ref(),
+            self.diagonal.as_ref(),
+            if c { faer::Conj::Yes } else { faer::Conj::No },
+            out,
+            p,
+            s,
+        );
+    }
+}
+impl<T: ComplexField> LinOp<T> for InverseLdlt<T> {
+    fn nrows(&self) -> usize {
+        self.l.nrows()
+    }
+    fn ncols(&self) -> usize {
+        self.l.ncols()
+    }
+    fn apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        faer::linalg::cholesky::ldlt::solve::solve_in_place_scratch::<T>(self.nrows(), k, p)
+    }
+    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false)
+    }
+    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true)
+    }
+}
+impl<T: ComplexField> BiLinOp<T> for InverseLdlt<T> {
+    fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        self.apply_scratch(k, p)
+    }
+    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true)
+    }
+    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false)
     }
 }

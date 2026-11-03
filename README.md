@@ -1744,3 +1744,28 @@ needed. Native QR solve kernels consume operator scratch, and mixed scalar
 promotion converts the saved components. Empty square factors are supported;
 rectangular factors and zero R pivots are rejected. This interface does not
 provide rank-tolerance control or rank-deficient pseudoinverse preconditioning.
+
+### Retained LDLT preconditioners for indefinite systems
+
+```julia
+using Colmat, LinearAlgebra
+A0 = ComplexF64[4 1im; -1im -3]
+A = FaerMatrix(A0)
+F = ldlt(Hermitian(A, :L))
+M = FaerLinearOperator(F)
+close(F)
+b = ones(ComplexF64, 2)
+@assert M * b ≈ A0 \ b
+@assert transpose(M) * b ≈ transpose(A0) \ b
+@assert bicgstab(A, b; M=M).x ≈ A0 \ b
+close(M)
+close(A)
+```
+
+The native LDLT inverse action owns L and D and applies the low-level saved-factor
+solve without an inverse or refactorization. Both selected input triangles,
+normal/conjugate/transpose/adjoint, copy/composition and mixed native scalar
+promotion are supported. Zero diagonal pivots are rejected. Indefinite inverse
+actions are suitable for general solvers such as BiCGSTAB; they do not satisfy
+CG's positive-definiteness requirement. Block-pivoted LDLT and sparse factor
+preconditioners remain pending.
