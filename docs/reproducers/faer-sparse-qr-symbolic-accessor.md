@@ -13,6 +13,8 @@ faer = { package = "t4a-faer", path = "../faer/faer", default-features = false,
 features = ["std", "linalg"] }, where ../faer is the pinned upstream clone.
 The executable checks both forced simplicial and forced supernodal analyses.
 Upstream PR: https://github.com/tensor4all/faer/pull/228 (859d9a2).
+Merged upstream on 2026-11-03 as fac26dc2a346f2be41f2011fba2bc8e4d7ff22f5.
+The Colmat dependency checkout has not yet adopted this change.
 The public integration regression and executable doctest each passed (1 test
 each) with std,linalg and no default features. The standalone executable prints
 selected simplicial / selected supernodal. Full numerical/performance acceptance
