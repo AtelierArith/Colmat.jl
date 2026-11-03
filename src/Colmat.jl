@@ -7,6 +7,11 @@ import Statistics
 using LinearAlgebra: SVD
 
 export FaerLinearOperator,
+    FaerBalance,
+    balance,
+    balance!,
+    balance_eigenvectors,
+    balance_eigenvectors!,
     FaerJacobiRotation,
     rotg,
     make_givens,
@@ -183,5 +188,6 @@ include("householder_sequence.jl")
 include("operators.jl")
 include("jacobi.jl")
 include("statistics.jl")
+include("balance.jl")
 
 end

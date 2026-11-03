@@ -719,3 +719,32 @@ validation and imaginary-component NaN regression cases, the complete focused
 statistics suite passes 2,621 assertions. All README Julia examples, owned-method
 ambiguity checks, `cargo check`, Rust/Julia formatting and `git diff --check`
 pass. Dependency sources remain clean.
+
+### Native balancing and right eigenvector back-transforms
+
+Added `balance`/`balance!` and owned `FaerBalance` metadata (`B`, 1-based `perm`,
+positive power-of-two `scale`, Julia `active` range), directly calling faer's
+balancing routine. The similarity convention is
+`B[i,j] = A[perm[i],perm[j]] * scale[j] / scale[i]`. Nonmutating calls snapshot
+the input; `balance!` commits a staged result to its existing native matrix and
+returns a result sharing that owner.
+
+Added `balance_eigenvectors`/`balance_eigenvectors!`, directly calling faer's
+right-vector back-transform, including complex vectors after real balancing,
+multiple columns, native vectors and Julia/native arrays/views. Columns are not
+renormalized. Metadata validation, native scratch allocation and complete output
+conversion occur before destination mutation; nonfinite input or overflowing
+back-transforms fail without changing the destination. No dependency source is
+modified. External scratch and compact Hessenberg control remain unimplemented.
+
+The focused suite covers all four scalars, empty/singleton/random/isolation cases,
+power-of-two similarity reconstruction, eigenpair residuals in original
+coordinates, metadata/copy/close ownership, shared in-place results, vector and
+view applications, invalid metadata and overflow preservation. Other outstanding
+Issue #1 categories retain their scope.
+
+Validation: `Pkg.test()` passes **53,950 assertions across 31 independent files
+with ParallelTestRunner.jl and 16 workers**; balancing contributes 631 assertions.
+The previous statistics follow-up regressions are included in this full run.
+All README Julia examples, method ambiguity checks, `cargo check`, Rust/Julia
+formatting and `git diff --check` pass. Dependency sources remain clean.

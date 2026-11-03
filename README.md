@@ -689,3 +689,24 @@ population variance. Complex variances are real, empty slices return NaN, and
 singleton sample variances follow Julia's NaN convention. Supplied means promote
 the working scalar type. Calls snapshot native data to primitive buffers before
 running faer's kernels; they leave the input unchanged.
+
+### Balancing before eigenvalue computations
+
+`balance` calls faer's permutation and power-of-two scaling routine:
+
+```julia
+using Colmat, LinearAlgebra
+A = [1.0 1024; 1/1024 2]
+F = balance(A)
+@assert Matrix(F.B) ≈ A[F.perm, F.perm] .* reshape(F.scale, 1, :) ./ F.scale
+E = eigen(F.B)
+X = balance_eigenvectors(F, E.vectors)
+@assert A * Matrix(X) ≈ Matrix(X) * Diagonal(E.values)
+```
+
+`F.perm` uses 1-based indices, and `F.active` is the active Julia range.
+`balance!(A::FaerMatrix)` replaces A after a successful computation and returns
+a result sharing A as `B`. `balance_eigenvectors!` restores right eigenvector
+columns in place after staging the full result. Back-transforms do not normalize
+columns; invalid metadata, conversion failure or overflow leave the destination
+unchanged.
