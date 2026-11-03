@@ -4,7 +4,15 @@ using RustCall
 import LinearAlgebra
 using LinearAlgebra: SVD
 
-export FaerMatrix, FaerFactorization, full_piv_lu, pfaffian, faer_mul, faer_solve, faer_svd
+export FaerMatrix,
+    FaerFactorization,
+    reserve!,
+    truncate!,
+    full_piv_lu,
+    pfaffian,
+    faer_mul,
+    faer_solve,
+    faer_svd
 
 const RustCrate = @rust_crate joinpath(@__DIR__, "..", "deps", "rust")
 
@@ -99,5 +107,7 @@ include("factorizations.jl")
 include("reductions.jl")
 include("eigen.jl")
 include("structured.jl")
+include("typed.jl")
+include("storage.jl")
 
 end

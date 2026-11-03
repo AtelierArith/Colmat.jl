@@ -3,18 +3,21 @@
 const _matrix_lock = ReentrantLock()
 
 """
-    FaerMatrix(A::AbstractMatrix{<:Real})
+    FaerMatrix(A::AbstractMatrix)
+    FaerMatrix{T}(A::AbstractMatrix)
 
-An `AbstractMatrix{Float64}` owning a t4a-faer matrix in Rust. Construction
-copies `A`; arithmetic between FaerMatrix objects stays in Rust. `Matrix(A)`
-returns an independent Julia copy. Operations currently use `Par::Seq`.
+An `AbstractMatrix{T}` owning a t4a-faer matrix in Rust. Float32, Float64,
+ComplexF32 and ComplexF64 inputs preserve their scalar type; other real inputs
+use Float64. The explicit constructor converts to a supported `T`.
+Construction copies `A`; arithmetic stays in Rust. `Matrix(A)` returns an
+independent Julia copy. Operations currently use `Par::Seq`.
 """
-mutable struct FaerMatrix{H} <: AbstractMatrix{Float64}
+mutable struct FaerMatrix{T,H} <: AbstractMatrix{T}
     handle::Union{Nothing,H}
     dims::Tuple{Int,Int}
 end
 
-_owned(handle::H, dims) where {H} = FaerMatrix{H}(handle, dims)
+_owned(handle::H, dims) where {H} = FaerMatrix{Float64,H}(handle, dims)
 function _handle(a::FaerMatrix)
     h = a.handle
     isnothing(h) && throw(ArgumentError("FaerMatrix has been closed"))
@@ -55,47 +58,47 @@ function FaerMatrix(a::AbstractMatrix{<:Real})
         UInt(size(data, 2)),
     )
 end
-FaerMatrix(a::FaerMatrix) = copy(a)
+FaerMatrix(a::FaerMatrix{Float64}) = copy(a)
 
 Base.size(a::FaerMatrix) = a.dims
 Base.IndexStyle(::Type{<:FaerMatrix}) = IndexCartesian()
-function Base.getindex(a::FaerMatrix, i::Int, j::Int)
+function Base.getindex(a::FaerMatrix{Float64}, i::Int, j::Int)
     @boundscheck checkbounds(a, i, j)
     return _native_call(RustCrate.read_element, a, UInt(i - 1), UInt(j - 1))
 end
-function Base.setindex!(a::FaerMatrix, x, i::Int, j::Int)
+function Base.setindex!(a::FaerMatrix{Float64}, x, i::Int, j::Int)
     @boundscheck checkbounds(a, i, j)
     _native_call(RustCrate.write_element, a, UInt(i - 1), UInt(j - 1), Float64(x))
     return a
 end
 
-function Base.Matrix(a::FaerMatrix)
+function Base.Matrix(a::FaerMatrix{Float64})
     out = Matrix{Float64}(undef, size(a))
     GC.@preserve out _native_call(RustCrate.copy_buffer, a, pointer(out), UInt(length(out)))
     return out
 end
-Base.Array(a::FaerMatrix) = Matrix(a)
-Base.Matrix{T}(a::FaerMatrix) where {T} = convert(Matrix{T}, Matrix(a))
-Base.copy(a::FaerMatrix) = _matrix_result(RustCrate.duplicate_from, size(a), a)
-function Base.deepcopy_internal(a::FaerMatrix, dict::IdDict)
+Base.Array(a::FaerMatrix{Float64}) = Matrix(a)
+Base.Matrix{T}(a::FaerMatrix{Float64}) where {T} = convert(Matrix{T}, Matrix(a))
+Base.copy(a::FaerMatrix{Float64}) = _matrix_result(RustCrate.duplicate_from, size(a), a)
+function Base.deepcopy_internal(a::FaerMatrix{Float64}, dict::IdDict)
     return get!(dict, a) do
         copy(a)
     end
 end
 
-function Base.similar(a::FaerMatrix, ::Type{T}, dims::Dims) where {T}
-    if T === Float64 && length(dims) == 2
-        all(>=(0), dims) || throw(ArgumentError("matrix dimensions must be nonnegative"))
-        return _matrix_result(RustCrate.make_zeros, dims, UInt(dims[1]), UInt(dims[2]))
+function Base.similar(a::FaerMatrix{Float64}, ::Type{T}, dims::Dims) where {T}
+    if T <: _NativeScalar && length(dims)==2
+        return _zeros(T, dims)
     end
     return Array{T}(undef, dims)
 end
-Base.zero(a::FaerMatrix) = similar(a, Float64, size(a))
-function Base.fill!(a::FaerMatrix, x)
+
+Base.zero(a::FaerMatrix{Float64}) = similar(a, Float64, size(a))
+function Base.fill!(a::FaerMatrix{Float64}, x)
     _native_call(RustCrate.fill_value, a, Float64(x))
     return a
 end
-function Base.copyto!(dest::FaerMatrix, src::FaerMatrix)
+function Base.copyto!(dest::FaerMatrix{Float64}, src::FaerMatrix{Float64})
     size(dest) == size(src) || throw(DimensionMismatch("matrix sizes must match"))
     lock(_matrix_lock) do
         _handle(dest)
@@ -115,46 +118,46 @@ function Base.close(a::FaerMatrix)
 end
 Base.isopen(a::FaerMatrix) = lock(() -> !isnothing(a.handle), _matrix_lock)
 
-function _add(a::FaerMatrix, b::FaerMatrix, sign::Float64)
+function _add(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}, sign::Float64)
     size(a) == size(b) || throw(DimensionMismatch("matrix sizes must match"))
     return _matrix_result(RustCrate.add_from, size(a), a, b, sign)
 end
-Base.:+(a::FaerMatrix, b::FaerMatrix) = _add(a, b, 1.0)
-Base.:-(a::FaerMatrix, b::FaerMatrix) = _add(a, b, -1.0)
-Base.:+(a::FaerMatrix) = copy(a)
-Base.:-(a::FaerMatrix) = -1.0 * a
-Base.:*(x::Real, a::FaerMatrix) =
+Base.:+(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}) = _add(a, b, 1.0)
+Base.:-(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}) = _add(a, b, -1.0)
+Base.:+(a::FaerMatrix{Float64}) = copy(a)
+Base.:-(a::FaerMatrix{Float64}) = -1.0 * a
+Base.:*(x::Real, a::FaerMatrix{Float64}) =
     _matrix_result(RustCrate.scale_from, size(a), a, Float64(x))
-Base.:*(a::FaerMatrix, x::Real) = x * a
-Base.:/(a::FaerMatrix, x::Real) = inv(Float64(x)) * a
-Base.:\(x::Real, a::FaerMatrix) = a / x
+Base.:*(a::FaerMatrix{Float64}, x::Real) = x * a
+Base.:/(a::FaerMatrix{Float64}, x::Real) = inv(Float64(x)) * a
+Base.:\(x::Real, a::FaerMatrix{Float64}) = a / x
 
-function Base.:*(a::FaerMatrix, b::FaerMatrix)
+function Base.:*(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
     size(a, 2) == size(b, 1) || throw(DimensionMismatch("inner dimensions must match"))
     return _matrix_result(RustCrate.multiply_from, (size(a, 1), size(b, 2)), a, b)
 end
-function Base.:*(a::FaerMatrix, b::AbstractVector{<:Real})
+function Base.:*(a::FaerMatrix{Float64}, b::AbstractVector{<:Real})
     return vec(Matrix(a * FaerMatrix(reshape(b, :, 1))))
 end
-function Base.:\(a::FaerMatrix, b::FaerMatrix)
+function Base.:\(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
     return LinearAlgebra.factorize(a) \ b
 end
-Base.:\(a::FaerMatrix, b::AbstractMatrix{<:Real}) = a \ FaerMatrix(b)
-Base.:\(a::FaerMatrix, b::AbstractVector{<:Real}) =
+Base.:\(a::FaerMatrix{Float64}, b::AbstractMatrix{<:Real}) = a \ FaerMatrix{Float64}(b)
+Base.:\(a::FaerMatrix{Float64}, b::AbstractVector{<:Real}) =
     vec(Matrix(a \ FaerMatrix(reshape(b, :, 1))))
 
 # Julia's transpose/adjoint wrappers remain lazy; copying materializes in Rust.
-function Base.copy(a::LinearAlgebra.Transpose{Float64,<:FaerMatrix})
+function Base.copy(a::LinearAlgebra.Transpose{Float64,<:FaerMatrix{Float64}})
     return _matrix_result(RustCrate.transpose_from, reverse(size(parent(a))), parent(a))
 end
-function Base.copy(a::LinearAlgebra.Adjoint{Float64,<:FaerMatrix})
+function Base.copy(a::LinearAlgebra.Adjoint{Float64,<:FaerMatrix{Float64}})
     return copy(transpose(parent(a)))
 end
 
 function LinearAlgebra.mul!(
-    c::FaerMatrix,
-    a::FaerMatrix,
-    b::FaerMatrix,
+    c::FaerMatrix{Float64},
+    a::FaerMatrix{Float64},
+    b::FaerMatrix{Float64},
     alpha::Number,
     beta::Number,
 )
@@ -175,15 +178,15 @@ function LinearAlgebra.mul!(
     end
     return c
 end
-LinearAlgebra.mul!(c::FaerMatrix, a::FaerMatrix, b::FaerMatrix) =
+LinearAlgebra.mul!(c::FaerMatrix{Float64}, a::FaerMatrix{Float64}, b::FaerMatrix{Float64}) =
     LinearAlgebra.mul!(c, a, b, 1.0, 0.0)
 
-faer_mul(a::FaerMatrix, b::FaerMatrix) = a * b
-faer_solve(a::FaerMatrix, b::AbstractMatrix{<:Real}) = a \ b
-faer_solve(a::FaerMatrix, b::AbstractVector{<:Real}) = a \ b
+faer_mul(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}) = a * b
+faer_solve(a::FaerMatrix{Float64}, b::AbstractMatrix{<:Real}) = a \ b
+faer_solve(a::FaerMatrix{Float64}, b::AbstractVector{<:Real}) = a \ b
 
 """
-    svd(A::FaerMatrix; full=false)
+    svd(A::FaerMatrix{Float64}; full=false)
 
 Compute the SVD directly from the Rust-owned matrix using t4a-faer. Return a
 `LinearAlgebra.SVD` with independent Julia factors. The default is a thin SVD;
@@ -192,7 +195,7 @@ Compute the SVD directly from the Rust-owned matrix using t4a-faer. Return a
 This method uses faer's SVD algorithm; LAPACK-specific algorithm and tolerance
 keywords are not supported.
 """
-function LinearAlgebra.svd(a::FaerMatrix; full::Bool = false)
+function LinearAlgebra.svd(a::FaerMatrix{Float64}; full::Bool = false)
     m, n = size(a)
     k = min(m, n)
     u = Matrix{Float64}(undef, m, full ? m : k)
@@ -205,15 +208,15 @@ function LinearAlgebra.svd(a::FaerMatrix; full::Bool = false)
 end
 
 """
-    svdvals(A::FaerMatrix)
+    svdvals(A::FaerMatrix{Float64})
 
 Compute singular values directly from Rust-owned storage, without singular
 vectors. Values are nonnegative and sorted in descending order.
 """
-function LinearAlgebra.svdvals(a::FaerMatrix)
+function LinearAlgebra.svdvals(a::FaerMatrix{Float64})
     s = Vector{Float64}(undef, min(size(a)...))
     GC.@preserve s _native_call(RustCrate.singular_values_buffer, a, pointer(s))
     return s
 end
 
-faer_svd(a::FaerMatrix) = LinearAlgebra.svd(a)
+faer_svd(a::FaerMatrix{Float64}) = LinearAlgebra.svd(a)

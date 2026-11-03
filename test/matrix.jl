@@ -48,7 +48,7 @@
         @test Matrix(FaerMatrix([1 2; 3 4])) == [1 2; 3 4]
         @test_throws Exception FaerMatrix(fill(NaN, 2, 2))
         @test similar(A) isa FaerMatrix
-        @test similar(A, Float32) isa Matrix{Float32}
+        @test similar(A, Float32) isa FaerMatrix{Float32}
         @test similar(A, Float64, (2,)) isa Vector{Float64}
         @test size(similar(A, Float64, (2, 4))) == (2, 4)
         @test_throws ArgumentError similar(A, Float64, (-1, 2))
@@ -99,7 +99,7 @@
         @test A\[1, 2, 3] ≈ a\[1, 2, 3]
         @test Matrix(A\A) ≈ Matrix{Float64}(I, 3, 3)
         @test_throws DimensionMismatch A\ones(2)
-        @test FaerMatrix(ones(2, 3))\ones(2) ≈ fill(1/3,3)
+        @test FaerMatrix(ones(2, 3))\ones(2) ≈ fill(1/3, 3)
         @test_throws Exception FaerMatrix([1.0 2; 2 4])\ones(2)
         @test Matrix(faer_mul(A, B)) ≈ a*b
         @test Matrix(faer_solve(A, B)) ≈ a\b

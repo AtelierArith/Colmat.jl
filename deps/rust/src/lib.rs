@@ -1218,3 +1218,53 @@ impl OwnedFactor {
         })
     }
 }
+
+pub mod typed;
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn reserve_storage(&mut self, rows: usize, cols: usize) -> Result<(), String> {
+        guarded(|| {
+            rows.checked_mul(cols).ok_or("matrix capacity overflow")?;
+            self.matrix
+                .try_reserve(rows, cols)
+                .map_err(|e| format!("{e:?}"))
+        })
+    }
+    #[julia]
+    pub fn resize_storage(
+        &mut self,
+        rows: usize,
+        cols: usize,
+        value: *const u8,
+    ) -> Result<(), String> {
+        guarded(|| {
+            rows.checked_mul(cols).ok_or("matrix size overflow")?;
+            let x = unsafe { *value.cast::<f64>() };
+            self.matrix.resize_with(rows, cols, |_, _| x);
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn truncate_storage(&mut self, rows: usize, cols: usize) -> Result<(), String> {
+        guarded(|| {
+            if rows > self.matrix.nrows() || cols > self.matrix.ncols() {
+                return Err("truncate cannot grow a matrix".into());
+            }
+            self.matrix.truncate(rows, cols);
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn identity_storage(&mut self, rows: usize, cols: usize, tag: i32) -> Result<(), String> {
+        guarded(|| {
+            if tag != 1 {
+                return Err("Float64 owner requires Float64 scalar tag".into());
+            }
+            rows.checked_mul(cols).ok_or("matrix size overflow")?;
+            self.matrix = Mat::identity(rows, cols);
+            Ok(())
+        })
+    }
+}

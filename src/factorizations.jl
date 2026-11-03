@@ -6,7 +6,7 @@ A reusable t4a-faer factorization, returned by `lu`, `qr`, `cholesky`, `ldlt`,
 Rust and independent of the input. `F \\ B` reuses them; factor properties return
 independent FaerMatrix objects. `close(F)` invalidates only this factorization.
 """
-mutable struct FaerFactorization{K,H} <: LinearAlgebra.Factorization{Float64}
+mutable struct FaerFactorization{T,K,H} <: LinearAlgebra.Factorization{T}
     handle::Union{Nothing,H}
     dims::Tuple{Int,Int}
     info::Int
@@ -33,7 +33,7 @@ function Base.close(f::FaerFactorization)
 end
 LinearAlgebra.issuccess(f::FaerFactorization) = getfield(f, :info) == 0
 
-function _factor(a::FaerMatrix, ::Val{K}, code; check = true, uplo = :L) where {K}
+function _factor(a::FaerMatrix{Float64}, ::Val{K}, code; check = true, uplo = :L) where {K}
     if K in (:cholesky, :ldlt, :bunchkaufman)
         size(a, 1) == size(a, 2) ||
             throw(DimensionMismatch("factorization requires a square matrix"))
@@ -45,57 +45,65 @@ function _factor(a::FaerMatrix, ::Val{K}, code; check = true, uplo = :L) where {
             K === :cholesky && throw(LinearAlgebra.PosDefException(info))
             throw(LinearAlgebra.SingularException(info))
         end
-        return FaerFactorization{K,typeof(h)}(h, size(a), info, uplo)
+        return FaerFactorization{Float64,K,typeof(h)}(h, size(a), info, uplo)
     end
 end
 
 """Factor a Rust-owned matrix using t4a-faer's partial row-pivot LU."""
-LinearAlgebra.lu(a::FaerMatrix; check::Bool = true, allowsingular::Bool = false) =
+LinearAlgebra.lu(a::FaerMatrix{Float64}; check::Bool = true, allowsingular::Bool = false) =
     _factor(a, Val(:lu), 0; check = check && !allowsingular)
-LinearAlgebra.lu(a::FaerMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
+LinearAlgebra.lu(a::FaerMatrix{Float64}, ::LinearAlgebra.RowMaximum; kwargs...) =
     LinearAlgebra.lu(a; kwargs...)
 
 """
-    full_piv_lu(A::FaerMatrix; check=true)
+    full_piv_lu(A::FaerMatrix{Float64}; check=true)
 
 Compute t4a-faer's full row-and-column-pivot LU. The permutation vectors satisfy
 `Matrix(A)[F.p,F.q] ≈ Matrix(F.L*F.U)`.
 """
-full_piv_lu(a::FaerMatrix; check::Bool = true) = _factor(a, Val(:full_lu), 1; check)
+full_piv_lu(a::FaerMatrix{Float64}; check::Bool = true) =
+    _factor(a, Val(:full_lu), 1; check)
 
 """Compute a reusable Rust-owned QR factorization, optionally with column pivoting."""
-LinearAlgebra.qr(a::FaerMatrix) = _factor(a, Val(:qr), 2)
-LinearAlgebra.qr(a::FaerMatrix, ::LinearAlgebra.NoPivot) = LinearAlgebra.qr(a)
-LinearAlgebra.qr(a::FaerMatrix, ::LinearAlgebra.ColumnNorm) =
+LinearAlgebra.qr(a::FaerMatrix{Float64}) = _factor(a, Val(:qr), 2)
+LinearAlgebra.qr(a::FaerMatrix{Float64}, ::LinearAlgebra.NoPivot) = LinearAlgebra.qr(a)
+LinearAlgebra.qr(a::FaerMatrix{Float64}, ::LinearAlgebra.ColumnNorm) =
     _factor(a, Val(:pivoted_qr), 3)
 
 const _FaerSelfAdjoint = Union{
-    LinearAlgebra.Symmetric{Float64,<:FaerMatrix},
-    LinearAlgebra.Hermitian{Float64,<:FaerMatrix},
+    LinearAlgebra.Symmetric{Float64,<:FaerMatrix{Float64}},
+    LinearAlgebra.Hermitian{Float64,<:FaerMatrix{Float64}},
 }
 _uplo(a::_FaerSelfAdjoint) = a.uplo == 'L' ? :L : :U
-function LinearAlgebra.cholesky(a::FaerMatrix; check::Bool = true)
+function LinearAlgebra.cholesky(a::FaerMatrix{Float64}; check::Bool = true)
     LinearAlgebra.issymmetric(a) || throw(LinearAlgebra.PosDefException(-1))
     return _factor(a, Val(:cholesky), 4; check)
 end
 LinearAlgebra.cholesky(a::_FaerSelfAdjoint; check::Bool = true) =
     _factor(parent(a), Val(:cholesky), 4; check, uplo = _uplo(a))
-LinearAlgebra.ldlt(a::FaerMatrix; check::Bool = true) = _factor(a, Val(:ldlt), 5; check)
+function LinearAlgebra.ldlt(a::FaerMatrix{Float64}; check::Bool = true)
+    LinearAlgebra.issymmetric(a) || throw(ArgumentError("LDLT requires self-adjoint input"))
+    return _factor(a, Val(:ldlt), 5; check)
+end
 LinearAlgebra.ldlt(a::_FaerSelfAdjoint; check::Bool = true) =
     _factor(parent(a), Val(:ldlt), 5; check, uplo = _uplo(a))
-LinearAlgebra.bunchkaufman(a::FaerMatrix; check::Bool = true) =
-    _factor(a, Val(:bunchkaufman), 6; check)
+function LinearAlgebra.bunchkaufman(a::FaerMatrix{Float64}; check::Bool = true)
+    LinearAlgebra.issymmetric(a) ||
+        throw(ArgumentError("block LDLT requires self-adjoint input"))
+    return _factor(a, Val(:bunchkaufman), 6; check)
+end
 LinearAlgebra.bunchkaufman(a::_FaerSelfAdjoint; check::Bool = true) =
     _factor(parent(a), Val(:bunchkaufman), 6; check, uplo = _uplo(a))
 
-function _permutation(f::FaerFactorization{K}, column::Bool = false) where {K}
+function _permutation(f::FaerFactorization{T,K}, column::Bool = false) where {T,K}
     n = size(f, column || K === :pivoted_qr ? 2 : 1)
     p = Vector{UInt}(undef, n)
     GC.@preserve p _native_call(RustCrate.permutation, f, pointer(p), UInt(n), column)
     return Int.(p)
 end
-_factor_part(f, code, dims) = _matrix_result(RustCrate.factor_part, dims, f, Int32(code))
-function Base.getproperty(f::FaerFactorization{K}, name::Symbol) where {K}
+_factor_part(f::FaerFactorization{Float64}, code, dims) =
+    _matrix_result(RustCrate.factor_part, dims, f, Int32(code))
+function Base.getproperty(f::FaerFactorization{T,K}, name::Symbol) where {T,K}
     m, n = size(f)
     k = min(m, n)
     if name === :L && K in (:lu, :full_lu, :cholesky, :ldlt, :bunchkaufman)
@@ -116,11 +124,11 @@ function Base.getproperty(f::FaerFactorization{K}, name::Symbol) where {K}
     elseif name === :q && K === :full_lu
         return _permutation(f, true)
     elseif name === :P && K in (:lu, :full_lu, :bunchkaufman)
-        return FaerMatrix(Matrix{Float64}(LinearAlgebra.I, m, m)[f.p, :])
+        return FaerMatrix(Matrix{T}(LinearAlgebra.I, m, m)[f.p, :])
     end
     return getfield(f, name)
 end
-function Base.propertynames(f::FaerFactorization{K}, private::Bool = false) where {K}
+function Base.propertynames(f::FaerFactorization{T,K}, private::Bool = false) where {T,K}
     props =
         K in (:lu, :full_lu) ? (:L, :U, :p, :P) :
         K in (:qr, :pivoted_qr) ? (:Q, :Qthin, :R) : K === :cholesky ? (:L, :U) : (:L, :D)
@@ -130,23 +138,27 @@ function Base.propertynames(f::FaerFactorization{K}, private::Bool = false) wher
 end
 
 """Reconstruct a new Rust-owned matrix from a reusable faer factorization."""
-FaerMatrix(f::FaerFactorization) = _factor_part(f, 0, size(f))
+FaerMatrix(f::FaerFactorization{Float64}) = _factor_part(f, 0, size(f))
 Base.Matrix(f::FaerFactorization) = Matrix(FaerMatrix(f))
 Base.Array(f::FaerFactorization) = Matrix(f)
-function Base.copy(f::FaerFactorization{K}) where {K}
+function Base.copy(f::FaerFactorization{Float64,K}) where {K}
     lock(_matrix_lock) do
         h = RustCrate.OwnedFactor()
         _native_call(RustCrate.clone_factor, h, f)
-        return FaerFactorization{K,typeof(h)}(h, size(f), f.info, f.uplo)
+        return FaerFactorization{Float64,K,typeof(h)}(h, size(f), f.info, f.uplo)
     end
 end
-function Base.deepcopy_internal(f::FaerFactorization, dict::IdDict)
+function Base.deepcopy_internal(f::FaerFactorization{Float64}, dict::IdDict)
     get!(dict, f) do
         copy(f)
     end
 end
 
-function _factor_solve(f::FaerFactorization, b::FaerMatrix, transposed = false)
+function _factor_solve(
+    f::FaerFactorization{Float64},
+    b::FaerMatrix{Float64},
+    transposed = false,
+)
     size(b, 1) == size(f, transposed ? 2 : 1) ||
         throw(DimensionMismatch("factor and RHS rows do not match"))
     LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
@@ -158,31 +170,33 @@ function _factor_solve(f::FaerFactorization, b::FaerMatrix, transposed = false)
         transposed,
     )
 end
-Base.:\(f::FaerFactorization, b::FaerMatrix) = _factor_solve(f, b)
-Base.:\(f::FaerFactorization, b::AbstractMatrix{<:Real}) = f \ FaerMatrix(b)
-Base.:\(f::FaerFactorization, b::AbstractVector{<:Real}) =
+Base.:\(f::FaerFactorization{Float64}, b::FaerMatrix{Float64}) = _factor_solve(f, b)
+Base.:\(f::FaerFactorization{Float64}, b::AbstractMatrix{<:Real}) =
+    f \ FaerMatrix{Float64}(b)
+Base.:\(f::FaerFactorization{Float64}, b::AbstractVector{<:Real}) =
     vec(Matrix(f \ FaerMatrix(reshape(b, :, 1))))
 const _FaerTransposedFactor = Union{
-    LinearAlgebra.TransposeFactorization{Float64,<:FaerFactorization},
-    LinearAlgebra.AdjointFactorization{Float64,<:FaerFactorization},
+    LinearAlgebra.TransposeFactorization{Float64,<:FaerFactorization{Float64}},
+    LinearAlgebra.AdjointFactorization{Float64,<:FaerFactorization{Float64}},
 }
-Base.:\(f::_FaerTransposedFactor, b::FaerMatrix) = _factor_solve(parent(f), b, true)
-Base.:\(f::_FaerTransposedFactor, b::AbstractMatrix{<:Real}) = f \ FaerMatrix(b)
+Base.:\(f::_FaerTransposedFactor, b::FaerMatrix{Float64}) =
+    _factor_solve(parent(f), b, true)
+Base.:\(f::_FaerTransposedFactor, b::AbstractMatrix{<:Real}) = f \ FaerMatrix{Float64}(b)
 Base.:\(f::_FaerTransposedFactor, b::AbstractVector{<:Real}) =
     vec(Matrix(f \ FaerMatrix(reshape(b, :, 1))))
 
 function LinearAlgebra.ldiv!(
-    dest::FaerMatrix,
-    f::Union{FaerFactorization,_FaerTransposedFactor},
-    b::FaerMatrix,
+    dest::FaerMatrix{Float64},
+    f::Union{FaerFactorization{Float64},_FaerTransposedFactor},
+    b::FaerMatrix{Float64},
 )
     size(dest) == (size(f, 2), size(b, 2)) ||
         throw(DimensionMismatch("output size does not match solve"))
     return copyto!(dest, f \ b)
 end
 function LinearAlgebra.ldiv!(
-    f::Union{FaerFactorization,_FaerTransposedFactor},
-    b::FaerMatrix,
+    f::Union{FaerFactorization{Float64},_FaerTransposedFactor},
+    b::FaerMatrix{Float64},
 )
     size(f, 1) == size(f, 2) ||
         throw(DimensionMismatch("two-argument ldiv! requires a square factor"))
@@ -200,42 +214,51 @@ function _ldiv_array!(dest, f, b)
     return dest
 end
 
-LinearAlgebra.ldiv!(dest::AbstractMatrix, f::FaerFactorization, b::AbstractMatrix) =
-    _ldiv_array!(dest, f, b)
-LinearAlgebra.ldiv!(dest::AbstractVector, f::FaerFactorization, b::AbstractVector) =
-    _ldiv_array!(dest, f, b)
-LinearAlgebra.ldiv!(dest::FaerMatrix, f::FaerFactorization, b::FaerMatrix) =
-    _ldiv_array!(dest, f, b)
+LinearAlgebra.ldiv!(
+    dest::AbstractMatrix,
+    f::FaerFactorization{Float64},
+    b::AbstractMatrix,
+) = _ldiv_array!(dest, f, b)
+LinearAlgebra.ldiv!(
+    dest::AbstractVector,
+    f::FaerFactorization{Float64},
+    b::AbstractVector,
+) = _ldiv_array!(dest, f, b)
+LinearAlgebra.ldiv!(
+    dest::FaerMatrix{Float64},
+    f::FaerFactorization{Float64},
+    b::FaerMatrix{Float64},
+) = _ldiv_array!(dest, f, b)
 
-function Base.inv(f::FaerFactorization)
+function Base.inv(f::FaerFactorization{Float64})
     size(f, 1)==size(f, 2) || throw(DimensionMismatch("inverse requires a square factor"))
     LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
     return _matrix_result(RustCrate.factor_inverse, size(f), f)
 end
-Base.inv(a::FaerMatrix) = inv(LinearAlgebra.lu(a))
-LinearAlgebra.factorize(a::FaerMatrix) =
+Base.inv(a::FaerMatrix{Float64}) = inv(LinearAlgebra.lu(a))
+LinearAlgebra.factorize(a::FaerMatrix{Float64}) =
     size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a) :
     LinearAlgebra.qr(a, LinearAlgebra.ColumnNorm())
 
-function LinearAlgebra.logabsdet(f::FaerFactorization)
+function LinearAlgebra.logabsdet(f::FaerFactorization{Float64})
     out=Vector{Float64}(undef, 2)
     GC.@preserve out _native_call(RustCrate.logabsdet_buffer, f, pointer(out))
     return (out[1], out[2])
 end
-function LinearAlgebra.det(f::FaerFactorization)
+function LinearAlgebra.det(f::FaerFactorization{Float64})
     value, sign=LinearAlgebra.logabsdet(f)
     return sign*exp(value)
 end
-function LinearAlgebra.logdet(f::FaerFactorization)
+function LinearAlgebra.logdet(f::FaerFactorization{Float64})
     value, sign=LinearAlgebra.logabsdet(f)
     sign<0 && throw(DomainError(sign, "real logdet requires a nonnegative determinant"))
     return value
 end
-LinearAlgebra.logabsdet(a::FaerMatrix) =
+LinearAlgebra.logabsdet(a::FaerMatrix{Float64}) =
     LinearAlgebra.logabsdet(LinearAlgebra.lu(a; check = false))
-LinearAlgebra.logdet(a::FaerMatrix) =
+LinearAlgebra.logdet(a::FaerMatrix{Float64}) =
     LinearAlgebra.logdet(LinearAlgebra.lu(a; check = false))
-LinearAlgebra.isposdef(a::FaerMatrix) =
+LinearAlgebra.isposdef(a::FaerMatrix{Float64}) =
     LinearAlgebra.issymmetric(a) &&
     LinearAlgebra.issuccess(LinearAlgebra.cholesky(a; check = false))
 LinearAlgebra.isposdef(a::_FaerSelfAdjoint) =

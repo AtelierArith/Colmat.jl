@@ -58,3 +58,6 @@ include("reductions.jl")
 include("eigen.jl")
 
 include("structured.jl")
+
+include("typed.jl")
+include("storage.jl")

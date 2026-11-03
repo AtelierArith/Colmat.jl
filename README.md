@@ -33,7 +33,7 @@ F = svd(A)
 @assert F.U * Diagonal(F.S) * F.Vt ≈ Matrix(A)
 ```
 
-`FaerMatrix` は Rust の `faer::Mat<f64>` を所有する `AbstractMatrix{Float64}`
+`FaerMatrix{T}` は Rust の `faer::Mat<T>` を所有する `AbstractMatrix{T}`
 です。構築時に入力をコピーし、その後の行列同士の加減算・スカラー倍・行列積・
 LU 求解は Rust 内のバッファを使います。これらの結果も独立した `FaerMatrix` になります。
 `svd(A)`・`svdvals(A)` も Rust 側の行列を直接使い、分解結果を Julia 配列で返します。
@@ -79,8 +79,32 @@ E = eigen(Hermitian(A))
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の
 `eigen`／`eigvals`、三角行列の求解・逆行列、`det`／`logabsdet`／`logdet`、
 `sum`／`norm`／`dot`／`tr`／`kron`、`pfaffian` も Rust に接続しています。
-現在は Float64 の密行列が対象です。Issue #1 全体の進捗と残りの対象は
+Float32・Float64・ComplexF32・ComplexF64 の密行列に対応します。
+Issue #1 全体の進捗と残りの対象は
 [実装台帳](docs/implementation-status.md) に記録しています。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix(ComplexF32[1+2im 3; 4 5-im])
+F = svd(A)
+@assert eltype(A) === ComplexF32
+@assert eltype(F.S) === Float32
+@assert F.U * Diagonal(F.S) * F.Vt ≈ Matrix(A)
+@assert Matrix(copy(A')) ≈ Matrix(A)'
+
+B = FaerMatrix{Float32}(I, 2, 2)
+reserve!(B, 8, 8)
+resize!(B, 3, 3; fill=0)
+truncate!(B, 2, 2)
+@assert Matrix(B) == Matrix{Float32}(I, 2, 2)
+```
+
+同じ型の演算・分解は型を保持し、異なる型の行列同士の演算は
+`promote_type` に従います。混合型の `A \ B` は係数行列を昇格してから
+分解します。作成済みの `F = lu(A)` を再利用する場合は、元の分解精度が
+残る点に注意してください。複素行列の内積は第1引数を共役化し、
+`transpose(A)` と `A'` を区別します。
 
 `size`、`axes`、インデックスによる読み書き、`similar`、`fill!`、`copy`、
 `deepcopy`、ブロードキャストにも対応します。`A'` / `transpose(A)` は Julia の
@@ -102,7 +126,9 @@ RustCall の所有ハンドルにより、GC 時に Rust の行列も解放さ�
 入力は変更しません。処理は `Par::Seq` で実行します。NaN/Inf、特異な LU、
 SVD の失敗は例外になります。Julia バッファは `GC.@preserve` で保持し、Rust 側に
 ポインタを残しません。この PoC はコピーと割り当てを行うため、性能測定用の
-ゼロコピー・並列実装ではありません。複素数・疎行列は対象外です。
+ゼロコピー・並列実装ではありません。互換 API に通常の実数配列を渡す経路は
+Float64 に変換します。複素数を含め型を保持する場合は `FaerMatrix` を使ってください。
+Rust 所有の疎行列 API は引き続き実装対象として管理しています。
 
 RustCall v0.9.1 の制限として、受信オブジェクトを持つメソッドの `Result<Self, String>`
 返却と、引数の `&OwnedMatrix` の変換に問題がありました。最小再現例と修正案を

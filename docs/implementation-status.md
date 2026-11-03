@@ -52,3 +52,39 @@ destructive/scratch/rotation/reflector APIs, teams, statistics, random and NPY.
 Generalized eigenvalues with infinite/indeterminate ratios and all advanced
 failure/keyword conventions need further coverage. No whole-issue completion
 is claimed.
+
+## Verified typed-storage checkpoint
+
+`FaerMatrix{T}` and `FaerFactorization{T,...}` now preserve Float32, Float64,
+ComplexF32 and ComplexF64. Float64 keeps its original owner ABI; a separate
+typed Rust module owns the other scalar types. Promotion happens before an
+unfactorized mixed-type solve. Reusing a lower-precision factorization retains
+the numerical precision of those factors.
+
+Validated across all four types:
+
+- Owned construction, conversion, mutation, clone/deepcopy, close, scalar
+  promotion, arithmetic, matrix products, transpose versus adjoint and Kronecker
+  products. Complex dot products conjugate the first operand.
+- Thin/full SVD with real singular values, LU/full-pivot LU, QR/pivoted QR,
+  LLT/LDLT/block LDLT, factor reuse, inverse, factor access and cloning.
+- General/self-adjoint/generalized eigenpairs, triangle selection (including
+  ignored imaginary Hermitian diagonals), logabsdet with complex phase,
+  triangular solves/inverses and complex Pfaffian identities.
+- Native sum, axis sums, norms and dot products. Julia complex entrywise norms
+  use complex magnitudes, rather than faer's componentwise BLAS-like metrics.
+- Identity/undef constructors and native `reserve!`, `sizehint!`, `resize!` and
+  `truncate!`, with preserved overlap and caller-specified fill values.
+- Singular LU/block-LDLT status and singular QR-inverse rejection.
+
+Validation: `Pkg.test(; julia_args=["--threads=2"])` passes **1868 tests**.
+The README's runnable Julia examples are checked separately.
+
+The frozen 76-row inventory remains the scope. Still incomplete: owned vector
+and diagonal types, native borrowed views, permutation operations, extended
+precision aliases/custom scalar traits, full pseudoinverse/rank/condition
+interfaces, Schur/QZ, sparse, matrix-free algorithms, destructive factorization
+and scratch interfaces, rotations/reflectors, teams, statistics, random and NPY.
+Complex symmetric (non-Hermitian) structured decompositions and advanced
+keyword/error coverage also remain to be audited. This checkpoint does not
+complete Issue #1.

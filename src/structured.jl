@@ -1,14 +1,14 @@
 const _FaerTriangular = Union{
-    LinearAlgebra.LowerTriangular{Float64,<:FaerMatrix},
-    LinearAlgebra.UpperTriangular{Float64,<:FaerMatrix},
-    LinearAlgebra.UnitLowerTriangular{Float64,<:FaerMatrix},
-    LinearAlgebra.UnitUpperTriangular{Float64,<:FaerMatrix},
+    LinearAlgebra.LowerTriangular{Float64,<:FaerMatrix{Float64}},
+    LinearAlgebra.UpperTriangular{Float64,<:FaerMatrix{Float64}},
+    LinearAlgebra.UnitLowerTriangular{Float64,<:FaerMatrix{Float64}},
+    LinearAlgebra.UnitUpperTriangular{Float64,<:FaerMatrix{Float64}},
 }
 _islower(::Union{LinearAlgebra.LowerTriangular,LinearAlgebra.UnitLowerTriangular}) = true
 _islower(::Union{LinearAlgebra.UpperTriangular,LinearAlgebra.UnitUpperTriangular}) = false
 _isunit(::Union{LinearAlgebra.UnitLowerTriangular,LinearAlgebra.UnitUpperTriangular}) = true
 _isunit(::Union{LinearAlgebra.LowerTriangular,LinearAlgebra.UpperTriangular}) = false
-function Base.:\(a::_FaerTriangular, b::FaerMatrix)
+function Base.:\(a::_FaerTriangular, b::FaerMatrix{Float64})
     size(a, 1)==size(b, 1) ||
         throw(DimensionMismatch("triangular solve dimensions must match"))
     return _matrix_result(
@@ -30,43 +30,50 @@ Base.inv(a::_FaerTriangular) = _matrix_result(
     _islower(a),
     _isunit(a),
 )
-function LinearAlgebra.ldiv!(a::_FaerTriangular, b::FaerMatrix)
+function LinearAlgebra.ldiv!(a::_FaerTriangular, b::FaerMatrix{Float64})
     return copyto!(b, a\b)
 end
-function LinearAlgebra.ldiv!(dest::FaerMatrix, a::_FaerTriangular, b::FaerMatrix)
+function LinearAlgebra.ldiv!(
+    dest::FaerMatrix{Float64},
+    a::_FaerTriangular,
+    b::FaerMatrix{Float64},
+)
     size(dest)==size(b) || throw(DimensionMismatch("triangular output size must match RHS"))
     return copyto!(dest, a\b)
 end
 
 const _FaerTransposedMatrix=Union{
-    LinearAlgebra.Transpose{Float64,<:FaerMatrix},
-    LinearAlgebra.Adjoint{Float64,<:FaerMatrix},
+    LinearAlgebra.Transpose{Float64,<:FaerMatrix{Float64}},
+    LinearAlgebra.Adjoint{Float64,<:FaerMatrix{Float64}},
 }
-Base.:\(a::_FaerTransposedMatrix, b::FaerMatrix) = copy(a)\b
+Base.:\(a::_FaerTransposedMatrix, b::FaerMatrix{Float64}) = copy(a)\b
 Base.:\(a::_FaerTransposedMatrix, b::AbstractMatrix{<:Real}) = copy(a)\b
 Base.:\(a::_FaerTransposedMatrix, b::AbstractVector{<:Real}) = copy(a)\b
-Base.:/(b::FaerMatrix, a::FaerMatrix) = copy(adjoint(copy(adjoint(a))\copy(adjoint(b))))
-Base.:/(b::FaerMatrix, f::FaerFactorization) = copy(adjoint(f'\copy(adjoint(b))))
-function LinearAlgebra.rdiv!(b::FaerMatrix, f::FaerFactorization)
+Base.:/(b::FaerMatrix{Float64}, a::FaerMatrix{Float64}) =
+    copy(adjoint(copy(adjoint(a))\copy(adjoint(b))))
+Base.:/(b::FaerMatrix{Float64}, f::FaerFactorization{Float64}) =
+    copy(adjoint(f'\copy(adjoint(b))))
+function LinearAlgebra.rdiv!(b::FaerMatrix{Float64}, f::FaerFactorization{Float64})
     return copyto!(b, b/f)
 end
-function LinearAlgebra.ldiv!(f::FaerFactorization, b::AbstractVector)
+function LinearAlgebra.ldiv!(f::FaerFactorization{Float64}, b::AbstractVector)
     result=f\b
     length(result)==length(b) ||
         throw(DimensionMismatch("in-place RHS cannot change shape"))
     return copyto!(b, result)
 end
-function LinearAlgebra.ldiv!(f::FaerFactorization, b::AbstractMatrix)
+function LinearAlgebra.ldiv!(f::FaerFactorization{Float64}, b::AbstractMatrix)
     result=f\b
     size(result)==size(b) || throw(DimensionMismatch("in-place RHS cannot change shape"))
     return copyto!(b, Matrix(result))
 end
 # Resolve the intersection with the native two-argument ldiv! method.
-LinearAlgebra.ldiv!(f::FaerFactorization, b::FaerMatrix) = LinearAlgebra.ldiv!(b, f, b)
+LinearAlgebra.ldiv!(f::FaerFactorization{Float64}, b::FaerMatrix{Float64}) =
+    LinearAlgebra.ldiv!(b, f, b)
 
-Base.:/(b::_FaerTransposedMatrix, a::FaerMatrix) = copy(b)/a
-Base.:/(b::FaerMatrix, a::_FaerTransposedMatrix) = b/copy(a)
+Base.:/(b::_FaerTransposedMatrix, a::FaerMatrix{Float64}) = copy(b)/a
+Base.:/(b::FaerMatrix{Float64}, a::_FaerTransposedMatrix) = b/copy(a)
 Base.:/(b::_FaerTransposedMatrix, a::_FaerTransposedMatrix) = copy(b)/copy(a)
-Base.:*(a::_FaerTransposedMatrix, b::FaerMatrix) = copy(a)*b
-Base.:*(a::FaerMatrix, b::_FaerTransposedMatrix) = a*copy(b)
+Base.:*(a::_FaerTransposedMatrix, b::FaerMatrix{Float64}) = copy(a)*b
+Base.:*(a::FaerMatrix{Float64}, b::_FaerTransposedMatrix) = a*copy(b)
 Base.:*(a::_FaerTransposedMatrix, b::_FaerTransposedMatrix) = copy(a)*copy(b)

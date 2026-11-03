@@ -3,7 +3,7 @@
 _eigensort(x::Real) = x
 _eigensort(x::Complex) = (real(x), imag(x))
 function _eigen(
-    a::FaerMatrix,
+    a::FaerMatrix{Float64},
     mode;
     vectors = true,
     lower = true,
@@ -45,15 +45,15 @@ function _eigen(
 end
 
 """
-    eigen(A::FaerMatrix; sortby)
+    eigen(A::FaerMatrix{Float64}; sortby)
     eigen(A::Union{Hermitian,Symmetric}; sortby)
 
 Compute eigenvalues and right eigenvectors using t4a-faer. Self-adjoint
 wrappers read only the specified triangle. Results own independent Julia
 arrays. General real matrices produce complex eigenpairs.
 """
-LinearAlgebra.eigen(a::FaerMatrix; sortby = _eigensort) = _eigen(a, 0; sortby)
-LinearAlgebra.eigvals(a::FaerMatrix; sortby = _eigensort) =
+LinearAlgebra.eigen(a::FaerMatrix{Float64}; sortby = _eigensort) = _eigen(a, 0; sortby)
+LinearAlgebra.eigvals(a::FaerMatrix{Float64}; sortby = _eigensort) =
     _eigen(a, 0; vectors = false, sortby)
 LinearAlgebra.eigen(a::_FaerSelfAdjoint; sortby = _eigensort) =
     _eigen(parent(a), 1; lower = _uplo(a)===:L, sortby)
@@ -61,11 +61,15 @@ LinearAlgebra.eigvals(a::_FaerSelfAdjoint; sortby = _eigensort) =
     _eigen(parent(a), 1; vectors = false, lower = _uplo(a)===:L, sortby)
 
 """Compute right generalized eigenvectors satisfying `A*V ≈ B*V*Diagonal(values)`."""
-function LinearAlgebra.eigen(a::FaerMatrix, b::FaerMatrix; sortby = _eigensort)
+function LinearAlgebra.eigen(
+    a::FaerMatrix{Float64},
+    b::FaerMatrix{Float64};
+    sortby = _eigensort,
+)
     result=_eigen(a, 2; b, sortby)
     return LinearAlgebra.GeneralizedEigen(result.values, result.vectors)
 end
-LinearAlgebra.eigvals(a::FaerMatrix, b::FaerMatrix; sortby = _eigensort) =
+LinearAlgebra.eigvals(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}; sortby = _eigensort) =
     _eigen(a, 2; b, vectors = false, sortby)
 function LinearAlgebra.eigen(a::_FaerSelfAdjoint, b::_FaerSelfAdjoint; sortby = _eigensort)
     result=_eigen(
@@ -90,9 +94,9 @@ LinearAlgebra.eigvals(a::_FaerSelfAdjoint, b::_FaerSelfAdjoint; sortby = _eigens
     )
 
 """
-    pfaffian(A::FaerMatrix)
+    pfaffian(A::FaerMatrix{Float64})
 
 Compute the Pfaffian of an even-dimensional skew-symmetric matrix with
  t4a-faer. Non-square, odd-dimensional and invalid inputs raise an exception.
 """
-pfaffian(a::FaerMatrix) = _native_call(RustCrate.pfaffian_value, a)
+pfaffian(a::FaerMatrix{Float64}) = _native_call(RustCrate.pfaffian_value, a)
