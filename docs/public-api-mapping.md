@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `3069681`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、65974 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 38 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `42a849d`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、66393 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 39 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -61,7 +61,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | QR | `qr`, `Qr`, `Q_basis/Q_coeff/R/thin_R`, `compute_Q/compute_thin_Q` | `qr(A)`, `Matrix(F.Q)`, `F.R` | R: `qr`、Q/Qthin/R、分解の再利用・再構成 | Householder 格納形式の直接公開、破壊的 QR |
 | 列ピボット QR | `col_piv_qr`, `ColPivQr`, `P` | `qr(A,ColumnNorm())` | R: `qr(A,ColumnNorm())`、置換・因子・求解 | 独立したランク判定・全許容誤差インターフェース |
 | Cholesky LLᴴ | `llt`, `Llt`, `L` | `cholesky(Hermitian(A))` | R: `cholesky`、Hermitian/Symmetric の指定三角、分解の再利用 | 複素対称非 Hermitian と全オプションは要照合 |
-| ピボット付き Cholesky | `cholesky::llt_pivoting::{factor,solve,inverse,reconstruct}` | `cholesky(Hermitian(A),RowMaximum())` に相当 | — | 未 |
+| ピボット付き Cholesky | `cholesky::llt_pivoting::{factor,solve,inverse,reconstruct}` | `cholesky(Hermitian(A),RowMaximum())` に相当 | R: native factors の標準 `CholeskyPivoted`、4 型、指定三角・置換・ランク・再構成・求解・逆・copy/close | 負の tol は faer 固定閾値、非負 tol は Rust adapter の対角ピボット法で補完。破壊的 API・外部 scratch・block_size は未公開 |
 | LDLᴴ | `ldlt`, `Ldlt::{L,D}` | `ldlt` に相当。ただし Julia 標準の対象構造・ピボット規約と要照合 | R: `ldlt`、L/D・求解・再構成 | 複素対称非 Hermitian、全オプション |
 | ピボット付きブロック LDLᴴ | `lblt`, `Lblt::{L,B_diag,B_subdiag,P}` | `bunchkaufman(Hermitian(A))` に相当 | R: `bunchkaufman`、ブロック D・置換・求解・再構成 | 全 Julia 規約・オプションの網羅 |
 | thin / full SVD | `thin_svd/svd`, `Svd::{U,S,V}` | `svd(A;full=false/true)` | R: 4 型の `svd(::FaerMatrix)`、thin/full、空行列、互換 `faer_svd` | 分解因子は Julia 配列。Rust 分解オブジェクトの保持、Julia の alg/tolerance キーワードは未対応 |
