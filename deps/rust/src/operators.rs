@@ -198,7 +198,7 @@ impl OwnedLinearOperator {
     #[julia]
     pub fn operator_clone(
         &mut self,
-        source: *const u8,
+        source: &Self,
         transpose: bool,
         conjugate: bool,
     ) -> Result<(), String> {
@@ -209,7 +209,7 @@ impl OwnedLinearOperator {
                 a.conjugate ^= c;
                 a
             }
-            self.data = Some(match unsafe { &*source.cast::<Self>() }.data()? {
+            self.data = Some(match source.data()? {
                 Data::F32(a) => Data::F32(clone(a, transpose, conjugate)),
                 Data::F64(a) => Data::F64(clone(a, transpose, conjugate)),
                 Data::C32(a) => Data::C32(clone(a, transpose, conjugate)),
@@ -243,10 +243,14 @@ fn precondition<T: ComplexField>(a: &Operator<T>, b: MatMut<'_, T>) -> Result<()
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn operator_product(&mut self, operator: *const u8, rhs: *const u8) -> Result<(), String> {
+    pub fn operator_product(
+        &mut self,
+        operator: &OwnedLinearOperator,
+        rhs: &OwnedMatrix,
+    ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
-            match unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()? {
+            let b = rhs;
+            match operator.data()? {
                 Data::F64(a) => {
                     self.matrix = product(a, b.matrix.as_ref())?;
                     Ok(())
@@ -256,82 +260,75 @@ impl OwnedMatrix {
         })
     }
     #[julia]
-    pub fn operator_dense_from(&mut self, operator: *const u8) -> Result<(), String> {
-        guarded(
-            || match unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()? {
-                Data::F64(Operator {
-                    base: Base::Dense(a),
-                    ..
-                }) => {
-                    self.matrix = a.clone();
-                    Ok(())
-                }
-                _ => Err("operator has no matching dense source".into()),
-            },
-        )
+    pub fn operator_dense_from(&mut self, operator: &OwnedLinearOperator) -> Result<(), String> {
+        guarded(|| match operator.data()? {
+            Data::F64(Operator {
+                base: Base::Dense(a),
+                ..
+            }) => {
+                self.matrix = a.clone();
+                Ok(())
+            }
+            _ => Err("operator has no matching dense source".into()),
+        })
     }
     #[julia]
-    pub fn operator_precondition(&mut self, operator: *const u8) -> Result<(), String> {
-        guarded(
-            || match unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()? {
-                Data::F64(a) => precondition(a, self.matrix.as_mut()),
-                _ => Err("operator scalar types must match".into()),
-            },
-        )
+    pub fn operator_precondition(&mut self, operator: &OwnedLinearOperator) -> Result<(), String> {
+        guarded(|| match operator.data()? {
+            Data::F64(a) => precondition(a, self.matrix.as_mut()),
+            _ => Err("operator scalar types must match".into()),
+        })
     }
 }
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn operator_product(&mut self, operator: *const u8, rhs: *const u8) -> Result<(), String> {
+    pub fn operator_product(
+        &mut self,
+        operator: &OwnedLinearOperator,
+        rhs: &TypedMatrix,
+    ) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(
-                match (
-                    unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?,
-                    unsafe { &*rhs.cast::<TypedMatrix>() }.data()?,
-                ) {
-                    (Data::F32(a), MatrixData::F32(b)) => MatrixData::F32(product(a, b.as_ref())?),
-                    (Data::F64(a), MatrixData::F64(b)) => MatrixData::F64(product(a, b.as_ref())?),
-                    (Data::C32(a), MatrixData::C32(b)) => MatrixData::C32(product(a, b.as_ref())?),
-                    (Data::C64(a), MatrixData::C64(b)) => MatrixData::C64(product(a, b.as_ref())?),
-                    _ => return Err("operator scalar types must match".into()),
-                },
-            );
+            self.data = Some(match (operator.data()?, rhs.data()?) {
+                (Data::F32(a), MatrixData::F32(b)) => MatrixData::F32(product(a, b.as_ref())?),
+                (Data::F64(a), MatrixData::F64(b)) => MatrixData::F64(product(a, b.as_ref())?),
+                (Data::C32(a), MatrixData::C32(b)) => MatrixData::C32(product(a, b.as_ref())?),
+                (Data::C64(a), MatrixData::C64(b)) => MatrixData::C64(product(a, b.as_ref())?),
+                _ => return Err("operator scalar types must match".into()),
+            });
             Ok(())
         })
     }
     #[julia]
-    pub fn operator_dense_from(&mut self, operator: *const u8) -> Result<(), String> {
+    pub fn operator_dense_from(&mut self, operator: &OwnedLinearOperator) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(
-                match unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()? {
-                    Data::F32(Operator {
-                        base: Base::Dense(a),
-                        ..
-                    }) => MatrixData::F32(a.clone()),
-                    Data::F64(Operator {
-                        base: Base::Dense(a),
-                        ..
-                    }) => MatrixData::F64(a.clone()),
-                    Data::C32(Operator {
-                        base: Base::Dense(a),
-                        ..
-                    }) => MatrixData::C32(a.clone()),
-                    Data::C64(Operator {
-                        base: Base::Dense(a),
-                        ..
-                    }) => MatrixData::C64(a.clone()),
-                    _ => return Err("operator has no matching dense source".into()),
-                },
-            );
+            self.data = Some(match operator.data()? {
+                Data::F32(Operator {
+                    base: Base::Dense(a),
+                    ..
+                }) => MatrixData::F32(a.clone()),
+                Data::F64(Operator {
+                    base: Base::Dense(a),
+                    ..
+                }) => MatrixData::F64(a.clone()),
+                Data::C32(Operator {
+                    base: Base::Dense(a),
+                    ..
+                }) => MatrixData::C32(a.clone()),
+                Data::C64(Operator {
+                    base: Base::Dense(a),
+                    ..
+                }) => MatrixData::C64(a.clone()),
+                _ => return Err("operator has no matching dense source".into()),
+            });
             Ok(())
         })
     }
     #[julia]
-    pub fn operator_precondition(&mut self, operator: *const u8) -> Result<(), String> {
+    pub fn operator_precondition(&mut self, operator: &OwnedLinearOperator) -> Result<(), String> {
         guarded(|| {
             match (
-                unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?,
+                operator.data()?,
                 self.data.as_mut().ok_or("matrix is not initialized")?,
             ) {
                 (Data::F32(a), MatrixData::F32(b)) => precondition(a, b.as_mut()),
@@ -346,29 +343,27 @@ impl TypedMatrix {
 #[julia]
 impl SparseOwner {
     #[julia]
-    pub fn operator_sparse_from(&mut self, operator: *const u8) -> Result<(), String> {
+    pub fn operator_sparse_from(&mut self, operator: &OwnedLinearOperator) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(
-                match unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()? {
-                    Data::F32(Operator {
-                        base: Base::Sparse(a),
-                        ..
-                    }) => SparseData::F32(a.clone()),
-                    Data::F64(Operator {
-                        base: Base::Sparse(a),
-                        ..
-                    }) => SparseData::F64(a.clone()),
-                    Data::C32(Operator {
-                        base: Base::Sparse(a),
-                        ..
-                    }) => SparseData::C32(a.clone()),
-                    Data::C64(Operator {
-                        base: Base::Sparse(a),
-                        ..
-                    }) => SparseData::C64(a.clone()),
-                    _ => return Err("operator has no matching sparse source".into()),
-                },
-            );
+            self.data = Some(match operator.data()? {
+                Data::F32(Operator {
+                    base: Base::Sparse(a),
+                    ..
+                }) => SparseData::F32(a.clone()),
+                Data::F64(Operator {
+                    base: Base::Sparse(a),
+                    ..
+                }) => SparseData::F64(a.clone()),
+                Data::C32(Operator {
+                    base: Base::Sparse(a),
+                    ..
+                }) => SparseData::C32(a.clone()),
+                Data::C64(Operator {
+                    base: Base::Sparse(a),
+                    ..
+                }) => SparseData::C64(a.clone()),
+                _ => return Err("operator has no matching sparse source".into()),
+            });
             Ok(())
         })
     }
@@ -376,37 +371,35 @@ impl SparseOwner {
 #[julia]
 impl VectorOwner {
     #[julia]
-    pub fn operator_diagonal_from(&mut self, operator: *const u8) -> Result<(), String> {
+    pub fn operator_diagonal_from(&mut self, operator: &OwnedLinearOperator) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(
-                match unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()? {
-                    Data::F32(Operator {
-                        base: Base::Diagonal(a),
-                        ..
-                    }) => VectorData::F32(VectorStore::Diagonal(a.clone())),
-                    Data::F64(Operator {
-                        base: Base::Diagonal(a),
-                        ..
-                    }) => VectorData::F64(VectorStore::Diagonal(a.clone())),
-                    Data::C32(Operator {
-                        base: Base::Diagonal(a),
-                        ..
-                    }) => VectorData::C32(VectorStore::Diagonal(a.clone())),
-                    Data::C64(Operator {
-                        base: Base::Diagonal(a),
-                        ..
-                    }) => VectorData::C64(VectorStore::Diagonal(a.clone())),
-                    _ => return Err("operator has no matching diagonal source".into()),
-                },
-            );
+            self.data = Some(match operator.data()? {
+                Data::F32(Operator {
+                    base: Base::Diagonal(a),
+                    ..
+                }) => VectorData::F32(VectorStore::Diagonal(a.clone())),
+                Data::F64(Operator {
+                    base: Base::Diagonal(a),
+                    ..
+                }) => VectorData::F64(VectorStore::Diagonal(a.clone())),
+                Data::C32(Operator {
+                    base: Base::Diagonal(a),
+                    ..
+                }) => VectorData::C32(VectorStore::Diagonal(a.clone())),
+                Data::C64(Operator {
+                    base: Base::Diagonal(a),
+                    ..
+                }) => VectorData::C64(VectorStore::Diagonal(a.clone())),
+                _ => return Err("operator has no matching diagonal source".into()),
+            });
             Ok(())
         })
     }
     #[julia]
-    pub fn operator_precondition(&mut self, operator: *const u8) -> Result<(), String> {
+    pub fn operator_precondition(&mut self, operator: &OwnedLinearOperator) -> Result<(), String> {
         guarded(|| {
             match (
-                unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?,
+                operator.data()?,
                 self.data.as_mut().ok_or("vector is not initialized")?,
             ) {
                 (Data::F32(a), VectorData::F32(b)) => precondition(a, b.as_mat_mut()),
@@ -512,10 +505,10 @@ impl OwnedMatrix {
     #[julia]
     pub fn operator_cg(
         &mut self,
-        operator: *const u8,
+        operator: &OwnedLinearOperator,
         precond: *const u8,
-        rhs: *const u8,
-        initial: *const u8,
+        rhs: &OwnedMatrix,
+        initial: &OwnedMatrix,
         atol: f64,
         rtol: f64,
         maxiter: usize,
@@ -523,14 +516,14 @@ impl OwnedMatrix {
         iterations: *mut usize,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let a = operator.data()?;
             let m = if precond.is_null() {
                 None
             } else {
                 Some(unsafe { &*precond.cast::<OwnedLinearOperator>() }.data()?)
             };
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
-            let x = unsafe { &*initial.cast::<OwnedMatrix>() };
+            let b = rhs;
+            let x = initial;
             match (a, m) {
                 (Data::F64(a), None) => {
                     self.matrix = solve(
@@ -569,10 +562,10 @@ impl TypedMatrix {
     #[julia]
     pub fn operator_cg(
         &mut self,
-        operator: *const u8,
+        operator: &OwnedLinearOperator,
         precond: *const u8,
-        rhs: *const u8,
-        initial: *const u8,
+        rhs: &TypedMatrix,
+        initial: &TypedMatrix,
         atol: f64,
         rtol: f64,
         maxiter: usize,
@@ -580,14 +573,14 @@ impl TypedMatrix {
         iterations: *mut usize,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let a = operator.data()?;
             let m = if precond.is_null() {
                 None
             } else {
                 Some(unsafe { &*precond.cast::<OwnedLinearOperator>() }.data()?)
             };
-            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
-            let x = unsafe { &*initial.cast::<TypedMatrix>() }.data()?;
+            let b = rhs.data()?;
+            let x = initial.data()?;
             self.data = Some(match (a, m, b, x) {
                 (Data::F32(a), None, MatrixData::F32(b), MatrixData::F32(x)) => {
                     MatrixData::F32(solve(
@@ -775,11 +768,11 @@ impl OwnedMatrix {
     #[julia]
     pub fn operator_bicgstab(
         &mut self,
-        operator: *const u8,
+        operator: &OwnedLinearOperator,
         left: *const u8,
         right: *const u8,
-        rhs: *const u8,
-        initial: *const u8,
+        rhs: &OwnedMatrix,
+        initial: &OwnedMatrix,
         atol: f64,
         rtol: f64,
         maxiter: usize,
@@ -787,7 +780,7 @@ impl OwnedMatrix {
         iterations: *mut usize,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let a = operator.data()?;
             let left = if left.is_null() {
                 None
             } else {
@@ -798,8 +791,8 @@ impl OwnedMatrix {
             } else {
                 Some(unsafe { &*right.cast::<OwnedLinearOperator>() }.data()?)
             };
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
-            let x = unsafe { &*initial.cast::<OwnedMatrix>() };
+            let b = rhs;
+            let x = initial;
             let Data::F64(a) = a else {
                 return Err("operator scalar types must match".into());
             };
@@ -835,11 +828,11 @@ impl TypedMatrix {
     #[julia]
     pub fn operator_bicgstab(
         &mut self,
-        operator: *const u8,
+        operator: &OwnedLinearOperator,
         left: *const u8,
         right: *const u8,
-        rhs: *const u8,
-        initial: *const u8,
+        rhs: &TypedMatrix,
+        initial: &TypedMatrix,
         atol: f64,
         rtol: f64,
         maxiter: usize,
@@ -847,7 +840,7 @@ impl TypedMatrix {
         iterations: *mut usize,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let a = operator.data()?;
             let left = if left.is_null() {
                 None
             } else {
@@ -858,8 +851,8 @@ impl TypedMatrix {
             } else {
                 Some(unsafe { &*right.cast::<OwnedLinearOperator>() }.data()?)
             };
-            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
-            let x = unsafe { &*initial.cast::<TypedMatrix>() }.data()?;
+            let b = rhs.data()?;
+            let x = initial.data()?;
             self.data = Some(match (a, b, x) {
                 (Data::F32(a), MatrixData::F32(b), MatrixData::F32(x)) => {
                     let left = match left {
@@ -1066,10 +1059,10 @@ impl OwnedMatrix {
     #[julia]
     pub fn operator_lsmr(
         &mut self,
-        operator: *const u8,
+        operator: &OwnedLinearOperator,
         precond: *const u8,
-        rhs: *const u8,
-        initial: *const u8,
+        rhs: &OwnedMatrix,
+        initial: &OwnedMatrix,
         atol: f64,
         rtol: f64,
         maxiter: usize,
@@ -1077,14 +1070,14 @@ impl OwnedMatrix {
         iterations: *mut usize,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let a = operator.data()?;
             let m = if precond.is_null() {
                 None
             } else {
                 Some(unsafe { &*precond.cast::<OwnedLinearOperator>() }.data()?)
             };
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
-            let x = unsafe { &*initial.cast::<OwnedMatrix>() };
+            let b = rhs;
+            let x = initial;
             match (a, m) {
                 (Data::F64(a), None) => {
                     self.matrix = solve_lsmr(
@@ -1123,10 +1116,10 @@ impl TypedMatrix {
     #[julia]
     pub fn operator_lsmr(
         &mut self,
-        operator: *const u8,
+        operator: &OwnedLinearOperator,
         precond: *const u8,
-        rhs: *const u8,
-        initial: *const u8,
+        rhs: &TypedMatrix,
+        initial: &TypedMatrix,
         atol: f64,
         rtol: f64,
         maxiter: usize,
@@ -1134,14 +1127,14 @@ impl TypedMatrix {
         iterations: *mut usize,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let a = operator.data()?;
             let m = if precond.is_null() {
                 None
             } else {
                 Some(unsafe { &*precond.cast::<OwnedLinearOperator>() }.data()?)
             };
-            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
-            let x = unsafe { &*initial.cast::<TypedMatrix>() }.data()?;
+            let b = rhs.data()?;
+            let x = initial.data()?;
             self.data = Some(match (a, m, b, x) {
                 (Data::F32(a), None, MatrixData::F32(b), MatrixData::F32(x)) => {
                     MatrixData::F32(solve_lsmr(

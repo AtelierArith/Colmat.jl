@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `64a6da3`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、55571 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 32 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 実装コミット `64a6da3` に RustCall v0.9.2 対応を適用した作業ツリー。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、55606 件のテスト成功。`Pkg.test(; test_args=["--jobs=4"])` は ParallelTestRunner.jl 2.10.0 により 33 ファイルを 4 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -147,7 +147,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - 実 Schur の共役対は 2×2 ブロックとして扱い、選択では対を分割しない。Hessenberg の Q は明示行列で、compact reflector 形式とは区別する。
 - QZ の α/β は無限固有値と 0/0 を保つ同次形式。検査した faer real-QZ の scratch 推奨量には偶数丸め window・index 配列数の不足があるため、依存クローンを変更せずラッパーで再帰的な割当上限を補正した。blocked 経路もテスト済み。
-- RustCall の阻害要因と回避策: [#564](https://github.com/AtelierArith/RustCall.jl/issues/564)、[#565](https://github.com/AtelierArith/RustCall.jl/issues/565)。
+- RustCall [#564](https://github.com/AtelierArith/RustCall.jl/issues/564)・[#565](https://github.com/AtelierArith/RustCall.jl/issues/565) は v0.9.2 で解消。`FaerMatrix` のコピーは `Result<Self, String>` を返すメソッドを使用し、型が決まっている所有者の引数は `&T` / `&mut T` として検査する。型を実行時に切り替える引数と省略可能な所有者には明示的な生ポインタ経路を残す。
 
 ## ソース
 

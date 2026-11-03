@@ -306,11 +306,11 @@ impl OwnedMatrix {
     #[julia]
     pub fn qz_from(
         &mut self,
-        a: *const u8,
-        b: *const u8,
-        out_t: *mut u8,
-        out_q: *mut u8,
-        out_z: *mut u8,
+        a: &OwnedMatrix,
+        b: &OwnedMatrix,
+        out_t: &mut OwnedMatrix,
+        out_q: &mut OwnedMatrix,
+        out_z: &mut OwnedMatrix,
         alpha: *mut u8,
         beta: *mut u8,
         only_hessenberg: bool,
@@ -318,8 +318,6 @@ impl OwnedMatrix {
         in_z: *const u8,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            let a = &*a.cast::<OwnedMatrix>();
-            let b = &*b.cast::<OwnedMatrix>();
             let initial = if in_q.is_null() && in_z.is_null() {
                 None
             } else if !in_q.is_null() && !in_z.is_null() {
@@ -339,9 +337,9 @@ impl OwnedMatrix {
                 only_hessenberg,
             )?;
             self.matrix = p.s;
-            (&mut *out_t.cast::<OwnedMatrix>()).matrix = p.t;
-            (&mut *out_q.cast::<OwnedMatrix>()).matrix = p.q;
-            (&mut *out_z.cast::<OwnedMatrix>()).matrix = p.z;
+            (out_t).matrix = p.t;
+            (out_q).matrix = p.q;
+            (out_z).matrix = p.z;
             Ok(())
         })
     }
@@ -351,11 +349,11 @@ impl TypedMatrix {
     #[julia]
     pub fn qz_from(
         &mut self,
-        a: *const u8,
-        b: *const u8,
-        out_t: *mut u8,
-        out_q: *mut u8,
-        out_z: *mut u8,
+        a: &TypedMatrix,
+        b: &TypedMatrix,
+        out_t: &mut TypedMatrix,
+        out_q: &mut TypedMatrix,
+        out_z: &mut TypedMatrix,
         alpha: *mut u8,
         beta: *mut u8,
         only_hessenberg: bool,
@@ -363,8 +361,8 @@ impl TypedMatrix {
         in_z: *const u8,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            let a = (&*a.cast::<TypedMatrix>()).data()?;
-            let b = (&*b.cast::<TypedMatrix>()).data()?;
+            let a = (a).data()?;
+            let b = (b).data()?;
             let initial = if in_q.is_null() && in_z.is_null() {
                 None
             } else if !in_q.is_null() && !in_z.is_null() {
@@ -385,9 +383,9 @@ impl TypedMatrix {
                         _ => return Err("generalized Hessenberg scalar types must match".into()),
                     };
                     let p = compute($a.as_ref(), $b.as_ref(), init, alpha, beta, only_hessenberg)?;
-                    (&mut *out_t.cast::<TypedMatrix>()).data = Some(MatrixData::$variant(p.t));
-                    (&mut *out_q.cast::<TypedMatrix>()).data = Some(MatrixData::$variant(p.q));
-                    (&mut *out_z.cast::<TypedMatrix>()).data = Some(MatrixData::$variant(p.z));
+                    (out_t).data = Some(MatrixData::$variant(p.t));
+                    (out_q).data = Some(MatrixData::$variant(p.q));
+                    (out_z).data = Some(MatrixData::$variant(p.z));
                     MatrixData::$variant(p.s)
                 }};
             }

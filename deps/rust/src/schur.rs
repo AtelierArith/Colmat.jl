@@ -412,44 +412,40 @@ impl OwnedMatrix {
     #[julia]
     pub fn schur_from(
         &mut self,
-        source: *const u8,
-        z: *mut u8,
+        source: &OwnedMatrix,
+        z: &mut OwnedMatrix,
         values: *mut u8,
         hessenberg_only: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<OwnedMatrix>() };
+            let a = source;
             let (mut h, mut q) = hessenberg(a.matrix.as_ref())?;
             if !hessenberg_only {
                 f64::step(&mut h, &mut q)?;
                 unsafe { f64::values(h.as_ref(), values) }
             }
             self.matrix = h;
-            unsafe {
-                (&mut *z.cast::<OwnedMatrix>()).matrix = q;
-            }
+            z.matrix = q;
             Ok(())
         })
     }
     #[julia]
     pub fn schur_reorder_from(
         &mut self,
-        t: *const u8,
-        z: *const u8,
-        out_z: *mut u8,
+        t: &OwnedMatrix,
+        z: &OwnedMatrix,
+        out_z: &mut OwnedMatrix,
         select: *const u8,
         n: usize,
         values: *mut u8,
     ) -> Result<(), String> {
         guarded(|| {
-            let t = unsafe { &*t.cast::<OwnedMatrix>() };
-            let z = unsafe { &*z.cast::<OwnedMatrix>() };
             let (h, q) = reordered(t.matrix.as_ref(), z.matrix.as_ref(), unsafe {
                 selection(select, n)
             })?;
             unsafe {
                 f64::values(h.as_ref(), values);
-                (&mut *out_z.cast::<OwnedMatrix>()).matrix = q;
+                (out_z).matrix = q;
             }
             self.matrix = h;
             Ok(())
@@ -534,14 +530,14 @@ impl TypedMatrix {
     #[julia]
     pub fn schur_from(
         &mut self,
-        source: *const u8,
-        z: *mut u8,
+        source: &TypedMatrix,
+        z: &mut TypedMatrix,
         values: *mut u8,
         hessenberg_only: bool,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            let a = (&*source.cast::<TypedMatrix>()).data()?;
-            let z = &mut *z.cast::<TypedMatrix>();
+            let a = (source).data()?;
+
             self.data = Some(typed_schur!(a, z, values, hessenberg_only, x));
             Ok(())
         })
@@ -549,17 +545,17 @@ impl TypedMatrix {
     #[julia]
     pub fn schur_reorder_from(
         &mut self,
-        t: *const u8,
-        z: *const u8,
-        out_z: *mut u8,
+        t: &TypedMatrix,
+        z: &TypedMatrix,
+        out_z: &mut TypedMatrix,
         select: *const u8,
         n: usize,
         values: *mut u8,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            let t = (&*t.cast::<TypedMatrix>()).data()?;
-            let z = (&*z.cast::<TypedMatrix>()).data()?;
-            let out_z = &mut *out_z.cast::<TypedMatrix>();
+            let t = (t).data()?;
+            let z = (z).data()?;
+
             self.data = Some(typed_reorder!(t, z, out_z, selection(select, n), values));
             Ok(())
         })
@@ -624,18 +620,16 @@ impl OwnedMatrix {
     #[julia]
     pub fn schur_reduced_from(
         &mut self,
-        h: *const u8,
-        q: *const u8,
-        out_q: *mut u8,
+        h: &OwnedMatrix,
+        q: &OwnedMatrix,
+        out_q: &mut OwnedMatrix,
         values: *mut u8,
     ) -> Result<(), String> {
         guarded(|| {
-            let h = unsafe { &*h.cast::<OwnedMatrix>() };
-            let q = unsafe { &*q.cast::<OwnedMatrix>() };
             let (h, q) = reduced(h.matrix.as_ref(), q.matrix.as_ref())?;
             unsafe {
                 f64::values(h.as_ref(), values);
-                (&mut *out_q.cast::<OwnedMatrix>()).matrix = q;
+                (out_q).matrix = q;
             }
             self.matrix = h;
             Ok(())
@@ -647,15 +641,15 @@ impl TypedMatrix {
     #[julia]
     pub fn schur_reduced_from(
         &mut self,
-        h: *const u8,
-        q: *const u8,
-        out_q: *mut u8,
+        h: &TypedMatrix,
+        q: &TypedMatrix,
+        out_q: &mut TypedMatrix,
         values: *mut u8,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            let h = (&*h.cast::<TypedMatrix>()).data()?;
-            let q = (&*q.cast::<TypedMatrix>()).data()?;
-            let out = &mut *out_q.cast::<TypedMatrix>();
+            let h = (h).data()?;
+            let q = (q).data()?;
+            let out = out_q;
             macro_rules! finish {
                 ($h:expr,$q:expr,$ty:ty,$variant:ident) => {{
                     let (h, q) = reduced($h.as_ref(), $q.as_ref())?;

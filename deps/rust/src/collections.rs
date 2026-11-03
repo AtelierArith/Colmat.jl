@@ -315,12 +315,12 @@ impl VectorOwner {
     #[julia]
     pub fn collection_copy(
         &mut self,
-        source: *const u8,
+        source: &VectorOwner,
         kind: i32,
         conjugated: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<VectorOwner>() }.data()?;
+            let a = source.data()?;
             self.data = Some(
                 mapped!(a,x=>VectorStore::new(if kind<0{x.kind()}else{kind},x.len(),|i|if conjugated{conj(&x.get(i))}else{x.get(i)})?),
             );
@@ -330,24 +330,28 @@ impl VectorOwner {
     #[julia]
     pub fn collection_arithmetic(
         &mut self,
-        left: *const u8,
-        right: *const u8,
+        left: &VectorOwner,
+        right: &VectorOwner,
         op: i32,
     ) -> Result<(), String> {
         guarded(|| {
             if !(0..=2).contains(&op) {
                 return Err("unknown collection operation".into());
             }
-            let a = unsafe { &*left.cast::<VectorOwner>() }.data()?;
-            let b = unsafe { &*right.cast::<VectorOwner>() }.data()?;
+            let a = left.data()?;
+            let b = right.data()?;
             self.data = Some(binary!(a,b,x,y=>arithmetic(x,y,op)?));
             Ok(())
         })
     }
     #[julia]
-    pub fn collection_scale(&mut self, source: *const u8, value: *const u8) -> Result<(), String> {
+    pub fn collection_scale(
+        &mut self,
+        source: &VectorOwner,
+        value: *const u8,
+    ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<VectorOwner>() }.data()?;
+            let a = source.data()?;
             self.data = Some(mapped!(a,x=>unsafe{scaled(x,value)?}));
             Ok(())
         })
@@ -370,12 +374,12 @@ impl VectorOwner {
     #[julia]
     pub fn collection_dot(
         &self,
-        other: *const u8,
+        other: &VectorOwner,
         out: *mut u8,
         conjugated: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { &*other.cast::<VectorOwner>() }.data()?;
+            let b = other.data()?;
             unsafe {
                 match (self.data()?, b) {
                     (VectorData::F32(x), VectorData::F32(y)) => inner(x, y, out, conjugated),
@@ -404,9 +408,9 @@ impl VectorOwner {
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn matrix_from_collection(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn matrix_from_collection(&mut self, source: &VectorOwner) -> Result<(), String> {
         guarded(|| {
-            self.matrix = match unsafe { &*source.cast::<VectorOwner>() }.data()? {
+            self.matrix = match source.data()? {
                 VectorData::F64(x) => x.full_matrix(),
                 _ => return Err("Float64 output requires Float64 input".into()),
             };
@@ -417,10 +421,10 @@ impl OwnedMatrix {
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn matrix_from_collection(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn matrix_from_collection(&mut self, source: &VectorOwner) -> Result<(), String> {
         guarded(|| {
             use super::typed::MatrixData;
-            self.data = Some(match unsafe { &*source.cast::<VectorOwner>() }.data()? {
+            self.data = Some(match source.data()? {
                 VectorData::F32(x) => MatrixData::F32(x.full_matrix()),
                 VectorData::F64(x) => MatrixData::F64(x.full_matrix()),
                 VectorData::C32(x) => MatrixData::C32(x.full_matrix()),

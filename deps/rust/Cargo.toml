@@ -8,6 +8,6 @@ rust-version = "1.89"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rustcall_julia_macros = "0.5"
+rustcall_julia_macros = "0.6"
 num-complex = "0.4"
 faer = { package = "t4a-faer", path = "../t4a-faer/faer", default-features = false, features = ["std", "linalg"] }

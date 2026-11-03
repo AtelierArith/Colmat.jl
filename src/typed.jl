@@ -75,8 +75,6 @@ function Base.Matrix(a::FaerMatrix{T}) where {T<:_ExtraScalar}
 end
 Base.Array(a::FaerMatrix{T}) where {T<:_ExtraScalar} = Matrix(a)
 Base.Matrix{S}(a::FaerMatrix{T}) where {S,T<:_ExtraScalar} = convert(Matrix{S}, Matrix(a))
-Base.copy(a::FaerMatrix{T}) where {T<:_ExtraScalar} =
-    _typed_result(T, RustCrate.transform_from, size(a), a, Int32(0))
 function Base.deepcopy_internal(a::FaerMatrix{T}, dict::IdDict) where {T<:_ExtraScalar}
     get!(dict, a) do ;
         copy(a)

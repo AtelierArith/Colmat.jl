@@ -111,7 +111,7 @@ impl OwnedHouseholder {
         })
     }
     #[julia]
-    pub fn householder_clone(&mut self, source: *const u8, conjugate: bool) -> Result<(), String> {
+    pub fn householder_clone(&mut self, source: &Self, conjugate: bool) -> Result<(), String> {
         guarded(|| {
             fn transform<T: ComplexField>(f: &Reflection<T>, conjugate: bool) -> Reflection<T> {
                 let mut f = f.clone();
@@ -124,7 +124,7 @@ impl OwnedHouseholder {
                 }
                 f
             }
-            self.data = Some(match unsafe { &*source.cast::<Self>() }.data()? {
+            self.data = Some(match source.data()? {
                 ReflectionData::F32(f) => ReflectionData::F32(transform(f, conjugate)),
                 ReflectionData::F64(f) => ReflectionData::F64(transform(f, conjugate)),
                 ReflectionData::C32(f) => ReflectionData::C32(transform(f, conjugate)),
@@ -226,22 +226,28 @@ fn apply<T: ComplexField>(f: &Reflection<T>, a: MatMut<'_, T>, right: bool) -> R
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn householder_apply(&mut self, reflection: *const u8, right: bool) -> Result<(), String> {
-        guarded(
-            || match unsafe { &*reflection.cast::<OwnedHouseholder>() }.data()? {
-                ReflectionData::F64(f) => apply(f, self.matrix.as_mut(), right),
-                _ => Err("Householder scalar types must match".into()),
-            },
-        )
+    pub fn householder_apply(
+        &mut self,
+        reflection: &OwnedHouseholder,
+        right: bool,
+    ) -> Result<(), String> {
+        guarded(|| match reflection.data()? {
+            ReflectionData::F64(f) => apply(f, self.matrix.as_mut(), right),
+            _ => Err("Householder scalar types must match".into()),
+        })
     }
 }
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn householder_apply(&mut self, reflection: *const u8, right: bool) -> Result<(), String> {
+    pub fn householder_apply(
+        &mut self,
+        reflection: &OwnedHouseholder,
+        right: bool,
+    ) -> Result<(), String> {
         guarded(|| {
             match (
-                unsafe { &*reflection.cast::<OwnedHouseholder>() }.data()?,
+                reflection.data()?,
                 self.data.as_mut().ok_or("matrix is not initialized")?,
             ) {
                 (ReflectionData::F32(f), MatrixData::F32(a)) => apply(f, a.as_mut(), right),
@@ -256,10 +262,14 @@ impl TypedMatrix {
 #[julia]
 impl VectorOwner {
     #[julia]
-    pub fn householder_apply(&mut self, reflection: *const u8, right: bool) -> Result<(), String> {
+    pub fn householder_apply(
+        &mut self,
+        reflection: &OwnedHouseholder,
+        right: bool,
+    ) -> Result<(), String> {
         guarded(|| {
             match (
-                unsafe { &*reflection.cast::<OwnedHouseholder>() }.data()?,
+                reflection.data()?,
                 self.data.as_mut().ok_or("vector is not initialized")?,
             ) {
                 (ReflectionData::F32(f), VectorData::F32(a)) => apply(f, a.as_mat_mut(), right),
@@ -271,19 +281,17 @@ impl VectorOwner {
         })
     }
     #[julia]
-    pub fn householder_vector_from(&mut self, reflection: *const u8) -> Result<(), String> {
+    pub fn householder_vector_from(&mut self, reflection: &OwnedHouseholder) -> Result<(), String> {
         guarded(|| {
             fn vector<T: ComplexField>(f: &Reflection<T>) -> VectorStore<T> {
                 VectorStore::Column(Col::from_fn(f.basis.nrows(), |i| copy(&f.basis[(i, 0)])))
             }
-            self.data = Some(
-                match unsafe { &*reflection.cast::<OwnedHouseholder>() }.data()? {
-                    ReflectionData::F32(f) => VectorData::F32(vector(f)),
-                    ReflectionData::F64(f) => VectorData::F64(vector(f)),
-                    ReflectionData::C32(f) => VectorData::C32(vector(f)),
-                    ReflectionData::C64(f) => VectorData::C64(vector(f)),
-                },
-            );
+            self.data = Some(match reflection.data()? {
+                ReflectionData::F32(f) => VectorData::F32(vector(f)),
+                ReflectionData::F64(f) => VectorData::F64(vector(f)),
+                ReflectionData::C32(f) => VectorData::C32(vector(f)),
+                ReflectionData::C64(f) => VectorData::C64(vector(f)),
+            });
             Ok(())
         })
     }

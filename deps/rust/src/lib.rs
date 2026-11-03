@@ -146,11 +146,11 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn duplicate_from(&mut self, other: *const u8) -> Result<(), String> {
+    pub fn duplicate(&self) -> Result<Self, String> {
         guarded(|| {
-            let other = unsafe { &*other.cast::<OwnedMatrix>() };
-            self.matrix = other.matrix.clone();
-            Ok(())
+            Ok(Self {
+                matrix: self.matrix.clone(),
+            })
         })
     }
 
@@ -189,9 +189,8 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn assign(&mut self, other: *const u8) -> Result<(), String> {
+    pub fn assign(&mut self, other: &OwnedMatrix) -> Result<(), String> {
         guarded(|| {
-            let other = unsafe { &*other.cast::<OwnedMatrix>() };
             if self.matrix.shape() != other.matrix.shape() {
                 return Err("matrix dimensions must match".into());
             }
@@ -209,10 +208,8 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn add_from(&mut self, a: *const u8, b: *const u8, sign: f64) -> Result<(), String> {
+    pub fn add_from(&mut self, a: &OwnedMatrix, b: &OwnedMatrix, sign: f64) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*a.cast::<OwnedMatrix>() };
-            let b = unsafe { &*b.cast::<OwnedMatrix>() };
             if a.matrix.shape() != b.matrix.shape() {
                 return Err("matrix dimensions must match".into());
             }
@@ -224,9 +221,8 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn scale_from(&mut self, a: *const u8, factor: f64) -> Result<(), String> {
+    pub fn scale_from(&mut self, a: &OwnedMatrix, factor: f64) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*a.cast::<OwnedMatrix>() };
             self.matrix = Mat::from_fn(a.matrix.nrows(), a.matrix.ncols(), |i, j| {
                 factor * a.matrix[(i, j)]
             });
@@ -235,10 +231,8 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn multiply_from(&mut self, a: *const u8, b: *const u8) -> Result<(), String> {
+    pub fn multiply_from(&mut self, a: &OwnedMatrix, b: &OwnedMatrix) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*a.cast::<OwnedMatrix>() };
-            let b = unsafe { &*b.cast::<OwnedMatrix>() };
             if a.matrix.ncols() != b.matrix.nrows() {
                 return Err("inner dimensions must match".into());
             }
@@ -257,19 +251,16 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn transpose_from(&mut self, a: *const u8) -> Result<(), String> {
+    pub fn transpose_from(&mut self, a: &OwnedMatrix) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*a.cast::<OwnedMatrix>() };
             self.matrix = Mat::from_fn(a.matrix.ncols(), a.matrix.nrows(), |i, j| a.matrix[(j, i)]);
             Ok(())
         })
     }
 
     #[julia]
-    pub fn solve_from(&mut self, a: *const u8, b: *const u8) -> Result<(), String> {
+    pub fn solve_from(&mut self, a: &OwnedMatrix, b: &OwnedMatrix) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*a.cast::<OwnedMatrix>() };
-            let b = unsafe { &*b.cast::<OwnedMatrix>() };
             let n = a.matrix.nrows();
             if n != a.matrix.ncols() || n != b.matrix.nrows() {
                 return Err("solve dimensions must match".into());
@@ -437,12 +428,12 @@ impl OwnedFactor {
     #[julia]
     pub fn initialize(
         &mut self,
-        source: *const u8,
+        source: &OwnedMatrix,
         kind: i32,
         lower: bool,
     ) -> Result<usize, String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let a = source.matrix.as_ref();
             if (4..=6).contains(&kind) {
                 if a.nrows() != a.ncols() {
                     return Err("factorization requires square input".into());
@@ -520,9 +511,8 @@ impl OwnedFactor {
     }
 
     #[julia]
-    pub fn clone_factor(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn clone_factor(&mut self, source: &OwnedFactor) -> Result<(), String> {
         guarded(|| {
-            let source = unsafe { &*source.cast::<OwnedFactor>() };
             self.factor = source.factor.clone();
             self.info = source.info;
             Ok(())
@@ -562,9 +552,9 @@ impl OwnedFactor {
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn factor_part(&mut self, source: *const u8, part: i32) -> Result<(), String> {
+    pub fn factor_part(&mut self, source: &OwnedFactor, part: i32) -> Result<(), String> {
         guarded(|| {
-            let f = unsafe { &*source.cast::<OwnedFactor>() }.get()?;
+            let f = source.get()?;
             self.matrix = match part {
                 0 => dispatch_factor!(f, x => x.reconstruct(Par::Seq)),
                 1 => match f {
@@ -625,17 +615,17 @@ impl OwnedMatrix {
     #[julia]
     pub fn factor_solve(
         &mut self,
-        factor: *const u8,
-        rhs: *const u8,
+        factor: &OwnedFactor,
+        rhs: &OwnedMatrix,
         transposed: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let owner = unsafe { &*factor.cast::<OwnedFactor>() };
+            let owner = factor;
             let f = owner.get()?;
             if owner.info != 0 {
                 return Err("singular factorization".into());
             }
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let b = rhs.matrix.as_ref();
             check_finite(b)?;
             let m = dispatch_factor!(f, x => x.nrows());
             let n = dispatch_factor!(f, x => x.ncols());
@@ -697,9 +687,9 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn factor_inverse(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn factor_inverse(&mut self, source: &OwnedFactor) -> Result<(), String> {
         guarded(|| {
-            let owner = unsafe { &*source.cast::<OwnedFactor>() };
+            let owner = source;
             if owner.info != 0 {
                 return Err("singular factorization".into());
             }
@@ -796,10 +786,10 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn inner_product(&self, other: *const u8) -> Result<f64, String> {
+    pub fn inner_product(&self, other: &OwnedMatrix) -> Result<f64, String> {
         guarded(|| {
             let a = self.matrix.as_ref();
-            let b = unsafe { &*other.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let b = other.matrix.as_ref();
             if a.shape() != b.shape() {
                 return Err("inner product dimensions must match".into());
             }
@@ -817,10 +807,10 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn kron_from(&mut self, lhs: *const u8, rhs: *const u8) -> Result<(), String> {
+    pub fn kron_from(&mut self, lhs: &OwnedMatrix, rhs: &OwnedMatrix) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*lhs.cast::<OwnedMatrix>() }.matrix.as_ref();
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let a = lhs.matrix.as_ref();
+            let b = rhs.matrix.as_ref();
             a.nrows()
                 .checked_mul(b.nrows())
                 .ok_or("Kronecker size overflow")?;
@@ -833,9 +823,9 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn sum_axis_from(&mut self, source: *const u8, axis: i32) -> Result<(), String> {
+    pub fn sum_axis_from(&mut self, source: &OwnedMatrix, axis: i32) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let a = source.matrix.as_ref();
             self.matrix = match axis {
                 1 => Mat::from_fn(1, a.ncols(), |_, j| a.col(j).sum()),
                 2 => Mat::from_fn(a.nrows(), 1, |i, _| a.row(i).sum()),
@@ -880,7 +870,7 @@ impl OwnedMatrix {
         compute_vectors: bool,
         mode: i32,
         lower: bool,
-        other: *const u8,
+        other: &OwnedMatrix,
         other_lower: bool,
     ) -> Result<(), String> {
         guarded(|| {
@@ -890,7 +880,7 @@ impl OwnedMatrix {
                 return Err("eigen input must be square".into());
             }
             let b = if mode >= 2 {
-                let b = unsafe { &*other.cast::<OwnedMatrix>() }.matrix.as_ref();
+                let b = other.matrix.as_ref();
                 if b.shape() != a.shape() {
                     return Err("generalized eigen inputs must have equal shapes".into());
                 }
@@ -1052,14 +1042,14 @@ impl OwnedMatrix {
     #[julia]
     pub fn triangular_solve_from(
         &mut self,
-        source: *const u8,
-        rhs: *const u8,
+        source: &OwnedMatrix,
+        rhs: &OwnedMatrix,
         lower: bool,
         unit: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref();
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let a = source.matrix.as_ref();
+            let b = rhs.matrix.as_ref();
             check_triangular(a, lower, unit)?;
             check_finite(b)?;
             if b.nrows() != a.nrows() {
@@ -1080,12 +1070,12 @@ impl OwnedMatrix {
     #[julia]
     pub fn triangular_inverse_from(
         &mut self,
-        source: *const u8,
+        source: &OwnedMatrix,
         lower: bool,
         unit: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let a = source.matrix.as_ref();
             check_triangular(a, lower, unit)?;
             let mut x = Mat::zeros(a.nrows(), a.ncols());
             use faer::linalg::triangular_inverse::*;

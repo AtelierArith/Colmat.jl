@@ -55,7 +55,7 @@ impl SparseSymbolic {
     #[julia]
     pub fn sparse_analyze(
         &mut self,
-        pattern: *const u8,
+        pattern: &SparsityOwner,
         kind: i32,
         lower: bool,
         ordering: i32,
@@ -65,7 +65,7 @@ impl SparseSymbolic {
         supernodal: i32,
     ) -> Result<(), String> {
         guarded(|| {
-            let pattern = unsafe { &*pattern.cast::<SparsityOwner>() }.data()?.csc()?;
+            let pattern = pattern.data()?.csc()?;
             let (m, n) = (pattern.nrows(), pattern.ncols());
             if kind != 1 && m != n {
                 return Err("sparse LU/Cholesky requires a square matrix".into());
@@ -130,9 +130,9 @@ impl SparseSymbolic {
         })
     }
     #[julia]
-    pub fn sparse_symbolic_clone(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn sparse_symbolic_clone(&mut self, source: &Self) -> Result<(), String> {
         guarded(|| {
-            self.plan = Some(unsafe { &*source.cast::<Self>() }.plan()?.clone());
+            self.plan = Some(source.plan()?.clone());
             Ok(())
         })
     }
@@ -254,12 +254,12 @@ impl SparseFactor {
     #[julia]
     pub fn sparse_factorize(
         &mut self,
-        analysis: *const u8,
-        matrix: *const u8,
+        analysis: &SparseSymbolic,
+        matrix: &SparseOwner,
     ) -> Result<usize, String> {
         guarded(|| {
-            let plan = unsafe { &*analysis.cast::<SparseSymbolic>() }.plan()?;
-            let a = unsafe { &*matrix.cast::<SparseOwner>() }.data()?;
+            let plan = analysis.plan()?;
+            let a = matrix.data()?;
             let result = match a {
                 SparseData::F32(a) => numeric(plan, a)?.map(Factors::F32),
                 SparseData::F64(a) => numeric(plan, a)?.map(Factors::F64),
@@ -279,9 +279,9 @@ impl SparseFactor {
         })
     }
     #[julia]
-    pub fn sparse_factor_clone(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn sparse_factor_clone(&mut self, source: &Self) -> Result<(), String> {
         guarded(|| {
-            self.factors = Some(unsafe { &*source.cast::<Self>() }.factors()?.clone());
+            self.factors = Some(source.factors()?.clone());
             Ok(())
         })
     }
@@ -336,14 +336,14 @@ impl OwnedMatrix {
     #[julia]
     pub fn sparse_factor_solve(
         &mut self,
-        factor: *const u8,
-        rhs: *const u8,
+        factor: &SparseFactor,
+        rhs: &OwnedMatrix,
         trans: bool,
         adj: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
-            match unsafe { &*factor.cast::<SparseFactor>() }.factors()? {
+            let b = rhs;
+            match factor.factors()? {
                 Factors::F64(f) => self.matrix = solve(f, b.matrix.as_ref(), trans, adj)?,
                 _ => return Err("sparse factor and RHS scalar types must match".into()),
             }
@@ -356,27 +356,25 @@ impl TypedMatrix {
     #[julia]
     pub fn sparse_factor_solve(
         &mut self,
-        factor: *const u8,
-        rhs: *const u8,
+        factor: &SparseFactor,
+        rhs: &TypedMatrix,
         trans: bool,
         adj: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
-            self.data = Some(
-                match (unsafe { &*factor.cast::<SparseFactor>() }.factors()?, b) {
-                    (Factors::F32(f), MatrixData::F32(b)) => {
-                        MatrixData::F32(solve(f, b.as_ref(), trans, adj)?)
-                    }
-                    (Factors::C32(f), MatrixData::C32(b)) => {
-                        MatrixData::C32(solve(f, b.as_ref(), trans, adj)?)
-                    }
-                    (Factors::C64(f), MatrixData::C64(b)) => {
-                        MatrixData::C64(solve(f, b.as_ref(), trans, adj)?)
-                    }
-                    _ => return Err("sparse factor and RHS scalar types must match".into()),
-                },
-            );
+            let b = rhs.data()?;
+            self.data = Some(match (factor.factors()?, b) {
+                (Factors::F32(f), MatrixData::F32(b)) => {
+                    MatrixData::F32(solve(f, b.as_ref(), trans, adj)?)
+                }
+                (Factors::C32(f), MatrixData::C32(b)) => {
+                    MatrixData::C32(solve(f, b.as_ref(), trans, adj)?)
+                }
+                (Factors::C64(f), MatrixData::C64(b)) => {
+                    MatrixData::C64(solve(f, b.as_ref(), trans, adj)?)
+                }
+                _ => return Err("sparse factor and RHS scalar types must match".into()),
+            });
             Ok(())
         })
     }
@@ -385,9 +383,9 @@ impl TypedMatrix {
 #[julia]
 impl OwnedPermutation {
     #[julia]
-    pub fn sparse_cholesky_permutation(&mut self, analysis: *const u8) -> Result<(), String> {
+    pub fn sparse_cholesky_permutation(&mut self, analysis: &SparseSymbolic) -> Result<(), String> {
         guarded(|| {
-            let p = unsafe { &*analysis.cast::<SparseSymbolic>() }.plan()?;
+            let p = analysis.plan()?;
             let Analysis::Llt(sym) = &p.analysis else {
                 return Err("permutation query currently requires sparse Cholesky".into());
             };
@@ -508,19 +506,17 @@ impl SparseOwner {
     #[julia]
     pub fn sparse_cholesky_component(
         &mut self,
-        factor: *const u8,
+        factor: &SparseFactor,
         upper: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(
-                match unsafe { &*factor.cast::<SparseFactor>() }.factors()? {
-                    Factors::F32(Numeric::Llt(f)) => SparseData::F32(cholesky_component(f, upper)?),
-                    Factors::F64(Numeric::Llt(f)) => SparseData::F64(cholesky_component(f, upper)?),
-                    Factors::C32(Numeric::Llt(f)) => SparseData::C32(cholesky_component(f, upper)?),
-                    Factors::C64(Numeric::Llt(f)) => SparseData::C64(cholesky_component(f, upper)?),
-                    _ => return Err("component export requires sparse Cholesky".into()),
-                },
-            );
+            self.data = Some(match factor.factors()? {
+                Factors::F32(Numeric::Llt(f)) => SparseData::F32(cholesky_component(f, upper)?),
+                Factors::F64(Numeric::Llt(f)) => SparseData::F64(cholesky_component(f, upper)?),
+                Factors::C32(Numeric::Llt(f)) => SparseData::C32(cholesky_component(f, upper)?),
+                Factors::C64(Numeric::Llt(f)) => SparseData::C64(cholesky_component(f, upper)?),
+                _ => return Err("component export requires sparse Cholesky".into()),
+            });
             Ok(())
         })
     }

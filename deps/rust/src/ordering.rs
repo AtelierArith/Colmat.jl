@@ -11,7 +11,7 @@ impl OwnedPermutation {
     #[julia]
     pub fn sparse_ordering(
         &mut self,
-        pattern: *const u8,
+        pattern: &SparsityOwner,
         symmetric: bool,
         dense_row: f64,
         dense_col: f64,
@@ -22,7 +22,7 @@ impl OwnedPermutation {
             if !dense_row.is_finite() || !dense_col.is_finite() {
                 return Err("ordering thresholds must be finite".into());
             }
-            let a = unsafe { &*pattern.cast::<SparsityOwner>() }.data()?.csc()?;
+            let a = pattern.data()?.csc()?;
             let (m, n) = (a.nrows(), a.ncols());
             if symmetric && m != n {
                 return Err("AMD requires a square pattern".into());

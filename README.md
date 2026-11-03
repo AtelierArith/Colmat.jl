@@ -1,6 +1,6 @@
 # Colmat.jl
 
-RustCall.jl **v0.9.1** で動作確認した、t4a-faer を Julia から呼び出す PoC。
+RustCall.jl **v0.9.2** で動作確認した、t4a-faer を Julia から呼び出す PoC。
 Tenferro.jl と同じく `#[julia]` と `@rust_crate` を使用します。
 
 ```sh
@@ -570,12 +570,14 @@ SVD の失敗は例外になります。Julia バッファは `GC.@preserve` で
 Float64 に変換します。複素数を含め型を保持する場合は `FaerMatrix` を使ってください。
 疎分解の残りの機能などの API は Issue #1 で管理しています。
 
-RustCall v0.9.1 の制限として、受信オブジェクトを持つメソッドの `Result<Self, String>`
-返却と、引数の `&OwnedMatrix` の変換に問題がありました。最小再現例と修正案を
-[RustCall #564](https://github.com/AtelierArith/RustCall.jl/issues/564)・
-[#565](https://github.com/AtelierArith/RustCall.jl/issues/565) に報告しています。
-現在は新しい出力オブジェクトに結果を書き込み、入力の所有者を `GC.@preserve` で
-保持した上でポインタを借用する方法を使用しています。
+RustCall v0.9.2 で [#564](https://github.com/AtelierArith/RustCall.jl/issues/564)・
+[#565](https://github.com/AtelierArith/RustCall.jl/issues/565) が修正されました。
+`copy(::FaerMatrix)` は `duplicate(&self) -> Result<Self, String>` から独立した所有ハンドルを
+直接受け取ります。行列・分解など型が決まっている所有者の引数には Rust の `&T` / `&mut T` を
+使い、RustCall に型、生存状態、ライブラリ世代、可変借用の重複を検査させます。
+型を実行時に切り替えるビューなどと省略可能な所有者の引数には、明示的な生ポインタ経路を残しています。
+Rust 側の `rustcall_julia_macros` は 0.6 系が必要です。既存環境の更新時には
+`Pkg.update("RustCall")` を実行してください。更新後の Rust クレートは次回ロード時に再ビルドされます。
 
 ### Native linear operators and conjugate gradients
 

@@ -120,9 +120,9 @@ impl OwnedHouseholderSequence {
         })
     }
     #[julia]
-    pub fn sequence_clone(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn sequence_clone(&mut self, source: &Self) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(unsafe { &*source.cast::<Self>() }.data()?.clone());
+            self.data = Some(source.data()?.clone());
             Ok(())
         })
     }
@@ -283,33 +283,33 @@ impl OwnedMatrix {
     #[julia]
     pub fn sequence_apply(
         &mut self,
-        source: *const u8,
+        source: &OwnedHouseholderSequence,
         right: bool,
         transpose: bool,
         conjugate: bool,
     ) -> Result<(), String> {
-        guarded(
-            || match unsafe { &*source.cast::<OwnedHouseholderSequence>() }.data()? {
-                Data::F64(s) => apply(s, self.matrix.as_mut(), right, transpose, conjugate),
-                _ => Err("sequence scalar types must match".into()),
-            },
-        )
+        guarded(|| match source.data()? {
+            Data::F64(s) => apply(s, self.matrix.as_mut(), right, transpose, conjugate),
+            _ => Err("sequence scalar types must match".into()),
+        })
     }
     #[julia]
-    pub fn sequence_component(&mut self, source: *const u8, factor: bool) -> Result<(), String> {
-        guarded(
-            || match unsafe { &*source.cast::<OwnedHouseholderSequence>() }.data()? {
-                Data::F64(s) => {
-                    self.matrix = if factor {
-                        s.factor.clone()
-                    } else {
-                        s.basis.clone()
-                    };
-                    Ok(())
-                }
-                _ => Err("sequence scalar types must match".into()),
-            },
-        )
+    pub fn sequence_component(
+        &mut self,
+        source: &OwnedHouseholderSequence,
+        factor: bool,
+    ) -> Result<(), String> {
+        guarded(|| match source.data()? {
+            Data::F64(s) => {
+                self.matrix = if factor {
+                    s.factor.clone()
+                } else {
+                    s.basis.clone()
+                };
+                Ok(())
+            }
+            _ => Err("sequence scalar types must match".into()),
+        })
     }
 }
 #[julia]
@@ -317,14 +317,14 @@ impl TypedMatrix {
     #[julia]
     pub fn sequence_apply(
         &mut self,
-        source: *const u8,
+        source: &OwnedHouseholderSequence,
         right: bool,
         transpose: bool,
         conjugate: bool,
     ) -> Result<(), String> {
         guarded(|| {
             match (
-                unsafe { &*source.cast::<OwnedHouseholderSequence>() }.data()?,
+                source.data()?,
                 self.data.as_mut().ok_or("matrix is not initialized")?,
             ) {
                 (Data::F32(s), MatrixData::F32(a)) => {
@@ -344,32 +344,34 @@ impl TypedMatrix {
         })
     }
     #[julia]
-    pub fn sequence_component(&mut self, source: *const u8, factor: bool) -> Result<(), String> {
+    pub fn sequence_component(
+        &mut self,
+        source: &OwnedHouseholderSequence,
+        factor: bool,
+    ) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(
-                match unsafe { &*source.cast::<OwnedHouseholderSequence>() }.data()? {
-                    Data::F32(s) => MatrixData::F32(if factor {
-                        s.factor.clone()
-                    } else {
-                        s.basis.clone()
-                    }),
-                    Data::F64(s) => MatrixData::F64(if factor {
-                        s.factor.clone()
-                    } else {
-                        s.basis.clone()
-                    }),
-                    Data::C32(s) => MatrixData::C32(if factor {
-                        s.factor.clone()
-                    } else {
-                        s.basis.clone()
-                    }),
-                    Data::C64(s) => MatrixData::C64(if factor {
-                        s.factor.clone()
-                    } else {
-                        s.basis.clone()
-                    }),
-                },
-            );
+            self.data = Some(match source.data()? {
+                Data::F32(s) => MatrixData::F32(if factor {
+                    s.factor.clone()
+                } else {
+                    s.basis.clone()
+                }),
+                Data::F64(s) => MatrixData::F64(if factor {
+                    s.factor.clone()
+                } else {
+                    s.basis.clone()
+                }),
+                Data::C32(s) => MatrixData::C32(if factor {
+                    s.factor.clone()
+                } else {
+                    s.basis.clone()
+                }),
+                Data::C64(s) => MatrixData::C64(if factor {
+                    s.factor.clone()
+                } else {
+                    s.basis.clone()
+                }),
+            });
             Ok(())
         })
     }
@@ -379,14 +381,14 @@ impl VectorOwner {
     #[julia]
     pub fn sequence_apply(
         &mut self,
-        source: *const u8,
+        source: &OwnedHouseholderSequence,
         right: bool,
         transpose: bool,
         conjugate: bool,
     ) -> Result<(), String> {
         guarded(|| {
             match (
-                unsafe { &*source.cast::<OwnedHouseholderSequence>() }.data()?,
+                source.data()?,
                 self.data.as_mut().ok_or("vector is not initialized")?,
             ) {
                 (Data::F32(s), VectorData::F32(a)) => {

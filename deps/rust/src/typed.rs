@@ -235,6 +235,14 @@ impl TypedMatrix {
         Self { data: None }
     }
     #[julia]
+    pub fn duplicate(&self) -> Result<Self, String> {
+        guarded(|| {
+            Ok(Self {
+                data: Some(self.data()?.clone()),
+            })
+        })
+    }
+    #[julia]
     pub fn load(&mut self, p: *const u8, m: usize, n: usize, tag: i32) -> Result<(), String> {
         guarded(|| {
             self.data = Some(unsafe {
@@ -302,9 +310,9 @@ impl TypedMatrix {
         })
     }
     #[julia]
-    pub fn transform_from(&mut self, source: *const u8, op: i32) -> Result<(), String> {
+    pub fn transform_from(&mut self, source: &TypedMatrix, op: i32) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<TypedMatrix>() }.data()?;
+            let a = source.data()?;
             self.data = Some(
                 mapped!(a,x=>match op{0=>x.clone(),1=>x.as_ref().transpose().to_owned(),2=>x.as_ref().adjoint().to_owned(),3=>x.as_ref().conjugate().to_owned(),_=>return Err("unknown transform".into())}),
             );
@@ -314,21 +322,21 @@ impl TypedMatrix {
     #[julia]
     pub fn arithmetic_from(
         &mut self,
-        left: *const u8,
-        right: *const u8,
+        left: &TypedMatrix,
+        right: &TypedMatrix,
         op: i32,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*left.cast::<TypedMatrix>() }.data()?;
-            let b = unsafe { &*right.cast::<TypedMatrix>() }.data()?;
+            let a = left.data()?;
+            let b = right.data()?;
             self.data = Some(binary!(a,b,x,y=>arithmetic(x.as_ref(),y.as_ref(),op)?));
             Ok(())
         })
     }
     #[julia]
-    pub fn scale_from(&mut self, source: *const u8, factor: *const u8) -> Result<(), String> {
+    pub fn scale_from(&mut self, source: &TypedMatrix, factor: *const u8) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<TypedMatrix>() }.data()?;
+            let a = source.data()?;
             self.data = Some(mapped!(a,x=>unsafe{scale(x.as_ref(),factor)}));
             Ok(())
         })
@@ -674,12 +682,12 @@ impl TypedFactor {
     #[julia]
     pub fn initialize(
         &mut self,
-        source: *const u8,
+        source: &TypedMatrix,
         kind: i32,
         lower: bool,
     ) -> Result<usize, String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<TypedMatrix>() }.data()?;
+            let a = source.data()?;
             self.data = match a {
                 MatrixData::F32(x) => {
                     let (f, i) = factor_new(x.as_ref(), kind, lower)?;
@@ -706,9 +714,9 @@ impl TypedFactor {
         })
     }
     #[julia]
-    pub fn clone_factor(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn clone_factor(&mut self, source: &TypedFactor) -> Result<(), String> {
         guarded(|| {
-            let f = unsafe { &*source.cast::<TypedFactor>() };
+            let f = source;
             self.data = f.data.clone();
             self.info = f.info;
             Ok(())
@@ -733,9 +741,9 @@ impl TypedFactor {
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn factor_part_from(&mut self, source: *const u8, part: i32) -> Result<(), String> {
+    pub fn factor_part_from(&mut self, source: &TypedFactor, part: i32) -> Result<(), String> {
         guarded(|| {
-            let f = unsafe { &*source.cast::<TypedFactor>() }.data()?;
+            let f = source.data()?;
             self.data = Some(factor_matrix!(f,x=>factor_part(x,part)?));
             Ok(())
         })
@@ -743,24 +751,24 @@ impl TypedMatrix {
     #[julia]
     pub fn factor_solve_from(
         &mut self,
-        source: *const u8,
-        rhs: *const u8,
+        source: &TypedFactor,
+        rhs: &TypedMatrix,
         op: i32,
     ) -> Result<(), String> {
         guarded(|| {
-            let f = unsafe { &*source.cast::<TypedFactor>() };
+            let f = source;
             if f.info != 0 {
                 return Err("singular factorization".into());
             }
-            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
+            let b = rhs.data()?;
             self.data = Some(factor_rhs!(f.data()?,b,x,y=>factor_solve(x,y.as_ref(),op)?));
             Ok(())
         })
     }
     #[julia]
-    pub fn inverse_from(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn inverse_from(&mut self, source: &TypedFactor) -> Result<(), String> {
         guarded(|| {
-            let f = unsafe { &*source.cast::<TypedFactor>() };
+            let f = source;
             if f.info != 0 {
                 return Err("singular factorization".into());
             }
@@ -1030,9 +1038,9 @@ unsafe fn pfaffian_output<T: ComplexField>(a: MatRef<'_, T>, out: *mut u8) -> Re
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn dot_buffer(&self, other: *const u8, out: *mut u8) -> Result<(), String> {
+    pub fn dot_buffer(&self, other: &TypedMatrix, out: *mut u8) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { &*other.cast::<TypedMatrix>() }.data()?;
+            let b = other.data()?;
             unsafe { paired!(self.data()?,b,x,y=>inner_output(x.as_ref(),y.as_ref(),out)) }
         })
     }
@@ -1052,7 +1060,7 @@ impl TypedMatrix {
     #[julia]
     pub fn generalized_typed_buffers(
         &self,
-        other: *const u8,
+        other: &TypedMatrix,
         values: *mut u8,
         vectors: *mut u8,
         compute_vectors: bool,
@@ -1061,7 +1069,7 @@ impl TypedMatrix {
         other_lower: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { &*other.cast::<TypedMatrix>() }.data()?;
+            let b = other.data()?;
             unsafe {
                 paired!(self.data()?,b,x,y=>generalized_output(x.as_ref(),y.as_ref(),values,vectors,compute_vectors,hermitian,lower,other_lower))
             }
@@ -1070,12 +1078,12 @@ impl TypedMatrix {
     #[julia]
     pub fn triangular_inverse_typed(
         &mut self,
-        source: *const u8,
+        source: &TypedMatrix,
         lower: bool,
         unit: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<TypedMatrix>() }.data()?;
+            let a = source.data()?;
             self.data = Some(mapped!(a,x=>triangular_inverse(x.as_ref(),lower,unit)?));
             Ok(())
         })
@@ -1083,14 +1091,14 @@ impl TypedMatrix {
     #[julia]
     pub fn triangular_solve_typed(
         &mut self,
-        source: *const u8,
-        rhs: *const u8,
+        source: &TypedMatrix,
+        rhs: &TypedMatrix,
         lower: bool,
         unit: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<TypedMatrix>() }.data()?;
-            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
+            let a = source.data()?;
+            let b = rhs.data()?;
             self.data = Some(binary!(a,b,x,y=>triangular_solve(x.as_ref(),y.as_ref(),lower,unit)?));
             Ok(())
         })
@@ -1205,9 +1213,9 @@ impl TypedFactor {
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn axis_sum_from(&mut self, source: *const u8, axis: i32) -> Result<(), String> {
+    pub fn axis_sum_from(&mut self, source: &TypedMatrix, axis: i32) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<TypedMatrix>() }.data()?;
+            let a = source.data()?;
             self.data = Some(mapped!(a,x=>match axis{
                 1=>Mat::from_fn(1,x.ncols(),|_,j|x.as_ref().col(j).sum()),
                 2=>Mat::from_fn(x.nrows(),1,|i,_|x.as_ref().row(i).sum()),

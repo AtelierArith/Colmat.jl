@@ -90,19 +90,23 @@ impl OwnedPermutation {
         })
     }
     #[julia]
-    pub fn permutation_clone(&mut self, p: *const u8, inverse: bool) -> Result<(), String> {
+    pub fn permutation_clone(&mut self, p: &OwnedPermutation, inverse: bool) -> Result<(), String> {
         guarded(|| {
-            let p = unsafe { &*p.cast::<OwnedPermutation>() }.data()?;
+            let p = p.data()?;
             let q = p.clone();
             self.data = Some(if inverse { q.into_inverse() } else { q });
             Ok(())
         })
     }
     #[julia]
-    pub fn permutation_compose(&mut self, left: *const u8, right: *const u8) -> Result<(), String> {
+    pub fn permutation_compose(
+        &mut self,
+        left: &OwnedPermutation,
+        right: &OwnedPermutation,
+    ) -> Result<(), String> {
         guarded(|| {
-            let p = unsafe { &*left.cast::<OwnedPermutation>() }.data()?;
-            let q = unsafe { &*right.cast::<OwnedPermutation>() }.data()?;
+            let p = left.data()?;
+            let q = right.data()?;
             if p.len() != q.len() {
                 return Err("permutation lengths must match".into());
             }
@@ -165,30 +169,26 @@ fn swap<T>(a: MatMut<'_, T>, i: usize, j: usize, columns: bool) -> Result<(), St
     }
     Ok(())
 }
-unsafe fn permutation<'a>(p: *const u8) -> Result<PermRef<'a, usize>, String> {
-    Ok((&*p.cast::<OwnedPermutation>()).data()?.as_ref())
+fn permutation(p: &OwnedPermutation) -> Result<PermRef<'_, usize>, String> {
+    Ok(p.data()?.as_ref())
 }
 #[julia]
 impl OwnedMatrix {
     #[julia]
     pub fn permute_from(
         &mut self,
-        source: *const u8,
-        p: *const u8,
+        source: &OwnedMatrix,
+        p: &OwnedPermutation,
         columns: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            self.matrix = permuted(
-                unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref(),
-                unsafe { permutation(p)? },
-                columns,
-            )?;
+            self.matrix = permuted(source.matrix.as_ref(), permutation(p)?, columns)?;
             Ok(())
         })
     }
     #[julia]
-    pub fn permute_storage(&mut self, p: *const u8, columns: bool) -> Result<(), String> {
-        guarded(|| apply(self.matrix.as_mut(), unsafe { permutation(p)? }, columns))
+    pub fn permute_storage(&mut self, p: &OwnedPermutation, columns: bool) -> Result<(), String> {
+        guarded(|| apply(self.matrix.as_mut(), permutation(p)?, columns))
     }
     #[julia]
     pub fn swap_storage(&mut self, i: usize, j: usize, columns: bool) -> Result<(), String> {
@@ -220,21 +220,21 @@ impl TypedMatrix {
     #[julia]
     pub fn permute_from(
         &mut self,
-        source: *const u8,
-        p: *const u8,
+        source: &TypedMatrix,
+        p: &OwnedPermutation,
         columns: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<TypedMatrix>() }.data()?;
-            let p = unsafe { permutation(p)? };
+            let a = source.data()?;
+            let p = permutation(p)?;
             self.data = Some(mapped!(a,x=>permuted(x.as_ref(),p,columns)?));
             Ok(())
         })
     }
     #[julia]
-    pub fn permute_storage(&mut self, p: *const u8, columns: bool) -> Result<(), String> {
+    pub fn permute_storage(&mut self, p: &OwnedPermutation, columns: bool) -> Result<(), String> {
         guarded(|| {
-            let p = unsafe { permutation(p)? };
+            let p = permutation(p)?;
             dispatch!(self.data.as_mut().ok_or("matrix is not initialized")?,a=>apply(a.as_mut(),p,columns))
         })
     }
@@ -258,9 +258,9 @@ macro_rules! vector_dispatch {
 #[julia]
 impl VectorOwner {
     #[julia]
-    pub fn permute_storage(&mut self, p: *const u8, columns: bool) -> Result<(), String> {
+    pub fn permute_storage(&mut self, p: &OwnedPermutation, columns: bool) -> Result<(), String> {
         guarded(|| {
-            let p = unsafe { permutation(p)? };
+            let p = permutation(p)?;
             vector_dispatch!(self.data.as_mut().ok_or("collection is not initialized")?,a=>apply(a.as_mat_mut(),p,columns))
         })
     }

@@ -118,9 +118,9 @@ impl SparsityOwner {
         Self { data: None }
     }
     #[julia]
-    pub fn sparsity_from_sparse(&mut self, source: *const u8) -> Result<(), String> {
+    pub fn sparsity_from_sparse(&mut self, source: &SparseOwner) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(match unsafe { &*source.cast::<SparseOwner>() }.data()? {
+            self.data = Some(match source.data()? {
                 SparseData::F32(a) => pattern(a)?,
                 SparseData::F64(a) => pattern(a)?,
                 SparseData::C32(a) => pattern(a)?,
@@ -132,12 +132,12 @@ impl SparsityOwner {
     #[julia]
     pub fn sparsity_clone_from(
         &mut self,
-        source: *const u8,
+        source: &SparsityOwner,
         csr: bool,
         transpose: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let p = unsafe { &*source.cast::<SparsityOwner>() }.data()?;
+            let p = source.data()?;
             self.data = Some(if transpose {
                 p.transpose().converted(csr)?
             } else {
@@ -179,13 +179,13 @@ impl SparsityOwner {
     #[julia]
     pub fn sparsity_union_from(
         &mut self,
-        left: *const u8,
-        right: *const u8,
+        left: &SparsityOwner,
+        right: &SparsityOwner,
         csr: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*left.cast::<SparsityOwner>() }.data()?;
-            let b = unsafe { &*right.cast::<SparsityOwner>() }.data()?;
+            let a = left.data()?;
+            let b = right.data()?;
             if a.shape() != b.shape() {
                 return Err("pattern union shapes must match".into());
             }
@@ -217,14 +217,14 @@ impl SparseOwner {
     #[julia]
     pub fn sparse_from_pattern(
         &mut self,
-        p: *const u8,
+        p: &SparsityOwner,
         values: *const u8,
         k: usize,
         tag: i32,
         csr: bool,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            let p = (&*p.cast::<SparsityOwner>()).data()?;
+            let p = (p).data()?;
             self.data = Some(match tag {
                 0 => SparseData::F32(numeric(p, values, k, csr)?),
                 1 => SparseData::F64(numeric(p, values, k, csr)?),
@@ -242,14 +242,13 @@ impl SparsityOwner {
     #[julia]
     pub fn sparsity_permute(
         &mut self,
-        source: *const u8,
-        permutation: *const u8,
+        source: &Self,
+        permutation: &crate::permutations::OwnedPermutation,
         columns: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<Self>() }.data()?;
-            let p =
-                unsafe { &*permutation.cast::<crate::permutations::OwnedPermutation>() }.data()?;
+            let a = source.data()?;
+            let p = permutation.data()?;
             let (m, n) = a.shape();
             if p.len() != if columns { n } else { m } {
                 return Err("pattern permutation length mismatch".into());
@@ -289,9 +288,9 @@ impl SparsityOwner {
 #[julia]
 impl SparsityOwner {
     #[julia]
-    pub fn sparsity_selfadjoint(&mut self, source: *const u8, lower: bool) -> Result<(), String> {
+    pub fn sparsity_selfadjoint(&mut self, source: &Self, lower: bool) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<Self>() }.data()?;
+            let a = source.data()?;
             let (m, n) = a.shape();
             if m != n {
                 return Err("self-adjoint pattern requires square dimensions".into());

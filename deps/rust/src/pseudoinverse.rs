@@ -124,14 +124,14 @@ impl OwnedMatrix {
     #[julia]
     pub fn pseudoinverse_from(
         &mut self,
-        source: *const u8,
+        source: &OwnedMatrix,
         mode: i32,
         atol: f64,
         rtol: f64,
         relative_f32: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<OwnedMatrix>() };
+            let a = source;
             self.matrix = pseudoinverse(a.matrix.as_ref(), mode, atol, rtol, relative_f32)?;
             Ok(())
         })
@@ -142,14 +142,14 @@ impl TypedMatrix {
     #[julia]
     pub fn pseudoinverse_from(
         &mut self,
-        source: *const u8,
+        source: &TypedMatrix,
         mode: i32,
         atol: f64,
         rtol: f64,
         relative_f32: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<TypedMatrix>() }.data()?;
+            let a = source.data()?;
             self.data = Some(match a {
                 MatrixData::F32(x) => {
                     MatrixData::F32(pseudoinverse(x.as_ref(), mode, atol, rtol, relative_f32)?)

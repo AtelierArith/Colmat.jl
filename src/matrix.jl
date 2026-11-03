@@ -30,13 +30,35 @@ _native_argument(x) = x
 _native_argument(a::FaerMatrix) = _handle(a)
 _is_native_owner(::Any) = false
 _is_native_owner(::FaerMatrix) = true
+# Only genuinely type-erased or optional owner arguments still cross as raw
+# pointers. Typed Rust references go through RustCall's checked handle borrowing.
+_raw_owner_argument(x, owner) = _is_native_owner(owner) ? Ptr{UInt8}(x.ptr) : x
+const _raw_owner_arguments = (
+    (RustCrate.operator_bicgstab, (3, 4)),
+    (RustCrate.operator_cg, (3,)),
+    (RustCrate.operator_load, (2,)),
+    (RustCrate.operator_lsmr, (3,)),
+    (RustCrate.qz_from, (10, 11)),
+    (RustCrate.schur_eigenvectors_from, (2, 3)),
+    (RustCrate.sparse_analyze, (6,)),
+    (RustCrate.vector_binary_views, (2, 4)),
+    (RustCrate.vector_from_view, (2,)),
+    (RustCrate.view_assign, (3,)),
+    (RustCrate.view_binary, (2, 4)),
+    (RustCrate.view_copy, (2,)),
+)
+function _raw_owner_positions(f)
+    for (member, positions) in _raw_owner_arguments
+        f === member && return positions
+    end
+    return ()
+end
 function _native_call(f, args...)
     lock(_matrix_lock) do
         native = map(_native_argument, args)
-        # v0.9.1 does not lower non-receiver &OwnedMatrix arguments to
-        # opaque pointers. Borrow explicit pointers while retaining all owners.
+        raw_positions = _raw_owner_positions(f)
         ffi_args = ntuple(length(args)) do i
-            i > 1 && _is_native_owner(args[i]) ? Ptr{UInt8}(native[i].ptr) : native[i]
+            i in raw_positions ? _raw_owner_argument(native[i], args[i]) : native[i]
         end
         return GC.@preserve native RustCall.result_to_exception(f(ffi_args...))
     end
@@ -82,7 +104,12 @@ function Base.Matrix(a::FaerMatrix{Float64})
 end
 Base.Array(a::FaerMatrix{Float64}) = Matrix(a)
 Base.Matrix{T}(a::FaerMatrix{Float64}) where {T} = convert(Matrix{T}, Matrix(a))
-Base.copy(a::FaerMatrix{Float64}) = _matrix_result(RustCrate.duplicate_from, size(a), a)
+function Base.copy(a::FaerMatrix{T}) where {T}
+    lock(_matrix_lock) do
+        h = _native_call(RustCrate.duplicate, a)
+        return FaerMatrix{T,typeof(h)}(h, size(a))
+    end
+end
 function Base.deepcopy_internal(a::FaerMatrix{Float64}, dict::IdDict)
     return get!(dict, a) do
         copy(a)

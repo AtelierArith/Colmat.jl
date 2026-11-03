@@ -20,9 +20,8 @@ function _eigen(
     values=Vector{T}(undef, n)
     eigenvectors=Matrix{T}(undef, n, vectors ? n : 0)
     lock(_matrix_lock) do
-        bh = isnothing(b) ? nothing : _handle(b)
-        bp = isnothing(bh) ? Ptr{UInt8}(C_NULL) : Ptr{UInt8}(bh.ptr)
-        GC.@preserve values eigenvectors bh begin
+        other = isnothing(b) ? a : b
+        GC.@preserve values eigenvectors begin
             _native_call(
                 RustCrate.eigen_buffers,
                 a,
@@ -31,7 +30,7 @@ function _eigen(
                 vectors,
                 Int32(mode),
                 lower,
-                bp,
+                other,
                 other_lower,
             )
         end

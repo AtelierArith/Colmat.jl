@@ -510,13 +510,13 @@ impl SparseOwner {
     #[julia]
     pub fn sparse_clone_from(
         &mut self,
-        p: *const u8,
+        p: &SparseOwner,
         csr: bool,
         transpose: bool,
         conjugate: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*p.cast::<SparseOwner>() }.data()?;
+            let a = p.data()?;
             self.data = Some(
                 mapped!(a,x=>{let mut out=if transpose{x.transpose(conjugate)}else{x.clone()};if conjugate&&!transpose{for v in out.values_mut(){*v=conj(v);}}out.converted(csr)?}),
             );
@@ -526,14 +526,14 @@ impl SparseOwner {
     #[julia]
     pub fn sparse_arithmetic(
         &mut self,
-        left: *const u8,
-        right: *const u8,
+        left: &SparseOwner,
+        right: &SparseOwner,
         op: i32,
         csr: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*left.cast::<SparseOwner>() }.data()?;
-            let b = unsafe { &*right.cast::<SparseOwner>() }.data()?;
+            let a = left.data()?;
+            let b = right.data()?;
             self.data = Some(match (a, b) {
                 (SparseData::F32(a), SparseData::F32(b)) => {
                     SparseData::F32(arithmetic(a, b, op, csr)?)
@@ -553,9 +553,9 @@ impl SparseOwner {
         })
     }
     #[julia]
-    pub fn sparse_scale(&mut self, p: *const u8, value: *const u8) -> Result<(), String> {
+    pub fn sparse_scale(&mut self, p: &SparseOwner, value: *const u8) -> Result<(), String> {
         guarded(|| unsafe {
-            let a = (&*p.cast::<SparseOwner>()).data()?;
+            let a = (p).data()?;
             self.data = Some(mapped!(a,x=>scale(x,value)));
             Ok(())
         })
@@ -638,9 +638,9 @@ impl SparseOwner {
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn sparse_dense_from(&mut self, p: *const u8) -> Result<(), String> {
+    pub fn sparse_dense_from(&mut self, p: &SparseOwner) -> Result<(), String> {
         guarded(|| {
-            match unsafe { &*p.cast::<SparseOwner>() }.data()? {
+            match p.data()? {
                 SparseData::F64(a) => self.matrix = a.dense(),
                 _ => return Err("sparse scalar type mismatch".into()),
             }
@@ -650,13 +650,13 @@ impl OwnedMatrix {
     #[julia]
     pub fn sparse_product_from(
         &mut self,
-        sparse: *const u8,
-        dense: *const u8,
+        sparse: &SparseOwner,
+        dense: &OwnedMatrix,
         left_sparse: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { &*dense.cast::<OwnedMatrix>() };
-            match unsafe { &*sparse.cast::<SparseOwner>() }.data()? {
+            let b = dense;
+            match sparse.data()? {
                 SparseData::F64(a) => {
                     self.matrix = dense_product(a, b.matrix.as_ref(), left_sparse)?
                 }
@@ -669,9 +669,9 @@ impl OwnedMatrix {
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn sparse_dense_from(&mut self, p: *const u8) -> Result<(), String> {
+    pub fn sparse_dense_from(&mut self, p: &SparseOwner) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(match unsafe { &*p.cast::<SparseOwner>() }.data()? {
+            self.data = Some(match p.data()? {
                 SparseData::F32(a) => MatrixData::F32(a.dense()),
                 SparseData::F64(a) => MatrixData::F64(a.dense()),
                 SparseData::C32(a) => MatrixData::C32(a.dense()),
@@ -683,13 +683,13 @@ impl TypedMatrix {
     #[julia]
     pub fn sparse_product_from(
         &mut self,
-        sparse: *const u8,
-        dense: *const u8,
+        sparse: &SparseOwner,
+        dense: &TypedMatrix,
         left_sparse: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*sparse.cast::<SparseOwner>() }.data()?;
-            let b = unsafe { &*dense.cast::<TypedMatrix>() }.data()?;
+            let a = sparse.data()?;
+            let b = dense.data()?;
             self.data = Some(match (a, b) {
                 (SparseData::F32(a), MatrixData::F32(b)) => {
                     MatrixData::F32(dense_product(a, b.as_ref(), left_sparse)?)
@@ -719,9 +719,9 @@ fn same_pattern<T: ComplexField>(a: &Storage<T>, b: &Storage<T>) -> bool {
 #[julia]
 impl SparseOwner {
     #[julia]
-    pub fn sparse_assign(&mut self, source: *const u8, csr: bool) -> Result<bool, String> {
+    pub fn sparse_assign(&mut self, source: &SparseOwner, csr: bool) -> Result<bool, String> {
         guarded(|| {
-            let source = unsafe { &*source.cast::<SparseOwner>() }.data()?;
+            let source = source.data()?;
             let next = mapped!(source,a=>a.converted(csr)?);
             let changed = match (self.data()?, &next) {
                 (SparseData::F32(a), SparseData::F32(b)) => !same_pattern(a, b),
@@ -781,14 +781,14 @@ impl OwnedMatrix {
     #[julia]
     pub fn sparse_triangular_from(
         &mut self,
-        sparse: *const u8,
-        rhs: *const u8,
+        sparse: &SparseOwner,
+        rhs: &OwnedMatrix,
         lower: bool,
         unit: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
-            match unsafe { &*sparse.cast::<SparseOwner>() }.data()? {
+            let b = rhs;
+            match sparse.data()? {
                 SparseData::F64(a) => {
                     self.matrix = triangular_solve(a, b.matrix.as_ref(), lower, unit)?
                 }
@@ -803,14 +803,14 @@ impl TypedMatrix {
     #[julia]
     pub fn sparse_triangular_from(
         &mut self,
-        sparse: *const u8,
-        rhs: *const u8,
+        sparse: &SparseOwner,
+        rhs: &TypedMatrix,
         lower: bool,
         unit: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*sparse.cast::<SparseOwner>() }.data()?;
-            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
+            let a = sparse.data()?;
+            let b = rhs.data()?;
             self.data = Some(match (a, b) {
                 (SparseData::F32(a), MatrixData::F32(b)) => {
                     MatrixData::F32(triangular_solve(a, b.as_ref(), lower, unit)?)
@@ -885,14 +885,13 @@ impl SparseOwner {
     #[julia]
     pub fn sparse_permute(
         &mut self,
-        source: *const u8,
-        permutation: *const u8,
+        source: &SparseOwner,
+        permutation: &crate::permutations::OwnedPermutation,
         columns: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let a = unsafe { &*source.cast::<SparseOwner>() }.data()?;
-            let p =
-                unsafe { &*permutation.cast::<crate::permutations::OwnedPermutation>() }.data()?;
+            let a = source.data()?;
+            let p = permutation.data()?;
             fn apply<T: ComplexField>(
                 a: &Storage<T>,
                 p: faer::perm::PermRef<'_, usize>,
@@ -1001,13 +1000,13 @@ impl SparseOwner {
     #[julia]
     pub fn sparse_fixed_update(
         &mut self,
-        lhs: *const u8,
-        rhs: *const u8,
+        lhs: &SparseOwner,
+        rhs: &SparseOwner,
         op: i32,
     ) -> Result<bool, String> {
         guarded(|| {
-            let lhs = unsafe { &*lhs.cast::<SparseOwner>() }.data()?;
-            let rhs = unsafe { &*rhs.cast::<SparseOwner>() }.data()?;
+            let lhs = lhs.data()?;
+            let rhs = rhs.data()?;
             let dst = self
                 .data
                 .as_mut()
