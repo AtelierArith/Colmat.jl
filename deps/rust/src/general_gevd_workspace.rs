@@ -15,6 +15,7 @@ trait General: ComplexField {
         scratch: &mut OwnedScratch,
         u: *mut u8,
         s: *mut u8,
+        t: *mut u8,
         values: bool,
         par: Par<'_>,
     ) -> Result<(), String>;
@@ -47,6 +48,7 @@ macro_rules! real_scalar {
                 scratch: &mut OwnedScratch,
                 u: *mut u8,
                 s: *mut u8,
+                t: *mut u8,
                 values: bool,
                 par: Par<'_>,
             ) -> Result<(), String> {
@@ -83,10 +85,11 @@ macro_rules! real_scalar {
                 )
                 .map_err(|e| format!("generalized EVD: {e:?}"))?;
                 for j in 0..n {
-                    s.cast::<$c>().add(j).write(
-                        <$c>::new(vals.as_mat_ref()[(j, 0)], vals.as_mat_ref()[(j, 1)])
-                            / val_beta.as_mat_ref()[(j, 0)],
-                    );
+                    s.cast::<$c>().add(j).write(<$c>::new(
+                        vals.as_mat_ref()[(j, 0)],
+                        vals.as_mat_ref()[(j, 1)],
+                    ));
+                    t.cast::<Self>().add(j).write(val_beta.as_mat_ref()[(j, 0)]);
                 }
                 if !values {
                     let mut j = 0;
@@ -142,6 +145,7 @@ macro_rules! complex_scalar {
                 scratch: &mut OwnedScratch,
                 u: *mut u8,
                 s: *mut u8,
+                t: *mut u8,
                 values: bool,
                 par: Par<'_>,
             ) -> Result<(), String> {
@@ -176,8 +180,7 @@ macro_rules! complex_scalar {
                 )
                 .map_err(|e| format!("generalized EVD: {e:?}"))?;
                 for j in 0..n {
-                    let p = s.cast::<Self>().add(j);
-                    p.write(p.read() / val_beta.as_mat_ref()[(j, 0)]);
+                    t.cast::<Self>().add(j).write(val_beta.as_mat_ref()[(j, 0)]);
                 }
                 Ok(())
             }
@@ -241,6 +244,7 @@ unsafe fn run<T: General>(
     team: Option<&OwnedTeam>,
     u: *mut u8,
     s: *mut u8,
+    t: *mut u8,
     values: bool,
     n: usize,
     tag: i32,
@@ -252,7 +256,7 @@ unsafe fn run<T: General>(
     if !a.is_all_finite() || !b.is_all_finite() {
         return Err("generalized EVD input must be finite".into());
     }
-    let mut compute = |par: Par<'_>| T::compute(a, b, scratch, u, s, values, par);
+    let mut compute = |par: Par<'_>| T::compute(a, b, scratch, u, s, t, values, par);
     if let Some(team) = team {
         team.execute(compute)?
     } else {
@@ -268,6 +272,7 @@ impl OwnedMatrix {
         scratch: &mut OwnedScratch,
         u: *mut u8,
         s: *mut u8,
+        t: *mut u8,
         values: bool,
         n: usize,
         tag: i32,
@@ -280,6 +285,7 @@ impl OwnedMatrix {
                 None,
                 u,
                 s,
+                t,
                 values,
                 n,
                 tag,
@@ -295,6 +301,7 @@ impl OwnedMatrix {
         team: &OwnedTeam,
         u: *mut u8,
         s: *mut u8,
+        t: *mut u8,
         values: bool,
         n: usize,
         tag: i32,
@@ -307,6 +314,7 @@ impl OwnedMatrix {
                 Some(team),
                 u,
                 s,
+                t,
                 values,
                 n,
                 tag,
@@ -323,6 +331,7 @@ impl TypedMatrix {
         team: Option<&OwnedTeam>,
         u: *mut u8,
         s: *mut u8,
+        t: *mut u8,
         values: bool,
         n: usize,
         tag: i32,
@@ -335,6 +344,7 @@ impl TypedMatrix {
                 team,
                 u,
                 s,
+                t,
                 values,
                 n,
                 tag,
@@ -347,6 +357,7 @@ impl TypedMatrix {
                 team,
                 u,
                 s,
+                t,
                 values,
                 n,
                 tag,
@@ -359,6 +370,7 @@ impl TypedMatrix {
                 team,
                 u,
                 s,
+                t,
                 values,
                 n,
                 tag,
@@ -371,6 +383,7 @@ impl TypedMatrix {
                 team,
                 u,
                 s,
+                t,
                 values,
                 n,
                 tag,
@@ -389,11 +402,12 @@ impl TypedMatrix {
         scratch: &mut OwnedScratch,
         u: *mut u8,
         s: *mut u8,
+        t: *mut u8,
         values: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
-        guarded(|| unsafe { self.workspace_generalized(b, scratch, None, u, s, values, n, tag) })
+        guarded(|| unsafe { self.workspace_generalized(b, scratch, None, u, s, t, values, n, tag) })
     }
     #[julia]
     pub fn general_gevd_workspace_team(
@@ -403,12 +417,13 @@ impl TypedMatrix {
         team: &OwnedTeam,
         u: *mut u8,
         s: *mut u8,
+        t: *mut u8,
         values: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            self.workspace_generalized(b, scratch, Some(team), u, s, values, n, tag)
+            self.workspace_generalized(b, scratch, Some(team), u, s, t, values, n, tag)
         })
     }
 }

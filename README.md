@@ -1216,7 +1216,36 @@ allocate separately.
 
 For repeated finite eigenvalues, upstream can return nonfinite vectors
 ([faer #217](https://github.com/tensor4all/faer/issues/217)). Colmat recovers
-invalid columns using native sequential SVD nullspaces, checking sufficient
+invalid columns using native SVD nullspaces with the requested team, checking sufficient
 nullity. This exceptional path allocates additional matrices and internal SVD
-workspace outside the supplied buffer. General defective or nonfinite-eigenvalue
-vector recovery is not supported. The dependency checkout is left unchanged.
+workspace outside the supplied buffer. Recovery also supports repeated infinite eigenvalues. Defective eigenspaces
+with insufficient nullity and invalid indeterminate vectors are rejected. The dependency checkout is left unchanged.
+
+### Homogeneous generalized eigenvalues
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([2.0 0 0; 0 3 0; 0 0 4])
+B = FaerMatrix([1.0 0 0; 0 0 0; 0 0 0])
+F = eigen(A, B; homogeneous=true)
+@assert count(iszero, F.β) == 2
+@assert all(isfinite, F.α) && all(isfinite, F.β)
+@assert Matrix(A) * F.vectors * Diagonal(F.β) ≈
+        Matrix(B) * F.vectors * Diagonal(F.α)
+values = eigvals(A, B; homogeneous=true)
+@assert values.α ≈ F.α && values.β ≈ F.β
+```
+
+General native pairs accept `homogeneous=true`: `eigen` returns independent Julia
+arrays `(α, β, vectors)`, while `eigvals` returns `(α, β)`. Four types, promotion,
+`scratch=` and `team=` are supported. The default homogeneous order is the native
+order, with no division or sorting. An explicit `sortby` uses α/β to select a
+common permutation of both arrays and the vectors. Ordinary calls still return
+`GeneralizedEigen` or quotient eigenvalues in their usual sorted order.
+
+A nonzero α with β=0 denotes infinity. The pair α=β=0 remains indeterminate;
+values-only homogeneous queries preserve it, while quotient queries return NaN.
+The homogeneous residual above stays meaningful for infinite eigenvalues. Vector
+recovery uses normalized pairs and native SVD, propagating the requested team,
+and may allocate additional workspace. This option is for general pairs;
+self-adjoint wrappers and destructive eigen routines keep their current APIs.

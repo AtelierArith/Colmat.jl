@@ -4,7 +4,7 @@
 Generalized EVD workspace including writable A/B copies and packed real
 outputs where required. Bang queries describe the eigen pass; the separate
 QZ writeback uses its own sequential workspace. Output and sorting allocate.
-Exceptional repeated-eigenvalue vector recovery uses native sequential SVD
+Exceptional repeated-eigenvalue vector recovery uses native SVD with the team
 with additional internal workspace outside this requirement.
 """
 function scratch_requirements(f::_EvdFunction, a::FaerMatrix, b::FaerMatrix; team = nothing)
@@ -49,6 +49,7 @@ function _general_gevd_workspace_result(
     a::FaerMatrix,
     b::FaerMatrix;
     vectors::Bool = true,
+    homogeneous::Bool = false,
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
@@ -72,12 +73,14 @@ function _general_gevd_workspace_result(
                 ArgumentError("general EVD scratch capacity/alignment is insufficient"),
             )
             C=Complex{_realtype(T)}
-            values=zeros(C, n)
+            alpha=zeros(C, n)
+            beta=zeros(T, n)
             eigenvectors=zeros(C, n, vectors ? n : 0)
-            GC.@preserve values eigenvectors begin
+            GC.@preserve alpha beta eigenvectors begin
                 args=(
                     Ptr{UInt8}(pointer(eigenvectors)),
-                    Ptr{UInt8}(pointer(values)),
+                    Ptr{UInt8}(pointer(alpha)),
+                    Ptr{UInt8}(pointer(beta)),
                     !vectors,
                     UInt(n),
                     _tag(T),
@@ -93,7 +96,7 @@ function _general_gevd_workspace_result(
                     args...,
                 )
             end
-            vectors && _repair_generalized_vectors!(eigenvectors, values, a, b)
+            vectors && _repair_generalized_vectors!(eigenvectors, alpha, beta, a, b; team)
             if vectors
                 for j in axes(eigenvectors, 2)
                     v=view(eigenvectors, :, j)
@@ -101,10 +104,16 @@ function _general_gevd_workspace_result(
                     iszero(scale) || (v ./= scale)
                 end
             end
+            values=homogeneous && isnothing(sortby) ? nothing : alpha ./ beta
             if !isnothing(sortby)
                 order=sortperm(values; by = sortby)
                 values=values[order]
+                alpha, beta=alpha[order], beta[order]
                 vectors && (eigenvectors=eigenvectors[:, order])
+            end
+            if homogeneous
+                return vectors ? (α = alpha, β = beta, vectors = eigenvectors) :
+                       (α = alpha, β = beta)
             end
             return vectors ? LinearAlgebra.GeneralizedEigen(values, eigenvectors) : values
         finally
@@ -114,8 +123,8 @@ function _general_gevd_workspace_result(
 end
 
 # faer solve_shifted_1x1 can form 0 * inv(0) for repeated eigenvalues.
-# Recover only invalid finite-eigenvalue columns using native SVD nullspaces.
-function _repair_generalized_vectors!(vectors, values, a, b)
+# Recover invalid columns from homogeneous native SVD nullspaces.
+function _repair_generalized_vectors!(vectors, alpha, beta, a, b; team = nothing)
     bad=findall(j->!all(isfinite, view(vectors, :, j)), axes(vectors, 2))
     isempty(bad) && return vectors
     R=_realtype(eltype(vectors))
@@ -124,21 +133,24 @@ function _repair_generalized_vectors!(vectors, values, a, b)
     pending=Set(bad)
     while !isempty(pending)
         j=first(pending)
-        λ=values[j]
-        isfinite(λ) || throw(
-            ArgumentError(
-                "native generalized eigenvectors are nonfinite for a nonfinite eigenvalue",
-            ),
-        )
-        group=findall(x->isapprox(x, λ; rtol = threshold, atol = threshold), values)
-        matrix=FaerMatrix(A-λ*B)
+        pairscale=max(abs(alpha[j]), abs(beta[j]))
+        isfinite(pairscale) ||
+            throw(ArgumentError("native homogeneous eigenvalue is nonfinite"))
+        iszero(pairscale) &&
+            throw(ArgumentError("cannot recover an indeterminate generalized eigenvector"))
+        α, β=alpha[j]/pairscale, beta[j]/pairscale
+        group=findall(eachindex(alpha)) do i
+            scale=max(abs(alpha[i]), abs(beta[i]))
+            !iszero(scale) && abs(α*(beta[i]/scale)-β*(alpha[i]/scale))<=threshold
+        end
+        matrix=FaerMatrix(β*A-α*B)
         F=try
-            LinearAlgebra.svd(matrix)
+            LinearAlgebra.svd(matrix; team)
         finally
             close(matrix)
         end
         k=length(group)
-        scale=max(LinearAlgebra.norm(A), abs(λ)*LinearAlgebra.norm(B), one(R))
+        scale=max(abs(β)*LinearAlgebra.norm(A), abs(α)*LinearAlgebra.norm(B), one(R))
         count(x->x<=threshold*scale, F.S)>=k || throw(
             ArgumentError(
                 "native generalized eigenvector recovery found insufficient nullity",

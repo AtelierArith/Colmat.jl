@@ -1353,3 +1353,39 @@ writeback. The test includes method ambiguity checks. All six native tests
 and 42 README Julia blocks pass, as do Julia/Rust formatting, cargo check and
 git diff --check. The frozen 76-row inventory and dependency sources are
 unchanged. The full Issue #1 objective remains active and incomplete.
+
+## Homogeneous generalized eigenvalues and infinite-vector recovery
+
+General `FaerMatrix` pairs now accept `homogeneous=true` on `eigen/eigvals`.
+The native adapter exports alpha and beta before division: eigen returns
+independent Julia `(α, β, vectors)` arrays and values-only returns `(α, β)`.
+The homogeneous default uses native order (`sortby=nothing`) without forming
+quotient eigenvalues. Explicit sorting uses the quotient and applies a common
+permutation to alpha/beta/vectors. Ordinary calls keep GeneralizedEigen and
+quotient-vector return types. Four scalar types, promotion and scratch/team
+options are preserved; scratch requirements are unchanged.
+
+Homogeneous residuals beta*A*v = alpha*B*v cover finite and infinite eigenvalues.
+Beta zero with nonzero alpha denotes infinity, while alpha=beta=0 remains
+indeterminate and is retained by values-only queries. Default quotient queries
+produce NaN for 0/0. The option applies to general pairs, not the specialized
+self-adjoint pair or bang APIs.
+
+The faer #217 workaround now groups projectively equal normalized alpha/beta
+pairs and forms beta*A-alpha*B before native SVD recovery. This includes repeated
+infinite eigenvalues. Requested teams propagate into the recovery SVD, whose
+additional temporary workspace still lies outside the primary caller buffer.
+Insufficient nullity or invalid indeterminate-vector recovery is rejected.
+No new RustCall or faer defect was found in this phase; dependency sources remain
+unchanged. Further extreme-scale/defective-pencil coverage and the broader
+Issue #1 requirements remain unfinished.
+
+Validation: `Pkg.test(;allow_reresolve=false)` passes **71,950 assertions across
+51 files**, using ParallelTestRunner 2.10.0 with 16 workers on Julia 1.13.3 /
+RustCall 0.9.2. The new file contributes 373 assertions covering all four types,
+width one/two, empty/scalar/conjugate-pair systems, sorting correspondence,
+promotion, repeated finite/infinite eigenvalues, singular B, indeterminate
+values, homogeneous residuals and owner errors. Method ambiguity checks pass.
+All six native Rust tests and 43 README Julia blocks pass. Cargo check,
+Julia/Rust formatting and git diff --check pass. The frozen inventory retains
+76 rows and dependency sources are unchanged. Issue #1 remains incomplete.

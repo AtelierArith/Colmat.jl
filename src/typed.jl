@@ -698,20 +698,29 @@ LinearAlgebra.eigvals(
 function LinearAlgebra.eigen(
     a::FaerMatrix{T},
     b::FaerMatrix{T};
-    sortby = _eigensort,
+    homogeneous::Bool = false,
+    sortby = homogeneous ? nothing : _eigensort,
     scratch = nothing,
     team = nothing,
 ) where {T<:_ExtraScalar}
-    return _general_gevd_workspace_result(a, b; sortby, scratch, team)
+    return _general_gevd_workspace_result(a, b; sortby, scratch, team, homogeneous)
 end
 LinearAlgebra.eigvals(
     a::FaerMatrix{T},
     b::FaerMatrix{T};
-    sortby = _eigensort,
+    homogeneous::Bool = false,
+    sortby = homogeneous ? nothing : _eigensort,
     scratch = nothing,
     team = nothing,
-) where {T<:_ExtraScalar} =
-    _general_gevd_workspace_result(a, b; vectors = false, sortby, scratch, team)
+) where {T<:_ExtraScalar} = _general_gevd_workspace_result(
+    a,
+    b;
+    vectors = false,
+    sortby,
+    scratch,
+    team,
+    homogeneous,
+)
 function LinearAlgebra.eigen(a::FaerMatrix{T}, b::FaerMatrix{S}; kwargs...) where {T,S}
     P=promote_type(T, S)
     return LinearAlgebra.eigen(_coerce(a, P), _coerce(b, P); kwargs...)

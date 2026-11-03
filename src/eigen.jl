@@ -86,24 +86,46 @@ LinearAlgebra.eigvals(
     _eigen(parent(a), 1; vectors = false, lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; vectors = false, sortby, scratch, team)
 
-"""Compute right generalized eigenvectors satisfying `A*V ≈ B*V*Diagonal(values)`."""
+"""
+    eigen(A::FaerMatrix, B::FaerMatrix; homogeneous=false, sortby, scratch, team)
+
+Compute right generalized eigenvectors. The default returns `GeneralizedEigen`
+with `A*V ≈ B*V*Diagonal(values)`. With `homogeneous=true`, return the named tuple
+`(α, β, vectors)`, retaining native numerator/denominator pairs and satisfying
+`A*V*Diagonal(β) ≈ B*V*Diagonal(α)`. This mode defaults to `sortby=nothing` and
+performs no eigenvalue division. Explicit `sortby` sorts by the quotient while
+retaining the homogeneous pairs. `eigvals(A,B; homogeneous=true)` returns `(α,β)`.
+Both modes accept reusable scratch and explicit teams. β=0 denotes an infinite
+eigenvalue when α≠0; α=β=0 is indeterminate. The homogeneous option applies to
+general native matrix pairs; bang routines retain their usual return types.
+"""
 function LinearAlgebra.eigen(
     a::FaerMatrix{Float64},
     b::FaerMatrix{Float64};
-    sortby = _eigensort,
+    homogeneous::Bool = false,
+    sortby = homogeneous ? nothing : _eigensort,
     scratch = nothing,
     team = nothing,
 )
-    return _general_gevd_workspace_result(a, b; sortby, scratch, team)
+    return _general_gevd_workspace_result(a, b; sortby, scratch, team, homogeneous)
 end
 function LinearAlgebra.eigvals(
     a::FaerMatrix{Float64},
     b::FaerMatrix{Float64};
-    sortby = _eigensort,
+    homogeneous::Bool = false,
+    sortby = homogeneous ? nothing : _eigensort,
     scratch = nothing,
     team = nothing,
 )
-    return _general_gevd_workspace_result(a, b; vectors = false, sortby, scratch, team)
+    return _general_gevd_workspace_result(
+        a,
+        b;
+        vectors = false,
+        sortby,
+        scratch,
+        team,
+        homogeneous,
+    )
 end
 function LinearAlgebra.eigen(
     a::_FaerSelfAdjoint,
