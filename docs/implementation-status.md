@@ -1738,7 +1738,7 @@ blocks passed. Method ambiguity detection, Julia formatting and
 `git diff --check` passed. The dependency checkout remains untouched at d5be1473.
 The full Issue #1 objective remains incomplete.
 
-### In progress: low-level auto/supernodal sparse QR ownership
+### Low-level auto/supernodal sparse QR ownership
 
 The active feature branch replaces opaque high-level QR owners with the public
 low-level SymbolicQr/QrRef API, an Arc-owned symbolic analysis and private numeric
@@ -1747,5 +1747,11 @@ copying clones numeric data and shares immutable analysis. This prepares the
 remaining workspace interface without inspecting private upstream storage.
 The existing sparse factor focused file passed 2,185 assertions after migration.
 An explicit `algorithm=:supernodal` selector and focused four-type CSC/CSR tests
-have been added; verification is ongoing. Caller-owned scratch and component
+pass 128 assertions. Caller-owned scratch and component
 extraction are not yet exposed, and Issues #1/#2 remain incomplete.
+
+Final validation: canonical Pkg.test passed 82,784 assertions across 62 files
+with 16 workers. All 10 native tests, 52 README blocks, method ambiguity detection,
+Julia/Rust formatting and git diff --check passed. The first full run mixed an
+updated test with already loaded code; the next identified a Matrix(Vector)
+conversion error in the new test. The final fixed-source run passed completely.
