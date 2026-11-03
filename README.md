@@ -710,3 +710,33 @@ a result sharing A as `B`. `balance_eigenvectors!` restores right eigenvector
 columns in place after staging the full result. Back-transforms do not normalize
 columns; invalid metadata, conversion failure or overflow leave the destination
 unchanged.
+
+### Hermitian tridiagonalization and band eigensolvers
+
+`hessenberg` on a native Hermitian (or real symmetric) matrix calls faer's
+self-adjoint tridiagonalization. `tridiagonalize` also accepts ordinary arrays:
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1 2; 1 3 1; 2 1 5])
+F = hessenberg(Hermitian(A))
+@assert F.H isa SymTridiagonal
+@assert Matrix(F) ≈ Matrix(A)
+E = eigen(F) # reuse the reduction and call the native tridiagonal eigensolver
+@assert Matrix(A) * Matrix(E.vectors) ≈ Matrix(E.vectors) * Diagonal(E.values)
+S = SymTridiagonal(FaerVector([1.0, 2, 3]), FaerVector([0.2, 0.4]))
+@assert eigvals(S) ≈ tridiagonal_eigvals([1.0, 2, 3], [0.2, 0.4])
+```
+
+`FaerTridiagonalization` owns explicit native `Q` and a real `SymTridiagonal` H;
+complex phases are absorbed into Q. `tridiagonalize!` and `hessenberg!` on native
+self-adjoint wrappers stage the reduction and then store explicit H in the input.
+They preserve the input on failure. Compact Householder storage stays internal.
+
+`tridiagonal_eigen(d,e)` and `tridiagonal_eigvals(d,e)` call faer's dedicated
+band kernels directly, treating e as the **subdiagonal** and `conj(e)` as the
+superdiagonal. Values are real and ascending; eigenvectors are native matrices.
+`recursion_threshold` selects QR versus divide-and-conquer for vectors, and
+`sortby` changes ordering. Eigenvalues-only calls use linear coefficient/work
+storage and do not form a dense matrix. All four native types, complex
+subdiagonals and scaling for extreme finite inputs are supported.

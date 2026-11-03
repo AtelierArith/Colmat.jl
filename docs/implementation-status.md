@@ -748,3 +748,35 @@ with ParallelTestRunner.jl and 16 workers**; balancing contributes 631 assertion
 The previous statistics follow-up regressions are included in this full run.
 All README Julia examples, method ambiguity checks, `cargo check`, Rust/Julia
 formatting and `git diff --check` pass. Dependency sources remain clean.
+
+### Native self-adjoint tridiagonalization and band EVD
+
+Connected faer's `tridiag_in_place` through `tridiagonalize`/`tridiagonalize!`
+and `hessenberg`/`hessenberg!` on native Hermitian and real symmetric wrappers.
+`FaerTridiagonalization` owns a real `SymTridiagonal` H and explicit native Q,
+with `A ≈ Q*H*Q'`. For complex inputs, off-diagonal phases are absorbed into Q.
+Blocksize can be selected, while compact reflector storage remains internal.
+The existing Householder sequence application is reused, including its native
+scalar-tail correction. Nonmutating inputs are preserved; destructive facades
+stage the full result before storing explicit H and retain independent Q.
+
+Connected `tridiagonal_self_adjoint_evd` through `tridiagonal_eigen` and
+`tridiagonal_eigvals`, eigen/eigvals on a native-vector SymTridiagonal, and
+reuse through eigen/eigvals on the new reduction. Hermitian band inputs accept
+real-valued diagonals and complex subdiagonals; upper entries are conjugates.
+All four scalar types/promotions, ordering and QR/divide-and-conquer threshold
+selection are supported. Coefficients/work remain O(n) for eigenvalues-only
+calls. Finite extreme inputs are safely scaled before native kernels and
+values restored afterward. Eigenvectors require O(n²) storage.
+
+The dedicated suite covers empty/singleton/blocked reductions, all scalar types,
+complex phase orientation, original-coordinate eigenpair residuals, orthogonality,
+native structured wrappers and views, selected triangles including ignored NaNs,
+in-place preservation, closed inputs, tiny/huge scales, both band EVD paths and
+a 50,000-dimensional eigenvalues-only problem. External scratch, direct compact
+reflector control and other remaining Issue #1 requirements remain incomplete.
+
+Validation: `Pkg.test()` passes **55,571 assertions across 32 independent files
+with ParallelTestRunner.jl and 16 workers**; the new suite contributes 1,621
+assertions. All README Julia examples, method ambiguity checks, `cargo check`,
+Rust/Julia formatting and `git diff --check` pass. Dependency sources are clean.

@@ -406,3 +406,12 @@ impl VectorOwner {
         })
     }
 }
+
+// Reuse scalar-tail correction when an external reduction supplies compact Q.
+pub(crate) fn apply_compact<T: ComplexField>(
+    basis: Mat<T>,
+    factor: Mat<T>,
+    out: MatMut<'_, T>,
+) -> Result<(), String> {
+    apply(&Sequence { basis, factor }, out, false, false, false)
+}

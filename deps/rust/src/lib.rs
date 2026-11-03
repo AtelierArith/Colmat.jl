@@ -1300,3 +1300,5 @@ pub mod operators;
 pub mod statistics;
 
 pub mod balance;
+
+pub mod tridiagonal;
