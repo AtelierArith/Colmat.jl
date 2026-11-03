@@ -1815,3 +1815,27 @@ Negative eigenvalues retain their sign. Copy/composition, mixed native scalar
 promotion, conjugation and transpose/adjoint do not recompute the decomposition
 or materialize a pseudoinverse. Iterative preconditioning requires a suitable
 square nonsingular action; CG additionally requires positive definiteness.
+
+### Native preconditioning from simplicial sparse LU
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = [0.0 2 1; 3 1 0; 0 1 4]
+A = FaerSparseMatrix(sparse(A0); format=:csr)
+F = lu(A; algorithm=:simplicial, ordering=[3, 1, 2])
+M = FaerLinearOperator(F)
+close(F)
+b = ones(3)
+@assert M * b ≈ A0 \ b
+@assert bicgstab(A, b; M=M).x ≈ A0 \ b
+close(M)
+close(A)
+```
+
+The inverse-action operator retains sparse CSC L/U and both permutations from
+the current native simplicial factorization. It never uses the source snapshot
+or a dense coefficient matrix, including when promoting factors for a mixed RHS.
+Normal/conjugate/transpose/adjoint application uses sparse triangular solves
+and an RHS-sized native scratch intermediate. Copies remain independent after
+the original factors are updated or closed. Auto/supernodal sparse LU
+preconditioners require their component interface and remain pending.
