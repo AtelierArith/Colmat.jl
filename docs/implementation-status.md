@@ -297,3 +297,41 @@ Validation: default `Pkg.test()` with ParallelTestRunner.jl passed **13027
 assertions across 17 independent files using 16 workers**. The new triangular
 file contributes 1479 assertions. All README Julia examples, JuliaFormatter,
 `cargo fmt --check`, and `git diff --check` pass. No dependency source changes.
+
+
+## Native sparse symbolic and numeric factorization checkpoint
+
+- `FaerSparseSymbolic` owns faer's SymbolicLu/SymbolicQr/SymbolicLlt plus a
+  canonical compressed pattern snapshot. `factorize(plan,A)` validates exact
+  stored structure before invoking numeric LU/QR/LLT. CSC/CSR storage and scalar
+  type can differ; stored-zero positions remain part of the pattern contract.
+- `lu`, `qr`, `cholesky`, `factorize` and sparse matrix backslash use these native
+  sparse factors. A separate `FaerSparseFactorization` owner avoids casting
+  sparse handles to the existing dense factor ABI.
+- Independent source snapshots and plan clones keep numeric factors usable
+  after original inputs/plans are changed or closed. Copy/deepcopy and close
+  are supported. Mixed precision solves reuse symbolic analysis and refactor
+  a sparse snapshot in the promoted scalar type.
+- Matrix/vector/owned/view RHS, LU/LLT transpose/adjoint solves, alias-safe
+  `ldiv!`, singular/nonpositive-pivot status and `check=false` are implemented.
+  Cholesky wrappers access only the selected triangle; ignored-half NaNs are
+  accepted. Native Hermitian/symmetric checks visit only stored entries.
+- `lu!(F,A)`, `qr!(F,A)` and `cholesky!(F,A)` reuse the analysis and replace numeric
+  factors transactionally, preserving F when a checked update fails. These
+  updates require matching scalar type and pattern; `factorize(plan,A)` allows
+  a different native scalar type.
+- Sparse QR currently handles full-column-rank square/tall inputs. faer does
+  not provide transpose QR solves through this interface. Wide/rank-deficient
+  solves, explicit L/U/Q/R/permutation access, independent ordering controls,
+  low-level sparse solver/scratch controls, and remaining Issue #1 categories
+  remain incomplete. QR success currently records construction success, not a
+  numerical rank guarantee.
+- Regressions cover 50,000-square sparse factors without dense coefficient
+  conversion, all four scalars and both storage formats, repeated numeric
+  updates, failed-update preservation, empty matrices and zero-column RHS.
+
+Validation: default `Pkg.test()` passed **15212 assertions across 18 independent
+files using ParallelTestRunner.jl and 16 worker processes**. The new sparse
+factor suite contributes 2185 assertions. README Julia examples pass, and
+method ambiguity detection is empty. JuliaFormatter, `cargo fmt --check` and
+`git diff --check` pass. The t4a-faer checkout remains unmodified.

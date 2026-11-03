@@ -851,3 +851,31 @@ impl SparseOwner {
         })
     }
 }
+
+#[julia]
+impl SparseOwner {
+    #[julia]
+    pub fn sparse_is_selfadjoint(&self, hermitian: bool) -> Result<bool, String> {
+        guarded(|| {
+            fn check<T: ComplexField>(a: &Storage<T>, hermitian: bool) -> Result<bool, String> {
+                let (m, n) = a.shape();
+                if m != n {
+                    return Ok(false);
+                }
+                for e in a.triplets() {
+                    let value = a.get(e.col, e.row)?;
+                    if e.val != if hermitian { conj(&value) } else { value } {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            match self.data()? {
+                SparseData::F32(a) => check(a, hermitian),
+                SparseData::F64(a) => check(a, hermitian),
+                SparseData::C32(a) => check(a, hermitian),
+                SparseData::C64(a) => check(a, hermitian),
+            }
+        })
+    }
+}

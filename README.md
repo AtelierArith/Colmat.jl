@@ -260,6 +260,42 @@ ldiv!(UnitLowerTriangular(A), b)
 @assert Vector(b) ≈ [3.0, 4.0]
 ```
 
+疎行列の `lu`・`cholesky`・`qr` は再利用可能な `FaerSparseFactorization` を返します。
+`A \ b` は正方行列なら LU、縦長なら QR による最小二乗求解を選びます。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sparse([4.0 1; 1 3]))
+b = FaerVector([1.0, 2.0])
+F = lu(A)
+@assert Vector(F \ b) ≈ [4.0 1; 1 3] \ Vector(b)
+H = cholesky(Hermitian(A, :L))
+@assert Vector(H \ b) ≈ Vector(F \ b)
+
+plan = FaerSparseSymbolic(FaerSparsity(A); kind=:lu)
+B = 2A
+G = factorize(plan, B)           # symbolic analysis を再利用
+lu!(F, B)                        # F の数値分解を更新
+@assert Vector(F \ b) ≈ Vector(G \ b)
+
+R = FaerSparseMatrix(sparse([1.0 0; 1 1; 0 1]))
+y = qr(R) \ [1.0, 2.0, 2.0]
+@assert y ≈ [1.0 0; 1 1; 0 1] \ [1.0, 2.0, 2.0]
+```
+
+`FaerSparseSymbolic` の `kind` は `:lu`・`:qr`・`:cholesky` です。
+`factorize(plan, A)` と `lu!(F,A)`・`qr!(F,A)`・`cholesky!(F,A)` では、
+格納ゼロを含むパターンが完全に一致する必要があります。CSC／CSR と数値型は
+変更できますが、更新先の分解を渡す `!` 形式では数値型を維持します。
+分解は元の行列と plan に依存せず使え、`close` にも対応します。
+混合精度の右辺では、内部の疎スナップショットを昇格し、symbolic analysis を
+再利用して数値分解を作り直します。`ldiv!` は一時結果を経由して更新します。
+LU・Cholesky は転置／随伴の求解にも対応します。
+疎 QR は現在、列フルランクで行数が列数以上の行列が対象です。
+横長・ランク落ちへの対応、QR の転置／随伴求解、分解要素の取り出し、
+ordering の独立指定・低水準制御は引き続き実装対象です。
+
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に
 影響されません。`FaerSparseMatrix{T}(P)` は Boolean パターンを数値の 1 に変換し、
@@ -268,7 +304,7 @@ ldiv!(UnitLowerTriangular(A), b)
 
 `rowvals`・`getcolptr` は CSC のみ対応し、返す添字配列は独立したコピーです。
 CSR の行ポインタ・列添字には `compressed_storage` を使ってください。
-疎分解・ordering は引き続き実装対象です。汎用 broadcast/map は
+疎分解の残りの機能・ordering は引き続き実装対象です。汎用 broadcast/map は
 専用の疎 native 経路ではなく、Julia の汎用処理や密配列の結果になる場合があります。
 
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の

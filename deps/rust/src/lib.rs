@@ -1284,3 +1284,5 @@ pub mod qz;
 pub mod sparse;
 
 pub mod sparsity;
+
+pub mod sparse_factors;
