@@ -1272,3 +1272,7 @@ impl OwnedMatrix {
 pub mod collections;
 
 pub mod views;
+
+pub mod permutations;
+
+pub mod pseudoinverse;

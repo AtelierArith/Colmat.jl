@@ -124,3 +124,35 @@ combinations are not finished. Permutations, extended precision/custom fields,
 pseudoinverse/rank/condition interfaces, Schur/QZ, sparse, matrix-free,
 destructive/scratch/reflector/rotation APIs, teams, statistics, random and NPY
 remain. This checkpoint does not complete Issue #1.
+
+## Native permutations and pseudoinverse checkpoint
+
+- `FaerPermutation` owns a validated faer `Perm<usize>`, with Julia 1-based
+  indices, independent clone/inverse/composition and explicit lifecycle. Gather
+  semantics match `A[p,:]` and `A[:,p]`; the composition `p*q` has indices
+  `Vector(p)[Vector(q)]`. Factor permutations can be copied into this owner.
+- Native `permute_rows`/`permute_cols`, their mutating variants and row/column
+  swaps support all four matrix scalar types. Matrix owners retain their shape
+  and existing views. View destinations use staged independent native results.
+  Native vector `permute!`/`invpermute!` and row-column operations are included.
+- Native SVD pseudoinverse reconstruction now returns Rust-owned matrices for
+  `pinv`, including absolute/relative cutoffs, tall/wide/empty matrices and
+  rank-deficient inputs. Hermitian and real Symmetric wrappers use native
+  self-adjoint EVD pseudoinverse reconstruction, honoring the selected triangle
+  and ignoring imaginary Hermitian diagonals.
+- Dedicated `rank` and `cond` interfaces use native spectra and factors;
+  condition numbers support p=1/2/Inf. Typed matrix operator 1/Inf norms now
+  reduce complex magnitudes directly in Rust. Julia's min-dimension default
+  tolerance is used rather than faer's different max-dimension default.
+- Float32 cutoff handling preserves comparison against Float64 tolerances,
+  avoiding upward rounding that could incorrectly discard a native value.
+
+Validation: `Pkg.test(; julia_args=["--threads=2"])` passes **3973 tests**.
+All README Julia examples, method ambiguity checks and `cargo fmt --check`
+pass. Closed empty matrices also reject operator-norm access in all four types.
+Unfinished scope still includes specialized diagonal/structured products,
+all row/column combinations, extended precision/custom scalar fields,
+Schur/QZ, sparse storage and solvers, matrix-free algorithms, destructive
+factorization and caller-owned scratch, reflectors/rotations, thread teams,
+statistics, random generation and NPY. Advanced factor and algorithm options
+remain subject to the frozen 76-row inventory; this is not issue completion.

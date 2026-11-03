@@ -92,6 +92,35 @@ close(V)                        # A 自体は閉じない
 ビューへの `copyto!` は入力を一時コピーし、代入先と重なる場合も値を保ちます。
 `FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
 
+置換も Rust に保持できます。添字は Julia と同じ 1-based です。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix([1.0 2 3; 4 5 6])
+p = FaerPermutation([2, 1])
+q = FaerPermutation([3, 1, 2])
+@assert Matrix(A[p, q]) == Matrix(A)[Vector(p), Vector(q)]
+permute_rows!(A, p)
+permute_cols!(A, q)
+swap_cols!(A, 1, 3)
+@assert Vector(p * invperm(p)) == [1, 2]
+
+B = FaerMatrix([1.0 2; 2 4; 3 6])
+P = pinv(B; rtol=1e-12)
+@assert Matrix(B * P * B) ≈ Matrix(B)
+@assert rank(B; rtol=1e-12) == 1
+@assert cond(FaerMatrix([4.0 1; 1 3]), 1) ≈ cond([4.0 1; 1 3], 1)
+```
+
+`permute_rows` / `permute_cols` は独立した行列を返し、`!` 付きの関数は
+入力を更新します。置換・交換は形状を変えないため、既存のビューも有効です。
+`p * q` の添字列は `Vector(p)[Vector(q)]` です。`permute!(v,p)` /
+`invpermute!(v,p)` で所有ベクトルにも適用できます。
+`pinv` は faer の SVD と疑似逆再構成を使い、Hermitian・実 Symmetric では
+自己随伴固有値分解を使います。`atol` / `rtol` は Julia と同じ判定式を使い、
+省略時の `rtol` は `min(size(A)...)*eps` です。`cond` は 1・2・Inf ノルムに対応します。
+
 密行列の分解は Rust に保持して再利用できます。
 
 ```julia

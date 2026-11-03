@@ -45,7 +45,10 @@ LinearAlgebra.ishermitian(a::FaerMatrix{Float64}) = LinearAlgebra.issymmetric(a)
 function LinearAlgebra.opnorm(a::FaerMatrix{Float64}, p::Real = 2)
     p == 1 && return _native_call(RustCrate.reduction, a, Int32(9))
     p == Inf && return _native_call(RustCrate.reduction, a, Int32(10))
-    p == 2 && return isempty(a) ? 0.0 : maximum(LinearAlgebra.svdvals(a))
+    if p==2
+        values=LinearAlgebra.svdvals(a)
+        return isempty(values) ? 0.0 : maximum(values)
+    end
     throw(ArgumentError("operator norm supports p=1, 2 or Inf"))
 end
 function LinearAlgebra.kron(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})

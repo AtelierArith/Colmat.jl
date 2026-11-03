@@ -64,3 +64,6 @@ include("storage.jl")
 
 include("collections.jl")
 include("views.jl")
+
+include("permutations.jl")
+include("pseudoinverse.jl")

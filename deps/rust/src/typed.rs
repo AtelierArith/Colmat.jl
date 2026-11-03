@@ -46,7 +46,7 @@ macro_rules! binary {
         }
     };
 }
-fn finite<T: ComplexField>(a: MatRef<'_, T>) -> Result<(), String> {
+pub(crate) fn finite<T: ComplexField>(a: MatRef<'_, T>) -> Result<(), String> {
     if !a.is_all_finite() {
         return Err("input must be finite".into());
     }
@@ -808,7 +808,10 @@ pub(crate) unsafe fn inner_output<T: ComplexField>(
     out.cast::<T>().write(value);
     Ok(())
 }
-fn hermitian_copy<T: ComplexField>(a: MatRef<'_, T>, lower: bool) -> Result<Mat<T>, String> {
+pub(crate) fn hermitian_copy<T: ComplexField>(
+    a: MatRef<'_, T>,
+    lower: bool,
+) -> Result<Mat<T>, String> {
     if a.nrows() != a.ncols() {
         return Err("self-adjoint input must be square".into());
     }
