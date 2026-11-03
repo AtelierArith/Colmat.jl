@@ -76,10 +76,13 @@ LinearAlgebra.eigvals(
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_FaerSelfAdjoint;
+    native::Bool = false,
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
 ) =
+    native ?
+    _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
     isnothing(scratch) && isnothing(team) ?
     _eigen(parent(a), 1; lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; sortby, scratch, team)

@@ -1378,3 +1378,43 @@ above; simplicial sparse LU adds these conversions and typed sparse CSC output.
 Numeric conversion follows Julia rules, including errors for nonrepresentable
 complex-to-real values. Conversion temporaries are closed on errors. Reconstructed
 owners remain valid after the original factors are updated or closed.
+
+### Reusing Rust-owned spectral factors
+
+```julia
+using Colmat, LinearAlgebra
+A0 = [1.0 2; 3 4; 5 6]
+A = FaerMatrix(A0)
+F = svd(A; native=true)
+close(A)
+P = pinv(F)
+@assert A0 * Matrix(P) * A0 ≈ A0
+@assert Matrix(reconstruct(F)) ≈ A0
+U, S, V = F
+close(F)
+@assert Matrix(U) * Diagonal(S) * Matrix(V)' ≈ A0
+H0 = [4.0 1; 1 3]
+E = eigen(Hermitian(FaerMatrix(H0)); native=true)
+@assert Matrix(pinv(E; atol=0, rtol=1e-12)) ≈ inv(H0)
+close(E)
+close(U)
+close(V)
+close(P)
+```
+
+`native=true` retains actual faer `Svd` / `SelfAdjointEigen` objects in a
+`FaerSpectralFactor`, across four scalar types. Ordinary calls keep their current
+Julia result types. Native SVD supports thin/full and rectangular/empty shapes;
+native self-adjoint EVD honors each selected triangle and `sortby`. Real
+`Symmetric` wrappers are supported too. Construction accepts `team=` and uses
+backend-owned workspace; caller `scratch=` is not supported in this mode.
+
+`pinv(F; atol, rtol, team)` reuses stored factors through faer's pseudoinverse
+reconstruction kernel. `reconstruct(F; team)`, `Matrix(F)`, typed conversions,
+`rank`, `svdvals` or self-adjoint `eigvals/eigvecs` also reuse the factorization.
+`copy/deepcopy` create independent native owners and `close` releases the retained
+factors immediately. Components are independent copies: U/V/vectors are native
+matrices, S/values are real Julia vectors. Eigen sorting applies a common
+permutation to values/vectors. Extracted components survive closing F; modifying
+them does not update F. General EVD native ownership, native bang construction
+and caller-controlled spectral-owner workspace remain unexposed.

@@ -229,9 +229,11 @@ keywords are not supported.
 function LinearAlgebra.svd(
     a::FaerMatrix{Float64};
     full::Bool = false,
+    native::Bool = false,
     scratch = nothing,
     team = nothing,
 )
+    native && return _owned_spectral(a; full, scratch, team)
     (!isnothing(scratch) || !isnothing(team)) &&
         return _svd_workspace_result(a; full, scratch, team)
     m, n = size(a)

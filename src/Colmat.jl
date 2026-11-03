@@ -7,7 +7,8 @@ import Statistics
 import Random
 using LinearAlgebra: SVD
 
-export reconstruct,
+export FaerSpectralFactor,
+    reconstruct,
     FaerScratch,
     scratch_capacity,
     scratch_requirements,
@@ -232,5 +233,6 @@ include("bidiagonal.jl")
 include("random.jl")
 include("npy.jl")
 include("reconstruction.jl")
+include("spectral_factors.jl")
 
 end

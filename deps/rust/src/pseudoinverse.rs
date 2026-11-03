@@ -7,7 +7,7 @@ use rustcall_julia_macros::julia;
 // Compare native singular/eigenvalues against the same promoted cutoff as
 // Julia. Rounding a Float64 threshold upward to Float32 would incorrectly
 // discard a Float32 singular value just above that threshold.
-trait ToleranceReal: Sized {
+pub(crate) trait ToleranceReal: Sized {
     fn cutoff(self, atol: f64, rtol: f64, relative_f32: bool) -> Self;
 }
 impl ToleranceReal for f64 {

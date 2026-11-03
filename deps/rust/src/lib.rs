@@ -1346,3 +1346,5 @@ pub mod general_evd_workspace;
 pub mod selfadj_gevd_workspace;
 
 pub mod general_gevd_workspace;
+
+pub mod spectral_factors;

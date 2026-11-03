@@ -1549,3 +1549,49 @@ closed-owner independence, conversion errors and pair shape guards. Method
 ambiguity checks pass. All six native tests and 47 README Julia blocks pass.
 Julia/Rust formatting and git diff --check pass. The frozen inventory retains
 76 rows and dependency sources are unchanged. Issue #1 remains incomplete.
+
+## Retained native SVD / self-adjoint EVD and saved-factor pseudoinverses
+
+`svd(A;native=true)` and `eigen(Hermitian(A);native=true)` now return a
+`FaerSpectralFactor` containing actual Rust faer Svd/SelfAdjointEigen objects,
+not just copied Julia components or an input snapshot. Four scalar types,
+thin/full rectangular and empty SVD, selected triangles, real Symmetric
+wrappers, EVD sorting and explicit teams are supported. Ordinary calls retain
+their prior Julia result types. Construction uses backend-owned workspace;
+caller scratch and native bang construction remain unexposed.
+
+`pinv(F;atol,rtol,team)` calls the public pseudoinverse-from-saved-factors kernel
+without decomposing again. Reconstruction uses the retained object's
+DenseSolveCore implementation. Matrix/native typed conversions, rank,
+svdvals or self-adjoint eigvals/eigvecs reuse the same owner. Component getters
+return independent native matrices and real Julia vectors. Eigen order is a
+common values/vectors permutation; pinv/reconstruction are order invariant.
+Component iteration, copy/deepcopy, issuccess and idempotent immediate native
+close are supported. Extracted parts and cloned factors survive source/owner/
+team closure; changing a component copy does not mutate the retained factors.
+
+Native dtype/kind/length checks precede pointer writes. Shape checks guard
+matrix results. Native unit coverage rejects wrong dtype/length and closed
+owners without modifying output sentinels, using sufficiently sized/aligned
+buffers so validation failures do not rely on undefined behavior. Another
+native test mutates the source after factorization and verifies reconstruction
+and thresholded pseudoinverse still use the saved factors.
+
+Float32 cutoff promotion reuses the existing downward-rounded cutoff helper.
+A boundary test initially compared against an input eigenvalue that the EVD
+rounded by one ulp. The final test positions the Float64 threshold immediately
+below the actual saved value, isolating cutoff conversion from decomposition
+rounding; the pseudoinverse correctly follows saved singular/eigenvalues.
+No new upstream RustCall or faer defect was established in this phase.
+
+Validation: canonical `Pkg.test(;allow_reresolve=false)` passes **75,626
+assertions across 56 files**, using ParallelTestRunner 2.10.0 with 16 workers
+on Julia 1.13.3 / RustCall 0.9.2. The new file contributes 1,184 assertions for
+all four types, thin/full empty/tall/wide SVD, selected triangles, native-owner
+reuse, Moore-Penrose identities, negative/zero eigenvalues, tolerances, sorting,
+copy/deepcopy, extracted component independence, team lifetime, shape/owner
+checks, Float32 boundary cutoffs, Symmetric wrappers and iteration. All eight
+native tests and all 48 README Julia blocks pass. Cargo check, Julia/Rust
+formatting and git diff --check pass. The frozen 76-row inventory and dependency
+sources are unchanged. Remaining spectral/workspace controls and the full
+Issue #1 objective are still incomplete.

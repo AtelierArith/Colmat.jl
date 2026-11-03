@@ -94,7 +94,7 @@ end
 
 Reconstruct independent native matrices from owned factors. Dense LU/QR/
 Cholesky/LDLT, Schur/Hessenberg and tridiagonal/bidiagonal reductions return a
-`FaerMatrix`. Sparse Cholesky and explicit simplicial LU return a
+`FaerMatrix`; retained spectral factors also support reconstruction. Sparse Cholesky and explicit simplicial LU return a
 `FaerSparseMatrix` in original row/column order. Generalized Schur/Hessenberg
 return `(A=...,B=...)` with `A=Q*S*Z'` (or `Q*H*Z'`) and `B=Q*T*Z'`.
 Inputs and factors are preserved; returned owners survive closing F.

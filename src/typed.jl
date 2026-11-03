@@ -213,9 +213,11 @@ LinearAlgebra.mul!(c::FaerMatrix, a::FaerMatrix, b::FaerMatrix) =
 function LinearAlgebra.svd(
     a::FaerMatrix{T};
     full::Bool = false,
+    native::Bool = false,
     scratch = nothing,
     team = nothing,
 ) where {T<:_ExtraScalar}
+    native && return _owned_spectral(a; full, scratch, team)
     (!isnothing(scratch) || !isnothing(team)) &&
         return _svd_workspace_result(a; full, scratch, team)
     m, n=size(a)
@@ -675,10 +677,13 @@ LinearAlgebra.eigvals(
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_ExtraSelfAdjoint;
+    native::Bool = false,
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
 ) =
+    native ?
+    _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
     isnothing(scratch) && isnothing(team) ?
     _typed_eigen(parent(a); hermitian = true, lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; sortby, scratch, team)
