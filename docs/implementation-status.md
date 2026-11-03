@@ -1061,3 +1061,36 @@ QR's unsupported selection remains rejected. Four native Rust component tests,
 all 33 README Julia blocks, method ambiguity checks, cargo check, Julia/Rust
 formatting and git diff --check pass. Dependency sources remain unchanged.
 Other Issue #1 requirements remain open.
+
+### Caller-owned reusable parallel teams
+
+Enabled faer's threadteam feature and added `FaerTeam(width)` over a retained
+threadteam 0.3 pool/reservation. The native owner lends a Par::Team only during
+each execution, preserving the exclusive token's lifetime; width one uses
+Par::Seq. Close immediately releases the reservation, GC owns the handle, and
+the do-block form closes on success/error. Copy/deepcopy build independent
+reservations rather than cloning a borrowed authority. Calls and lifecycle are
+serialized with the existing matrix owner lock.
+
+`team_mul(team,A,B)` and `mul!(dest,team,A,B[,alpha,beta])` use this authority
+for native dense multiplication, with four types, promotion, conversion/view/
+transpose snapshots, independent output, alias-safe writes and ignored zero
+coefficients. A Rust test directly dispatches onto distinct caller/worker thread
+IDs twice using the same reservation; Julia also verifies a 512×512 blocked
+product. This proves actual worker dispatch, without making speedup claims.
+
+Only the explicit multiplication entry points use teams so far. Other numeric
+methods remain sequential; broader team integration, external pool borrowing
+and the full wait/cost tuning API remain part of Issue #1. Small workloads may
+use a narrower internal region. Snapshot/output allocations are still present.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **67,557 assertions across
+42 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. Team tests contribute 313 assertions for width one/two, repeated
+calls, four types, empty/rectangular/blocked products, promotion, transposes,
+views, coefficients, aliasing, task calls, copies, closed/invalid owners and
+exception cleanup. The native team test verifies two distinct thread IDs on
+two calls through one reservation. All 34 README Julia blocks, method ambiguity
+checks, cargo check, Julia/Rust formatting and git diff --check pass. The faer
+checkout remains unchanged. Broader team connections and the other Issue #1
+requirements remain open.

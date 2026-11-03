@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 rustcall_julia_macros = "0.6"
 rand = "0.9.2"
 rand_distr = "0.5.1"
+threadteam = { version = "0.3.0", default-features = false, features = ["parallel"] }
 npyz = { version = "0.8.4", default-features = false }
 num-complex = "0.4"
-faer = { package = "t4a-faer", path = "../t4a-faer/faer", default-features = false, features = ["std", "linalg", "rayon", "rand", "npy"] }
+faer = { package = "t4a-faer", path = "../t4a-faer/faer", default-features = false, features = ["std", "linalg", "rayon", "rand", "npy", "threadteam"] }

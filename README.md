@@ -958,3 +958,28 @@ The default `algorithm=:auto` keeps the existing high-level faer factorization
 and its fill-reducing selection. Its opaque factor storage does not expose
 these component getters through the adapter yet; select `:simplicial` when
 components are needed. Sparse component extraction sorts/copies entries.
+
+### Caller-owned parallel teams
+
+```julia
+using Colmat, LinearAlgebra
+FaerTeam(2) do team
+    A = FaerMatrix([1.0 2; 3 4])
+    B = team_mul(team, A, A)
+    @assert Matrix(B) == [7.0 10; 15 22]
+    mul!(A, team, A, A, 2.0, 0.0)
+    @assert Matrix(A) == 2Matrix(B)
+end # releases the reservation, including when the body throws
+```
+
+`FaerTeam(width)` retains a reusable native pool/team. Width includes the caller
+and `width-1` reserved workers; width one is sequential. Each multiplication
+borrows a `Par::Team` only during the native call. Four scalar types, promotion,
+views, transposes, coefficients and aliased destinations are supported. Copies
+reserve independent teams. Close teams promptly; GC also owns their handles.
+
+Only `team_mul` and `mul!(dest, team, A, B[, alpha, beta])` currently use this
+explicit team. Other routines retain sequential execution. Calls are serialized
+by Colmat's owner lock, and faer may choose a narrower region for small work.
+The API controls worker reservations; it does not promise a speedup for every
+matrix size. Inputs needing conversion and destination writes use temporaries.

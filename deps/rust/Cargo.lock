@@ -94,6 +94,7 @@ dependencies = [
  "rand_distr",
  "rustcall_julia_macros",
  "t4a-faer",
+ "threadteam",
 ]
 
 [[package]]
@@ -1045,6 +1046,7 @@ dependencies = [
  "t4a-faer-traits",
  "t4a-gemm",
  "t4a-private-gemm-x86",
+ "threadteam",
 ]
 
 [[package]]
@@ -1224,6 +1226,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "threadteam"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5dd6b40e18f897d036c79963512a194e6f8dbe76e29386ca4ccf6c9d1663f5c"
+dependencies = [
+ "libc",
+ "loom",
+ "rayon",
+ "thiserror",
 ]
 
 [[package]]

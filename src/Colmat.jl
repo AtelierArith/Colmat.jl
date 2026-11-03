@@ -7,7 +7,9 @@ import Statistics
 import Random
 using LinearAlgebra: SVD
 
-export partial_eigen,
+export FaerTeam,
+    team_mul,
+    partial_eigen,
     partial_self_adjoint_eigen,
     partial_svd,
     FaerLinearOperator,
@@ -209,6 +211,7 @@ include("partial_spectra.jl")
 include("structured_products.jl")
 include("pivoted_cholesky.jl")
 include("destructive.jl")
+include("teams.jl")
 include("jacobi.jl")
 include("statistics.jl")
 include("balance.jl")
