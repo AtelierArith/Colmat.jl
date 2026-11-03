@@ -1490,6 +1490,35 @@ copy and numeric updates use retained factors. `reconstruct(F)`, `Matrix(F)` and
 `FaerMatrix(F)` recover the original column order without using the stored input
 snapshot. Four scalar types and CSC/CSR inputs are supported. Ordering is identity
 by default, or an explicit permutation; COLAMD/AMD controls, full Q,
-rank-deficient minimum-norm solves, transpose/adjoint solves, and caller scratch
+rank-deficient minimum-norm solves and caller scratch
 are not exposed for this path. The default `algorithm=:auto` keeps the existing
 faer solver; its components remain unavailable.
+
+### Minimum-norm solves with sparse QR transpose/adjoint
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[1 0; 2im 3; 0 4]
+A = FaerSparseMatrix(sparse(A0))
+F = qr(A; algorithm=:simplicial, ordering=[2, 1])
+B = ones(ComplexF64, 2, 2)
+X = adjoint(F) \ B
+Y = transpose(F) \ B
+@assert Matrix(X) ≈ pinv(A0') * B
+@assert Matrix(Y) ≈ pinv(transpose(A0)) * B
+close(X)
+close(Y)
+close(F)
+close(A)
+```
+
+For explicit simplicial full-column-rank QR, `transpose(F) \ B` and
+`adjoint(F) \ B` return the minimum-norm solution of the corresponding
+underdetermined system. They reuse the native R/Householder factors and column
+permutation, without constructing Q or a pseudoinverse. Three-argument `ldiv!`
+supports rectangular factors; two-argument `ldiv!` requires square factors.
+Native work arrays and a transposed sparse R allocate per solve. A zero R
+diagonal is rejected; rank thresholds and rank-deficient solves remain
+unavailable. Mixed-type RHS follow the existing sparse-factor promotion path,
+which refactorizes the retained input snapshot in the promoted type. The auto
+QR path still rejects transpose/adjoint solves.

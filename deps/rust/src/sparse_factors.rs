@@ -382,7 +382,7 @@ fn solve<T: ComplexField>(
         }
         Numeric::SimplicialQr(f) => {
             if trans {
-                return Err("transpose/adjoint sparse QR solve is not provided".into());
+                return f.solve_transpose(b, adj);
             }
             f.solve(b)?
         }
@@ -816,6 +816,22 @@ impl TypedMatrix {
                 _ => return Err("QR reconstruction requires simplicial factors".into()),
             });
             Ok(())
+        })
+    }
+}
+
+#[julia]
+impl SparseFactor {
+    #[julia]
+    pub fn sparse_qr_has_components(&self) -> Result<bool, String> {
+        guarded(|| {
+            Ok(matches!(
+                self.factors()?,
+                Factors::F32(Numeric::SimplicialQr(_))
+                    | Factors::F64(Numeric::SimplicialQr(_))
+                    | Factors::C32(Numeric::SimplicialQr(_))
+                    | Factors::C64(Numeric::SimplicialQr(_))
+            ))
         })
     }
 }

@@ -27,7 +27,9 @@ end
 Reusable Rust-owned sparse factors returned by `lu`, `qr`, `cholesky` and
 `LinearAlgebra.factorize(plan,A)` for FaerSparseMatrix. `F \\ B` reuses numeric factors; QR
 solves full-column-rank least-squares problems. LU/Cholesky also support
-transpose/adjoint solves. Inputs and symbolic plans may be closed independently.
+transpose/adjoint solves. Explicit simplicial QR supports minimum-norm
+transpose/adjoint solves for full-column-rank factors. Inputs and symbolic plans
+may be closed independently.
 Mixed precision RHS are handled by reusing symbolic analysis to factor a sparse
 snapshot in the promoted type. `ldiv!` stages the result before overwriting.
 Sparse Cholesky additionally exposes independent sparse CSC `F.L` and `F.U`,
@@ -298,7 +300,12 @@ function _sparse_factor_solve(
         )
         K===:qr &&
             trans &&
-            throw(ArgumentError("faer does not provide transpose/adjoint sparse QR solves"))
+            !_native_call(RustCrate.sparse_qr_has_components, f) &&
+            throw(
+                ArgumentError(
+                    "transpose/adjoint sparse QR solves require algorithm=:simplicial",
+                ),
+            )
         P=promote_type(T, _sparse_input_type(eltype(b)))
         if P!==T
             promoted=LinearAlgebra.factorize(f.plan, FaerSparseMatrix{P}(f.source))

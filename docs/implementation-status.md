@@ -1681,3 +1681,31 @@ was updated to verify the newly supported simplicial analysis. All nine native
 Rust tests and 50 README Julia blocks passed; method ambiguity detection,
 Julia/Rust formatting and `git diff --check` passed. Both inventories retain 76
 feature rows. The dependency checkout remains clean at d5be1473.
+
+### Sparse simplicial QR transpose and adjoint solves
+
+Explicit simplicial full-column-rank QR now solves transposed/adjoint systems
+with the minimum-norm solution. It gathers the RHS by the retained column
+permutation, solves the sparse transposed/conjugated R triangular system and
+applies the saved Householder reflectors in reverse. Thin Q extraction shares
+the same native reflector application. The solve does not construct Q, a full
+pseudoinverse or a new factorization when scalar types match. The underdetermined
+output has m rows for an original m-by-n QR. A zero R diagonal is rejected.
+Three-argument `ldiv!` supports rectangular factors and two-argument mutation
+requires square factors. Auto QR still rejects transpose/adjoint operations.
+
+The new file passes 1,179 focused assertions across four scalar types, CSC/CSR,
+identity/custom order, square/tall/empty dimensions, complex transpose versus
+adjoint, vector/matrix/empty RHS, mutation, RHS scalar promotions, owner closure,
+source snapshot mutation and singular rejection. All 1,078 existing sparse QR
+component assertions and ambiguity detection pass. Mixed scalar solves continue
+to refactor the retained source snapshot using the existing sparse promotion
+path; native mixed-factor reuse, rank thresholds, rank-deficient solves and
+caller scratch remain unimplemented.
+
+Final validation on Julia 1.13.3 / RustCall 0.9.2: canonical
+`Pkg.test(; allow_reresolve=false)` passed 81,352 assertions across 60 files with
+16 ParallelTestRunner workers. All nine native Rust tests and all 51 README
+Julia blocks passed. Method ambiguity detection, Julia/Rust formatting and
+`git diff --check` passed. The dependency checkout remains untouched. The full
+Issue #1 objective remains incomplete.

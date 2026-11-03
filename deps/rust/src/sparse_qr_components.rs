@@ -136,19 +136,20 @@ impl<T: ComplexField> Factors<T> {
             copy(&out[(inv[i], j)])
         }))
     }
-    pub fn q(&self) -> Mat<T> {
+    fn apply_q(&self, b: MatRef<'_, T>, conjugated: bool) -> Mat<T> {
         use faer::traits::math_utils::{add, conj, mul, mul_real, real, recip, sub};
         let s = &self.plan.symbolic;
         let (m, n) = (s.nrows(), s.ncols());
+        assert_eq!(b.nrows(), n);
         let h = self.h.as_ref();
-        let mut q = Mat::zeros(m, n);
+        let mut q = Mat::zeros(m, b.ncols());
         for j in 0..n {
             if let Some(&pivot) = h.row_idx_of_col_raw(j).first() {
-                q[(pivot, j)] = one::<T>();
+                for k in 0..b.ncols() {
+                    q[(pivot, k)] = copy(&b[(j, k)]);
+                }
             }
         }
-        // Reverse the same Hermitian reflectors used by faer's reduced Q^H
-        // application, starting at its pivot-row embedding. Storage is m*n.
         for j in (0..n).rev() {
             let rows = h.row_idx_of_col_raw(j);
             let vals = h.val_of_col(j);
@@ -156,18 +157,58 @@ impl<T: ComplexField> Factors<T> {
                 continue;
             }
             let scale = recip(&real(&self.tau[j]));
-            for k in 0..n {
+            for k in 0..b.ncols() {
                 let mut dot = zero::<T>();
                 for (&i, v) in rows.iter().zip(vals) {
-                    dot = add(&dot, &mul(&conj(v), &q[(i, k)]));
+                    let v = if conjugated { copy(v) } else { conj(v) };
+                    dot = add(&dot, &mul(&v, &q[(i, k)]));
                 }
                 dot = mul_real(&dot, &scale);
                 for (&i, v) in rows.iter().zip(vals) {
-                    q[(i, k)] = sub(&q[(i, k)], &mul(v, &dot));
+                    let v = if conjugated { conj(v) } else { copy(v) };
+                    q[(i, k)] = sub(&q[(i, k)], &mul(&v, &dot));
                 }
             }
         }
         q
+    }
+    pub fn q(&self) -> Mat<T> {
+        let n = self.plan.symbolic.ncols();
+        let identity = Mat::from_fn(n, n, |i, j| if i == j { one::<T>() } else { zero::<T>() });
+        self.apply_q(identity.as_ref(), false)
+    }
+    pub fn solve_transpose(&self, b: MatRef<'_, T>, adjoint: bool) -> Result<Mat<T>, String> {
+        crate::typed::finite(b)?;
+        let n = self.plan.symbolic.ncols();
+        if b.nrows() != n {
+            return Err("transposed sparse QR RHS shape mismatch".into());
+        }
+        let (p, _) = self.plan.cols.as_ref().arrays();
+        let mut z = Mat::from_fn(n, b.ncols(), |i, j| copy(&b[(p[i], j)]));
+        let rt = self
+            .r
+            .transpose()
+            .to_col_major()
+            .map_err(|e| format!("{e:?}"))?;
+        for j in 0..n {
+            let r = rt.as_ref();
+            let diagonal = r
+                .row_idx_of_col_raw(j)
+                .iter()
+                .zip(r.val_of_col(j))
+                .find(|(&row, _)| row == j)
+                .map(|(_, v)| v);
+            if diagonal.is_none_or(|v| *v == zero::<T>()) {
+                return Err("transposed sparse QR solve requires full column rank".into());
+            }
+        }
+        faer::sparse::linalg::triangular_solve::solve_lower_triangular_in_place(
+            rt.as_ref(),
+            if adjoint { Conj::Yes } else { Conj::No },
+            z.as_mut(),
+            Par::Seq,
+        );
+        Ok(self.apply_q(z.as_ref(), !adjoint))
     }
     pub fn reconstruct(&self) -> Mat<T> {
         use faer::traits::math_utils::{add, mul};
