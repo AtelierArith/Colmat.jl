@@ -967,3 +967,30 @@ input aliasing, reversed views, mixed precision, closed owners and invalid shape
 All 30 README Julia blocks, method ambiguity checks, cargo check, Julia/Rust
 formatting and git diff --check pass. Dependency sources remain unchanged.
 Remaining Issue #1 categories and limitations listed above remain open.
+
+### Pivoted Cholesky LLT
+
+Added `cholesky(A, RowMaximum(); tol, check)` for native matrices and their
+Hermitian/real Symmetric wrappers. Standard `CholeskyPivoted` holds independently
+owned FaerMatrix factors, so L/U/p/P/rank access follows Julia conventions.
+Selected triangles are materialized without reading poisoned unused entries.
+Rank-deficient factors are returned with check=false; full-rank checks protect
+solves and inverses. Copy owns separate factor storage; close invalidates it.
+
+The negative-tolerance automatic-threshold path calls faer's public pivoted LLT
+factor kernel. Its fixed threshold cannot express Julia's nonnegative absolute
+tol, so that case uses a complete diagonal-pivot implementation in the Rust
+adapter. The Julia default remains tol=0. Both paths use faer's native pivoted
+solve, inverse and reconstruct kernels, with validated permutations and promoted
+primitive snapshots. Output triangles are completed by conjugation. Explicit
+workspaces and snapshots are allocated; block_size, destructive entry points
+and caller-owned scratch remain unexposed.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **66,393 assertions across
+39 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. Pivoted Cholesky contributes 419 assertions across four types,
+automatic/zero/positive tolerances, empty/full/rank-deficient cases, selected
+triangles with ignored NaNs, permutation reconstruction, native solve/inverse,
+copy/close, source independence and invalid inputs. All 31 README Julia blocks,
+method ambiguity checks, cargo check, Julia/Rust formatting and git diff --check
+pass. Dependency sources remain unchanged. Other Issue #1 work remains open.

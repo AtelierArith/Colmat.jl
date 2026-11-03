@@ -1300,3 +1300,5 @@ pub mod random;
 pub mod npy;
 
 pub mod structured_products;
+
+pub mod pivoted_cholesky;

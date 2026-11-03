@@ -880,3 +880,27 @@ products. Native destination `mul!` supports coefficients and aliasing. Operand
 snapshots and a temporary result are allocated; even diagonal operands are
 currently snapshotted through a dense representation. Unused triangles and
 implicit unit diagonals are ignored, including nonfinite values stored there.
+
+### Pivoted Cholesky
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 2; 2 1])
+F = cholesky(Hermitian(A), RowMaximum(); tol=-1, check=false)
+@assert F isa CholeskyPivoted
+@assert F.rank == 1
+@assert Matrix(F) ≈ Matrix(A)
+B = FaerMatrix([4.0 1; 1 3])
+G = cholesky(B, RowMaximum(); tol=-1)
+@assert Matrix(B) * (G \ [1.0, 2.0]) ≈ [1.0, 2.0]
+```
+
+Pivoted factors use independently owned native storage. `F.L`, `F.U`, `F.p`,
+`F.P`, `rank(F)` and reconstruction follow `CholeskyPivoted` conventions.
+Negative `tol` selects faer's automatic threshold; nonnegative `tol` selects
+an absolute cutoff in the Rust adapter's complete diagonal-pivot method because
+faer's factor kernel does not expose a tolerance parameter. The Julia default
+is `tol=0`. Reconstruction, full-rank solves and inverses use faer's pivoted LLT
+kernels. Rank-deficient factors require `check=false`; their solves/inverses
+throw `RankDeficientException`. Native snapshots and workspace are allocated.
+`close(F)` closes its native factors; a copied factorization remains usable.
