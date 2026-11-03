@@ -721,33 +721,19 @@ function LinearAlgebra.eigen(
     a::_ExtraSelfAdjoint,
     b::_ExtraSelfAdjoint;
     sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
 )
-    P=promote_type(eltype(a), eltype(b))
-    f=_typed_eigen(
-        _coerce(parent(a), P);
-        b = _coerce(parent(b), P),
-        hermitian = true,
-        lower = _uplo(a)===:L,
-        other_lower = _uplo(b)===:L,
-        sortby,
-    )
-    return LinearAlgebra.GeneralizedEigen(f.values, f.vectors)
+    return _selfadj_gevd_workspace_result(a, b; sortby, scratch, team)
 end
 function LinearAlgebra.eigvals(
     a::_ExtraSelfAdjoint,
     b::_ExtraSelfAdjoint;
     sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
 )
-    P=promote_type(eltype(a), eltype(b))
-    return _typed_eigen(
-        _coerce(parent(a), P);
-        b = _coerce(parent(b), P),
-        hermitian = true,
-        lower = _uplo(a)===:L,
-        other_lower = _uplo(b)===:L,
-        vectors = false,
-        sortby,
-    )
+    return _selfadj_gevd_workspace_result(a, b; vectors = false, sortby, scratch, team)
 end
 function LinearAlgebra.eigen(a::_AnyFaerSelfAdjoint, b::_AnyFaerSelfAdjoint; kwargs...)
     P=promote_type(eltype(a), eltype(b))

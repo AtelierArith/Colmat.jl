@@ -1284,3 +1284,33 @@ sorting/error transactions and native shape guards. All six native Rust tests,
 40 README Julia blocks, method ambiguity checks, cargo check, Julia/Rust
 formatting and git diff --check pass. Dependency sources remain unchanged.
 The complete Issue #1 objective remains active.
+
+## Definite self-adjoint generalized EVD workspace and teams
+
+Hermitian/real Symmetric pairs now accept `scratch=` and `team=` for
+`eigen/eigvals` and their bang variants, for all four native scalar types.
+Requirements/factories/reserve use both matrix arguments and the promoted scalar
+type. Native owner shapes/tags are checked before writing output buffers.
+
+The adapter composes faer's public LLT, triangular solves and self-adjoint EVD:
+canonical selected-triangle A and B copies reside in caller scratch, along with
+temporary eigenvalues. LLT and EVD share the maximum of their kernel workspace
+requirements through a sequential reborrow. Every numerical stage receives the
+explicit team's authority. B must be positive definite; eigenvectors satisfy
+A V = B V diagonal(values) and V' B V = I. Imaginary diagonal parts and unused
+triangles are ignored independently. Default calls use temporary sequential
+workspace with the same pipeline.
+
+Sorting, output arrays, promotion and staged bang writeback still allocate.
+B-factorization and sorting errors preserve both bang inputs. General
+nonsymmetric pairs, remaining kernels and tuning controls still require further
+Issue #1 work. The dependency checkout is unchanged.
+
+Validation: `Pkg.test(;allow_reresolve=false)` passes **71,229 assertions across
+49 files**, using ParallelTestRunner 2.10.0 with 16 workers on Julia 1.13.3 /
+RustCall 0.9.2. The new generalized workspace tests contribute 554 assertions:
+four scalar types, empty/scalar/dense/64-dimensional pairs, independently
+selected triangles, B-orthonormality, values-only, staged writeback, promotion,
+sorting/error transactions and native shape guards. All six native Rust tests
+and all 41 README Julia blocks pass. Julia/Rust formatting, method ambiguity
+checks and git diff --check pass. The full Issue #1 goal remains incomplete.

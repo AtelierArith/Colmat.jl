@@ -143,13 +143,15 @@ function _selfadjoint_pair_writeback!(
     a::_AnyFaerSelfAdjoint,
     b::_AnyFaerSelfAdjoint,
     vectors::Bool,
-    sortby,
+    sortby;
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
         x, y=parent(a), parent(b)
         _eigen_pair_check(x, y)
-        result=vectors ? LinearAlgebra.eigen(a, b; sortby) :
-               LinearAlgebra.eigvals(a, b; sortby)
+        result=vectors ? LinearAlgebra.eigen(a, b; sortby, scratch, team) :
+               LinearAlgebra.eigvals(a, b; sortby, scratch, team)
         values=vectors ? result.values : result
         diagonal=FaerMatrix(Matrix{eltype(y)}(LinearAlgebra.Diagonal(values)))
         left=vectors ? FaerMatrix(result.vectors) : copy(diagonal)
@@ -158,10 +160,17 @@ function _selfadjoint_pair_writeback!(
         return result
     end
 end
-LinearAlgebra.eigen!(a::_AnyFaerSelfAdjoint, b::_AnyFaerSelfAdjoint; sortby = _eigensort) =
-    _selfadjoint_pair_writeback!(a, b, true, sortby)
+LinearAlgebra.eigen!(
+    a::_AnyFaerSelfAdjoint,
+    b::_AnyFaerSelfAdjoint;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) = _selfadjoint_pair_writeback!(a, b, true, sortby; scratch, team)
 LinearAlgebra.eigvals!(
     a::_AnyFaerSelfAdjoint,
     b::_AnyFaerSelfAdjoint;
     sortby = _eigensort,
-) = _selfadjoint_pair_writeback!(a, b, false, sortby)
+    scratch = nothing,
+    team = nothing,
+) = _selfadjoint_pair_writeback!(a, b, false, sortby; scratch, team)

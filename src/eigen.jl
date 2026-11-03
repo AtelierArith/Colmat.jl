@@ -97,27 +97,24 @@ function LinearAlgebra.eigen(
 end
 LinearAlgebra.eigvals(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}; sortby = _eigensort) =
     _eigen(a, 2; b, vectors = false, sortby)
-function LinearAlgebra.eigen(a::_FaerSelfAdjoint, b::_FaerSelfAdjoint; sortby = _eigensort)
-    result=_eigen(
-        parent(a),
-        3;
-        b = parent(b),
-        lower = _uplo(a)===:L,
-        other_lower = _uplo(b)===:L,
-        sortby,
-    )
-    return LinearAlgebra.GeneralizedEigen(result.values, result.vectors)
+function LinearAlgebra.eigen(
+    a::_FaerSelfAdjoint,
+    b::_FaerSelfAdjoint;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+)
+    return _selfadj_gevd_workspace_result(a, b; sortby, scratch, team)
 end
-LinearAlgebra.eigvals(a::_FaerSelfAdjoint, b::_FaerSelfAdjoint; sortby = _eigensort) =
-    _eigen(
-        parent(a),
-        3;
-        b = parent(b),
-        lower = _uplo(a)===:L,
-        other_lower = _uplo(b)===:L,
-        vectors = false,
-        sortby,
-    )
+function LinearAlgebra.eigvals(
+    a::_FaerSelfAdjoint,
+    b::_FaerSelfAdjoint;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+)
+    return _selfadj_gevd_workspace_result(a, b; vectors = false, sortby, scratch, team)
+end
 
 """
     pfaffian(A::FaerMatrix{Float64})
