@@ -1918,3 +1918,21 @@ pivoted/unpivoted, empty/singleton/square, source closure, copies, transpose ver
 adjoint, CG and zero-pivot rejection. Canonical Pkg.test passed 86,884 assertions / 71 files with 16 workers.
 All 10 native tests and 59 README blocks passed, along with ambiguity detection,
 Julia/Rust formatting and git diff --check. Remaining Issue #1/#2 work is still pending.
+
+### Retained LDLT inverse-action preconditioners
+
+FaerLinearOperator accepts native self-adjoint LDLT factors, independently
+owning L and D. Native low-level LDLT solve uses the operator's scratch without
+inverse construction or refactorization. Transpose applies the conjugated action
+and adjoint the ordinary action for these self-adjoint factors. Copy/composition
+and mixed scalar promotion reuse retained components. Zero D pivots are rejected;
+indefinite actions are supported with general iterative solvers, not assumed to
+satisfy CG's positive-definiteness contract.
+
+Focused verification passed 675 assertions across factor/RHS scalar pairs, both
+input triangles, empty/singleton/square, copy/close, transpose versus adjoint,
+BiCGSTAB on an indefinite system and singular/closed-factor rejection.
+Canonical Pkg.test passed 87,559 assertions / 72 files with 16 workers.
+All 10 native tests and 60 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. Block-pivoted LDLT, sparse factor
+preconditioners, callbacks and remaining Issue #1/#2 work remain pending.
