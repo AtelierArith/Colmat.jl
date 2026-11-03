@@ -294,7 +294,7 @@ y = qr(R) \ [1.0, 2.0, 2.0]
 LU・Cholesky は転置／随伴の求解にも対応します。
 疎 QR は現在、列フルランクで行数が列数以上の行列が対象です。
 横長・ランク落ちへの対応、QR の転置／随伴求解、分解要素の取り出し、
-疎分解への ordering 指定・低水準制御は引き続き実装対象です。
+LU／QR への ordering 指定・追加の低水準制御は引き続き実装対象です。
 
 fill-in を減らすための ordering を単独で計算できます。
 `amd` は正方行列の `A + transpose(A)` のパターン、`colamd` は長方形も含む
@@ -321,7 +321,36 @@ ordering は値に依存せず、格納ゼロもパターンに含めます。�
 AMD の `statistics=true` は置換と faer の演算数見積もりを返します。
 `permute_rows`・`permute_cols` は疎数値行列と疎パターンに対応し、数値行列は
 `permute_rows!`・`permute_cols!` でも更新できます。構造が変わる更新では以前の
-`nonzeros` ビューが失効します。疎分解への ordering の直接指定と外部 scratch は未対応です。
+`nonzeros` ビューが失効します。LU／QR への ordering の直接指定と外部 scratch は未対応です。
+
+疎 Cholesky には ordering と分解方式を直接指定できます。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sparse([4.0 0 1; 0 3 1; 1 1 5]))
+p = amd(A)
+F = cholesky(Hermitian(A, :L); perm=Vector(p), algorithm=:simplicial)
+@assert Vector(F.p) == Vector(p)
+@assert F.algorithm == :simplicial
+@assert F.factor_storage >= size(A, 1)
+@assert F \ ones(3) ≈ [4.0 0 1; 0 3 1; 1 1 5] \ ones(3)
+
+plan = FaerSparseSymbolic(A; kind=:cholesky, ordering=:identity,
+                         algorithm=:supernodal)
+G = factorize(plan, A)
+@assert Vector(G.p) == 1:3
+@assert G.algorithm == :supernodal
+```
+
+`ordering=:default`／`:amd` は AMD、`:identity` は並べ替えなしです。
+任意の置換も渡せます。`cholesky` では Julia 標準の疎行列 API と同じ
+`perm=p` も使えます。`perm` と `ordering` の同時指定はエラーです。
+`dense`・`aggressive` は AMD の設定、`algorithm` は `:auto`・`:simplicial`・
+`:supernodal` です。`F.p`／`plan.p` は独立した置換、`.algorithm` は実際の分解方式、
+`.factor_storage` は確保する数値スロット数（supernodal の padding を含む）を返します。
+コピー・数値更新・混合精度の求解でも symbolic analysis の設定を引き継ぎます。
+LU／QR への ordering の直接指定と、外部 scratch・追加の低水準制御は未対応です。
 
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に

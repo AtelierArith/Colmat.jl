@@ -1,25 +1,32 @@
 //! Sparse symbolic analyses and independent reusable numeric factorizations.
+use crate::permutations::OwnedPermutation;
 use crate::sparse::{SparseData, SparseOwner, Storage};
 use crate::sparsity::SparsityOwner;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, OwnedMatrix};
+use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::linalg::solvers::{Solve, SolveLstsq};
 use faer::sparse::{
     linalg::{
-        solvers::{Llt, Lu, Qr, SymbolicLlt, SymbolicLu, SymbolicQr},
-        LltError, LuError,
+        cholesky::{self, LltRef, SymbolicCholesky, SymmetricOrdering},
+        solvers::{Lu, Qr, SymbolicLu, SymbolicQr},
+        LuError, SupernodalThreshold,
     },
     SymbolicSparseColMat,
 };
-use faer::traits::ComplexField;
-use faer::{c32, c64, Mat, MatRef, Par, Side};
+use faer::traits::{
+    math_utils::{copy, zero},
+    ComplexField,
+};
+use faer::{c32, c64, Conj, Mat, MatRef, Par, Side};
 use rustcall_julia_macros::julia;
+use std::sync::Arc;
 
 #[derive(Clone)]
 enum Analysis {
     Lu(SymbolicLu<usize>),
     Qr(SymbolicQr<usize>),
-    Llt(SymbolicLlt<usize>),
+    Llt(Arc<SymbolicCholesky<usize>>),
 }
 #[derive(Clone)]
 struct Plan {
@@ -51,6 +58,11 @@ impl SparseSymbolic {
         pattern: *const u8,
         kind: i32,
         lower: bool,
+        ordering: i32,
+        permutation: *const u8,
+        dense: f64,
+        aggressive: bool,
+        supernodal: i32,
     ) -> Result<(), String> {
         guarded(|| {
             let pattern = unsafe { &*pattern.cast::<SparsityOwner>() }.data()?.csc()?;
@@ -68,13 +80,45 @@ impl SparseSymbolic {
                 1 => Analysis::Qr(
                     SymbolicQr::try_new(pattern.as_ref()).map_err(|e| format!("{e:?}"))?,
                 ),
-                2 => Analysis::Llt(
-                    SymbolicLlt::try_new(
-                        pattern.as_ref(),
-                        if lower { Side::Lower } else { Side::Upper },
-                    )
-                    .map_err(|e| format!("{e:?}"))?,
-                ),
+                2 => {
+                    if !dense.is_finite() {
+                        return Err("AMD threshold must be finite".into());
+                    }
+                    let ord = match ordering {
+                        0 => SymmetricOrdering::Amd,
+                        1 => SymmetricOrdering::Identity,
+                        2 => {
+                            let p = unsafe { &*permutation.cast::<OwnedPermutation>() }.data()?;
+                            if p.len() != n {
+                                return Err("Cholesky permutation length mismatch".into());
+                            }
+                            SymmetricOrdering::Custom(p.as_ref())
+                        }
+                        _ => return Err("unknown Cholesky ordering".into()),
+                    };
+                    let threshold = match supernodal {
+                        0 => SupernodalThreshold::AUTO,
+                        1 => SupernodalThreshold::FORCE_SIMPLICIAL,
+                        2 => SupernodalThreshold::FORCE_SUPERNODAL,
+                        _ => return Err("unknown sparse factor algorithm".into()),
+                    };
+                    Analysis::Llt(Arc::new(
+                        cholesky::factorize_symbolic_cholesky(
+                            pattern.as_ref(),
+                            if lower { Side::Lower } else { Side::Upper },
+                            ord,
+                            cholesky::CholeskySymbolicParams {
+                                amd_params: faer::sparse::linalg::amd::Control {
+                                    dense,
+                                    aggressive,
+                                },
+                                supernodal_flop_ratio_threshold: threshold,
+                                ..Default::default()
+                            },
+                        )
+                        .map_err(|e| format!("{e:?}"))?,
+                    ))
+                }
                 _ => return Err("unknown sparse analysis kind".into()),
             };
             self.plan = Some(Plan {
@@ -94,10 +138,15 @@ impl SparseSymbolic {
     }
 }
 #[derive(Clone)]
+struct SparseLlt<T> {
+    symbolic: Arc<SymbolicCholesky<usize>>,
+    values: Vec<T>,
+}
+#[derive(Clone)]
 enum Numeric<T> {
     Lu(Lu<usize, T>),
     Qr(Qr<usize, T>),
-    Llt(Llt<usize, T>),
+    Llt(SparseLlt<T>),
 }
 #[derive(Clone)]
 enum Factors {
@@ -141,18 +190,60 @@ fn numeric<T: ComplexField>(p: &Plan, a: &Storage<T>) -> Result<Result<Numeric<T
             Qr::try_new_with_symbolic(sym.clone(), a.as_ref(), Par::Seq)
                 .map_err(|e| format!("{e:?}"))?,
         ),
-        Analysis::Llt(sym) => match Llt::try_new_with_symbolic(
-            sym.clone(),
-            a.as_ref(),
-            if p.lower { Side::Lower } else { Side::Upper },
-            Par::Seq,
-        ) {
-            Ok(f) => Numeric::Llt(f),
-            Err(LltError::Numeric(
-                faer::linalg::cholesky::llt::factor::LltError::NonPositivePivot { index },
-            )) => return Ok(Err(index + 1)),
-            Err(e) => return Err(format!("{e:?}")),
-        },
+        Analysis::Llt(sym) => {
+            // faer's identity-order numeric path can pass the original matrix
+            // straight to its triangle-only kernel. Strip the ignored half
+            // explicitly so stored entries there never contaminate workspace.
+            let entries: Vec<_> = a
+                .as_ref()
+                .triplet_iter()
+                .filter(|e| {
+                    if p.lower {
+                        e.row >= e.col
+                    } else {
+                        e.row <= e.col
+                    }
+                })
+                .map(|e| faer::sparse::Triplet {
+                    row: e.row,
+                    col: e.col,
+                    val: copy(e.val),
+                })
+                .collect();
+            let triangle =
+                faer::sparse::SparseColMat::try_new_from_triplets(a.nrows(), a.ncols(), &entries)
+                    .map_err(|e| format!("{e:?}"))?;
+            let mut values = vec![zero::<T>(); sym.len_val()];
+            let par = Par::Seq;
+            let mut mem = MemBuffer::try_new(
+                sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default()),
+            )
+            .map_err(|e| format!("{e:?}"))?;
+            match sym.factorize_numeric_llt(
+                &mut values,
+                triangle.as_ref(),
+                if p.lower { Side::Lower } else { Side::Upper },
+                Default::default(),
+                par,
+                MemStack::new(&mut mem),
+                Default::default(),
+            ) {
+                Ok(_) => Numeric::Llt(SparseLlt {
+                    symbolic: sym.clone(),
+                    values,
+                }),
+                Err(faer::linalg::cholesky::llt::factor::LltError::NonPositivePivot { index }) => {
+                    // faer's sparse simplicial kernel reports a 1-based pivot;
+                    // its supernodal kernel forwards the dense 0-based index.
+                    let info = match sym.raw() {
+                        cholesky::SymbolicCholeskyRaw::Simplicial(_) => index,
+                        cholesky::SymbolicCholeskyRaw::Supernodal(_) => index + 1,
+                    };
+                    return Ok(Err(info));
+                }
+                Err(e) => return Err(format!("{e:?}")),
+            }
+        }
     }))
 }
 #[julia]
@@ -217,7 +308,22 @@ fn solve<T: ComplexField>(
     }
     Ok(match f {
         Numeric::Lu(f) => run!(f),
-        Numeric::Llt(f) => run!(f),
+        Numeric::Llt(f) => {
+            let mut out = b.to_owned();
+            let par = Par::Seq;
+            let mut mem = MemBuffer::try_new(
+                f.symbolic
+                    .solve_in_place_scratch::<T>(b.ncols(), par.shape()),
+            )
+            .map_err(|e| format!("{e:?}"))?;
+            LltRef::new(&f.symbolic, &f.values).solve_in_place_with_conj(
+                if trans && !adj { Conj::Yes } else { Conj::No },
+                out.as_mut(),
+                par,
+                MemStack::new(&mut mem),
+            );
+            out
+        }
         Numeric::Qr(f) => {
             if trans {
                 return Err("transpose/adjoint sparse QR solve is not provided by faer".into());
@@ -273,6 +379,63 @@ impl TypedMatrix {
                 },
             );
             Ok(())
+        })
+    }
+}
+
+#[julia]
+impl OwnedPermutation {
+    #[julia]
+    pub fn sparse_cholesky_permutation(&mut self, analysis: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let p = unsafe { &*analysis.cast::<SparseSymbolic>() }.plan()?;
+            let Analysis::Llt(sym) = &p.analysis else {
+                return Err("permutation query currently requires sparse Cholesky".into());
+            };
+            let n = sym.nrows();
+            self.data = Some(match sym.perm() {
+                Some(p) => {
+                    let (fwd, inv) = p.arrays();
+                    faer::perm::Perm::new_checked(
+                        fwd.to_vec().into_boxed_slice(),
+                        inv.to_vec().into_boxed_slice(),
+                        n,
+                    )
+                }
+                None => faer::perm::Perm::new_checked(
+                    (0..n).collect::<Vec<_>>().into_boxed_slice(),
+                    (0..n).collect::<Vec<_>>().into_boxed_slice(),
+                    n,
+                ),
+            });
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl SparseSymbolic {
+    #[julia]
+    pub fn sparse_cholesky_algorithm(&self) -> Result<i32, String> {
+        guarded(|| {
+            let Analysis::Llt(sym) = &self.plan()?.analysis else {
+                return Err("algorithm query requires sparse Cholesky".into());
+            };
+            Ok(match sym.raw() {
+                cholesky::SymbolicCholeskyRaw::Simplicial(_) => 1,
+                cholesky::SymbolicCholeskyRaw::Supernodal(_) => 2,
+            })
+        })
+    }
+}
+#[julia]
+impl SparseSymbolic {
+    #[julia]
+    pub fn sparse_cholesky_storage(&self) -> Result<usize, String> {
+        guarded(|| {
+            let Analysis::Llt(sym) = &self.plan()?.analysis else {
+                return Err("storage query requires sparse Cholesky".into());
+            };
+            Ok(sym.len_val())
         })
     }
 }

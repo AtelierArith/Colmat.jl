@@ -367,3 +367,40 @@ files using ParallelTestRunner.jl and 16 worker processes**. Ordering contribute
 5061 assertions. README Julia examples, JuliaFormatter, `cargo fmt --check`,
 `git diff --check`, and method ambiguity checks pass. The dependency checkout
 has no modifications.
+
+
+## Sparse Cholesky direct ordering and algorithm checkpoint
+
+- Cholesky symbolic/numeric owners now use faer's public low-level
+  SymbolicCholesky/LLT interfaces, keeping immutable analyses in Arc and
+  independent numeric values. LU/QR retain their prior high-level backends.
+- `FaerSparseSymbolic(...; kind=:cholesky, ordering=...)` and `cholesky` accept
+  AMD/default, identity or a validated custom permutation. `cholesky` also
+  accepts Julia's sparse `perm` keyword. Simultaneous perm/ordering is rejected.
+- AMD dense/aggressive controls and auto/forced simplicial/forced supernodal
+  selection are exposed. Plan/factor `.p` returns an independent permutation,
+  `.algorithm` reports the actual backend, and `.factor_storage` counts numeric
+  scalar slots, including supernodal padding. Numeric updates, copies and
+  promoted solves reuse these analyses without losing the selected controls.
+- An identity-order regression revealed that faer's numeric path passes a
+  both-triangle matrix directly into a triangle-only kernel. It corrupts the
+  simplicial workspace (a 7-by-7 SPD case gave residual 0.558). Colmat explicitly
+  filters to the selected stored triangle before calling the numeric kernel,
+  retaining sparse storage and the original pattern validation contract.
+  The t4a-faer checkout is not patched.
+- faer's simplicial failure pivot is one-based, while its supernodal path
+  forwards a zero-based dense pivot. Native conversion now normalizes both to
+  Julia's one-based info; regressions exercise every pivot with both algorithms.
+- Tests cover all four scalars, CSC/CSR, both triangles, all ordering/algorithm
+  combinations, source/plan/permutation closure, numeric refactorization,
+  transpose/adjoint and mixed precision solves, ignored-half NaNs, empty shapes,
+  exact custom permutation retention, and reduced allocated factor storage on
+  an arrow graph. No coefficient matrix is densified.
+- LU/QR direct custom ordering, factor components, wide/rank-deficient QR,
+  external scratch and all other remaining Issue #1 categories are incomplete.
+
+Validation: default `Pkg.test()` passed **25409 assertions across 20 independent
+files using ParallelTestRunner.jl and 16 workers**. The new sparse Cholesky suite
+contributes 5136 assertions. README Julia examples, JuliaFormatter,
+`cargo fmt --check`, `git diff --check` and method ambiguity checks pass.
+The dependency checkout remains unmodified.

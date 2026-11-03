@@ -7,6 +7,12 @@ Own faer's symbolic sparse LU, QR or Cholesky analysis (`kind=:lu/:qr/:cholesky`
 analysis. A must have exactly the original stored pattern, including stored
 zeros; CSC/CSR orientation and numeric scalar type may differ. Sparse QR
 currently requires at least as many rows as columns. Cholesky accesses `uplo`.
+
+Cholesky accepts `ordering=:default/:amd/:identity` or a permutation, AMD tuning
+`dense=10.0, aggressive=true`, and `algorithm=:auto/:simplicial/:supernodal`.
+`plan.p` returns an independent FaerPermutation; `plan.algorithm` reports the
+actual chosen algorithm. `plan.factor_storage` counts numeric scalar slots,
+including supernodal padding. These controls currently apply only to Cholesky.
 """
 mutable struct FaerSparseSymbolic{K,H}
     handle::Union{Nothing,H}
@@ -22,6 +28,10 @@ solves full-column-rank least-squares problems. LU/Cholesky also support
 transpose/adjoint solves. Inputs and symbolic plans may be closed independently.
 Mixed precision RHS are handled by reusing symbolic analysis to factor a sparse
 snapshot in the promoted type. `ldiv!` stages the result before overwriting.
+Sparse Cholesky additionally exposes independent `F.p`, the actual `F.algorithm`
+and `F.factor_storage` (numeric scalar slots, including supernodal padding).
+`cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;
+`ordering=p` is an alternative. Numeric updates preserve the symbolic controls.
 """
 mutable struct FaerSparseFactorization{T,K,H,P,A} <: LinearAlgebra.Factorization{T}
     handle::Union{Nothing,H}
@@ -54,7 +64,15 @@ function Base.close(f::_SparseNativeFactor)
     return nothing
 end
 LinearAlgebra.issuccess(f::FaerSparseFactorization) = iszero(f.info)
-function FaerSparseSymbolic(p::FaerSparsity; kind = :lu, uplo = :L)
+function FaerSparseSymbolic(
+    p::FaerSparsity;
+    kind = :lu,
+    uplo = :L,
+    ordering = :default,
+    dense::Real = 10.0,
+    aggressive::Bool = true,
+    algorithm = :auto,
+)
     code=kind===:lu ? 0 :
          kind===:qr ? 1 :
          kind===:cholesky ? 2 : throw(ArgumentError("kind must be :lu, :qr or :cholesky"))
@@ -65,9 +83,43 @@ function FaerSparseSymbolic(p::FaerSparsity; kind = :lu, uplo = :L)
     kind===:qr &&
         size(p, 1)<size(p, 2) &&
         throw(ArgumentError("sparse QR requires at least as many rows as columns"))
+    threshold=Float64(dense)
+    isfinite(threshold) || throw(ArgumentError("dense must be finite"))
+    algo=algorithm===:auto ? 0 :
+         algorithm===:simplicial ? 1 :
+         algorithm===:supernodal ? 2 :
+         throw(ArgumentError("algorithm must be :auto, :simplicial or :supernodal"))
+    if kind!==:cholesky &&
+       (ordering!==:default || threshold!=10.0 || !aggressive || algo!=0)
+        throw(
+            ArgumentError(
+                "ordering, AMD controls and algorithm selection currently require kind=:cholesky",
+            ),
+        )
+    end
+    custom=ordering isa AbstractVector{<:Integer}
+    ordercode=custom ? 2 :
+              ordering in (:default, :amd) ? 0 :
+              ordering===:identity ? 1 :
+              throw(
+        ArgumentError("ordering must be :default, :amd, :identity or a permutation"),
+    )
     lock(_matrix_lock) do
+        perm=custom ? _as_permutation(ordering) : Ptr{UInt8}(C_NULL)
+        custom && _check_permutation(p, perm, true)
         h=RustCrate.SparseSymbolic()
-        _native_call(RustCrate.sparse_analyze, h, p, Int32(code), uplo===:L)
+        _native_call(
+            RustCrate.sparse_analyze,
+            h,
+            p,
+            Int32(code),
+            uplo===:L,
+            Int32(ordercode),
+            perm,
+            threshold,
+            aggressive,
+            Int32(algo),
+        )
         return FaerSparseSymbolic{kind,typeof(h)}(h, size(p), uplo)
     end
 end
@@ -144,21 +196,37 @@ const _SparseSelfAdjoint=Union{
     LinearAlgebra.Hermitian{<:Any,<:FaerSparseMatrix},
     LinearAlgebra.Symmetric{<:Real,<:FaerSparseMatrix},
 }
-function LinearAlgebra.cholesky(a::_SparseSelfAdjoint; check::Bool = true)
+function LinearAlgebra.cholesky(
+    a::_SparseSelfAdjoint;
+    check::Bool = true,
+    perm = nothing,
+    ordering = :default,
+    kwargs...,
+)
+    !isnothing(perm) &&
+        ordering!==:default &&
+        throw(ArgumentError("specify either perm or ordering, not both"))
+    selected=isnothing(perm) ? ordering : perm
     source=parent(a)
     return LinearAlgebra.factorize(
-        FaerSparseSymbolic(source; kind = :cholesky, uplo = a.uplo=='L' ? :L : :U),
+        FaerSparseSymbolic(
+            source;
+            kind = :cholesky,
+            uplo = a.uplo=='L' ? :L : :U,
+            ordering = selected,
+            kwargs...,
+        ),
         source;
         check,
     )
 end
-function LinearAlgebra.cholesky(a::FaerSparseMatrix; check::Bool = true)
+function LinearAlgebra.cholesky(a::FaerSparseMatrix; check::Bool = true, kwargs...)
     LinearAlgebra.ishermitian(a) || throw(
         ArgumentError(
             "Cholesky requires Hermitian input; use Hermitian(A,:L) or Hermitian(A,:U) to select a stored triangle",
         ),
     )
-    return LinearAlgebra.cholesky(LinearAlgebra.Hermitian(a, :L); check)
+    return LinearAlgebra.cholesky(LinearAlgebra.Hermitian(a, :L); check, kwargs...)
 end
 LinearAlgebra.factorize(a::FaerSparseMatrix) =
     size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a) : LinearAlgebra.qr(a)
@@ -290,3 +358,47 @@ LinearAlgebra.cholesky!(
     a::FaerSparseMatrix{T};
     check::Bool = true,
 ) where {T} = _refactor_sparse!(f, a; check)
+
+"""Return an independent copy of the permutation used by sparse Cholesky analysis."""
+FaerPermutation(p::FaerSparseSymbolic{:cholesky}) =
+    _permutation_result(size(p, 1), RustCrate.sparse_cholesky_permutation, p)
+function FaerPermutation(f::FaerSparseFactorization{T,:cholesky}) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        return FaerPermutation(f.plan)
+    end
+end
+function Base.getproperty(p::FaerSparseSymbolic{:cholesky}, name::Symbol)
+    name===:p && return FaerPermutation(p)
+    name===:factor_storage && return Int(_native_call(RustCrate.sparse_cholesky_storage, p))
+    if name===:algorithm
+        return _native_call(RustCrate.sparse_cholesky_algorithm, p)==1 ? :simplicial :
+               :supernodal
+    end
+    return getfield(p, name)
+end
+Base.propertynames(p::FaerSparseSymbolic{:cholesky}, private::Bool = false) =
+    private ? (fieldnames(typeof(p))..., :p, :algorithm, :factor_storage) :
+    (:dims, :uplo, :p, :algorithm, :factor_storage)
+function Base.getproperty(f::FaerSparseFactorization{T,:cholesky}, name::Symbol) where {T}
+    name===:p && return FaerPermutation(f)
+    if name===:factor_storage
+        return lock(_matrix_lock) do
+            _handle(f)
+            return f.plan.factor_storage
+        end
+    end
+    if name===:algorithm
+        return lock(_matrix_lock) do
+            _handle(f)
+            return f.plan.algorithm
+        end
+    end
+    return getfield(f, name)
+end
+Base.propertynames(
+    f::FaerSparseFactorization{T,:cholesky},
+    private::Bool = false,
+) where {T} =
+    private ? (fieldnames(typeof(f))..., :p, :algorithm, :factor_storage) :
+    (:dims, :info, :p, :algorithm, :factor_storage)
