@@ -4,6 +4,7 @@ use crate::sparse::{SparseData, SparseOwner, Storage};
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
+use faer::mat::{AsMatMut, AsMatRef};
 use faer::matrix_free::{
     conjugate_gradient::{self as cg, CgError},
     BiLinOp, BiPrecond, IdentityPrecond, InitialGuessStatus, LinOp, Precond,
@@ -17,6 +18,7 @@ enum Base<T> {
     Sparse(Storage<T>),
     Diagonal(Diag<T>),
     Identity(IdentityPrecond),
+    Product(Box<OperatorProduct<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -32,6 +34,10 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
+            Base::Product($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
         }
     };
 }
@@ -1355,6 +1361,105 @@ impl OwnedLinearOperator {
                 Data::C32(a) => run!(a, c32, c32, 2),
                 Data::C64(a) => run!(a, c64, c64, 3),
             }
+        })
+    }
+}
+
+#[derive(Clone)]
+struct OperatorProduct<T> {
+    left: Operator<T>,
+    right: Operator<T>,
+}
+impl<T> std::fmt::Debug for OperatorProduct<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("OperatorProduct")
+    }
+}
+impl<T: ComplexField> OperatorProduct<T> {
+    fn run(
+        &self,
+        out: MatMut<'_, T>,
+        rhs: MatRef<'_, T>,
+        mut par: Par,
+        stack: &mut MemStack,
+        t: bool,
+        c: bool,
+    ) {
+        let (first, second) = if t {
+            (&self.left, &self.right)
+        } else {
+            (&self.right, &self.left)
+        };
+        let (mut temp, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(
+            if t { first.ncols() } else { first.nrows() },
+            rhs.ncols(),
+            stack,
+        );
+        first.run(temp.as_mat_mut(), rhs, par.reborrow(), stack, t, c);
+        second.run(out, temp.as_mat_ref(), par, stack, t, c);
+    }
+}
+impl<T: ComplexField> LinOp<T> for OperatorProduct<T> {
+    fn nrows(&self) -> usize {
+        self.left.nrows()
+    }
+    fn ncols(&self) -> usize {
+        self.right.ncols()
+    }
+    fn apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        faer::linalg::temp_mat_scratch::<T>(self.left.ncols(), k).and(
+            self.left
+                .apply_scratch(k, p)
+                .or(self.right.apply_scratch(k, p)),
+        )
+    }
+    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, false)
+    }
+    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, true)
+    }
+}
+impl<T: ComplexField> BiLinOp<T> for OperatorProduct<T> {
+    fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        faer::linalg::temp_mat_scratch::<T>(self.left.ncols(), k).and(
+            self.left
+                .transpose_apply_scratch(k, p)
+                .or(self.right.transpose_apply_scratch(k, p)),
+        )
+    }
+    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, false)
+    }
+    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, true)
+    }
+}
+#[julia]
+impl OwnedLinearOperator {
+    #[julia]
+    pub fn operator_compose(&mut self, left: &Self, right: &Self) -> Result<(), String> {
+        guarded(|| {
+            fn compose<T: ComplexField>(
+                a: &Operator<T>,
+                b: &Operator<T>,
+            ) -> Result<Operator<T>, String> {
+                if a.ncols() != b.nrows() {
+                    return Err("operator composition dimensions must match".into());
+                }
+                Ok(Operator::new(Base::Product(Box::new(OperatorProduct {
+                    left: a.clone(),
+                    right: b.clone(),
+                }))))
+            }
+            self.data = Some(match (left.data()?, right.data()?) {
+                (Data::F32(a), Data::F32(b)) => Data::F32(compose(a, b)?),
+                (Data::F64(a), Data::F64(b)) => Data::F64(compose(a, b)?),
+                (Data::C32(a), Data::C32(b)) => Data::C32(compose(a, b)?),
+                (Data::C64(a), Data::C64(b)) => Data::C64(compose(a, b)?),
+                _ => return Err("composition scalar types must match".into()),
+            });
+            Ok(())
         })
     }
 }
