@@ -229,3 +229,35 @@ function Base.inv(
         )
     end
 end
+
+"""
+    FaerLinearOperator(F::FaerSpectralFactor; atol=0, rtol=...)
+
+Own an independent native inverse/pseudoinverse action using saved SVD or
+self-adjoint EVD components. Small singular/eigenvalues are truncated using the
+same tolerances as `pinv(F)`, chosen in the original factor precision. The
+operator has shape reverse(size(F)), supports mixed native scalar promotion,
+and applies with native scratch without forming a pseudoinverse matrix or
+repeating decomposition. Iterative preconditioners require a suitable square
+nonsingular action; rectangular/rank-truncated operators are general actions.
+"""
+function FaerLinearOperator(
+    f::FaerSpectralFactor{T};
+    atol = 0,
+    rtol = _default_spectral_rtol(f, atol),
+) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        at, rt=_spectral_tolerances(atol, rtol)
+        h=RustCrate.OwnedLinearOperator()
+        _native_call(
+            RustCrate.operator_spectral_inverse,
+            h,
+            f,
+            at,
+            rt,
+            promote_type(typeof(rtol), _realtype(T))===Float32,
+        )
+        FaerLinearOperator{T,typeof(h)}(h, reverse(size(f)), :factorization, false, false)
+    end
+end

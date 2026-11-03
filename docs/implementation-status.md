@@ -1954,3 +1954,22 @@ singular/closed-factor rejection. Canonical Pkg.test passed 88,458 assertions /
 along with ambiguity detection, Julia/Rust formatting and git diff --check.
 Sparse and spectral preconditioners, callbacks and remaining Issue #1/#2 scope
 are pending.
+
+### Saved native SVD/EVD inverse actions
+
+FaerLinearOperator(F;atol,rtol) accepts saved native SVD/self-adjoint EVD factors
+and independently owns spectral components and truncated inverse weights.
+Application uses native projection/scaling with a scratch-backed intermediate,
+without an explicit pseudoinverse or decomposition. Threshold decisions reuse
+the saved-factor solve helper in original factor precision and remain fixed
+through later scalar promotion. Eigenvalue signs are retained. Rectangular and
+rank-truncated actions have reverse(size(F)); square/nonsingular/positive-definite
+requirements for particular iterative preconditioners still apply.
+
+Focused verification passed 1,062 assertions across all factor/RHS scalar pairs,
+empty/rectangular/square SVD, truncation, negative self-adjoint spectra,
+transpose/adjoint, independent close/copy, CG and invalid tolerance/owner checks.
+Canonical Pkg.test passed 89,520 assertions / 74 files with 16 workers.
+All 10 native tests and 62 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. Sparse factor preconditioners,
+callbacks and remaining Issue #1/#2 work remain pending.

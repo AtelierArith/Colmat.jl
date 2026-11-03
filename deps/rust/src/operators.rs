@@ -22,6 +22,7 @@ enum Base<T> {
     InverseFactors(Box<InverseFactors<T>>),
     InverseQr(Box<InverseQr<T>>),
     InverseLdlt(Box<InverseLdlt<T>>),
+    InverseSpectral(Box<InverseSpectral<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -37,6 +38,10 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
+            Base::InverseSpectral($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
             Base::InverseLdlt($a) => {
                 let $a = $a.as_ref();
                 $expr
@@ -1523,6 +1528,11 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
+        Base::InverseSpectral(f) => Base::InverseSpectral(Box::new(InverseSpectral {
+            u: Mat::from_fn(f.u.nrows(), f.u.ncols(), |i, j| cast(&f.u[(i, j)])),
+            v: Mat::from_fn(f.v.nrows(), f.v.ncols(), |i, j| cast(&f.v[(i, j)])),
+            weights: f.weights.iter().map(cast).collect(),
+        })),
         Base::InverseLdlt(f) => {
             let mut d = Diag::zeros(f.diagonal.dim());
             for i in 0..d.dim() {
@@ -2242,5 +2252,154 @@ impl<T: ComplexField> BiLinOp<T> for InverseLdlt<T> {
     }
     fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
         self.run(o, b, p, s, false)
+    }
+}
+
+#[derive(Clone)]
+struct InverseSpectral<T> {
+    u: Mat<T>,
+    v: Mat<T>,
+    weights: Vec<T>,
+}
+impl<T> std::fmt::Debug for InverseSpectral<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("InverseSpectral")
+    }
+}
+impl<T: ComplexField> InverseSpectral<T> {
+    fn new(
+        f: &crate::spectral_factors::Decomposition<T>,
+        atol: f64,
+        rtol: f64,
+        relative_f32: bool,
+    ) -> Result<Self, String>
+    where
+        T::Real: crate::pseudoinverse::ToleranceReal,
+    {
+        let cutoff = crate::spectral_solve::threshold(f, atol, rtol, relative_f32)?;
+        let k = f.s().dim();
+        let weights = (0..k)
+            .map(|i| {
+                let x = real(&f.s()[i]);
+                if abs(&x) > cutoff {
+                    from_real::<T>(&recip(&x))
+                } else {
+                    zero::<T>()
+                }
+            })
+            .collect();
+        Ok(Self {
+            u: f.u().subcols(0, k).to_owned(),
+            v: f.v().subcols(0, k).to_owned(),
+            weights,
+        })
+    }
+    fn run(
+        &self,
+        mut out: MatMut<'_, T>,
+        b: MatRef<'_, T>,
+        mut p: Par,
+        s: &mut MemStack,
+        t: bool,
+        c: bool,
+    ) {
+        let k = self.weights.len();
+        if k == 0 || b.ncols() == 0 {
+            out.fill(zero::<T>());
+            return;
+        }
+        let (input, output) = if t {
+            (&self.v, &self.u)
+        } else {
+            (&self.u, &self.v)
+        };
+        let (mut projected, _) = faer::linalg::temp_mat_zeroed::<T, _, _>(k, b.ncols(), s);
+        let transformed = t ^ c;
+        use faer::linalg::matmul::matmul_with_conj;
+        use faer::{Accum, Conj};
+        matmul_with_conj(
+            projected.as_mat_mut(),
+            Accum::Replace,
+            input.as_ref().transpose(),
+            if transformed { Conj::No } else { Conj::Yes },
+            b,
+            Conj::No,
+            one::<T>(),
+            p.reborrow(),
+        );
+        for j in 0..b.ncols() {
+            for i in 0..k {
+                let x = copy(&projected.as_mat_ref()[(i, j)]);
+                projected.as_mat_mut()[(i, j)] = mul(&x, &self.weights[i]);
+            }
+        }
+        matmul_with_conj(
+            out,
+            Accum::Replace,
+            output.as_ref(),
+            if transformed { Conj::Yes } else { Conj::No },
+            projected.as_mat_ref(),
+            Conj::No,
+            one::<T>(),
+            p,
+        );
+    }
+}
+impl<T: ComplexField> LinOp<T> for InverseSpectral<T> {
+    fn nrows(&self) -> usize {
+        self.v.nrows()
+    }
+    fn ncols(&self) -> usize {
+        self.u.nrows()
+    }
+    fn apply_scratch(&self, k: usize, _: ParShape) -> StackReq {
+        faer::linalg::temp_mat_scratch::<T>(self.weights.len(), k)
+    }
+    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, false)
+    }
+    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, false, true)
+    }
+}
+impl<T: ComplexField> BiLinOp<T> for InverseSpectral<T> {
+    fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        self.apply_scratch(k, p)
+    }
+    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, false)
+    }
+    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        self.run(o, b, p, s, true, true)
+    }
+}
+#[julia]
+impl OwnedLinearOperator {
+    #[julia]
+    pub fn operator_spectral_inverse(
+        &mut self,
+        factor: &crate::spectral_factors::OwnedSpectral,
+        atol: f64,
+        rtol: f64,
+        relative_f32: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            use crate::spectral_factors::SpectralData;
+            self.data = Some(match factor.data()? {
+                SpectralData::F32(f) => Data::F32(Operator::new(Base::InverseSpectral(Box::new(
+                    InverseSpectral::new(f, atol, rtol, relative_f32)?,
+                )))),
+                SpectralData::F64(f) => Data::F64(Operator::new(Base::InverseSpectral(Box::new(
+                    InverseSpectral::new(f, atol, rtol, relative_f32)?,
+                )))),
+                SpectralData::C32(f) => Data::C32(Operator::new(Base::InverseSpectral(Box::new(
+                    InverseSpectral::new(f, atol, rtol, relative_f32)?,
+                )))),
+                SpectralData::C64(f) => Data::C64(Operator::new(Base::InverseSpectral(Box::new(
+                    InverseSpectral::new(f, atol, rtol, relative_f32)?,
+                )))),
+            });
+            Ok(())
+        })
     }
 }

@@ -1791,3 +1791,27 @@ Mixed promotion copies both block components and the permutation, without an
 inverse or refactorization. These indefinite actions can be used with BiCGSTAB;
 CG's positive-definiteness requirement still applies. Sparse factor
 preconditioners remain pending.
+
+### Matrix-free saved SVD/EVD pseudoinverse actions
+
+```julia
+using Colmat, LinearAlgebra
+A0 = [3.0 0; 0 1e-6; 0 0]
+F = svd(FaerMatrix(A0); native=true)
+M = FaerLinearOperator(F; rtol=1e-3)
+close(F)
+@assert size(M) == (2, 3)
+@assert M * ones(3) ≈ [1/3, 0]
+@assert Matrix(M) ≈ pinv(A0; rtol=1e-3)
+close(M)
+```
+
+`FaerLinearOperator(F;atol,rtol)` for a saved native SVD or self-adjoint EVD
+owns spectral components and applies a truncated inverse action using native
+projection/scaling kernels and scratch. The operator shape is `reverse(size(F))`;
+rectangular and rank-truncated actions are supported. Thresholds follow `pinv(F)`
+and are chosen in the original factor precision before any RHS promotion.
+Negative eigenvalues retain their sign. Copy/composition, mixed native scalar
+promotion, conjugation and transpose/adjoint do not recompute the decomposition
+or materialize a pseudoinverse. Iterative preconditioning requires a suitable
+square nonsingular action; CG additionally requires positive definiteness.
