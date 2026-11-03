@@ -382,10 +382,18 @@ function LinearAlgebra.ldiv!(f::_SparseSolveFactor, b::Union{AbstractVector,Abst
         throw(DimensionMismatch("two-argument ldiv! requires a square sparse factor"))
     return copyto!(b, f\b)
 end
-function LinearAlgebra.ldiv!(dest::AbstractMatrix, f::_SparseSolveFactor, b::AbstractMatrix)
+function LinearAlgebra.ldiv!(
+    dest::AbstractMatrix,
+    f::_SparseSolveFactor,
+    b::AbstractMatrix;
+    scratch = nothing,
+)
     size(dest)==(size(f, 2), size(b, 2)) ||
         throw(DimensionMismatch("sparse solve destination has the wrong shape"))
-    return copyto!(dest, f\b)
+    return copyto!(
+        dest,
+        isnothing(scratch) ? f\b : _sparse_qr_workspace_solve(f, b, scratch),
+    )
 end
 function LinearAlgebra.ldiv!(dest::AbstractVector, f::_SparseSolveFactor, b::AbstractVector)
     length(dest)==size(f, 2) ||

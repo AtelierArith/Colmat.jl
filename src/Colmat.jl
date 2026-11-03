@@ -235,6 +235,7 @@ include("npy.jl")
 include("reconstruction.jl")
 include("spectral_factors.jl")
 include("spectral_pinv_workspace.jl")
+include("sparse_qr_workspace.jl")
 include("spectral_solve.jl")
 
 end

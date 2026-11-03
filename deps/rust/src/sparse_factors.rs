@@ -846,3 +846,82 @@ impl SparseFactor {
         })
     }
 }
+
+#[julia]
+impl SparseFactor {
+    #[julia]
+    pub fn sparse_qr_solve_requirements(
+        &self,
+        columns: usize,
+        out: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let req = match self.factors()? {
+                Factors::F32(Numeric::Qr(f)) => f.solve_requirements(columns),
+                Factors::F64(Numeric::Qr(f)) => f.solve_requirements(columns),
+                Factors::C32(Numeric::Qr(f)) => f.solve_requirements(columns),
+                Factors::C64(Numeric::Qr(f)) => f.solve_requirements(columns),
+                _ => return Err("workspace solve requires auto/supernodal sparse QR".into()),
+            };
+            unsafe {
+                out.write(req.size_bytes());
+                out.add(1).write(req.align_bytes());
+            }
+            Ok(())
+        })
+    }
+}
+fn qr_workspace<T: ComplexField>(
+    f: &Numeric<T>,
+    b: MatRef<'_, T>,
+    s: &mut crate::workspace::OwnedScratch,
+) -> Result<Mat<T>, String> {
+    let Numeric::Qr(f) = f else {
+        return Err("workspace solve requires auto/supernodal sparse QR".into());
+    };
+    f.solve_in(b, s.stack(f.solve_requirements(b.ncols()))?)
+}
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn sparse_qr_solve_workspace(
+        &mut self,
+        factor: &SparseFactor,
+        rhs: &OwnedMatrix,
+        scratch: &mut crate::workspace::OwnedScratch,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let Factors::F64(f) = factor.factors()? else {
+                return Err("factor/RHS scalar type mismatch".into());
+            };
+            self.matrix = qr_workspace(f, rhs.matrix.as_ref(), scratch)?;
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn sparse_qr_solve_workspace(
+        &mut self,
+        factor: &SparseFactor,
+        rhs: &TypedMatrix,
+        scratch: &mut crate::workspace::OwnedScratch,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(match (factor.factors()?, rhs.data()?) {
+                (Factors::F32(f), MatrixData::F32(b)) => {
+                    MatrixData::F32(qr_workspace(f, b.as_ref(), scratch)?)
+                }
+                (Factors::C32(f), MatrixData::C32(b)) => {
+                    MatrixData::C32(qr_workspace(f, b.as_ref(), scratch)?)
+                }
+                (Factors::C64(f), MatrixData::C64(b)) => {
+                    MatrixData::C64(qr_workspace(f, b.as_ref(), scratch)?)
+                }
+                _ => return Err("factor/RHS scalar type mismatch".into()),
+            });
+            Ok(())
+        })
+    }
+}
