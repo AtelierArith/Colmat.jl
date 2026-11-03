@@ -934,3 +934,27 @@ with the strict lower Householder basis; its block coefficients are exposed as
 `F.Qcoeff` and its basis as `F.Qbasis`. This is faer's block format, rather than
 LAPACK's tau layout. `F.packed` returns an independent copy, with lower storage
 for Cholesky. Upper-triangle Cholesky wrappers receive U in the input instead.
+
+### Sparse LU components
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A = FaerSparseMatrix(sparse([0.0 2 1; 3 1 0; 0 1 4]); format=:csr)
+F = lu(A; algorithm=:simplicial, ordering=[3, 1, 2])
+p, q = Vector(F.p), Vector(F.q)
+@assert Matrix(F.L * F.U) ≈ Matrix(A)[p, q]
+@assert Matrix(A) * (F \ ones(3)) ≈ ones(3)
+```
+
+`algorithm=:simplicial` retains faer's public simplicial LU factors and exposes
+independent native CSC `F.L`/`F.U` and row/column `FaerPermutation` objects
+`F.p`/`F.q`. They are the factors used by normal, transpose and adjoint solves.
+CSC/CSR input and all four native scalar types are supported, including symbolic
+plan reuse and numeric `lu!` updates. `ordering=:default` or `:identity` selects
+identity columns for this explicit algorithm; supply a permutation (including a
+`colamd` result) to select another column ordering.
+
+The default `algorithm=:auto` keeps the existing high-level faer factorization
+and its fill-reducing selection. Its opaque factor storage does not expose
+these component getters through the adapter yet; select `:simplicial` when
+components are needed. Sparse component extraction sorts/copies entries.

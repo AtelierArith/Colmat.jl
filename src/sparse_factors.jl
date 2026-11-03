@@ -94,6 +94,7 @@ function FaerSparseSymbolic(
          algorithm===:supernodal ? 2 :
          throw(ArgumentError("algorithm must be :auto, :simplicial or :supernodal"))
     if kind!==:cholesky &&
+       !(kind===:lu && algo==1 && threshold==10.0 && aggressive) &&
        (ordering!==:default || threshold!=10.0 || !aggressive || algo!=0)
         throw(
             ArgumentError(
@@ -101,6 +102,14 @@ function FaerSparseSymbolic(
             ),
         )
     end
+    kind===:lu &&
+        algo==1 &&
+        ordering===:amd &&
+        throw(
+            ArgumentError(
+                "simplicial LU ordering supports :default (identity), :identity or a permutation",
+            ),
+        )
     custom=ordering isa AbstractVector{<:Integer}
     ordercode=custom ? 2 :
               ordering in (:default, :amd) ? 0 :
@@ -190,8 +199,16 @@ function LinearAlgebra.factorize(
         )
     end
 end
-LinearAlgebra.lu(a::FaerSparseMatrix; check::Bool = true) =
-    LinearAlgebra.factorize(FaerSparseSymbolic(a; kind = :lu), a; check)
+LinearAlgebra.lu(
+    a::FaerSparseMatrix;
+    check::Bool = true,
+    algorithm = :auto,
+    ordering = :default,
+) = LinearAlgebra.factorize(
+    FaerSparseSymbolic(a; kind = :lu, algorithm, ordering),
+    a;
+    check,
+)
 LinearAlgebra.lu(a::FaerSparseMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
     LinearAlgebra.lu(a; kwargs...)
 LinearAlgebra.qr(a::FaerSparseMatrix) =
@@ -468,3 +485,29 @@ end
 LinearAlgebra.det(f::_SparseCholesky) = exp(LinearAlgebra.logdet(f))
 LinearAlgebra.logabsdet(f::_SparseCholesky) =
     (LinearAlgebra.logdet(f), one(_realtype(eltype(f))))
+
+function Base.getproperty(f::FaerSparseFactorization{T,:lu}, name::Symbol) where {T}
+    if name in (:L, :U, :p, :q)
+        return lock(_matrix_lock) do
+            _handle(f)
+            LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+            name in (:p, :q) && return _permutation_result(
+                size(f, 1),
+                RustCrate.sparse_lu_permutation,
+                f,
+                name===:q,
+            )
+            return _sparse_result(
+                T,
+                size(f),
+                :csc,
+                RustCrate.sparse_lu_component,
+                f,
+                name===:U,
+            )
+        end
+    end
+    return getfield(f, name)
+end
+Base.propertynames(f::FaerSparseFactorization{T,:lu}, private::Bool = false) where {T} =
+    private ? (fieldnames(typeof(f))..., :L, :U, :p, :q) : (:dims, :info, :L, :U, :p, :q)

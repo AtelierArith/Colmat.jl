@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 enum Analysis {
+    SimplicialLu(faer::perm::Perm<usize>),
     Lu(SymbolicLu<usize>),
     Qr(SymbolicQr<usize>),
     Llt(Arc<SymbolicCholesky<usize>>),
@@ -74,6 +75,24 @@ impl SparseSymbolic {
                 return Err("sparse QR requires at least as many rows as columns".into());
             }
             let analysis = match kind {
+                0 if supernodal == 1 => {
+                    let p = if ordering == 2 {
+                        unsafe { &*permutation.cast::<OwnedPermutation>() }
+                            .data()?
+                            .clone()
+                    } else {
+                        let p: Vec<usize> = (0..n).collect();
+                        faer::perm::Perm::new_checked(
+                            p.clone().into_boxed_slice(),
+                            p.into_boxed_slice(),
+                            n,
+                        )
+                    };
+                    if p.len() != n {
+                        return Err("LU column permutation length mismatch".into());
+                    }
+                    Analysis::SimplicialLu(p)
+                }
                 0 => Analysis::Lu(
                     SymbolicLu::try_new(pattern.as_ref()).map_err(|e| format!("{e:?}"))?,
                 ),
@@ -144,6 +163,7 @@ struct SparseLlt<T> {
 }
 #[derive(Clone)]
 enum Numeric<T> {
+    SimplicialLu(crate::sparse_lu_components::SimplicialFactors<T>),
     Lu(Lu<usize, T>),
     Qr(Qr<usize, T>),
     Llt(SparseLlt<T>),
@@ -179,6 +199,15 @@ fn numeric<T: ComplexField>(p: &Plan, a: &Storage<T>) -> Result<Result<Numeric<T
         );
     }
     Ok(Ok(match &p.analysis {
+        Analysis::SimplicialLu(cols) => {
+            match crate::sparse_lu_components::SimplicialFactors::new(a.as_ref(), cols.as_ref()) {
+                Ok(f) => Numeric::SimplicialLu(f),
+                Err(LuError::SymbolicSingular { index } | LuError::NumericSingular { index }) => {
+                    return Ok(Err(index + 1))
+                }
+                Err(e) => return Err(format!("{e:?}")),
+            }
+        }
         Analysis::Lu(sym) => match Lu::try_new_with_symbolic(sym.clone(), a.as_ref(), Par::Seq) {
             Ok(f) => Numeric::Lu(f),
             Err(LuError::SymbolicSingular { index } | LuError::NumericSingular { index }) => {
@@ -307,6 +336,7 @@ fn solve<T: ComplexField>(
     }
     Ok(match f {
         Numeric::Lu(f) => run!(f),
+        Numeric::SimplicialLu(f) => f.solve(b, trans, trans && adj),
         Numeric::Llt(f) => {
             let mut out = b.to_owned();
             let par = Par::Seq;
@@ -568,6 +598,78 @@ impl SparseFactor {
                 Factors::C64(Numeric::Llt(f)) => write(f, out, n),
                 _ => Err("diagonal export requires sparse Cholesky".into()),
             }
+        })
+    }
+}
+
+fn lu_component<T: ComplexField>(
+    f: &crate::sparse_lu_components::SimplicialFactors<T>,
+    upper: bool,
+) -> Result<Storage<T>, String> {
+    let a = if upper {
+        f.numeric.u_factor_unsorted()
+    } else {
+        f.numeric.l_factor_unsorted()
+    };
+    let entries: Vec<_> = a
+        .triplet_iter()
+        .map(|e| faer::sparse::Triplet {
+            row: e.row,
+            col: e.col,
+            val: copy(e.val),
+        })
+        .collect();
+    Ok(Storage::Csc(
+        faer::sparse::SparseColMat::try_new_from_triplets(a.nrows(), a.ncols(), &entries)
+            .map_err(|e| format!("{e:?}"))?,
+    ))
+}
+#[julia]
+impl SparseOwner {
+    #[julia]
+    pub fn sparse_lu_component(
+        &mut self,
+        source: &SparseFactor,
+        upper: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(match source.factors()? {
+                Factors::F32(Numeric::SimplicialLu(f)) => SparseData::F32(lu_component(f, upper)?),
+                Factors::F64(Numeric::SimplicialLu(f)) => SparseData::F64(lu_component(f, upper)?),
+                Factors::C32(Numeric::SimplicialLu(f)) => SparseData::C32(lu_component(f, upper)?),
+                Factors::C64(Numeric::SimplicialLu(f)) => SparseData::C64(lu_component(f, upper)?),
+                _ => return Err("LU components require algorithm=:simplicial".into()),
+            });
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl OwnedPermutation {
+    #[julia]
+    pub fn sparse_lu_permutation(
+        &mut self,
+        source: &SparseFactor,
+        column: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            macro_rules! get {
+                ($f:expr) => {
+                    if column {
+                        $f.cols.clone()
+                    } else {
+                        $f.rows.clone()
+                    }
+                };
+            }
+            self.data = Some(match source.factors()? {
+                Factors::F32(Numeric::SimplicialLu(f)) => get!(f),
+                Factors::F64(Numeric::SimplicialLu(f)) => get!(f),
+                Factors::C32(Numeric::SimplicialLu(f)) => get!(f),
+                Factors::C64(Numeric::SimplicialLu(f)) => get!(f),
+                _ => return Err("LU permutations require algorithm=:simplicial".into()),
+            });
+            Ok(())
         })
     }
 }

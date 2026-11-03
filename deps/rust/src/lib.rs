@@ -1328,3 +1328,5 @@ pub mod npy;
 pub mod structured_products;
 
 pub mod pivoted_cholesky;
+
+mod sparse_lu_components;

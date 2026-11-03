@@ -1027,3 +1027,37 @@ components independently reconstruct native Q through FaerHouseholderSequence.
 All 32 README Julia blocks, method ambiguity checks, cargo check, Julia/Rust
 formatting and git diff --check pass. Dependency sources remain unchanged.
 The complete Issue #1 scope remains active.
+
+### Public simplicial sparse LU components and column orderings
+
+Added an explicit `algorithm=:simplicial` sparse LU path using faer's public
+SimplicialLu storage. It owns the actual numeric factors and row/column
+permutations used for solves, rather than recomputing dense surrogate factors.
+`F.L/F.U` export independent sorted native CSC factors and `F.p/F.q` return
+independent FaerPermutation objects with A[p,q]=L*U. The adapter's native solve
+uses the same factors for normal/transpose/adjoint systems. CSC/CSR and all four
+scalar types are supported; symbolic plan copies and numeric lu! updates retain
+column ordering and validate the original sparse pattern.
+
+For this explicit algorithm, :default/:identity mean identity column order;
+an arbitrary permutation (including a COLAMD result) selects another ordering.
+The default :auto path retains the preexisting high-level faer symbolic/numeric
+backend and its fill-reducing selection. Its opaque auto/supernodal factors
+still lack component getters here, and those remain part of the full objective.
+No dependency private-field casts or source patches are used.
+
+Native Rust tests directly verify L/U reconstruction and coherent permutations
+and solve transforms for all four scalar types. The Julia API additionally
+checks nonreal complex values, ownership and sparse update behavior.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **67,244 assertions across
+41 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. The new sparse LU suite contributes 274 assertions, covering
+CSC/CSR, four types including nonreal coefficients, identity/custom columns,
+L/U and p/q reconstruction, normal/transpose/adjoint solves, symbolic reuse,
+lu! updates, clone/close, empty/singular systems and invalid controls. An old
+negative test was updated to accept the newly supported explicit LU algorithm;
+QR's unsupported selection remains rejected. Four native Rust component tests,
+all 33 README Julia blocks, method ambiguity checks, cargo check, Julia/Rust
+formatting and git diff --check pass. Dependency sources remain unchanged.
+Other Issue #1 requirements remain open.
