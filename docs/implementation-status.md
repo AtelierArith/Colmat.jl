@@ -1884,3 +1884,19 @@ Canonical Pkg.test passed 85,870 assertions / 69 files with 16 workers.
 All 10 native tests and 57 README blocks passed, along with ambiguity detection,
 Julia/Rust formatting and git diff --check. Other factor types, sparse
 preconditioners, callbacks and remaining Issue #1/#2 scope are pending.
+
+### Retained full-pivot LU preconditioners
+
+FaerLinearOperator accepts native full-pivot LU factors, independently retaining
+L/U plus both row and column permutations. Normal/transpose/adjoint application
+calls the corresponding native full-pivot solve kernels and scratch queries.
+Scalar promotion converts saved factor values and preserves both permutations,
+without refactorization. This shares inverse-action copy/composition machinery
+with partial-pivot LU and Cholesky preconditioners.
+
+Focused verification passed 337 assertions across four factor/RHS scalar types,
+empty/singleton/square inputs, copies and source closure, transpose versus adjoint
+and singular rejection. The nontrivial fixture includes A=[0 2;3 100] (complex
+variant adds 0.3im at A[1,2]), forcing both row and column pivoting. Canonical Pkg.test passed 86,207 assertions / 70 files with 16 workers.
+All 10 native tests and 58 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. Issues #1/#2 remain incomplete.
