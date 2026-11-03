@@ -139,5 +139,6 @@ include("qz.jl")
 include("sparse.jl")
 include("sparsity.jl")
 include("sparse_compat.jl")
+include("sparse_triangular.jl")
 
 end

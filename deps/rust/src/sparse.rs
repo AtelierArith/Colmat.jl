@@ -735,3 +735,119 @@ impl SparseOwner {
         })
     }
 }
+
+// Triangular wrappers ignore the unused half, including a stored diagonal for
+// unit triangles. Rebuild only sparse entries so faer's diagonal-first/last
+// precondition holds even when the original owner stores both halves.
+fn triangular_solve<T: ComplexField>(
+    a: &Storage<T>,
+    b: MatRef<'_, T>,
+    lower: bool,
+    unit: bool,
+) -> Result<Mat<T>, String> {
+    let (m, n) = a.shape();
+    if m != n || b.nrows() != n {
+        return Err("sparse triangular solve dimensions must match".into());
+    }
+    let mut entries: Vec<_> = a
+        .triplets()
+        .into_iter()
+        .filter(|e| if lower { e.row > e.col } else { e.row < e.col })
+        .collect();
+    for i in 0..n {
+        let val = if unit { one::<T>() } else { a.get(i, i)? };
+        if !unit && val == zero::<T>() {
+            return Err(format!("zero diagonal at index {}", i + 1));
+        }
+        entries.push(Triplet {
+            row: i,
+            col: i,
+            val,
+        });
+    }
+    let triangle =
+        SparseColMat::try_new_from_triplets(n, n, &entries).map_err(|e| format!("{e:?}"))?;
+    let mut out = b.to_owned();
+    match (lower, unit) {
+        (true, true) => triangle.sp_solve_unit_lower_triangular_in_place(out.as_mut(), Par::Seq),
+        (true, false) => triangle.sp_solve_lower_triangular_in_place(out.as_mut(), Par::Seq),
+        (false, true) => triangle.sp_solve_unit_upper_triangular_in_place(out.as_mut(), Par::Seq),
+        (false, false) => triangle.sp_solve_upper_triangular_in_place(out.as_mut(), Par::Seq),
+    }
+    Ok(out)
+}
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn sparse_triangular_from(
+        &mut self,
+        sparse: *const u8,
+        rhs: *const u8,
+        lower: bool,
+        unit: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
+            match unsafe { &*sparse.cast::<SparseOwner>() }.data()? {
+                SparseData::F64(a) => {
+                    self.matrix = triangular_solve(a, b.matrix.as_ref(), lower, unit)?
+                }
+                _ => return Err("sparse triangular scalar types must match".into()),
+            }
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn sparse_triangular_from(
+        &mut self,
+        sparse: *const u8,
+        rhs: *const u8,
+        lower: bool,
+        unit: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*sparse.cast::<SparseOwner>() }.data()?;
+            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
+            self.data = Some(match (a, b) {
+                (SparseData::F32(a), MatrixData::F32(b)) => {
+                    MatrixData::F32(triangular_solve(a, b.as_ref(), lower, unit)?)
+                }
+                (SparseData::C32(a), MatrixData::C32(b)) => {
+                    MatrixData::C32(triangular_solve(a, b.as_ref(), lower, unit)?)
+                }
+                (SparseData::C64(a), MatrixData::C64(b)) => {
+                    MatrixData::C64(triangular_solve(a, b.as_ref(), lower, unit)?)
+                }
+                _ => return Err("sparse triangular scalar types must match".into()),
+            });
+            Ok(())
+        })
+    }
+}
+
+#[julia]
+impl SparseOwner {
+    #[julia]
+    pub fn sparse_zero_diagonal(&self) -> Result<usize, String> {
+        guarded(|| {
+            fn first_zero<T: ComplexField>(a: &Storage<T>) -> Result<usize, String> {
+                let (m, n) = a.shape();
+                for i in 0..m.min(n) {
+                    if a.get(i, i)? == zero::<T>() {
+                        return Ok(i + 1);
+                    }
+                }
+                Ok(0)
+            }
+            match self.data()? {
+                SparseData::F32(a) => first_zero(a),
+                SparseData::F64(a) => first_zero(a),
+                SparseData::C32(a) => first_zero(a),
+                SparseData::C64(a) => first_zero(a),
+            }
+        })
+    }
+}

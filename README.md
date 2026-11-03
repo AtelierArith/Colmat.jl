@@ -244,6 +244,22 @@ julia_csc = SparseMatrixCSC(S)    # Julia CSC への明示変換
 `FaerSparseMatrix(I,J,V,m,n)` では重複する triplet を加算し、格納ゼロを保持します。
 `Matrix(S)`・`FaerMatrix(S)` は明示的に密行列を作ります。
 
+疎三角ラッパーの `\` と2引数・3引数の `ldiv!` は native の疎求解を使います。
+通常・単位・下三角・上三角、転置／随伴、型の promotion に対応します。
+単位三角では未格納の対角を 1 として扱い、通常の三角行列で対角がゼロなら
+`SingularException` を投げます。右辺が `FaerMatrix`／`FaerVector` なら結果も Rust 所有です。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sparse([3.0 99; 2 4]); format=:csr)
+b = FaerVector([3.0, 10.0])
+x = LowerTriangular(A) \ b
+@assert Vector(x) ≈ [1.0, 2.0]
+ldiv!(UnitLowerTriangular(A), b)
+@assert Vector(b) ≈ [3.0, 4.0]
+```
+
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に
 影響されません。`FaerSparseMatrix{T}(P)` は Boolean パターンを数値の 1 に変換し、
@@ -252,7 +268,7 @@ julia_csc = SparseMatrixCSC(S)    # Julia CSC への明示変換
 
 `rowvals`・`getcolptr` は CSC のみ対応し、返す添字配列は独立したコピーです。
 CSR の行ポインタ・列添字には `compressed_storage` を使ってください。
-疎分解・ordering・疎三角求解は引き続き実装対象です。汎用 broadcast/map は
+疎分解・ordering は引き続き実装対象です。汎用 broadcast/map は
 専用の疎 native 経路ではなく、Julia の汎用処理や密配列の結果になる場合があります。
 
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の
@@ -307,7 +323,7 @@ SVD の失敗は例外になります。Julia バッファは `GC.@preserve` で
 ポインタを残しません。この PoC はコピーと割り当てを行うため、性能測定用の
 ゼロコピー・並列実装ではありません。互換 API に通常の実数配列を渡す経路は
 Float64 に変換します。複素数を含め型を保持する場合は `FaerMatrix` を使ってください。
-Rust 所有の疎行列 API は引き続き実装対象として管理しています。
+疎分解・ordering などの残りの API は Issue #1 で管理しています。
 
 RustCall v0.9.1 の制限として、受信オブジェクトを持つメソッドの `Result<Self, String>`
 返却と、引数の `&OwnedMatrix` の変換に問題がありました。最小再現例と修正案を

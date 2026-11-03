@@ -273,3 +273,27 @@ reflectors/rotations, teams, statistics, random and NPY remain. General array
 fallbacks may return dense Julia arrays and are not counted as native sparse
 implementations. CSC conversion necessarily allocates column pointers; CSR
 callers should use physical `compressed_storage` when preserving row layout.
+
+
+## Native sparse triangular solve checkpoint
+
+- The four standard triangular wrappers over native CSC/CSR owners, including
+  transposed and adjoint parents, dispatch to faer's public sparse triangular
+  solve routines for Float32/Float64/ComplexF32/ComplexF64.
+- Unused halves are removed in sparse storage; explicit diagonal entries supply
+  the first/last-position invariant required by faer. Unit triangles ignore
+  stored diagonals and supply ones even when no diagonal was stored.
+- Native diagonal validation reports Julia SingularException with a 1-based
+  index. No sparse coefficient matrix is densified. A 50,000-square diagonal
+  regression exercises a size that would require 20 GB if made dense.
+- Matrix/vector RHS, structured and sparse RHS, promotion, owned outputs,
+  alias-safe two/three-argument ldiv!, empty shapes, and closed-owner errors
+  are covered. Structured RHS dispatch intersections are resolved explicitly.
+- Sparse LLT/LU/QR, symbolic analysis reuse, ordering and the remaining Issue #1
+  categories are still pending. Existing low-level triangular scratch controls
+  are not exposed.
+
+Validation: default `Pkg.test()` with ParallelTestRunner.jl passed **13027
+assertions across 17 independent files using 16 workers**. The new triangular
+file contributes 1479 assertions. All README Julia examples, JuliaFormatter,
+`cargo fmt --check`, and `git diff --check` pass. No dependency source changes.
