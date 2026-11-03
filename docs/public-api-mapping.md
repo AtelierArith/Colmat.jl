@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `78ff122`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、59023 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 35 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `a8c1e80`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、64775 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 36 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -132,7 +132,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 呼び出し側所有の並列 team | `Par::Team`, `team::with_team`, `Par::reborrow`（threadteam feature） | Julia task/thread や BLAS thread 設定と関心は近いが、直接同一ではない | — | 未: team 所有・再利用。現行 Cargo features では threadteam 無効 |
 | 行・列の平均・分散 | `stats::{col_mean,row_mean,col_varm,row_varm,NanHandling}` | Statistics の `mean/varm` と dims/NaN 規約の対応 | R: `Statistics.mean/var/varm`、4 型・行/列/全体・dims・ビュー・NaN propagate/ignore・標本/母分散 | native データを primitive buffer にコピーして faer kernel を適用。指定平均は native 型へ昇格 |
 | 乱数・直交/ユニタリ行列の生成 | `CwiseMat/Col/RowDistribution`, `ComplexDistribution`, `UnitaryMat`（rand feature） | Random の `rand/randn`、ランダム直交行列の生成相当 | R: `FaerRNG`、`rand/randn` の native Mat/Col/Row、`rand!/randn!`・ビュー、`randunitary`、4 型・複素成分正規化・copy/seed/close | 任意の Rust Distribution/Julia callback の直接公開は未対応。Julia RNG は非空の生成ごとに UInt64 シードを1個渡す |
-| NPY 読み込み・ビュー | `io::npy::{Npy,FromNpy,...}`, `as_aligned_ref/to_mat`（npy feature） | NPY 対応 I/O（Julia 標準外） | — | 未: I/O 接続。npy feature 無効 |
+| NPY 読み込み・ビュー | `io::npy::{Npy,FromNpy,...}`, `as_aligned_ref/to_mat`（npy feature） | NPY 対応 I/O（Julia 標準外） | R: `loadnpy/npyview/npyinfo`、4 型・versions 1–3・C/Fortran・両 endian、独立 Mat と owned read-only aligned view、metadata/copy/deepcopy/close | 真の mmap/元バッファ別名は未対応。rank>2・他 dtype・連結配列は拒否。aligned/native-endian 正規化で [faer #210](https://github.com/tensor4all/faer/issues/210)・[#211](https://github.com/tensor4all/faer/issues/211) を回避 |
 | 型・形状・stride・共役・蓄積指定 | `Shape/Stride/Idx/IdxInc/MaybeIdx`, `ContiguousFwd/Bwd`, `Conj/Accum/Side`, `Spec/Auto` | axes/strides、BLAS の共役・αβ・上下三角指定に相当 | 一部: サイズ、1-based 添字への変換、mul! の αβ | Rust の型レベル shape/stride、全制御項目の公開 |
 | リテラル・連結・zip マクロ | `mat!/row!/col!`, `concat!`, `zip!/unzip!/Zip!` | 配列リテラル、`hcat/vcat`、broadcast/zip | Julia 配列から FaerMatrix を構築可能 | Rust マクロ自体を Julia に移植する API は未提供 |
 
@@ -141,10 +141,10 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - 「R」は専用 Rust 経路、「J」は Julia 汎用実装であり、区別する。一部の操作は一時所有行列へコピーする。
 - `FaerMatrix` は上記 4 型を保持する。疎入力を密行列化できても疎行列サポートには数えない。
 - `rayon` はブロック二重対角化で必要な Y 更新が feature gate 内にある不具合の回避（[faer #203](https://github.com/tensor4all/faer/issues/203)）。数値呼び出しは `Par::Seq` のまま。
-- Cargo は `default-features=false, features=["std","linalg","rayon","rand"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
+- Cargo は `default-features=false, features=["std","linalg","rayon","rand","npy"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
-- 疎 LU/QR の成分公開・横長/ランク落ち QR・LU/QR への ordering 指定、matrix-free、残りの破壊的分解・scratch、並列 team、NPY は今後の実装対象。一般化 Schur の並べ替えにも未対応。
+- 疎 LU/QR の成分公開・横長/ランク落ち QR・LU/QR への ordering 指定、matrix-free、残りの破壊的分解・scratch、並列 team は今後の実装対象。一般化 Schur の並べ替えにも未対応。
 - `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - 実 Schur の共役対は 2×2 ブロックとして扱い、選択では対を分割しない。Hessenberg の Q は明示行列で、compact reflector 形式とは区別する。
 - QZ の α/β は無限固有値と 0/0 を保つ同次形式。検査した faer real-QZ の scratch 推奨量には偶数丸め window・index 配列数の不足があるため、依存クローンを変更せずラッパーで再帰的な割当上限を補正した。blocked 経路もテスト済み。
