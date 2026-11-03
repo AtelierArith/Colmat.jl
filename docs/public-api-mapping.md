@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `a454701`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、69337 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 45 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `c3522b5`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、69703 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 46 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -66,10 +66,10 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | ピボット付きブロック LDLᴴ | `lblt`, `Lblt::{L,B_diag,B_subdiag,P}` | `bunchkaufman(Hermitian(A))` に相当 | R: `bunchkaufman/bunchkaufman!`、ブロック D・置換・packed・求解・再構成 | 全 Julia 規約・オプションの網羅 |
 | thin / full SVD | `thin_svd/svd`, `Svd::{U,S,V}` | `svd(A;full=false/true)` | R: 4 型の `svd/svd!`、thin/full、空行列、`scratch=`/`team=`、互換 `faer_svd` | 分解因子は Julia 配列。Rust 分解オブジェクトの保持、Julia の alg/tolerance キーワードは未対応 |
 | 特異値のみ | `singular_values` | `svdvals(A)` | R: 4 型の `svdvals/svdvals!`、実数出力、`scratch=`/`team=` | alg キーワード |
-| 自己随伴固有値分解・固有値のみ | `self_adjoint_eigen/self_adjoint_eigenvalues`, `SelfAdjointEigen` | `eigen/eigvals(Hermitian(A))` | R: `eigen/eigvals(Hermitian(A))`、指定三角・4 型 | 複素対称非 Hermitian、全キーワード |
-| 一般固有値分解・固有値のみ | `eigen/eigenvalues`, `Eigen` | `eigen/eigvals(A)` | R: 4 型の `eigen/eigvals(A)` | EVD driver 内の balancing 設定等の全制御項目 |
-| 自己随伴一般化固有値 | `self_adjoint_generalized_eigen/self_adjoint_generalized_eigenvalues` | `eigen/eigvals(Hermitian(A),Hermitian(B))` | R: Hermitian ペアの `eigen/eigvals(A,B)` | 全構造・高度な失敗規約の網羅 |
-| 一般化固有値 | `generalized_eigen`, `GeneralizedEigen::{U,S_a,S_b}` | `eigen(A,B)`, `eigvals(A,B)` | R: `eigen/eigvals(A,B)` | α/β の公開、無限・不定固有値の詳細な規約と網羅テスト |
+| 自己随伴固有値分解・固有値のみ | `self_adjoint_eigen/self_adjoint_eigenvalues`, `SelfAdjointEigen` | `eigen/eigvals(Hermitian(A))` | R: `eigen/eigvals/eigen!/eigvals!(Hermitian(A))`、指定三角・4 型 | 複素対称非 Hermitian、全キーワード |
+| 一般固有値分解・固有値のみ | `eigen/eigenvalues`, `Eigen` | `eigen/eigvals(A)` | R: 4 型の `eigen/eigvals/eigen!/eigvals!(A)`、bang は Schur 形の書き戻し | EVD driver 内の balancing 設定等の全制御項目 |
+| 自己随伴一般化固有値 | `self_adjoint_generalized_eigen/self_adjoint_generalized_eigenvalues` | `eigen/eigvals(Hermitian(A),Hermitian(B))` | R: Hermitian ペアの `eigen/eigvals/eigen!/eigvals!(A,B)` | 全構造・高度な失敗規約の網羅 |
+| 一般化固有値 | `generalized_eigen`, `GeneralizedEigen::{U,S_a,S_b}` | `eigen(A,B)`, `eigvals(A,B)` | R: `eigen/eigvals/eigen!/eigvals!(A,B)`、bang は QZ S/T 書き戻し | α/β の公開、無限・不定固有値の詳細な規約と網羅テスト |
 | Schur・並べ替え | `evd::{hessenberg_schur_real/cplx,reorder_schur_real/cplx,eigenvectors_from_schur_*}` | `schur`, `ordschur`, Schur からの固有ベクトル | R: 4 型の `schur/schur!`、`ordschur/ordschur!`、`eigvecs/eigen(::Schur)`、Rust 所有 T/Z | 既定アルゴリズムのみ。全 SchurParams・並列 team・caller-owned scratch |
 | 一般化 Schur / QZ | `gevd::{gen_hessenberg,qz_real,qz_cplx}`, `hessenberg_to_qz` | `schur(A,B)` | R: 4 型の `schur(A,B)` / `schur!`、native S/T/Q/Z、α/β、`hessenberg(A,B)` と再利用 | 一般化 `ordschur`、全チューニング項目・caller-owned scratch。作業領域はラッパー内で補正・確保 |
 
@@ -116,7 +116,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/full_piv_lu!/qr!/cholesky!/ldlt!/bunchkaufman!/svd!/svdvals!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | EVD 等の残りの破壊的 API。caller-owned scratch は Pfaffian/SVD に接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
+| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/full_piv_lu!/qr!/cholesky!/ldlt!/bunchkaufman!/svd!/svdvals!/eigen!/eigvals!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | 直接 in-place の低水準経路・全 tuning。caller-owned scratch は Pfaffian/SVD に接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
 | Householder | `householder::make_householder_in_place/upgrade_householder_factor/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | R: `FaerHouseholder/householder`、`FaerHouseholderSequence`、4 型の basis/tau/factor 構築、block factor upgrade/reblock、左右の sequence 適用・求解・`mul!`、随伴/転置/共役・ビュー | `prev_block_size` の直接制御、外部 scratch |
 | Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転。`FaerJacobiRotation`、`rotg/make_givens`、2×2左右適用、transpose/conj/adjoint、Givens 埋め込み | — |
 | Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | R: 4 型の `hessenberg/hessenberg!`、明示的な Rust 所有 H/Q、Schur 段階への再利用。`balance/balance!`、`FaerBalance` の B/perm/scale/active、右固有ベクトルの `balance_eigenvectors[!]` | compact Householder 形式・全パラメータ・外部 scratch |
