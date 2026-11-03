@@ -620,6 +620,8 @@ impl OwnedMatrix {
                     DenseFactor::Qr(x) => typed::packed(x.Q_basis(), x.thin_R()),
                     DenseFactor::PivotQr(x) => typed::packed(x.Q_basis(), x.thin_R()),
                     DenseFactor::Llt(x) => x.L().to_owned(),
+                    DenseFactor::Ldlt(x) => typed::packed_diagonal(x.L(), x.D()),
+                    DenseFactor::Lblt(x) => typed::packed_diagonal(x.L(), x.B_diag()),
                     _ => return Err("no packed storage for factor".into()),
                 },
                 8 => match f {

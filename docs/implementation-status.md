@@ -1128,3 +1128,32 @@ identity over repeated calculations. All 35 README Julia blocks, method ambiguit
 checks, cargo check, Julia/Rust formatting and git diff --check pass. Dependency
 sources remain unchanged. Other workspace consumers and remaining Issue #1
 requirements stay open.
+
+### Staged LDLT, block LDLT and full-pivot LU writeback
+
+Added `ldlt!` and `bunchkaufman!` for native matrices and selected Hermitian/real
+Symmetric triangles, plus `full_piv_lu!` for rectangular/square native matrices.
+All four scalar types retain independent native factor objects before packed
+writeback. Views observe updates; closing/changing input leaves returned factors
+usable. Failed LDLT without available factors preserves input for check=false;
+explicitly allowed singular block LDLT/full LU write their available factors.
+
+`F.packed` now also exports LDLT/block LDLT: strict lower L plus D's diagonal,
+with upper zeros. Upper wrappers receive its adjoint. Block off-diagonals remain
+in F.D and permutations in F.p, matching faer's split block representation;
+input packed storage alone is insufficient without that returned metadata.
+Tests independently reconstruct L*D*L' from written input and returned metadata,
+including forced complex 2×2 blocks and permutations. Full LU retains F.p/F.q.
+
+These are staged, allocating entry points. Direct mutation of existing native
+storage without staging, external scratch for these factorizations, and remaining
+SVD/EVD destructive entry points remain work in the full Issue #1 objective.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **68,453 assertions across
+44 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. New tests contribute 497 assertions: four types, empty/rectangular
+LU, lower/upper indefinite decompositions, forced nonreal 2×2 blocks, independent
+reconstruction from written factors, solve residuals, live views, factor lifetimes
+and singular/failure transactions. All 36 README Julia blocks, method ambiguity
+checks, cargo check, Julia/Rust formatting and git diff --check pass. Dependency
+sources remain unchanged. The remaining Issue #1 requirements stay open.

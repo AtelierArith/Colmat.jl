@@ -1010,3 +1010,31 @@ Pfaffian validates shape, finiteness and skew-symmetry and leaves A unchanged.
 the call. Pfaffian is currently the connected consumer; other kernels still
 allocate their own workspaces. Julia/FFI bookkeeping may still allocate even
 when the native workspace is reused.
+
+### Destructive indefinite and full-pivot LU decompositions
+
+```julia
+using Colmat, LinearAlgebra
+original = [1.0 2; 2 -1]
+A = FaerMatrix(original)
+F = ldlt!(Hermitian(A, :L))
+@assert Matrix(A) == Matrix(F.packed)
+@assert Matrix(F) ≈ original
+B = FaerMatrix([0.0 2; 2 0])
+G = bunchkaufman!(Hermitian(B))
+@assert Matrix(G.L * G.D * G.L') ≈ [0.0 2; 2 0][G.p, G.p]
+C = FaerMatrix(original)
+H = full_piv_lu!(C)
+@assert Matrix(H.L * H.U) ≈ original[H.p, H.q]
+```
+
+`ldlt!`, `bunchkaufman!` and `full_piv_lu!` stage independent native factors
+before writing packed entries into the input. Same-shape views see those
+entries; returned factors remain independent of later changes or close.
+LDLT/block LDLT store D's diagonal plus strict-lower L (or its adjoint for an
+upper wrapper). Block LDLT keeps its block off-diagonals in the returned `F.D`
+and its permutation in `F.p`; retain those to reconstruct/solve. This is faer's
+split block representation. `F.packed` is always lower-oriented. Failed
+`ldlt!(...; check=false)` leaves input unchanged because no factor is available;
+allowed singular full-pivot LU/block LDLT write the available packed factors.
+These entry points allocate factors and writeback buffers.

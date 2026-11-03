@@ -536,6 +536,20 @@ fn qr_rows<T: ComplexField>(f: &Factor<T>) -> Result<usize, String> {
         _ => Err("not a QR factorization".into()),
     }
 }
+pub(crate) fn packed_diagonal<T: ComplexField>(
+    lower: MatRef<'_, T>,
+    diagonal: faer::diag::DiagRef<'_, T>,
+) -> Mat<T> {
+    Mat::from_fn(lower.nrows(), lower.ncols(), |i, j| {
+        if i == j {
+            copy(&diagonal[i])
+        } else if i > j {
+            copy(&lower[(i, j)])
+        } else {
+            zero::<T>()
+        }
+    })
+}
 pub(crate) fn packed<T: ComplexField>(lower: MatRef<'_, T>, upper: MatRef<'_, T>) -> Mat<T> {
     Mat::from_fn(lower.nrows(), upper.ncols(), |i, j| {
         if i > j {
@@ -603,6 +617,8 @@ fn factor_part<T: ComplexField>(f: &Factor<T>, part: i32) -> Result<Mat<T>, Stri
             Factor::Qr(x) => packed(x.Q_basis(), x.thin_R()),
             Factor::PivotQr(x) => packed(x.Q_basis(), x.thin_R()),
             Factor::Llt(x) => x.L().to_owned(),
+            Factor::Ldlt(x) => packed_diagonal(x.L(), x.D()),
+            Factor::Lblt(x) => packed_diagonal(x.L(), x.B_diag()),
             _ => return Err("no packed storage for factor".into()),
         },
         8 => match f {

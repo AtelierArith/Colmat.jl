@@ -17,7 +17,8 @@ before writeback preserve A. Failed check=false Cholesky leaves A unchanged
 and returns the unsuccessful factorization.
 """
 function _factor_writeback!(a::FaerMatrix, f::FaerFactorization; upper = false)
-    if getfield(f, :info)!=0 && f isa FaerFactorization{<:Any,:cholesky}
+    if getfield(f, :info)!=0 &&
+       (f isa FaerFactorization{<:Any,:cholesky} || f isa FaerFactorization{<:Any,:ldlt})
         return f
     end
     packed=f.packed
@@ -77,4 +78,39 @@ for W in (:Hermitian, :Symmetric)
         ::LinearAlgebra.RowMaximum;
         kwargs...,
     ) where {T<:$bound} = _pivoted_writeback!(a; kwargs...)
+end
+
+"""
+    full_piv_lu!(A::FaerMatrix; check=true)
+
+Compute native full-pivot LU, then replace A by packed L/U storage. F.p/F.q
+retain the row/column permutations. Returned factors are independent of A.
+"""
+function full_piv_lu!(a::FaerMatrix; check::Bool = true)
+    lock(_matrix_lock) do
+        return _factor_writeback!(a, full_piv_lu(a; check))
+    end
+end
+for fn in (:ldlt, :bunchkaufman)
+    bang=Symbol(fn, :!)
+    @eval function LinearAlgebra.$bang(a::FaerMatrix; check::Bool = true)
+        lock(_matrix_lock) do
+            return _factor_writeback!(a, LinearAlgebra.$fn(a; check))
+        end
+    end
+    for W in (:Hermitian, :Symmetric)
+        bound=W===:Symmetric ? Real : Any
+        @eval function LinearAlgebra.$bang(
+            a::LinearAlgebra.$W{T,<:FaerMatrix};
+            check::Bool = true,
+        ) where {T<:$bound}
+            lock(_matrix_lock) do
+                return _factor_writeback!(
+                    parent(a),
+                    LinearAlgebra.$fn(a; check);
+                    upper = a.uplo=='U',
+                )
+            end
+        end
+    end
 end
