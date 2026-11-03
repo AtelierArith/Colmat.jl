@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `c187f4a`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、15212 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 18 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `ea65c12`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、20273 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 19 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -32,7 +32,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 部分行列・分割・逆順 | `submatrix/subrows/subcols/split_at/reverse_rows/reverse_cols` | `view`, `@view`, slicing, `reverse` | R: `view` の範囲・間引き・逆順・入れ子、native copy/積/代入 | 任意の整数ベクトル添字は汎用処理。独立した split API |
 | 転置・共役・随伴 | `transpose/conjugate/adjoint` | `transpose/conj/adjoint`, `A'` | J: 遅延ラッパー。R: `conj`、転置・随伴のコピー、複素演算 | 積や求解で転置ラッパーを一時所有行列へコピーする経路あり |
 | 動的容量・サイズ変更 | `with_capacity/try_reserve/reserve/resize_with/truncate` | `sizehint!` 等に類する容量管理。Matrix に直接同等の公開 API はない | R: `reserve!`、`sizehint!`、`resize!(;fill)`、`truncate!` | 容量の照会・全低水準制御 |
-| 置換・行列交換 | `Perm/PermRef`, `permute_rows/cols`, `swap_rows/cols` | 置換ベクトル、`A[p,:]`, `A[:,p]` | R: `FaerPermutation`、逆置換・合成、`permute_rows/cols` と `!`、`swap_rows!/swap_cols!`、`A[p,:]/A[:,p]` | ビューの更新は一時結果を経由。全低水準 PermRef 形式・caller-owned scratch |
+| 置換・行列交換 | `Perm/PermRef`, `permute_rows/cols`, `swap_rows/cols` | 置換ベクトル、`A[p,:]`, `A[:,p]` | R: `FaerPermutation`、逆置換・合成、`permute_rows/cols` と `!`、`swap_rows!/swap_cols!`、`A[p,:]/A[:,p]`、疎数値行列・疎パターンの native 置換 | ビューの更新は一時結果を経由。全低水準 PermRef 形式・caller-owned scratch |
 | スカラー型 | `f32/f64`, `c32/c64`、`fx128/cx128` の公開型エイリアス、generic field traits | `Float32/Float64/ComplexF32/ComplexF64` 等 | R: Float32 / Float64 / ComplexF32 / ComplexF64 の所有・演算・分解 | fx128/cx128、任意の field traits |
 
 ## 2. 基本演算・集約・積
@@ -99,7 +99,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解 | L/U・置換成分の公開、ordering 指定、低水準制御 |
 | 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、`qr!`、symbolic 再利用、`ldiv!` | 横長・rank-deficient、Q/R 成分、転置/随伴 QR 求解、低水準制御 |
 | 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | R: CSC/CSR・4 型、通常/単位の上下三角、転置/随伴、matrix/vector RHS、`ldiv!` | 作業領域の外部指定、割り当てを伴わない直接 in-place 経路 |
-| Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | — | 未: ordering を独立に公開する API |
+| Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | R: `amd/colamd`、numeric/symbolic CSC/CSR、長方形 COLAMD、制御値・AMD 演算数見積もり、`FaerPermutation` 返却 | 疎分解への直接 ordering 指定、caller-owned scratch |
 
 ## 6. Matrix-free・反復法
 
@@ -143,7 +143,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - Cargo は `default-features=false, features=["std","linalg"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
-- 疎分解の成分公開・横長/ランク落ち QR・ordering、matrix-free、残りの破壊的分解・scratch、balancing、並列 team、統計・乱数・NPY は今後の実装対象。一般化 Schur の並べ替えにも未対応。
+- 疎分解の成分公開・横長/ランク落ち QR・疎分解への ordering 指定、matrix-free、残りの破壊的分解・scratch、balancing、並列 team、統計・乱数・NPY は今後の実装対象。一般化 Schur の並べ替えにも未対応。
 - `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - 実 Schur の共役対は 2×2 ブロックとして扱い、選択では対を分割しない。Hessenberg の Q は明示行列で、compact reflector 形式とは区別する。
 - QZ の α/β は無限固有値と 0/0 を保つ同次形式。検査した faer real-QZ の scratch 推奨量には偶数丸め window・index 配列数の不足があるため、依存クローンを変更せずラッパーで再帰的な割当上限を補正した。blocked 経路もテスト済み。
@@ -169,4 +169,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - [疎行列 solver](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/sparse/solvers.rs)
 - [matrix-free 公開モジュール](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/operator/mod.rs)
 - [stats](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/stats/mod.rs)
-- Colmat 検証済みコミットの調査対象: `src/Colmat.jl`, `src/matrix.jl`, `deps/rust/src/lib.rs`, `deps/rust/Cargo.toml`, `test/runtests.jl`, `test/matrix.jl`。
+- Colmat 検証済みコミットの調査対象: `src/`, `deps/rust/src/`, `deps/rust/Cargo.toml`, `test/`。
+
+- [AMD ordering](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/sparse/linalg/amd.rs)
+- [COLAMD ordering](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/sparse/linalg/colamd.rs)
