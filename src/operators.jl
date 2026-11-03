@@ -8,7 +8,7 @@ operators do not store a dense coefficient matrix. `*`, `mul!`, conjugation,
 transpose and adjoint call native operator traits; Matrix(op) explicitly forms
 its dense matrix. `.coefficients` returns an independent base representation,
 with `.transposed/.conjugated` describing its orientation.
-Arbitrary Julia-function callbacks and operator composition are not yet exposed.
+Native composition is available with operator * operator. Arbitrary Julia-function callbacks remain unavailable.
 """
 mutable struct FaerLinearOperator{T,H} <: AbstractMatrix{T}
     handle::Union{Nothing,H}
@@ -128,6 +128,11 @@ function _operator_coefficients(op::FaerLinearOperator{T}) where {T}
     lock(_matrix_lock) do
         _handle(op)
         dims=op.transposed ? reverse(size(op)) : size(op)
+        op.storage===:composition && throw(
+            ArgumentError(
+                "composite operator has no single coefficient storage; use Matrix(op)",
+            ),
+        )
         if op.storage===:dense
             return T===Float64 ? _matrix_result(RustCrate.operator_dense_from, dims, op) :
                    _typed_result(T, RustCrate.operator_dense_from, dims, op)
@@ -157,6 +162,8 @@ function _operator_coerce(op::FaerLinearOperator{T}, ::Type{T}) where {T}
     return op
 end
 function _operator_coerce(op::FaerLinearOperator, ::Type{T}) where {T<:_NativeScalar}
+    _handle(op)
+    eltype(op)===T && return op
     coefficients=_operator_coefficients(op)
     converted=op.storage===:identity ? FaerLinearOperator(LinearAlgebra.I, size(op, 1); T) :
               op.storage===:dense ? FaerLinearOperator(FaerMatrix{T}(coefficients)) :
@@ -816,6 +823,34 @@ function lsmr!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
             result.estimated_abs_residual,
             result.estimated_rel_residual,
             result.reason,
+        )
+    end
+end
+
+"""
+    A::FaerLinearOperator * B::FaerLinearOperator
+
+Compose independent native operators without forming their coefficient product.
+The composition owns copies of both operands and supports native application,
+transpose/adjoint and iterative solvers. Application uses an intermediate
+RHS matrix in native scratch; coefficients are available through explicit `Matrix(op)` conversion.
+"""
+function Base.:*(a::FaerLinearOperator, b::FaerLinearOperator)
+    lock(_matrix_lock) do
+        _handle(a)
+        _handle(b)
+        size(a, 2)==size(b, 1) ||
+            throw(DimensionMismatch("operator composition dimensions must match"))
+        T=promote_type(eltype(a), eltype(b))
+        left, right=_operator_coerce(a, T), _operator_coerce(b, T)
+        h=RustCrate.OwnedLinearOperator()
+        _native_call(RustCrate.operator_compose, h, left, right)
+        FaerLinearOperator{T,typeof(h)}(
+            h,
+            (size(a, 1), size(b, 2)),
+            :composition,
+            false,
+            false,
         )
     end
 end

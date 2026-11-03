@@ -1805,3 +1805,29 @@ shape mismatch and owner closure. Canonical Pkg.test passed 84,340 assertions / 
 All 10 native tests and 54 README blocks passed, together with ambiguity
 detection, Julia/Rust formatting and git diff --check.
 Issues #1/#2 remain incomplete.
+
+### Native matrix-free operator composition
+
+`FaerLinearOperator * FaerLinearOperator` retains independent native copies of
+both operands and applies them sequentially without forming the coefficient
+product. Transpose/adjoint reverse the operand application order, conjugation
+propagates to both, and nested compositions use recursive native scratch
+requirements. Intermediate RHS storage is carved from the existing MemStack,
+without a per-application intermediate heap allocation. Matrix conversion is
+explicit. `.coefficients` rejects compositions because there is no single base
+storage. Existing compositions cannot yet be promoted to a new scalar type.
+
+Focused tests passed 226 assertions: all four scalar types, dense/sparse inputs,
+empty/rectangular dimensions, conjugate/transpose/adjoint, copies and closed
+operands, nesting, CG on a composed normal operator, product application and
+invalid shapes/owners. Canonical Pkg.test passed 84,566 assertions / 66 files with 16 workers.
+All 10 native tests and 55 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. Julia callbacks and the
+remaining Issue #2 work are still pending.
+
+Upstream API feedback: tensor4all/faer PR #228 proposes a read-only public
+SymbolicQr::raw accessor needed for safe QR component inspection. The standalone
+MWE fails on b4fb784 with E0599; the patch passes both forced-variant integration
+coverage and an executable doctest. This is an API extension, not a numerical
+bug. See docs/reproducers/faer-sparse-qr-symbolic-accessor.md. The dependency
+checkout remains unchanged; the upstream PR has not been adopted into Colmat.

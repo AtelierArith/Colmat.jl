@@ -1627,3 +1627,26 @@ Symbolic analysis, sparse snapshots and owned factor buffers allocate outside
 scratch. Returned factors do not borrow the workspace and remain valid after
 it or the input plan is closed. Explicit simplicial factor construction retains
 its previous workspace path.
+
+### Compose native matrix-free operators
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = [3.0 0; 1 2; 0 1]
+A = FaerLinearOperator(sparse(A0))
+N = adjoint(A) * A
+close(A)
+b = ones(2)
+result = cg(N, b)
+@assert result.x ≈ (A0' * A0) \ b
+@assert Matrix(N) ≈ A0' * A0
+close(N)
+```
+
+Operator multiplication retains independent copies of both operands and applies
+them in sequence without materializing their coefficient product. Composition
+supports nested products, conjugation, transpose and adjoint; intermediate RHS
+storage comes from native scratch. Explicit `Matrix(op)` materializes the result.
+A composition has no single `.coefficients` representation. Promoting an existing
+composition to another scalar type is currently unsupported; construct operands
+in the target scalar type before composing.
