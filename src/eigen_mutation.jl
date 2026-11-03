@@ -120,11 +120,18 @@ function _eigen_pair_check(a, b)
     _handle(b)
     return nothing
 end
-function _generalized_eigen_writeback!(a::FaerMatrix, b::FaerMatrix, vectors::Bool, sortby)
+function _generalized_eigen_writeback!(
+    a::FaerMatrix,
+    b::FaerMatrix,
+    vectors::Bool,
+    sortby;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         _eigen_pair_check(a, b)
-        result=vectors ? LinearAlgebra.eigen(a, b; sortby) :
-               LinearAlgebra.eigvals(a, b; sortby)
+        result=vectors ? LinearAlgebra.eigen(a, b; sortby, scratch, team) :
+               LinearAlgebra.eigvals(a, b; sortby, scratch, team)
         qz=LinearAlgebra.schur(a, b)
         try
             copyto!(a, qz.S)
@@ -135,10 +142,20 @@ function _generalized_eigen_writeback!(a::FaerMatrix, b::FaerMatrix, vectors::Bo
         end
     end
 end
-LinearAlgebra.eigen!(a::FaerMatrix, b::FaerMatrix; sortby = _eigensort) =
-    _generalized_eigen_writeback!(a, b, true, sortby)
-LinearAlgebra.eigvals!(a::FaerMatrix, b::FaerMatrix; sortby = _eigensort) =
-    _generalized_eigen_writeback!(a, b, false, sortby)
+LinearAlgebra.eigen!(
+    a::FaerMatrix,
+    b::FaerMatrix;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) = _generalized_eigen_writeback!(a, b, true, sortby; scratch, team)
+LinearAlgebra.eigvals!(
+    a::FaerMatrix,
+    b::FaerMatrix;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) = _generalized_eigen_writeback!(a, b, false, sortby; scratch, team)
 function _selfadjoint_pair_writeback!(
     a::_AnyFaerSelfAdjoint,
     b::_AnyFaerSelfAdjoint,

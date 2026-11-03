@@ -114,7 +114,10 @@ fn finish<T: ComplexField>(p: &mut Pair<T>) -> Result<(), String> {
 // local Sylvester solve also owns four index arrays rather than one. Derive
 // the live allocation bound using those actual sizes, while retaining the
 // public recommendation as a lower bound for future faer revisions.
-fn real_qz_scratch<T: RealField>(n: usize, params: gevd::GeneralizedSchurParams) -> StackReq {
+pub(crate) fn real_qz_scratch<T: RealField>(
+    n: usize,
+    params: gevd::GeneralizedSchurParams,
+) -> StackReq {
     if n < usize::max(15, params.blocking_threshold) {
         return StackReq::EMPTY;
     }

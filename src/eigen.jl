@@ -91,12 +91,20 @@ function LinearAlgebra.eigen(
     a::FaerMatrix{Float64},
     b::FaerMatrix{Float64};
     sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
 )
-    result=_eigen(a, 2; b, sortby)
-    return LinearAlgebra.GeneralizedEigen(result.values, result.vectors)
+    return _general_gevd_workspace_result(a, b; sortby, scratch, team)
 end
-LinearAlgebra.eigvals(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}; sortby = _eigensort) =
-    _eigen(a, 2; b, vectors = false, sortby)
+function LinearAlgebra.eigvals(
+    a::FaerMatrix{Float64},
+    b::FaerMatrix{Float64};
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+)
+    return _general_gevd_workspace_result(a, b; vectors = false, sortby, scratch, team)
+end
 function LinearAlgebra.eigen(
     a::_FaerSelfAdjoint,
     b::_FaerSelfAdjoint;

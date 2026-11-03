@@ -979,7 +979,7 @@ views, transposes, coefficients and aliased destinations are supported. Copies
 reserve independent teams. Close teams promptly; GC also owns their handles.
 
 `team_mul`, `mul!(dest, team, A, B[, alpha, beta])`, `pfaffian(A; team=team)`
-and SVD/single-matrix and definite self-adjoint generalized EVD entry points with `team=` use this explicit team. Other routines retain sequential execution. Calls are serialized
+and SVD/EVD entry points with `team=` use this explicit team. Other routines retain sequential execution. Calls are serialized
 by Colmat's owner lock, and faer may choose a narrower region for small work.
 The API controls worker reservations; it does not promise a speedup for every
 matrix size. Inputs needing conversion and destination writes use temporaries.
@@ -1007,7 +1007,7 @@ capacity/alignment directly. Calls never grow the workspace implicitly; copy
 and deepcopy allocate independent storage. Contents are scratch, not user data.
 Pfaffian validates shape, finiteness and skew-symmetry and leaves A unchanged.
 `team=` works with supplied scratch or with a temporary workspace released after
-the call. Pfaffian, SVD, single-matrix and definite self-adjoint generalized EVD are connected consumers; other kernels still
+the call. Pfaffian, SVD and single/generalized EVD are connected consumers; other kernels still
 allocate their own workspaces. Julia/FFI bookkeeping may still allocate even
 when the native workspace is reused.
 
@@ -1105,8 +1105,7 @@ and S/T writeback. Self-adjoint pairs write eigenvectors (or diagonal values for
 These are explicit staged formats; they do not expose LAPACK work buffers.
 Pair parents must be distinct with matching scalar types. Convergence/sort errors
 before writeback preserve inputs. Returned arrays remain independent of later
-input changes/close. Factorization, sorting and writeback allocate. Single-matrix and definite self-adjoint generalized EVD support scratch/team
-keywords below; general nonsymmetric pairs retain their existing interfaces.
+input changes/close. Factorization, sorting and writeback allocate. Single-matrix and generalized EVD support scratch/team keywords below.
 
 ### Self-adjoint EVD with reusable workspace and teams
 
@@ -1132,8 +1131,7 @@ values. Unused triangles and complex diagonal imaginary parts are ignored;
 nonfinite values in the active data are rejected. Eigenvalues are real.
 Sorting and independent eigenvector output arrays allocate separately. Caller
 workspace never grows implicitly, and temporary workspace is closed on errors.
-General nonsymmetric pairs and other kernels retain their existing workspace
-and execution interfaces.
+Other kernels retain their existing workspace and execution interfaces.
 
 ### General EVD with caller-owned scratch and teams
 
@@ -1191,3 +1189,34 @@ solves a self-adjoint EVD, and back-transforms B-orthonormal eigenvectors.
 Unused triangles and imaginary diagonal parts are ignored independently.
 Output arrays, scalar promotion, sorting and staged bang writeback allocate
 separately. Nonpositive B or sorting failure preserves bang inputs.
+
+### Generalized EVD for general matrix pairs
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([0.0 -1; 1 0])
+B = FaerMatrix([2.0 0; 0 1])
+FaerTeam(2) do team
+    workspace = FaerScratch(eigen, A, B; team=team)
+    F = eigen(A, B; scratch=workspace, team=team)
+    @assert Matrix(A) * F.vectors ≈ Matrix(B) * F.vectors * Diagonal(F.values)
+    reserve!(workspace, eigvals, A, B; team=team)
+    @assert eigvals(A, B; scratch=workspace, team=team) ≈ F.values
+    close(workspace)
+end
+```
+
+General `FaerMatrix` pairs support four types and scalar promotion, with complex
+values and normalized right eigenvectors. The workspace includes writable input
+copies and packed real outputs as needed. `scratch_requirements` and `reserve!`
+support eigen/eigvals and their bang aliases. Bang calls use the options for the
+eigen pass, then compute a separate sequential QZ for staged S/T writeback;
+that QZ workspace is outside this query. Sorting, output arrays and writeback
+allocate separately.
+
+For repeated finite eigenvalues, upstream can return nonfinite vectors
+([faer #217](https://github.com/tensor4all/faer/issues/217)). Colmat recovers
+invalid columns using native sequential SVD nullspaces, checking sufficient
+nullity. This exceptional path allocates additional matrices and internal SVD
+workspace outside the supplied buffer. General defective or nonfinite-eigenvalue
+vector recovery is not supported. The dependency checkout is left unchanged.

@@ -86,3 +86,16 @@ space at the matrix dimension, while its callee requires a strict inequality.
 Reported with complete executable crate and proposed full-projection correction:
 <https://github.com/tensor4all/faer/issues/213>. Colmat reports a native dense
 fallback for this boundary; larger partial requests keep the iterative path.
+
+
+## Repeated generalized eigenvalues
+
+[faer #217](https://github.com/tensor4all/faer/issues/217) includes the complete
+isolated Cargo manifest, executed `faer-gevd-repeated.rs`, output, exit status
+101 and a concrete protected-denominator fix proposal. The identity pencil
+A=B=I₂ returns NaN right eigenvectors on executed revision d5be1473. Latest
+HEAD f817d0031a9fde1c0388213592a0c3ebb7b12685 was inspected and still contains
+the same helper; it was not executed. The helper scales the RHS for a tiny
+shift but then still takes the reciprocal of the original zero denominator.
+Colmat recovers invalid finite-eigenvalue columns via native SVD nullspaces
+with explicit nullity checks; dependency sources are unchanged.

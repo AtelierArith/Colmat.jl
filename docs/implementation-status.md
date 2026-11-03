@@ -1314,3 +1314,42 @@ selected triangles, B-orthonormality, values-only, staged writeback, promotion,
 sorting/error transactions and native shape guards. All six native Rust tests
 and all 41 README Julia blocks pass. Julia/Rust formatting, method ambiguity
 checks and git diff --check pass. The full Issue #1 goal remains incomplete.
+
+## Generalized EVD scratch and explicit teams
+
+General native matrix pairs now support `scratch=` and `team=` for
+`eigen/eigvals/eigen!/eigvals!`, with four scalar types and scalar promotion.
+Requirement queries, factories and reserve accept both inputs. Native shape/tag
+checks guard output writes. Writable A/B copies and packed real eigenvalues,
+beta and vectors are allocated within caller scratch. The adapter composes the
+public generalized EVD driver with the existing real-QZ scratch correction.
+Right vectors are normalized; real conjugate pairs become complex Julia arrays.
+Default calls use the same pipeline with temporary sequential workspace.
+
+Bang options apply to the eigen pass; a separate sequential QZ computes S/T
+writeback. The query excludes this second decomposition's internal workspace,
+output arrays, sorting and promotion. Invalid finite-eigenvalue eigenvectors
+caused by faer's repeated-shift defect are recovered from native sequential SVD
+nullspaces, with sufficient-nullity checks. This exceptional path allocates
+additional matrices and internal workspace. Defective/nonfinite-eigenvalue
+vector recovery and homogeneous alpha/beta exposure remain unfinished.
+
+The standalone identity-pencil Rust MWE in
+`docs/reproducers/faer-gevd-repeated.rs` exits 101 with NaN right vectors using
+an isolated pinned git Cargo dependency, independently of Julia/RustCall.
+[faer #217](https://github.com/tensor4all/faer/issues/217) contains the exact
+manifest/source, measured output, toolchain, concrete protected-denominator
+fix proposal and regression cases. Latest remote HEAD f817d003 was inspected
+and retains the same helper, but was not executed. No dependency sources were
+modified. No new RustCall defect was observed.
+
+Validation: canonical `Pkg.test(;allow_reresolve=false)` passes **71,577
+assertions across 50 files** on Julia 1.13.3 / RustCall 0.9.2, using
+ParallelTestRunner 2.10.0 with 16 workers. The generalized workspace file adds
+348 assertions across four types, width one/two, empty/scalar/nonsymmetric
+conjugate-pair systems, dense 64-dimensional known spectra, repeated identity
+pencils, promotion, shape guards, sorting/error transactions and staged QZ
+writeback. The test includes method ambiguity checks. All six native tests
+and 42 README Julia blocks pass, as do Julia/Rust formatting, cargo check and
+git diff --check. The frozen 76-row inventory and dependency sources are
+unchanged. The full Issue #1 objective remains active and incomplete.
