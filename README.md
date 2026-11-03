@@ -1555,3 +1555,16 @@ ordering; numeric values do not. The generated permutation is copied into
 Rust-owned analysis, so no temporary ordering handle needs to remain open.
 This explicit ordering option is currently available for simplicial LU/QR;
 auto/supernodal LU/QR retain their existing default selection.
+
+
+### Explicit supernodal sparse QR
+
+`qr(A; algorithm=:supernodal)` and
+`FaerSparseSymbolic(A; kind=:qr, algorithm=:supernodal)` force faer's native
+supernodal QR. Both retain public low-level symbolic analysis and adapter-owned
+numeric buffers. Normal least-squares solves, independent copies, symbolic
+reuse and numeric `qr!` updates support all four scalar types and CSC/CSR.
+This path uses faer's default COLAMD ordering. Custom ordering controls, factor
+component getters, transpose/adjoint solves and caller-owned scratch are not
+yet exposed for supernodal QR. The explicit simplicial path retains its existing
+component and transpose/adjoint interfaces.

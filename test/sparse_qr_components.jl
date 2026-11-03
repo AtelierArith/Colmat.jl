@@ -50,7 +50,7 @@ end
     F=qr(a; algorithm = :simplicial)
     @test Matrix(F)≈Matrix(a)
     @test_throws ArgumentError qr(a; algorithm = :simplicial, ordering = :amd)
-    @test_throws ArgumentError qr(a; algorithm = :supernodal)
+    @test Matrix(qr(a; algorithm = :supernodal)\ones(3))≈Matrix(a)\ones(3)
     @test_throws ArgumentError qr(a; algorithm = :simplicial, ordering = [1, 1])
     Q, R=F.Q, F.R
     fill!(nonzeros(F.source), 0)
