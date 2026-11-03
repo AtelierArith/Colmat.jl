@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `f607ef2`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、28732 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 21 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `038afd3`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、30552 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 22 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -93,7 +93,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 |---|---|---|---|---|
 | CSC・CSR、所有・借用・構築 | `SparseColMat/SparseRowMat` と Ref/Mut、`Triplet/Pair` | SparseArrays の `SparseMatrixCSC/sparse`。CSR は直接同じ標準型ではない | R: `FaerSparseMatrix`、4 型の native CSC/CSR、triplet 構築・重複加算、Julia CSC 変換 | 借用 Ref/Mut、zero-copy、非圧縮形式・index 型の選択 |
 | 数値を持たない疎構造 | `SymbolicSparseColMat/RowMat` | sparsity pattern、symbolic analysis | R: `FaerSparsity`、独立した symbolic CSC/CSR、数値行列への再利用、LU/QR/Cholesky の `FaerSparseSymbolic` | 借用 symbolic view |
-| 疎加減算・構造の結合 | `sparse::ops::{add,sub,add_assign,sub_assign,union_symbolic,...}` | 疎行列の `+/-` | R: native `+/-`、`pattern_union` | 固定構造の add/sub assign 専用 API、全体 broadcast/map の native 経路 |
+| 疎加減算・構造の結合 | `sparse::ops::{add,sub,add_assign,sub_assign,add_into,sub_into,union_symbolic,...}` | 疎行列の `+/-` | R: native `+/-`、`pattern_union`、固定構造の `add_assign!/sub_assign!/add_into!/sub_into!` | 任意 callback、全体 broadcast/map の native 経路 |
 | 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | R: 4 型・型 promotion、CSC/CSR の native 積、`mul!`、ベクトルとの積 | symbolic/numeric 積計画の再利用、低水準制御 |
 | 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | R: CSC/CSR・4 型、`cholesky`、選択三角、`FaerSparseSymbolic`、`cholesky!`、求解、AMD/恒等/任意 ordering、分解方式指定、`p/algorithm/factor_storage`、疎 `L/U` 抽出・再構成、分解対角からの `det/logdet/logabsdet` | 外部 scratch・追加の低水準制御 |
 | 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解 | L/U・置換成分の公開、ordering 指定、低水準制御 |
