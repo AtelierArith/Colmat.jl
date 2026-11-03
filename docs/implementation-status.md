@@ -630,3 +630,34 @@ Validation: `Pkg.test()` passes **49,747 assertions across 27 independent files
 with ParallelTestRunner.jl and 16 workers**; BiCGSTAB contributes 481 assertions.
 All README Julia examples, method ambiguity checks, `cargo check`, Rust/Julia
 formatting and `git diff --check` pass. Dependency sources remain unchanged.
+
+### Native block LSMR
+
+Added `lsmr`/`lsmr!`, `FaerLsmrResult` and `FaerLsmrError`, directly calling
+faer's block LSMR for rectangular least squares with optional right
+preconditioning. Dense, CSC/CSR, diagonal and identity operators retain their
+storage; neither coefficient densification nor normal equations are needed.
+All four native scalar types and promotions, multiple RHS, initial guesses,
+iteration limits and checked/unchecked failure handling are supported.
+
+Convergence uses the true preconditioned normal residual
+`norm(M' * A' * (b-A*x))`, relative to `norm(M' * A' * b)`. The bridge recomputes
+both normal and primal residuals independently and rejects false convergence.
+Upstream's current LSMR ignores `abs_tolerance`; the bridge converts it to an
+effective relative tolerance using that reference norm. Empty dimensions bypass
+upstream scratch sizing, which otherwise rounds RHS width to a multiple of the
+number of unknowns. Checked failures retain the last iterate and preserve
+in-place destinations. Nonzero initial guesses can retain nullspace components;
+right preconditioning changes the minimum-norm metric.
+
+Tests cover over/underdetermined and inconsistent problems, rank-deficient and
+zero operators, native sparse formats and vectors, more RHS than unknowns,
+real/complex preconditioners, mixed types, exact/zero initial conditions,
+absolute tolerance, failure preservation, invalid/closed inputs and a sparse
+30,000-column system. Arbitrary callbacks, histories, external scratch, partial
+spectra and other remaining Issue #1 categories are still incomplete.
+
+Validation: `Pkg.test()` passes **50,186 assertions across 28 independent files
+with ParallelTestRunner.jl and 16 workers**; LSMR contributes 439 assertions.
+All README Julia examples, method ambiguity checks, `cargo check`, Rust/Julia
+formatting and `git diff --check` pass. Dependency sources remain unchanged.

@@ -654,3 +654,168 @@ function bicgstab!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
         )
     end
 end
+
+"""LSMR solution, primal residuals and independently verified preconditioned normal residuals."""
+struct FaerLsmrResult{X,R}
+    x::X
+    converged::Bool
+    iterations::Int
+    abs_residual::R
+    rel_residual::R
+    normal_abs_residual::R
+    normal_rel_residual::R
+    estimated_abs_residual::R
+    estimated_rel_residual::R
+    reason::Symbol
+end
+"""LSMR failed; `.result` retains its last iterate and diagnostics."""
+struct FaerLsmrError{R} <: Exception
+    result::R
+end
+Base.showerror(io::IO, e::FaerLsmrError) = print(
+    io,
+    "LSMR stopped: ",
+    e.result.reason,
+    " after ",
+    e.result.iterations,
+    " updates (true residual ",
+    e.result.abs_residual,
+    ")",
+)
+LinearAlgebra.issuccess(result::FaerLsmrResult) = result.converged
+
+"""
+    lsmr(A, b; M=nothing, x0=nothing, atol=0, rtol=nothing,
+         maxiter=max(1,4min(size(A)...)), check=true)
+
+Run faer's block LSMR for rectangular least squares. M applies a square right
+preconditioner of size size(A,2). It must be nonsingular and support its
+adjoint action to preserve the original least squares problem.
+Convergence uses the Frobenius norm of `M' * A' * (b-A*x)`, with threshold
+`max(atol, rtol * norm(M' * A' * b))`; this is independently recomputed.
+`abs_residual`/`rel_residual` describe the primal residual, while
+`normal_abs_residual`/`normal_rel_residual` describe the preconditioned normal
+residual. Native estimates are normal residual estimates. Default rtol is
+128eps of the promoted real type. Absolute tolerance is translated to native
+relative tolerance because upstream currently ignores its absolute parameter.
+
+Returns `FaerLsmrResult`, with solution rows equal to size(A,2). Checked failures
+throw `FaerLsmrError` retaining the last iterate. Zero initial guesses give the
+minimum-norm solution when the unpreconditioned method converges; arbitrary
+initial guesses may retain nullspace components. Right preconditioning changes
+the minimum-norm metric. Storage, scalar promotion and ownership follow [`cg`](@ref).
+"""
+function lsmr(
+    A,
+    b::Union{AbstractVector{<:Number},AbstractMatrix{<:Number}};
+    M = nothing,
+    x0 = nothing,
+    atol::Real = 0,
+    rtol = nothing,
+    maxiter::Integer = max(1, 4 * min(size(A)...)),
+    check::Bool = true,
+)
+    lock(_matrix_lock) do
+        op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
+        _handle(op)
+        size(b, 1)==size(op, 1) ||
+            throw(DimensionMismatch("LSMR RHS rows must match operator"))
+        precond=isnothing(M) ? nothing :
+                M isa FaerLinearOperator ? M : FaerLinearOperator(M)
+        !isnothing(precond) && (
+            _handle(precond);
+            size(precond)==(size(op, 2), size(op, 2)) || throw(
+                DimensionMismatch("LSMR preconditioner shape must match operator"),
+            )
+        )
+        !isnothing(x0) &&
+            size(x0)!=(b isa AbstractVector ? (size(op, 2),) : (size(op, 2), size(b, 2))) &&
+            throw(DimensionMismatch("LSMR initial guess shape must match RHS"))
+        P=promote_type(
+            eltype(op),
+            _reflector_type(eltype(b)),
+            isnothing(x0) ? eltype(op) : _reflector_type(eltype(x0)),
+            isnothing(precond) ? eltype(op) : eltype(precond),
+        )
+        R=_realtype(P)
+        abs_tol=R(atol)
+        rel_tol=isnothing(rtol) ? R(128)*eps(R) : R(rtol)
+        isfinite(abs_tol)&&isfinite(rel_tol)&&abs_tol>=0&&rel_tol>=0 ||
+            throw(ArgumentError("LSMR tolerances must be finite and nonnegative"))
+        limit=Int(maxiter)
+        limit>=0 || throw(ArgumentError("LSMR maxiter must be nonnegative"))
+        rhs=_cg_matrix(b, P)
+        dims=(size(op, 2), size(rhs, 2))
+        initial=isnothing(x0) ? _zeros(P, dims) : _cg_matrix(x0, P)
+        operator=_operator_coerce(op, P)
+        preconditioner=isnothing(precond) ? Ptr{UInt8}(C_NULL) :
+                       _operator_coerce(precond, P)
+        stats=Vector{P}(undef, 7)
+        iterations=Ref{UInt}(0)
+        args=(
+            operator,
+            preconditioner,
+            rhs,
+            initial,
+            Float64(abs_tol),
+            Float64(rel_tol),
+            UInt(limit),
+            Ptr{UInt8}(pointer(stats)),
+            Base.unsafe_convert(Ptr{UInt}, iterations),
+        )
+        solution=GC.@preserve stats iterations (
+            P===Float64 ? _matrix_result(RustCrate.operator_lsmr, dims, args...) :
+            _typed_result(P, RustCrate.operator_lsmr, dims, args...)
+        )
+        status=Int(real(stats[1]))
+        x=b isa _BorrowVector ? _vector_from_source(solution) :
+          b isa AbstractVector ? vec(Matrix(solution)) : solution
+        reason=(
+            :converged,
+            :no_convergence,
+            :nonpositive_operator,
+            :nonpositive_preconditioner,
+            :residual_mismatch,
+        )[status+1]
+        result=FaerLsmrResult(
+            x,
+            status==0,
+            Int(iterations[]),
+            R(real(stats[2])),
+            R(real(stats[3])),
+            R(real(stats[4])),
+            R(real(stats[5])),
+            R(real(stats[6])),
+            R(real(stats[7])),
+            reason,
+        )
+        check && !result.converged && throw(FaerLsmrError(result))
+        return result
+    end
+end
+
+"""Use x as LSMR initial guess/output; checked failure leaves x unchanged. See [`lsmr`](@ref)."""
+function lsmr!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
+    lock(_matrix_lock) do
+        size(x)==(b isa AbstractVector ? (size(A, 2),) : (size(A, 2), size(b, 2))) ||
+            throw(DimensionMismatch("LSMR destination shape must match solution"))
+        x isa _RotationArray && _rotation_open(x)
+        result=lsmr(A, b; x0 = x, check, kwargs...)
+        eltype(x)===eltype(result.x) || throw(
+            ArgumentError("lsmr! destination must match the promoted solver scalar type"),
+        )
+        _operator_copy_result!(x, result.x)
+        return FaerLsmrResult(
+            x,
+            result.converged,
+            result.iterations,
+            result.abs_residual,
+            result.rel_residual,
+            result.normal_abs_residual,
+            result.normal_rel_residual,
+            result.estimated_abs_residual,
+            result.estimated_rel_residual,
+            result.reason,
+        )
+    end
+end

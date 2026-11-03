@@ -939,3 +939,291 @@ impl TypedMatrix {
         })
     }
 }
+
+fn solve_lsmr<T: ComplexField>(
+    a: &Operator<T>,
+    m: Option<&Operator<T>>,
+    b: MatRef<'_, T>,
+    initial: MatRef<'_, T>,
+    atol: f64,
+    rtol: f64,
+    maxiter: usize,
+    stats: *mut u8,
+    iterations: *mut usize,
+) -> Result<Mat<T>, String> {
+    if a.nrows() != b.nrows() || initial.nrows() != a.ncols() || initial.ncols() != b.ncols() {
+        return Err("LSMR dimensions must match".into());
+    }
+    let identity = Operator::<T>::new(Base::Identity(IdentityPrecond { dim: a.ncols() }));
+    let m = m.unwrap_or(&identity);
+    if m.shape() != (a.ncols(), a.ncols()) {
+        return Err("LSMR preconditioner dimensions must match".into());
+    }
+    let mut adjoint = a.clone();
+    adjoint.transpose = !adjoint.transpose;
+    adjoint.conjugate = !adjoint.conjugate;
+    let mut madjoint = m.clone();
+    madjoint.transpose = !madjoint.transpose;
+    madjoint.conjugate = !madjoint.conjugate;
+    let normal_ref = product(&madjoint, product(&adjoint, b)?.as_ref())?.norm_l2();
+    let abs_tol = from_f64::<T::Real>(atol);
+    let requested_rel = from_f64::<T::Real>(rtol);
+    let relative_abs = if normal_ref == zero::<T::Real>() {
+        zero::<T::Real>()
+    } else {
+        &abs_tol / &normal_ref
+    };
+    let effective_rel = if relative_abs > requested_rel {
+        relative_abs
+    } else {
+        copy(&requested_rel)
+    };
+    let mut out = initial.to_owned();
+    let mut callbacks = 0usize;
+    let par = Par::Seq;
+    let (mut status, estimate_abs, estimate_rel, count) =
+        if a.nrows() == 0 || a.ncols() == 0 || b.ncols() == 0 {
+            out.fill(zero());
+            (0, zero::<T::Real>(), zero::<T::Real>(), 0)
+        } else {
+            let mut mem = MemBuffer::try_new(faer::matrix_free::lsmr::lsmr_scratch(
+                m,
+                a,
+                b.ncols(),
+                par.shape(),
+            ))
+            .map_err(|e| format!("{e:?}"))?;
+            let result = faer::matrix_free::lsmr::lsmr(
+                out.as_mut(),
+                m,
+                a,
+                b,
+                faer::matrix_free::lsmr::LsmrParams {
+                    initial_guess: InitialGuessStatus::MaybeNonZero,
+                    abs_tolerance: copy(&abs_tol),
+                    rel_tolerance: effective_rel,
+                    max_iters: maxiter,
+                    ..Default::default()
+                },
+                |_| {
+                    callbacks += 1;
+                },
+                par,
+                MemStack::new(&mut mem),
+            );
+            match result {
+                Ok(info) => (0, info.abs_residual, info.rel_residual, info.iter_count),
+                Err(faer::matrix_free::lsmr::LsmrError::NoConvergence {
+                    abs_residual,
+                    rel_residual,
+                }) => (1, abs_residual, rel_residual, callbacks),
+            }
+        };
+    let mut residual = product(a, out.as_ref())?;
+    for j in 0..b.ncols() {
+        for i in 0..b.nrows() {
+            residual[(i, j)] = &b[(i, j)] - &residual[(i, j)];
+        }
+    }
+    let actual = residual.norm_l2();
+    let bnorm = b.norm_l2();
+    let relative = if bnorm == zero::<T::Real>() {
+        copy(&actual)
+    } else {
+        &actual / &bnorm
+    };
+    let normal = product(&madjoint, product(&adjoint, residual.as_ref())?.as_ref())?.norm_l2();
+    let normal_relative = if normal_ref == zero::<T::Real>() {
+        copy(&normal)
+    } else {
+        &normal / &normal_ref
+    };
+    let rel_tol = &requested_rel * &normal_ref;
+    let threshold = if abs_tol > rel_tol { abs_tol } else { rel_tol };
+    if status == 0 && (!is_finite(&normal) || normal > threshold) {
+        status = 4;
+    }
+    unsafe {
+        let values = [
+            from_f64::<T>(status as f64),
+            from_real::<T>(&actual),
+            from_real::<T>(&relative),
+            from_real::<T>(&normal),
+            from_real::<T>(&normal_relative),
+            from_real::<T>(&estimate_abs),
+            from_real::<T>(&estimate_rel),
+        ];
+        for (i, v) in values.into_iter().enumerate() {
+            stats.cast::<T>().add(i).write(v);
+        }
+        iterations.write(count);
+    }
+    Ok(out)
+}
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn operator_lsmr(
+        &mut self,
+        operator: *const u8,
+        precond: *const u8,
+        rhs: *const u8,
+        initial: *const u8,
+        atol: f64,
+        rtol: f64,
+        maxiter: usize,
+        stats: *mut u8,
+        iterations: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let m = if precond.is_null() {
+                None
+            } else {
+                Some(unsafe { &*precond.cast::<OwnedLinearOperator>() }.data()?)
+            };
+            let b = unsafe { &*rhs.cast::<OwnedMatrix>() };
+            let x = unsafe { &*initial.cast::<OwnedMatrix>() };
+            match (a, m) {
+                (Data::F64(a), None) => {
+                    self.matrix = solve_lsmr(
+                        a,
+                        None,
+                        b.matrix.as_ref(),
+                        x.matrix.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?
+                }
+                (Data::F64(a), Some(Data::F64(m))) => {
+                    self.matrix = solve_lsmr(
+                        a,
+                        Some(m),
+                        b.matrix.as_ref(),
+                        x.matrix.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?
+                }
+                _ => return Err("LSMR scalar types must match".into()),
+            };
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn operator_lsmr(
+        &mut self,
+        operator: *const u8,
+        precond: *const u8,
+        rhs: *const u8,
+        initial: *const u8,
+        atol: f64,
+        rtol: f64,
+        maxiter: usize,
+        stats: *mut u8,
+        iterations: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*operator.cast::<OwnedLinearOperator>() }.data()?;
+            let m = if precond.is_null() {
+                None
+            } else {
+                Some(unsafe { &*precond.cast::<OwnedLinearOperator>() }.data()?)
+            };
+            let b = unsafe { &*rhs.cast::<TypedMatrix>() }.data()?;
+            let x = unsafe { &*initial.cast::<TypedMatrix>() }.data()?;
+            self.data = Some(match (a, m, b, x) {
+                (Data::F32(a), None, MatrixData::F32(b), MatrixData::F32(x)) => {
+                    MatrixData::F32(solve_lsmr(
+                        a,
+                        None,
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                (Data::F32(a), Some(Data::F32(m)), MatrixData::F32(b), MatrixData::F32(x)) => {
+                    MatrixData::F32(solve_lsmr(
+                        a,
+                        Some(m),
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                (Data::C32(a), None, MatrixData::C32(b), MatrixData::C32(x)) => {
+                    MatrixData::C32(solve_lsmr(
+                        a,
+                        None,
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                (Data::C32(a), Some(Data::C32(m)), MatrixData::C32(b), MatrixData::C32(x)) => {
+                    MatrixData::C32(solve_lsmr(
+                        a,
+                        Some(m),
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                (Data::C64(a), None, MatrixData::C64(b), MatrixData::C64(x)) => {
+                    MatrixData::C64(solve_lsmr(
+                        a,
+                        None,
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                (Data::C64(a), Some(Data::C64(m)), MatrixData::C64(b), MatrixData::C64(x)) => {
+                    MatrixData::C64(solve_lsmr(
+                        a,
+                        Some(m),
+                        b.as_ref(),
+                        x.as_ref(),
+                        atol,
+                        rtol,
+                        maxiter,
+                        stats,
+                        iterations,
+                    )?)
+                }
+                _ => return Err("LSMR scalar types must match".into()),
+            });
+            Ok(())
+        })
+    }
+}

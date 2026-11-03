@@ -6,6 +6,10 @@ import SparseArrays
 using LinearAlgebra: SVD
 
 export FaerLinearOperator,
+    FaerLsmrResult,
+    FaerLsmrError,
+    lsmr,
+    lsmr!,
     FaerBicgstabResult,
     FaerBicgstabError,
     bicgstab,

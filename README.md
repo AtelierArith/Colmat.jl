@@ -620,3 +620,27 @@ and termination reason. Checked failures throw `FaerBicgstabError` retaining
 the result; `check=false` returns the last iterate. Multiple right-hand sides
 use faer's block algorithm. Unlike CG, BiCGSTAB does not require Hermitian
 positive definite coefficients.
+
+For rectangular least squares, `lsmr` and `lsmr!` use the native block LSMR
+algorithm without forming normal equations:
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A = sparse([1.0 0; 0 2; 1 1; 2 -1])
+b = [1.0, 2, 4, -1]
+result = lsmr(A, b)
+@assert issuccess(result)
+@assert result.x ≈ A \ b
+@assert result.normal_abs_residual ≈ norm(A' * (b - A * result.x)) atol=1e-12
+x = zeros(size(A, 2))
+@assert lsmr!(x, A, b).x === x
+@assert x ≈ result.x
+```
+
+`M` supplies a nonsingular right preconditioner action. Convergence uses
+`norm(M' * A' * (b-A*x)) ≤ max(atol, rtol * norm(M' * A' * b))`, taking `M=I`
+when omitted. `FaerLsmrResult` separates ordinary residuals from these normal
+residuals; an inconsistent least squares problem can converge with a nonzero
+ordinary residual. Checked failures throw `FaerLsmrError` retaining the last
+iterate. A nonzero initial guess can retain nullspace components, and right
+preconditioning changes the minimum-norm metric.
