@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `5ce7d73`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、67956 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 43 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `9614e53`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、68453 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 44 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -57,13 +57,13 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
 | 部分ピボット LU | `partial_piv_lu`, `PartialPivLu::{L,U,P}` | `lu(A)` | R: 再利用可能な `lu/lu!`、L/U/p/P、packed、求解・逆行列・再構成 | 全オプション・無割当の直接 in-place 経路 |
-| 完全ピボット LU | `full_piv_lu`, `FullPivLu::{L,U,P,Q}` | 完全ピボット LU（標準 `lu(A)` と同一ではない） | R: `full_piv_lu`、L/U/p/q/P、求解・再構成 | 全低水準オプション・破壊的 API |
+| 完全ピボット LU | `full_piv_lu`, `FullPivLu::{L,U,P,Q}` | 完全ピボット LU（標準 `lu(A)` と同一ではない） | R: `full_piv_lu/full_piv_lu!`、L/U/p/q/P・packed、求解・再構成 | 全低水準オプション・無割当の直接 in-place 経路 |
 | QR | `qr`, `Qr`, `Q_basis/Q_coeff/R/thin_R`, `compute_Q/compute_thin_Q` | `qr(A)`, `Matrix(F.Q)`, `F.R` | R: `qr/qr!`、Q/Qthin/R・Qbasis/Qcoeff/packed、分解の再利用・再構成 | 無割当の直接 in-place 経路 |
 | 列ピボット QR | `col_piv_qr`, `ColPivQr`, `P` | `qr(A,ColumnNorm())` | R: `qr/qr!(A,ColumnNorm())`、置換・因子・compact basis/coeff・求解 | 独立したランク判定・全許容誤差インターフェース |
 | Cholesky LLᴴ | `llt`, `Llt`, `L` | `cholesky(Hermitian(A))` | R: `cholesky/cholesky!`、Hermitian/Symmetric の指定三角、packed・分解の再利用 | 複素対称非 Hermitian と全オプションは要照合 |
 | ピボット付き Cholesky | `cholesky::llt_pivoting::{factor,solve,inverse,reconstruct}` | `cholesky(Hermitian(A),RowMaximum())` に相当 | R: native factors の標準 `CholeskyPivoted`、4 型、指定三角・置換・ランク・再構成・求解・逆・copy/close | 負の tol は faer 固定閾値、非負 tol は Rust adapter の対角ピボット法で補完。`cholesky!` は staged writeback。外部 scratch・block_size は未公開 |
-| LDLᴴ | `ldlt`, `Ldlt::{L,D}` | `ldlt` に相当。ただし Julia 標準の対象構造・ピボット規約と要照合 | R: `ldlt`、L/D・求解・再構成 | 複素対称非 Hermitian、全オプション |
-| ピボット付きブロック LDLᴴ | `lblt`, `Lblt::{L,B_diag,B_subdiag,P}` | `bunchkaufman(Hermitian(A))` に相当 | R: `bunchkaufman`、ブロック D・置換・求解・再構成 | 全 Julia 規約・オプションの網羅 |
+| LDLᴴ | `ldlt`, `Ldlt::{L,D}` | `ldlt` に相当。ただし Julia 標準の対象構造・ピボット規約と要照合 | R: `ldlt/ldlt!`、L/D・packed・求解・再構成 | 複素対称非 Hermitian、全オプション |
+| ピボット付きブロック LDLᴴ | `lblt`, `Lblt::{L,B_diag,B_subdiag,P}` | `bunchkaufman(Hermitian(A))` に相当 | R: `bunchkaufman/bunchkaufman!`、ブロック D・置換・packed・求解・再構成 | 全 Julia 規約・オプションの網羅 |
 | thin / full SVD | `thin_svd/svd`, `Svd::{U,S,V}` | `svd(A;full=false/true)` | R: 4 型の `svd(::FaerMatrix)`、thin/full、空行列、互換 `faer_svd` | 分解因子は Julia 配列。Rust 分解オブジェクトの保持、Julia の alg/tolerance キーワードは未対応 |
 | 特異値のみ | `singular_values` | `svdvals(A)` | R: 4 型の `svdvals`、実数の特異値を返す | 並列 team・alg キーワード |
 | 自己随伴固有値分解・固有値のみ | `self_adjoint_eigen/self_adjoint_eigenvalues`, `SelfAdjointEigen` | `eigen/eigvals(Hermitian(A))` | R: `eigen/eigvals(Hermitian(A))`、指定三角・4 型 | 複素対称非 Hermitian、全キーワード |
@@ -116,7 +116,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/qr!/cholesky!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | LDLT/ブロック LDLT/SVD/EVD 等の残りの破壊的 API。caller-owned scratch は Pfaffian に接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
+| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/full_piv_lu!/qr!/cholesky!/ldlt!/bunchkaufman!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | SVD/EVD 等の残りの破壊的 API。caller-owned scratch は Pfaffian に接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
 | Householder | `householder::make_householder_in_place/upgrade_householder_factor/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | R: `FaerHouseholder/householder`、`FaerHouseholderSequence`、4 型の basis/tau/factor 構築、block factor upgrade/reblock、左右の sequence 適用・求解・`mul!`、随伴/転置/共役・ビュー | `prev_block_size` の直接制御、外部 scratch |
 | Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転。`FaerJacobiRotation`、`rotg/make_givens`、2×2左右適用、transpose/conj/adjoint、Givens 埋め込み | — |
 | Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | R: 4 型の `hessenberg/hessenberg!`、明示的な Rust 所有 H/Q、Schur 段階への再利用。`balance/balance!`、`FaerBalance` の B/perm/scale/active、右固有ベクトルの `balance_eigenvectors[!]` | compact Householder 形式・全パラメータ・外部 scratch |
