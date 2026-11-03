@@ -1862,3 +1862,26 @@ sparse L/U factors use nonunit triangular solves; mixed scalar promotion,
 conjugation, transpose/adjoint and copy/composition preserve sparse storage.
 The operator does not read or refactor the source snapshot. Auto/supernodal
 sparse LU and sparse QR inverse actions remain pending.
+
+### Native inverse actions from simplicial sparse QR
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[2 0; 1im 3; 0 1]
+F = qr(FaerSparseMatrix(sparse(A0)); algorithm=:simplicial, ordering=[2, 1])
+M = FaerLinearOperator(F)
+close(F)
+@assert size(M) == (2, 3)
+@assert M * ones(ComplexF64, 3) ≈ A0 \ ones(ComplexF64, 3)
+@assert adjoint(M) * ones(ComplexF64, 2) ≈ pinv(A0') * ones(ComplexF64, 2)
+close(M)
+```
+
+The action retains sparse Householder components, R and column permutation;
+no dense Q or pseudoinverse is formed. Full-column-rank tall and square factors
+produce an action of shape `reverse(size(F))`. Transpose/adjoint apply minimum-norm
+inverse actions using saved reflectors and sparse triangular solves. All native
+scalar promotions preserve Householder pivot ordering. Workspace intermediates
+come from native scratch; source snapshots are never refactorized. Missing/zero
+R pivots are rejected; rank tolerance, rank-deficient and auto/supernodal sparse
+QR inverse actions remain pending.

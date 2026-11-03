@@ -890,21 +890,33 @@ end
 """
     FaerLinearOperator(F::FaerSparseFactorization)
 
-Own a sparse inverse-action snapshot of explicit simplicial LU or Cholesky factors. Native
+Own a sparse inverse-action snapshot of explicit simplicial LU/QR or Cholesky factors. Native
 CSC L/U and row/column permutations are retained independently; mixed scalar
 promotion converts these factors without refactorizing the stored input.
 Application uses sparse triangular solves and an intermediate in native scratch.
 Auto/supernodal LU components are not yet available through this constructor.
 """
 function FaerLinearOperator(f::FaerSparseFactorization{T,K}) where {T,K}
-    K in (:lu, :cholesky) ||
-        throw(ArgumentError("sparse preconditioner requires simplicial LU or Cholesky"))
+    K in (:lu, :cholesky, :qr) || throw(
+        ArgumentError("sparse inverse operator requires simplicial LU/QR or Cholesky"),
+    )
     lock(_matrix_lock) do
         _handle(f)
         LinearAlgebra.issuccess(f) || (
             K===:cholesky ? throw(LinearAlgebra.PosDefException(f.info)) :
             throw(LinearAlgebra.SingularException(f.info))
         )
+        if K===:qr
+            h=RustCrate.OwnedLinearOperator()
+            _native_call(RustCrate.operator_sparse_qr_inverse, h, f)
+            return FaerLinearOperator{T,typeof(h)}(
+                h,
+                reverse(size(f)),
+                :factorization,
+                false,
+                false,
+            )
+        end
         l, u, rows=f.L, f.U, f.p
         cols=K===:lu ? f.q : copy(rows)
         try

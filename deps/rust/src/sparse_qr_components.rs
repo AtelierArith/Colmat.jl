@@ -7,7 +7,7 @@ use faer::traits::{
     math_utils::{copy, one, zero},
     ComplexField,
 };
-use faer::{Conj, Mat, MatRef, Par};
+use faer::{Conj, Mat, MatMut, MatRef, Par};
 use std::sync::Arc;
 #[derive(Clone)]
 pub(crate) struct Plan {
@@ -62,8 +62,8 @@ impl Plan {
 pub(crate) struct Factors<T> {
     pub plan: Plan,
     pub r: SparseColMat<usize, T>,
-    h: SparseColMat<usize, T>,
-    tau: Vec<T>,
+    pub(crate) h: SparseColMat<usize, T>,
+    pub(crate) tau: Vec<T>,
 }
 impl<T: ComplexField> Factors<T> {
     pub fn new(plan: &Plan, a: SparseColMatRef<'_, usize, T>) -> Result<Self, String> {
@@ -110,7 +110,7 @@ impl<T: ComplexField> Factors<T> {
             tau,
         })
     }
-    fn as_ref(&self) -> simplicial::SimplicialQrRef<'_, usize, T> {
+    pub(crate) fn as_ref(&self) -> simplicial::SimplicialQrRef<'_, usize, T> {
         simplicial::SimplicialQrRef::new(
             &self.plan.symbolic,
             self.r.as_ref(),
@@ -137,12 +137,18 @@ impl<T: ComplexField> Factors<T> {
         }))
     }
     fn apply_q(&self, b: MatRef<'_, T>, conjugated: bool) -> Mat<T> {
+        let mut out = Mat::zeros(self.plan.symbolic.nrows(), b.ncols());
+        self.apply_q_into(b, out.as_mut(), conjugated);
+        out
+    }
+    pub(crate) fn apply_q_into(&self, b: MatRef<'_, T>, mut q: MatMut<'_, T>, conjugated: bool) {
         use faer::traits::math_utils::{add, conj, mul, mul_real, real, recip, sub};
         let s = &self.plan.symbolic;
         let (m, n) = (s.nrows(), s.ncols());
         assert_eq!(b.nrows(), n);
         let h = self.h.as_ref();
-        let mut q = Mat::zeros(m, b.ncols());
+        assert_eq!(q.shape(), (m, b.ncols()));
+        q.fill(zero::<T>());
         for j in 0..n {
             if let Some(&pivot) = h.row_idx_of_col_raw(j).first() {
                 for k in 0..b.ncols() {
@@ -170,7 +176,6 @@ impl<T: ComplexField> Factors<T> {
                 }
             }
         }
-        q
     }
     pub fn q(&self) -> Mat<T> {
         let n = self.plan.symbolic.ncols();
