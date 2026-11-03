@@ -106,7 +106,14 @@ _factor_part(f::FaerFactorization{Float64}, code, dims) =
 function Base.getproperty(f::FaerFactorization{T,K}, name::Symbol) where {T,K}
     m, n = size(f)
     k = min(m, n)
-    if name === :L && K in (:lu, :full_lu, :cholesky, :ldlt, :bunchkaufman)
+    if name === :packed && K in (:lu, :full_lu, :qr, :pivoted_qr, :cholesky)
+        return _factor_part(f, 7, size(f))
+    elseif name === :Qbasis && K in (:qr, :pivoted_qr)
+        return _factor_part(f, 8, (m, k))
+    elseif name === :Qcoeff && K in (:qr, :pivoted_qr)
+        rows=Int(_native_call(RustCrate.qr_blocksize, f))
+        return _factor_part(f, 9, (rows, k))
+    elseif name === :L && K in (:lu, :full_lu, :cholesky, :ldlt, :bunchkaufman)
         return _factor_part(f, 1, (m, k))
     elseif name === :U
         K === :cholesky && return copy(adjoint(f.L))
@@ -132,6 +139,8 @@ function Base.propertynames(f::FaerFactorization{T,K}, private::Bool = false) wh
     props =
         K in (:lu, :full_lu) ? (:L, :U, :p, :P) :
         K in (:qr, :pivoted_qr) ? (:Q, :Qthin, :R) : K === :cholesky ? (:L, :U) : (:L, :D)
+    K in (:lu, :full_lu, :qr, :pivoted_qr, :cholesky) && (props=(props..., :packed))
+    K in (:qr, :pivoted_qr) && (props=(props..., :Qbasis, :Qcoeff))
     K === :full_lu && (props = (props..., :q))
     K in (:pivoted_qr, :bunchkaufman) && (props = (props..., :p))
     return private ? (props..., :handle, :dims, :info, :uplo) : (props..., :info, :uplo)

@@ -994,3 +994,36 @@ triangles with ignored NaNs, permutation reconstruction, native solve/inverse,
 copy/close, source independence and invalid inputs. All 31 README Julia blocks,
 method ambiguity checks, cargo check, Julia/Rust formatting and git diff --check
 pass. Dependency sources remain unchanged. Other Issue #1 work remains open.
+
+### Staged dense lu!, qr! and cholesky!
+
+Added native-matrix `lu!` (including RowMaximum/allowsingular), `qr!` (NoPivot/
+ColumnNorm), and `cholesky!` (ordinary/pivoted, selected Hermitian/real Symmetric
+triangles). These allocate independent native factors and write back only once
+the factorization is available. LU combines upper U with strict-lower L; QR
+combines upper R with strict-lower Householder basis; Cholesky writes L or U
+according to the selected triangle. Same-shape views observe these updates;
+returned factors remain independent of later input changes/close. A failed
+ordinary check=false Cholesky returns failure metadata without modifying input.
+Singular LU explicitly allowed by the caller writes its available packed factors.
+
+`FaerFactorization.packed` exports independent native packed storage for partial/
+full LU, QR/column-pivot QR and Cholesky. QR `Qbasis`/`Qcoeff` accessors directly
+export faer's compact representation, including exact native block dimensions.
+Tests reconstruct `FaerHouseholderSequence` from these components and compare
+with native Q. This is faer's block representation, not LAPACK's tau format.
+
+The implementation deliberately retains independent factors and staged commits;
+it does not yet expose zero-allocation direct input-buffer factorization or
+caller-owned workspace. LDLT/block LDLT, full-pivot LU bang and SVD/EVD bang
+entry points remain open, along with other outstanding Issue #1 requirements.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **66,970 assertions across
+40 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. Destructive tests contribute 577 assertions across four types,
+empty/tall/wide/square shapes, pivoting, packed writeback, live views, independent
+factor lifetimes, failure transactions and allowed singular LU. Compact QR
+components independently reconstruct native Q through FaerHouseholderSequence.
+All 32 README Julia blocks, method ambiguity checks, cargo check, Julia/Rust
+formatting and git diff --check pass. Dependency sources remain unchanged.
+The complete Issue #1 scope remains active.

@@ -529,6 +529,22 @@ fn factor_new<T: ComplexField>(
     }
     Ok((Some(f), info))
 }
+fn qr_rows<T: ComplexField>(f: &Factor<T>) -> Result<usize, String> {
+    match f {
+        Factor::Qr(x) => Ok(x.Q_coeff().nrows()),
+        Factor::PivotQr(x) => Ok(x.Q_coeff().nrows()),
+        _ => Err("not a QR factorization".into()),
+    }
+}
+pub(crate) fn packed<T: ComplexField>(lower: MatRef<'_, T>, upper: MatRef<'_, T>) -> Mat<T> {
+    Mat::from_fn(lower.nrows(), upper.ncols(), |i, j| {
+        if i > j {
+            copy(&lower[(i, j)])
+        } else {
+            copy(&upper[(i, j)])
+        }
+    })
+}
 fn factor_part<T: ComplexField>(f: &Factor<T>, part: i32) -> Result<Mat<T>, String> {
     Ok(match part {
         0 => factor_dispatch!(f,x=>x.reconstruct(Par::Seq)),
@@ -580,6 +596,24 @@ fn factor_part<T: ComplexField>(f: &Factor<T>, part: i32) -> Result<Mat<T>, Stri
             Factor::Qr(x) => x.compute_thin_Q(Par::Seq),
             Factor::PivotQr(x) => x.compute_thin_Q(Par::Seq),
             _ => return Err("no Q factor".into()),
+        },
+        7 => match f {
+            Factor::Lu(x) => packed(x.L(), x.U()),
+            Factor::FullLu(x) => packed(x.L(), x.U()),
+            Factor::Qr(x) => packed(x.Q_basis(), x.thin_R()),
+            Factor::PivotQr(x) => packed(x.Q_basis(), x.thin_R()),
+            Factor::Llt(x) => x.L().to_owned(),
+            _ => return Err("no packed storage for factor".into()),
+        },
+        8 => match f {
+            Factor::Qr(x) => x.Q_basis().to_owned(),
+            Factor::PivotQr(x) => x.Q_basis().to_owned(),
+            _ => return Err("no QR basis".into()),
+        },
+        9 => match f {
+            Factor::Qr(x) => x.Q_coeff().to_owned(),
+            Factor::PivotQr(x) => x.Q_coeff().to_owned(),
+            _ => return Err("no QR coefficients".into()),
         },
         _ => return Err("unknown factor part".into()),
     })
@@ -711,6 +745,18 @@ impl TypedFactor {
                 }
             };
             Ok(self.info)
+        })
+    }
+    #[julia]
+    pub fn qr_blocksize(&self) -> Result<usize, String> {
+        guarded(|| {
+            let f = self.data()?;
+            match f {
+                FactorData::F32(x) => qr_rows(x),
+                FactorData::F64(x) => qr_rows(x),
+                FactorData::C32(x) => qr_rows(x),
+                FactorData::C64(x) => qr_rows(x),
+            }
         })
     }
     #[julia]

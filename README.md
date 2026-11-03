@@ -904,3 +904,33 @@ is `tol=0`. Reconstruction, full-rank solves and inverses use faer's pivoted LLT
 kernels. Rank-deficient factors require `check=false`; their solves/inverses
 throw `RankDeficientException`. Native snapshots and workspace are allocated.
 `close(F)` closes its native factors; a copied factorization remains usable.
+
+### Destructive factorization entry points
+
+```julia
+using Colmat, LinearAlgebra
+original = [4.0 1; 1 3]
+A = FaerMatrix(original)
+F = lu!(A)
+@assert Matrix(A) == Matrix(F.packed)
+@assert Matrix(F) ≈ original
+B = FaerMatrix(original)
+Q = qr!(B)
+sequence = FaerHouseholderSequence(Q.Qbasis, Q.Qcoeff)
+@assert Matrix(sequence) ≈ Matrix(Q.Q)
+@assert Matrix(B) == Matrix(Q.packed)
+```
+
+`lu!`, `qr!` (including `ColumnNorm()`) and `cholesky!` (including `RowMaximum()`)
+compute independent native factors and then overwrite the input after the result
+is available. Existing same-shape views observe the packed entries. The returned
+factorization remains independent if the input changes or closes. These methods
+allocate factors and staging buffers; errors before writeback preserve the input.
+Failed ordinary `cholesky!(...; check=false)` returns an unsuccessful factor
+without changing the input.
+
+LU packed storage combines U with the strict lower part of L. QR combines R
+with the strict lower Householder basis; its block coefficients are exposed as
+`F.Qcoeff` and its basis as `F.Qbasis`. This is faer's block format, rather than
+LAPACK's tau layout. `F.packed` returns an independent copy, with lower storage
+for Cholesky. Upper-triangle Cholesky wrappers receive U in the input instead.

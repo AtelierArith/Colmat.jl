@@ -511,6 +511,14 @@ impl OwnedFactor {
     }
 
     #[julia]
+    pub fn qr_blocksize(&self) -> Result<usize, String> {
+        guarded(|| match self.get()? {
+            DenseFactor::Qr(x) => Ok(x.Q_coeff().nrows()),
+            DenseFactor::PivotQr(x) => Ok(x.Q_coeff().nrows()),
+            _ => Err("not a QR factorization".into()),
+        })
+    }
+    #[julia]
     pub fn clone_factor(&mut self, source: &OwnedFactor) -> Result<(), String> {
         guarded(|| {
             self.factor = source.factor.clone();
@@ -605,6 +613,24 @@ impl OwnedMatrix {
                     DenseFactor::Qr(x) => x.compute_thin_Q(Par::Seq),
                     DenseFactor::PivotQr(x) => x.compute_thin_Q(Par::Seq),
                     _ => return Err("factorization has no Q factor".into()),
+                },
+                7 => match f {
+                    DenseFactor::Lu(x) => typed::packed(x.L(), x.U()),
+                    DenseFactor::FullLu(x) => typed::packed(x.L(), x.U()),
+                    DenseFactor::Qr(x) => typed::packed(x.Q_basis(), x.thin_R()),
+                    DenseFactor::PivotQr(x) => typed::packed(x.Q_basis(), x.thin_R()),
+                    DenseFactor::Llt(x) => x.L().to_owned(),
+                    _ => return Err("no packed storage for factor".into()),
+                },
+                8 => match f {
+                    DenseFactor::Qr(x) => x.Q_basis().to_owned(),
+                    DenseFactor::PivotQr(x) => x.Q_basis().to_owned(),
+                    _ => return Err("no QR basis".into()),
+                },
+                9 => match f {
+                    DenseFactor::Qr(x) => x.Q_coeff().to_owned(),
+                    DenseFactor::PivotQr(x) => x.Q_coeff().to_owned(),
+                    _ => return Err("no QR coefficients".into()),
                 },
                 _ => return Err("unknown factor part".into()),
             };
