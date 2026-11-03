@@ -1839,3 +1839,26 @@ Normal/conjugate/transpose/adjoint application uses sparse triangular solves
 and an RHS-sized native scratch intermediate. Copies remain independent after
 the original factors are updated or closed. Auto/supernodal sparse LU
 preconditioners require their component interface and remain pending.
+
+### Native preconditioning from sparse Cholesky
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[4 1im; -1im 3]
+A = FaerSparseMatrix(sparse(A0); format=:csr)
+F = cholesky(Hermitian(A, :U); algorithm=:supernodal, ordering=[2, 1])
+M = FaerLinearOperator(F)
+close(F)
+b = ones(ComplexF64, 2)
+@assert M * b ≈ A0 \ b
+@assert cg(A, b; M=M).x ≈ A0 \ b
+close(M)
+close(A)
+```
+
+Sparse Cholesky inverse actions support auto/simplicial/supernodal factors,
+both input triangles and retained symmetric ordering. Their independently owned
+sparse L/U factors use nonunit triangular solves; mixed scalar promotion,
+conjugation, transpose/adjoint and copy/composition preserve sparse storage.
+The operator does not read or refactor the source snapshot. Auto/supernodal
+sparse LU and sparse QR inverse actions remain pending.

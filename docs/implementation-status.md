@@ -1994,3 +1994,20 @@ All 10 native tests and 63 README blocks passed, along with ambiguity detection,
 Julia/Rust formatting and git diff --check. Auto/supernodal sparse LU and
 other sparse factor preconditioners, callbacks and remaining Issue #1/#2 scope
 remain pending.
+
+### Native sparse Cholesky preconditioners
+
+FaerLinearOperator accepts sparse Cholesky factors from auto/simplicial/
+supernodal analysis, retaining independent sparse L/U and symmetric permutation.
+The shared sparse-factor action distinguishes unit-lower LU from nonunit-lower
+Cholesky solves. Native sparse triangular kernels and RHS-sized scratch avoid
+dense coefficients, inverses and source-snapshot refactorization. Mixed promotion
+preserves sparse factors, ordering and the lower-diagonal convention.
+
+Focused verification passed 5,192 assertions across all scalar pairs, CSC/CSR,
+three algorithms, both input triangles, reverse ordering, empty/singleton/square,
+source snapshot zeroing, copy/close, conjugate/transpose/adjoint, CG, invalid
+factors and a 20,000-order supernodal promoted complex RHS. Canonical Pkg.test passed 95,579 assertions / 76 files with 16 workers.
+All 10 native tests and 64 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. Auto/supernodal LU, sparse QR preconditioners,
+callbacks and remaining Issue #1/#2 scope remain pending.

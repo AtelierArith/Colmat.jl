@@ -23,7 +23,7 @@ enum Base<T> {
     InverseQr(Box<InverseQr<T>>),
     InverseLdlt(Box<InverseLdlt<T>>),
     InverseSpectral(Box<InverseSpectral<T>>),
-    InverseSparseLu(Box<InverseSparseLu<T>>),
+    InverseSparseFactors(Box<InverseSparseFactors<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -39,7 +39,7 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
-            Base::InverseSparseLu($a) => {
+            Base::InverseSparseFactors($a) => {
                 let $a = $a.as_ref();
                 $expr
             }
@@ -1533,12 +1533,13 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
-        Base::InverseSparseLu(f) => {
+        Base::InverseSparseFactors(f) => {
             let convert=|a:&faer::sparse::SparseColMat<usize,S>|->Result<faer::sparse::SparseColMat<usize,T>,String> {
                 let entries:Vec<_>=a.as_ref().triplet_iter().map(|e|faer::sparse::Triplet{row:e.row,col:e.col,val:cast(e.val)}).collect();
                 faer::sparse::SparseColMat::try_new_from_triplets(a.nrows(),a.ncols(),&entries).map_err(|e|format!("{e:?}"))
             };
-            Base::InverseSparseLu(Box::new(InverseSparseLu {
+            Base::InverseSparseFactors(Box::new(InverseSparseFactors {
+                unit_lower: f.unit_lower,
                 l: convert(&f.l)?,
                 u: convert(&f.u)?,
                 rows: f.rows.clone(),
@@ -2422,23 +2423,25 @@ impl OwnedLinearOperator {
 }
 
 #[derive(Clone)]
-struct InverseSparseLu<T> {
+struct InverseSparseFactors<T> {
+    unit_lower: bool,
     l: faer::sparse::SparseColMat<usize, T>,
     u: faer::sparse::SparseColMat<usize, T>,
     rows: faer::perm::Perm<usize>,
     cols: faer::perm::Perm<usize>,
 }
-impl<T> std::fmt::Debug for InverseSparseLu<T> {
+impl<T> std::fmt::Debug for InverseSparseFactors<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("InverseSparseLu")
+        f.write_str("InverseSparseFactors")
     }
 }
-impl<T: ComplexField> InverseSparseLu<T> {
+impl<T: ComplexField> InverseSparseFactors<T> {
     fn new(
         l: &Storage<T>,
         u: &Storage<T>,
         rows: &crate::permutations::OwnedPermutation,
         cols: &crate::permutations::OwnedPermutation,
+        unit_lower: bool,
     ) -> Result<Self, String> {
         let (l, u) = (l.csc()?, u.csc()?);
         let n = l.nrows();
@@ -2476,6 +2479,7 @@ impl<T: ComplexField> InverseSparseLu<T> {
             }
         }
         Ok(Self {
+            unit_lower,
             l,
             u,
             rows: rows.data()?.clone(),
@@ -2514,19 +2518,37 @@ impl<T: ComplexField> InverseSparseLu<T> {
                 tmp.as_mat_mut(),
                 p.reborrow(),
             );
-            tri::solve_unit_lower_triangular_transpose_in_place(
-                self.l.as_ref(),
-                conj,
-                tmp.as_mat_mut(),
-                p,
-            );
+            if self.unit_lower {
+                tri::solve_unit_lower_triangular_transpose_in_place(
+                    self.l.as_ref(),
+                    conj,
+                    tmp.as_mat_mut(),
+                    p,
+                );
+            } else {
+                tri::solve_lower_triangular_transpose_in_place(
+                    self.l.as_ref(),
+                    conj,
+                    tmp.as_mat_mut(),
+                    p,
+                );
+            }
         } else {
-            tri::solve_unit_lower_triangular_in_place(
-                self.l.as_ref(),
-                conj,
-                tmp.as_mat_mut(),
-                p.reborrow(),
-            );
+            if self.unit_lower {
+                tri::solve_unit_lower_triangular_in_place(
+                    self.l.as_ref(),
+                    conj,
+                    tmp.as_mat_mut(),
+                    p.reborrow(),
+                );
+            } else {
+                tri::solve_lower_triangular_in_place(
+                    self.l.as_ref(),
+                    conj,
+                    tmp.as_mat_mut(),
+                    p.reborrow(),
+                );
+            }
             tri::solve_upper_triangular_in_place(self.u.as_ref(), conj, tmp.as_mat_mut(), p);
         }
         for j in 0..b.ncols() {
@@ -2536,7 +2558,7 @@ impl<T: ComplexField> InverseSparseLu<T> {
         }
     }
 }
-impl<T: ComplexField> LinOp<T> for InverseSparseLu<T> {
+impl<T: ComplexField> LinOp<T> for InverseSparseFactors<T> {
     fn nrows(&self) -> usize {
         self.l.nrows()
     }
@@ -2553,7 +2575,7 @@ impl<T: ComplexField> LinOp<T> for InverseSparseLu<T> {
         self.run(o, b, p, s, false, true)
     }
 }
-impl<T: ComplexField> BiLinOp<T> for InverseSparseLu<T> {
+impl<T: ComplexField> BiLinOp<T> for InverseSparseFactors<T> {
     fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
         self.apply_scratch(k, p)
     }
@@ -2567,27 +2589,36 @@ impl<T: ComplexField> BiLinOp<T> for InverseSparseLu<T> {
 #[julia]
 impl OwnedLinearOperator {
     #[julia]
-    pub fn operator_sparse_lu_inverse(
+    pub fn operator_sparse_factor_inverse(
         &mut self,
         l: &SparseOwner,
         u: &SparseOwner,
         rows: &crate::permutations::OwnedPermutation,
         cols: &crate::permutations::OwnedPermutation,
+        unit_lower: bool,
     ) -> Result<(), String> {
         guarded(|| {
             self.data = Some(match (l.data()?, u.data()?) {
-                (SparseData::F32(l), SparseData::F32(u)) => Data::F32(Operator::new(
-                    Base::InverseSparseLu(Box::new(InverseSparseLu::new(l, u, rows, cols)?)),
-                )),
-                (SparseData::F64(l), SparseData::F64(u)) => Data::F64(Operator::new(
-                    Base::InverseSparseLu(Box::new(InverseSparseLu::new(l, u, rows, cols)?)),
-                )),
-                (SparseData::C32(l), SparseData::C32(u)) => Data::C32(Operator::new(
-                    Base::InverseSparseLu(Box::new(InverseSparseLu::new(l, u, rows, cols)?)),
-                )),
-                (SparseData::C64(l), SparseData::C64(u)) => Data::C64(Operator::new(
-                    Base::InverseSparseLu(Box::new(InverseSparseLu::new(l, u, rows, cols)?)),
-                )),
+                (SparseData::F32(l), SparseData::F32(u)) => {
+                    Data::F32(Operator::new(Base::InverseSparseFactors(Box::new(
+                        InverseSparseFactors::new(l, u, rows, cols, unit_lower)?,
+                    ))))
+                }
+                (SparseData::F64(l), SparseData::F64(u)) => {
+                    Data::F64(Operator::new(Base::InverseSparseFactors(Box::new(
+                        InverseSparseFactors::new(l, u, rows, cols, unit_lower)?,
+                    ))))
+                }
+                (SparseData::C32(l), SparseData::C32(u)) => {
+                    Data::C32(Operator::new(Base::InverseSparseFactors(Box::new(
+                        InverseSparseFactors::new(l, u, rows, cols, unit_lower)?,
+                    ))))
+                }
+                (SparseData::C64(l), SparseData::C64(u)) => {
+                    Data::C64(Operator::new(Base::InverseSparseFactors(Box::new(
+                        InverseSparseFactors::new(l, u, rows, cols, unit_lower)?,
+                    ))))
+                }
                 _ => return Err("sparse LU component scalar types must match".into()),
             });
             Ok(())
