@@ -1787,3 +1787,21 @@ on/off. Permutations match standalone native COLAMD, and solves/copies/numeric
 updates preserve the expected results. Canonical Pkg.test passed 83,947 assertions / 64 files with 16 workers.
 All 10 native tests and 53 README blocks passed; ambiguity detection,
 Julia/Rust formatting and git diff --check passed. This does not complete Issues #1/#2.
+
+### Sparse QR numeric factor construction workspace
+
+`factorize(plan,A;scratch=s)` now accepts caller-owned workspace for native
+auto/supernodal QR numeric construction. The matching requirement/factory/reserve
+APIs dispatch on `factorize`, symbolic plan and numeric matrix. Pattern validation
+is shared with ordinary factorization before the kernel reads buffers. Native
+numeric index/value buffers remain independently owned; scratch, input and plan
+may be closed after construction. Symbolic analysis, snapshots and owned factor
+storage allocate outside scratch. Explicit simplicial construction is unchanged.
+
+Focused verification passed 393 assertions across four scalar types, CSC/CSR,
+empty/square/tall inputs, repeated workspace reuse, independent factors built
+from different numeric values, reserve, insufficient capacity, pattern mismatch,
+shape mismatch and owner closure. Canonical Pkg.test passed 84,340 assertions / 65 files with 16 workers.
+All 10 native tests and 54 README blocks passed, together with ambiguity
+detection, Julia/Rust formatting and git diff --check.
+Issues #1/#2 remain incomplete.

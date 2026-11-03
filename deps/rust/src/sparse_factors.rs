@@ -232,7 +232,11 @@ impl SparseFactor {
             .ok_or_else(|| "sparse factorization is unsuccessful or empty".into())
     }
 }
-fn numeric<T: ComplexField>(p: &Plan, a: &Storage<T>) -> Result<Result<Numeric<T>, usize>, String> {
+fn numeric<T: ComplexField>(
+    p: &Plan,
+    a: &Storage<T>,
+    scratch: Option<&mut crate::workspace::OwnedScratch>,
+) -> Result<Result<Numeric<T>, usize>, String> {
     let a = a.csc()?;
     let s = a.symbolic();
     if (s.nrows(), s.ncols()) != (p.pattern.nrows(), p.pattern.ncols())
@@ -263,10 +267,12 @@ fn numeric<T: ComplexField>(p: &Plan, a: &Storage<T>) -> Result<Result<Numeric<T
         Analysis::SimplicialQr(sym) => {
             Numeric::SimplicialQr(crate::sparse_qr_components::Factors::new(sym, a.as_ref())?)
         }
-        Analysis::Qr(sym) => Numeric::Qr(crate::sparse_qr_owned::Factors::new(
-            sym.clone(),
-            a.as_ref(),
-        )?),
+        Analysis::Qr(sym) => Numeric::Qr(if let Some(s) = scratch {
+            let req = sym.factorize_numeric_qr_scratch::<T>(Par::Seq.shape(), Default::default());
+            crate::sparse_qr_owned::Factors::new_in(sym.clone(), a.as_ref(), s.stack(req)?)?
+        } else {
+            crate::sparse_qr_owned::Factors::new(sym.clone(), a.as_ref())?
+        }),
         Analysis::Llt(sym) => {
             // faer's identity-order numeric path can pass the original matrix
             // straight to its triangle-only kernel. Strip the ignored half
@@ -338,10 +344,10 @@ impl SparseFactor {
             let plan = analysis.plan()?;
             let a = matrix.data()?;
             let result = match a {
-                SparseData::F32(a) => numeric(plan, a)?.map(Factors::F32),
-                SparseData::F64(a) => numeric(plan, a)?.map(Factors::F64),
-                SparseData::C32(a) => numeric(plan, a)?.map(Factors::C32),
-                SparseData::C64(a) => numeric(plan, a)?.map(Factors::C64),
+                SparseData::F32(a) => numeric(plan, a, None)?.map(Factors::F32),
+                SparseData::F64(a) => numeric(plan, a, None)?.map(Factors::F64),
+                SparseData::C32(a) => numeric(plan, a, None)?.map(Factors::C32),
+                SparseData::C64(a) => numeric(plan, a, None)?.map(Factors::C64),
             };
             match result {
                 Ok(f) => {
@@ -936,6 +942,60 @@ impl TypedMatrix {
                 _ => return Err("factor/RHS scalar type mismatch".into()),
             });
             Ok(())
+        })
+    }
+}
+
+#[julia]
+impl SparseSymbolic {
+    #[julia]
+    pub fn sparse_qr_factor_requirements(&self, tag: i32, out: *mut usize) -> Result<(), String> {
+        guarded(|| {
+            let Analysis::Qr(sym) = &self.plan()?.analysis else {
+                return Err("factor workspace requires auto/supernodal QR".into());
+            };
+            let req = match tag {
+                0 => sym.factorize_numeric_qr_scratch::<f32>(Par::Seq.shape(), Default::default()),
+                1 => sym.factorize_numeric_qr_scratch::<f64>(Par::Seq.shape(), Default::default()),
+                2 => sym.factorize_numeric_qr_scratch::<c32>(Par::Seq.shape(), Default::default()),
+                3 => sym.factorize_numeric_qr_scratch::<c64>(Par::Seq.shape(), Default::default()),
+                _ => return Err("invalid scalar tag".into()),
+            };
+            unsafe {
+                out.write(req.size_bytes());
+                out.add(1).write(req.align_bytes());
+            }
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl SparseFactor {
+    #[julia]
+    pub fn sparse_qr_factor_workspace(
+        &mut self,
+        analysis: &SparseSymbolic,
+        matrix: &SparseOwner,
+        scratch: &mut crate::workspace::OwnedScratch,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            let plan = analysis.plan()?;
+            if !matches!(plan.analysis, Analysis::Qr(_)) {
+                return Err("factor workspace requires auto/supernodal QR".into());
+            }
+            let result = match matrix.data()? {
+                SparseData::F32(a) => numeric(plan, a, Some(scratch))?.map(Factors::F32),
+                SparseData::F64(a) => numeric(plan, a, Some(scratch))?.map(Factors::F64),
+                SparseData::C32(a) => numeric(plan, a, Some(scratch))?.map(Factors::C32),
+                SparseData::C64(a) => numeric(plan, a, Some(scratch))?.map(Factors::C64),
+            };
+            match result {
+                Ok(f) => {
+                    self.factors = Some(f);
+                    Ok(0)
+                }
+                Err(info) => Ok(info),
+            }
         })
     }
 }

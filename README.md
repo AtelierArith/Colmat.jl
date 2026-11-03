@@ -1591,8 +1591,8 @@ This interface accepts matrix RHS matching the factor's scalar type for normal
 auto/supernodal QR solves. `reserve!(s,ldiv!,F,B)` explicitly grows an existing
 buffer. Insufficient capacity/alignment is rejected before writing the result;
 the buffer never grows implicitly. Native RHS/result storage and destination
-copying allocate outside scratch. Factor construction, simplicial QR and
-transpose/adjoint solves use their existing workspace paths.
+copying allocate outside scratch. Factor construction has a separate workspace interface below. Simplicial QR and
+transpose/adjoint solves retain their existing workspace paths.
 
 
 For auto/supernodal QR, `ordering=:default` and `ordering=:colamd` both select
@@ -1600,3 +1600,30 @@ native COLAMD. For example, `qr(A; algorithm=:supernodal, ordering=:colamd,
 dense_row=-1.0, dense_col=0.0, aggressive=false)` retains the resulting order
 through copies and numeric updates. Identity/custom ordering for this path
 remains unavailable; explicit simplicial QR supports those options.
+
+### Reuse workspace for sparse QR factor construction
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A = FaerSparseMatrix(sparse([2.0 0; 0 3; 1 0]))
+p = FaerSparseSymbolic(A; kind=:qr, algorithm=:supernodal)
+s = FaerScratch(factorize, p, A)
+F = factorize(p, A; scratch=s)
+G = factorize(p, A; scratch=s)
+@assert F \ ones(3) ≈ Matrix(A) \ ones(3)
+close(p)
+close(s)
+@assert G \ ones(3) ≈ F \ ones(3)
+close(F)
+close(G)
+close(A)
+```
+
+`factorize(plan,A;scratch=s)` supplies caller-owned workspace to auto/supernodal
+QR numeric construction. `scratch_requirements(factorize,plan,A)` queries the
+scalar-dependent requirement and `reserve!(s,factorize,plan,A)` grows capacity
+explicitly. The numeric matrix must match the plan's stored pattern exactly.
+Symbolic analysis, sparse snapshots and owned factor buffers allocate outside
+scratch. Returned factors do not borrow the workspace and remain valid after
+it or the input plan is closed. Explicit simplicial factor construction retains
+its previous workspace path.
