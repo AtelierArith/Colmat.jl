@@ -5,11 +5,11 @@ use crate::sparsity::SparsityOwner;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::{MemBuffer, MemStack};
-use faer::linalg::solvers::{Solve, SolveLstsq};
+use faer::linalg::solvers::Solve;
 use faer::sparse::{
     linalg::{
         cholesky::{self, LltRef, SymbolicCholesky, SymmetricOrdering},
-        solvers::{Lu, Qr, SymbolicLu, SymbolicQr},
+        solvers::{Lu, SymbolicLu},
         LuError, SupernodalThreshold,
     },
     SymbolicSparseColMat,
@@ -27,7 +27,7 @@ enum Analysis {
     SimplicialLu(faer::perm::Perm<usize>),
     SimplicialQr(crate::sparse_qr_components::Plan),
     Lu(SymbolicLu<usize>),
-    Qr(SymbolicQr<usize>),
+    Qr(Arc<faer::sparse::linalg::qr::SymbolicQr<usize>>),
     Llt(Arc<SymbolicCholesky<usize>>),
 }
 #[derive(Clone)]
@@ -119,9 +119,20 @@ impl SparseSymbolic {
                         cols,
                     )?)
                 }
-                1 => Analysis::Qr(
-                    SymbolicQr::try_new(pattern.as_ref()).map_err(|e| format!("{e:?}"))?,
-                ),
+                1 => Analysis::Qr(Arc::new(
+                    faer::sparse::linalg::qr::factorize_symbolic_qr(
+                        pattern.as_ref(),
+                        faer::sparse::linalg::qr::QrSymbolicParams {
+                            supernodal_flop_ratio_threshold: if supernodal == 2 {
+                                SupernodalThreshold::FORCE_SUPERNODAL
+                            } else {
+                                SupernodalThreshold::AUTO
+                            },
+                            ..Default::default()
+                        },
+                    )
+                    .map_err(|e| format!("{e:?}"))?,
+                )),
                 2 => {
                     if !dense.is_finite() {
                         return Err("AMD threshold must be finite".into());
@@ -189,7 +200,7 @@ enum Numeric<T> {
     SimplicialLu(crate::sparse_lu_components::SimplicialFactors<T>),
     SimplicialQr(crate::sparse_qr_components::Factors<T>),
     Lu(Lu<usize, T>),
-    Qr(Qr<usize, T>),
+    Qr(crate::sparse_qr_owned::Factors<T>),
     Llt(SparseLlt<T>),
 }
 #[derive(Clone)]
@@ -242,10 +253,10 @@ fn numeric<T: ComplexField>(p: &Plan, a: &Storage<T>) -> Result<Result<Numeric<T
         Analysis::SimplicialQr(sym) => {
             Numeric::SimplicialQr(crate::sparse_qr_components::Factors::new(sym, a.as_ref())?)
         }
-        Analysis::Qr(sym) => Numeric::Qr(
-            Qr::try_new_with_symbolic(sym.clone(), a.as_ref(), Par::Seq)
-                .map_err(|e| format!("{e:?}"))?,
-        ),
+        Analysis::Qr(sym) => Numeric::Qr(crate::sparse_qr_owned::Factors::new(
+            sym.clone(),
+            a.as_ref(),
+        )?),
         Analysis::Llt(sym) => {
             // faer's identity-order numeric path can pass the original matrix
             // straight to its triangle-only kernel. Strip the ignored half
@@ -390,7 +401,7 @@ fn solve<T: ComplexField>(
             if trans {
                 return Err("transpose/adjoint sparse QR solve is not provided by faer".into());
             }
-            f.solve_lstsq(b, Par::Seq)
+            f.solve(b)?
         }
     })
 }

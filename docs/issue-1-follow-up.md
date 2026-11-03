@@ -44,3 +44,18 @@ README の 52 Julia blocks が成功した。この検証の faer checkout は
 - 依存 checkout を変更しない。upstream の不具合は実行済み MWE・実出力・具体的修正案とともに適切な repository に報告する。
 
 実装・検証の詳細は [implementation-status.md](implementation-status.md) を参照。
+
+## 公開 API の追加調査（d5be1473）
+
+- 高水準 `sparse::solvers::{SymbolicLu,Lu,SymbolicQr,Qr}` の所有データは private。
+  成分公開・ordering・caller scratch の実装では、メモリ配置を推測せず、
+  公開低水準 symbolic/numeric API を保持する adapter への移行が必要。
+- LU の公開 `LuRef` は行・列置換と通常/転置求解を公開するが、
+  `NumericLu.raw` と `NumericLuRaw` は private。低水準 generic LU へ移すだけでは
+  L/U 成分は抽出できない。明示的 simplicial の `l_factor_unsorted` /
+  `u_factor_unsorted` は現在の adapter から利用済み。
+- QR は `SymbolicQr::factorize_numeric_qr` と `QrRef` により、所有する index/value
+  buffers と caller scratch を使える。高水準 `Qr` の private buffers に依存せず
+  numeric 更新と求解を維持できるため、auto QR の workspace 接続の実装候補とする。
+- supernodal LU の内部 storage への accessor と一般化 QZ の reorder は、
+  公開可否を個別に確認する。private API の存在を公開機能の実装済み扱いにしない。

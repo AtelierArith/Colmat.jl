@@ -119,6 +119,7 @@ function FaerSparseSymbolic(
         )
     if kind!==:cholesky &&
        !(kind in (:lu, :qr) && algo==1 && threshold==10.0 && (aggressive || use_colamd)) &&
+       !(kind===:qr && algo==2 && ordering===:default && threshold==10.0 && aggressive) &&
        (ordering!==:default || threshold!=10.0 || !aggressive || algo!=0)
         throw(
             ArgumentError(
