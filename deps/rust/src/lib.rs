@@ -3,9 +3,7 @@ use faer::{linalg::solvers::Solve, Accum, Mat, MatRef, Par};
 use rustcall_julia_macros::julia;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-type FfiResult = Result<(), String>;
-
-fn guarded(f: impl FnOnce() -> FfiResult) -> Result<(), String> {
+fn guarded<T>(f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
     catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|payload| {
         let message = payload
             .downcast_ref::<String>()
@@ -108,4 +106,1115 @@ pub fn svd_f64(
         }
         Ok(())
     })
+}
+
+/// Opaque Rust-owned storage. No pointer into this matrix escapes to Julia.
+#[julia]
+pub struct OwnedMatrix {
+    matrix: Mat<f64>,
+}
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn new() -> Self {
+        Self {
+            matrix: Mat::zeros(0, 0),
+        }
+    }
+
+    #[julia]
+    pub fn load_buffer(
+        &mut self,
+        data: *const f64,
+        rows: usize,
+        cols: usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.matrix = unsafe { input(data, rows, cols)? };
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn make_zeros(&mut self, rows: usize, cols: usize) -> Result<(), String> {
+        guarded(|| {
+            rows.checked_mul(cols).ok_or("matrix size overflow")?;
+            self.matrix = Mat::zeros(rows, cols);
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn duplicate_from(&mut self, other: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let other = unsafe { &*other.cast::<OwnedMatrix>() };
+            self.matrix = other.matrix.clone();
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn read_element(&self, row: usize, col: usize) -> Result<f64, String> {
+        guarded(|| {
+            if row >= self.matrix.nrows() || col >= self.matrix.ncols() {
+                return Err("index out of bounds".into());
+            }
+            Ok(self.matrix[(row, col)])
+        })
+    }
+
+    #[julia]
+    pub fn write_element(&mut self, row: usize, col: usize, value: f64) -> Result<(), String> {
+        guarded(|| {
+            if row >= self.matrix.nrows() || col >= self.matrix.ncols() {
+                return Err("index out of bounds".into());
+            }
+            self.matrix[(row, col)] = value;
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn copy_buffer(&self, out: *mut f64, len: usize) -> Result<(), String> {
+        guarded(|| {
+            if len != self.matrix.nrows() * self.matrix.ncols() {
+                return Err("output length mismatch".into());
+            }
+            unsafe {
+                output(self.matrix.as_ref(), out);
+            }
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn assign(&mut self, other: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let other = unsafe { &*other.cast::<OwnedMatrix>() };
+            if self.matrix.shape() != other.matrix.shape() {
+                return Err("matrix dimensions must match".into());
+            }
+            self.matrix.as_mut().copy_from(other.matrix.as_ref());
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn fill_value(&mut self, value: f64) -> Result<(), String> {
+        guarded(|| {
+            self.matrix.as_mut().fill(value);
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn add_from(&mut self, a: *const u8, b: *const u8, sign: f64) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*a.cast::<OwnedMatrix>() };
+            let b = unsafe { &*b.cast::<OwnedMatrix>() };
+            if a.matrix.shape() != b.matrix.shape() {
+                return Err("matrix dimensions must match".into());
+            }
+            self.matrix = Mat::from_fn(a.matrix.nrows(), a.matrix.ncols(), |i, j| {
+                a.matrix[(i, j)] + sign * b.matrix[(i, j)]
+            });
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn scale_from(&mut self, a: *const u8, factor: f64) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*a.cast::<OwnedMatrix>() };
+            self.matrix = Mat::from_fn(a.matrix.nrows(), a.matrix.ncols(), |i, j| {
+                factor * a.matrix[(i, j)]
+            });
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn multiply_from(&mut self, a: *const u8, b: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*a.cast::<OwnedMatrix>() };
+            let b = unsafe { &*b.cast::<OwnedMatrix>() };
+            if a.matrix.ncols() != b.matrix.nrows() {
+                return Err("inner dimensions must match".into());
+            }
+            let mut matrix = Mat::zeros(a.matrix.nrows(), b.matrix.ncols());
+            faer::linalg::matmul::matmul(
+                matrix.as_mut(),
+                Accum::Replace,
+                a.matrix.as_ref(),
+                b.matrix.as_ref(),
+                1.0,
+                Par::Seq,
+            );
+            self.matrix = matrix;
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn transpose_from(&mut self, a: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*a.cast::<OwnedMatrix>() };
+            self.matrix = Mat::from_fn(a.matrix.ncols(), a.matrix.nrows(), |i, j| a.matrix[(j, i)]);
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn solve_from(&mut self, a: *const u8, b: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*a.cast::<OwnedMatrix>() };
+            let b = unsafe { &*b.cast::<OwnedMatrix>() };
+            let n = a.matrix.nrows();
+            if n != a.matrix.ncols() || n != b.matrix.nrows() {
+                return Err("solve dimensions must match".into());
+            }
+            if n == 0 {
+                self.matrix = b.matrix.clone();
+                return Ok(());
+            }
+            for mat in [&a.matrix, &b.matrix] {
+                for j in 0..mat.ncols() {
+                    for i in 0..mat.nrows() {
+                        if !mat[(i, j)].is_finite() {
+                            return Err("input must be finite".into());
+                        }
+                    }
+                }
+            }
+            let lu = a.matrix.as_ref().partial_piv_lu(Par::Seq);
+            if (0..n).any(|i| lu.U()[(i, i)] == 0.0) {
+                return Err("singular matrix".into());
+            }
+            self.matrix = lu.solve(b.matrix.as_ref(), Par::Seq);
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn svd_buffers(
+        &self,
+        u: *mut f64,
+        s: *mut f64,
+        v: *mut f64,
+        full: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = self.matrix.as_ref();
+            check_finite(a)?;
+            let (m, n) = (a.nrows(), a.ncols());
+            if m.min(n) == 0 {
+                // Empty full factors are identity matrices, as in Julia.
+                if full {
+                    for j in 0..m {
+                        for i in 0..m {
+                            unsafe {
+                                u.add(i + j * m).write(if i == j { 1.0 } else { 0.0 });
+                            }
+                        }
+                    }
+                    for j in 0..n {
+                        for i in 0..n {
+                            unsafe {
+                                v.add(i + j * n).write(if i == j { 1.0 } else { 0.0 });
+                            }
+                        }
+                    }
+                }
+                return Ok(());
+            }
+            let factor = if full {
+                a.svd(Par::Seq)
+            } else {
+                a.thin_svd(Par::Seq)
+            }
+            .map_err(|e| format!("SVD failed: {e:?}"))?;
+            unsafe {
+                output(factor.U(), u);
+                output(factor.V(), v);
+                for i in 0..m.min(n) {
+                    s.add(i).write(factor.S().column_vector()[i]);
+                }
+            }
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn singular_values_buffer(&self, s: *mut f64) -> Result<(), String> {
+        guarded(|| {
+            let a = self.matrix.as_ref();
+            check_finite(a)?;
+            if a.nrows().min(a.ncols()) == 0 {
+                return Ok(());
+            }
+            let values = a
+                .singular_values(Par::Seq)
+                .map_err(|e| format!("SVD failed: {e:?}"))?;
+            for (i, value) in values.into_iter().enumerate() {
+                unsafe {
+                    s.add(i).write(value);
+                }
+            }
+            Ok(())
+        })
+    }
+}
+
+fn check_finite(a: MatRef<'_, f64>) -> Result<(), String> {
+    for j in 0..a.ncols() {
+        for i in 0..a.nrows() {
+            if !a[(i, j)].is_finite() {
+                return Err("input must be finite".into());
+            }
+        }
+    }
+    Ok(())
+}
+
+use faer::linalg::solvers::{
+    ColPivQr, DenseSolveCore, FullPivLu, Lblt, Ldlt, Llt, PartialPivLu, Qr, ShapeCore, SolveLstsq,
+    Svd,
+};
+
+#[derive(Clone)]
+enum DenseFactor {
+    Lu(PartialPivLu<f64>),
+    FullLu(FullPivLu<f64>),
+    Qr(Qr<f64>),
+    PivotQr(ColPivQr<f64>),
+    Llt(Llt<f64>),
+    Ldlt(Ldlt<f64>),
+    Lblt(Lblt<f64>),
+    Svd(Svd<f64>),
+}
+
+macro_rules! dispatch_factor {
+    ($factor:expr, $f:ident => $body:expr) => {
+        match $factor {
+            DenseFactor::Lu($f) => $body,
+            DenseFactor::FullLu($f) => $body,
+            DenseFactor::Qr($f) => $body,
+            DenseFactor::PivotQr($f) => $body,
+            DenseFactor::Llt($f) => $body,
+            DenseFactor::Ldlt($f) => $body,
+            DenseFactor::Lblt($f) => $body,
+            DenseFactor::Svd($f) => $body,
+        }
+    };
+}
+
+/// A reusable factorization owns its numerical data independently of the input.
+#[julia]
+pub struct OwnedFactor {
+    factor: Option<DenseFactor>,
+    info: usize,
+}
+
+impl OwnedFactor {
+    fn get(&self) -> Result<&DenseFactor, String> {
+        self.factor
+            .as_ref()
+            .ok_or("factorization is not available".into())
+    }
+}
+
+#[julia]
+impl OwnedFactor {
+    #[julia]
+    pub fn new() -> Self {
+        Self {
+            factor: None,
+            info: 0,
+        }
+    }
+
+    #[julia]
+    pub fn initialize(
+        &mut self,
+        source: *const u8,
+        kind: i32,
+        lower: bool,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            let a = unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref();
+            if (4..=6).contains(&kind) {
+                if a.nrows() != a.ncols() {
+                    return Err("factorization requires square input".into());
+                }
+                for j in 0..a.ncols() {
+                    for i in 0..a.nrows() {
+                        if (if lower { i >= j } else { i <= j }) && !a[(i, j)].is_finite() {
+                            return Err("input triangle must be finite".into());
+                        }
+                    }
+                }
+            } else {
+                check_finite(a)?;
+            }
+            let side = if lower {
+                faer::Side::Lower
+            } else {
+                faer::Side::Upper
+            };
+            self.info = 0;
+            let factor = match kind {
+                0 => DenseFactor::Lu(a.partial_piv_lu(Par::Seq)),
+                1 => DenseFactor::FullLu(a.full_piv_lu(Par::Seq)),
+                2 => DenseFactor::Qr(a.qr(Par::Seq)),
+                3 => DenseFactor::PivotQr(a.col_piv_qr(Par::Seq)),
+                4 => match a.llt(side, Par::Seq) {
+                    Ok(f) => DenseFactor::Llt(f),
+                    Err(faer::linalg::solvers::LltError::NonPositivePivot { index }) => {
+                        self.factor = None;
+                        self.info = index + 1;
+                        return Ok(self.info);
+                    }
+                },
+                5 => match a.ldlt(side, Par::Seq) {
+                    Ok(f) => DenseFactor::Ldlt(f),
+                    Err(faer::linalg::solvers::LdltError::ZeroPivot { index }) => {
+                        self.factor = None;
+                        self.info = index + 1;
+                        return Ok(self.info);
+                    }
+                },
+                6 => DenseFactor::Lblt(a.lblt(side, Par::Seq)),
+                7 => DenseFactor::Svd(a.thin_svd(Par::Seq).map_err(|e| format!("{e:?}"))?),
+                _ => return Err("unknown factorization kind".into()),
+            };
+            let diagonal = match &factor {
+                DenseFactor::Lu(f) => Some(f.U()),
+                DenseFactor::FullLu(f) => Some(f.U()),
+                _ => None,
+            };
+            if let Some(u) = diagonal {
+                self.info = (0..u.nrows().min(u.ncols()))
+                    .find(|&i| u[(i, i)] == 0.0)
+                    .map_or(0, |i| i + 1);
+            }
+            if let DenseFactor::Lblt(x) = &factor {
+                let mut i = 0;
+                while i < x.nrows() {
+                    let block = i + 1 < x.nrows() && x.B_subdiag()[i] != 0.0;
+                    let determinant = if block {
+                        x.B_diag()[i] * x.B_diag()[i + 1] - x.B_subdiag()[i] * x.B_subdiag()[i]
+                    } else {
+                        x.B_diag()[i]
+                    };
+                    if determinant == 0.0 {
+                        self.info = i + 1;
+                        break;
+                    }
+                    i += if block { 2 } else { 1 };
+                }
+            }
+            self.factor = Some(factor);
+            Ok(self.info)
+        })
+    }
+
+    #[julia]
+    pub fn clone_factor(&mut self, source: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let source = unsafe { &*source.cast::<OwnedFactor>() };
+            self.factor = source.factor.clone();
+            self.info = source.info;
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn permutation(&self, out: *mut usize, len: usize, column: bool) -> Result<(), String> {
+        guarded(|| {
+            let p = match self.get()? {
+                DenseFactor::Lu(f) if !column => f.P(),
+                DenseFactor::FullLu(f) => {
+                    if column {
+                        f.Q()
+                    } else {
+                        f.P()
+                    }
+                }
+                DenseFactor::PivotQr(f) => f.P(),
+                DenseFactor::Lblt(f) => f.P(),
+                _ => return Err("factorization has no requested permutation".into()),
+            };
+            let indices = p.arrays().0;
+            if len != indices.len() {
+                return Err("permutation length mismatch".into());
+            }
+            for (i, &value) in indices.iter().enumerate() {
+                unsafe {
+                    out.add(i).write(value + 1);
+                }
+            }
+            Ok(())
+        })
+    }
+}
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn factor_part(&mut self, source: *const u8, part: i32) -> Result<(), String> {
+        guarded(|| {
+            let f = unsafe { &*source.cast::<OwnedFactor>() }.get()?;
+            self.matrix = match part {
+                0 => dispatch_factor!(f, x => x.reconstruct(Par::Seq)),
+                1 => match f {
+                    DenseFactor::Lu(x) => x.L().to_owned(),
+                    DenseFactor::FullLu(x) => x.L().to_owned(),
+                    DenseFactor::Llt(x) => x.L().to_owned(),
+                    DenseFactor::Ldlt(x) => x.L().to_owned(),
+                    DenseFactor::Lblt(x) => x.L().to_owned(),
+                    _ => return Err("factorization has no L factor".into()),
+                },
+                2 => match f {
+                    DenseFactor::Lu(x) => x.U().to_owned(),
+                    DenseFactor::FullLu(x) => x.U().to_owned(),
+                    _ => return Err("factorization has no U factor".into()),
+                },
+                3 => match f {
+                    DenseFactor::Qr(x) => x.compute_Q(Par::Seq),
+                    DenseFactor::PivotQr(x) => x.compute_Q(Par::Seq),
+                    _ => return Err("factorization has no Q factor".into()),
+                },
+                4 => match f {
+                    DenseFactor::Qr(x) => x.thin_R().to_owned(),
+                    DenseFactor::PivotQr(x) => x.thin_R().to_owned(),
+                    _ => return Err("factorization has no R factor".into()),
+                },
+                5 => match f {
+                    DenseFactor::Ldlt(x) => {
+                        Mat::from_fn(
+                            x.nrows(),
+                            x.ncols(),
+                            |i, j| if i == j { x.D()[i] } else { 0.0 },
+                        )
+                    }
+                    DenseFactor::Lblt(x) => Mat::from_fn(x.nrows(), x.ncols(), |i, j| {
+                        if i == j {
+                            x.B_diag()[i]
+                        } else if i == j + 1 {
+                            x.B_subdiag()[j]
+                        } else if j == i + 1 {
+                            x.B_subdiag()[i]
+                        } else {
+                            0.0
+                        }
+                    }),
+                    _ => return Err("factorization has no D factor".into()),
+                },
+                6 => match f {
+                    DenseFactor::Qr(x) => x.compute_thin_Q(Par::Seq),
+                    DenseFactor::PivotQr(x) => x.compute_thin_Q(Par::Seq),
+                    _ => return Err("factorization has no Q factor".into()),
+                },
+                _ => return Err("unknown factor part".into()),
+            };
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn factor_solve(
+        &mut self,
+        factor: *const u8,
+        rhs: *const u8,
+        transposed: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let owner = unsafe { &*factor.cast::<OwnedFactor>() };
+            let f = owner.get()?;
+            if owner.info != 0 {
+                return Err("singular factorization".into());
+            }
+            let b = unsafe { &*rhs.cast::<OwnedMatrix>() }.matrix.as_ref();
+            check_finite(b)?;
+            let m = dispatch_factor!(f, x => x.nrows());
+            let n = dispatch_factor!(f, x => x.ncols());
+            if b.nrows() != if transposed { n } else { m } {
+                return Err("solve dimensions mismatch".into());
+            }
+            let rank_deficient = match f {
+                DenseFactor::Qr(x) => numerically_singular_r(x.thin_R()),
+                DenseFactor::PivotQr(x) => numerically_singular_r(x.thin_R()),
+                DenseFactor::Svd(_) => true,
+                _ => false,
+            };
+            self.matrix = if rank_deficient {
+                let a = dispatch_factor!(f, x => x.reconstruct(Par::Seq));
+                let a = if transposed {
+                    a.as_ref().transpose().to_owned()
+                } else {
+                    a
+                };
+                pseudoinverse_solve(a.as_ref(), b)?
+            } else if m == n {
+                if transposed {
+                    dispatch_factor!(f, x => x.solve_transpose(b, Par::Seq))
+                } else {
+                    dispatch_factor!(f, x => x.solve(b, Par::Seq))
+                }
+            } else if !transposed && m >= n {
+                match f {
+                    DenseFactor::Qr(x) => x.solve_lstsq(b, Par::Seq),
+                    DenseFactor::PivotQr(x) => x.solve_lstsq(b, Par::Seq),
+                    DenseFactor::Svd(x) => x.solve_lstsq(b, Par::Seq),
+                    _ => return Err("rectangular solve requires QR or SVD".into()),
+                }
+            } else {
+                let a = dispatch_factor!(f, x => x.reconstruct(Par::Seq));
+                let a = if transposed {
+                    a.as_ref().transpose().to_owned()
+                } else {
+                    a
+                };
+                let inverse = a
+                    .as_ref()
+                    .thin_svd(Par::Seq)
+                    .map_err(|e| format!("{e:?}"))?
+                    .pseudoinverse(Par::Seq);
+                let mut result = Mat::zeros(a.ncols(), b.ncols());
+                faer::linalg::matmul::matmul(
+                    result.as_mut(),
+                    Accum::Replace,
+                    inverse.as_ref(),
+                    b,
+                    1.0,
+                    Par::Seq,
+                );
+                result
+            };
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn factor_inverse(&mut self, source: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let owner = unsafe { &*source.cast::<OwnedFactor>() };
+            if owner.info != 0 {
+                return Err("singular factorization".into());
+            }
+            let f = owner.get()?;
+            if dispatch_factor!(f, x => x.nrows()!=x.ncols()) {
+                return Err("inverse requires a square matrix".into());
+            }
+            let singular = match f {
+                DenseFactor::Qr(x) => numerically_singular_r(x.thin_R()),
+                DenseFactor::PivotQr(x) => numerically_singular_r(x.thin_R()),
+                _ => false,
+            };
+            if singular {
+                return Err("singular factorization".into());
+            }
+            self.matrix = dispatch_factor!(f, x => x.inverse(Par::Seq));
+            Ok(())
+        })
+    }
+}
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn reduction(&self, kind: i32) -> Result<f64, String> {
+        guarded(|| {
+            let a = self.matrix.as_ref();
+            Ok(match kind {
+                0 => a.sum(),
+                1 => a.norm_l2(),
+                2 => a.norm_l1(),
+                3 => a.norm_max(),
+                4 => a.squared_norm_l2(),
+                5 => {
+                    if a.nrows() != a.ncols() {
+                        return Err("determinant requires a square matrix".into());
+                    }
+                    a.determinant(Par::Seq)
+                }
+                6 | 7 => {
+                    let mut value = None;
+                    for j in 0..a.ncols() {
+                        for i in 0..a.nrows() {
+                            let x = a[(i, j)];
+                            if x.is_nan() {
+                                return Ok(x);
+                            }
+                            value = Some(match value {
+                                None => x,
+                                Some(v) => {
+                                    if kind == 6 {
+                                        f64::min(v, x)
+                                    } else {
+                                        f64::max(v, x)
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    value.ok_or("empty matrix has no extrema")?
+                }
+                8 => {
+                    if a.nrows() != a.ncols() {
+                        return Err("trace requires a square matrix".into());
+                    }
+                    (0..a.nrows()).map(|i| a[(i, i)]).sum()
+                }
+                9 => (0..a.ncols())
+                    .map(|j| (0..a.nrows()).map(|i| a[(i, j)].abs()).sum::<f64>())
+                    .fold(0.0, f64::max),
+                10 => (0..a.nrows())
+                    .map(|i| (0..a.ncols()).map(|j| a[(i, j)].abs()).sum::<f64>())
+                    .fold(0.0, f64::max),
+                _ => return Err("unknown reduction".into()),
+            })
+        })
+    }
+
+    #[julia]
+    pub fn predicate(&self, kind: i32) -> Result<bool, String> {
+        guarded(|| {
+            let a = self.matrix.as_ref();
+            Ok(match kind {
+                0 => a.is_all_finite(),
+                1 => a.has_nan(),
+                2 => a.nrows() == a.ncols() && a.is_identity(),
+                3 => {
+                    a.nrows() == a.ncols()
+                        && (0..a.ncols()).all(|j| (0..j).all(|i| a[(i, j)] == a[(j, i)]))
+                }
+                _ => return Err("unknown predicate".into()),
+            })
+        })
+    }
+
+    #[julia]
+    pub fn inner_product(&self, other: *const u8) -> Result<f64, String> {
+        guarded(|| {
+            let a = self.matrix.as_ref();
+            let b = unsafe { &*other.cast::<OwnedMatrix>() }.matrix.as_ref();
+            if a.shape() != b.shape() {
+                return Err("inner product dimensions must match".into());
+            }
+            Ok((0..a.ncols())
+                .map(|j| {
+                    faer::linalg::matmul::dot::inner_prod(
+                        a.col(j).transpose(),
+                        faer::Conj::No,
+                        b.col(j),
+                        faer::Conj::No,
+                    )
+                })
+                .sum())
+        })
+    }
+
+    #[julia]
+    pub fn kron_from(&mut self, lhs: *const u8, rhs: *const u8) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*lhs.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let b = unsafe { &*rhs.cast::<OwnedMatrix>() }.matrix.as_ref();
+            a.nrows()
+                .checked_mul(b.nrows())
+                .ok_or("Kronecker size overflow")?;
+            a.ncols()
+                .checked_mul(b.ncols())
+                .ok_or("Kronecker size overflow")?;
+            self.matrix = a.kron(b);
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn sum_axis_from(&mut self, source: *const u8, axis: i32) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref();
+            self.matrix = match axis {
+                1 => Mat::from_fn(1, a.ncols(), |_, j| a.col(j).sum()),
+                2 => Mat::from_fn(a.nrows(), 1, |i, _| a.row(i).sum()),
+                _ => return Err("sum axis must be 1 or 2".into()),
+            };
+            Ok(())
+        })
+    }
+}
+
+fn symmetric_copy(a: MatRef<'_, f64>, lower: bool) -> Result<Mat<f64>, String> {
+    if a.nrows() != a.ncols() {
+        return Err("self-adjoint input must be square".into());
+    }
+    let matrix = Mat::from_fn(a.nrows(), a.ncols(), |i, j| {
+        if (lower && i >= j) || (!lower && i <= j) {
+            a[(i, j)]
+        } else {
+            a[(j, i)]
+        }
+    });
+    check_finite(matrix.as_ref())?;
+    Ok(matrix)
+}
+unsafe fn output_complex(a: MatRef<'_, faer::c64>, out: *mut u8) {
+    for j in 0..a.ncols() {
+        for i in 0..a.nrows() {
+            out.cast::<faer::c64>()
+                .add(i + j * a.nrows())
+                .write(a[(i, j)]);
+        }
+    }
+}
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn eigen_buffers(
+        &self,
+        values: *mut u8,
+        vectors: *mut u8,
+        compute_vectors: bool,
+        mode: i32,
+        lower: bool,
+        other: *const u8,
+        other_lower: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = self.matrix.as_ref();
+            let n = a.nrows();
+            if n != a.ncols() {
+                return Err("eigen input must be square".into());
+            }
+            let b = if mode >= 2 {
+                let b = unsafe { &*other.cast::<OwnedMatrix>() }.matrix.as_ref();
+                if b.shape() != a.shape() {
+                    return Err("generalized eigen inputs must have equal shapes".into());
+                }
+                Some(b)
+            } else {
+                None
+            };
+            if n == 0 {
+                return Ok(());
+            }
+            match mode {
+                0 => {
+                    check_finite(a)?;
+                    let eigenvalues = if compute_vectors {
+                        let f = a.eigen(Par::Seq).map_err(|e| format!("{e:?}"))?;
+                        unsafe {
+                            output_complex(f.U(), vectors);
+                        }
+                        (0..n).map(|i| f.S()[i]).collect::<Vec<_>>()
+                    } else {
+                        a.eigenvalues(Par::Seq).map_err(|e| format!("{e:?}"))?
+                    };
+                    for (i, x) in eigenvalues.into_iter().enumerate() {
+                        unsafe {
+                            values.cast::<faer::c64>().add(i).write(x);
+                        }
+                    }
+                }
+                1 => {
+                    let a = symmetric_copy(a, lower)?;
+                    let eigenvalues = if compute_vectors {
+                        let f = a
+                            .as_ref()
+                            .self_adjoint_eigen(faer::Side::Lower, Par::Seq)
+                            .map_err(|e| format!("{e:?}"))?;
+                        unsafe {
+                            output(f.U(), vectors.cast::<f64>());
+                        }
+                        (0..n).map(|i| f.S()[i]).collect::<Vec<_>>()
+                    } else {
+                        a.as_ref()
+                            .self_adjoint_eigenvalues(faer::Side::Lower, Par::Seq)
+                            .map_err(|e| format!("{e:?}"))?
+                    };
+                    for (i, x) in eigenvalues.into_iter().enumerate() {
+                        unsafe {
+                            values.cast::<f64>().add(i).write(x);
+                        }
+                    }
+                }
+                2 => {
+                    check_finite(a)?;
+                    let b = b.unwrap();
+                    check_finite(b)?;
+                    let f = a
+                        .generalized_eigen(b, Par::Seq)
+                        .map_err(|e| format!("{e:?}"))?;
+                    if compute_vectors {
+                        unsafe {
+                            output_complex(f.U(), vectors);
+                        }
+                    }
+                    for i in 0..n {
+                        unsafe {
+                            values.cast::<faer::c64>().add(i).write(
+                                if f.S_b()[i] == faer::c64::new(0.0, 0.0) {
+                                    if f.S_a()[i] == faer::c64::new(0.0, 0.0) {
+                                        faer::c64::new(f64::NAN, 0.0)
+                                    } else {
+                                        faer::c64::new(f64::INFINITY, 0.0)
+                                    }
+                                } else {
+                                    f.S_a()[i] / f.S_b()[i]
+                                },
+                            );
+                        }
+                    }
+                }
+                3 => {
+                    let a = symmetric_copy(a, lower)?;
+                    let b = symmetric_copy(b.unwrap(), other_lower)?;
+                    let eigenvalues = if compute_vectors {
+                        let f = a
+                            .as_ref()
+                            .self_adjoint_generalized_eigen(b.as_ref(), Par::Seq)
+                            .map_err(|e| format!("{e:?}"))?;
+                        unsafe {
+                            output(f.U(), vectors.cast::<f64>());
+                        }
+                        f.values().to_vec()
+                    } else {
+                        a.as_ref()
+                            .self_adjoint_generalized_eigenvalues(b.as_ref(), Par::Seq)
+                            .map_err(|e| format!("{e:?}"))?
+                    };
+                    for (i, x) in eigenvalues.into_iter().enumerate() {
+                        unsafe {
+                            values.cast::<f64>().add(i).write(x);
+                        }
+                    }
+                }
+                _ => return Err("unknown eigen mode".into()),
+            }
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn pfaffian_value(&self) -> Result<f64, String> {
+        guarded(|| {
+            let a = self.matrix.as_ref();
+            if a.nrows() != a.ncols() {
+                return Err("Pfaffian requires square input".into());
+            }
+            check_finite(a)?;
+            for j in 0..a.ncols() {
+                for i in j..a.nrows() {
+                    if a[(i, j)] != -a[(j, i)] {
+                        return Err("Pfaffian requires skew-symmetric input".into());
+                    }
+                }
+            }
+            let mut memory = faer::dyn_stack::MemBuffer::new(
+                faer::linalg::pfaffian::pfaffian_scratch::<f64>(self.matrix.nrows()),
+            );
+            faer::linalg::pfaffian::pfaffian(
+                self.matrix.as_ref(),
+                Par::Seq,
+                faer::dyn_stack::MemStack::new(&mut memory),
+            )
+            .map_err(|e| format!("{e:?}"))
+        })
+    }
+}
+
+fn numerically_singular_r(r: MatRef<'_, f64>) -> bool {
+    let tolerance = f64::EPSILON * r.nrows().max(r.ncols()) as f64 * r.norm_max();
+    (0..r.nrows().min(r.ncols())).any(|i| r[(i, i)].abs() <= tolerance)
+}
+fn pseudoinverse_solve(a: MatRef<'_, f64>, b: MatRef<'_, f64>) -> Result<Mat<f64>, String> {
+    let inverse = a
+        .thin_svd(Par::Seq)
+        .map_err(|e| format!("{e:?}"))?
+        .pseudoinverse(Par::Seq);
+    let mut x = Mat::zeros(a.ncols(), b.ncols());
+    faer::linalg::matmul::matmul(
+        x.as_mut(),
+        Accum::Replace,
+        inverse.as_ref(),
+        b,
+        1.0,
+        Par::Seq,
+    );
+    Ok(x)
+}
+
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn triangular_solve_from(
+        &mut self,
+        source: *const u8,
+        rhs: *const u8,
+        lower: bool,
+        unit: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref();
+            let b = unsafe { &*rhs.cast::<OwnedMatrix>() }.matrix.as_ref();
+            check_triangular(a, lower, unit)?;
+            check_finite(b)?;
+            if b.nrows() != a.nrows() {
+                return Err("triangular solve dimensions mismatch".into());
+            }
+            let mut x = b.to_owned();
+            match (lower, unit) {
+                (true, true) => a.solve_unit_lower_triangular_in_place(x.as_mut(), Par::Seq),
+                (true, false) => a.solve_lower_triangular_in_place(x.as_mut(), Par::Seq),
+                (false, true) => a.solve_unit_upper_triangular_in_place(x.as_mut(), Par::Seq),
+                (false, false) => a.solve_upper_triangular_in_place(x.as_mut(), Par::Seq),
+            }
+            self.matrix = x;
+            Ok(())
+        })
+    }
+
+    #[julia]
+    pub fn triangular_inverse_from(
+        &mut self,
+        source: *const u8,
+        lower: bool,
+        unit: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*source.cast::<OwnedMatrix>() }.matrix.as_ref();
+            check_triangular(a, lower, unit)?;
+            let mut x = Mat::zeros(a.nrows(), a.ncols());
+            use faer::linalg::triangular_inverse::*;
+            match (lower, unit) {
+                (true, true) => invert_unit_lower_triangular(x.as_mut(), a, Par::Seq),
+                (true, false) => invert_lower_triangular(x.as_mut(), a, Par::Seq),
+                (false, true) => invert_unit_upper_triangular(x.as_mut(), a, Par::Seq),
+                (false, false) => invert_upper_triangular(x.as_mut(), a, Par::Seq),
+            }
+            // The unit-triangular kernels write only the strict triangle.
+            if unit {
+                for i in 0..x.nrows() {
+                    x[(i, i)] = 1.0;
+                }
+            }
+            self.matrix = x;
+            Ok(())
+        })
+    }
+}
+fn check_triangular(a: MatRef<'_, f64>, lower: bool, unit: bool) -> Result<(), String> {
+    if a.nrows() != a.ncols() {
+        return Err("triangular matrix must be square".into());
+    }
+    for j in 0..a.ncols() {
+        for i in 0..a.nrows() {
+            if (if lower { i >= j } else { i <= j }) && !(unit && i == j) {
+                if !a[(i, j)].is_finite() {
+                    return Err("input triangle must be finite".into());
+                }
+                if i == j && a[(i, j)] == 0.0 {
+                    return Err("singular triangular matrix".into());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn permutation_sign(p: &[usize]) -> f64 {
+    let mut seen = vec![false; p.len()];
+    let mut sign = 1.0;
+    for start in 0..p.len() {
+        if seen[start] {
+            continue;
+        }
+        let mut i = start;
+        let mut length = 0;
+        while !seen[i] {
+            seen[i] = true;
+            i = p[i];
+            length += 1;
+        }
+        if length % 2 == 0 {
+            sign = -sign;
+        }
+    }
+    sign
+}
+
+#[julia]
+impl OwnedFactor {
+    #[julia]
+    pub fn logabsdet_buffer(&self, out: *mut f64) -> Result<(), String> {
+        guarded(|| {
+            let f = self.get()?;
+            let n = dispatch_factor!(f,x=>x.nrows());
+            if dispatch_factor!(f,x=>x.ncols()) != n {
+                return Err("determinant requires a square factor".into());
+            }
+            let mut logabs = 0.0;
+            let mut sign = 1.0;
+            let mut accumulate = |x: f64| {
+                logabs += x.abs().ln();
+                sign *= x.signum();
+                if x == 0.0 {
+                    sign = 0.0;
+                }
+            };
+            match f {
+                DenseFactor::Lu(x) => {
+                    for i in 0..n {
+                        accumulate(x.U()[(i, i)]);
+                    }
+                    sign *= permutation_sign(x.P().arrays().0);
+                }
+                DenseFactor::FullLu(x) => {
+                    for i in 0..n {
+                        accumulate(x.U()[(i, i)]);
+                    }
+                    sign *= permutation_sign(x.P().arrays().0) * permutation_sign(x.Q().arrays().0);
+                }
+                DenseFactor::Llt(x) => {
+                    for i in 0..n {
+                        accumulate(x.L()[(i, i)]);
+                        accumulate(x.L()[(i, i)]);
+                    }
+                }
+                DenseFactor::Ldlt(x) => {
+                    for i in 0..n {
+                        accumulate(x.D()[i]);
+                    }
+                }
+                DenseFactor::Lblt(x) => {
+                    let mut i = 0;
+                    while i < n {
+                        if i + 1 < n && x.B_subdiag()[i] != 0.0 {
+                            accumulate(
+                                x.B_diag()[i] * x.B_diag()[i + 1]
+                                    - x.B_subdiag()[i] * x.B_subdiag()[i],
+                            );
+                            i += 2;
+                        } else {
+                            accumulate(x.B_diag()[i]);
+                            i += 1;
+                        }
+                    }
+                }
+                _ => accumulate(
+                    dispatch_factor!(f,x=>x.reconstruct(Par::Seq))
+                        .as_ref()
+                        .determinant(Par::Seq),
+                ),
+            }
+            unsafe {
+                out.write(logabs);
+                out.add(1).write(sign);
+            }
+            Ok(())
+        })
+    }
 }

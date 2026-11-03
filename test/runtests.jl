@@ -50,3 +50,11 @@ using Test, LinearAlgebra, Random, Colmat
         @test_throws Exception faer_svd(fill(NaN, 2, 2))
     end
 end
+
+include("matrix.jl")
+
+include("factorizations.jl")
+include("reductions.jl")
+include("eigen.jl")
+
+include("structured.jl")

@@ -1,9 +1,10 @@
 module Colmat
 
 using RustCall
+import LinearAlgebra
 using LinearAlgebra: SVD
 
-export faer_mul, faer_solve, faer_svd
+export FaerMatrix, FaerFactorization, full_piv_lu, pfaffian, faer_mul, faer_solve, faer_svd
 
 const RustCrate = @rust_crate joinpath(@__DIR__, "..", "deps", "rust")
 
@@ -21,7 +22,16 @@ function faer_mul(a::AbstractMatrix{<:Real}, b::AbstractMatrix{<:Real})
     aa, bb = _dense(a), _dense(b)
     c = Matrix{Float64}(undef, size(a, 1), size(b, 2))
     GC.@preserve aa bb c begin
-        RustCall.result_to_exception(RustCrate.matmul_f64(pointer(aa), pointer(bb), pointer(c), UInt(size(aa, 1)), UInt(size(aa, 2)), UInt(size(bb, 2))))
+        RustCall.result_to_exception(
+            RustCrate.matmul_f64(
+                pointer(aa),
+                pointer(bb),
+                pointer(c),
+                UInt(size(aa, 1)),
+                UInt(size(aa, 2)),
+                UInt(size(bb, 2)),
+            ),
+        )
     end
     return c
 end
@@ -39,11 +49,20 @@ function faer_solve(a::AbstractMatrix{<:Real}, b::AbstractMatrix{<:Real})
     x = similar(bb)
     isempty(aa) && return x
     GC.@preserve aa bb x begin
-        RustCall.result_to_exception(RustCrate.solve_f64(pointer(aa), pointer(bb), pointer(x), UInt(size(aa, 1)), UInt(size(bb, 2))))
+        RustCall.result_to_exception(
+            RustCrate.solve_f64(
+                pointer(aa),
+                pointer(bb),
+                pointer(x),
+                UInt(size(aa, 1)),
+                UInt(size(bb, 2)),
+            ),
+        )
     end
     return x
 end
-faer_solve(a::AbstractMatrix{<:Real}, b::AbstractVector{<:Real}) = vec(faer_solve(a, reshape(b, :, 1)))
+faer_solve(a::AbstractMatrix{<:Real}, b::AbstractVector{<:Real}) =
+    vec(faer_solve(a, reshape(b, :, 1)))
 
 """
     faer_svd(A::AbstractMatrix{<:Real})
@@ -55,13 +74,30 @@ function faer_svd(a::AbstractMatrix{<:Real})
     aa = _dense(a)
     m, n = size(aa)
     k = min(m, n)
-    u, s, v = Matrix{Float64}(undef, m, k), Vector{Float64}(undef, k), Matrix{Float64}(undef, n, k)
+    u, s, v = Matrix{Float64}(undef, m, k),
+    Vector{Float64}(undef, k),
+    Matrix{Float64}(undef, n, k)
     if k > 0
         GC.@preserve aa u s v begin
-            RustCall.result_to_exception(RustCrate.svd_f64(pointer(aa), pointer(u), pointer(s), pointer(v), UInt(m), UInt(n)))
+            RustCall.result_to_exception(
+                RustCrate.svd_f64(
+                    pointer(aa),
+                    pointer(u),
+                    pointer(s),
+                    pointer(v),
+                    UInt(m),
+                    UInt(n),
+                ),
+            )
         end
     end
     return SVD(u, s, copy(transpose(v)))
 end
+
+include("matrix.jl")
+include("factorizations.jl")
+include("reductions.jl")
+include("eigen.jl")
+include("structured.jl")
 
 end
