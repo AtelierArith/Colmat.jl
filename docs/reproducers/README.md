@@ -99,3 +99,20 @@ the same helper; it was not executed. The helper scales the RHS for a tiny
 shift but then still takes the reciprocal of the original zero denominator.
 Colmat recovers invalid finite-eigenvalue columns via native SVD nullspaces
 with explicit nullity checks; dependency sources are unchanged.
+
+
+## Left-only generalized eigenvector output
+
+`faer-gevd-left.rs` is the complete executed safe-Rust MWE for
+[faer #219](https://github.com/tensor4all/faer/issues/219). It runs right-only,
+both-output and left-only modes with matching scratch-query flags and fresh
+zero buffers. Right-only and both-output modes retain 64 finite eigenvalues;
+left-only returns only 4/64 finite and nonfinite vectors. Both-output left
+homogeneous max residual is 3.180292834636944e-11. The final assertion exits 101.
+Executed on pinned d5be1473 (0.28.1) and latest f817d003 (0.28.2), in independent
+git-dependent Cargo binaries. The report includes both exact manifest/source
+and a concrete temporary-right-output solution with the required scratch-query
+change. This differs from closed #37's reused nonzero buffer bug and #217's
+repeated-shift vector backsolve. Colmat detects nonfinite left outputs and
+recomputes the adjoint pencil's native right eigensystem before conjugating
+alpha/beta. Its dependency checkout is unchanged.

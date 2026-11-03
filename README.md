@@ -1249,3 +1249,34 @@ The homogeneous residual above stays meaningful for infinite eigenvalues. Vector
 recovery uses normalized pairs and native SVD, propagating the requested team,
 and may allocate additional workspace. This option is for general pairs;
 self-adjoint wrappers and destructive eigen routines keep their current APIs.
+
+### Left generalized eigenvectors
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[1 -3im; 2 4])
+B = FaerMatrix(ComplexF64[2 0.2; 0 1])
+FaerTeam(2) do team
+    workspace = FaerScratch(eigen, A, B; team=team)
+    F = eigen(A, B; side=:left, scratch=workspace, team=team)
+    @assert F.vectors' * Matrix(A) ≈ Diagonal(F.values) * F.vectors' * Matrix(B)
+    H = eigen(A, B; side=:left, homogeneous=true, scratch=workspace, team=team)
+    @assert Diagonal(H.β) * H.vectors' * Matrix(A) ≈
+            Diagonal(H.α) * H.vectors' * Matrix(B)
+    close(workspace)
+end
+```
+
+`side=:right` remains the default. General native pairs also accept `side=:left`
+to compute normalized left eigenvectors through faer's left-vector driver,
+using four scalar types, promotion, scratch and explicit teams. Sorting keeps
+vectors aligned with their eigenvalues or α/β pairs. The returned `vectors`
+field contains the selected side. Requirements are common to the two one-sided
+modes in the current backend; the same `FaerScratch(eigen, A, B; team=team)`
+works for either. If the direct left driver produces nonfinite outputs
+([faer #219](https://github.com/tensor4all/faer/issues/219)), Colmat recomputes the
+equivalent adjoint pencil with the native right driver. This reuses the selected
+scratch/team and allocates additional input/output copies. Invalid repeated left
+vectors can also use adjoint homogeneous nullspaces, including infinite values. Simultaneous left/right
+output and side selection for single matrices or destructive routines remain
+unexposed.

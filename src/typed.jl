@@ -699,11 +699,12 @@ function LinearAlgebra.eigen(
     a::FaerMatrix{T},
     b::FaerMatrix{T};
     homogeneous::Bool = false,
+    side::Symbol = :right,
     sortby = homogeneous ? nothing : _eigensort,
     scratch = nothing,
     team = nothing,
 ) where {T<:_ExtraScalar}
-    return _general_gevd_workspace_result(a, b; sortby, scratch, team, homogeneous)
+    return _general_gevd_workspace_result(a, b; sortby, scratch, team, homogeneous, side)
 end
 LinearAlgebra.eigvals(
     a::FaerMatrix{T},

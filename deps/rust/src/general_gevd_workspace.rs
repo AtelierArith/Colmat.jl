@@ -17,6 +17,7 @@ trait General: ComplexField {
         s: *mut u8,
         t: *mut u8,
         values: bool,
+        left: bool,
         par: Par<'_>,
     ) -> Result<(), String>;
 }
@@ -50,6 +51,7 @@ macro_rules! real_scalar {
                 s: *mut u8,
                 t: *mut u8,
                 values: bool,
+                left: bool,
                 par: Par<'_>,
             ) -> Result<(), String> {
                 let n = a.nrows();
@@ -67,18 +69,21 @@ macro_rules! real_scalar {
                 let (mut bc, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(n, n, stack);
                 ac.as_mat_mut().copy_from(a);
                 bc.as_mat_mut().copy_from(b);
+                let (ul, ur) = if values {
+                    (None, None)
+                } else if left {
+                    (Some(vecs.as_mat_mut()), None)
+                } else {
+                    (None, Some(vecs.as_mat_mut()))
+                };
                 gevd::gevd_real(
                     ac.as_mat_mut(),
                     bc.as_mat_mut(),
                     re.as_diagonal_mut(),
                     im.as_diagonal_mut(),
                     val_beta.as_mat_mut().col_mut(0).as_diagonal_mut(),
-                    None,
-                    if values {
-                        None
-                    } else {
-                        Some(vecs.as_mat_mut())
-                    },
+                    ul,
+                    ur,
                     par,
                     stack,
                     Default::default(),
@@ -107,7 +112,11 @@ macro_rules! real_scalar {
                             }
                             for i in 0..n {
                                 let re = vecs.as_mat_ref()[(i, j)];
-                                let im = vecs.as_mat_ref()[(i, j + 1)];
+                                let im = if left {
+                                    -vecs.as_mat_ref()[(i, j + 1)]
+                                } else {
+                                    vecs.as_mat_ref()[(i, j + 1)]
+                                };
                                 u.cast::<$c>().add(i + j * n).write(<$c>::new(re, im));
                                 u.cast::<$c>()
                                     .add(i + (j + 1) * n)
@@ -147,6 +156,7 @@ macro_rules! complex_scalar {
                 s: *mut u8,
                 t: *mut u8,
                 values: bool,
+                left: bool,
                 par: Par<'_>,
             ) -> Result<(), String> {
                 let n = a.nrows();
@@ -157,23 +167,25 @@ macro_rules! complex_scalar {
                 bc.as_mat_mut().copy_from(b);
                 let (mut val_beta, stack) =
                     faer::linalg::temp_mat_zeroed::<Self, _, _>(n, 1, stack);
+                let output = if values {
+                    None
+                } else {
+                    Some(MatMut::from_raw_parts_mut(
+                        u.cast::<Self>(),
+                        n,
+                        n,
+                        1,
+                        n as isize,
+                    ))
+                };
+                let (ul, ur) = if left { (output, None) } else { (None, output) };
                 gevd::gevd_cplx(
                     ac.as_mat_mut(),
                     bc.as_mat_mut(),
                     faer::diag::DiagMut::from_raw_parts_mut(s.cast::<Self>(), n, 1),
                     val_beta.as_mat_mut().col_mut(0).as_diagonal_mut(),
-                    None,
-                    if values {
-                        None
-                    } else {
-                        Some(MatMut::from_raw_parts_mut(
-                            u.cast::<Self>(),
-                            n,
-                            n,
-                            1,
-                            n as isize,
-                        ))
-                    },
+                    ul,
+                    ur,
                     par,
                     stack,
                     Default::default(),
@@ -246,6 +258,7 @@ unsafe fn run<T: General>(
     s: *mut u8,
     t: *mut u8,
     values: bool,
+    left: bool,
     n: usize,
     tag: i32,
     actual: i32,
@@ -256,7 +269,7 @@ unsafe fn run<T: General>(
     if !a.is_all_finite() || !b.is_all_finite() {
         return Err("generalized EVD input must be finite".into());
     }
-    let mut compute = |par: Par<'_>| T::compute(a, b, scratch, u, s, t, values, par);
+    let mut compute = |par: Par<'_>| T::compute(a, b, scratch, u, s, t, values, left, par);
     if let Some(team) = team {
         team.execute(compute)?
     } else {
@@ -274,6 +287,7 @@ impl OwnedMatrix {
         s: *mut u8,
         t: *mut u8,
         values: bool,
+        left: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
@@ -287,6 +301,7 @@ impl OwnedMatrix {
                 s,
                 t,
                 values,
+                left,
                 n,
                 tag,
                 1,
@@ -303,6 +318,7 @@ impl OwnedMatrix {
         s: *mut u8,
         t: *mut u8,
         values: bool,
+        left: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
@@ -316,6 +332,7 @@ impl OwnedMatrix {
                 s,
                 t,
                 values,
+                left,
                 n,
                 tag,
                 1,
@@ -333,6 +350,7 @@ impl TypedMatrix {
         s: *mut u8,
         t: *mut u8,
         values: bool,
+        left: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
@@ -346,6 +364,7 @@ impl TypedMatrix {
                 s,
                 t,
                 values,
+                left,
                 n,
                 tag,
                 0,
@@ -359,6 +378,7 @@ impl TypedMatrix {
                 s,
                 t,
                 values,
+                left,
                 n,
                 tag,
                 1,
@@ -372,6 +392,7 @@ impl TypedMatrix {
                 s,
                 t,
                 values,
+                left,
                 n,
                 tag,
                 2,
@@ -385,6 +406,7 @@ impl TypedMatrix {
                 s,
                 t,
                 values,
+                left,
                 n,
                 tag,
                 3,
@@ -404,10 +426,13 @@ impl TypedMatrix {
         s: *mut u8,
         t: *mut u8,
         values: bool,
+        left: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
-        guarded(|| unsafe { self.workspace_generalized(b, scratch, None, u, s, t, values, n, tag) })
+        guarded(|| unsafe {
+            self.workspace_generalized(b, scratch, None, u, s, t, values, left, n, tag)
+        })
     }
     #[julia]
     pub fn general_gevd_workspace_team(
@@ -419,11 +444,12 @@ impl TypedMatrix {
         s: *mut u8,
         t: *mut u8,
         values: bool,
+        left: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            self.workspace_generalized(b, scratch, Some(team), u, s, t, values, n, tag)
+            self.workspace_generalized(b, scratch, Some(team), u, s, t, values, left, n, tag)
         })
     }
 }

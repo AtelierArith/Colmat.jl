@@ -1389,3 +1389,46 @@ values, homogeneous residuals and owner errors. Method ambiguity checks pass.
 All six native Rust tests and 43 README Julia blocks pass. Cargo check,
 Julia/Rust formatting and git diff --check pass. The frozen inventory retains
 76 rows and dependency sources are unchanged. Issue #1 remains incomplete.
+
+## Left generalized eigenvectors
+
+General native matrix pairs now accept `eigen(A,B;side=:left)`, with right
+remaining the default. Left vectors are normalized and satisfy V' A = Λ V' B,
+or diagonal(beta) V' A = diagonal(alpha) V' B in homogeneous mode. Four scalar
+types, promotion, sorting, caller scratch and explicit teams are supported.
+The adapter connects the public driver's left output; packed real conjugate
+pairs require conjugating the packed imaginary component for this convention.
+The current backend has common one-sided scratch requirements.
+
+The direct left-only faer path corrupts a 64-dimensional regular pencil's
+spectrum: right-only and both-output yield 64/64 finite values, while left-only
+yields 4/64 finite values and nonfinite vectors. The independent safe-Rust MWE
+`docs/reproducers/faer-gevd-left.rs` uses matching query/output flags and fresh
+zero buffers. It exits 101 on both pinned d5be1473 (0.28.1) and latest f817d003
+(0.28.2), actually executed in isolated git-dependent projects. Both-output
+left homogeneous max residual is 3.180292834636944e-11.
+
+[faer #219](https://github.com/tensor4all/faer/issues/219) includes exact
+Cargo.toml/source, outputs, distinctness from #37/#217, and a concrete interim
+native fix: allocate a temporary right output for left-only requests, route
+through both-output accumulation, and increase the left-only scratch query.
+The exact underlying optional-output update is not yet isolated; the report
+makes that distinction and does not claim an untested patch was verified.
+
+Colmat detects nonfinite direct-left output and recomputes the mathematically
+equivalent adjoint pencil with the native right driver, then conjugates alpha
+and beta. It reuses the caller buffer/team after the first native borrow ends;
+extra input/output copies allocate separately. Owners are closed on errors.
+Invalid repeated vectors can still use homogeneous adjoint nullspace recovery.
+Simultaneous left/right output, single-matrix side selection, bang side
+selection and broader Issue #1 controls remain unfinished.
+
+Validation: canonical `Pkg.test(;allow_reresolve=false)` passes **72,155
+assertions across 52 files**, using ParallelTestRunner 2.10.0 with 16 workers
+on Julia 1.13.3 / RustCall 0.9.2. The new file contributes 205 assertions for
+four types, width one/two, empty/scalar/nonsymmetric/conjugate-pair systems,
+homogeneous sorting, repeated finite/infinite eigenvalues, mixed promotion,
+errors and dense 64-dimensional analytic spectra. Method ambiguity checks,
+all six native tests and all 44 README Julia blocks pass. Cargo check,
+Julia/Rust formatting and git diff --check pass. The frozen inventory retains
+76 rows and dependency sources remain unchanged. Issue #1 remains incomplete.

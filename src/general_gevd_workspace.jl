@@ -50,11 +50,13 @@ function _general_gevd_workspace_result(
     b::FaerMatrix;
     vectors::Bool = true,
     homogeneous::Bool = false,
+    side::Symbol = :right,
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
 )
     lock(_matrix_lock) do
+        side in (:left, :right) || throw(ArgumentError("side must be :left or :right"))
         _handle(a)
         _handle(b)
         size(a)==size(b) ||
@@ -82,6 +84,7 @@ function _general_gevd_workspace_result(
                     Ptr{UInt8}(pointer(alpha)),
                     Ptr{UInt8}(pointer(beta)),
                     !vectors,
+                    side===:left,
                     UInt(n),
                     _tag(T),
                 )
@@ -96,7 +99,35 @@ function _general_gevd_workspace_result(
                     args...,
                 )
             end
-            vectors && _repair_generalized_vectors!(eigenvectors, alpha, beta, a, b; team)
+            if vectors &&
+               side===:left &&
+               (
+                   !all(isfinite, alpha) ||
+                   !all(isfinite, beta) ||
+                   !all(isfinite, eigenvectors)
+               )
+                # Recover via the equivalent adjoint pencil and right driver.
+                aa=FaerMatrix(Matrix(a)')
+                bb=FaerMatrix(Matrix(b)')
+                result=try
+                    _general_gevd_workspace_result(
+                        aa,
+                        bb;
+                        homogeneous = true,
+                        sortby = nothing,
+                        scratch = work,
+                        team,
+                    )
+                finally
+                    close(aa)
+                    close(bb)
+                end
+                alpha=conj.(result.α)
+                beta=conj.(result.β)
+                eigenvectors=result.vectors
+            end
+            vectors &&
+                _repair_generalized_vectors!(eigenvectors, alpha, beta, a, b; team, side)
             if vectors
                 for j in axes(eigenvectors, 2)
                     v=view(eigenvectors, :, j)
@@ -124,7 +155,15 @@ end
 
 # faer solve_shifted_1x1 can form 0 * inv(0) for repeated eigenvalues.
 # Recover invalid columns from homogeneous native SVD nullspaces.
-function _repair_generalized_vectors!(vectors, alpha, beta, a, b; team = nothing)
+function _repair_generalized_vectors!(
+    vectors,
+    alpha,
+    beta,
+    a,
+    b;
+    team = nothing,
+    side = :right,
+)
     bad=findall(j->!all(isfinite, view(vectors, :, j)), axes(vectors, 2))
     isempty(bad) && return vectors
     R=_realtype(eltype(vectors))
@@ -143,7 +182,7 @@ function _repair_generalized_vectors!(vectors, alpha, beta, a, b; team = nothing
             scale=max(abs(alpha[i]), abs(beta[i]))
             !iszero(scale) && abs(α*(beta[i]/scale)-β*(alpha[i]/scale))<=threshold
         end
-        matrix=FaerMatrix(β*A-α*B)
+        matrix=FaerMatrix(side===:right ? β*A-α*B : conj(β)*A'-conj(α)*B')
         F=try
             LinearAlgebra.svd(matrix; team)
         finally
