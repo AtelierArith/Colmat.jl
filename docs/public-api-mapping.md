@@ -106,7 +106,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
 | 線形作用素・双方向作用素 | `matrix_free::{LinOp,BiLinOp}` | `mul!` を持つ作用素型相当。LinearAlgebra に同一の trait はない | R: `FaerLinearOperator`、dense/CSC/CSR/diagonal/identity、積・共役・転置・随伴、native 所有の入れ子合成・scratch 中間領域・再帰的スカラー型昇格 | 任意の Julia callback |
-| 前処理 | `Precond/BiPrecond/IdentityPrecond` | 反復法の前処理（標準外） | R: native in-place 適用、`identity_preconditioner`、`diagonal_preconditioner`、`FaerLinearOperator(F::FaerFactorization{T,:lu})` および完全ピボット LU・QR（列ピボット含む）・Cholesky・LDLT・Bunch–Kaufman 因子の保存済み逆作用、native SVD/EVD の保存済み打ち切り疑似逆作用（atol/rtol・長方形対応）（混合型・転置/随伴対応） | callback・その他の密分解/疎因子を用いる前処理 |
+| 前処理 | `Precond/BiPrecond/IdentityPrecond` | 反復法の前処理（標準外） | R: native in-place 適用、`identity_preconditioner`、`diagonal_preconditioner`、`FaerLinearOperator(F)` の保存済み LU/完全ピボット LU/QR（列ピボット含む）/Cholesky/LDLT/Bunch–Kaufman 逆作用、native SVD/EVD の打ち切り疑似逆作用（atol/rtol・長方形）、simplicial 疎 LU の sparse 逆作用。混合型・転置/随伴対応、snapshot 再分解なし | callback・auto/supernodal 疎 LU・その他の疎因子前処理 |
 | 共役勾配法 | `conjugate_gradient::{conjugate_gradient,CgParams,CgInfo,CgError}` | CG solver（標準外） | R: `cg/cg!`、block RHS、4 型、初期値・許容誤差・反復上限、失敗 iterate・独立した真の残差 | callback・履歴・独立 scratch API |
 | BiCGSTAB | `bicgstab::{bicgstab,BicgParams,BicgInfo,BicgError}` | BiCGSTAB solver（標準外） | R: `bicgstab/bicgstab!`、左右前処理・block RHS・4 型・初期値・許容誤差・反復上限、失敗 iterate・真の残差 | callback・履歴・独立 scratch API |
 | LSMR | `lsmr::{lsmr,LsmrParams,LsmrInfo,LsmrError}` | 最小二乗反復 solver（標準外） | R: `lsmr/lsmr!`、長方形・block RHS・右前処理・4 型・初期値・許容誤差・反復上限、真の前処理付き正規残差 | callback・履歴・独立 scratch API。upstream の絶対許容誤差は有効な相対値へ換算（[faer #207](https://github.com/tensor4all/faer/issues/207)） |
