@@ -241,7 +241,6 @@ fn numeric<T: ComplexField>(p: &Plan, a: &Storage<T>) -> Result<Result<Numeric<T
                     };
                     return Ok(Err(info));
                 }
-                Err(e) => return Err(format!("{e:?}")),
             }
         }
     }))
@@ -436,6 +435,143 @@ impl SparseSymbolic {
                 return Err("storage query requires sparse Cholesky".into());
             };
             Ok(sym.len_val())
+        })
+    }
+}
+
+// Export only mathematical lower-triangle entries. Supernode buffers also
+// contain unused upper block entries, which must not become sparse values.
+fn cholesky_entries<T: ComplexField>(
+    f: &SparseLlt<T>,
+) -> Vec<faer::sparse::Triplet<usize, usize, T>> {
+    use faer::sparse::Triplet;
+    let mut entries = Vec::new();
+    match f.symbolic.raw() {
+        cholesky::SymbolicCholeskyRaw::Simplicial(sym) => {
+            for col in 0..sym.ncols() {
+                for k in sym.col_ptr()[col]..sym.col_ptr()[col + 1] {
+                    entries.push(Triplet {
+                        row: sym.row_idx()[k],
+                        col,
+                        val: copy(&f.values[k]),
+                    });
+                }
+            }
+        }
+        cholesky::SymbolicCholeskyRaw::Supernodal(sym) => {
+            let factor = cholesky::supernodal::SupernodalLltRef::new(sym, &f.values);
+            for s in 0..sym.n_supernodes() {
+                let node = factor.supernode(s);
+                let block = node.val();
+                let width = block.ncols();
+                let start = node.start();
+                for j in 0..width {
+                    for i in j..width {
+                        entries.push(Triplet {
+                            row: start + i,
+                            col: start + j,
+                            val: copy(&block[(i, j)]),
+                        });
+                    }
+                    for (i, &row) in node.pattern().iter().enumerate() {
+                        entries.push(Triplet {
+                            row,
+                            col: start + j,
+                            val: copy(&block[(width + i, j)]),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    entries
+}
+fn cholesky_component<T: ComplexField>(
+    f: &SparseLlt<T>,
+    upper: bool,
+) -> Result<Storage<T>, String> {
+    let mut entries = cholesky_entries(f);
+    if upper {
+        for e in &mut entries {
+            std::mem::swap(&mut e.row, &mut e.col);
+            e.val = faer::traits::math_utils::conj(&e.val);
+        }
+    }
+    let n = f.symbolic.nrows();
+    Ok(Storage::Csc(
+        faer::sparse::SparseColMat::try_new_from_triplets(n, n, &entries)
+            .map_err(|e| format!("{e:?}"))?,
+    ))
+}
+#[julia]
+impl SparseOwner {
+    #[julia]
+    pub fn sparse_cholesky_component(
+        &mut self,
+        factor: *const u8,
+        upper: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(
+                match unsafe { &*factor.cast::<SparseFactor>() }.factors()? {
+                    Factors::F32(Numeric::Llt(f)) => SparseData::F32(cholesky_component(f, upper)?),
+                    Factors::F64(Numeric::Llt(f)) => SparseData::F64(cholesky_component(f, upper)?),
+                    Factors::C32(Numeric::Llt(f)) => SparseData::C32(cholesky_component(f, upper)?),
+                    Factors::C64(Numeric::Llt(f)) => SparseData::C64(cholesky_component(f, upper)?),
+                    _ => return Err("component export requires sparse Cholesky".into()),
+                },
+            );
+            Ok(())
+        })
+    }
+}
+fn cholesky_diagonal<T: ComplexField>(f: &SparseLlt<T>) -> Vec<T> {
+    let mut out = Vec::with_capacity(f.symbolic.nrows());
+    match f.symbolic.raw() {
+        cholesky::SymbolicCholeskyRaw::Simplicial(sym) => {
+            for col in 0..sym.ncols() {
+                out.push(copy(&f.values[sym.col_ptr()[col]]));
+            }
+        }
+        cholesky::SymbolicCholeskyRaw::Supernodal(sym) => {
+            let factor = cholesky::supernodal::SupernodalLltRef::new(sym, &f.values);
+            for s in 0..sym.n_supernodes() {
+                let node = factor.supernode(s);
+                for j in 0..node.val().ncols() {
+                    out.push(copy(&node.val()[(j, j)]));
+                }
+            }
+        }
+    }
+    out
+}
+#[julia]
+impl SparseFactor {
+    #[julia]
+    pub fn sparse_cholesky_diagonal(&self, out: *mut u8, n: usize) -> Result<(), String> {
+        guarded(|| {
+            fn write<T: ComplexField>(
+                f: &SparseLlt<T>,
+                out: *mut u8,
+                n: usize,
+            ) -> Result<(), String> {
+                if n != f.symbolic.nrows() {
+                    return Err("Cholesky diagonal length mismatch".into());
+                }
+                for (i, value) in cholesky_diagonal(f).into_iter().enumerate() {
+                    unsafe {
+                        out.cast::<T>().add(i).write(value);
+                    }
+                }
+                Ok(())
+            }
+            match self.factors()? {
+                Factors::F32(Numeric::Llt(f)) => write(f, out, n),
+                Factors::F64(Numeric::Llt(f)) => write(f, out, n),
+                Factors::C32(Numeric::Llt(f)) => write(f, out, n),
+                Factors::C64(Numeric::Llt(f)) => write(f, out, n),
+                _ => Err("diagonal export requires sparse Cholesky".into()),
+            }
         })
     }
 }

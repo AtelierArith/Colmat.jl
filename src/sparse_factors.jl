@@ -28,7 +28,11 @@ solves full-column-rank least-squares problems. LU/Cholesky also support
 transpose/adjoint solves. Inputs and symbolic plans may be closed independently.
 Mixed precision RHS are handled by reusing symbolic analysis to factor a sparse
 snapshot in the promoted type. `ldiv!` stages the result before overwriting.
-Sparse Cholesky additionally exposes independent `F.p`, the actual `F.algorithm`
+Sparse Cholesky additionally exposes independent sparse CSC `F.L` and `F.U`,
+with `F.L * F.U ≈ A[F.p,F.p]`, and supports `Matrix(F)`, `FaerSparseMatrix(F)`,
+`det`, `logdet` and `logabsdet`. Reconstruction returns the original row/column
+order. Extracted components remain usable after F is updated or closed.
+It also exposes independent `F.p`, the actual `F.algorithm`
 and `F.factor_storage` (numeric scalar slots, including supernodal padding).
 `cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;
 `ordering=p` is an alternative. Numeric updates preserve the symbolic controls.
@@ -382,6 +386,8 @@ Base.propertynames(p::FaerSparseSymbolic{:cholesky}, private::Bool = false) =
     (:dims, :uplo, :p, :algorithm, :factor_storage)
 function Base.getproperty(f::FaerSparseFactorization{T,:cholesky}, name::Symbol) where {T}
     name===:p && return FaerPermutation(f)
+    name===:L && return _sparse_cholesky_component(f, false)
+    name===:U && return _sparse_cholesky_component(f, true)
     if name===:factor_storage
         return lock(_matrix_lock) do
             _handle(f)
@@ -400,5 +406,65 @@ Base.propertynames(
     f::FaerSparseFactorization{T,:cholesky},
     private::Bool = false,
 ) where {T} =
-    private ? (fieldnames(typeof(f))..., :p, :algorithm, :factor_storage) :
-    (:dims, :info, :p, :algorithm, :factor_storage)
+    private ? (fieldnames(typeof(f))..., :p, :L, :U, :algorithm, :factor_storage) :
+    (:dims, :info, :p, :L, :U, :algorithm, :factor_storage)
+
+const _SparseCholesky=FaerSparseFactorization{<:Any,:cholesky}
+function _check_sparse_cholesky(f::_SparseCholesky)
+    _handle(f)
+    LinearAlgebra.issuccess(f) || throw(LinearAlgebra.PosDefException(f.info))
+    return nothing
+end
+function _sparse_cholesky_component(
+    f::FaerSparseFactorization{T,:cholesky},
+    upper,
+) where {T}
+    lock(_matrix_lock) do
+        _check_sparse_cholesky(f)
+        return _sparse_result(
+            T,
+            size(f),
+            :csc,
+            RustCrate.sparse_cholesky_component,
+            f,
+            upper,
+        )
+    end
+end
+function _sparse_cholesky_diagonal(f::FaerSparseFactorization{T,:cholesky}) where {T}
+    lock(_matrix_lock) do
+        _check_sparse_cholesky(f)
+        out=Vector{T}(undef, size(f, 1))
+        GC.@preserve out _native_call(
+            RustCrate.sparse_cholesky_diagonal,
+            f,
+            Ptr{UInt8}(pointer(out)),
+            UInt(length(out)),
+        )
+        return out
+    end
+end
+function FaerSparseMatrix(f::_SparseCholesky)
+    lock(_matrix_lock) do
+        _check_sparse_cholesky(f)
+        inverse=invperm(FaerPermutation(f))
+        return (f.L*f.U)[inverse, inverse]
+    end
+end
+FaerSparseMatrix{T}(f::_SparseCholesky) where {T<:_NativeScalar} =
+    FaerSparseMatrix{T}(FaerSparseMatrix(f))
+FaerMatrix(f::_SparseCholesky) = FaerMatrix(FaerSparseMatrix(f))
+FaerMatrix{T}(f::_SparseCholesky) where {T<:_NativeScalar} =
+    FaerMatrix{T}(FaerSparseMatrix(f))
+Base.Matrix(f::_SparseCholesky) = Matrix(FaerSparseMatrix(f))
+Base.Matrix{T}(f::_SparseCholesky) where {T} = Matrix{T}(FaerSparseMatrix(f))
+SparseArrays.SparseMatrixCSC(f::_SparseCholesky) =
+    SparseArrays.SparseMatrixCSC(FaerSparseMatrix(f))
+SparseArrays.sparse(f::_SparseCholesky) = SparseArrays.SparseMatrixCSC(f)
+function LinearAlgebra.logdet(f::_SparseCholesky)
+    d=real.(_sparse_cholesky_diagonal(f))
+    return 2sum(log, d; init = zero(eltype(d)))
+end
+LinearAlgebra.det(f::_SparseCholesky) = exp(LinearAlgebra.logdet(f))
+LinearAlgebra.logabsdet(f::_SparseCholesky) =
+    (LinearAlgebra.logdet(f), one(_realtype(eltype(f))))

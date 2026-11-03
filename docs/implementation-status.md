@@ -404,3 +404,38 @@ files using ParallelTestRunner.jl and 16 workers**. The new sparse Cholesky suit
 contributes 5136 assertions. README Julia examples, JuliaFormatter,
 `cargo fmt --check`, `git diff --check` and method ambiguity checks pass.
 The dependency checkout remains unmodified.
+
+
+## Sparse Cholesky component extraction and reconstruction checkpoint
+
+- `F.L` and `F.U` export independent Rust-owned CSC matrices from the actual
+  native numeric factors. Simplicial export reads compressed column indices;
+  supernodal export walks public node views and excludes unused upper block
+  slots. Stored lower-block zeros are preserved.
+- `L*U` reconstructs the symmetrically permuted coefficients. `FaerSparseMatrix(F)`
+  uses native sparse multiplication and inverse row/column permutations to
+  return original ordering. `sparse(F)`/`SparseMatrixCSC(F)` return Julia CSC;
+  `Matrix(F)`/`FaerMatrix(F)` explicitly request dense storage. Typed conversions
+  preserve the numerical precision of the original factorization.
+- `det`, `logdet` and `logabsdet` export only the numeric diagonal from Rust,
+  then perform scalar log reductions in Julia, without reconstructing or
+  densifying the matrix. Log reductions avoid intermediate determinant
+  overflow/underflow. Failed factorizations raise PosDefException before any
+  component or diagonal access, and closed factors raise ArgumentError.
+- Exported factors remain valid after numeric updates or close, and modifying
+  an exported factor cannot modify the original factorization. Reconstruction
+  may introduce fill/stored zeros and roundoff through sparse multiplication;
+  it does not return the source snapshot.
+- Tests compare against Julia dense Cholesky, check `L*U ≈ A[p,p]`, original-order
+  reconstruction, all four scalar types/CSC/CSR/both triangles/orderings/native
+  algorithms, several supernodes and fill, empty matrices, failed/closed factors,
+  ignored-half NaNs, mixed-type conversions with source-precision tolerances,
+  and large/small determinant scales. A 50,000-square diagonal case verifies
+  sparse component extraction/reconstruction and diagonal-only logdet.
+- Sparse LU/QR component extraction, wide/rank-deficient QR, matrix-free,
+  external scratch and all other remaining Issue #1 categories remain open.
+
+Validation: default `Pkg.test()` passed **28732 assertions across 21 independent
+files using ParallelTestRunner.jl and 16 workers**. The component suite contributes
+3323 assertions. All README Julia examples, JuliaFormatter, `cargo fmt --check`,
+`git diff --check` and method ambiguity checks pass. Dependency sources are clean.

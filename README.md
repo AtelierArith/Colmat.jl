@@ -293,7 +293,7 @@ y = qr(R) \ [1.0, 2.0, 2.0]
 再利用して数値分解を作り直します。`ldiv!` は一時結果を経由して更新します。
 LU・Cholesky は転置／随伴の求解にも対応します。
 疎 QR は現在、列フルランクで行数が列数以上の行列が対象です。
-横長・ランク落ちへの対応、QR の転置／随伴求解、分解要素の取り出し、
+横長・ランク落ちへの対応、QR の転置／随伴求解、LU／QR の分解要素の取り出し、
 LU／QR への ordering 指定・追加の低水準制御は引き続き実装対象です。
 
 fill-in を減らすための ordering を単独で計算できます。
@@ -351,6 +351,30 @@ G = factorize(plan, A)
 `.factor_storage` は確保する数値スロット数（supernodal の padding を含む）を返します。
 コピー・数値更新・混合精度の求解でも symbolic analysis の設定を引き継ぎます。
 LU／QR への ordering の直接指定と、外部 scratch・追加の低水準制御は未対応です。
+
+疎 Cholesky の `F.L`・`F.U` は独立した Rust 所有の CSC 行列です。
+元の分解を更新・close しても、取り出した行列は使えます。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sparse([4.0 0 1; 0 3 1; 1 1 5]); format=:csr)
+F = cholesky(A; perm=[3, 1, 2], algorithm=:supernodal)
+L, U, p = F.L, F.U, Vector(F.p)
+@assert sparse(L * U) ≈ sparse(A)[p, p]
+@assert Matrix(F) ≈ Matrix(A)     # 元の行・列の順序で再構成
+R = FaerSparseMatrix(F)           # native の疎積・置換で再構成
+@assert sparse(R) ≈ sparse(A)
+@assert logdet(F) ≈ logdet(cholesky(Hermitian(Matrix(A))))
+@assert det(F) ≈ det(Matrix(A))
+@assert logabsdet(F)[2] == 1
+```
+
+`FaerSparseMatrix(F)`・`sparse(F)` は疎行列を返します。再構成は分解と同じ精度で行い、
+積によって追加の格納位置や丸め誤差が生じる場合があります。
+`Matrix(F)`・`FaerMatrix(F)` は明示的に密行列を作ります。
+`logdet`・`logabsdet` は Rust の分解バッファから対角だけを取得して計算し、
+密行列化しません。失敗した分解の要素取得・再構成・行列式は `PosDefException` になります。
 
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に
