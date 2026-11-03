@@ -236,3 +236,94 @@ impl SparseOwner {
         })
     }
 }
+
+#[julia]
+impl SparsityOwner {
+    #[julia]
+    pub fn sparsity_permute(
+        &mut self,
+        source: *const u8,
+        permutation: *const u8,
+        columns: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*source.cast::<Self>() }.data()?;
+            let p =
+                unsafe { &*permutation.cast::<crate::permutations::OwnedPermutation>() }.data()?;
+            let (m, n) = a.shape();
+            if p.len() != if columns { n } else { m } {
+                return Err("pattern permutation length mismatch".into());
+            }
+            let inverse = p.arrays().1;
+            let csr = matches!(a, Pattern::Csr(_));
+            let mut entries = Vec::with_capacity(a.indices().len());
+            for outer in 0..a.pointers().len() - 1 {
+                for &inner in &a.indices()[a.pointers()[outer]..a.pointers()[outer + 1]] {
+                    let (mut row, mut col) = if csr { (outer, inner) } else { (inner, outer) };
+                    if columns {
+                        col = inverse[col];
+                    } else {
+                        row = inverse[row];
+                    }
+                    entries.push(faer::sparse::Pair { row, col });
+                }
+            }
+            self.data = Some(if csr {
+                Pattern::Csr(
+                    SymbolicSparseRowMat::try_new_from_indices(m, n, &entries)
+                        .map_err(|e| format!("{e:?}"))?
+                        .0,
+                )
+            } else {
+                Pattern::Csc(
+                    SymbolicSparseColMat::try_new_from_indices(m, n, &entries)
+                        .map_err(|e| format!("{e:?}"))?
+                        .0,
+                )
+            });
+            Ok(())
+        })
+    }
+}
+
+#[julia]
+impl SparsityOwner {
+    #[julia]
+    pub fn sparsity_selfadjoint(&mut self, source: *const u8, lower: bool) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*source.cast::<Self>() }.data()?;
+            let (m, n) = a.shape();
+            if m != n {
+                return Err("self-adjoint pattern requires square dimensions".into());
+            }
+            let csr = matches!(a, Pattern::Csr(_));
+            let mut entries = Vec::new();
+            for outer in 0..a.pointers().len() - 1 {
+                for &inner in &a.indices()[a.pointers()[outer]..a.pointers()[outer + 1]] {
+                    let (row, col) = if csr { (outer, inner) } else { (inner, outer) };
+                    if if lower { row < col } else { row > col } {
+                        continue;
+                    }
+                    entries.push(faer::sparse::Pair { row, col });
+                    if row != col {
+                        entries.push(faer::sparse::Pair { row: col, col: row });
+                    }
+                }
+            }
+            self.data = Some(if csr {
+                Pattern::Csr(
+                    SymbolicSparseRowMat::try_new_from_indices(m, n, &entries)
+                        .map_err(|e| format!("{e:?}"))?
+                        .0,
+                )
+            } else {
+                Pattern::Csc(
+                    SymbolicSparseColMat::try_new_from_indices(m, n, &entries)
+                        .map_err(|e| format!("{e:?}"))?
+                        .0,
+                )
+            });
+            Ok(())
+        })
+    }
+}

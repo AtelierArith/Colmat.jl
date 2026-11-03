@@ -335,3 +335,35 @@ files using ParallelTestRunner.jl and 16 worker processes**. The new sparse
 factor suite contributes 2185 assertions. README Julia examples pass, and
 method ambiguity detection is empty. JuliaFormatter, `cargo fmt --check` and
 `git diff --check` pass. The t4a-faer checkout remains unmodified.
+
+
+## Independent sparse ordering and permutation checkpoint
+
+- `amd` and `colamd` call faer's public AMD/COLAMD ordering routines and own
+  the resulting forward/inverse permutation as FaerPermutation. AMD requires
+  a square pattern; COLAMD accepts rectangular patterns. Dense thresholds and
+  aggressive absorption controls are passed through, and optional AMD
+  statistics expose all three public FlopCount estimates.
+- Native numeric/symbolic CSC/CSR, Julia CSC, transposed/adjoint sparse owners,
+  and native Hermitian/Symmetric wrappers are accepted. Wrapper patterns mirror
+  only the selected half. Numeric values and stored zeros do not change the
+  ordering graph. Empty shapes return the identity permutation.
+- Native sparse gather rebuilds only triplets/index pairs, preserves stored
+  zeros and CSC/CSR orientation, and supports `A[p,:]`, `A[:,p]`, `A[p,q]`,
+  `permute_rows/cols` on numeric and symbolic owners. Numeric in-place variants
+  use a staged sparse result and invalidate value views only when the stored
+  pattern changes.
+- Tests cover deterministic orders, valid inverses, tuning controls, independent
+  lifetimes, empty/rectangular patterns, ignored halves, native sparse gathers,
+  value-view invalidation, and reduced Cholesky fill for an arrow graph.
+  A 50,000-square case and a 2-by-10^9 CSR row gather verify that coefficient
+  matrices are not densified or converted to CSC for permutation.
+- Direct ordering selection inside sparse factorizations, caller-owned ordering
+  scratch, factor components, wide/rank-deficient QR, borrowed sparse views,
+  matrix-free and all remaining Issue #1 categories are still pending.
+
+Validation: default `Pkg.test()` passed **20273 assertions across 19 independent
+files using ParallelTestRunner.jl and 16 worker processes**. Ordering contributes
+5061 assertions. README Julia examples, JuliaFormatter, `cargo fmt --check`,
+`git diff --check`, and method ambiguity checks pass. The dependency checkout
+has no modifications.

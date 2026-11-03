@@ -294,7 +294,34 @@ y = qr(R) \ [1.0, 2.0, 2.0]
 LU・Cholesky は転置／随伴の求解にも対応します。
 疎 QR は現在、列フルランクで行数が列数以上の行列が対象です。
 横長・ランク落ちへの対応、QR の転置／随伴求解、分解要素の取り出し、
-ordering の独立指定・低水準制御は引き続き実装対象です。
+疎分解への ordering 指定・低水準制御は引き続き実装対象です。
+
+fill-in を減らすための ordering を単独で計算できます。
+`amd` は正方行列の `A + transpose(A)` のパターン、`colamd` は長方形も含む
+列パターンを使い、どちらも `FaerPermutation` を返します。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sparse([4.0 0 1; 0 3 1; 1 1 5]); format=:csr)
+p = amd(A)
+B = A[p, p]                      # CSC/CSR を維持する native の置換
+@assert sparse(B) == sparse(A)[Vector(p), Vector(p)]
+info = amd(FaerSparsity(A); dense=10.0, aggressive=true, statistics=true)
+@assert Vector(info.permutation) == Vector(p)
+@assert info.n_div >= 0
+q = colamd(A; dense_row=0.5, dense_col=0.5, aggressive=true)
+C = permute_cols(A, q)
+@assert sparse(C) == sparse(A)[:, Vector(q)]
+```
+
+ordering は値に依存せず、格納ゼロもパターンに含めます。数値を持たない
+`FaerSparsity`、通常の Julia CSC、転置／随伴にも対応します。
+`Hermitian(A,:L)` などでは選択した三角部分のパターンを反映します。
+AMD の `statistics=true` は置換と faer の演算数見積もりを返します。
+`permute_rows`・`permute_cols` は疎数値行列と疎パターンに対応し、数値行列は
+`permute_rows!`・`permute_cols!` でも更新できます。構造が変わる更新では以前の
+`nonzeros` ビューが失効します。疎分解への ordering の直接指定と外部 scratch は未対応です。
 
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に
@@ -304,7 +331,7 @@ ordering の独立指定・低水準制御は引き続き実装対象です。
 
 `rowvals`・`getcolptr` は CSC のみ対応し、返す添字配列は独立したコピーです。
 CSR の行ポインタ・列添字には `compressed_storage` を使ってください。
-疎分解の残りの機能・ordering は引き続き実装対象です。汎用 broadcast/map は
+疎分解の残りの機能・低水準制御は引き続き実装対象です。汎用 broadcast/map は
 専用の疎 native 経路ではなく、Julia の汎用処理や密配列の結果になる場合があります。
 
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の
@@ -359,7 +386,7 @@ SVD の失敗は例外になります。Julia バッファは `GC.@preserve` で
 ポインタを残しません。この PoC はコピーと割り当てを行うため、性能測定用の
 ゼロコピー・並列実装ではありません。互換 API に通常の実数配列を渡す経路は
 Float64 に変換します。複素数を含め型を保持する場合は `FaerMatrix` を使ってください。
-疎分解・ordering などの残りの API は Issue #1 で管理しています。
+疎分解の残りの機能などの API は Issue #1 で管理しています。
 
 RustCall v0.9.1 の制限として、受信オブジェクトを持つメソッドの `Result<Self, String>`
 返却と、引数の `&OwnedMatrix` の変換に問題がありました。最小再現例と修正案を

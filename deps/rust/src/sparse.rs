@@ -879,3 +879,47 @@ impl SparseOwner {
         })
     }
 }
+
+#[julia]
+impl SparseOwner {
+    #[julia]
+    pub fn sparse_permute(
+        &mut self,
+        source: *const u8,
+        permutation: *const u8,
+        columns: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = unsafe { &*source.cast::<SparseOwner>() }.data()?;
+            let p =
+                unsafe { &*permutation.cast::<crate::permutations::OwnedPermutation>() }.data()?;
+            fn apply<T: ComplexField>(
+                a: &Storage<T>,
+                p: faer::perm::PermRef<'_, usize>,
+                columns: bool,
+            ) -> Result<Storage<T>, String> {
+                let (m, n) = a.shape();
+                if p.len() != if columns { n } else { m } {
+                    return Err("sparse permutation length mismatch".into());
+                }
+                let mut entries = a.triplets();
+                let inverse = p.arrays().1;
+                for e in &mut entries {
+                    if columns {
+                        e.col = inverse[e.col];
+                    } else {
+                        e.row = inverse[e.row];
+                    }
+                }
+                Storage::from_triplets(m, n, &entries, a.csr())
+            }
+            self.data = Some(match a {
+                SparseData::F32(a) => SparseData::F32(apply(a, p.as_ref(), columns)?),
+                SparseData::F64(a) => SparseData::F64(apply(a, p.as_ref(), columns)?),
+                SparseData::C32(a) => SparseData::C32(apply(a, p.as_ref(), columns)?),
+                SparseData::C64(a) => SparseData::C64(apply(a, p.as_ref(), columns)?),
+            });
+            Ok(())
+        })
+    }
+}

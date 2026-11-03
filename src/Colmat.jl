@@ -5,7 +5,9 @@ import LinearAlgebra
 import SparseArrays
 using LinearAlgebra: SVD
 
-export FaerSparseSymbolic,
+export amd,
+    colamd,
+    FaerSparseSymbolic,
     FaerSparseFactorization,
     FaerSparsity,
     pattern_union,
@@ -143,5 +145,6 @@ include("sparsity.jl")
 include("sparse_compat.jl")
 include("sparse_triangular.jl")
 include("sparse_factors.jl")
+include("ordering.jl")
 
 end

@@ -25,10 +25,10 @@ fn checked(forward: Vec<usize>) -> Result<Perm<usize>, String> {
 }
 #[julia]
 pub struct OwnedPermutation {
-    data: Option<Perm<usize>>,
+    pub(crate) data: Option<Perm<usize>>,
 }
 impl OwnedPermutation {
-    fn data(&self) -> Result<&Perm<usize>, String> {
+    pub(crate) fn data(&self) -> Result<&Perm<usize>, String> {
         self.data
             .as_ref()
             .ok_or("permutation is not initialized".into())
