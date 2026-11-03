@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: ローカルの検証済みコミット `1b6546b`。リモート main は `d4f5a51` のため、以下の実装済み機能の多くはまだ push されていない。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、7957 件のテスト成功。`Pkg.test(; julia_args=["--threads=2"])` で検証。
+- Colmat の判定基準: ローカルの検証済みコミット `d05b9cd`。リモート main は `d4f5a51` のため、以下の実装済み機能の多くはまだ push されていない。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、11548 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 16 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -91,10 +91,10 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| CSC・CSR、所有・借用・構築 | `SparseColMat/SparseRowMat` と Ref/Mut、`Triplet/Pair` | SparseArrays の `SparseMatrixCSC/sparse`。CSR は直接同じ標準型ではない | — | 未: Rust の疎行列ラッパー・無 densify の変換 |
-| 数値を持たない疎構造 | `SymbolicSparseColMat/RowMat` | sparsity pattern、symbolic analysis | — | 未 |
-| 疎加減算・構造の結合 | `sparse::ops::{add,sub,add_assign,sub_assign,union_symbolic,...}` | 疎行列の `+/-` | — | 未 |
-| 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | — | 未 |
+| CSC・CSR、所有・借用・構築 | `SparseColMat/SparseRowMat` と Ref/Mut、`Triplet/Pair` | SparseArrays の `SparseMatrixCSC/sparse`。CSR は直接同じ標準型ではない | R: `FaerSparseMatrix`、4 型の native CSC/CSR、triplet 構築・重複加算、Julia CSC 変換 | 借用 Ref/Mut、zero-copy、非圧縮形式・index 型の選択 |
+| 数値を持たない疎構造 | `SymbolicSparseColMat/RowMat` | sparsity pattern、symbolic analysis | R: `FaerSparsity`、独立した symbolic CSC/CSR、数値行列への再利用 | solver の symbolic analysis、借用 symbolic view |
+| 疎加減算・構造の結合 | `sparse::ops::{add,sub,add_assign,sub_assign,union_symbolic,...}` | 疎行列の `+/-` | R: native `+/-`、`pattern_union` | 固定構造の add/sub assign 専用 API、全体 broadcast/map の native 経路 |
+| 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | R: 4 型・型 promotion、CSC/CSR の native 積、`mul!`、ベクトルとの積 | symbolic/numeric 積計画の再利用、低水準制御 |
 | 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | — | 未: symbolic/numeric の分離と再利用 |
 | 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | — | 未 |
 | 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | — | 未 |
@@ -143,7 +143,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - Cargo は `default-features=false, features=["std","linalg"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
-- 疎行列、matrix-free、残りの破壊的分解・scratch、balancing、並列 team、統計・乱数・NPY は今後の実装対象。一般化 Schur の並べ替えにも未対応。
+- 疎行列 solver・ordering、matrix-free、残りの破壊的分解・scratch、balancing、並列 team、統計・乱数・NPY は今後の実装対象。一般化 Schur の並べ替えにも未対応。
 - `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - 実 Schur の共役対は 2×2 ブロックとして扱い、選択では対を分割しない。Hessenberg の Q は明示行列で、compact reflector 形式とは区別する。
 - QZ の α/β は無限固有値と 0/0 を保つ同次形式。検査した faer real-QZ の scratch 推奨量には偶数丸め window・index 配列数の不足があるため、依存クローンを変更せずラッパーで再帰的な割当上限を補正した。blocked 経路もテスト済み。
