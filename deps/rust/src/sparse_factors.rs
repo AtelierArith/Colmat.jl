@@ -65,8 +65,13 @@ impl SparseSymbolic {
         dense: f64,
         aggressive: bool,
         supernodal: i32,
+        dense_row: f64,
+        dense_col: f64,
     ) -> Result<(), String> {
         guarded(|| {
+            if !dense_row.is_finite() || !dense_col.is_finite() {
+                return Err("COLAMD thresholds must be finite".into());
+            }
             let pattern = pattern.data()?.csc()?;
             let (m, n) = (pattern.nrows(), pattern.ncols());
             if kind != 1 && m != n {
@@ -123,6 +128,11 @@ impl SparseSymbolic {
                     faer::sparse::linalg::qr::factorize_symbolic_qr(
                         pattern.as_ref(),
                         faer::sparse::linalg::qr::QrSymbolicParams {
+                            colamd_params: faer::sparse::linalg::colamd::Control {
+                                dense_row,
+                                dense_col,
+                                aggressive,
+                            },
                             supernodal_flop_ratio_threshold: if supernodal == 2 {
                                 SupernodalThreshold::FORCE_SUPERNODAL
                             } else {
@@ -791,9 +801,13 @@ impl OwnedPermutation {
         guarded(|| {
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
+                Factors::F32(Numeric::Qr(f)) => f.permutation(),
                 Factors::F64(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
+                Factors::F64(Numeric::Qr(f)) => f.permutation(),
                 Factors::C32(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
+                Factors::C32(Numeric::Qr(f)) => f.permutation(),
                 Factors::C64(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
+                Factors::C64(Numeric::Qr(f)) => f.permutation(),
                 _ => return Err("QR permutation requires simplicial factors".into()),
             });
             Ok(())

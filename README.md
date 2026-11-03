@@ -1564,8 +1564,9 @@ auto/supernodal LU/QR retain their existing default selection.
 supernodal QR. Both retain public low-level symbolic analysis and adapter-owned
 numeric buffers. Normal least-squares solves, independent copies, symbolic
 reuse and numeric `qr!` updates support all four scalar types and CSC/CSR.
-This path uses faer's default COLAMD ordering. Custom ordering controls, factor
-component getters and transpose/adjoint solves are not yet exposed for
+This path uses native COLAMD ordering, with optional `dense_row`, `dense_col`
+and `aggressive` controls. `F.p/F.pcol` returns an independent column permutation.
+Q/R component getters and transpose/adjoint solves are not yet exposed for
 supernodal QR. Solve workspace is available through the interface below. The explicit simplicial path retains its existing
 component and transpose/adjoint interfaces.
 
@@ -1592,3 +1593,10 @@ buffer. Insufficient capacity/alignment is rejected before writing the result;
 the buffer never grows implicitly. Native RHS/result storage and destination
 copying allocate outside scratch. Factor construction, simplicial QR and
 transpose/adjoint solves use their existing workspace paths.
+
+
+For auto/supernodal QR, `ordering=:default` and `ordering=:colamd` both select
+native COLAMD. For example, `qr(A; algorithm=:supernodal, ordering=:colamd,
+dense_row=-1.0, dense_col=0.0, aggressive=false)` retains the resulting order
+through copies and numeric updates. Identity/custom ordering for this path
+remains unavailable; explicit simplicial QR supports those options.
