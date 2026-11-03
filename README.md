@@ -1675,3 +1675,26 @@ composition and mixed native scalar promotion reuse those saved factors. There
 is no single `.coefficients` matrix. CG requires a positive-definite inverse
 action; general LU actions can be used with BiCGSTAB. Other decomposition and
 sparse factor preconditioners remain pending.
+
+### Use retained Cholesky factors as a preconditioner
+
+```julia
+using Colmat, LinearAlgebra
+A0 = ComplexF64[4 1im; -1im 3]
+A = FaerMatrix(A0)
+F = cholesky(Hermitian(A, :U))
+M = FaerLinearOperator(F)
+close(F)
+b = ones(ComplexF64, 2)
+@assert cg(A, b; M=M).x ≈ A0 \ b
+@assert transpose(M) * b ≈ transpose(A0) \ b
+close(M)
+close(A)
+```
+
+A native Cholesky preconditioner owns independent triangular factors and applies
+them with lower/upper triangular solves. It supports the selected input triangle,
+all four native scalar types, mixed RHS promotion, copy/composition and
+transpose/adjoint without inverse construction or refactorization. Failed
+Cholesky factors are rejected with `PosDefException`. Sparse and other dense
+factor preconditioners remain pending.

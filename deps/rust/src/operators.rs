@@ -19,7 +19,7 @@ enum Base<T> {
     Diagonal(Diag<T>),
     Identity(IdentityPrecond),
     Product(Box<OperatorProduct<T>>),
-    InverseLu(Box<InverseLu<T>>),
+    InverseFactors(Box<InverseFactors<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -35,7 +35,7 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
-            Base::InverseLu($a) => {
+            Base::InverseFactors($a) => {
                 let $a = $a.as_ref();
                 $expr
             }
@@ -1513,10 +1513,11 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
-        Base::InverseLu(f) => Base::InverseLu(Box::new(InverseLu {
+        Base::InverseFactors(f) => Base::InverseFactors(Box::new(InverseFactors {
             l: Mat::from_fn(f.l.nrows(), f.l.ncols(), |i, j| cast(&f.l[(i, j)])),
             u: Mat::from_fn(f.u.nrows(), f.u.ncols(), |i, j| cast(&f.u[(i, j)])),
             permutation: f.permutation.clone(),
+            unit_lower: f.unit_lower,
         })),
         Base::Dense(m) => Base::Dense(Mat::from_fn(m.nrows(), m.ncols(), |i, j| cast(&m[(i, j)]))),
         Base::Diagonal(d) => {
@@ -1578,17 +1579,36 @@ impl OwnedLinearOperator {
 }
 
 #[derive(Clone)]
-struct InverseLu<T> {
+struct InverseFactors<T> {
     l: Mat<T>,
     u: Mat<T>,
     permutation: faer::perm::Perm<usize>,
+    unit_lower: bool,
 }
-impl<T> std::fmt::Debug for InverseLu<T> {
+impl<T> std::fmt::Debug for InverseFactors<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("InverseLu")
+        f.write_str("InverseFactors")
     }
 }
-impl<T: ComplexField> InverseLu<T> {
+impl<T: ComplexField> InverseFactors<T> {
+    fn cholesky(f: &faer::linalg::solvers::Llt<T>) -> Result<Self, String> {
+        let n = f.L().nrows();
+        if (0..n).any(|i| abs(&f.L()[(i, i)]) == zero::<T::Real>()) {
+            return Err("Cholesky preconditioner must be nonsingular".into());
+        }
+        let indices: Vec<usize> = (0..n).collect();
+        Ok(Self {
+            l: f.L().to_owned(),
+            u: f.L().adjoint().to_owned(),
+            unit_lower: false,
+            permutation: faer::perm::Perm::new_checked(
+                indices.clone().into_boxed_slice(),
+                indices.into_boxed_slice(),
+                n,
+            ),
+        })
+    }
+
     fn new(f: &faer::linalg::solvers::PartialPivLu<T>) -> Result<Self, String> {
         let n = f.L().nrows();
         if n != f.U().ncols() {
@@ -1599,6 +1619,7 @@ impl<T: ComplexField> InverseLu<T> {
         }
         let (p, inv) = f.P().arrays();
         Ok(Self {
+            unit_lower: true,
             l: f.L().to_owned(),
             u: f.U().to_owned(),
             permutation: faer::perm::Perm::new_checked(
@@ -1613,13 +1634,32 @@ impl<T: ComplexField> InverseLu<T> {
         &self,
         mut out: MatMut<'_, T>,
         b: MatRef<'_, T>,
-        p: Par,
+        mut p: Par,
         s: &mut MemStack,
         t: bool,
         c: bool,
     ) {
         out.copy_from(b);
         let conj = if c { faer::Conj::Yes } else { faer::Conj::No };
+        if !self.unit_lower {
+            use faer::linalg::triangular_solve::{
+                solve_lower_triangular_in_place_with_conj as lower,
+                solve_upper_triangular_in_place_with_conj as upper,
+            };
+            if t {
+                lower(
+                    self.u.as_ref().transpose(),
+                    conj,
+                    out.as_mut(),
+                    p.reborrow(),
+                );
+                upper(self.l.as_ref().transpose(), conj, out, p);
+            } else {
+                lower(self.l.as_ref(), conj, out.as_mut(), p.reborrow());
+                upper(self.u.as_ref(), conj, out, p);
+            }
+            return;
+        }
         use faer::linalg::lu::partial_pivoting::solve;
         if t {
             solve::solve_transpose_in_place_with_conj(
@@ -1644,7 +1684,7 @@ impl<T: ComplexField> InverseLu<T> {
         }
     }
 }
-impl<T: ComplexField> LinOp<T> for InverseLu<T> {
+impl<T: ComplexField> LinOp<T> for InverseFactors<T> {
     fn nrows(&self) -> usize {
         self.l.as_ref().nrows()
     }
@@ -1652,6 +1692,9 @@ impl<T: ComplexField> LinOp<T> for InverseLu<T> {
         self.u.as_ref().ncols()
     }
     fn apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        if !self.unit_lower {
+            return StackReq::EMPTY;
+        }
         faer::linalg::lu::partial_pivoting::solve::solve_in_place_scratch::<usize, T>(
             self.nrows(),
             k,
@@ -1665,8 +1708,11 @@ impl<T: ComplexField> LinOp<T> for InverseLu<T> {
         self.run(o, b, p, s, false, true)
     }
 }
-impl<T: ComplexField> BiLinOp<T> for InverseLu<T> {
+impl<T: ComplexField> BiLinOp<T> for InverseFactors<T> {
     fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        if !self.unit_lower {
+            return StackReq::EMPTY;
+        }
         faer::linalg::lu::partial_pivoting::solve::solve_transpose_in_place_scratch::<usize, T>(
             self.nrows(),
             k,
@@ -1683,19 +1729,18 @@ impl<T: ComplexField> BiLinOp<T> for InverseLu<T> {
 #[julia]
 impl OwnedLinearOperator {
     #[julia]
-    pub fn operator_lu_preconditioner(
+    pub fn operator_factor_preconditioner(
         &mut self,
         factor: &crate::OwnedFactor,
     ) -> Result<(), String> {
         guarded(|| {
-            let crate::DenseFactor::Lu(f) = factor.get()? else {
-                return Err("preconditioner requires partial-pivot LU".into());
+            let saved = match factor.get()? {
+                crate::DenseFactor::Lu(f) => InverseFactors::new(f)?,
+                crate::DenseFactor::Llt(f) => InverseFactors::cholesky(f)?,
+                _ => return Err("preconditioner requires LU or Cholesky".into()),
             };
-            if f.L().nrows() != f.U().ncols() {
-                return Err("preconditioner requires square LU".into());
-            }
-            self.data = Some(Data::F64(Operator::new(Base::InverseLu(Box::new(
-                InverseLu::new(f)?,
+            self.data = Some(Data::F64(Operator::new(Base::InverseFactors(Box::new(
+                saved,
             )))));
             Ok(())
         })
@@ -1704,7 +1749,7 @@ impl OwnedLinearOperator {
 #[julia]
 impl OwnedLinearOperator {
     #[julia]
-    pub fn operator_typed_lu_preconditioner(
+    pub fn operator_typed_factor_preconditioner(
         &mut self,
         factor: &crate::typed::TypedFactor,
     ) -> Result<(), String> {
@@ -1716,13 +1761,27 @@ impl OwnedLinearOperator {
                 if f.L().nrows() != f.U().ncols() {
                     return Err("preconditioner requires square LU".into());
                 }
-                Ok(Operator::new(Base::InverseLu(Box::new(InverseLu::new(f)?))))
+                Ok(Operator::new(Base::InverseFactors(Box::new(
+                    InverseFactors::new(f)?,
+                ))))
             }
             self.data = Some(match factor.data()? {
                 FactorData::F32(Factor::Lu(f)) => Data::F32(make(f)?),
+                FactorData::F32(Factor::Llt(f)) => Data::F32(Operator::new(Base::InverseFactors(
+                    Box::new(InverseFactors::cholesky(f)?),
+                ))),
                 FactorData::F64(Factor::Lu(f)) => Data::F64(make(f)?),
+                FactorData::F64(Factor::Llt(f)) => Data::F64(Operator::new(Base::InverseFactors(
+                    Box::new(InverseFactors::cholesky(f)?),
+                ))),
                 FactorData::C32(Factor::Lu(f)) => Data::C32(make(f)?),
+                FactorData::C32(Factor::Llt(f)) => Data::C32(Operator::new(Base::InverseFactors(
+                    Box::new(InverseFactors::cholesky(f)?),
+                ))),
                 FactorData::C64(Factor::Lu(f)) => Data::C64(make(f)?),
+                FactorData::C64(Factor::Llt(f)) => Data::C64(Operator::new(Base::InverseFactors(
+                    Box::new(InverseFactors::cholesky(f)?),
+                ))),
                 _ => return Err("preconditioner requires partial-pivot LU".into()),
             });
             Ok(())

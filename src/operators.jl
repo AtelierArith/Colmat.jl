@@ -859,21 +859,27 @@ end
 """
     FaerLinearOperator(F::FaerFactorization{T,:lu})
 
-Own an independent inverse-action operator from a square nonsingular native LU.
+Own an independent inverse-action operator from a square nonsingular native LU
+or Cholesky factorization.
 Apply it as a preconditioner with `cg(A,b; M=FaerLinearOperator(F))` when that
 inverse action is positive definite, or with BiCGSTAB for general systems. No
 inverse matrix or new factorization is formed; each apply solves using saved
-L/U and pivots with native scratch. Mixed native scalar types promote saved factors without refactorization.
+triangular factors and any pivots with native scratch. Mixed native scalar types promote saved factors without refactorization.
 """
-function FaerLinearOperator(f::FaerFactorization{T,:lu}) where {T}
+function FaerLinearOperator(f::FaerFactorization{T,K}) where {T,K}
+    K in (:lu, :cholesky) ||
+        throw(ArgumentError("factor preconditioner requires LU or Cholesky"))
     lock(_matrix_lock) do
         _handle(f)
         size(f, 1)==size(f, 2) ||
-            throw(DimensionMismatch("LU preconditioner must be square"))
-        LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+            throw(DimensionMismatch("factor preconditioner must be square"))
+        LinearAlgebra.issuccess(f) || (
+            K===:cholesky ? throw(LinearAlgebra.PosDefException(f.info)) :
+            throw(LinearAlgebra.SingularException(f.info))
+        )
         h=RustCrate.OwnedLinearOperator()
-        fun=T===Float64 ? RustCrate.operator_lu_preconditioner :
-            RustCrate.operator_typed_lu_preconditioner
+        fun=T===Float64 ? RustCrate.operator_factor_preconditioner :
+            RustCrate.operator_typed_factor_preconditioner
         _native_call(fun, h, f)
         FaerLinearOperator{T,typeof(h)}(h, size(f), :factorization, false, false)
     end
