@@ -9,7 +9,7 @@ the native call; no borrowed team token is stored in Julia. Close releases the
 reservation immediately; the do-block form always closes it. Copy/deepcopy
 create independent pools, so each copy reserves its own workers.
 
-Explicit multiplication, Pfaffian and SVD with `team=` use the team. Other
+Explicit multiplication, Pfaffian, SVD and self-adjoint EVD use `team=`. Other
 Colmat methods retain sequential execution. Team operations and owner lifecycle
 are serialized by Colmat's matrix lock; this is not a Julia task scheduler.
 """

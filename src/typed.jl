@@ -660,15 +660,29 @@ LinearAlgebra.eigen(a::FaerMatrix{T}; sortby = _eigensort) where {T<:_ExtraScala
     _typed_eigen(a; sortby)
 LinearAlgebra.eigvals(a::FaerMatrix{T}; sortby = _eigensort) where {T<:_ExtraScalar} =
     _typed_eigen(a; vectors = false, sortby)
-LinearAlgebra.eigen(a::_ExtraSelfAdjoint; sortby = _eigensort) =
-    _typed_eigen(parent(a); hermitian = true, lower = _uplo(a)===:L, sortby)
-LinearAlgebra.eigvals(a::_ExtraSelfAdjoint; sortby = _eigensort) = _typed_eigen(
-    parent(a);
-    vectors = false,
-    hermitian = true,
-    lower = _uplo(a)===:L,
-    sortby,
-)
+LinearAlgebra.eigen(
+    a::_ExtraSelfAdjoint;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) =
+    isnothing(scratch) && isnothing(team) ?
+    _typed_eigen(parent(a); hermitian = true, lower = _uplo(a)===:L, sortby) :
+    _evd_workspace_result(a; sortby, scratch, team)
+LinearAlgebra.eigvals(
+    a::_ExtraSelfAdjoint;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) =
+    isnothing(scratch) && isnothing(team) ?
+    _typed_eigen(
+        parent(a);
+        vectors = false,
+        hermitian = true,
+        lower = _uplo(a)===:L,
+        sortby,
+    ) : _evd_workspace_result(a; vectors = false, sortby, scratch, team)
 function LinearAlgebra.eigen(
     a::FaerMatrix{T},
     b::FaerMatrix{T};

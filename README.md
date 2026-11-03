@@ -979,7 +979,7 @@ views, transposes, coefficients and aliased destinations are supported. Copies
 reserve independent teams. Close teams promptly; GC also owns their handles.
 
 `team_mul`, `mul!(dest, team, A, B[, alpha, beta])`, `pfaffian(A; team=team)`
-and SVD entry points with `team=` use this explicit team. Other routines retain sequential execution. Calls are serialized
+and SVD/self-adjoint EVD entry points with `team=` use this explicit team. Other routines retain sequential execution. Calls are serialized
 by Colmat's owner lock, and faer may choose a narrower region for small work.
 The API controls worker reservations; it does not promise a speedup for every
 matrix size. Inputs needing conversion and destination writes use temporaries.
@@ -1007,7 +1007,7 @@ capacity/alignment directly. Calls never grow the workspace implicitly; copy
 and deepcopy allocate independent storage. Contents are scratch, not user data.
 Pfaffian validates shape, finiteness and skew-symmetry and leaves A unchanged.
 `team=` works with supplied scratch or with a temporary workspace released after
-the call. Pfaffian and SVD are currently connected consumers; other kernels still
+the call. Pfaffian, SVD and self-adjoint EVD are connected consumers; other kernels still
 allocate their own workspaces. Julia/FFI bookkeeping may still allocate even
 when the native workspace is reused.
 
@@ -1105,5 +1105,32 @@ and S/T writeback. Self-adjoint pairs write eigenvectors (or diagonal values for
 These are explicit staged formats; they do not expose LAPACK work buffers.
 Pair parents must be distinct with matching scalar types. Convergence/sort errors
 before writeback preserve inputs. Returned arrays remain independent of later
-input changes/close. Factorization, sorting and writeback allocate; EVD scratch
-and team keywords are not yet exposed.
+input changes/close. Factorization, sorting and writeback allocate. General/generalized EVD scratch and team keywords are
+not yet exposed; self-adjoint single-matrix EVD supports them below.
+
+### Self-adjoint EVD with reusable workspace and teams
+
+```julia
+using Colmat, LinearAlgebra
+original = ComplexF64[4 1im; -1im 3]
+A = Hermitian(FaerMatrix(original), :L)
+FaerTeam(2) do team
+    workspace = FaerScratch(eigen, A; team=team)
+    F = eigen(A; scratch=workspace, team=team)
+    @assert original * F.vectors ≈ F.vectors * Diagonal(F.values)
+    reserve!(workspace, eigvals, A; team=team)
+    @assert eigvals(A; scratch=workspace, team=team) ≈ F.values
+    close(workspace)
+end
+```
+
+Native Hermitian and real Symmetric single-matrix `eigen`, `eigvals`, `eigen!`
+and `eigvals!` accept `scratch=` and `team=`. Query matching mode/team options
+through `scratch_requirements` or construct using `FaerScratch(function, A)`.
+The buffer includes a canonical copy of the selected triangle and temporary
+values. Unused triangles and complex diagonal imaginary parts are ignored;
+nonfinite values in the active data are rejected. Eigenvalues are real.
+Sorting and independent eigenvector output arrays allocate separately. Caller
+workspace never grows implicitly, and temporary workspace is closed on errors.
+General/generalized EVD and other kernels still use their existing workspace
+and execution interfaces.

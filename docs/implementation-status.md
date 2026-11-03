@@ -1220,3 +1220,35 @@ values-only pair policies, sorting and failure/alias/type guards. All 38 README
 Julia blocks, method ambiguity checks, Julia formatting and git diff --check pass.
 Native dependency sources remain unchanged. The complete Issue #1 objective is
 still active with the remaining limitations above.
+
+### Self-adjoint EVD workspace and teams
+
+Connected faer's low-level self_adjoint_evd for Hermitian/real Symmetric native
+wrappers. eigen/eigvals/eigen!/eigvals! accept caller-owned scratch and team
+keywords while calls without these options keep their existing route. Queries,
+FaerScratch factories and reserve! support both value/vector and bang aliases;
+team queries use the actual borrowed Par shape/costs.
+
+The exact requirement includes scratch-resident canonical selected-triangle data,
+temporary eigenvalues and kernel workspace. Diagonal imaginary parts and ignored
+triangles are discarded; nonfinite active coefficients are rejected. Native owner
+shape and scalar tag are checked before writes into Julia output buffers. Outputs
+have real eigenvalues and independent vectors, with existing sorting semantics.
+Temporary workspace is closed in finally blocks; mutable scratch/ephemeral team
+authority remain within the native call. Existing bang writeback policies apply.
+
+Tests include nonreal upper/lower triangles, ignored imaginary NaNs, blocked
+analytic tridiagonal spectra, real Symmetric wrappers, input preservation and
+shape guards. General/generalized EVD scratch/team, other kernel consumers and
+remaining Issue #1 controls still need implementation. Outputs, canonicalization
+and bookkeeping do not claim whole-call allocation freedom.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **70,308 assertions across
+47 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. Self-adjoint EVD workspace adds 605 assertions: four types,
+nonreal lower/upper data, width one/two, empty/scalar/blocked systems, independent
+spectra/residuals/orthogonality, query aliases, reserve, bang policies, ignored
+imaginary diagonal NaNs, sorting/failure transactions and native shape guards.
+All six native Rust tests, 39 README Julia blocks, method ambiguity checks,
+cargo check, Julia/Rust formatting and git diff --check pass. Dependency sources
+remain unchanged. Other Issue #1 requirements remain open.

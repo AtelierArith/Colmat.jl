@@ -1338,3 +1338,5 @@ pub mod teams;
 pub mod workspace;
 
 pub mod svd_workspace;
+
+pub mod evd_workspace;

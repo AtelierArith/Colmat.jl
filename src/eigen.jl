@@ -54,10 +54,24 @@ arrays. General real matrices produce complex eigenpairs.
 LinearAlgebra.eigen(a::FaerMatrix{Float64}; sortby = _eigensort) = _eigen(a, 0; sortby)
 LinearAlgebra.eigvals(a::FaerMatrix{Float64}; sortby = _eigensort) =
     _eigen(a, 0; vectors = false, sortby)
-LinearAlgebra.eigen(a::_FaerSelfAdjoint; sortby = _eigensort) =
-    _eigen(parent(a), 1; lower = _uplo(a)===:L, sortby)
-LinearAlgebra.eigvals(a::_FaerSelfAdjoint; sortby = _eigensort) =
-    _eigen(parent(a), 1; vectors = false, lower = _uplo(a)===:L, sortby)
+LinearAlgebra.eigen(
+    a::_FaerSelfAdjoint;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) =
+    isnothing(scratch) && isnothing(team) ?
+    _eigen(parent(a), 1; lower = _uplo(a)===:L, sortby) :
+    _evd_workspace_result(a; sortby, scratch, team)
+LinearAlgebra.eigvals(
+    a::_FaerSelfAdjoint;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+) =
+    isnothing(scratch) && isnothing(team) ?
+    _eigen(parent(a), 1; vectors = false, lower = _uplo(a)===:L, sortby) :
+    _evd_workspace_result(a; vectors = false, sortby, scratch, team)
 
 """Compute right generalized eigenvectors satisfying `A*V ≈ B*V*Diagonal(values)`."""
 function LinearAlgebra.eigen(
