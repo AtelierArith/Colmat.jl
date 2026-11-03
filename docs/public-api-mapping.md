@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `0e1c5af`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、72155 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 52 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `568e459`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、72543 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 53 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -69,7 +69,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 自己随伴固有値分解・固有値のみ | `self_adjoint_eigen/self_adjoint_eigenvalues`, `SelfAdjointEigen` | `eigen/eigvals(Hermitian(A))` | R: `eigen/eigvals/eigen!/eigvals!(Hermitian(A))`、指定三角・4 型、`scratch=`/`team=`、self-adjoint の requirements/reserve | 複素対称非 Hermitian、全キーワード |
 | 一般固有値分解・固有値のみ | `eigen/eigenvalues`, `Eigen` | `eigen/eigvals(A)` | R: 4 型の `eigen/eigvals/eigen!/eigvals!(A)`、`scratch=`/`team=`、bang は別途 Schur 形の書き戻し | EVD driver 内の balancing 等の全制御項目。bang の Schur 書き戻し分解は別途逐次・内部 workspace |
 | 自己随伴一般化固有値 | `self_adjoint_generalized_eigen/self_adjoint_generalized_eigenvalues` | `eigen/eigvals(Hermitian(A),Hermitian(B))` | R: Hermitian/実 Symmetric ペアの `eigen/eigvals/eigen!/eigvals!(A,B)`、4 型・指定三角・B 正定値、`scratch=`/`team=`、LLT/EVD 再利用領域 | 全構造・高度な失敗規約の網羅 |
-| 一般化固有値 | `generalized_eigen`, `GeneralizedEigen::{U,S_a,S_b}` | `eigen(A,B)`, `eigvals(A,B)` | R: `eigen/eigvals/eigen!/eigvals!(A,B)`、4 型・promotion・`scratch=`/`team=`、`homogeneous=true` で α/β、`side=:left/:right` で左/右ベクトル、bang は別途逐次 QZ S/T 書き戻し | 高度な規約・全極端スケール・defective pencil の網羅。左 driver の非有限出力は随伴ペアの右 driver へ回復（追加コピー、[faer #219](https://github.com/tensor4all/faer/issues/219)）。重複有限/無限固有値の非有限ベクトルは native SVD 零空間で回復（追加割当、[faer #217](https://github.com/tensor4all/faer/issues/217)） |
+| 一般化固有値 | `generalized_eigen`, `GeneralizedEigen::{U,S_a,S_b}` | `eigen(A,B)`, `eigvals(A,B)` | R: `eigen/eigvals/eigen!/eigvals!(A,B)`、4 型・promotion・`scratch=`/`team=`、`homogeneous=true` で α/β、`side=:left/:right/:both` で左/右/同時ベクトル、両側の作業領域照会、bang は別途逐次 QZ S/T 書き戻し | 高度な規約・全極端スケール・defective pencil の網羅。左 driver の非有限出力は随伴ペアの右 driver へ回復（追加コピー、[faer #219](https://github.com/tensor4all/faer/issues/219)）。重複有限/無限固有値の非有限ベクトルは native SVD 零空間で回復（追加割当、[faer #217](https://github.com/tensor4all/faer/issues/217)） |
 | Schur・並べ替え | `evd::{hessenberg_schur_real/cplx,reorder_schur_real/cplx,eigenvectors_from_schur_*}` | `schur`, `ordschur`, Schur からの固有ベクトル | R: 4 型の `schur/schur!`、`ordschur/ordschur!`、`eigvecs/eigen(::Schur)`、Rust 所有 T/Z | 既定アルゴリズムのみ。全 SchurParams・並列 team・caller-owned scratch |
 | 一般化 Schur / QZ | `gevd::{gen_hessenberg,qz_real,qz_cplx}`, `hessenberg_to_qz` | `schur(A,B)` | R: 4 型の `schur(A,B)` / `schur!`、native S/T/Q/Z、α/β、`hessenberg(A,B)` と再利用 | 一般化 `ordschur`、全チューニング項目・caller-owned scratch。作業領域はラッパー内で補正・確保 |
 
