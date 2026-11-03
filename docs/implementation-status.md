@@ -552,3 +552,47 @@ files using ParallelTestRunner.jl and 16 workers**. The Householder suite
 contributes 2768 assertions. README Julia examples, JuliaFormatter,
 `cargo fmt --check`, `git diff --check` and method ambiguity checks pass.
 The dependency checkout has no modifications.
+
+
+## Compact block Householder sequence checkpoint
+
+- `FaerHouseholderSequence` owns a canonical m-by-k basis and blocksize-by-k
+  factor. Strict-lower essentials are copied; diagonal ones/upper zeros are
+  implicit. Positive real denominators are checked against basis norms to
+  ensure elementary unitary reflections. Infinity encodes identity; unused
+  identity essentials are canonicalized to zero.
+- Factors are constructed with faer's upgrade_householder_factor, including
+  partial final blocks. The explicit-factor constructor validates relevant
+  upper blocks and retains supplied coefficients. Lower/padding entries are
+  ignored. Basis/factor exports are independent native matrices; tau exports
+  an independent real Julia vector.
+- Reblock/reblock! rebuild factors with the native upgrade API, transactionally
+  for in-place changes. Copy/deepcopy/close and transformed owners preserve
+  independent lifetimes. Transform flags select all left/right, normal/transpose
+  and conjugated sequence variants, with the matching scratch recommendation.
+- Shared Householder application/product/mul! helpers now accept both elementary
+  and sequence operators through a private abstract matrix type. Source-type
+  promotion retains compact coefficients and rebuilds factors; views and typed
+  destination conversion retain the existing staging rules. Left/right solves
+  and ldiv!/rdiv! use the unitary adjoint without materializing the operator.
+- A new edge regression exposed faer's rank-one SIMD return when its tail has
+  zero rows: an explicitly supplied tau=0.5 must flip sign rather than act as
+  identity. The bridge factors out a final scalar reflection when it is a
+  single-column final block, placing it before/after the prefix according to
+  side and transpose. Scratch allocation precedes any scalar mutation. Native
+  dependencies are not patched.
+- Tests compare against independent products of elementary reflection matrices,
+  covering all four scalars, zero/full/partial ranks, block widths, Inf identity
+  factors, explicit factor loading, ignored upper/padding data, all transform
+  variants, promotion, views, alpha/beta/aliases, copies, failed reblocking and
+  unitary solves. A 100,000-row, three-reflection case uses compact storage.
+- Direct prev_block_size upgrade controls and external scratch, standalone
+  Jacobi APIs, matrix-free and the other remaining Issue #1 categories remain
+  incomplete. Scalar indexing and explicit dense conversion may materialize
+  temporary columns/matrices; array application uses compact coefficients.
+
+Validation: default `Pkg.test()` passed **48918 assertions across 25 independent
+files using ParallelTestRunner.jl and 16 workers**. The sequence suite contributes
+13432 assertions. Existing elementary Householder tests pass after shared helper
+integration. README Julia examples, JuliaFormatter, `cargo fmt --check`,
+`git diff --check` and method ambiguity checks pass. Dependency sources are clean.

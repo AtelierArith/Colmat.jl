@@ -5,7 +5,10 @@ import LinearAlgebra
 import SparseArrays
 using LinearAlgebra: SVD
 
-export FaerHouseholder,
+export FaerHouseholderSequence,
+    reblock,
+    reblock!,
+    FaerHouseholder,
     householder,
     add_assign!,
     sub_assign!,
@@ -155,5 +158,6 @@ include("ordering.jl")
 include("sparse_updates.jl")
 include("rotations.jl")
 include("householder.jl")
+include("householder_sequence.jl")
 
 end

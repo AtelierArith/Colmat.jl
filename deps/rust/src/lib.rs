@@ -1292,3 +1292,5 @@ pub mod ordering;
 pub mod rotations;
 
 pub mod householder;
+
+pub mod householder_sequence;

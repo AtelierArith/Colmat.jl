@@ -468,7 +468,42 @@ rmul!(R, H)
 通常の Julia strided 配列も使え、in-place の出力は4数値型に限定します。
 係数・生成情報を出力型に変換できない場合は更新前に失敗します。ビューは一時結果を
 書き戻します。`Matrix(H)` と反射同士の積は密行列を作ります。
-block Householder factor の直接構築・upgrade・sequence API と外部 scratch は未対応です。
+単一反射の外部 scratch は未対応です。block／sequence の操作は次の所有型で扱います。
+
+複数の反射は `FaerHouseholderSequence` に compact な basis／factor として保持できます。
+
+```julia
+using Colmat, LinearAlgebra
+
+V = [1.0 0; 0.3 1; 0.4 0.5]
+tau = [sum(abs2, V[:, j]) / 2 for j in axes(V, 2)]
+Q = FaerHouseholderSequence(V, tau; blocksize=2)
+A = FaerMatrix([1.0 2; 3 4; 5 6])
+B = Q * A
+@assert Matrix(B) ≈ Matrix(Q) * Matrix(A)
+@assert Matrix(Q' * B) ≈ Matrix(A)
+@assert Matrix(Q \ B) ≈ Matrix(A)
+
+restored = FaerHouseholderSequence(Q.basis, Q.factor)
+@assert Matrix(restored) ≈ Matrix(Q)
+small_blocks = reblock(Q, 1)      # faer の factor upgrade を使って再構築
+@assert Matrix(small_blocks) ≈ Matrix(Q)
+reblock!(Q, 3)
+@assert Q.blocksize == 3
+```
+
+`Q = H₁*H₂*…*Hₖ` の順序で、m×k の basis には k≤m が必要です。
+対角は暗黙の 1、上三角は無視し、strict lower の値だけを使います。
+有限の `tau[j]` は `vⱼ'vⱼ/2` と一致する必要があります。`Inf` は恒等反射を表し、
+その列の未使用部分はゼロに正規化します。`blocksize=k` なら単一ブロックです。
+`Q.basis`・`Q.factor` は独立した native 行列、`Q.tau` は Julia の実数ベクトルです。
+factor は blocksize×k で、各ブロックの上三角を連結した faer の形式です。
+
+`Q'`・`transpose(Q)`・`conj(Q)` は独立した所有者を返します。これらの `.basis`・`.factor`
+は変換前の格納表現を返し、`.transposed`・`.conjugated` が適用方向を表します。
+積・左右の in-place 適用・`mul!`・左右の求解は密な Q を作りません。
+`Matrix(Q)` と演算子同士の積は明示的に密行列を作ります。
+外部 scratch と `prev_block_size` を直接渡す低水準 upgrade は未対応です。
 
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に

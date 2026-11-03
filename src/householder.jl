@@ -1,3 +1,5 @@
+abstract type AbstractFaerHouseholder{T} <: AbstractMatrix{T} end
+
 """
     FaerHouseholder(x::AbstractVector)
     householder(x)
@@ -21,7 +23,7 @@ Views stage an independent native result before copying back. In-place calls
 convert the reflection's stored coefficients/metadata to the destination type
 before mutation. Adjoint/copy/conjugate/transpose return independent owners.
 """
-mutable struct FaerHouseholder{T,H} <: AbstractMatrix{T}
+mutable struct FaerHouseholder{T,H} <: AbstractFaerHouseholder{T}
     handle::Union{Nothing,H}
     n::Int
 end
@@ -143,19 +145,21 @@ function _householder_check(h, a, right)
         throw(DimensionMismatch("Householder application dimensions must match"))
     return nothing
 end
+_householder_native_apply!(h::FaerHouseholder, a, right) =
+    _native_call(RustCrate.householder_apply, a, h, right)
 function _householder_apply!(
-    h::FaerHouseholder,
+    h::AbstractFaerHouseholder,
     a::Union{FaerMatrix,FaerVector,FaerRow},
     right,
 )
     lock(_matrix_lock) do
         _householder_check(h, a, right)
         reflected=_householder_coerce(h, eltype(a))
-        _native_call(RustCrate.householder_apply, a, reflected, right)
+        _householder_native_apply!(reflected, a, right)
         return a
     end
 end
-function _householder_apply!(h::FaerHouseholder, a::FaerView, right)
+function _householder_apply!(h::AbstractFaerHouseholder, a::FaerView, right)
     lock(_matrix_lock) do
         _householder_check(h, a, right)
         result=copy(a)
@@ -164,7 +168,7 @@ function _householder_apply!(h::FaerHouseholder, a::FaerView, right)
     end
 end
 function _householder_apply!(
-    h::FaerHouseholder,
+    h::AbstractFaerHouseholder,
     a::Union{StridedVector,StridedMatrix},
     right,
 )
@@ -181,9 +185,9 @@ function _householder_apply!(
         return a
     end
 end
-LinearAlgebra.lmul!(h::FaerHouseholder, a::_HouseholderArray) =
+LinearAlgebra.lmul!(h::AbstractFaerHouseholder, a::_HouseholderArray) =
     _householder_apply!(h, a, false)
-LinearAlgebra.rmul!(a::_HouseholderMatrix, h::FaerHouseholder) =
+LinearAlgebra.rmul!(a::_HouseholderMatrix, h::AbstractFaerHouseholder) =
     _householder_apply!(h, a, true)
 function _householder_product(h, a, right)
     lock(_matrix_lock) do
@@ -195,9 +199,11 @@ function _householder_product(h, a, right)
         return a isa StridedVector ? Vector(result) : result
     end
 end
-Base.:*(h::FaerHouseholder, a::_HouseholderArray) = _householder_product(h, a, false)
-Base.:*(a::_HouseholderMatrix, h::FaerHouseholder) = _householder_product(h, a, true)
-function Base.:*(a::FaerHouseholder, b::FaerHouseholder)
+Base.:*(h::AbstractFaerHouseholder, a::_HouseholderArray) =
+    _householder_product(h, a, false)
+Base.:*(a::_HouseholderMatrix, h::AbstractFaerHouseholder) =
+    _householder_product(h, a, true)
+function Base.:*(a::AbstractFaerHouseholder, b::AbstractFaerHouseholder)
     lock(_matrix_lock) do
         _handle(a)
         _handle(b)
@@ -206,15 +212,15 @@ function Base.:*(a::FaerHouseholder, b::FaerHouseholder)
     end
 end
 Base.:\(h::FaerHouseholder, a::_HouseholderArray) = h*a
-function FaerMatrix(h::FaerHouseholder{T}) where {T}
+function FaerMatrix(h::AbstractFaerHouseholder{T}) where {T}
     lock(_matrix_lock) do
         _handle(h)
         result=FaerMatrix{T}(Matrix{T}(LinearAlgebra.I, size(h)...))
         return _householder_apply!(h, result, false)
     end
 end
-Base.Matrix(h::FaerHouseholder) = Matrix(FaerMatrix(h))
-Base.Matrix{T}(h::FaerHouseholder) where {T} = Matrix{T}(Matrix(h))
+Base.Matrix(h::AbstractFaerHouseholder) = Matrix(FaerMatrix(h))
+Base.Matrix{T}(h::AbstractFaerHouseholder) where {T} = Matrix{T}(Matrix(h))
 
 function _householder_matrix_source(a, ::Type{T}) where {T}
     a isa _BorrowMatrix && return _coerce(copy(a), T)
@@ -260,14 +266,14 @@ function _householder_mul!(dest, h, a, alpha, beta, right)
 end
 LinearAlgebra.mul!(
     dest::_HouseholderMatrix,
-    h::FaerHouseholder,
+    h::AbstractFaerHouseholder,
     a::_HouseholderMatrix,
     alpha::Number,
     beta::Number,
 ) = _householder_mul!(dest, h, a, alpha, beta, false)
 LinearAlgebra.mul!(
     dest::_HouseholderVector,
-    h::FaerHouseholder,
+    h::AbstractFaerHouseholder,
     a::_HouseholderVector,
     alpha::Number,
     beta::Number,
@@ -275,13 +281,38 @@ LinearAlgebra.mul!(
 LinearAlgebra.mul!(
     dest::_HouseholderMatrix,
     a::_HouseholderMatrix,
-    h::FaerHouseholder,
+    h::AbstractFaerHouseholder,
     alpha::Number,
     beta::Number,
 ) = _householder_mul!(dest, h, a, alpha, beta, true)
-LinearAlgebra.mul!(dest::_HouseholderMatrix, h::FaerHouseholder, a::_HouseholderMatrix) =
-    _householder_mul!(dest, h, a, 1, 0, false)
-LinearAlgebra.mul!(dest::_HouseholderVector, h::FaerHouseholder, a::_HouseholderVector) =
-    _householder_mul!(dest, h, a, 1, 0, false)
-LinearAlgebra.mul!(dest::_HouseholderMatrix, a::_HouseholderMatrix, h::FaerHouseholder) =
-    _householder_mul!(dest, h, a, 1, 0, true)
+LinearAlgebra.mul!(
+    dest::_HouseholderMatrix,
+    h::AbstractFaerHouseholder,
+    a::_HouseholderMatrix,
+) = _householder_mul!(dest, h, a, 1, 0, false)
+LinearAlgebra.mul!(
+    dest::_HouseholderVector,
+    h::AbstractFaerHouseholder,
+    a::_HouseholderVector,
+) = _householder_mul!(dest, h, a, 1, 0, false)
+LinearAlgebra.mul!(
+    dest::_HouseholderMatrix,
+    a::_HouseholderMatrix,
+    h::AbstractFaerHouseholder,
+) = _householder_mul!(dest, h, a, 1, 0, true)
+
+LinearAlgebra.ldiv!(h::AbstractFaerHouseholder, a::_HouseholderArray) =
+    _householder_apply!(adjoint(h), a, false)
+LinearAlgebra.ldiv!(
+    dest::_HouseholderMatrix,
+    h::AbstractFaerHouseholder,
+    a::_HouseholderMatrix,
+) = _householder_mul!(dest, adjoint(h), a, 1, 0, false)
+LinearAlgebra.ldiv!(
+    dest::_HouseholderVector,
+    h::AbstractFaerHouseholder,
+    a::_HouseholderVector,
+) = _householder_mul!(dest, adjoint(h), a, 1, 0, false)
+LinearAlgebra.rdiv!(a::_HouseholderMatrix, h::AbstractFaerHouseholder) =
+    _householder_apply!(adjoint(h), a, true)
+Base.:/(a::_HouseholderMatrix, h::AbstractFaerHouseholder) = a*adjoint(h)
