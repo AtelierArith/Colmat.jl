@@ -67,3 +67,5 @@ include("views.jl")
 
 include("permutations.jl")
 include("pseudoinverse.jl")
+
+include("schur.jl")

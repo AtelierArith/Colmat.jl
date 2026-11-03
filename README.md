@@ -139,6 +139,37 @@ E = eigen(Hermitian(A))
 @assert Matrix(A) * E.vectors ≈ E.vectors * Diagonal(E.values)
 ```
 
+Hessenberg 化と Schur 分解も native 経路を使います。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix([1.0 2 0; -2 1 0; 0 0 4])
+H = hessenberg(A)                # 明示的な Rust 所有 H・Q
+@assert Matrix(H.Q * H.H * H.Q') ≈ Matrix(A)
+S = schur(H)                     # Hessenberg 化を再実行せず Schur 段階を実行
+@assert S isa Schur
+@assert Matrix(S.Z * S.T * S.Z') ≈ Matrix(A)
+G = ordschur(S, real.(S.values) .> 2)
+@assert real(G.values[1]) ≈ 4
+V = eigvecs(G)                   # Rust 所有の複素固有ベクトル行列
+@assert Matrix(A) * Matrix(V) ≈ Matrix(V) * Diagonal(G.values)
+ordschur!(S, real.(S.values) .> 2)
+B = copy(A)
+SB = schur!(B)
+@assert SB.T === B
+```
+
+`schur` は Rust 所有の `T`・`Z` と Julia の固有値ベクトルを持つ
+`LinearAlgebra.Schur` を返します。実数では共役対を 2×2 ブロックに保ち、
+`ordschur` の選択では対の両方を含めるか、両方を除外します。
+`hessenberg` の結果は `FaerHessenberg` で、Julia の compact Householder 表現と
+異なり `H`・`Q` の両方を明示的な行列として所有します。
+`hessenberg!`・`schur!` は独立した作業結果を計算してから入力の所有バッファを
+更新し、形状と既存ビューを保ちます。`schur!(H)` は `H.H`・`H.Q` の両方を
+更新し、返す Schur 分解とストレージを共有します。並べ替えも成功後に更新する
+ため、失敗時は元の分解を保ちます。これらは内部の一時領域を割り当てます。
+
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の
 `eigen`／`eigvals`、三角行列の求解・逆行列、`det`／`logabsdet`／`logdet`、
 `sum`／`norm`／`dot`／`tr`／`kron`、`pfaffian` も Rust に接続しています。

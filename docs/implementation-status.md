@@ -156,3 +156,34 @@ Schur/QZ, sparse storage and solvers, matrix-free algorithms, destructive
 factorization and caller-owned scratch, reflectors/rotations, thread teams,
 statistics, random generation and NPY. Advanced factor and algorithm options
 remain subject to the frozen 76-row inventory; this is not issue completion.
+
+
+## Native Hessenberg and Schur checkpoint
+
+- All four native scalar types now support `hessenberg` / `hessenberg!`,
+  `schur` / `schur!`, and `ordschur` / `ordschur!`. Schur outputs use Julia's
+  standard `LinearAlgebra.Schur` with Rust-owned T/Z matrices. Hessenberg
+  outputs use `FaerHessenberg` with explicit native H/Q matrices.
+- Hessenberg reduction constructs Q using faer's block Householder application;
+  `schur(H::FaerHessenberg)` reuses H/Q and performs only the Schur QR stage.
+  Schur eigenvectors use faer's dedicated real/complex Schur back-substitution,
+  preserving value order and converting real pair columns to complex vectors.
+- Real conjugate pairs remain standardized 2x2 blocks, and selection cannot
+  split a pair. Reordering stages independent native T/Z and commits only after
+  success, including eigenvalue element-type conversion. Existing native matrix
+  views remain valid when a factor or input matrix is updated.
+- Power-of-two scaling follows faer's EVD strategy for very small/large inputs.
+  Tests include blocked 257x257 reductions, repeated eigenvalues, defective
+  Jordan blocks, selected conjugate pairs and independent lifecycle/copies.
+- Native FFI eigenvalue buffers always use the matrix's matching complex scalar
+  type, even for manually constructed Julia Schur factors whose cached values
+  have another element type. `deepcopy` preserves custom value-view types.
+
+Validation: `Pkg.test(; julia_args=["--threads=2"])` passes **5583 tests**.
+All README Julia examples and `cargo fmt --check` pass; method ambiguity
+detection is empty. This does not complete
+Issue #1. Generalized Schur/QZ, balancing, nondefault algorithm controls, sparse,
+matrix-free, caller-owned scratch, independent reflectors/rotations, thread
+teams, statistics, random and NPY remain. The use of Householder routines inside
+Hessenberg reduction is not a standalone public reflector API. The mutating
+interfaces still allocate independent work results and internal scratch.

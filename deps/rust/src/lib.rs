@@ -1276,3 +1276,5 @@ pub mod views;
 pub mod permutations;
 
 pub mod pseudoinverse;
+
+pub mod schur;
