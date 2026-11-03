@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `033c908`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、53950 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 31 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `64a6da3`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、55571 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 32 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -120,7 +120,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | Householder | `householder::make_householder_in_place/upgrade_householder_factor/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | R: `FaerHouseholder/householder`、`FaerHouseholderSequence`、4 型の basis/tau/factor 構築、block factor upgrade/reblock、左右の sequence 適用・求解・`mul!`、随伴/転置/共役・ビュー | `prev_block_size` の直接制御、外部 scratch |
 | Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転。`FaerJacobiRotation`、`rotg/make_givens`、2×2左右適用、transpose/conj/adjoint、Givens 埋め込み | — |
 | Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | R: 4 型の `hessenberg/hessenberg!`、明示的な Rust 所有 H/Q、Schur 段階への再利用。`balance/balance!`、`FaerBalance` の B/perm/scale/active、右固有ベクトルの `balance_eigenvectors[!]` | compact Householder 形式・全パラメータ・外部 scratch |
-| 対称三重対角化・三重対角 EVD | `evd::tridiag::tridiag_in_place`, `tridiagonal_self_adjoint_evd` | `SymTridiagonal`、構造化固有値分解 | — | 未 |
+| 対称三重対角化・三重対角 EVD | `evd::tridiag::tridiag_in_place`, `tridiagonal_self_adjoint_evd` | `SymTridiagonal`、構造化固有値分解 | R: `tridiagonalize[!]`、native self-adjoint wrapper の `hessenberg[!]`、実 H/明示 Q、`eigen/eigvals(F)`、native ベクトルを持つ SymTridiagonal、`tridiagonal_eigen/eigvals`、4 型・複素位相・QR/分割統治 | compact reflector の直接公開、外部 scratch・全 tuning |
 | 二重対角化・二重対角 SVD | `svd::bidiag::bidiag_in_place`, `bidiagonal_svd` | `Bidiagonal`、LAPACK bidiagonal SVD 相当 | — | 未 |
 | Pfaffian | `linalg::pfaffian::{pfaffian,pfaffian_scratch,PfaffianError}` | 反対称行列の Pfaffian。LinearAlgebra に直接同名の高水準 API はない | R: `pfaffian`、反対称性の検査・複素対応 | scratch・低水準アルゴリズム制御 |
 
