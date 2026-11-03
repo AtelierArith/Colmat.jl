@@ -951,8 +951,10 @@ independent native CSC `F.L`/`F.U` and row/column `FaerPermutation` objects
 `F.p`/`F.q`. They are the factors used by normal, transpose and adjoint solves.
 CSC/CSR input and all four native scalar types are supported, including symbolic
 plan reuse and numeric `lu!` updates. `ordering=:default` or `:identity` selects
-identity columns for this explicit algorithm; supply a permutation (including a
-`colamd` result) to select another column ordering.
+identity columns for this explicit algorithm. Select `ordering=:colamd` to run
+native COLAMD once during symbolic analysis, or supply an explicit permutation.
+`dense_row=0.5`, `dense_col=0.5` and `aggressive=true` control COLAMD when selected.
+Numeric `lu!` updates retain that column ordering.
 
 The default `algorithm=:auto` keeps the existing high-level faer factorization
 and its fill-reducing selection. Its opaque factor storage does not expose
@@ -1489,9 +1491,10 @@ is the column permutation satisfying `Q*R ≈ A[:,pcol]`. Extraction, reconstruc
 copy and numeric updates use retained factors. `reconstruct(F)`, `Matrix(F)` and
 `FaerMatrix(F)` recover the original column order without using the stored input
 snapshot. Four scalar types and CSC/CSR inputs are supported. Ordering is identity
-by default, or an explicit permutation; COLAMD/AMD controls, full Q,
-rank-deficient minimum-norm solves and caller scratch
-are not exposed for this path. The default `algorithm=:auto` keeps the existing
+by default; `ordering=:colamd` or an explicit permutation selects another column
+order. COLAMD accepts `dense_row`, `dense_col` and `aggressive` controls and is
+retained across symbolic reuse and numeric updates. AMD, full Q,
+rank-deficient minimum-norm solves and caller scratch remain unavailable. The default `algorithm=:auto` keeps the existing
 faer solver; its components remain unavailable.
 
 ### Minimum-norm solves with sparse QR transpose/adjoint
@@ -1522,3 +1525,33 @@ diagonal is rejected; rank thresholds and rank-deficient solves remain
 unavailable. Mixed-type RHS follow the existing sparse-factor promotion path,
 which refactorizes the retained input snapshot in the promoted type. The auto
 QR path still rejects transpose/adjoint solves.
+
+
+### COLAMD ordering in sparse LU/QR
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = [8.0 1 2; 1 5 0; 2 0 6; 1 0 1]
+A = FaerSparseMatrix(sparse(A0); format=:csr)
+plan = FaerSparseSymbolic(A; kind=:qr, algorithm=:simplicial,
+                          ordering=:colamd, dense_row=-1.0, aggressive=false)
+F = factorize(plan, A)
+p = Vector(F.pcol)
+@assert Matrix(F.Q) * Matrix(F.R) ≈ A0[:, p]
+@assert Matrix(F) ≈ A0
+B = FaerSparseMatrix(sparse(2A0))
+qr!(F, B)
+@assert Vector(F.pcol) == p
+@assert Matrix(F) ≈ 2A0
+close(plan)
+close(F)
+close(A)
+close(B)
+```
+
+`lu(A; algorithm=:simplicial, ordering=:colamd, ...)` and `qr` accept the
+same COLAMD controls as `FaerSparseSymbolic`. Stored zeros participate in the
+ordering; numeric values do not. The generated permutation is copied into
+Rust-owned analysis, so no temporary ordering handle needs to remain open.
+This explicit ordering option is currently available for simplicial LU/QR;
+auto/supernodal LU/QR retain their existing default selection.

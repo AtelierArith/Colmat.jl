@@ -14,7 +14,10 @@ Cholesky accepts `ordering=:default/:amd/:identity` or a permutation, AMD tuning
 actual chosen algorithm. `plan.factor_storage` counts numeric scalar slots,
 including supernodal padding. Explicit `kind=:qr, algorithm=:simplicial` accepts identity/default or custom
 column ordering and exposes thin Q, sparse R and column permutation on numeric
-factors. AMD tuning and supernodal selection remain Cholesky-only.
+factors. Explicit simplicial LU/QR additionally accept `ordering=:colamd` with
+`dense_row=0.5, dense_col=0.5, aggressive=true`. COLAMD is computed once from the
+stored pattern and retained by symbolic reuse and numeric updates. AMD tuning
+and supernodal selection remain Cholesky-only.
 """
 mutable struct FaerSparseSymbolic{K,H}
     handle::Union{Nothing,H}
@@ -83,6 +86,8 @@ function FaerSparseSymbolic(
     uplo = :L,
     ordering = :default,
     dense::Real = 10.0,
+    dense_row::Real = 0.5,
+    dense_col::Real = 0.5,
     aggressive::Bool = true,
     algorithm = :auto,
 )
@@ -102,12 +107,22 @@ function FaerSparseSymbolic(
          algorithm===:simplicial ? 1 :
          algorithm===:supernodal ? 2 :
          throw(ArgumentError("algorithm must be :auto, :simplicial or :supernodal"))
+    use_colamd=kind in (:lu, :qr) && algo==1 && ordering===:colamd
+    row, col=Float64(dense_row), Float64(dense_col)
+    isfinite(row)&&isfinite(col) || throw(ArgumentError("COLAMD thresholds must be finite"))
+    !use_colamd &&
+        (row!=0.5 || col!=0.5) &&
+        throw(
+            ArgumentError(
+                "dense_row/dense_col require simplicial LU/QR with ordering=:colamd",
+            ),
+        )
     if kind!==:cholesky &&
-       !(kind in (:lu, :qr) && algo==1 && threshold==10.0 && aggressive) &&
+       !(kind in (:lu, :qr) && algo==1 && threshold==10.0 && (aggressive || use_colamd)) &&
        (ordering!==:default || threshold!=10.0 || !aggressive || algo!=0)
         throw(
             ArgumentError(
-                "these controls require Cholesky, or explicit simplicial LU/QR with identity/custom ordering",
+                "these controls require Cholesky, or explicit simplicial LU/QR with identity/custom/COLAMD ordering",
             ),
         )
     end
@@ -116,33 +131,40 @@ function FaerSparseSymbolic(
         ordering===:amd &&
         throw(
             ArgumentError(
-                "simplicial LU/QR ordering supports :default (identity), :identity or a permutation",
+                "simplicial LU/QR ordering supports :default (identity), :identity, :colamd or a permutation",
             ),
         )
-    custom=ordering isa AbstractVector{<:Integer}
+    custom=use_colamd || ordering isa AbstractVector{<:Integer}
     ordercode=custom ? 2 :
               ordering in (:default, :amd) ? 0 :
               ordering===:identity ? 1 :
               throw(
-        ArgumentError("ordering must be :default, :amd, :identity or a permutation"),
+        ArgumentError(
+            "ordering must be :default, :amd, :identity, :colamd or a permutation",
+        ),
     )
     lock(_matrix_lock) do
-        perm=custom ? _as_permutation(ordering) : Ptr{UInt8}(C_NULL)
-        custom && _check_permutation(p, perm, true)
-        h=RustCrate.SparseSymbolic()
-        _native_call(
-            RustCrate.sparse_analyze,
-            h,
-            p,
-            Int32(code),
-            uplo===:L,
-            Int32(ordercode),
-            perm,
-            threshold,
-            aggressive,
-            Int32(algo),
-        )
-        return FaerSparseSymbolic{kind,typeof(h)}(h, size(p), uplo)
+        perm=use_colamd ? colamd(p; dense_row = row, dense_col = col, aggressive) :
+             custom ? _as_permutation(ordering) : Ptr{UInt8}(C_NULL)
+        try
+            custom && _check_permutation(p, perm, true)
+            h=RustCrate.SparseSymbolic()
+            _native_call(
+                RustCrate.sparse_analyze,
+                h,
+                p,
+                Int32(code),
+                uplo===:L,
+                Int32(ordercode),
+                perm,
+                threshold,
+                aggressive,
+                Int32(algo),
+            )
+            return FaerSparseSymbolic{kind,typeof(h)}(h, size(p), uplo)
+        finally
+            use_colamd && close(perm)
+        end
     end
 end
 FaerSparseSymbolic(a::FaerSparseMatrix; kwargs...) =
@@ -213,15 +235,43 @@ LinearAlgebra.lu(
     check::Bool = true,
     algorithm = :auto,
     ordering = :default,
+    dense_row::Real = 0.5,
+    dense_col::Real = 0.5,
+    aggressive::Bool = true,
 ) = LinearAlgebra.factorize(
-    FaerSparseSymbolic(a; kind = :lu, algorithm, ordering),
+    FaerSparseSymbolic(
+        a;
+        kind = :lu,
+        algorithm,
+        ordering,
+        dense_row,
+        dense_col,
+        aggressive,
+    ),
     a;
     check,
 )
 LinearAlgebra.lu(a::FaerSparseMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
     LinearAlgebra.lu(a; kwargs...)
-LinearAlgebra.qr(a::FaerSparseMatrix; algorithm = :auto, ordering = :default) =
-    LinearAlgebra.factorize(FaerSparseSymbolic(a; kind = :qr, algorithm, ordering), a)
+LinearAlgebra.qr(
+    a::FaerSparseMatrix;
+    algorithm = :auto,
+    ordering = :default,
+    dense_row::Real = 0.5,
+    dense_col::Real = 0.5,
+    aggressive::Bool = true,
+) = LinearAlgebra.factorize(
+    FaerSparseSymbolic(
+        a;
+        kind = :qr,
+        algorithm,
+        ordering,
+        dense_row,
+        dense_col,
+        aggressive,
+    ),
+    a,
+)
 const _SparseSelfAdjoint=Union{
     LinearAlgebra.Hermitian{<:Any,<:FaerSparseMatrix},
     LinearAlgebra.Symmetric{<:Real,<:FaerSparseMatrix},

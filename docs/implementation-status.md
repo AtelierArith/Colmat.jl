@@ -1709,3 +1709,27 @@ Final validation on Julia 1.13.3 / RustCall 0.9.2: canonical
 Julia blocks passed. Method ambiguity detection, Julia/Rust formatting and
 `git diff --check` passed. The dependency checkout remains untouched. The full
 Issue #1 objective remains incomplete.
+
+### Direct COLAMD ordering for simplicial sparse LU/QR
+
+`lu`/`qr` and `FaerSparseSymbolic` now accept `ordering=:colamd` for explicit
+`algorithm=:simplicial`. The existing native COLAMD adapter computes the column
+permutation from the stored pattern once during analysis, including stored
+zeros. `dense_row`, `dense_col` and `aggressive` controls are forwarded unchanged.
+The native symbolic plan owns a copy; the temporary permutation is closed after
+analysis, including on errors. Numeric `lu!`/`qr!` updates and copied factors
+retain the chosen column ordering. Default identity and explicit permutation
+behavior remain available. Auto/supernodal ordering controls are still missing.
+
+Focused validation passes 1,304 assertions across all four scalar types,
+CSC/CSR, square/tall/empty shapes, default/custom COLAMD controls, nonidentity
+orders, reconstruction from native factors, normal/adjoint solves, numeric
+updates, independent input/plan lifetime, copied factors and invalid/closed
+inputs. No dependency defect was observed in this change.
+
+Final validation on Julia 1.13.3 / RustCall 0.9.2: canonical
+`Pkg.test(; allow_reresolve=false)` passed 82,656 assertions across 61 files with
+16 ParallelTestRunner workers. All nine native Rust tests and 52 README Julia
+blocks passed. Method ambiguity detection, Julia formatting and
+`git diff --check` passed. The dependency checkout remains untouched at d5be1473.
+The full Issue #1 objective remains incomplete.
