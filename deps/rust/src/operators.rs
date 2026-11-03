@@ -24,6 +24,7 @@ enum Base<T> {
     InverseLdlt(Box<InverseLdlt<T>>),
     InverseSpectral(Box<InverseSpectral<T>>),
     InverseSparseFactors(Box<InverseSparseFactors<T>>),
+    InverseSparseQr(Box<crate::sparse_qr_components::Factors<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -39,6 +40,10 @@ macro_rules! dispatch {
             Base::Sparse(Storage::Csr($a)) => $expr,
             Base::Diagonal($a) => $expr,
             Base::Identity($a) => $expr,
+            Base::InverseSparseQr($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
             Base::InverseSparseFactors($a) => {
                 let $a = $a.as_ref();
                 $expr
@@ -1533,6 +1538,19 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
+        Base::InverseSparseQr(f) => {
+            // Preserve native Householder pivot ordering; do not sort triplets.
+            let convert=|a:&faer::sparse::SparseColMat<usize,S>|->Result<faer::sparse::SparseColMat<usize,T>,String> {
+                let symbolic=a.symbolic().to_owned().map_err(|e|format!("{e:?}"))?;
+                Ok(faer::sparse::SparseColMat::new(symbolic,a.val().iter().map(cast).collect()))
+            };
+            Base::InverseSparseQr(Box::new(crate::sparse_qr_components::Factors {
+                plan: f.plan.clone(),
+                r: convert(&f.r)?,
+                h: convert(&f.h)?,
+                tau: f.tau.iter().map(cast).collect(),
+            }))
+        }
         Base::InverseSparseFactors(f) => {
             let convert=|a:&faer::sparse::SparseColMat<usize,S>|->Result<faer::sparse::SparseColMat<usize,T>,String> {
                 let entries:Vec<_>=a.as_ref().triplet_iter().map(|e|faer::sparse::Triplet{row:e.row,col:e.col,val:cast(e.val)}).collect();
@@ -2620,6 +2638,116 @@ impl OwnedLinearOperator {
                     ))))
                 }
                 _ => return Err("sparse LU component scalar types must match".into()),
+            });
+            Ok(())
+        })
+    }
+}
+
+impl<T> std::fmt::Debug for crate::sparse_qr_components::Factors<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SimplicialQrInverse")
+    }
+}
+fn sparse_qr_action<T: ComplexField>(
+    f: &crate::sparse_qr_components::Factors<T>,
+    mut out: MatMut<'_, T>,
+    b: MatRef<'_, T>,
+    p: Par,
+    s: &mut MemStack,
+    t: bool,
+    c: bool,
+) {
+    let (m, n) = (f.plan.symbolic.nrows(), f.plan.symbolic.ncols());
+    let (mut tmp, s) =
+        faer::linalg::temp_mat_zeroed::<T, _, _>(if t { n } else { m }, b.ncols(), s);
+    let conj = if c { faer::Conj::Yes } else { faer::Conj::No };
+    let (perm, inv) = f.plan.cols.as_ref().arrays();
+    if t {
+        for j in 0..b.ncols() {
+            for i in 0..n {
+                tmp.as_mat_mut()[(i, j)] = copy(&b[(perm[i], j)]);
+            }
+        }
+        faer::sparse::linalg::triangular_solve::solve_upper_triangular_transpose_in_place(
+            f.r.as_ref(),
+            conj,
+            tmp.as_mat_mut(),
+            p,
+        );
+        f.apply_q_into(tmp.as_mat_ref(), out, !c);
+    } else {
+        tmp.as_mat_mut().copy_from(b);
+        f.as_ref()
+            .solve_in_place_with_conj(conj, tmp.as_mat_mut(), p, s);
+        for j in 0..b.ncols() {
+            for i in 0..n {
+                out[(i, j)] = copy(&tmp.as_mat_ref()[(inv[i], j)]);
+            }
+        }
+    }
+}
+impl<T: ComplexField> LinOp<T> for crate::sparse_qr_components::Factors<T> {
+    fn nrows(&self) -> usize {
+        self.plan.symbolic.ncols()
+    }
+    fn ncols(&self) -> usize {
+        self.plan.symbolic.nrows()
+    }
+    fn apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        faer::linalg::temp_mat_scratch::<T>(self.ncols(), k)
+            .and(self.plan.symbolic.solve_in_place_scratch::<T>(k, p))
+    }
+    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        sparse_qr_action(self, o, b, p, s, false, false)
+    }
+    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        sparse_qr_action(self, o, b, p, s, false, true)
+    }
+}
+impl<T: ComplexField> BiLinOp<T> for crate::sparse_qr_components::Factors<T> {
+    fn transpose_apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
+        self.apply_scratch(k, p)
+    }
+    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        sparse_qr_action(self, o, b, p, s, true, false)
+    }
+    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
+        sparse_qr_action(self, o, b, p, s, true, true)
+    }
+}
+#[julia]
+impl OwnedLinearOperator {
+    #[julia]
+    pub fn operator_sparse_qr_inverse(
+        &mut self,
+        factor: &crate::sparse_factors::SparseFactor,
+    ) -> Result<(), String> {
+        guarded(|| {
+            use crate::sparse_factors::QrComponents;
+            fn wrap<T: ComplexField>(
+                f: crate::sparse_qr_components::Factors<T>,
+            ) -> Result<Operator<T>, String> {
+                for j in 0..f.r.ncols() {
+                    if f.r.as_ref().row_idx_of_col_raw(j).last() != Some(&j) {
+                        return Err("sparse QR inverse action requires stored R pivots".into());
+                    }
+                    if f.r
+                        .as_ref()
+                        .val_of_col(j)
+                        .last()
+                        .is_none_or(|x| abs(x) == zero::<T::Real>())
+                    {
+                        return Err("sparse QR inverse action requires full column rank".into());
+                    }
+                }
+                Ok(Operator::new(Base::InverseSparseQr(Box::new(f))))
+            }
+            self.data = Some(match factor.simplicial_qr_components()? {
+                QrComponents::F32(f) => Data::F32(wrap(f)?),
+                QrComponents::F64(f) => Data::F64(wrap(f)?),
+                QrComponents::C32(f) => Data::C32(wrap(f)?),
+                QrComponents::C64(f) => Data::C64(wrap(f)?),
             });
             Ok(())
         })

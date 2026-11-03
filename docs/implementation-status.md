@@ -2011,3 +2011,23 @@ factors and a 20,000-order supernodal promoted complex RHS. Canonical Pkg.test p
 All 10 native tests and 64 README blocks passed, along with ambiguity detection,
 Julia/Rust formatting and git diff --check. Auto/supernodal LU, sparse QR preconditioners,
 callbacks and remaining Issue #1/#2 scope remain pending.
+
+### Native simplicial sparse QR inverse actions
+
+FaerLinearOperator accepts full-column-rank explicit simplicial sparse QR,
+retaining sparse Householder components, R, tau and immutable symbolic analysis/
+column permutation. Normal/conjugate actions use native saved QR solve; transpose/
+adjoint use sparse transposed triangular solve and reverse reflector application
+into the caller's result. RHS intermediates use native scratch. No dense Q,
+pseudoinverse, source snapshot or refactorization is used. Scalar promotion
+copies raw symbolic arrays without sorting Householder pivot order. The action
+has reverse(size(F)), including tall least-squares/minimum-norm dual actions.
+Missing/zero R pivots are rejected; no numerical rank tolerance is exposed.
+
+Focused verification passed 1,287 assertions across scalar pairs, CSC/CSR,
+empty/tall/square, custom column ordering, source snapshot zeroing, copy/close,
+all transforms, CG, invalid factors and 20,000-order complex normal/adjoint
+application. Canonical Pkg.test passed 96,866 assertions / 77 files with 16
+workers. All 10 native tests and 65 README blocks passed, along with ambiguity
+detection, Julia/Rust formatting and git diff --check. Auto/supernodal
+sparse factor interfaces, callbacks and remaining Issue #1/#2 scope are pending.

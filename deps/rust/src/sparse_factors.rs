@@ -999,3 +999,21 @@ impl SparseFactor {
         })
     }
 }
+
+pub(crate) enum QrComponents {
+    F32(crate::sparse_qr_components::Factors<f32>),
+    F64(crate::sparse_qr_components::Factors<f64>),
+    C32(crate::sparse_qr_components::Factors<c32>),
+    C64(crate::sparse_qr_components::Factors<c64>),
+}
+impl SparseFactor {
+    pub(crate) fn simplicial_qr_components(&self) -> Result<QrComponents, String> {
+        Ok(match self.factors()? {
+            Factors::F32(Numeric::SimplicialQr(f)) => QrComponents::F32(f.clone()),
+            Factors::F64(Numeric::SimplicialQr(f)) => QrComponents::F64(f.clone()),
+            Factors::C32(Numeric::SimplicialQr(f)) => QrComponents::C32(f.clone()),
+            Factors::C64(Numeric::SimplicialQr(f)) => QrComponents::C64(f.clone()),
+            _ => return Err("QR inverse operator requires explicit simplicial factors".into()),
+        })
+    }
+}
