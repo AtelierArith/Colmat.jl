@@ -376,6 +376,34 @@ R = FaerSparseMatrix(F)           # native の疎積・置換で再構成
 `logdet`・`logabsdet` は Rust の分解バッファから対角だけを取得して計算し、
 密行列化しません。失敗した分解の要素取得・再構成・行列式は `PosDefException` になります。
 
+既存の疎構造を保った加減算には `add_assign!`・`sub_assign!`・
+`add_into!`・`sub_into!` を使えます。
+
+```julia
+using Colmat, SparseArrays
+
+D = FaerSparseMatrix(sparse([1.0 2; 3 4]); format=:csr)
+S = FaerSparseMatrix(sparse([2.0 0; 1 0]))
+values = nonzeros(D)
+add_assign!(D, S)                 # D += S、格納位置は変更しない
+@assert Matrix(D) == [3.0 2; 4 4]
+@assert Vector(values) == compressed_storage(D).values
+sub_assign!(D, S)
+@assert Matrix(D) == [1.0 2; 3 4]
+add_into!(D, S, S)                # D = S + S、未使用の格納位置も 0 に更新
+@assert Matrix(D) == [4.0 0; 2 0]
+@assert nnz(D) == 4
+sub_into!(D, D, S)                # 入出力の共有にも対応
+@assert Matrix(D) == Matrix(S)
+```
+
+入力の全格納位置は出力の格納位置に含まれている必要があります。格納ゼロも対象で、
+不足すると更新前に `ArgumentError` を投げます。サイズ・型変換の失敗でも出力は変わりません。
+入力は出力の数値型と CSC／CSR 形式にコピー・変換してから native カーネルで計算し、
+出力の型・構造・格納数を維持します。値ビューも失効しません。
+通常の Julia CSC と native の転置／随伴を入力に使えます。
+一般の `D .+= S` などの broadcast は、この専用 API と同一の実装ではありません。
+
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に
 影響されません。`FaerSparseMatrix{T}(P)` は Boolean パターンを数値の 1 に変換し、

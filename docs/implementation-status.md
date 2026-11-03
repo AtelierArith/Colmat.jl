@@ -439,3 +439,40 @@ Validation: default `Pkg.test()` passed **28732 assertions across 21 independent
 files using ParallelTestRunner.jl and 16 workers**. The component suite contributes
 3323 assertions. All README Julia examples, JuliaFormatter, `cargo fmt --check`,
 `git diff --check` and method ambiguity checks pass. Dependency sources are clean.
+
+
+## Fixed-pattern sparse arithmetic checkpoint
+
+- `add_assign!`, `sub_assign!`, `add_into!` and `sub_into!` connect directly to
+  faer's corresponding fixed-pattern sparse kernels. Native CSC/CSR receivers
+  accept either native orientation, native transpose/adjoint, and Julia CSC
+  sources. CSR calls use transposed CSC views without CSC coefficient copies.
+- Every stored input position must exist in the destination, including stored
+  zeros. Native subset checks complete before mutation because faer's kernels
+  may detect an invalid position only after writing earlier entries. Invalid
+  shapes, patterns, closed inputs and failed conversions preserve destination
+  values and indices.
+- Independent input snapshots make destination/source alias combinations safe.
+  Inputs are converted to destination scalar type and orientation before
+  arithmetic; the output type is fixed. Destinations retain existing value
+  storage, indices, format, nnz and epoch, keeping live nonzeros views valid.
+- Overwrite forms zero all stored destination values before running faer's
+  ternary kernel. The inspected upstream implementation omits its final tail
+  after both input columns end, leaving old output values there otherwise.
+  Snapshots preserve aliased inputs during initialization. Dependency sources
+  remain unmodified, and the initialization also works if upstream fixes the
+  omitted tail.
+- Regressions cover all four scalars, CSC/CSR combinations, input subpatterns,
+  empty shapes, cancellation/stored zeros, live views, alias combinations,
+  pre-mutation rejection, mixed-type conversion, complex-to-real failure,
+  transpose/adjoint and overwrite tails. A 50,000-square diagonal case and a
+  2-by-10^9 CSR case exercise sparse storage bounds.
+- General native sparse broadcast/map and arbitrary callbacks, sparse LU/QR
+  components, matrix-free, scratch interfaces and all other remaining Issue #1
+  categories are still incomplete.
+
+Validation: default `Pkg.test()` passed **30552 assertions across 22 independent
+files using ParallelTestRunner.jl and 16 workers**. The new fixed-update suite
+contributes 1820 assertions. README Julia examples, JuliaFormatter,
+`cargo fmt --check`, `git diff --check` and method ambiguity checks pass.
+The t4a-faer checkout remains clean.

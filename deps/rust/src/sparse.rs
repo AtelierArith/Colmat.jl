@@ -923,3 +923,110 @@ impl SparseOwner {
         })
     }
 }
+
+fn pattern_subset<T: ComplexField>(dst: &Storage<T>, src: &Storage<T>) -> bool {
+    for col in 0..src.pointers().len() - 1 {
+        let target = &dst.indices()[dst.pointers()[col]..dst.pointers()[col + 1]];
+        let mut pos = 0;
+        for &index in &src.indices()[src.pointers()[col]..src.pointers()[col + 1]] {
+            while pos < target.len() && target[pos] < index {
+                pos += 1;
+            }
+            if pos == target.len() || target[pos] != index {
+                return false;
+            }
+        }
+    }
+    true
+}
+fn fixed_update<T: ComplexField>(
+    dst: &mut Storage<T>,
+    lhs: &Storage<T>,
+    rhs: &Storage<T>,
+    op: i32,
+) -> Result<bool, String> {
+    if !(0..=3).contains(&op) {
+        return Err("unknown fixed sparse update".into());
+    }
+    if dst.shape() != lhs.shape() || dst.shape() != rhs.shape() {
+        return Err("fixed sparse update dimensions must match".into());
+    }
+    if dst.csr() != lhs.csr() || dst.csr() != rhs.csr() {
+        return Err("fixed sparse update storage formats must match".into());
+    }
+    // faer's kernels may mutate before detecting a missing index. Validate all
+    // stored positions first, including positions whose numeric value is zero.
+    if !pattern_subset(dst, lhs) || (op >= 2 && !pattern_subset(dst, rhs)) {
+        return Ok(false);
+    }
+    fn run<T: ComplexField>(
+        dst: faer::sparse::SparseColMatMut<'_, usize, T>,
+        lhs: faer::sparse::SparseColMatRef<'_, usize, T>,
+        rhs: faer::sparse::SparseColMatRef<'_, usize, T>,
+        op: i32,
+    ) -> Result<(), String> {
+        match op {
+            0 => faer::sparse::ops::add_assign(dst, lhs),
+            1 => faer::sparse::ops::sub_assign(dst, lhs),
+            2 => faer::sparse::ops::add_into(dst, lhs, rhs),
+            3 => faer::sparse::ops::sub_into(dst, lhs, rhs),
+            _ => return Err("unknown fixed sparse update".into()),
+        }
+        Ok(())
+    }
+    // faer's ternary kernel currently omits trailing destination positions
+    // after both sources end. Independent input snapshots let us initialize
+    // all stored destination values without affecting aliased source values.
+    if op >= 2 {
+        for value in dst.values_mut() {
+            *value = zero::<T>();
+        }
+    }
+    match (dst, lhs, rhs) {
+        (Storage::Csc(d), Storage::Csc(a), Storage::Csc(b)) => {
+            run(d.as_dyn_mut(), a.as_ref(), b.as_ref(), op)?
+        }
+        (Storage::Csr(d), Storage::Csr(a), Storage::Csr(b)) => run(
+            d.transpose_mut(),
+            a.as_ref().transpose(),
+            b.as_ref().transpose(),
+            op,
+        )?,
+        _ => return Err("fixed sparse update storage formats must match".into()),
+    }
+    Ok(true)
+}
+#[julia]
+impl SparseOwner {
+    #[julia]
+    pub fn sparse_fixed_update(
+        &mut self,
+        lhs: *const u8,
+        rhs: *const u8,
+        op: i32,
+    ) -> Result<bool, String> {
+        guarded(|| {
+            let lhs = unsafe { &*lhs.cast::<SparseOwner>() }.data()?;
+            let rhs = unsafe { &*rhs.cast::<SparseOwner>() }.data()?;
+            let dst = self
+                .data
+                .as_mut()
+                .ok_or("sparse matrix is not initialized")?;
+            match (dst, lhs, rhs) {
+                (SparseData::F32(d), SparseData::F32(a), SparseData::F32(b)) => {
+                    fixed_update(d, a, b, op)
+                }
+                (SparseData::F64(d), SparseData::F64(a), SparseData::F64(b)) => {
+                    fixed_update(d, a, b, op)
+                }
+                (SparseData::C32(d), SparseData::C32(a), SparseData::C32(b)) => {
+                    fixed_update(d, a, b, op)
+                }
+                (SparseData::C64(d), SparseData::C64(a), SparseData::C64(b)) => {
+                    fixed_update(d, a, b, op)
+                }
+                _ => Err("fixed sparse update scalar types must match".into()),
+            }
+        })
+    }
+}
