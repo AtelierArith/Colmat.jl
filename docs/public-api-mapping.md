@@ -1,0 +1,158 @@
+# t4a-faer / Julia / Colmat 機能対応表
+
+## 目的・調査基準
+
+t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra の対応 API と Colmat の実装状況を追跡する。
+
+- 調査日: 2026-11-03
+- t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
+- Colmat の判定基準: ローカルの検証済みコミット `b35f814`。リモート main は `d4f5a51` のため、以下の実装済み機能の多くはまだ push されていない。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、2666 件のテスト成功。`Pkg.test(; julia_args=["--threads=2"])` で検証。
+- 所有コレクション・範囲ビューは `b35f814` に実装済み。全 76 項目の完了は意味しない。
+- 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
+- Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
+
+### 実装状況の凡例
+
+- **R**: Colmat の専用メソッドから t4a-faer に直接接続。
+- **J**: Julia の AbstractArray / LinearAlgebra 汎用処理で利用可能。**t4a-faer の同名ルーチンを接続済みという意味ではない**。
+- **一部**: 一部の型・操作・呼び出し形式のみ対応。
+- **未**: Colmat の専用 API / Rust 接続がない。
+- J の動作確認は小さな Float64 行列によるスモーク確認。サイズ・全型・全オプションの保証ではない。
+
+## 1. データ型・構築・ビュー
+
+| 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
+|---|---|---|---|---|
+| 密行列の所有・構築 | `Mat<T>`, `MatRef/MatMut/MatUninitMut`, `from_fn`, `zeros`, `ones`, `identity`, `full` | `Matrix`, `zeros`, `ones`, `Matrix(I,m,n)`, `fill` | R: 4 型の `FaerMatrix{T}(A)`、`undef`（ゼロ初期化）、単位行列、`similar/zero/fill!` | 全構築形式・非標準スカラー型 |
+| 行・列ベクトル | `Row / Col`, `RowRef / ColRef`, `RowMut / ColMut` | `Vector`, 行ベクトル、`view` | R: `FaerVector` / `FaerRow`、4 型の所有・コピー・演算・容量管理 | 全 Row/Col 演算組合せ、任意の借用 Julia バッファ |
+| 対角行列 | `diag::{Diag, DiagRef, DiagMut}` | `Diagonal`, `diag`, `diagind` | R: `FaerDiagonal`、格納対角の演算・`filldiagonal!`・`diagonalview` | 対角×密行列などの専用接続、全 DiagRef/DiagMut 操作 |
+| 読み書き・形状 | `nrows/ncols/shape`, 添字、`row/col` | `size/axes/getindex/setindex!` | R: shape・要素読み書き、行・列の範囲ビュー | 全形状・stride trait の公開 |
+| コピー・Julia との変換 | `clone/to_owned/copy_from` | `copy/deepcopy/copyto!/Matrix` | R: 所有型の独立コピー・Julia 変換・範囲ビューの一括コピー/代入 | 借用 Julia バッファの恒久的ゼロコピー型。ビュー代入は入力を一時コピー |
+| 部分行列・分割・逆順 | `submatrix/subrows/subcols/split_at/reverse_rows/reverse_cols` | `view`, `@view`, slicing, `reverse` | R: `view` の範囲・間引き・逆順・入れ子、native copy/積/代入 | 任意の整数ベクトル添字は汎用処理。独立した split API |
+| 転置・共役・随伴 | `transpose/conjugate/adjoint` | `transpose/conj/adjoint`, `A'` | J: 遅延ラッパー。R: `conj`、転置・随伴のコピー、複素演算 | 積や求解で転置ラッパーを一時所有行列へコピーする経路あり |
+| 動的容量・サイズ変更 | `with_capacity/try_reserve/reserve/resize_with/truncate` | `sizehint!` 等に類する容量管理。Matrix に直接同等の公開 API はない | R: `reserve!`、`sizehint!`、`resize!(;fill)`、`truncate!` | 容量の照会・全低水準制御 |
+| 置換・行列交換 | `Perm/PermRef`, `permute_rows/cols`, `swap_rows/cols` | 置換ベクトル、`A[p,:]`, `A[:,p]` | J: 添字処理による操作の基盤 | 未: Rust 置換型、置換・交換ルーチンの専用接続 |
+| スカラー型 | `f32/f64`, `c32/c64`、`fx128/cx128` の公開型エイリアス、generic field traits | `Float32/Float64/ComplexF32/ComplexF64` 等 | R: Float32 / Float64 / ComplexF32 / ComplexF64 の所有・演算・分解 | fx128/cx128、任意の field traits |
+
+## 2. 基本演算・集約・積
+
+| 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
+|---|---|---|---|---|
+| 加算・減算・符号 | 行列演算、要素操作 | `A+B`, `A-B`, `-A` | R: 4 型の加減算・符号と mixed-type promotion | 全種類の外部配列との組合せの専用最適化 |
+| スカラー倍・除算 | `Scale`、行列スカラー演算 | `α*A`, `A*α`, `A/α` | R: 実数・複素数スカラーと型 promotion | 非標準スカラー型 |
+| 行列積 | `linalg::matmul::{matmul,matmul_with_conj}` | `A*B`, `mul!` | R: 4 型の行列積、3/5 引数 `mul!`、alias 対応 | `mul!` は一時結果を割り当てる。構造化積・全 mixed-operand の最適化 |
+| 行列ベクトル積 | 同上、Row/Col ビュー | `A*x`, `mul!(y,A,x)` | R: `FaerMatrix * FaerVector` と範囲ビュー、alias-safe ベクトル `mul!` | 全行ベクトル・構造化型・外部配列との組合せ |
+| 内積 | `matmul::dot::inner_prod` | `dot(x,y)` | R: 行列・所有ベクトル・行・対角の `dot`、複素数の第 1 引数を共役 | 借用ベクトルビューの専用 dot 経路 |
+| 要素ごとの map / zip | `map/for_each`, `zip!/unzip!/Zip!` | `map`, `map!`, broadcast `f.(A)` | J: broadcast 動作確認 | Rust バルク処理の専用接続。要素単位 FFI、Julia Matrix の出力になる場合がある |
+| ノルム | `norm_l2/squared_norm_l2/norm_l1/norm_max` | `norm(A)`, `sum(abs2,A)`, `norm(A,1/Inf)` | R: 4 型の `norm(A,1/2/Inf)`。複素数は Julia の絶対値規約 | その他の p の専用経路。Frobenius norm と `opnorm(A,2)` は別 |
+| 和・最大・最小・検査 | `sum/max/min/is_all_finite/has_nan/is_identity` | `sum/maximum/minimum`, `all(isfinite,A)`, `any(isnan,A)`, `isone` 相当 | R: 和・軸別和、Float64 の extrema・finite/NaN/identity/symmetry 検査 | 集約・検査の全型・全オプションは要個別照合 |
+| 行列式 | `MatRef::determinant(par)` | `det`, 関連: `logdet/logabsdet` | R: `det`、分解を使う `logabsdet/logdet`、複素位相対応 | 高度な引数・エラー規約の網羅 |
+| トレース | diagonal ビュー＋集約で構成 | `tr(A)` | R: `tr(A)` | 全特殊構造の最適化 |
+| Kronecker 積 | `MatRef::kron`, `linalg::kron::kron` | `kron(A,B)` | R: 4 型・型 promotion の `kron(A,B)` | 疎行列・ビューの専用経路 |
+| 三角・構造指定の行列積 | `matmul::triangular` | 三角ラッパーとの積、BLAS の構造化積に相当 | — | 未: 専用接続 |
+
+## 3. 密行列の分解・固有値
+
+| 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
+|---|---|---|---|---|
+| 部分ピボット LU | `partial_piv_lu`, `PartialPivLu::{L,U,P}` | `lu(A)` | R: 再利用可能な `lu`、L/U/p/P、求解・逆行列・再構成 | 破壊的 `lu!`、全オプション |
+| 完全ピボット LU | `full_piv_lu`, `FullPivLu::{L,U,P,Q}` | 完全ピボット LU（標準 `lu(A)` と同一ではない） | R: `full_piv_lu`、L/U/p/q/P、求解・再構成 | 全低水準オプション・破壊的 API |
+| QR | `qr`, `Qr`, `Q_basis/Q_coeff/R/thin_R`, `compute_Q/compute_thin_Q` | `qr(A)`, `Matrix(F.Q)`, `F.R` | R: `qr`、Q/Qthin/R、分解の再利用・再構成 | Householder 格納形式の直接公開、破壊的 QR |
+| 列ピボット QR | `col_piv_qr`, `ColPivQr`, `P` | `qr(A,ColumnNorm())` | R: `qr(A,ColumnNorm())`、置換・因子・求解 | 独立したランク判定・全許容誤差インターフェース |
+| Cholesky LLᴴ | `llt`, `Llt`, `L` | `cholesky(Hermitian(A))` | R: `cholesky`、Hermitian/Symmetric の指定三角、分解の再利用 | 複素対称非 Hermitian と全オプションは要照合 |
+| ピボット付き Cholesky | `cholesky::llt_pivoting::{factor,solve,inverse,reconstruct}` | `cholesky(Hermitian(A),RowMaximum())` に相当 | — | 未 |
+| LDLᴴ | `ldlt`, `Ldlt::{L,D}` | `ldlt` に相当。ただし Julia 標準の対象構造・ピボット規約と要照合 | R: `ldlt`、L/D・求解・再構成 | 複素対称非 Hermitian、全オプション |
+| ピボット付きブロック LDLᴴ | `lblt`, `Lblt::{L,B_diag,B_subdiag,P}` | `bunchkaufman(Hermitian(A))` に相当 | R: `bunchkaufman`、ブロック D・置換・求解・再構成 | 全 Julia 規約・オプションの網羅 |
+| thin / full SVD | `thin_svd/svd`, `Svd::{U,S,V}` | `svd(A;full=false/true)` | R: 4 型の `svd(::FaerMatrix)`、thin/full、空行列、互換 `faer_svd` | 分解因子は Julia 配列。Rust 分解オブジェクトの保持、Julia の alg/tolerance キーワードは未対応 |
+| 特異値のみ | `singular_values` | `svdvals(A)` | R: 4 型の `svdvals`、実数の特異値を返す | 並列 team・alg キーワード |
+| 自己随伴固有値分解・固有値のみ | `self_adjoint_eigen/self_adjoint_eigenvalues`, `SelfAdjointEigen` | `eigen/eigvals(Hermitian(A))` | R: `eigen/eigvals(Hermitian(A))`、指定三角・4 型 | 複素対称非 Hermitian、全キーワード |
+| 一般固有値分解・固有値のみ | `eigen/eigenvalues`, `Eigen` | `eigen/eigvals(A)` | R: 4 型の `eigen/eigvals(A)` | balancing 等の全制御項目 |
+| 自己随伴一般化固有値 | `self_adjoint_generalized_eigen/self_adjoint_generalized_eigenvalues` | `eigen/eigvals(Hermitian(A),Hermitian(B))` | R: Hermitian ペアの `eigen/eigvals(A,B)` | 全構造・高度な失敗規約の網羅 |
+| 一般化固有値 | `generalized_eigen`, `GeneralizedEigen::{U,S_a,S_b}` | `eigen(A,B)`, `eigvals(A,B)` | R: `eigen/eigvals(A,B)` | α/β の公開、無限・不定固有値の詳細な規約と網羅テスト |
+| Schur・並べ替え | `evd::{hessenberg_schur_real/cplx,reorder_schur_real/cplx,eigenvectors_from_schur_*}` | `schur`, `ordschur`, Schur からの固有ベクトル | — | 未: 専用 Schur 分解 API |
+| 一般化 Schur / QZ | `gevd::{gen_hessenberg,qz_real,qz_cplx}`, `hessenberg_to_qz` | `schur(A,B)` | — | 未 |
+
+## 4. 求解・逆行列・分解の再利用
+
+| 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
+|---|---|---|---|---|
+| 正方連立方程式 | `Solve::solve/solve_in_place` | `A\B`, `ldiv!` | R: `A\B`、再利用可能な `F\B`、alias-safe `ldiv!` | 真の無割当 in-place 求解・全引数形式 |
+| 共役・転置・随伴の求解 | `solve_conjugate/solve_transpose/solve_adjoint` と in-place 版 | `conj(A)\B`, `transpose(A)\B`, `A'\B` | R: 転置・随伴分解の求解、行列ラッパーの求解 | 行列ラッパーはコピー経由。全共役 in-place 形式 |
+| 右側からの求解 | `rsolve_*_in_place` | `B/A`, `rdiv!` | R: `B/A`、`B/F`、`rdiv!` | 全型・全入力組合せの専用最適化 |
+| 最小二乗 | `SolveLstsq::{solve_lstsq,solve_lstsq_in_place,...}`（QR/SVD 等） | 長方形 `A\b`, `ldiv!` | R: 長方形の求解、QR と広幅・ランク不足時の SVD 経路 | 全アルゴリズム選択・許容誤差設定 |
+| 三角連立方程式 | `solve_{unit_}{lower,upper}_triangular_in_place`, `linalg::triangular_solve` | `LowerTriangular/UpperTriangular/UnitLowerTriangular/UnitUpperTriangular` の `\` | R: lower/upper/unit の三角ラッパーの求解 | 全 mixed-operand と低水準 scratch 公開 |
+| 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`、三角 inverse | 破壊的 inverse・全オプション |
+| 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | J: `pinv(A)` 動作確認 | Rust pseudoinverse 専用経路、許容誤差規約の対応 |
+| 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT 等から `FaerMatrix(F)` / `Matrix(F)` | 全分解形式（Schur・疎分解等） |
+| ランク・条件数 | SVD/QR などを組み合わせて構成（同名の高水準 API としては扱わない） | `rank/cond/opnorm` | R: `opnorm`。J: SVD を利用する `rank/cond` の基盤 | rank/cond の専用 API と全 p・許容誤差規約 |
+
+## 5. 疎行列
+
+| 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
+|---|---|---|---|---|
+| CSC・CSR、所有・借用・構築 | `SparseColMat/SparseRowMat` と Ref/Mut、`Triplet/Pair` | SparseArrays の `SparseMatrixCSC/sparse`。CSR は直接同じ標準型ではない | — | 未: Rust の疎行列ラッパー・無 densify の変換 |
+| 数値を持たない疎構造 | `SymbolicSparseColMat/RowMat` | sparsity pattern、symbolic analysis | — | 未 |
+| 疎加減算・構造の結合 | `sparse::ops::{add,sub,add_assign,sub_assign,union_symbolic,...}` | 疎行列の `+/-` | — | 未 |
+| 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | — | 未 |
+| 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | — | 未: symbolic/numeric の分離と再利用 |
+| 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | — | 未 |
+| 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | — | 未 |
+| 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | — | 未 |
+| Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | — | 未: ordering を独立に公開する API |
+
+## 6. Matrix-free・反復法
+
+| 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
+|---|---|---|---|---|
+| 線形作用素・双方向作用素 | `matrix_free::{LinOp,BiLinOp}` | `mul!` を持つ作用素型相当。LinearAlgebra に同一の trait はない | — | 未 |
+| 前処理 | `Precond/BiPrecond/IdentityPrecond` | 反復法の前処理（標準外） | — | 未 |
+| 共役勾配法 | `conjugate_gradient::{conjugate_gradient,CgParams,CgInfo,CgError}` | CG solver（標準外） | — | 未 |
+| BiCGSTAB | `bicgstab::{bicgstab,BicgParams,BicgInfo,BicgError}` | BiCGSTAB solver（標準外） | — | 未 |
+| LSMR | `lsmr::{lsmr,LsmrParams,LsmrInfo,LsmrError}` | 最小二乗反復 solver（標準外） | — | 未 |
+| 部分固有値・部分 SVD | `matrix_free::eigen::{partial_eigen,partial_self_adjoint_eigen,partial_svd}` と params/info/scratch | 部分スペクトルを求める Krylov 法（標準外） | — | 未 |
+
+## 7. 低水準の数値プリミティブ
+
+| 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
+|---|---|---|---|---|
+| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | — | 未: 真に入力ストレージを書き換える分解と caller-owned scratch |
+| Householder | `householder::make_householder_in_place/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | — | 未 |
+| Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | — | 未 |
+| Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | — | 未 |
+| 対称三重対角化・三重対角 EVD | `evd::tridiag::tridiag_in_place`, `tridiagonal_self_adjoint_evd` | `SymTridiagonal`、構造化固有値分解 | — | 未 |
+| 二重対角化・二重対角 SVD | `svd::bidiag::bidiag_in_place`, `bidiagonal_svd` | `Bidiagonal`、LAPACK bidiagonal SVD 相当 | — | 未 |
+| Pfaffian | `linalg::pfaffian::{pfaffian,pfaffian_scratch,PfaffianError}` | 反対称行列の Pfaffian。LinearAlgebra に直接同名の高水準 API はない | R: `pfaffian`、反対称性の検査・複素対応 | scratch・低水準アルゴリズム制御 |
+
+## 8. 並列実行・統計・I/O・補助 API
+
+| 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
+|---|---|---|---|---|
+| 逐次実行 | `Par::Seq` | 同期・逐次の数値処理 | R: 全 native 数値処理 | thread budget の公開設定なし |
+| 呼び出し側所有の並列 team | `Par::Team`, `team::with_team`, `Par::reborrow`（threadteam feature） | Julia task/thread や BLAS thread 設定と関心は近いが、直接同一ではない | — | 未: team 所有・再利用。現行 Cargo features では threadteam 無効 |
+| 行・列の平均・分散 | `stats::{col_mean,row_mean,col_varm,row_varm,NanHandling}` | Statistics の `mean/varm` と dims/NaN 規約の対応 | — | 未: native 統計接続 |
+| 乱数・直交/ユニタリ行列の生成 | `CwiseMat/Col/RowDistribution`, `ComplexDistribution`, `UnitaryMat`（rand feature） | Random の `rand/randn`、ランダム直交行列の生成相当 | — | 未: native 乱数生成。rand feature 無効 |
+| NPY 読み込み・ビュー | `io::npy::{Npy,FromNpy,...}`, `as_aligned_ref/to_mat`（npy feature） | NPY 対応 I/O（Julia 標準外） | — | 未: I/O 接続。npy feature 無効 |
+| 型・形状・stride・共役・蓄積指定 | `Shape/Stride/Idx/IdxInc/MaybeIdx`, `ContiguousFwd/Bwd`, `Conj/Accum/Side`, `Spec/Auto` | axes/strides、BLAS の共役・αβ・上下三角指定に相当 | 一部: サイズ、1-based 添字への変換、mul! の αβ | Rust の型レベル shape/stride、全制御項目の公開 |
+| リテラル・連結・zip マクロ | `mat!/row!/col!`, `concat!`, `zip!/unzip!/Zip!` | 配列リテラル、`hcat/vcat`、broadcast/zip | Julia 配列から FaerMatrix を構築可能 | Rust マクロ自体を Julia に移植する API は未提供 |
+
+## 判定上の注意
+
+- 「R」は専用 Rust 経路、「J」は Julia 汎用実装であり、区別する。一部の操作は一時所有行列へコピーする。
+- `FaerMatrix` は上記 4 型を保持する。疎入力を密行列化できても疎行列サポートには数えない。
+- Cargo は `default-features=false, features=["std","linalg"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
+- SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
+- 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
+- Schur/QZ、疎行列、matrix-free、破壊的分解・scratch、並列 team、統計・乱数・NPY は今後の実装対象。
+- RustCall の阻害要因と回避策: [#564](https://github.com/AtelierArith/RustCall.jl/issues/564)、[#565](https://github.com/AtelierArith/RustCall.jl/issues/565)。
+
+## ソース
+
+- [Julia との公式移行対応表（調査コミット固定）](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/docs/migration/julia.md)
+- [高水準 dense solver API](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/solvers.rs)
+- [MatRef の変換・reduction・determinant・kron](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/mat/matref.rs)
+- [低水準 linalg 公開モジュール](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/mod.rs)
+- [疎行列 solver](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/sparse/solvers.rs)
+- [matrix-free 公開モジュール](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/operator/mod.rs)
+- [stats](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/stats/mod.rs)
+- Colmat 検証済みコミットの調査対象: `src/Colmat.jl`, `src/matrix.jl`, `deps/rust/src/lib.rs`, `deps/rust/Cargo.toml`, `test/runtests.jl`, `test/matrix.jl`。
