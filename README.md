@@ -576,3 +576,26 @@ RustCall v0.9.1 の制限として、受信オブジェクトを持つメソッ�
 [#565](https://github.com/AtelierArith/RustCall.jl/issues/565) に報告しています。
 現在は新しい出力オブジェクトに結果を書き込み、入力の所有者を `GC.@preserve` で
 保持した上でポインタを借用する方法を使用しています。
+
+### Native linear operators and conjugate gradients
+
+`FaerLinearOperator` owns a snapshot of a dense, CSC/CSR sparse, diagonal, or
+identity operator. Sparse coefficients stay sparse during multiplication and CG.
+A preconditioner applies an approximate inverse:
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A = spdiagm(-1 => fill(-1.0, 99), 0 => fill(4.0, 100), 1 => fill(-1.0, 99))
+op = FaerLinearOperator(A)
+b = ones(100)
+result = cg(op, b; M = diagonal_preconditioner(diag(A)))
+@assert issuccess(result)
+@assert A * result.x ≈ b
+@assert op * b ≈ A * b
+```
+
+CG requires a Hermitian positive definite operator and preconditioner action.
+`cg!` uses its destination as the initial guess. Failed checked solves throw
+`FaerCgError`, whose `result` contains the last iterate and residual diagnostics;
+`check=false` returns that result directly. Convergence includes an independently
+recomputed true residual check. Julia function callbacks are not yet supported.

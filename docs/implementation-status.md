@@ -596,3 +596,14 @@ files using ParallelTestRunner.jl and 16 workers**. The sequence suite contribut
 13432 assertions. Existing elementary Householder tests pass after shared helper
 integration. README Julia examples, JuliaFormatter, `cargo fmt --check`,
 `git diff --check` and method ambiguity checks pass. Dependency sources are clean.
+
+### Native operator adapters and CG
+
+Added owned `FaerLinearOperator` adapters for dense, CSC/CSR, diagonal and
+implicit identity storage, native `LinOp`/`BiLinOp` products, transpose/adjoint,
+`mul!`, and native in-place preconditioner application. Added inverse-diagonal
+and identity preconditioners and native block conjugate gradients through
+`cg`/`cg!`, with retained failure iterates and independently recomputed residuals.
+Arbitrary Julia callbacks, composed operators, other iterative solvers and
+partial spectra remain unimplemented. Focused operator tests pass 348 assertions;
+the full ParallelTestRunner suite passes 49,266 assertions across 26 files.
