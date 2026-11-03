@@ -1595,3 +1595,36 @@ native tests and all 48 README Julia blocks pass. Cargo check, Julia/Rust
 formatting and git diff --check pass. The frozen 76-row inventory and dependency
 sources are unchanged. Remaining spectral/workspace controls and the full
 Issue #1 objective are still incomplete.
+
+## Caller-owned scratch for saved spectral pseudoinverses
+
+`pinv(F::FaerSpectralFactor;scratch=...,atol,rtol,team)` now reuses caller-owned
+aligned workspace for both retained SVD and self-adjoint EVD. Requirement
+queries, factories and reserve accept `pinv,F` and the actual team. The native
+query validates owner dtype/kind/shape before writing byte/alignment metadata;
+execution repeats that validation and borrows OwnedScratch mutably. Kernel
+workspace comes directly from its MemStack. No SVD/EVD is repeated, no implicit
+reserve occurs, and the independent native result matrix allocates separately.
+
+The existing backend-owned path and new caller-owned path share the same
+pseudoinverse kernel/tolerance implementation. Empty factors skip the kernel
+but still require an open initialized workspace. Copy/deepcopy workspaces are
+independent and reusable; source/factor and scratch ownership remain separate.
+Native factor construction and direct matrix pinv(A) retain their existing
+workspace interfaces and are not claimed covered by this addition.
+
+A native test verifies repeated saved-SVD/EVD pseudoinverse calls preserve the
+workspace address. Insufficient capacity preserves the preexisting output,
+and forged factor dimensions do not modify query sentinels. No new upstream
+RustCall or faer defect was observed; dependency sources remain unchanged.
+
+Validation: canonical `Pkg.test(;allow_reresolve=false)` passes **76,619
+assertions across 57 files**, using ParallelTestRunner 2.10.0 with 16 workers
+on Julia 1.13.3 / RustCall 0.9.2. The new file contributes 993 assertions for
+four scalar types, thin/full empty/tall/wide/rank-deficient SVD, selected
+triangles and indefinite/zero self-adjoint spectra, repeated buffers, workspace
+copy/deepcopy, capacity/alignment errors, explicit reserve, tolerance and
+owner/shape checks, and 64-dimensional retained-factor reconstruction kernels.
+Method ambiguity checks, all nine native tests and 49 README Julia blocks
+pass. Cargo check, Julia/Rust formatting and git diff --check pass. The frozen
+inventory retains 76 rows. The full Issue #1 objective remains incomplete.

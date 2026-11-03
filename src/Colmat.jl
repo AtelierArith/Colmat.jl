@@ -234,5 +234,6 @@ include("random.jl")
 include("npy.jl")
 include("reconstruction.jl")
 include("spectral_factors.jl")
+include("spectral_pinv_workspace.jl")
 
 end

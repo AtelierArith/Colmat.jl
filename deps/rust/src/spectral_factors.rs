@@ -1,12 +1,13 @@
 //! Reusable owned faer SVD and self-adjoint EVD objects.
 use crate::pseudoinverse::ToleranceReal;
 use crate::typed::{finite, hermitian_copy, MatrixData, TypedMatrix};
+use crate::workspace::OwnedScratch;
 use crate::{guarded, teams::OwnedTeam, OwnedMatrix};
 use faer::diag::DiagRef;
-use faer::dyn_stack::{MemBuffer, MemStack};
+use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::linalg::solvers::{DenseSolveCore, SelfAdjointEigen, Svd};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Mat, MatRef, Par, Side};
+use faer::{Mat, MatRef, Par, ParShape, Side};
 use rustcall_julia_macros::julia;
 #[derive(Clone)]
 enum Decomposition<T> {
@@ -63,6 +64,64 @@ where
     fn eigen(&self) -> bool {
         matches!(self, Self::Eigen(_))
     }
+    fn pinv_requirement(&self, par: ParShape) -> StackReq {
+        let (m, n) = (self.u().nrows(), self.v().nrows());
+        if m == 0 || n == 0 {
+            return StackReq::EMPTY;
+        }
+        match self {
+            Self::Svd(_) => faer::linalg::svd::pseudoinverse_from_svd_scratch::<T>(m, n, par),
+            Self::Eigen(_) => {
+                faer::linalg::evd::pseudoinverse_from_self_adjoint_evd_scratch::<T>(n, par)
+            }
+        }
+    }
+    fn pinv_in(
+        &self,
+        atol: f64,
+        rtol: f64,
+        relative_f32: bool,
+        par: Par<'_>,
+        stack: &mut MemStack,
+    ) -> Result<Mat<T>, String> {
+        if atol.is_nan() || rtol.is_nan() || atol < 0.0 || rtol < 0.0 {
+            return Err("tolerances must be nonnegative and not NaN".into());
+        }
+        let (m, n) = (self.u().nrows(), self.v().nrows());
+        let mut out = Mat::zeros(n, m);
+        if m == 0 || n == 0 {
+            return Ok(out);
+        }
+        let cutoff = self
+            .s()
+            .column_vector()
+            .norm_max()
+            .cutoff(atol, rtol, relative_f32);
+        match self {
+            Self::Svd(f) => faer::linalg::svd::pseudoinverse_from_svd_with_tolerance(
+                out.as_mut(),
+                f.S(),
+                f.U(),
+                f.V(),
+                cutoff,
+                zero::<T::Real>(),
+                par,
+                stack,
+            ),
+            Self::Eigen(f) => {
+                faer::linalg::evd::pseudoinverse_from_self_adjoint_evd_with_tolerance(
+                    out.as_mut(),
+                    f.S(),
+                    f.U(),
+                    cutoff,
+                    zero::<T::Real>(),
+                    par,
+                    stack,
+                )
+            }
+        }
+        Ok(out)
+    }
     fn part(
         &self,
         part: i32,
@@ -79,57 +138,8 @@ where
             1 => Ok(self.u().to_owned()),
             2 => Ok(self.v().to_owned()),
             3 => {
-                if atol.is_nan() || rtol.is_nan() || atol < 0.0 || rtol < 0.0 {
-                    return Err("tolerances must be nonnegative and not NaN".into());
-                }
-                let (m, n) = (self.u().nrows(), self.v().nrows());
-                let mut out = Mat::zeros(n, m);
-                if m == 0 || n == 0 {
-                    return Ok(out);
-                }
-                let cutoff = self
-                    .s()
-                    .column_vector()
-                    .norm_max()
-                    .cutoff(atol, rtol, relative_f32);
-                match self {
-                    Self::Svd(f) => {
-                        let mut mem =
-                            MemBuffer::new(faer::linalg::svd::pseudoinverse_from_svd_scratch::<T>(
-                                m,
-                                n,
-                                par.shape(),
-                            ));
-                        faer::linalg::svd::pseudoinverse_from_svd_with_tolerance(
-                            out.as_mut(),
-                            f.S(),
-                            f.U(),
-                            f.V(),
-                            cutoff,
-                            zero::<T::Real>(),
-                            par,
-                            MemStack::new(&mut mem),
-                        );
-                    }
-                    Self::Eigen(f) => {
-                        let mut mem = MemBuffer::new(
-                            faer::linalg::evd::pseudoinverse_from_self_adjoint_evd_scratch::<T>(
-                                n,
-                                par.shape(),
-                            ),
-                        );
-                        faer::linalg::evd::pseudoinverse_from_self_adjoint_evd_with_tolerance(
-                            out.as_mut(),
-                            f.S(),
-                            f.U(),
-                            cutoff,
-                            zero::<T::Real>(),
-                            par,
-                            MemStack::new(&mut mem),
-                        );
-                    }
-                }
-                Ok(out)
+                let mut memory = MemBuffer::new(self.pinv_requirement(par.shape()));
+                self.pinv_in(atol, rtol, relative_f32, par, MemStack::new(&mut memory))
             }
             _ => Err("unknown spectral factor component".into()),
         }
@@ -491,5 +501,253 @@ mod tests {
             .spectral_values(output.as_mut_ptr().cast(), 3, 0, false)
             .is_err());
         assert_eq!(output, original);
+    }
+}
+
+impl OwnedSpectral {
+    fn pinv_requirement(
+        &self,
+        rows: usize,
+        cols: usize,
+        tag: i32,
+        eigen: bool,
+        par: ParShape,
+    ) -> Result<StackReq, String> {
+        self.check(tag, eigen)?;
+        match self.data()? {
+            SpectralData::F32(f) => {
+                if (f.u().nrows(), f.v().nrows()) != (rows, cols) {
+                    return Err("spectral factor shape mismatch".into());
+                }
+                Ok(f.pinv_requirement(par))
+            }
+            SpectralData::F64(f) => {
+                if (f.u().nrows(), f.v().nrows()) != (rows, cols) {
+                    return Err("spectral factor shape mismatch".into());
+                }
+                Ok(f.pinv_requirement(par))
+            }
+            SpectralData::C32(f) => {
+                if (f.u().nrows(), f.v().nrows()) != (rows, cols) {
+                    return Err("spectral factor shape mismatch".into());
+                }
+                Ok(f.pinv_requirement(par))
+            }
+            SpectralData::C64(f) => {
+                if (f.u().nrows(), f.v().nrows()) != (rows, cols) {
+                    return Err("spectral factor shape mismatch".into());
+                }
+                Ok(f.pinv_requirement(par))
+            }
+        }
+    }
+    fn pinv_workspace(
+        &self,
+        scratch: &mut OwnedScratch,
+        rows: usize,
+        cols: usize,
+        tag: i32,
+        eigen: bool,
+        atol: f64,
+        rtol: f64,
+        relative_f32: bool,
+        par: Par<'_>,
+    ) -> Result<MatrixData, String> {
+        let req = self.pinv_requirement(cols, rows, tag, eigen, par.shape())?;
+        let stack = scratch.stack(req)?;
+        Ok(match self.data()? {
+            SpectralData::F32(f) => {
+                MatrixData::F32(f.pinv_in(atol, rtol, relative_f32, par, stack)?)
+            }
+            SpectralData::F64(f) => {
+                MatrixData::F64(f.pinv_in(atol, rtol, relative_f32, par, stack)?)
+            }
+            SpectralData::C32(f) => {
+                MatrixData::C32(f.pinv_in(atol, rtol, relative_f32, par, stack)?)
+            }
+            SpectralData::C64(f) => {
+                MatrixData::C64(f.pinv_in(atol, rtol, relative_f32, par, stack)?)
+            }
+        })
+    }
+}
+#[julia]
+impl OwnedSpectral {
+    #[julia]
+    pub fn spectral_pinv_requirements(
+        &self,
+        rows: usize,
+        cols: usize,
+        tag: i32,
+        eigen: bool,
+        out: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let par = Par::Seq;
+            let req = self.pinv_requirement(rows, cols, tag, eigen, par.shape())?;
+            unsafe {
+                out.write(req.size_bytes());
+                out.add(1).write(req.align_bytes());
+            }
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn spectral_pinv_requirements_team(
+        &self,
+        rows: usize,
+        cols: usize,
+        tag: i32,
+        eigen: bool,
+        out: *mut usize,
+        team: &OwnedTeam,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let req =
+                team.execute(|par| self.pinv_requirement(rows, cols, tag, eigen, par.shape()))??;
+            unsafe {
+                out.write(req.size_bytes());
+                out.add(1).write(req.align_bytes());
+            }
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn spectral_pinv_workspace(
+        &mut self,
+        f: &OwnedSpectral,
+        scratch: &mut OwnedScratch,
+        rows: usize,
+        cols: usize,
+        tag: i32,
+        eigen: bool,
+        atol: f64,
+        rtol: f64,
+        relative_f32: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let par = Par::Seq;
+            let result = f.pinv_workspace(
+                scratch,
+                rows,
+                cols,
+                tag,
+                eigen,
+                atol,
+                rtol,
+                relative_f32,
+                par,
+            )?;
+            if let MatrixData::F64(a) = result {
+                self.matrix = a;
+            } else {
+                return Err("Float64 spectral output dtype mismatch".into());
+            }
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn spectral_pinv_workspace_team(
+        &mut self,
+        f: &OwnedSpectral,
+        scratch: &mut OwnedScratch,
+        rows: usize,
+        cols: usize,
+        tag: i32,
+        eigen: bool,
+        atol: f64,
+        rtol: f64,
+        relative_f32: bool,
+        team: &OwnedTeam,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let result = team.execute(|par| {
+                f.pinv_workspace(
+                    scratch,
+                    rows,
+                    cols,
+                    tag,
+                    eigen,
+                    atol,
+                    rtol,
+                    relative_f32,
+                    par,
+                )
+            })??;
+            if let MatrixData::F64(a) = result {
+                self.matrix = a;
+            } else {
+                return Err("Float64 spectral output dtype mismatch".into());
+            }
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn spectral_pinv_workspace(
+        &mut self,
+        f: &OwnedSpectral,
+        scratch: &mut OwnedScratch,
+        rows: usize,
+        cols: usize,
+        tag: i32,
+        eigen: bool,
+        atol: f64,
+        rtol: f64,
+        relative_f32: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let par = Par::Seq;
+            let result = f.pinv_workspace(
+                scratch,
+                rows,
+                cols,
+                tag,
+                eigen,
+                atol,
+                rtol,
+                relative_f32,
+                par,
+            )?;
+            self.data = Some(result);
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn spectral_pinv_workspace_team(
+        &mut self,
+        f: &OwnedSpectral,
+        scratch: &mut OwnedScratch,
+        rows: usize,
+        cols: usize,
+        tag: i32,
+        eigen: bool,
+        atol: f64,
+        rtol: f64,
+        relative_f32: bool,
+        team: &OwnedTeam,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let result = team.execute(|par| {
+                f.pinv_workspace(
+                    scratch,
+                    rows,
+                    cols,
+                    tag,
+                    eigen,
+                    atol,
+                    rtol,
+                    relative_f32,
+                    par,
+                )
+            })??;
+            self.data = Some(result);
+            Ok(())
+        })
     }
 }

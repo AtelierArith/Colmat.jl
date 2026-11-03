@@ -1407,7 +1407,7 @@ close(P)
 Julia result types. Native SVD supports thin/full and rectangular/empty shapes;
 native self-adjoint EVD honors each selected triangle and `sortby`. Real
 `Symmetric` wrappers are supported too. Construction accepts `team=` and uses
-backend-owned workspace; caller `scratch=` is not supported in this mode.
+backend-owned workspace; caller `scratch=` is not supported for construction.
 
 `pinv(F; atol, rtol, team)` reuses stored factors through faer's pseudoinverse
 reconstruction kernel. `reconstruct(F; team)`, `Matrix(F)`, typed conversions,
@@ -1417,4 +1417,34 @@ factors immediately. Components are independent copies: U/V/vectors are native
 matrices, S/values are real Julia vectors. Eigen sorting applies a common
 permutation to values/vectors. Extracted components survive closing F; modifying
 them does not update F. General EVD native ownership, native bang construction
-and caller-controlled spectral-owner workspace remain unexposed.
+and caller-controlled spectral-owner construction workspace remain unexposed.
+
+### Reusable workspace for saved-factor pseudoinverses
+
+```julia
+using Colmat, LinearAlgebra
+A0 = [1.0 2; 3 4; 5 6]
+F = svd(FaerMatrix(A0); native=true)
+FaerTeam(2) do team
+    workspace = FaerScratch(pinv, F; team=team)
+    P = pinv(F; scratch=workspace, team=team)
+    @assert A0 * Matrix(P) * A0 ≈ A0
+    @assert scratch_capacity(workspace) == scratch_requirements(pinv, F; team=team)
+    reserve!(workspace, pinv, F; team=team)
+    @assert Matrix(pinv(F; scratch=workspace, team=team)) ≈ Matrix(P)
+    close(P)
+    close(workspace)
+end
+close(F)
+```
+
+`pinv(F; scratch=workspace, atol, rtol, team)` consumes caller-owned aligned
+storage for retained native SVD and self-adjoint EVD factors. The query reads
+actual factor metadata and team conditions. `FaerScratch(pinv,F)` and
+`reserve!(workspace,pinv,F)` use the same requirements as execution; insufficient
+capacity/alignment is rejected and the workspace never grows implicitly.
+Repeated calls reuse the allocated buffer and do not repeat SVD/EVD. Thresholds
+apply to the stored singular/eigenvalues. The independent result matrix allocates
+outside scratch. Empty factors need no kernel workspace but still require an
+open buffer. This interface controls saved-factor pseudoinverse workspace;
+native factor construction and direct `pinv(A)` keep their existing interfaces.

@@ -4,10 +4,10 @@
 
 Retain an actual Rust-owned faer SVD or self-adjoint EVD. Components are
 independent copies: SVD exposes native U/V, Julia real S, and native-adjoint Vt;
-EVD exposes native vectors and Julia real values. `pinv(F;atol,rtol,team)` and
+EVD exposes native vectors and Julia real values. `pinv(F;atol,rtol,team,scratch)` and
 `reconstruct(F;team)` reuse stored factors without another decomposition.
-Construction uses backend-owned workspace; caller `scratch` is unsupported in
-this mode. Default calls retain their existing Julia factorization results.
+Construction uses backend-owned workspace; caller `scratch` is unsupported
+for construction. Saved-factor pseudoinverse reconstruction accepts caller scratch. Default calls retain their existing Julia factorization results.
 """
 mutable struct FaerSpectralFactor{T,K,H} <: LinearAlgebra.Factorization{T}
     handle::Union{Nothing,H}
@@ -176,7 +176,10 @@ LinearAlgebra.pinv(
     atol::Real = 0,
     rtol::Real = _default_spectral_rtol(f, atol),
     team = nothing,
-) = _spectral_part(f, 3; atol, rtol, team)
+    scratch = nothing,
+) =
+    isnothing(scratch) ? _spectral_part(f, 3; atol, rtol, team) :
+    _spectral_pinv_with_scratch(f, scratch; atol, rtol, team)
 LinearAlgebra.svdvals(f::FaerSpectralFactor{T,:svd}) where {T} = f.S
 LinearAlgebra.eigvals(f::FaerSpectralFactor{T,:eigen}) where {T} = f.values
 LinearAlgebra.eigvecs(f::FaerSpectralFactor{T,:eigen}) where {T} = f.vectors
