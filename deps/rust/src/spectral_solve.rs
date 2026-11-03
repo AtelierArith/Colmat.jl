@@ -75,7 +75,7 @@ fn apply<T: ComplexField>(
     );
     Ok(out)
 }
-fn threshold<T: ComplexField>(
+pub(crate) fn threshold<T: ComplexField>(
     f: &Decomposition<T>,
     atol: f64,
     rtol: f64,
