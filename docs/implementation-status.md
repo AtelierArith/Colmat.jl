@@ -1846,3 +1846,24 @@ independent operand ownership and closure. Canonical Pkg.test passed 84,966
 assertions / 67 files with 16 workers. All 10 native tests and 55 README blocks
 passed, as did ambiguity detection, Julia/Rust formatting and git diff --check. Julia
 callbacks and remaining Issue #1/#2 functionality remain pending.
+
+### Retained LU inverse-action preconditioners
+
+`FaerLinearOperator(F)` accepts square nonsingular native partial-pivot LU
+factors and owns copies of L/U and pivots. Native LinOp/BiLinOp application calls
+the public low-level LU solve kernels with supplied scratch. No inverse matrix
+or refactorization is performed. Copy, composition, conjugation, transpose and
+adjoint retain the inverse-action contract. Scalar promotion converts saved
+L/U directly and preserves pivots, including inside composed operators. Source
+factors and inputs can be closed independently. CG requires a positive-definite
+inverse action; this requirement does not hold for arbitrary LU.
+
+Focused verification passed 167 assertions across four types, empty/singleton/
+square shapes, independent copy/close, CG, all scalar promotion pairs, transpose
+versus adjoint, singular and rectangular rejection. Canonical Pkg.test passed 85,133 assertions / 68 files with 16 workers.
+All 10 native tests and 56 README blocks passed, along with ambiguity detection,
+Julia/Rust formatting and git diff --check. An additional standalone 12-assertion
+check used A=[0 2;3 1] (complex variant adds 0.2im to A[1,2]) to verify
+row-pivoted normal/transpose/adjoint actions across all four types.
+Other dense and sparse decomposition preconditioners,
+callbacks and the remaining Issue #1/#2 work are still pending.
