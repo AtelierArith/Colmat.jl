@@ -164,14 +164,15 @@ end
 function _operator_coerce(op::FaerLinearOperator, ::Type{T}) where {T<:_NativeScalar}
     _handle(op)
     eltype(op)===T && return op
-    coefficients=_operator_coefficients(op)
-    converted=op.storage===:identity ? FaerLinearOperator(LinearAlgebra.I, size(op, 1); T) :
-              op.storage===:dense ? FaerLinearOperator(FaerMatrix{T}(coefficients)) :
-              op.storage in (:csc, :csr) ?
-              FaerLinearOperator(FaerSparseMatrix{T}(coefficients; format = op.storage)) :
-              FaerLinearOperator(FaerDiagonal{T}(Vector(coefficients)))
-    return op.transposed || op.conjugated ?
-           _operator_copy(converted, op.transposed, op.conjugated) : converted
+    h=RustCrate.OwnedLinearOperator()
+    _native_call(RustCrate.operator_promote, h, op, _tag(T))
+    return FaerLinearOperator{T,typeof(h)}(
+        h,
+        size(op),
+        op.storage,
+        op.transposed,
+        op.conjugated,
+    )
 end
 const _OperatorMatrix=_HouseholderMatrix
 const _OperatorVector=_HouseholderVector

@@ -1831,3 +1831,18 @@ MWE fails on b4fb784 with E0599; the patch passes both forced-variant integratio
 coverage and an executable doctest. This is an API extension, not a numerical
 bug. See docs/reproducers/faer-sparse-qr-symbolic-accessor.md. The dependency
 checkout remains unchanged; the upstream PR has not been adopted into Colmat.
+
+### Native operator tree scalar promotion
+
+Mixed scalar operator application and composition now widen native operator
+leaves recursively, preserving dense/CSC/CSR/diagonal/identity representation,
+composition structure and transpose/conjugate flags. No coefficient product is
+materialized for conversion. Matching scalar inputs retain their existing owner.
+Narrowing and complex-to-real conversions are rejected at the native boundary.
+
+Focused verification passed 400 assertions across all 16 scalar pairs and five
+leaf representations, including composed mixed RHS, nested mixed composition,
+independent operand ownership and closure. Canonical Pkg.test passed 84,966
+assertions / 67 files with 16 workers. All 10 native tests and 55 README blocks
+passed, as did ambiguity detection, Julia/Rust formatting and git diff --check. Julia
+callbacks and remaining Issue #1/#2 functionality remain pending.
