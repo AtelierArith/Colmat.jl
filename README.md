@@ -1277,6 +1277,35 @@ works for either. If the direct left driver produces nonfinite outputs
 ([faer #219](https://github.com/tensor4all/faer/issues/219)), Colmat recomputes the
 equivalent adjoint pencil with the native right driver. This reuses the selected
 scratch/team and allocates additional input/output copies. Invalid repeated left
-vectors can also use adjoint homogeneous nullspaces, including infinite values. Simultaneous left/right
-output and side selection for single matrices or destructive routines remain
-unexposed.
+vectors can also use adjoint homogeneous nullspaces, including infinite values. Simultaneous output is available with `side=:both` below. Side selection for
+single matrices or destructive routines remains unexposed.
+
+### Simultaneous left and right generalized eigenvectors
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([1.0 -3; 2 4])
+B = FaerMatrix([2.0 0.2; 0 1])
+FaerTeam(2) do team
+    workspace = FaerScratch(eigen, A, B; side=:both, team=team)
+    F = eigen(A, B; side=:both, scratch=workspace, team=team)
+    @assert Matrix(A) * F.right ≈ Matrix(B) * F.right * Diagonal(F.values)
+    @assert F.left' * Matrix(A) ≈ Diagonal(F.values) * F.left' * Matrix(B)
+    H = eigen(A, B; side=:both, homogeneous=true, scratch=workspace, team=team)
+    @assert Matrix(A) * H.right * Diagonal(H.β) ≈
+            Matrix(B) * H.right * Diagonal(H.α)
+    @assert Diagonal(H.β) * H.left' * Matrix(A) ≈
+            Diagonal(H.α) * H.left' * Matrix(B)
+    close(workspace)
+end
+```
+
+`side=:both` computes the two sides in one native generalized EVD call. It
+returns `(values,left,right)` for quotient values or `(α,β,left,right)` with
+`homogeneous=true`. Four scalar types, promotion, sorting and explicit teams
+are supported. Both sets of columns are independently normalized and share the
+same eigenvalue order; biorthogonal scaling is not imposed. Queries and
+constructors must include `side=:both`: real input needs an extra packed matrix
+inside the caller workspace. `reserve!(workspace, eigen, A, B; side=:both, team=team)`
+can enlarge an existing buffer. Julia output arrays and exceptional repeated-value
+SVD recovery allocate separately. Inputs are preserved.

@@ -8,29 +8,32 @@ use faer::traits::ComplexField;
 use faer::{MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 trait General: ComplexField {
-    fn requirement(n: usize, values: bool, par: ParShape) -> StackReq;
+    fn requirement(n: usize, values: bool, both: bool, par: ParShape) -> StackReq;
     unsafe fn compute(
         a: MatRef<'_, Self>,
         b: MatRef<'_, Self>,
         scratch: &mut OwnedScratch,
         u: *mut u8,
+        v: *mut u8,
         s: *mut u8,
         t: *mut u8,
         values: bool,
         left: bool,
+        both: bool,
         par: Par<'_>,
     ) -> Result<(), String>;
 }
 macro_rules! real_scalar {
     ($r:ty,$c:ty) => {
         impl General for $r {
-            fn requirement(n: usize, values: bool, par: ParShape) -> StackReq {
+            fn requirement(n: usize, values: bool, both: bool, par: ParShape) -> StackReq {
                 StackReq::all_of(&[
                     faer::linalg::temp_mat_scratch::<Self>(n, n),
                     faer::linalg::temp_mat_scratch::<Self>(n, n),
                     faer::linalg::temp_mat_scratch::<Self>(n, 2),
                     faer::linalg::temp_mat_scratch::<Self>(n, 1),
                     faer::linalg::temp_mat_scratch::<Self>(n, if values { 0 } else { n }),
+                    faer::linalg::temp_mat_scratch::<Self>(n, if both && !values { n } else { 0 }),
                     StackReq::any_of(&[
                         crate::qz::real_qz_scratch::<Self>(n, faer::auto!(Self)),
                         gevd::gevd_scratch::<Self>(
@@ -48,14 +51,16 @@ macro_rules! real_scalar {
                 b: MatRef<'_, Self>,
                 scratch: &mut OwnedScratch,
                 u: *mut u8,
+                v: *mut u8,
                 s: *mut u8,
                 t: *mut u8,
                 values: bool,
                 left: bool,
+                both: bool,
                 par: Par<'_>,
             ) -> Result<(), String> {
                 let n = a.nrows();
-                let stack = scratch.stack(Self::requirement(n, values, par.shape()))?;
+                let stack = scratch.stack(Self::requirement(n, values, both, par.shape()))?;
                 let (mut vals, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(n, 2, stack);
                 let (mut vecs, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(
                     n,
@@ -69,8 +74,15 @@ macro_rules! real_scalar {
                 let (mut bc, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(n, n, stack);
                 ac.as_mat_mut().copy_from(a);
                 bc.as_mat_mut().copy_from(b);
+                let (mut other, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(
+                    n,
+                    if both && !values { n } else { 0 },
+                    stack,
+                );
                 let (ul, ur) = if values {
                     (None, None)
+                } else if both {
+                    (Some(vecs.as_mat_mut()), Some(other.as_mat_mut()))
                 } else if left {
                     (Some(vecs.as_mat_mut()), None)
                 } else {
@@ -97,32 +109,43 @@ macro_rules! real_scalar {
                     t.cast::<Self>().add(j).write(val_beta.as_mat_ref()[(j, 0)]);
                 }
                 if !values {
-                    let mut j = 0;
-                    while j < n {
-                        if vals.as_mat_ref()[(j, 1)] == 0.0 {
-                            for i in 0..n {
-                                u.cast::<$c>()
-                                    .add(i + j * n)
-                                    .write(<$c>::new(vecs.as_mat_ref()[(i, j)], 0.0));
+                    for (index, (data, out, conjugate)) in [
+                        (vecs.as_mat_ref(), u, left || both),
+                        (other.as_mat_ref(), v, false),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
+                        if index == 1 && !both {
+                            continue;
+                        }
+                        let mut j = 0;
+                        while j < n {
+                            if vals.as_mat_ref()[(j, 1)] == 0.0 {
+                                for i in 0..n {
+                                    out.cast::<$c>()
+                                        .add(i + j * n)
+                                        .write(<$c>::new(data[(i, j)], 0.0));
+                                }
+                                j += 1;
+                            } else {
+                                if j + 1 >= n {
+                                    return Err("invalid real EVD conjugate-pair layout".into());
+                                }
+                                for i in 0..n {
+                                    let re = data[(i, j)];
+                                    let im = if conjugate {
+                                        -data[(i, j + 1)]
+                                    } else {
+                                        data[(i, j + 1)]
+                                    };
+                                    out.cast::<$c>().add(i + j * n).write(<$c>::new(re, im));
+                                    out.cast::<$c>()
+                                        .add(i + (j + 1) * n)
+                                        .write(<$c>::new(re, -im));
+                                }
+                                j += 2;
                             }
-                            j += 1;
-                        } else {
-                            if j + 1 >= n {
-                                return Err("invalid real EVD conjugate-pair layout".into());
-                            }
-                            for i in 0..n {
-                                let re = vecs.as_mat_ref()[(i, j)];
-                                let im = if left {
-                                    -vecs.as_mat_ref()[(i, j + 1)]
-                                } else {
-                                    vecs.as_mat_ref()[(i, j + 1)]
-                                };
-                                u.cast::<$c>().add(i + j * n).write(<$c>::new(re, im));
-                                u.cast::<$c>()
-                                    .add(i + (j + 1) * n)
-                                    .write(<$c>::new(re, -im));
-                            }
-                            j += 2;
                         }
                     }
                 }
@@ -134,14 +157,18 @@ macro_rules! real_scalar {
 macro_rules! complex_scalar {
     ($c:ty) => {
         impl General for $c {
-            fn requirement(n: usize, values: bool, par: ParShape) -> StackReq {
+            fn requirement(n: usize, values: bool, both: bool, par: ParShape) -> StackReq {
                 StackReq::all_of(&[
                     faer::linalg::temp_mat_scratch::<Self>(n, n),
                     faer::linalg::temp_mat_scratch::<Self>(n, n),
                     faer::linalg::temp_mat_scratch::<Self>(n, 1),
                     gevd::gevd_scratch::<Self>(
                         n,
-                        Vectors::No,
+                        if both && !values {
+                            Vectors::Yes
+                        } else {
+                            Vectors::No
+                        },
                         if values { Vectors::No } else { Vectors::Yes },
                         par,
                         Default::default(),
@@ -153,14 +180,16 @@ macro_rules! complex_scalar {
                 b: MatRef<'_, Self>,
                 scratch: &mut OwnedScratch,
                 u: *mut u8,
+                v: *mut u8,
                 s: *mut u8,
                 t: *mut u8,
                 values: bool,
                 left: bool,
+                both: bool,
                 par: Par<'_>,
             ) -> Result<(), String> {
                 let n = a.nrows();
-                let stack = scratch.stack(Self::requirement(n, values, par.shape()))?;
+                let stack = scratch.stack(Self::requirement(n, values, both, par.shape()))?;
                 let (mut ac, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(n, n, stack);
                 let (mut bc, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(n, n, stack);
                 ac.as_mat_mut().copy_from(a);
@@ -178,7 +207,24 @@ macro_rules! complex_scalar {
                         n as isize,
                     ))
                 };
-                let (ul, ur) = if left { (output, None) } else { (None, output) };
+                let second = if both && !values {
+                    Some(MatMut::from_raw_parts_mut(
+                        v.cast::<Self>(),
+                        n,
+                        n,
+                        1,
+                        n as isize,
+                    ))
+                } else {
+                    None
+                };
+                let (ul, ur) = if both {
+                    (output, second)
+                } else if left {
+                    (output, None)
+                } else {
+                    (None, output)
+                };
                 gevd::gevd_cplx(
                     ac.as_mat_mut(),
                     bc.as_mat_mut(),
@@ -203,12 +249,18 @@ real_scalar!(f32, faer::c32);
 real_scalar!(f64, faer::c64);
 complex_scalar!(faer::c32);
 complex_scalar!(faer::c64);
-fn dispatch(n: usize, tag: i32, values: bool, par: ParShape) -> Result<StackReq, String> {
+fn dispatch(
+    n: usize,
+    tag: i32,
+    values: bool,
+    both: bool,
+    par: ParShape,
+) -> Result<StackReq, String> {
     Ok(match tag {
-        0 => f32::requirement(n, values, par),
-        1 => f64::requirement(n, values, par),
-        2 => faer::c32::requirement(n, values, par),
-        3 => faer::c64::requirement(n, values, par),
+        0 => f32::requirement(n, values, both, par),
+        1 => f64::requirement(n, values, both, par),
+        2 => faer::c32::requirement(n, values, both, par),
+        3 => faer::c64::requirement(n, values, both, par),
         _ => return Err("invalid generalized EVD scalar".into()),
     })
 }
@@ -223,10 +275,11 @@ pub fn general_gevd_requirements(
     n: usize,
     tag: i32,
     values: bool,
+    both: bool,
     out: *mut usize,
 ) -> Result<(), String> {
     guarded(|| {
-        write_req(dispatch(n, tag, values, ParShape::Seq)?, out);
+        write_req(dispatch(n, tag, values, both, ParShape::Seq)?, out);
         Ok(())
     })
 }
@@ -238,11 +291,12 @@ impl OwnedTeam {
         n: usize,
         tag: i32,
         values: bool,
+        both: bool,
         out: *mut usize,
     ) -> Result<(), String> {
         guarded(|| {
             write_req(
-                self.execute(|par| dispatch(n, tag, values, par.shape()))??,
+                self.execute(|par| dispatch(n, tag, values, both, par.shape()))??,
                 out,
             );
             Ok(())
@@ -255,10 +309,12 @@ unsafe fn run<T: General>(
     scratch: &mut OwnedScratch,
     team: Option<&OwnedTeam>,
     u: *mut u8,
+    v: *mut u8,
     s: *mut u8,
     t: *mut u8,
     values: bool,
     left: bool,
+    both: bool,
     n: usize,
     tag: i32,
     actual: i32,
@@ -269,7 +325,7 @@ unsafe fn run<T: General>(
     if !a.is_all_finite() || !b.is_all_finite() {
         return Err("generalized EVD input must be finite".into());
     }
-    let mut compute = |par: Par<'_>| T::compute(a, b, scratch, u, s, t, values, left, par);
+    let mut compute = |par: Par<'_>| T::compute(a, b, scratch, u, v, s, t, values, left, both, par);
     if let Some(team) = team {
         team.execute(compute)?
     } else {
@@ -284,10 +340,12 @@ impl OwnedMatrix {
         b: &OwnedMatrix,
         scratch: &mut OwnedScratch,
         u: *mut u8,
+        v: *mut u8,
         s: *mut u8,
         t: *mut u8,
         values: bool,
         left: bool,
+        both: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
@@ -298,10 +356,12 @@ impl OwnedMatrix {
                 scratch,
                 None,
                 u,
+                v,
                 s,
                 t,
                 values,
                 left,
+                both,
                 n,
                 tag,
                 1,
@@ -315,10 +375,12 @@ impl OwnedMatrix {
         scratch: &mut OwnedScratch,
         team: &OwnedTeam,
         u: *mut u8,
+        v: *mut u8,
         s: *mut u8,
         t: *mut u8,
         values: bool,
         left: bool,
+        both: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
@@ -329,10 +391,12 @@ impl OwnedMatrix {
                 scratch,
                 Some(team),
                 u,
+                v,
                 s,
                 t,
                 values,
                 left,
+                both,
                 n,
                 tag,
                 1,
@@ -347,10 +411,12 @@ impl TypedMatrix {
         scratch: &mut OwnedScratch,
         team: Option<&OwnedTeam>,
         u: *mut u8,
+        v: *mut u8,
         s: *mut u8,
         t: *mut u8,
         values: bool,
         left: bool,
+        both: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
@@ -361,10 +427,12 @@ impl TypedMatrix {
                 scratch,
                 team,
                 u,
+                v,
                 s,
                 t,
                 values,
                 left,
+                both,
                 n,
                 tag,
                 0,
@@ -375,10 +443,12 @@ impl TypedMatrix {
                 scratch,
                 team,
                 u,
+                v,
                 s,
                 t,
                 values,
                 left,
+                both,
                 n,
                 tag,
                 1,
@@ -389,10 +459,12 @@ impl TypedMatrix {
                 scratch,
                 team,
                 u,
+                v,
                 s,
                 t,
                 values,
                 left,
+                both,
                 n,
                 tag,
                 2,
@@ -403,10 +475,12 @@ impl TypedMatrix {
                 scratch,
                 team,
                 u,
+                v,
                 s,
                 t,
                 values,
                 left,
+                both,
                 n,
                 tag,
                 3,
@@ -423,15 +497,17 @@ impl TypedMatrix {
         b: &TypedMatrix,
         scratch: &mut OwnedScratch,
         u: *mut u8,
+        v: *mut u8,
         s: *mut u8,
         t: *mut u8,
         values: bool,
         left: bool,
+        both: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            self.workspace_generalized(b, scratch, None, u, s, t, values, left, n, tag)
+            self.workspace_generalized(b, scratch, None, u, v, s, t, values, left, both, n, tag)
         })
     }
     #[julia]
@@ -441,15 +517,30 @@ impl TypedMatrix {
         scratch: &mut OwnedScratch,
         team: &OwnedTeam,
         u: *mut u8,
+        v: *mut u8,
         s: *mut u8,
         t: *mut u8,
         values: bool,
         left: bool,
+        both: bool,
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            self.workspace_generalized(b, scratch, Some(team), u, s, t, values, left, n, tag)
+            self.workspace_generalized(
+                b,
+                scratch,
+                Some(team),
+                u,
+                v,
+                s,
+                t,
+                values,
+                left,
+                both,
+                n,
+                tag,
+            )
         })
     }
 }

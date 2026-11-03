@@ -1432,3 +1432,44 @@ errors and dense 64-dimensional analytic spectra. Method ambiguity checks,
 all six native tests and all 44 README Julia blocks pass. Cargo check,
 Julia/Rust formatting and git diff --check pass. The frozen inventory retains
 76 rows and dependency sources remain unchanged. Issue #1 remains incomplete.
+
+## Simultaneous generalized left/right eigenvectors
+
+General native pairs now support `eigen(A,B;side=:both)`, returning independent
+Julia arrays `(values,left,right)`, or `(α,β,left,right)` with homogeneous mode.
+Both sides are produced by the same public native generalized EVD driver call,
+not two independently ordered decompositions. Four scalar types, promotion,
+sorting and explicit teams are supported. Left/right columns are independently
+normalized and receive the same eigenvalue permutation; biorthogonal scaling
+is not imposed.
+
+Workspace queries, factories and reserve accept `side=:right/:left/:both`.
+Real simultaneous output needs a second packed eigenvector matrix in caller
+scratch; complex output writes directly to the two Julia matrices. Native
+owner shape/tag validation precedes output writes. The scratch requirement
+uses the requested mode and actual team conditions; caller storage does not
+grow implicitly. Output arrays and exceptional repeated-value SVD recovery
+still allocate separately. Single-sided output retains its prior API.
+
+Packed real left vectors use conjugated imaginary components, while right
+vectors use the original packed imaginary components. Both native outputs are
+converted against the same alpha/beta sequence. The existing homogeneous
+nullspace recovery applies independently to invalid left/right columns. The
+known #219 left-only driver defect does not affect the tested simultaneous
+path, including the same dense 64-dimensional analytic pencil.
+
+Side selection for single matrices and destructive routines, remaining
+workspace/tuning controls and broader Issue #1 features remain unfinished.
+No new RustCall or faer defect was observed in this phase. Dependency sources
+and the frozen inventory are unchanged.
+
+Validation: `Pkg.test(;allow_reresolve=false)` passes **72,543 assertions
+across 53 files**, using ParallelTestRunner 2.10.0 and 16 workers on Julia
+1.13.3 / RustCall 0.9.2. The new file contributes 388 assertions covering four
+types, width one/two, empty/scalar/conjugate-pair systems, simultaneous left/
+right residuals, homogeneous sorting, repeated finite/infinite eigenvalues,
+dense 64-dimensional analytic spectra, promotion, insufficient workspace,
+reserve and owner errors. Method ambiguity checks pass. All six native Rust
+tests and 45 README Julia blocks pass. Cargo check, Julia/Rust formatting and
+git diff --check pass. The frozen inventory retains 76 rows and dependency
+sources are unchanged. The full Issue #1 goal remains active and incomplete.

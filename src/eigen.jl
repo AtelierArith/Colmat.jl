@@ -98,6 +98,9 @@ retaining the homogeneous pairs. `eigvals(A,B; homogeneous=true)` returns `(α,�
 With `side=:left`, `vectors` instead contains normalized left eigenvectors,
 satisfying `V'*A ≈ Diagonal(values)*V'*B`, or
 `Diagonal(β)*V'*A ≈ Diagonal(α)*V'*B` in homogeneous mode.
+With `side=:both`, compute both sides in one native driver call and return
+`(values,left,right)` or `(α,β,left,right)` in homogeneous mode. Query or
+construct scratch with `side=:both` to include both packed real outputs.
 Both modes accept reusable scratch and explicit teams. β=0 denotes an infinite
 eigenvalue when α≠0; α=β=0 is indeterminate. The homogeneous option applies to
 general native matrix pairs; bang routines retain their usual return types.

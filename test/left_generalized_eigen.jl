@@ -56,7 +56,7 @@ end
     F=eigen(a, b; side = :left)
     @test eltype(F.values)==ComplexF64
     @test F.vectors'*Matrix(a)≈Diagonal(F.values)*F.vectors'*Matrix(b)
-    @test_throws ArgumentError eigen(a, b; side = :both)
+    @test_throws ArgumentError eigen(a, b; side = :invalid)
     close(a)
     @test_throws ArgumentError eigen(a, b; side = :left)
     for T in (Float32, Float64, ComplexF32, ComplexF64)

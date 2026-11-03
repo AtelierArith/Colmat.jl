@@ -1,14 +1,24 @@
 """
-    scratch_requirements(eigen, A::FaerMatrix, B::FaerMatrix; team=nothing)
+    scratch_requirements(eigen, A::FaerMatrix, B::FaerMatrix; team=nothing, side=:right)
 
 Generalized EVD workspace including writable A/B copies and packed real
-outputs where required. Bang queries describe the eigen pass; the separate
+outputs where required. Use `side=:both` for simultaneous left/right output;
+real input requires an additional packed matrix. Bang queries describe the
+eigen pass; the separate
 QZ writeback uses its own sequential workspace. Output and sorting allocate.
-Exceptional repeated-eigenvalue vector recovery uses native SVD with the team
-with additional internal workspace outside this requirement.
+Exceptional repeated-eigenvalue vector recovery propagates the team and uses
+additional native SVD workspace outside this requirement.
 """
-function scratch_requirements(f::_EvdFunction, a::FaerMatrix, b::FaerMatrix; team = nothing)
+function scratch_requirements(
+    f::_EvdFunction,
+    a::FaerMatrix,
+    b::FaerMatrix;
+    team = nothing,
+    side::Symbol = :right,
+)
     lock(_matrix_lock) do
+        side in (:left, :right, :both) ||
+            throw(ArgumentError("side must be :left, :right or :both"))
         _handle(a)
         _handle(b)
         size(a)==size(b) ||
@@ -23,6 +33,7 @@ function scratch_requirements(f::_EvdFunction, a::FaerMatrix, b::FaerMatrix; tea
             UInt(n),
             _tag(promote_type(eltype(a), eltype(b))),
             f in (LinearAlgebra.eigvals, LinearAlgebra.eigvals!),
+            side===:both,
         )
         GC.@preserve info begin
             isnothing(team) ?
@@ -56,7 +67,8 @@ function _general_gevd_workspace_result(
     team = nothing,
 )
     lock(_matrix_lock) do
-        side in (:left, :right) || throw(ArgumentError("side must be :left or :right"))
+        side in (:left, :right, :both) ||
+            throw(ArgumentError("side must be :left, :right or :both"))
         _handle(a)
         _handle(b)
         size(a)==size(b) ||
@@ -65,7 +77,7 @@ function _general_gevd_workspace_result(
         a, b=_coerce(a, T), _coerce(b, T)
         n=LinearAlgebra.checksquare(a)
         f=vectors ? LinearAlgebra.eigen : LinearAlgebra.eigvals
-        req=scratch_requirements(f, a, b; team)
+        req=scratch_requirements(f, a, b; team, side)
         temp=isnothing(scratch)
         work=temp ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
         work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
@@ -78,13 +90,16 @@ function _general_gevd_workspace_result(
             alpha=zeros(C, n)
             beta=zeros(T, n)
             eigenvectors=zeros(C, n, vectors ? n : 0)
-            GC.@preserve alpha beta eigenvectors begin
+            rightvectors=zeros(C, n, vectors && side===:both ? n : 0)
+            GC.@preserve alpha beta eigenvectors rightvectors begin
                 args=(
                     Ptr{UInt8}(pointer(eigenvectors)),
+                    Ptr{UInt8}(pointer(rightvectors)),
                     Ptr{UInt8}(pointer(alpha)),
                     Ptr{UInt8}(pointer(beta)),
                     !vectors,
                     side===:left,
+                    side===:both,
                     UInt(n),
                     _tag(T),
                 )
@@ -126,11 +141,32 @@ function _general_gevd_workspace_result(
                 beta=conj.(result.β)
                 eigenvectors=result.vectors
             end
-            vectors &&
-                _repair_generalized_vectors!(eigenvectors, alpha, beta, a, b; team, side)
             if vectors
-                for j in axes(eigenvectors, 2)
-                    v=view(eigenvectors, :, j)
+                _repair_generalized_vectors!(
+                    eigenvectors,
+                    alpha,
+                    beta,
+                    a,
+                    b;
+                    team,
+                    side = side===:both ? :left : side,
+                )
+                side===:both && _repair_generalized_vectors!(
+                    rightvectors,
+                    alpha,
+                    beta,
+                    a,
+                    b;
+                    team,
+                    side = :right,
+                )
+            end
+            if vectors
+                for matrix in
+                    (side===:both ? (eigenvectors, rightvectors) : (eigenvectors,)),
+                    j in axes(matrix, 2)
+
+                    v=view(matrix, :, j)
                     scale=LinearAlgebra.norm(v)
                     iszero(scale) || (v ./= scale)
                 end
@@ -141,6 +177,12 @@ function _general_gevd_workspace_result(
                 values=values[order]
                 alpha, beta=alpha[order], beta[order]
                 vectors && (eigenvectors=eigenvectors[:, order])
+                vectors && side===:both && (rightvectors=rightvectors[:, order])
+            end
+            if vectors && side===:both
+                return homogeneous ?
+                       (α = alpha, β = beta, left = eigenvectors, right = rightvectors) :
+                       (values = values, left = eigenvectors, right = rightvectors)
             end
             if homogeneous
                 return vectors ? (α = alpha, β = beta, vectors = eigenvectors) :
