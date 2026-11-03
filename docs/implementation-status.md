@@ -230,3 +230,46 @@ reflectors/rotations, teams, statistics, random and NPY still require work.
 Generalized Schur reordering has no corresponding public faer entry point in
 the inspected revision and is not counted as implemented by returning the
 standard Julia factor type. Work results and internal scratch are allocated.
+
+
+## Native sparse storage, patterns and arithmetic checkpoint
+
+- `FaerSparseMatrix` owns actual faer CSC/CSR matrices in all four native scalar
+  types, as a Julia `AbstractSparseMatrix{T,Int}`. Construction, duplicate-triplet
+  summation, format conversion, independent copies and Julia CSC snapshots
+  preserve sparse storage. Explicit zeros are retained until a structural
+  operation removes them; `dropzeros!` is provided.
+- Scalar access and mutation, structural insertion, sparse copy assignment and
+  live `nonzeros` views are connected. Value-only changes retain views, while
+  structural changes invalidate them. Value views retain owners, support
+  alias-safe copying/broadcast, and reject stale/closed access.
+- `FaerSparsity` owns value-free symbolic CSC/CSR structures independently of
+  numeric owners. Symbolic union calls faer directly. New numeric matrices can
+  copy the structure with supplied values or zero-initialized storage.
+- Native sparse +/-, scalar arithmetic, conjugation, transpose/adjoint,
+  sparse*sparse, sparse*dense and dense*sparse products are connected, including
+  four-type promotion and CSC/CSR combinations. Matrix/vector `mul!` handles
+  aliasing and alpha/beta; products with owned vectors return owned vectors.
+- Native sum and entrywise p=1/2/Inf norms operate only on stored values.
+  CSC index accessors return snapshots, and CSR compressed storage has explicit
+  physical row-order snapshots. Sparse inputs are densified only when a dense
+  conversion or dense output interface is explicitly requested by these APIs.
+- Tests cover a 2-by-10^9 CSR matrix with only two stored entries, including
+  copying, arithmetic, promotion, transpose, reduction and symbolic reuse.
+- Loading SparseArrays revealed intersections with existing triangular solves
+  and view copy methods. Explicit methods resolve compressed-vector RHS and
+  CHOLMOD/CSC view copies without changing their native numerical paths.
+
+Validation: `Pkg.test()` now uses ParallelTestRunner.jl 2.10.0 and passes
+**11548 assertions across 16 independent files and 16 worker processes**.
+The runner discovers tests only under `test/`; the original compatibility PoC
+is in `test/poc.jl`. Every test file imports its own dependencies. README Julia
+examples and `cargo fmt --check` pass; method ambiguity detection is empty.
+Issue #1 is still incomplete:
+sparse factorizations/solves/ordering, specialized sparse broadcast/map and
+borrowed sparse views, matrix-free algorithms, remaining structured products,
+extended/custom scalar types, destructive/scratch APIs, balancing, independent
+reflectors/rotations, teams, statistics, random and NPY remain. General array
+fallbacks may return dense Julia arrays and are not counted as native sparse
+implementations. CSC conversion necessarily allocates column pointers; CSR
+callers should use physical `compressed_storage` when preserving row layout.

@@ -9,6 +9,14 @@ julia --project examples/poc.jl
 julia --project -e 'using Pkg; Pkg.test()'
 ```
 
+`Pkg.test()` は ParallelTestRunner.jl でテストファイルを自動検出し、
+独立したプロセスで並列実行します。並列数と対象一覧は次のように指定できます。
+
+```sh
+julia --project -e 'using Pkg; Pkg.test(; test_args=["--jobs=4"])'
+julia --project -e 'using Pkg; Pkg.test(; test_args=["--list"])'
+```
+
 `julia --project deps/build.jl` でもビルドできます。Git とネットワーク接続、
 Rust 1.89 以降が必要です（RustCall の Rust ツールチェーンも利用できます）。
 
@@ -202,6 +210,50 @@ FM = schur!(AA, BB)
 実数・複素数とも native QZ を使い、混合型の通常呼び出しでは型を昇格します。
 一般化 Schur の `ordschur`、既定値以外のアルゴリズム設定、外部から渡す
 作業領域は現在未対応です。
+
+疎行列は CSC／CSR の実体を Rust に所有させます。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+S = FaerSparseMatrix(sparse([1.0 0 2; 0 3 0]); format=:csr)
+T = FaerSparseMatrix(sparse([0.0 1 0; 4 0 0]))
+@assert Matrix(S + T) ≈ Matrix(S) + Matrix(T)
+C = S * S'                       # 結果も Rust 所有の疎行列
+@assert SparseMatrixCSC(C) ≈ sparse(S) * sparse(S)'
+x = FaerVector([1.0, 2.0, 3.0])
+y = S * x
+@assert Vector(y) ≈ sparse(S) * Vector(x)
+
+P = FaerSparsity(S)               # 数値を持たない独立した疎構造
+R = FaerSparseMatrix{Float64}(undef, P)
+fill!(nonzeros(R), 5)             # 格納位置だけを更新
+@assert nnz(R) == nnz(P)
+U = pattern_union(P, FaerSparsity(T))
+@assert nnz(U) == 5
+v = nonzeros(S)                   # CSR では行順の live view
+v[1] = 7
+@assert S[1, 1] == 7
+storage = compressed_storage(S)  # 1-based の独立した配列スナップショット
+julia_csc = SparseMatrixCSC(S)    # Julia CSC への明示変換
+```
+
+構築・コピー・CSC/CSR 変換・転置／随伴・加減算・スカラー倍・疎×疎の積は
+疎構造を維持します。疎×密・密×疎の積も、疎入力を密行列化せず native
+ルーチンで計算します。通常の `sum` と entrywise `norm(A,1/2/Inf)` も接続済みです。
+`FaerSparseMatrix(I,J,V,m,n)` では重複する triplet を加算し、格納ゼロを保持します。
+`Matrix(S)`・`FaerMatrix(S)` は明示的に密行列を作ります。
+
+`nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
+`copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に
+影響されません。`FaerSparseMatrix{T}(P)` は Boolean パターンを数値の 1 に変換し、
+`FaerSparseMatrix{T}(undef,P)` は同じ格納位置を 0 で初期化します。
+`FaerSparseMatrix(P, values)` で格納順の値をまとめて設定できます。
+
+`rowvals`・`getcolptr` は CSC のみ対応し、返す添字配列は独立したコピーです。
+CSR の行ポインタ・列添字には `compressed_storage` を使ってください。
+疎分解・ordering・疎三角求解は引き続き実装対象です。汎用 broadcast/map は
+専用の疎 native 経路ではなく、Julia の汎用処理や密配列の結果になる場合があります。
 
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の
 `eigen`／`eigvals`、三角行列の求解・逆行列、`det`／`logabsdet`／`logdet`、

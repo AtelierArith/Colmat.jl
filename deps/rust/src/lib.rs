@@ -1280,3 +1280,7 @@ pub mod pseudoinverse;
 pub mod schur;
 
 pub mod qz;
+
+pub mod sparse;
+
+pub mod sparsity;

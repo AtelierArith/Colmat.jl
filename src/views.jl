@@ -233,7 +233,7 @@ function Base.fill!(v::FaerView, x)
     end
     return v
 end
-function Base.copyto!(v::FaerView, src::AbstractArray)
+function _copyto_faer_view!(v::FaerView, src::AbstractArray)
     lock(_matrix_lock) do
         p, d=_view_source(v)
         size(v)==size(src) || throw(DimensionMismatch("view and source shapes must match"))
@@ -247,6 +247,7 @@ function Base.copyto!(v::FaerView, src::AbstractArray)
     end
     return v
 end
+Base.copyto!(v::FaerView, src::AbstractArray) = _copyto_faer_view!(v, src)
 function Base.similar(v::FaerView, ::Type{T}, dims::Dims) where {T}
     T<:_NativeScalar && length(dims)==1 && return FaerVector{T}(undef, dims[1])
     T<:_NativeScalar && length(dims)==2 && return FaerMatrix{T}(undef, dims...)

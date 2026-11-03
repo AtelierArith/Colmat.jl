@@ -2,9 +2,14 @@ module Colmat
 
 using RustCall
 import LinearAlgebra
+import SparseArrays
 using LinearAlgebra: SVD
 
-export FaerGeneralizedHessenberg,
+export FaerSparsity,
+    pattern_union,
+    FaerSparseMatrix,
+    compressed_storage,
+    FaerGeneralizedHessenberg,
     FaerHessenberg,
     FaerPermutation,
     permute_rows,
@@ -131,5 +136,8 @@ include("permutations.jl")
 include("pseudoinverse.jl")
 include("schur.jl")
 include("qz.jl")
+include("sparse.jl")
+include("sparsity.jl")
+include("sparse_compat.jl")
 
 end
