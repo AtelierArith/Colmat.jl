@@ -9,7 +9,7 @@ use rustcall_julia_macros::julia;
 
 // Power-of-two scaling follows faer's general EVD driver. Keep the
 // reduction/QR kernels in their safe range without changing the similarity Q.
-fn scale<T: ComplexField>(h: &mut Mat<T>) -> Option<T::Real> {
+pub(crate) fn scale<T: ComplexField>(h: &mut Mat<T>) -> Option<T::Real> {
     let mut anrm = zero::<T::Real>();
     for j in 0..h.ncols() {
         for i in 0..h.nrows() {
@@ -45,7 +45,7 @@ fn scale<T: ComplexField>(h: &mut Mat<T>) -> Option<T::Real> {
     }
     Some(f)
 }
-fn restore<T: ComplexField>(h: &mut Mat<T>, factor: Option<T::Real>) {
+pub(crate) fn restore<T: ComplexField>(h: &mut Mat<T>, factor: Option<T::Real>) {
     if let Some(f) = factor {
         let inv = recip(&f);
         for j in 0..h.ncols() {

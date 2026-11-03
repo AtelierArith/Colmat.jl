@@ -170,6 +170,39 @@ SB = schur!(B)
 更新し、返す Schur 分解とストレージを共有します。並べ替えも成功後に更新する
 ため、失敗時は元の分解を保ちます。これらは内部の一時領域を割り当てます。
 
+一般化 Schur／QZ は行列対に適用します。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix([1.0 2; -2 1])
+B = FaerMatrix([2.0 1; 1 3])
+F = schur(A, B)
+@assert F isa GeneralizedSchur
+@assert Matrix(F.Q * F.S * F.Z') ≈ Matrix(A)
+@assert Matrix(F.Q * F.T * F.Z') ≈ Matrix(B)
+@assert eigvals(F) ≈ F.α ./ F.β
+H = hessenberg(A, B)              # Rust 所有の H・T・Q・Z
+G = schur(H)                      # 一般化 Hessenberg 化を再実行せず QZ 段階へ
+@assert Matrix(G.Q * G.S * G.Z') ≈ Matrix(A)
+AA, BB = copy(A), copy(B)
+FM = schur!(AA, BB)
+@assert FM.S === AA && FM.T === BB
+```
+
+`GeneralizedSchur` の `S`・`T`・`Q`・`Z` はすべて Rust 所有行列です。
+`hessenberg(A,B)` は `FaerGeneralizedHessenberg` を返し、
+`A ≈ Q*H*Z'`・`B ≈ Q*T*Z'` を満たします。`hessenberg!`・`schur!` は
+計算成功後に既存の所有バッファを更新し、既存ビューを維持します。
+更新する行列対は同じスカラー型で、別々の所有者にする必要があります。
+`schur!(H)` は H/T/Q/Z のすべてを更新し、結果とストレージを共有します。
+
+固有値は同次形式の `α`・`β` でも保持します。`β == 0, α != 0` は無限固有値、
+`α == β == 0` は不定な固有値を表します。比に直す前の値を調べることで区別できます。
+実数・複素数とも native QZ を使い、混合型の通常呼び出しでは型を昇格します。
+一般化 Schur の `ordschur`、既定値以外のアルゴリズム設定、外部から渡す
+作業領域は現在未対応です。
+
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の
 `eigen`／`eigvals`、三角行列の求解・逆行列、`det`／`logabsdet`／`logdet`、
 `sum`／`norm`／`dot`／`tr`／`kron`、`pfaffian` も Rust に接続しています。

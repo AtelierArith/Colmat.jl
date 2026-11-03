@@ -4,7 +4,8 @@ using RustCall
 import LinearAlgebra
 using LinearAlgebra: SVD
 
-export FaerHessenberg,
+export FaerGeneralizedHessenberg,
+    FaerHessenberg,
     FaerPermutation,
     permute_rows,
     permute_cols,
@@ -129,5 +130,6 @@ include("views.jl")
 include("permutations.jl")
 include("pseudoinverse.jl")
 include("schur.jl")
+include("qz.jl")
 
 end

@@ -187,3 +187,46 @@ matrix-free, caller-owned scratch, independent reflectors/rotations, thread
 teams, statistics, random and NPY remain. The use of Householder routines inside
 Hessenberg reduction is not a standalone public reflector API. The mutating
 interfaces still allocate independent work results and internal scratch.
+
+
+## Native generalized Hessenberg and QZ checkpoint
+
+- `schur(A,B)` returns Julia `GeneralizedSchur` with native owned S/T/Q/Z,
+  satisfying A=Q*S*Z' and B=Q*T*Z'. All four scalar types are supported, including
+  native mixed-type promotion, native range views and mixed Julia/native arrays.
+- `hessenberg(A,B)` returns `FaerGeneralizedHessenberg` with explicit native
+  H/T/Q/Z. B is first reduced by native QR, then faer's generalized Hessenberg
+  routine reduces the pencil. `schur(H)` reuses this reduction and accumulated
+  Q/Z, running only the native real/complex QZ stage.
+- Native homogeneous alpha/beta vectors remain available, including infinite
+  eigenvalues (nonzero alpha, zero beta) and indeterminate 0/0 pairs. `eigvals(F)`
+  follows Julia's ratio convention. Nonconvergence is checked with initialized
+  sentinels, finite homogeneous outputs and converged Schur-band structure.
+- Matrix-pair `schur!`/`hessenberg!` and `schur!(H)` commit independent native
+  work results after success. Existing views and owners are preserved. Mutating
+  input pairs require distinct owners and matching scalar types.
+- Input matrices are scaled independently by powers of two for safe kernel
+  ranges; S/T and homogeneous alpha/beta are rescaled to the original pencil.
+  Tests include extreme relative scales, singular pencils, all scalar promotion
+  pairs, blocked QZ (96x96) and blocked generalized Hessenberg (257x257).
+- The inspected faer real-QZ scratch helper undersizes odd maximum AED windows:
+  its floor window differs from the kernel's even-rounded window (e.g. 31 vs
+  32 at n=96). Its local Sylvester workspace also lists one index array while
+  the solver allocates four. The wrapper computes the recursive live bound with
+  these sizes and takes its maximum with the public recommendation. Blocked
+  QZ remains enabled; the dependency checkout is not patched. Regressions cover
+  n=78/96/258, including nested window sizing.
+- Factor copy/deepcopy, explicit close, dimension checks and invalid-reduction
+  failure paths are covered. Source pointers remain retained and serialized;
+  all mutable output handles are fresh owners during native computation.
+
+Validation: `Pkg.test(; julia_args=["--threads=2"])` passes **7957 tests**.
+README Julia examples, method ambiguity checks and `cargo fmt --check` pass.
+The faer dependency checkout remains clean. Issue #1 remains incomplete:
+generalized Schur reordering, nondefault tuning, balancing, specialized
+structured products, sparse storage/solvers, matrix-free algorithms,
+caller-owned scratch and remaining destructive factorizations, standalone
+reflectors/rotations, teams, statistics, random and NPY still require work.
+Generalized Schur reordering has no corresponding public faer entry point in
+the inspected revision and is not counted as implemented by returning the
+standard Julia factor type. Work results and internal scratch are allocated.

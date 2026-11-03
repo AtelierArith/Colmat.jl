@@ -1278,3 +1278,5 @@ pub mod permutations;
 pub mod pseudoinverse;
 
 pub mod schur;
+
+pub mod qz;

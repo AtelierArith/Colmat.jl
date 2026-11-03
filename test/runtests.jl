@@ -69,3 +69,5 @@ include("permutations.jl")
 include("pseudoinverse.jl")
 
 include("schur.jl")
+
+include("qz.jl")
