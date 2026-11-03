@@ -98,4 +98,6 @@ LinearAlgebra.eigvals(a::_FaerSelfAdjoint, b::_FaerSelfAdjoint; sortby = _eigens
 Compute the Pfaffian of an even-dimensional skew-symmetric matrix with
  t4a-faer. Non-square, odd-dimensional and invalid inputs raise an exception.
 """
-pfaffian(a::FaerMatrix{Float64}) = _native_call(RustCrate.pfaffian_value, a)
+pfaffian(a::FaerMatrix{Float64}; scratch = nothing, team = nothing) =
+    isnothing(scratch) && isnothing(team) ? _native_call(RustCrate.pfaffian_value, a) :
+    _pfaffian_options(a, scratch, team)

@@ -1332,3 +1332,5 @@ pub mod pivoted_cholesky;
 mod sparse_lu_components;
 
 pub mod teams;
+
+pub mod workspace;

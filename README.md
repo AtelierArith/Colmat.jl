@@ -978,8 +978,35 @@ borrows a `Par::Team` only during the native call. Four scalar types, promotion,
 views, transposes, coefficients and aliased destinations are supported. Copies
 reserve independent teams. Close teams promptly; GC also owns their handles.
 
-Only `team_mul` and `mul!(dest, team, A, B[, alpha, beta])` currently use this
-explicit team. Other routines retain sequential execution. Calls are serialized
+`team_mul`, `mul!(dest, team, A, B[, alpha, beta])` and `pfaffian(A; team=team)`
+use this explicit team. Other routines retain sequential execution. Calls are serialized
 by Colmat's owner lock, and faer may choose a narrower region for small work.
 The API controls worker reservations; it does not promise a speedup for every
 matrix size. Inputs needing conversion and destination writes use temporaries.
+
+### Reusable native scratch
+
+```julia
+using Colmat
+A = FaerMatrix([0.0 2; -2 0])
+requirements = scratch_requirements(pfaffian, A)
+workspace = FaerScratch(pfaffian, A)
+@assert scratch_capacity(workspace) == requirements
+@assert pfaffian(A; scratch=workspace) == 2.0
+FaerTeam(2) do team
+    @assert pfaffian(A; scratch=workspace, team=team) == 2.0
+end
+reserve!(workspace, requirements.bytes; alignment=requirements.alignment)
+close(workspace)
+```
+
+`FaerScratch` owns an aligned native MemBuffer. Capacity/alignment are explicit,
+and insufficient workspace raises an error before kernel execution. Grow it
+using `reserve!(workspace, pfaffian, A)` for a new operation size, or supply byte
+capacity/alignment directly. Calls never grow the workspace implicitly; copy
+and deepcopy allocate independent storage. Contents are scratch, not user data.
+Pfaffian validates shape, finiteness and skew-symmetry and leaves A unchanged.
+`team=` works with supplied scratch or with a temporary workspace released after
+the call. Pfaffian is currently the connected consumer; other kernels still
+allocate their own workspaces. Julia/FFI bookkeeping may still allocate even
+when the native workspace is reused.

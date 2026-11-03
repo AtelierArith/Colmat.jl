@@ -1094,3 +1094,37 @@ two calls through one reservation. All 34 README Julia blocks, method ambiguity
 checks, cargo check, Julia/Rust formatting and git diff --check pass. The faer
 checkout remains unchanged. Broader team connections and the other Issue #1
 requirements remain open.
+
+### Caller-owned aligned scratch and Pfaffian team execution
+
+Added `FaerScratch` over dyn-stack MemBuffer with explicit byte/alignment
+queries, monotone reserve!, independent copy/deepcopy, immediate close and GC
+ownership. `scratch_requirements(pfaffian,A)` calls faer's exact requirements;
+`FaerScratch(pfaffian,A)` prepares a matching buffer. `pfaffian(A;scratch=s)`
+mutably borrows this same buffer without implicit growth. Julia and native
+checks reject insufficient capacity/alignment before kernel execution; matrix
+shape, finiteness and skew-symmetry remain validated. Matrix input is preserved.
+A native regression checks pointer identity over repeated calls.
+
+`pfaffian(A;team=t,scratch=s)` also borrows a reusable FaerTeam. With only team
+specified, a temporary native workspace is closed in a finally block. Existing
+calls without these keywords retain their original path. Tests cover all four
+scalar types, complex skew-symmetry, empty/odd cases, changed/reused buffers,
+capacity growth, alignment, close/copy, blocked Pfaffian and cross-type reuse.
+This extends team integration beyond multiplication.
+
+Pfaffian is currently the connected caller-owned workspace consumer. Other
+kernels' scratch queries/consumers and lower-level tuning still require work.
+Julia/FFI bookkeeping and the numerical input/output ownership may allocate;
+workspace reuse does not claim whole-call zero allocation.
+
+Validation: `Pkg.test(allow_reresolve=false)` passes **67,956 assertions across
+43 files with ParallelTestRunner 2.10.0 and 16 workers**, on Julia 1.13.3 /
+RustCall 0.9.2. Workspace tests contribute 399 assertions, including exact
+requirements, stable capacity, alignment failure, cross-type reuse, independent
+copies, error cleanup, odd/invalid inputs, team reuse and a blocked Pfaffian
+with independently known value. The Rust test verifies native buffer pointer
+identity over repeated calculations. All 35 README Julia blocks, method ambiguity
+checks, cargo check, Julia/Rust formatting and git diff --check pass. Dependency
+sources remain unchanged. Other workspace consumers and remaining Issue #1
+requirements stay open.

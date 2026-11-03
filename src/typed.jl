@@ -726,7 +726,12 @@ function LinearAlgebra.eigvals(a::_AnyFaerSelfAdjoint, b::_AnyFaerSelfAdjoint; k
         kwargs...,
     )
 end
-function pfaffian(a::FaerMatrix{T}) where {T<:_ExtraScalar}
+function pfaffian(
+    a::FaerMatrix{T};
+    scratch = nothing,
+    team = nothing,
+) where {T<:_ExtraScalar}
+    (!isnothing(scratch) || !isnothing(team)) && return _pfaffian_options(a, scratch, team)
     value=Ref{T}()
     GC.@preserve value _native_call(
         RustCrate.pfaffian_buffer,

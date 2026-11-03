@@ -10,7 +10,7 @@ pub struct OwnedTeam {
     width: usize,
 }
 impl OwnedTeam {
-    fn execute<R>(&self, f: impl FnOnce(Par<'_>) -> R) -> Result<R, String> {
+    pub(crate) fn execute<R>(&self, f: impl FnOnce(Par<'_>) -> R) -> Result<R, String> {
         if self.width == 0 {
             return Err("team is closed or uninitialized".into());
         }
