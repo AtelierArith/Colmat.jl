@@ -1825,12 +1825,14 @@ All 10 native tests and 55 README blocks passed, along with ambiguity detection,
 Julia/Rust formatting and git diff --check. Julia callbacks and the
 remaining Issue #2 work are still pending.
 
-Upstream API feedback: tensor4all/faer PR #228 proposes a read-only public
+Upstream API feedback: tensor4all/faer PR #228 adds a read-only public
 SymbolicQr::raw accessor needed for safe QR component inspection. The standalone
 MWE fails on b4fb784 with E0599; the patch passes both forced-variant integration
 coverage and an executable doctest. This is an API extension, not a numerical
 bug. See docs/reproducers/faer-sparse-qr-symbolic-accessor.md. The dependency
 checkout remains unchanged; the upstream PR has not been adopted into Colmat.
+The PR was merged upstream as fac26dc2a346f2be41f2011fba2bc8e4d7ff22f5
+on 2026-11-03; Colmat adoption still requires a dependency update and validation.
 
 ### Native operator tree scalar promotion
 
@@ -2031,3 +2033,25 @@ application. Canonical Pkg.test passed 96,866 assertions / 77 files with 16
 workers. All 10 native tests and 65 README blocks passed, along with ambiguity
 detection, Julia/Rust formatting and git diff --check. Auto/supernodal
 sparse factor interfaces, callbacks and remaining Issue #1/#2 scope are pending.
+
+### Mixed sparse solves reuse saved native factors
+
+Mixed-type RHS for explicit simplicial LU/QR and all sparse Cholesky algorithms
+now use the saved-factor native inverse action, including vector/matrix RHS,
+transpose/adjoint and three-argument ldiv!. Converted factor components retain
+the original factorization precision; the input is never refactorized. Temporary
+operators and fallback promoted factors/source matrices are closed explicitly.
+Auto/supernodal LU/QR still refactorize source snapshots for mixed RHS.
+
+Focused tests passed 4,848 assertions, including closed source snapshots, all
+16 scalar pairs, CSC/CSR, custom ordering, empty/square/tall matrices and
+transposed minimum-norm QR against Julia's independent pseudoinverse. Existing
+mixed Cholesky comparisons now use the original factor precision for tolerance,
+rather than assuming a new decomposition in the RHS precision. The initial full
+run exposed those stale precision assumptions; they were corrected before the
+final full validation. No upstream defect was identified in this change.
+
+Final canonical Pkg.test passed 101,714 assertions / 78 files with 16 workers.
+All 10 native tests and 66 README blocks passed, as did ambiguity detection,
+Julia/Rust formatting and git diff --check. The dependency remains the clean
+d5be1473eed9314fca6f80ad8b4072d86282e890 checkout.

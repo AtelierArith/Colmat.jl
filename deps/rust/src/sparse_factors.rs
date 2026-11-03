@@ -1017,3 +1017,24 @@ impl SparseFactor {
         })
     }
 }
+
+#[julia]
+impl SparseFactor {
+    #[julia]
+    pub fn sparse_factor_has_inverse_action(&self) -> Result<bool, String> {
+        guarded(|| {
+            fn supported<T: ComplexField>(f: &Numeric<T>) -> bool {
+                matches!(
+                    f,
+                    Numeric::SimplicialLu(_) | Numeric::SimplicialQr(_) | Numeric::Llt(_)
+                )
+            }
+            Ok(match self.factors()? {
+                Factors::F32(f) => supported(f),
+                Factors::F64(f) => supported(f),
+                Factors::C32(f) => supported(f),
+                Factors::C64(f) => supported(f),
+            })
+        })
+    }
+}

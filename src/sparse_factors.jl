@@ -34,8 +34,9 @@ solves full-column-rank least-squares problems. LU/Cholesky also support
 transpose/adjoint solves. Explicit simplicial QR supports minimum-norm
 transpose/adjoint solves for full-column-rank factors. Inputs and symbolic plans
 may be closed independently.
-Mixed precision RHS are handled by reusing symbolic analysis to factor a sparse
-snapshot in the promoted type. `ldiv!` stages the result before overwriting.
+Mixed precision RHS reuse converted saved factors for explicit simplicial LU/QR
+and all Cholesky algorithms, without reading the source snapshot. Auto/supernodal
+LU/QR currently reuse symbolic analysis to refactor the snapshot in the promoted type. `ldiv!` stages the result before overwriting.
 Sparse Cholesky additionally exposes independent sparse CSC `F.L` and `F.U`,
 with `F.L * F.U ≈ A[F.p,F.p]`, and supports `Matrix(F)`, `FaerSparseMatrix(F)`,
 `det`, `logdet` and `logabsdet`. Reconstruction returns the original row/column
@@ -366,8 +367,27 @@ function _sparse_factor_solve(
             )
         P=promote_type(T, _sparse_input_type(eltype(b)))
         if P!==T
-            promoted=LinearAlgebra.factorize(f.plan, FaerSparseMatrix{P}(f.source))
-            return _sparse_factor_solve(promoted, b, trans, adj)
+            if _native_call(RustCrate.sparse_factor_has_inverse_action, f)
+                base=FaerLinearOperator(f)
+                action=trans ? (adj ? adjoint(base) : transpose(base)) : base
+                try
+                    return action*b
+                finally
+                    action===base || close(action)
+                    close(base)
+                end
+            end
+            source=FaerSparseMatrix{P}(f.source)
+            try
+                promoted=LinearAlgebra.factorize(f.plan, source)
+                try
+                    return _sparse_factor_solve(promoted, b, trans, adj)
+                finally
+                    close(promoted)
+                end
+            finally
+                close(source)
+            end
         end
         rhs=b isa FaerMatrix ? _coerce(b, T) : FaerMatrix{T}(b)
         dims=(size(f, trans ? 1 : 2), size(b, 2))

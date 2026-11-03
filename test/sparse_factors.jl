@@ -47,7 +47,7 @@ using Colmat, Test, LinearAlgebra, SparseArrays, Random
             close(plan)
             @test Matrix(f\rhs) ≈ a\rhs
             mixed=randn(rng, ComplexF64, 6, 2)
-            @test Matrix(f\mixed) ≈ ComplexF64.(a)\mixed
+            @test Matrix(f\mixed) ≈ ComplexF64.(a)\mixed rtol=sqrt(eps(real(T)))
             @test eltype(f\mixed)===promote_type(T, ComplexF64)
             copied=copy(f)
             deep=deepcopy(f)
@@ -56,7 +56,7 @@ using Colmat, Test, LinearAlgebra, SparseArrays, Random
             @test_throws ArgumentError f\rhs
             @test Matrix(copied\rhs) ≈ a\rhs
             @test Matrix(deep\rhs) ≈ a\rhs
-            @test Matrix(copied\mixed) ≈ ComplexF64.(a)\mixed
+            @test Matrix(copied\mixed) ≈ ComplexF64.(a)\mixed rtol=sqrt(eps(real(T)))
         end
         a=randn(rng, T, 8, 4)
         s=FaerSparseMatrix(sparse(a); format)
@@ -147,8 +147,8 @@ end
         @test Matrix(f'\b) ≈ h'\b
         @test Matrix(transpose(f)\b) ≈ transpose(h)\b
         complex=randn(rng, ComplexF64, 5, 2)
-        @test Matrix(f\complex) ≈ ComplexF64.(h)\complex
-        @test Matrix(f'\complex) ≈ ComplexF64.(h)'\complex
+        @test Matrix(f\complex) ≈ ComplexF64.(h)\complex rtol=sqrt(eps(real(T)))
+        @test Matrix(f'\complex) ≈ ComplexF64.(h)'\complex rtol=sqrt(eps(real(T)))
         for g in (f, f', transpose(f))
             mat=copy(b)
             @test ldiv!(g, mat)===mat

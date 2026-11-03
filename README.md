@@ -1522,9 +1522,24 @@ permutation, without constructing Q or a pseudoinverse. Three-argument `ldiv!`
 supports rectangular factors; two-argument `ldiv!` requires square factors.
 Native work arrays and a transposed sparse R allocate per solve. A zero R
 diagonal is rejected; rank thresholds and rank-deficient solves remain
-unavailable. Mixed-type RHS follow the existing sparse-factor promotion path,
-which refactorizes the retained input snapshot in the promoted type. The auto
-QR path still rejects transpose/adjoint solves.
+unavailable. Mixed-type RHS reuse saved native factors for explicit simplicial
+LU/QR and all sparse Cholesky algorithms. Factor values are promoted without
+refactorizing the input, so accuracy remains limited by the original factor
+precision. Auto/supernodal LU/QR still refactorize the retained input snapshot
+for mixed-type RHS; auto/supernodal QR reject transpose/adjoint solves.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = Float32[4 1; 1 3]
+A = FaerSparseMatrix(sparse(A0))
+F = lu(A; algorithm=:simplicial)
+B = ComplexF64[1 + im, 2 - im]
+x = F \ B
+@assert eltype(x) == ComplexF64
+@assert A0 * x ≈ B rtol=1e-6
+close(F)
+close(A)
+```
 
 
 ### COLAMD ordering in sparse LU/QR

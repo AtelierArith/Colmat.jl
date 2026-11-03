@@ -44,7 +44,7 @@ using Colmat, Test, LinearAlgebra, SparseArrays, Random
         @test f.algorithm===plan.algorithm
         @test Matrix(f\rhs) ≈ (2a)\rhs
         mixed=randn(rng, ComplexF64, 7, 2)
-        @test Matrix(f\mixed) ≈ (2ComplexF64.(a))\mixed
+        @test Matrix(f\mixed) ≈ (2ComplexF64.(a))\mixed rtol=sqrt(eps(real(T)))
         close(plan)
         close(source)
         mode===:custom && close(order)

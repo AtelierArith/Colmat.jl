@@ -23,7 +23,7 @@ README の 52 Julia blocks が成功した。この検証の faer checkout は
 | auto/supernodal 疎 QR | native Q/R・列置換の公開、転置/随伴求解 |
 | auto/supernodal LU/QR ordering | ordering と native 制御値の指定 |
 | 横長・rank-deficient 疎 QR | rank 判定・許容誤差・最小ノルム求解の契約 |
-| mixed-type 疎求解 | source snapshot の再分解を避けた native 因子の再利用 |
+| mixed-type 疎求解 | simplicial LU/QR と全 Cholesky は保持因子を再利用済み。auto/supernodal LU/QR の snapshot 再分解をなくす |
 | matrix-free | Julia callback、作用素合成、分解による前処理、反復履歴・停止 callback |
 | 一般化 Schur | 公開 upstream API の調査、並べ替え、実共役対・無限固有値の規約 |
 | workspace | native 因子構築・求解・残りの kernel の scratch 照会・reserve・不足時の契約 |
