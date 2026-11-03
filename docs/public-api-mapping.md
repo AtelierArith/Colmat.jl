@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `d22e6c3`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、50186 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 28 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み実装コミット `79fe999`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、50698 件のテスト成功。`Pkg.test()` は ParallelTestRunner.jl 2.10.0 により 29 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -110,7 +110,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 共役勾配法 | `conjugate_gradient::{conjugate_gradient,CgParams,CgInfo,CgError}` | CG solver（標準外） | R: `cg/cg!`、block RHS、4 型、初期値・許容誤差・反復上限、失敗 iterate・独立した真の残差 | callback・履歴・独立 scratch API |
 | BiCGSTAB | `bicgstab::{bicgstab,BicgParams,BicgInfo,BicgError}` | BiCGSTAB solver（標準外） | R: `bicgstab/bicgstab!`、左右前処理・block RHS・4 型・初期値・許容誤差・反復上限、失敗 iterate・真の残差 | callback・履歴・独立 scratch API |
 | LSMR | `lsmr::{lsmr,LsmrParams,LsmrInfo,LsmrError}` | 最小二乗反復 solver（標準外） | R: `lsmr/lsmr!`、長方形・block RHS・右前処理・4 型・初期値・許容誤差・反復上限、真の前処理付き正規残差 | callback・履歴・独立 scratch API。upstream の絶対許容誤差は有効な相対値へ換算 |
-| 部分固有値・部分 SVD | `matrix_free::eigen::{partial_eigen,partial_self_adjoint_eigen,partial_svd}` と params/info/scratch | 部分スペクトルを求める Krylov 法（標準外） | — | 未 |
+| 部分固有値・部分 SVD | `matrix_free::eigen::{partial_eigen,partial_self_adjoint_eigen,partial_svd}` と params/info/scratch | 部分スペクトルを求める Krylov 法（標準外） | — | 未。self-adjoint の小規模行列で upstream panic を再現（`docs/reproducers/faer-partial-small.rs`）。引き続き実装対象 |
 
 ## 7. 低水準の数値プリミティブ
 
@@ -118,7 +118,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 |---|---|---|---|---|
 | 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: 単一行列・行列対の `hessenberg!` / `schur!` は成功後に入力ストレージを更新 | LU/QR/Cholesky/SVD/EVD 等の残りの破壊的 API、caller-owned scratch。現行の ! も一時結果を割り当てる |
 | Householder | `householder::make_householder_in_place/upgrade_householder_factor/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | R: `FaerHouseholder/householder`、`FaerHouseholderSequence`、4 型の basis/tau/factor 構築、block factor upgrade/reblock、左右の sequence 適用・求解・`mul!`、随伴/転置/共役・ビュー | `prev_block_size` の直接制御、外部 scratch |
-| Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転 | 独立した Jacobi オブジェクト・make_givens・2x2 helper・transpose/conjugate 専用 API |
+| Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転。`FaerJacobiRotation`、`rotg/make_givens`、2×2左右適用、transpose/conj/adjoint、Givens 埋め込み | — |
 | Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | R: 4 型の `hessenberg/hessenberg!`、明示的な Rust 所有 H/Q、Schur 段階への再利用 | balancing の独立 API、compact Householder 形式・全パラメータ |
 | 対称三重対角化・三重対角 EVD | `evd::tridiag::tridiag_in_place`, `tridiagonal_self_adjoint_evd` | `SymTridiagonal`、構造化固有値分解 | — | 未 |
 | 二重対角化・二重対角 SVD | `svd::bidiag::bidiag_in_place`, `bidiagonal_svd` | `Bidiagonal`、LAPACK bidiagonal SVD 相当 | — | 未 |
