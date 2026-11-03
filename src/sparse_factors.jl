@@ -186,6 +186,7 @@ function LinearAlgebra.factorize(
     p::FaerSparseSymbolic{K},
     a::FaerSparseMatrix{T};
     check::Bool = true,
+    scratch = nothing,
 ) where {K,T}
     size(p)==size(a) ||
         throw(DimensionMismatch("symbolic analysis and numeric matrix shapes must match"))
@@ -210,7 +211,9 @@ function LinearAlgebra.factorize(
         plan=copy(p)
         h=RustCrate.SparseFactor()
         info=try
-            Int(_native_call(RustCrate.sparse_factorize, h, plan, snapshot))
+            isnothing(scratch) ?
+            Int(_native_call(RustCrate.sparse_factorize, h, plan, snapshot)) :
+            _sparse_qr_factor_workspace(h, plan, snapshot, scratch)
         catch e
             if e isa RustCall.RustError &&
                occursin("numeric matrix sparsity pattern must match", sprint(showerror, e))

@@ -19,18 +19,25 @@ impl<T: ComplexField> Factors<T> {
         symbolic: Arc<SymbolicQr<usize>>,
         a: SparseColMatRef<'_, usize, T>,
     ) -> Result<Self, String> {
-        let mut indices = vec![0; symbolic.len_idx()];
-        let mut values = vec![zero::<T>(); symbolic.len_val()];
         let mut mem = MemBuffer::try_new(
             symbolic.factorize_numeric_qr_scratch::<T>(Par::Seq.shape(), Default::default()),
         )
         .map_err(|e| format!("{e:?}"))?;
+        Self::new_in(symbolic, a, MemStack::new(&mut mem))
+    }
+    pub(crate) fn new_in(
+        symbolic: Arc<SymbolicQr<usize>>,
+        a: SparseColMatRef<'_, usize, T>,
+        stack: &mut MemStack,
+    ) -> Result<Self, String> {
+        let mut indices = vec![0; symbolic.len_idx()];
+        let mut values = vec![zero::<T>(); symbolic.len_val()];
         symbolic.factorize_numeric_qr(
             &mut indices,
             &mut values,
             a,
             Par::Seq,
-            MemStack::new(&mut mem),
+            stack,
             Default::default(),
         );
         Ok(Self {
