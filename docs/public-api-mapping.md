@@ -6,9 +6,9 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-03
 - t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: ローカルの検証済みコミット `b35f814`。リモート main は `d4f5a51` のため、以下の実装済み機能の多くはまだ push されていない。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、2666 件のテスト成功。`Pkg.test(; julia_args=["--threads=2"])` で検証。
-- 所有コレクション・範囲ビューは `b35f814` に実装済み。全 76 項目の完了は意味しない。
+- Colmat の判定基準: ローカルの検証済みコミット `8de2252`。リモート main は `d4f5a51` のため、以下の実装済み機能の多くはまだ push されていない。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.1、3973 件のテスト成功。`Pkg.test(; julia_args=["--threads=2"])` で検証。
+- 所有コレクション・範囲ビュー・置換・疑似逆などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
 
@@ -32,7 +32,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 部分行列・分割・逆順 | `submatrix/subrows/subcols/split_at/reverse_rows/reverse_cols` | `view`, `@view`, slicing, `reverse` | R: `view` の範囲・間引き・逆順・入れ子、native copy/積/代入 | 任意の整数ベクトル添字は汎用処理。独立した split API |
 | 転置・共役・随伴 | `transpose/conjugate/adjoint` | `transpose/conj/adjoint`, `A'` | J: 遅延ラッパー。R: `conj`、転置・随伴のコピー、複素演算 | 積や求解で転置ラッパーを一時所有行列へコピーする経路あり |
 | 動的容量・サイズ変更 | `with_capacity/try_reserve/reserve/resize_with/truncate` | `sizehint!` 等に類する容量管理。Matrix に直接同等の公開 API はない | R: `reserve!`、`sizehint!`、`resize!(;fill)`、`truncate!` | 容量の照会・全低水準制御 |
-| 置換・行列交換 | `Perm/PermRef`, `permute_rows/cols`, `swap_rows/cols` | 置換ベクトル、`A[p,:]`, `A[:,p]` | J: 添字処理による操作の基盤 | 未: Rust 置換型、置換・交換ルーチンの専用接続 |
+| 置換・行列交換 | `Perm/PermRef`, `permute_rows/cols`, `swap_rows/cols` | 置換ベクトル、`A[p,:]`, `A[:,p]` | R: `FaerPermutation`、逆置換・合成、`permute_rows/cols` と `!`、`swap_rows!/swap_cols!`、`A[p,:]/A[:,p]` | ビューの更新は一時結果を経由。全低水準 PermRef 形式・caller-owned scratch |
 | スカラー型 | `f32/f64`, `c32/c64`、`fx128/cx128` の公開型エイリアス、generic field traits | `Float32/Float64/ComplexF32/ComplexF64` 等 | R: Float32 / Float64 / ComplexF32 / ComplexF64 の所有・演算・分解 | fx128/cx128、任意の field traits |
 
 ## 2. 基本演算・集約・積
@@ -83,9 +83,9 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 最小二乗 | `SolveLstsq::{solve_lstsq,solve_lstsq_in_place,...}`（QR/SVD 等） | 長方形 `A\b`, `ldiv!` | R: 長方形の求解、QR と広幅・ランク不足時の SVD 経路 | 全アルゴリズム選択・許容誤差設定 |
 | 三角連立方程式 | `solve_{unit_}{lower,upper}_triangular_in_place`, `linalg::triangular_solve` | `LowerTriangular/UpperTriangular/UnitLowerTriangular/UnitUpperTriangular` の `\` | R: lower/upper/unit の三角ラッパーの求解 | 全 mixed-operand と低水準 scratch 公開 |
 | 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`、三角 inverse | 破壊的 inverse・全オプション |
-| 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | J: `pinv(A)` 動作確認 | Rust pseudoinverse 専用経路、許容誤差規約の対応 |
+| 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | R: 4 型の `pinv(A;atol,rtol)`、native SVD 再構成、Hermitian/実 Symmetric の EVD 再構成 | 保存済み分解からの全疑似逆形式、非標準スカラー・高度なアルゴリズム制御 |
 | 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT 等から `FaerMatrix(F)` / `Matrix(F)` | 全分解形式（Schur・疎分解等） |
-| ランク・条件数 | SVD/QR などを組み合わせて構成（同名の高水準 API としては扱わない） | `rank/cond/opnorm` | R: `opnorm`。J: SVD を利用する `rank/cond` の基盤 | rank/cond の専用 API と全 p・許容誤差規約 |
+| ランク・条件数 | SVD/QR などを組み合わせて構成（同名の高水準 API としては扱わない） | `rank/cond/opnorm` | R: native スペクトル・分解を使う `rank(;atol,rtol)`、`cond(A,1/2/Inf)`、4 型の `opnorm` | 推定条件数・全構造化入力の最適化。faer 同名の高水準 API としての主張ではない |
 
 ## 5. 疎行列
 
@@ -144,9 +144,14 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
 - Schur/QZ、疎行列、matrix-free、破壊的分解・scratch、並列 team、統計・乱数・NPY は今後の実装対象。
+- `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - RustCall の阻害要因と回避策: [#564](https://github.com/AtelierArith/RustCall.jl/issues/564)、[#565](https://github.com/AtelierArith/RustCall.jl/issues/565)。
 
 ## ソース
+
+- [置換・行列交換](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/perm/mod.rs)
+- [SVD 疑似逆の許容誤差付き再構成](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/svd/mod.rs)
+- [自己随伴 EVD 疑似逆](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/evd/mod.rs)
 
 - [Julia との公式移行対応表（調査コミット固定）](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/docs/migration/julia.md)
 - [高水準 dense solver API](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/solvers.rs)
