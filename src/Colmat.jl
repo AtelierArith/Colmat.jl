@@ -151,5 +151,6 @@ include("sparse_triangular.jl")
 include("sparse_factors.jl")
 include("ordering.jl")
 include("sparse_updates.jl")
+include("rotations.jl")
 
 end

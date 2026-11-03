@@ -476,3 +476,38 @@ files using ParallelTestRunner.jl and 16 workers**. The new fixed-update suite
 contributes 1820 assertions. README Julia examples, JuliaFormatter,
 `cargo fmt --check`, `git diff --check` and method ambiguity checks pass.
 The t4a-faer checkout remains clean.
+
+
+## Native Julia Givens / faer Jacobi checkpoint
+
+- `givens` on native matrices/vectors and their views calls faer's rotg and
+  returns standard Julia Givens plus r. Scalar-only `givens` remains Julia's
+  implementation; no stdlib-only signature is overwritten.
+- Left/right `*`, `lmul!` and `rmul!` adapt Julia's `[c s; -conj(s) c]` convention
+  to faer's Jacobi kernels. Matrix/vector/row owners update native storage;
+  views stage native copies and copy back through existing view validation.
+  In-place operations convert coefficients before mutation and require real c;
+  allocating products promote scalar types and return independent native data.
+- Standard adjoint and composed rotations interoperate through these methods.
+  Indices are validated for both axes, and closed/invalidated views fail before
+  mutation. Cosine with a nonzero imaginary component is explicitly rejected
+  because faer's SIMD kernels multiply using its real part.
+- rotg compatibility fixes stay in the bridge: the inspected complex zero-q
+  branch returns r=1 instead of p; real sign normalization differs when q
+  dominates; and real coefficients computed from a rounded subnormal r can
+  produce c=s=1 (norm squared 2). The wrapper corrects the zero-q result,
+  normalizes the real sign convention, and scales real inputs before rotg so
+  the coefficient computation stays away from the subnormal range.
+- Tests compare coefficients and results against Julia for random values,
+  reversed indices, zero inputs, large/subnormal values and complex phases,
+  four scalar types, row/column application, adjoints/composition, mixed-type
+  promotion, strided/reversed views, failed conversions and empty axes.
+- Householder, standalone Jacobi objects and their dedicated
+  transpose/conjugate/make_givens/2x2 interfaces, matrix-free, scratch and all
+  other remaining Issue #1 categories are still incomplete.
+
+Validation: default `Pkg.test()` passed **32718 assertions across 23 independent
+files using ParallelTestRunner.jl and 16 workers**. The new rotation suite
+contributes 2166 assertions. README Julia examples, JuliaFormatter,
+`cargo fmt --check`, `git diff --check` and method ambiguity checks pass.
+The t4a-faer dependency checkout remains unmodified.

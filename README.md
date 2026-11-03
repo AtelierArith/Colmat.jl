@@ -404,6 +404,36 @@ sub_into!(D, D, S)                # 入出力の共有にも対応
 通常の Julia CSC と native の転置／随伴を入力に使えます。
 一般の `D .+= S` などの broadcast は、この専用 API と同一の実装ではありません。
 
+native 配列に対する `givens` は faer で係数を計算し、Julia 標準の
+`LinearAlgebra.Givens` と消去後の値を返します。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix([3.0 2; 4 1])
+G, r = givens(A, 1, 2, 1)
+B = G * A
+@assert B[1, 1] ≈ r
+@assert abs(B[2, 1]) < 1e-12
+@assert Matrix(A) == [3.0 2; 4 1]
+lmul!(G, A)                       # faer の Jacobi カーネルで更新
+@assert Matrix(A) ≈ Matrix(B)
+rmul!(A, G')                      # 右からの随伴回転にも対応
+
+v = FaerVector([3.0, 4.0, 5.0])
+H, _ = givens(v, 1, 2)
+@assert Vector(H * v) ≈ [5.0, 0.0, 5.0]
+V = view(A, 2:-1:1, :)
+lmul!(G, V)                       # ビューは native の一時結果を書き戻す
+```
+
+4数値型の行列・ベクトル・範囲ビューに対応します。右からの回転には `FaerRow` も
+使えます。`*` は型を昇格した独立した native 配列を返し、`lmul!`・`rmul!` は
+係数を出力の型に変換してから更新します。変換に失敗すれば出力は変わりません。
+回転の cosine は実数が必要です。生成対象の2要素は有限値に限定しています。
+スカラー形式の `givens(f,g,i,j)` は Julia 標準の実装です。
+独立した Jacobi オブジェクト・transpose/conjugate API と Householder は未対応です。
+
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に
 影響されません。`FaerSparseMatrix{T}(P)` は Boolean パターンを数値の 1 に変換し、
