@@ -1362,3 +1362,5 @@ mod rank_certificate_tests {
         assert!(qr_needs_spectral_solve(a.as_ref(), f64::EPSILON));
     }
 }
+
+mod solve_workspace;

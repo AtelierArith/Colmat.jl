@@ -39,18 +39,18 @@ function scratch_requirements(
 end
 function FaerScratch(
     fun::typeof(LinearAlgebra.ldiv!),
-    f::FaerSparseFactorization,
+    f::FaerSparseFactorization{T,:qr},
     b::AbstractMatrix,
-)
+) where {T}
     req=scratch_requirements(fun, f, b)
     FaerScratch(req.bytes; alignment = req.alignment)
 end
 function reserve!(
     s::FaerScratch,
     fun::typeof(LinearAlgebra.ldiv!),
-    f::FaerSparseFactorization,
+    f::FaerSparseFactorization{T,:qr},
     b::AbstractMatrix,
-)
+) where {T}
     req=scratch_requirements(fun, f, b)
     reserve!(s, req.bytes; alignment = req.alignment)
 end
