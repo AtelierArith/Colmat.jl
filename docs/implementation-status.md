@@ -2871,3 +2871,39 @@ tests contribute 434 assertions. Native cargo test passed all 80 tests; all 88
 README blocks passed. JuliaFormatter DefaultStyle, rustfmt for the new native
 modules, diff and frozen-inventory checks passed. No new RustCall/faer defect
 was identified.
+
+
+## QR numeric construction rank-bound preparation in caller scratch
+
+The auto/supernodal QR construction query now includes the existing conservative
+source-precision rank bound. Three f64 accumulation arrays share a buffer with
+the numeric QR kernel, since the stages execute sequentially. An allocation-free
+borrowed R visitor replaces the temporary CSC R export. Ordinary construction
+uses the same preparation through a temporary native buffer. Numeric factors and
+the rank hint are installed only after both stages succeed; short buffers and
+pattern failures preserve an existing native revision.
+
+Construction/query boundaries now validate current native matrix dtype, dimensions,
+storage and stored count, plus plan kind, dimensions and triangle, before Julia
+snapshot value reads. The old query accepted an executed Float32 wrapper around
+Float64 native storage and returned a requirement; the new guard rejects this
+metadata mismatch. No unsafe snapshot operation was run for that baseline check.
+This is wrapper validation, not a RustCall/faer defect. Native output-pointer
+query alignment/null/span checks were also added.
+
+Native tests compare borrowed rank preparation to the previous materialized-R
+criterion across all four scalar types, algorithms and full/deficient/empty/wide/
+blocked fixtures. Prepared accumulation uses zero Rust heap allocations on the
+calling thread. This excludes numeric output, input conversion and other stages.
+The public construction scratch interface still targets auto/supernodal QR;
+simplicial/wide construction, construction teams, symbolic/input normalization/
+snapshot/finite checks and persistent numeric output allocation remain separate.
+The complete 76-row scope remains open.
+
+Final canonical `Pkg.test(;allow_reresolve=false)` passed **400,854 assertions /
+105 files / 16 workers in 8m09.1s**. The new construction/metadata tests contribute
+1,325 assertions; 434 existing numeric-revision/source-precision and 393 existing
+construction assertions also passed in focused runs. Native cargo test passed all
+85 tests and all 88 README blocks passed. JuliaFormatter DefaultStyle, rustfmt
+for changed native modules, diff and frozen-inventory checks passed. The selected
+clean t4a-faer remains 0.29.0 / `19053d8`; no new upstream defect was confirmed.

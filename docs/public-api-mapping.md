@@ -291,3 +291,16 @@ Existing tall full-rank defaults without resources can still use legacy mixed-ty
 or transpose/adjoint component preparation. They are preserved to avoid forcing
 a dense R SVD on large full-rank problems. This section describes the R-SVD
 workspace path and cached mode query, not completion of every default path.
+
+
+### QR construction rank-bound scratch
+
+Auto/supernodal numeric construction now composes native QR kernel scratch with
+three f64 rank-bound accumulation arrays, reusing the larger sequential layout.
+The rank bound visits retained R directly; it does not export an independent R.
+Without caller scratch the same calculation uses a temporary native buffer.
+Existing source-precision thresholds are preserved. Matrix dtype/shape/storage/
+stored-count and plan kind/shape/triangle metadata are validated against native
+owners before Julia snapshot value reads. Symbolic preparation, input normalization,
+snapshot/finite checks and persistent numeric buffers still allocate separately;
+simplicial/wide construction and remaining team controls stay open.

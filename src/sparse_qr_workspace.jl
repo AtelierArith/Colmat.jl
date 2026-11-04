@@ -2,9 +2,10 @@
     scratch_requirements(factorize, plan::FaerSparseSymbolic, A::FaerSparseMatrix)
 
 Query numeric factor-construction workspace for auto/supernodal QR. Pass a
-reserved buffer to `factorize(plan,A; scratch=s)`. Symbolic analysis and owned
-numeric factor storage and one-time rank-certificate preparation allocate outside
-scratch. The stored pattern must match.
+reserved buffer to `factorize(plan,A; scratch=s)`. The numeric QR kernel and
+source-precision rank-certificate preparation share this buffer sequentially.
+Symbolic analysis, input normalization/snapshot/finite checks and owned numeric
+factor storage allocate separately. The stored pattern must match.
 """
 function scratch_requirements(
     ::typeof(LinearAlgebra.factorize),
@@ -12,8 +13,7 @@ function scratch_requirements(
     a::FaerSparseMatrix{T},
 ) where {T}
     lock(_matrix_lock) do
-        _handle(p)
-        _handle(a)
+        _sparse_factor_inputs(p, a)
         size(p)==size(a) || throw(DimensionMismatch("plan and matrix shapes must match"))
         info=zeros(UInt, 2)
         GC.@preserve info _native_call(

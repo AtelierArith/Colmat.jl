@@ -70,13 +70,10 @@ impl<T: ComplexField> Factors<T> {
     pub(crate) fn permutation_ref(&self) -> faer::perm::PermRef<'_, usize> {
         self.symbolic.col_perm()
     }
-    pub(crate) fn write_r(&self, mut out: MatMut<'_, T>) {
-        let (_, n) = self.dimensions();
-        assert_eq!(out.shape(), (n, n));
-        out.fill(zero::<T>());
+    pub(crate) fn visit_r(&self, mut visit: impl FnMut(usize, usize, &T)) {
         if let Some(f) = self.simplicial() {
             for e in f.R().triplet_iter() {
-                out[(e.row, e.col)] = add(&out[(e.row, e.col)], e.val);
+                visit(e.row, e.col, e.val);
             }
         } else {
             let f = self.supernodal().unwrap();
@@ -84,20 +81,26 @@ impl<T: ComplexField> Factors<T> {
                 f.symbolic.R_adjoint(),
                 f.r,
             );
-            for s in 0..f.symbolic.R_adjoint().n_supernodes() {
-                let node = l.supernode(s);
+            for node_index in 0..f.symbolic.R_adjoint().n_supernodes() {
+                let node = l.supernode(node_index);
                 let a = node.val();
                 let w = a.ncols();
                 for j in 0..w {
                     for i in j..w {
-                        out[(node.start() + j, node.start() + i)] = conj(&a[(i, j)]);
+                        visit(node.start() + j, node.start() + i, &conj(&a[(i, j)]));
                     }
                     for (i, &row) in node.pattern().iter().enumerate() {
-                        out[(node.start() + j, row)] = conj(&a[(w + i, j)]);
+                        visit(node.start() + j, row, &conj(&a[(w + i, j)]));
                     }
                 }
             }
         }
+    }
+    pub(crate) fn write_r(&self, mut out: MatMut<'_, T>) {
+        let (_, n) = self.dimensions();
+        assert_eq!(out.shape(), (n, n));
+        out.fill(zero::<T>());
+        self.visit_r(|i, j, v| out[(i, j)] = add(&out[(i, j)], v));
     }
     pub(crate) fn apply_q_scratch(&self, k: usize) -> StackReq {
         let (m, n) = self.dimensions();

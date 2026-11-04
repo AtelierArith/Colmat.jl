@@ -1849,8 +1849,9 @@ Q directly to the R singular vectors inside scratch. No independent Q or R copy
 is prepared for an R-SVD workspace solve. Blocked Householder calls borrow the team; indexed
 simplicial traversal remains sequential. Rank certificates are prepared once
 per numeric factor revision and retained through copies. RHS/result ownership
-and destination staging allocate separately. Factor construction, including
-rank-certificate preparation, has a separate allocation policy below.
+and destination staging allocate separately. The numeric QR
+construction workspace below also includes rank-certificate preparation. Input
+normalization/snapshot/finite checks and owned factor storage allocate separately.
 
 
 For auto/supernodal QR, `ordering=:default` and `ordering=:colamd` both select
@@ -2510,3 +2511,13 @@ The rank certificate used to select the sparse QR solve kernel is refreshed by
 closing or changing a source matrix does not change it. Reusing scratch across a
 numeric update can require more capacity when a deficient factor switches to the
 R-SVD path; query again and call `reserve!` before solving.
+
+
+For auto/supernodal QR, `scratch_requirements(factorize,plan,A)` covers both the
+numeric QR kernel and the source-precision rank-bound accumulators. These stages
+reuse one buffer; R is visited directly without a temporary sparse export.
+Construction validates current native matrix and plan metadata before reading
+snapshot values. Symbolic analysis, input conversion/snapshot/finite checks and
+owned numeric output remain separate allocations, so this is not a whole-API
+allocation-free construction interface. Explicit simplicial and wide construction
+workspaces remain separate work.

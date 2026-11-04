@@ -183,6 +183,33 @@ function Base.copy(p::FaerSparseSymbolic{K}) where {K}
     end
 end
 Base.deepcopy_internal(p::FaerSparseSymbolic, d::IdDict) = get!(() -> copy(p), d, p)
+function _sparse_factor_inputs(p::FaerSparseSymbolic{K}, a::FaerSparseMatrix{T}) where {K,T}
+    _handle(p)
+    _handle(a)
+    kind=K===:lu ? 0 :
+         K===:qr ? 1 :
+         K===:cholesky ? 2 : throw(ArgumentError("unsupported sparse factor kind"))
+    p.uplo in (:L, :U)||throw(ArgumentError("invalid sparse factor triangle metadata"))
+    csr=_sparse_format(a.format)
+    _native_call(
+        RustCrate.sparse_factor_matrix_validate,
+        a,
+        UInt(size(a, 1)),
+        UInt(size(a, 2)),
+        _tag(T),
+        csr,
+        UInt(a.stored),
+    )
+    _native_call(
+        RustCrate.sparse_factor_plan_validate,
+        p,
+        UInt(size(p, 1)),
+        UInt(size(p, 2)),
+        Int32(kind),
+        p.uplo===:L,
+    )
+    return nothing
+end
 function LinearAlgebra.factorize(
     p::FaerSparseSymbolic{K},
     a::FaerSparseMatrix{T};
@@ -192,6 +219,7 @@ function LinearAlgebra.factorize(
     size(p)==size(a) ||
         throw(DimensionMismatch("symbolic analysis and numeric matrix shapes must match"))
     lock(_matrix_lock) do
+        _sparse_factor_inputs(p, a)
         snapshot=copy(a)
         finite = if K===:cholesky
             rows, cols, values=SparseArrays.findnz(snapshot)
