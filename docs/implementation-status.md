@@ -2086,15 +2086,15 @@ Final Pkg.test passed 103,354 assertions / 79 files / 16 workers. Native Rust
 passed on upstream 0bf88db.
 
 
-## Issue #22: saved auto/supernodal sparse LU components (in progress)
+## Issue #22: saved auto/supernodal sparse LU components
 
 Native L/U and row/column permutation export is connected for all sparse LU
 algorithms, enabling existing saved-factor reconstruction. Forced supernodal
 selection and native COLAMD controls are connected. Upstream API: faer #235 /
-PR #238; separate no-Rayon numeric fix: #236 / PR #237. Candidate dependency
-55d54a1 is used for integration testing; final merged dependency adoption and
-canonical validation remain pending. Focused Julia lifecycle/component/COLAMD checks pass 497 assertions. README
-68 executable blocks and Rust 11 tests pass. The first canonical run completed
-80 files with 103,849 passes and two stale unsupported-operation expectations;
-those expectations are updated to verify the newly implemented behavior.
-Final canonical rerun and merged upstream adoption remain pending.
+PR #238; separate no-Rayon numeric fix: #236 / PR #237.
+
+Validation against candidate faer 55d54a1: canonical
+`Pkg.test(;allow_reresolve=false)` passed 103,851 assertions across 80 files
+(16 workers). Focused lifecycle/component/COLAMD checks passed 497 assertions.
+README passed 68 executable blocks; Rust passed 11 tests. Julia/Rust formatting
+and diff checks passed. Final merged upstream adoption remains pending.
