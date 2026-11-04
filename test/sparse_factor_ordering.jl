@@ -96,11 +96,9 @@ end
                 dense_col = threshold,
             )
         end
-        if kind===:lu
-            @test_throws ArgumentError FaerSparseSymbolic(P; kind, ordering = :colamd)
-        else
-            @test FaerSparseSymbolic(P; kind, ordering = :colamd) isa FaerSparseSymbolic
-        end
+        plan=FaerSparseSymbolic(P; kind, ordering = :colamd)
+        @test plan isa FaerSparseSymbolic
+        close(plan)
         @test_throws ArgumentError FaerSparseSymbolic(
             P;
             kind,

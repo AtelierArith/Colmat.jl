@@ -2093,5 +2093,8 @@ algorithms, enabling existing saved-factor reconstruction. Forced supernodal
 selection and native COLAMD controls are connected. Upstream API: faer #235 /
 PR #238; separate no-Rayon numeric fix: #236 / PR #237. Candidate dependency
 55d54a1 is used for integration testing; final merged dependency adoption and
-canonical validation remain pending. Initial Julia lifecycle/component checks
-passed 401 assertions; larger COLAMD fixtures and the full suite are in progress.
+canonical validation remain pending. Focused Julia lifecycle/component/COLAMD checks pass 497 assertions. README
+68 executable blocks and Rust 11 tests pass. The first canonical run completed
+80 files with 103,849 passes and two stale unsupported-operation expectations;
+those expectations are updated to verify the newly implemented behavior.
+Final canonical rerun and merged upstream adoption remain pending.
