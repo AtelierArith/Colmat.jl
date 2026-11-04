@@ -722,3 +722,5 @@ mod full_adjoint_tests {
 }
 
 pub(crate) mod projection;
+
+pub(crate) mod borrowed;

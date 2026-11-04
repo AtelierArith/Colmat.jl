@@ -127,6 +127,15 @@ impl<T: ComplexField> Factors<T> {
             n,
         })
     }
+    pub(crate) fn head_ref(&self) -> &sparse_qr_owned::Factors<T> {
+        &self.head
+    }
+    pub(crate) fn r_ref(&self) -> SparseColMatRef<'_, usize, T> {
+        self.r.as_ref()
+    }
+    pub(crate) fn permutation_ref(&self) -> faer::perm::PermRef<'_, usize> {
+        self.columns.as_ref()
+    }
     pub(crate) fn r(&self) -> SparseColMat<usize, T> {
         self.r.clone()
     }

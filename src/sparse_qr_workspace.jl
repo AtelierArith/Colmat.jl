@@ -3,7 +3,8 @@
 
 Query numeric factor-construction workspace for auto/supernodal QR. Pass a
 reserved buffer to `factorize(plan,A; scratch=s)`. Symbolic analysis and owned
-numeric factor storage allocate outside scratch. The stored pattern must match.
+numeric factor storage and one-time rank-certificate preparation allocate outside
+scratch. The stored pattern must match.
 """
 function scratch_requirements(
     ::typeof(LinearAlgebra.factorize),

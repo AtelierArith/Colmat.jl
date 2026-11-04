@@ -1843,9 +1843,14 @@ scratch/team calls also borrow the sparse numeric factors when the rank bound
 certifies full column rank. Other explicit resource calls, wide defaults and
 rank/tolerance fallbacks use an R SVD, coefficient promotion and projection in
 caller scratch without constructing a dense pseudoinverse or reconstructing the
-input. Independent Q/R/permutation extraction, RHS/result storage and destination
-staging allocate outside solve scratch; Q extraction remains sequential. Factor
-construction has a separate workspace interface below.
+input. In this R-SVD workspace path, saved R and column permutations are borrowed,
+and saved reflectors apply
+Q directly to the R singular vectors inside scratch. No independent Q or R copy
+is prepared for an R-SVD workspace solve. Blocked Householder calls borrow the team; indexed
+simplicial traversal remains sequential. Rank certificates are prepared once
+per numeric factor revision and retained through copies. RHS/result ownership
+and destination staging allocate separately. Factor construction, including
+rank-certificate preparation, has a separate allocation policy below.
 
 
 For auto/supernodal QR, `ordering=:default` and `ordering=:colamd` both select
@@ -2498,3 +2503,10 @@ close(s)
 close(team)
 close(F)
 ```
+
+
+The rank certificate used to select the sparse QR solve kernel is refreshed by
+`qr!` and numeric `factorize` calls. It belongs to the retained numeric revision;
+closing or changing a source matrix does not change it. Reusing scratch across a
+numeric update can require more capacity when a deficient factor switches to the
+R-SVD path; query again and call `reserve!` before solving.
