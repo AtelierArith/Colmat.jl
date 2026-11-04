@@ -71,7 +71,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 自己随伴一般化固有値 | `self_adjoint_generalized_eigen/self_adjoint_generalized_eigenvalues` | `eigen/eigvals(Hermitian(A),Hermitian(B))` | R: Hermitian/実 Symmetric ペアの `eigen/eigvals/eigen!/eigvals!(A,B)`、4 型・指定三角・B 正定値、`scratch=`/`team=`、LLT/EVD 再利用領域 | 全構造・高度な失敗規約の網羅 |
 | 一般化固有値 | `generalized_eigen`, `GeneralizedEigen::{U,S_a,S_b}` | `eigen(A,B)`, `eigvals(A,B)` | R: `eigen/eigvals/eigen!/eigvals!(A,B)`、4 型・promotion・`scratch=`/`team=`、`homogeneous=true` で α/β、`side=:left/:right/:both` で左/右/同時ベクトル、両側の作業領域照会、bang は別途逐次 QZ S/T 書き戻し | 高度な規約・全極端スケール・defective pencil の網羅。左 driver の非有限出力は随伴ペアの右 driver へ回復（追加コピー、[faer #219](https://github.com/tensor4all/faer/issues/219)）。重複有限/無限固有値の非有限ベクトルは native SVD 零空間で回復（追加割当、[faer #217](https://github.com/tensor4all/faer/issues/217)） |
 | Schur・並べ替え | `evd::{hessenberg_schur_real/cplx,reorder_schur_real/cplx,eigenvectors_from_schur_*}` | `schur`, `ordschur`, Schur からの固有ベクトル | R: 4 型の `schur/schur!`、`ordschur/ordschur!`、`eigvecs/eigen(::Schur)`、Rust 所有 T/Z | 既定アルゴリズムのみ。全 SchurParams・並列 team・caller-owned scratch |
-| 一般化 Schur / QZ | `gevd::{gen_hessenberg,qz_real,qz_cplx}`, `hessenberg_to_qz` | `schur(A,B)` | R: 4 型の `schur(A,B)` / `schur!`、native S/T/Q/Z、α/β、`hessenberg(A,B)` と再利用 | 一般化 `ordschur`、全チューニング項目・caller-owned scratch。作業領域はラッパー内で補正・確保 |
+| 一般化 Schur / QZ | `gevd::{gen_hessenberg,qz_real,qz_cplx}`, `hessenberg_to_qz`, `reorder_schur_{real,cplx}`, `schur_eigenvalues_real` | `schur(A,B)`、`ordschur` | R: 4 型の `schur(A,B)` / `schur!`、native S/T/Q/Z、α/β、`hessenberg(A,B)` と再利用、保存因子の `ordschur` / `ordschur!`。実共役対は一括選択、無限値・0/0 は同次対で保持、失敗時は元の因子を保持 | 全チューニング項目・caller-owned scratch。並べ替えは作業因子と scratch を内部確保。数値的に不安全な交換・固有値評価は拒否 |
 
 ## 4. 求解・逆行列・分解の再利用
 

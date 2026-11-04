@@ -208,8 +208,37 @@ FM = schur!(AA, BB)
 固有値は同次形式の `α`・`β` でも保持します。`β == 0, α != 0` は無限固有値、
 `α == β == 0` は不定な固有値を表します。比に直す前の値を調べることで区別できます。
 実数・複素数とも native QZ を使い、混合型の通常呼び出しでは型を昇格します。
-一般化 Schur の `ordschur`、既定値以外のアルゴリズム設定、外部から渡す
-作業領域は現在未対応です。
+一般化 `ordschur`／`ordschur!` は保存済みの S/T を native で並べ替え、
+選択したブロックを先頭へ集めます。選択群・非選択群の内部の順序は保ちます。
+実共役対の片方だけを選ぶと両方が対象になります。α/β は保存因子から更新します。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix([4.0 0 0; 0 0 -1; 0 1 0])
+B = FaerMatrix(Matrix{Float64}(I, 3, 3))
+F = schur(A, B)
+select = imag.(F.values) .> 0       # 実共役対の片方を選択
+G = ordschur(F, select)
+@assert all(abs.(real.(G.values[1:2])) .< 1e-12)
+@assert all(isapprox.(abs.(imag.(G.values[1:2])), 1))
+@assert G.values[3] ≈ 4
+@assert Matrix(G.Q * G.S * G.Z') ≈ Matrix(A)
+@assert Matrix(G.Q * G.T * G.Z') ≈ Matrix(B)
+Sview = view(F.S, :, :)
+@assert ordschur!(F, select) === F
+@assert Matrix(Sview) == Matrix(F.S)
+@assert F.values ≈ G.values
+```
+
+`ordschur!` は全計算・固有値の変換に成功してから既存の S/T/Q/Z・α/β を
+更新し、元の所有者とビューを保ちます。行列は別々の native 所有者、α/β は
+要素領域の重ならない mutable strided vector が必要です。同じ Julia 配列の
+互いに重ならないビューも使えます。数値的に安全な交換や固有値評価ができない
+場合は例外を返し、元の分解を保ちます。作業因子と scratch は内部で確保します。
+`values`／`eigvals(F)` は Julia の α/β の比に従い、複素ゼロ除算では NaN を
+含む場合があるため、無限・不定値の判定には同次対を使ってください。
+既定値以外のアルゴリズム設定と外部から渡す作業領域は未対応です。
 
 疎行列は CSC／CSR の実体を Rust に所有させます。
 

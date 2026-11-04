@@ -163,11 +163,13 @@ pub(crate) fn real_qz_scratch<T: RealField>(
 }
 
 trait QzScalar: ComplexField + Sized {
+    type Alpha;
     unsafe fn qz(p: &mut Pair<Self>, alpha: *mut u8, beta: *mut u8) -> Result<(), String>;
 }
 macro_rules! real_qz {
     ($r:ty,$c:ty) => {
         impl QzScalar for $r {
+            type Alpha = $c;
             unsafe fn qz(p: &mut Pair<Self>, alpha: *mut u8, beta: *mut u8) -> Result<(), String> {
                 let n = p.s.nrows();
                 if n == 0 {
@@ -228,6 +230,7 @@ macro_rules! real_qz {
 macro_rules! complex_qz {
     ($c:ty) => {
         impl QzScalar for $c {
+            type Alpha = Self;
             unsafe fn qz(p: &mut Pair<Self>, alpha: *mut u8, beta: *mut u8) -> Result<(), String> {
                 let n = p.s.nrows();
                 if n == 0 {
@@ -291,7 +294,14 @@ unsafe fn compute<T: QzScalar>(
     alpha: *mut u8,
     beta: *mut u8,
     only_hessenberg: bool,
+    n: usize,
 ) -> Result<Pair<T>, String> {
+    if a.nrows() != n {
+        return Err("QZ current native dimension does not match the requested output".into());
+    }
+    if !only_hessenberg {
+        homogeneous_buffers::<T::Alpha, T>(alpha, beta, n)?;
+    }
     let mut p = if let Some((q, z)) = initial {
         from_reduced(a, b, q, z)?
     } else {
@@ -319,8 +329,13 @@ impl OwnedMatrix {
         only_hessenberg: bool,
         in_q: *const u8,
         in_z: *const u8,
+        n: usize,
+        tag: i32,
     ) -> Result<(), String> {
         guarded(|| unsafe {
+            if tag != 1 {
+                return Err("QZ requested scalar type does not match its native owner".into());
+            }
             let initial = if in_q.is_null() && in_z.is_null() {
                 None
             } else if !in_q.is_null() && !in_z.is_null() {
@@ -338,6 +353,7 @@ impl OwnedMatrix {
                 alpha,
                 beta,
                 only_hessenberg,
+                n,
             )?;
             self.matrix = p.s;
             (out_t).matrix = p.t;
@@ -362,6 +378,8 @@ impl TypedMatrix {
         only_hessenberg: bool,
         in_q: *const u8,
         in_z: *const u8,
+        n: usize,
+        tag: i32,
     ) -> Result<(), String> {
         guarded(|| unsafe {
             let a = (a).data()?;
@@ -385,7 +403,15 @@ impl TypedMatrix {
                         }
                         _ => return Err("generalized Hessenberg scalar types must match".into()),
                     };
-                    let p = compute($a.as_ref(), $b.as_ref(), init, alpha, beta, only_hessenberg)?;
+                    let p = compute(
+                        $a.as_ref(),
+                        $b.as_ref(),
+                        init,
+                        alpha,
+                        beta,
+                        only_hessenberg,
+                        n,
+                    )?;
                     (out_t).data = Some(MatrixData::$variant(p.t));
                     (out_q).data = Some(MatrixData::$variant(p.q));
                     (out_z).data = Some(MatrixData::$variant(p.z));
@@ -393,13 +419,435 @@ impl TypedMatrix {
                 }};
             }
             self.data = Some(match (a, b) {
-                (MatrixData::F32(a), MatrixData::F32(b)) => run!(a, b, F32),
-                (MatrixData::F64(a), MatrixData::F64(b)) => run!(a, b, F64),
-                (MatrixData::C32(a), MatrixData::C32(b)) => run!(a, b, C32),
-                (MatrixData::C64(a), MatrixData::C64(b)) => run!(a, b, C64),
-                _ => return Err("QZ scalar types must match".into()),
+                (MatrixData::F32(a), MatrixData::F32(b)) if tag == 0 => run!(a, b, F32),
+                (MatrixData::F64(a), MatrixData::F64(b)) if tag == 1 => run!(a, b, F64),
+                (MatrixData::C32(a), MatrixData::C32(b)) if tag == 2 => run!(a, b, C32),
+                (MatrixData::C64(a), MatrixData::C64(b)) if tag == 3 => run!(a, b, C64),
+                _ => return Err("QZ scalar types must match the requested scalar type".into()),
             });
             Ok(())
         })
+    }
+}
+
+trait QzReorderScalar: ComplexField {
+    type Alpha;
+    fn block_size(s: MatRef<'_, Self>, i: usize) -> usize {
+        if Self::IS_REAL && i + 1 < s.nrows() && s[(i + 1, i)] != zero() {
+            2
+        } else {
+            1
+        }
+    }
+    fn move_block(
+        p: &mut Pair<Self>,
+        from: usize,
+        to: usize,
+        memory: &mut MemBuffer,
+    ) -> Result<(), String>;
+    // SAFETY: The caller provides aligned, writable, nonoverlapping n-entry
+    // Julia vectors of the corresponding Alpha/Self types and preserves them.
+    unsafe fn write_values(p: &Pair<Self>, alpha: *mut u8, beta: *mut u8) -> Result<(), String>;
+}
+macro_rules! real_qz_reorder {
+    ($r:ty,$c:ty) => {
+        impl QzReorderScalar for $r {
+            type Alpha = $c;
+            fn move_block(
+                p: &mut Pair<Self>,
+                from: usize,
+                to: usize,
+                memory: &mut MemBuffer,
+            ) -> Result<(), String> {
+                gevd::reorder_schur_real(
+                    p.s.as_mut(),
+                    p.t.as_mut(),
+                    Some(p.q.as_mut()),
+                    Some(p.z.as_mut()),
+                    from,
+                    to,
+                    Par::Seq,
+                    MemStack::new(memory),
+                )
+                .map(|_| ())
+                .map_err(|e| {
+                    format!(
+                        "generalized Schur reorder rejected at row {}",
+                        e.position + 1
+                    )
+                })
+            }
+            unsafe fn write_values(
+                p: &Pair<Self>,
+                alpha: *mut u8,
+                beta: *mut u8,
+            ) -> Result<(), String> {
+                let n = p.s.nrows();
+                let mut ar = Col::<Self>::zeros(n);
+                let mut ai = ar.clone();
+                let mut be = ar.clone();
+                gevd::schur_eigenvalues_real(
+                    p.s.as_ref(),
+                    p.t.as_ref(),
+                    ar.as_mut(),
+                    ai.as_mut(),
+                    be.as_mut(),
+                )
+                .map_err(|e| {
+                    format!(
+                        "generalized Schur eigenvalue extraction rejected at row {}",
+                        e.position + 1
+                    )
+                })?;
+                if (0..n).any(|i| !ar[i].is_finite() || !ai[i].is_finite() || !be[i].is_finite()) {
+                    return Err("nonfinite generalized Schur homogeneous eigenvalues".into());
+                }
+                for i in 0..n {
+                    // SAFETY: checked output buffers are preserved by the Julia caller.
+                    unsafe {
+                        alpha.cast::<$c>().add(i).write(<$c>::new(ar[i], ai[i]));
+                        beta.cast::<Self>().add(i).write(be[i]);
+                    }
+                }
+                Ok(())
+            }
+        }
+    };
+}
+real_qz_reorder!(f32, c32);
+real_qz_reorder!(f64, c64);
+macro_rules! complex_qz_reorder {
+    ($t:ty) => {
+        impl QzReorderScalar for $t {
+            type Alpha = Self;
+            fn move_block(
+                p: &mut Pair<Self>,
+                from: usize,
+                to: usize,
+                memory: &mut MemBuffer,
+            ) -> Result<(), String> {
+                gevd::reorder_schur_cplx(
+                    p.s.as_mut(),
+                    p.t.as_mut(),
+                    Some(p.q.as_mut()),
+                    Some(p.z.as_mut()),
+                    from,
+                    to,
+                    Par::Seq,
+                    MemStack::new(memory),
+                )
+                .map(|_| ())
+                .map_err(|e| {
+                    format!(
+                        "generalized Schur reorder rejected at row {}",
+                        e.position + 1
+                    )
+                })
+            }
+            unsafe fn write_values(
+                p: &Pair<Self>,
+                alpha: *mut u8,
+                beta: *mut u8,
+            ) -> Result<(), String> {
+                for i in 0..p.s.nrows() {
+                    // SAFETY: checked output buffers are preserved by the Julia caller.
+                    unsafe {
+                        alpha.cast::<Self>().add(i).write(p.s[(i, i)]);
+                        beta.cast::<Self>().add(i).write(p.t[(i, i)]);
+                    }
+                }
+                Ok(())
+            }
+        }
+    };
+}
+complex_qz_reorder!(c32);
+complex_qz_reorder!(c64);
+
+fn reorder_buffer<T>(p: *const u8, n: usize) -> Result<(), String> {
+    if n == 0 {
+        return Ok(());
+    }
+    let bytes = n
+        .checked_mul(std::mem::size_of::<T>())
+        .filter(|&bytes| bytes <= isize::MAX as usize)
+        .ok_or("QZ buffer byte length overflow")?;
+    if p.is_null()
+        || (p as usize) % std::mem::align_of::<T>() != 0
+        || (p as usize).checked_add(bytes).is_none()
+    {
+        return Err("QZ buffer is null, unaligned or has an invalid address span".into());
+    }
+    Ok(())
+}
+fn homogeneous_buffers<A, B>(alpha: *mut u8, beta: *mut u8, n: usize) -> Result<(), String> {
+    reorder_buffer::<A>(alpha, n)?;
+    reorder_buffer::<B>(beta, n)?;
+    if n > 0 {
+        let a = alpha as usize;
+        let b = beta as usize;
+        // The individual span checks prove these lengths/endpoints fit usize.
+        if a < b + n * std::mem::size_of::<B>() && b < a + n * std::mem::size_of::<A>() {
+            return Err("QZ homogeneous output buffers must not overlap".into());
+        }
+    }
+    Ok(())
+}
+// SAFETY: select, alpha and beta refer to preserved Julia buffers of n entries;
+// their types, alignment and address spans are checked here. No pointer escapes.
+unsafe fn reorder_pair<T: QzReorderScalar>(
+    s: MatRef<'_, T>,
+    t: MatRef<'_, T>,
+    q: MatRef<'_, T>,
+    z: MatRef<'_, T>,
+    select: *const u8,
+    n: usize,
+    alpha: *mut u8,
+    beta: *mut u8,
+) -> Result<Pair<T>, String> {
+    if s.nrows() != s.ncols()
+        || s.shape() != t.shape()
+        || s.shape() != q.shape()
+        || s.shape() != z.shape()
+        || s.nrows() != n
+    {
+        return Err("QZ factors and selection must have matching square dimensions".into());
+    }
+    for matrix in [s, t, q, z] {
+        finite(matrix)?;
+    }
+    for j in 0..n {
+        for i in j + 1..n {
+            if t[(i, j)] != zero() || (i > j + usize::from(T::IS_REAL) && s[(i, j)] != zero()) {
+                return Err("QZ factors must be in generalized Schur form".into());
+            }
+        }
+    }
+    reorder_buffer::<u8>(select, n)?;
+    homogeneous_buffers::<T::Alpha, T>(alpha, beta, n)?;
+    // SAFETY: n agrees with all factor dimensions and the caller's preserved
+    // Julia selection vector; empty buffers need not have a nonnull pointer.
+    let mut flags = if n == 0 {
+        Vec::new()
+    } else {
+        unsafe { std::slice::from_raw_parts(select, n) }.to_vec()
+    };
+    if flags.iter().any(|&flag| flag > 1) {
+        return Err("QZ selection must contain Boolean values".into());
+    }
+    let mut here = 0;
+    while here < n {
+        let size = T::block_size(s, here);
+        if size == 2 {
+            if here + 2 < n && s[(here + 2, here + 1)] != zero() {
+                return Err("QZ real conjugate blocks must not overlap".into());
+            }
+            let chosen = flags[here] | flags[here + 1];
+            flags[here] = chosen;
+            flags[here + 1] = chosen;
+        }
+        here += size;
+    }
+    let mut p = Pair {
+        s: s.to_owned(),
+        t: t.to_owned(),
+        q: q.to_owned(),
+        z: z.to_owned(),
+        ascl: None,
+        bscl: None,
+    };
+    let mut memory = MemBuffer::new(gevd::reorder_schur_scratch::<T>(n));
+    let mut here = 0;
+    let mut next = 0;
+    while here < n {
+        let size = T::block_size(p.s.as_ref(), here);
+        if flags[here] != 0 {
+            if here != next {
+                T::move_block(&mut p, here, next, &mut memory)?;
+                flags[next..here + size].rotate_right(size);
+            }
+            next += size;
+        }
+        here += size;
+    }
+    for matrix in [&p.s, &p.t, &p.q, &p.z] {
+        finite(matrix.as_ref())?;
+    }
+    // SAFETY: output types, length and alignment were checked before any work;
+    // all factor and eigenvalue checks finish before writing either buffer.
+    unsafe {
+        T::write_values(&p, alpha, beta)?;
+    }
+    Ok(p)
+}
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn qz_reorder_from(
+        &mut self,
+        s: &OwnedMatrix,
+        t: &OwnedMatrix,
+        q: &OwnedMatrix,
+        z: &OwnedMatrix,
+        out_t: &mut OwnedMatrix,
+        out_q: &mut OwnedMatrix,
+        out_z: &mut OwnedMatrix,
+        select: *const u8,
+        n: usize,
+        alpha: *mut u8,
+        beta: *mut u8,
+        tag: i32,
+    ) -> Result<(), String> {
+        guarded(|| {
+            if tag != 1 {
+                return Err("QZ requested scalar type does not match its native owner".into());
+            }
+            // SAFETY: Julia allocates and preserves the checked n-entry buffers.
+            let p = unsafe {
+                reorder_pair(
+                    s.matrix.as_ref(),
+                    t.matrix.as_ref(),
+                    q.matrix.as_ref(),
+                    z.matrix.as_ref(),
+                    select,
+                    n,
+                    alpha,
+                    beta,
+                )?
+            };
+            self.matrix = p.s;
+            out_t.matrix = p.t;
+            out_q.matrix = p.q;
+            out_z.matrix = p.z;
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn qz_reorder_from(
+        &mut self,
+        s: &TypedMatrix,
+        t: &TypedMatrix,
+        q: &TypedMatrix,
+        z: &TypedMatrix,
+        out_t: &mut TypedMatrix,
+        out_q: &mut TypedMatrix,
+        out_z: &mut TypedMatrix,
+        select: *const u8,
+        n: usize,
+        alpha: *mut u8,
+        beta: *mut u8,
+        tag: i32,
+    ) -> Result<(), String> {
+        guarded(|| {
+            macro_rules! run {
+                ($s:expr,$t:expr,$q:expr,$z:expr,$variant:ident) => {{
+                    // SAFETY: Julia allocates and preserves the checked buffers
+                    // with scalar types matching this native variant.
+                    let p = unsafe {
+                        reorder_pair(
+                            $s.as_ref(),
+                            $t.as_ref(),
+                            $q.as_ref(),
+                            $z.as_ref(),
+                            select,
+                            n,
+                            alpha,
+                            beta,
+                        )?
+                    };
+                    out_t.data = Some(MatrixData::$variant(p.t));
+                    out_q.data = Some(MatrixData::$variant(p.q));
+                    out_z.data = Some(MatrixData::$variant(p.z));
+                    MatrixData::$variant(p.s)
+                }};
+            }
+            self.data = Some(match (s.data()?, t.data()?, q.data()?, z.data()?) {
+                (
+                    MatrixData::F32(s),
+                    MatrixData::F32(t),
+                    MatrixData::F32(q),
+                    MatrixData::F32(z),
+                ) if tag == 0 => run!(s, t, q, z, F32),
+                (
+                    MatrixData::F64(s),
+                    MatrixData::F64(t),
+                    MatrixData::F64(q),
+                    MatrixData::F64(z),
+                ) if tag == 1 => run!(s, t, q, z, F64),
+                (
+                    MatrixData::C32(s),
+                    MatrixData::C32(t),
+                    MatrixData::C32(q),
+                    MatrixData::C32(z),
+                ) if tag == 2 => run!(s, t, q, z, C32),
+                (
+                    MatrixData::C64(s),
+                    MatrixData::C64(t),
+                    MatrixData::C64(q),
+                    MatrixData::C64(z),
+                ) if tag == 3 => run!(s, t, q, z, C64),
+                _ => return Err("QZ scalar types must match the requested scalar type".into()),
+            });
+            Ok(())
+        })
+    }
+}
+
+#[cfg(test)]
+mod reorder_tests {
+    use super::*;
+    #[test]
+    fn buffer_validation_rejects_null_alignment_and_span() {
+        assert!(reorder_buffer::<f64>(std::ptr::null(), 0).is_ok());
+        assert!(reorder_buffer::<f64>(std::ptr::null(), 1).is_err());
+        let storage = [0u64; 2];
+        let unaligned = storage.as_ptr().cast::<u8>().wrapping_add(1);
+        assert!(reorder_buffer::<f64>(unaligned, 1).is_err());
+        assert!(reorder_buffer::<f64>(storage.as_ptr().cast(), usize::MAX).is_err());
+    }
+    #[test]
+    fn dimension_check_precedes_raw_buffer_access() {
+        let s = Mat::<f64>::identity(2, 2);
+        // SAFETY: all pointers are null deliberately; the shape/length mismatch
+        // must reject before attempting any raw access or slice construction.
+        let result = unsafe {
+            reorder_pair(
+                s.as_ref(),
+                s.as_ref(),
+                s.as_ref(),
+                s.as_ref(),
+                std::ptr::null(),
+                usize::MAX,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+        assert!(result.err().unwrap().contains("dimensions"));
+    }
+    #[test]
+    fn overlapping_metadata_is_rejected_before_writes() {
+        let s = Mat::<f64>::identity(2, 2);
+        let mask = [0u8; 2];
+        let mut output = [c64::new(42.0, 0.0); 2];
+        let ptr = output.as_mut_ptr().cast::<u8>();
+        // SAFETY: both spans are within output; overlap is deliberately invalid
+        // and must be detected before reading or writing the output buffers.
+        let result = unsafe {
+            reorder_pair(
+                s.as_ref(),
+                s.as_ref(),
+                s.as_ref(),
+                s.as_ref(),
+                mask.as_ptr(),
+                2,
+                ptr,
+                ptr,
+            )
+        };
+        assert!(result.err().unwrap().contains("overlap"));
+        assert_eq!(output, [c64::new(42.0, 0.0); 2]);
     }
 }
