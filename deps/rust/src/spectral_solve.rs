@@ -1,80 +1,13 @@
 //! Apply retained spectral factors without materializing a pseudoinverse.
 use crate::pseudoinverse::ToleranceReal;
 use crate::spectral_factors::{Decomposition, OwnedSpectral, SpectralData};
-use crate::typed::{finite, MatrixData, TypedMatrix};
-use crate::{guarded, teams::OwnedTeam, OwnedMatrix};
-use faer::diag::{Diag, DiagRef};
-use faer::linalg::matmul::matmul_with_conj;
+use crate::typed::{MatrixData, TypedMatrix};
+use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Accum, Conj, Mat, MatRef, Par};
+use faer::{MatRef, Par};
 use rustcall_julia_macros::julia;
-fn apply<T: ComplexField>(
-    u: MatRef<'_, T>,
-    v: MatRef<'_, T>,
-    s: DiagRef<'_, T>,
-    b: MatRef<'_, T>,
-    cutoff: T::Real,
-    op: i32,
-    right: bool,
-    mut par: Par<'_>,
-) -> Result<Mat<T>, String> {
-    finite(b)?;
-    if right {
-        let rhs = b.adjoint().to_owned();
-        let result = apply(u, v, s, rhs.as_ref(), cutoff, op ^ 2, false, par)?;
-        return Ok(result.adjoint().to_owned());
-    }
-    let (input, output) = if op == 1 || op == 2 { (v, u) } else { (u, v) };
-    if b.nrows() != input.nrows() {
-        return Err("spectral solve RHS shape mismatch".into());
-    }
-    let k = s.dim();
-    let nrhs = b.ncols();
-    let mut out = Mat::zeros(output.nrows(), nrhs);
-    if k == 0 || nrhs == 0 {
-        return Ok(out);
-    }
-    let mut projected = Mat::zeros(k, nrhs);
-    matmul_with_conj(
-        projected.as_mut(),
-        Accum::Replace,
-        input.transpose(),
-        if op == 0 || op == 2 {
-            Conj::Yes
-        } else {
-            Conj::No
-        },
-        b,
-        Conj::No,
-        one::<T>(),
-        par.reborrow(),
-    );
-    for j in 0..nrhs {
-        for i in 0..k {
-            let value = real(&s[i]);
-            projected[(i, j)] = if abs(&value) > cutoff {
-                mul_real(&projected[(i, j)], &recip(&value))
-            } else {
-                zero::<T>()
-            };
-        }
-    }
-    matmul_with_conj(
-        out.as_mut(),
-        Accum::Replace,
-        output,
-        if op == 1 || op == 3 {
-            Conj::Yes
-        } else {
-            Conj::No
-        },
-        projected.as_ref(),
-        Conj::No,
-        one::<T>(),
-        par,
-    );
-    Ok(out)
-}
+mod workspace;
+use workspace::{converted, same};
 pub(crate) fn threshold<T: ComplexField>(
     f: &Decomposition<T>,
     atol: f64,
@@ -95,69 +28,6 @@ where
             .norm_max()
             .cutoff(atol, rtol, relative_f32)
     })
-}
-fn same<T: ComplexField>(
-    f: &Decomposition<T>,
-    b: MatRef<'_, T>,
-    op: i32,
-    right: bool,
-    atol: f64,
-    rtol: f64,
-    relative_f32: bool,
-    par: Par<'_>,
-) -> Result<Mat<T>, String>
-where
-    T::Real: ToleranceReal,
-{
-    let k = f.s().dim();
-    apply(
-        f.u().get(.., ..k),
-        f.v().get(.., ..k),
-        f.s(),
-        b,
-        threshold(f, atol, rtol, relative_f32)?,
-        op,
-        right,
-        par,
-    )
-}
-fn converted<F: ComplexField, P: ComplexField>(
-    f: &Decomposition<F>,
-    b: MatRef<'_, P>,
-    cast: fn(&F) -> P,
-    op: i32,
-    right: bool,
-    atol: f64,
-    rtol: f64,
-    relative_f32: bool,
-    par: Par<'_>,
-) -> Result<Mat<P>, String>
-where
-    F::Real: ToleranceReal,
-{
-    let k = f.s().dim();
-    let u = Mat::from_fn(f.u().nrows(), k, |i, j| cast(&f.u()[(i, j)]));
-    let v = Mat::from_fn(f.v().nrows(), k, |i, j| cast(&f.v()[(i, j)]));
-    let mut s = Diag::zeros(k);
-    for i in 0..k {
-        s[i] = cast(&f.s()[i]);
-    }
-    let cutoff = real(&cast(&from_real::<F>(&threshold(
-        f,
-        atol,
-        rtol,
-        relative_f32,
-    )?)));
-    apply(
-        u.as_ref(),
-        v.as_ref(),
-        s.as_ref(),
-        b,
-        cutoff,
-        op,
-        right,
-        par,
-    )
 }
 enum Rhs<'a> {
     F32(MatRef<'a, f32>),
@@ -192,6 +62,7 @@ impl OwnedSpectral {
         rtol: f64,
         relative_f32: bool,
         par: Par<'_>,
+        scratch: Option<&mut OwnedScratch>,
     ) -> Result<MatrixData, String> {
         self.check(factor_tag, eigen)?;
         if !(0..=3).contains(&op) {
@@ -220,19 +91,70 @@ impl OwnedSpectral {
         {
             return Err("spectral solve dimensions mismatch".into());
         }
+        let req = workspace::requirement_for(
+            self,
+            factor_rows,
+            factor_cols,
+            factor_tag,
+            tag,
+            eigen,
+            op,
+            right,
+            if right { br } else { bc },
+        )?;
+        let mut temporary = OwnedScratch::new();
+        let scratch = match scratch {
+            Some(s) => s,
+            None => {
+                temporary.scratch_reserve(req.size_bytes(), req.align_bytes())?;
+                &mut temporary
+            }
+        };
         Ok(match (self.data()?, b) {
-            (SpectralData::F32(f), Rhs::F32(b)) => {
-                MatrixData::F32(same(f, b, op, right, atol, rtol, relative_f32, par)?)
-            }
-            (SpectralData::F64(f), Rhs::F64(b)) => {
-                MatrixData::F64(same(f, b, op, right, atol, rtol, relative_f32, par)?)
-            }
-            (SpectralData::C32(f), Rhs::C32(b)) => {
-                MatrixData::C32(same(f, b, op, right, atol, rtol, relative_f32, par)?)
-            }
-            (SpectralData::C64(f), Rhs::C64(b)) => {
-                MatrixData::C64(same(f, b, op, right, atol, rtol, relative_f32, par)?)
-            }
+            (SpectralData::F32(f), Rhs::F32(b)) => MatrixData::F32(same(
+                f,
+                b,
+                op,
+                right,
+                atol,
+                rtol,
+                relative_f32,
+                par,
+                scratch,
+            )?),
+            (SpectralData::F64(f), Rhs::F64(b)) => MatrixData::F64(same(
+                f,
+                b,
+                op,
+                right,
+                atol,
+                rtol,
+                relative_f32,
+                par,
+                scratch,
+            )?),
+            (SpectralData::C32(f), Rhs::C32(b)) => MatrixData::C32(same(
+                f,
+                b,
+                op,
+                right,
+                atol,
+                rtol,
+                relative_f32,
+                par,
+                scratch,
+            )?),
+            (SpectralData::C64(f), Rhs::C64(b)) => MatrixData::C64(same(
+                f,
+                b,
+                op,
+                right,
+                atol,
+                rtol,
+                relative_f32,
+                par,
+                scratch,
+            )?),
             (SpectralData::F32(f), Rhs::F64(b)) => MatrixData::F64(converted(
                 f,
                 b,
@@ -243,6 +165,7 @@ impl OwnedSpectral {
                 rtol,
                 relative_f32,
                 par,
+                scratch,
             )?),
             (SpectralData::F32(f), Rhs::C32(b)) => MatrixData::C32(converted(
                 f,
@@ -254,6 +177,7 @@ impl OwnedSpectral {
                 rtol,
                 relative_f32,
                 par,
+                scratch,
             )?),
             (SpectralData::F32(f), Rhs::C64(b)) => MatrixData::C64(converted(
                 f,
@@ -265,6 +189,7 @@ impl OwnedSpectral {
                 rtol,
                 relative_f32,
                 par,
+                scratch,
             )?),
             (SpectralData::F64(f), Rhs::C64(b)) => MatrixData::C64(converted(
                 f,
@@ -276,6 +201,7 @@ impl OwnedSpectral {
                 rtol,
                 relative_f32,
                 par,
+                scratch,
             )?),
             (SpectralData::C32(f), Rhs::C64(b)) => MatrixData::C64(converted(
                 f,
@@ -287,6 +213,7 @@ impl OwnedSpectral {
                 rtol,
                 relative_f32,
                 par,
+                scratch,
             )?),
             _ => return Err("unsupported spectral solve scalar promotion".into()),
         })
@@ -330,6 +257,7 @@ impl OwnedMatrix {
                 rtol,
                 relative_f32,
                 par,
+                None,
             )?;
             if let MatrixData::F64(a) = result {
                 self.matrix = a;
@@ -376,6 +304,7 @@ impl OwnedMatrix {
                     rtol,
                     relative_f32,
                     par,
+                    None,
                 )
             })??;
             if let MatrixData::F64(a) = result {
@@ -430,6 +359,7 @@ impl TypedMatrix {
                 rtol,
                 relative_f32,
                 par,
+                None,
             )?;
             self.data = Some(result);
             Ok(())
@@ -477,6 +407,7 @@ impl TypedMatrix {
                     rtol,
                     relative_f32,
                     par,
+                    None,
                 )
             })??;
             self.data = Some(result);

@@ -2701,3 +2701,37 @@ views/vector/row/diagonal layouts, aliases, Tasks and conversion/resource failur
 staging are covered. JuliaFormatter/rustfmt/diff checks pass; frozen inventory
 and faer checkout remain unchanged. Public FaerSpectralFactor solve scratch
 remains separate from this FaerFactorization API and legacy SVD backend.
+
+## Public retained spectral solve scratch (PR #47)
+
+Baseline main `be6b3c5`, faer clean `19053d8` (0.29.0), canonical
+222,089 assertions / 99 files, Rust 61 tests, README 85 blocks.
+
+Connect caller scratch for public saved SVD/self-adjoint EVD left/right solves
+and inverses, preserving all tolerances, source precision and scalar promotion.
+Native storage includes reciprocal weights, projection and promoted U/V.
+Direct right projection removes the owned adjoint RHS/result temporaries.
+No decomposition, source matrix or intermediate pseudoinverse is required.
+The inverse output itself is naturally a full matrix. Default and explicit
+workspace routes share native kernels, including legacy internal FFI methods.
+Current factor/array owners are validated before conversion and workspace use;
+closed/insufficient resources fail before staged destination writeback. Native
+result ownership and Julia/RHS conversion still allocate outside kernel scratch;
+native-owner construction resources remain separate.
+
+Exact threshold tests straddle the actual stored Float32 singular/eigenvalue.
+The baseline EVD of diag(1,0.1f0) stores 0.100000024, within Float32 rounding;
+comparing to a new Julia decomposition of the input literal would incorrectly
+require clipping that retained value. Baseline stored-factor pinv/solve both
+retain it. This is a fixture correction, not an upstream numerical defect.
+General matrix-reference tests remain independent and unchanged.
+
+Final exact-tree validation: canonical `Pkg.test(;allow_reresolve=false)` passed
+249,959 assertions / 100 files / 16 workers (7m26.9s), including 27,870 new
+assertions. Rust 67 tests and all 86 executable README blocks passed. Focused
+solve coverage 27,824 plus 22 owner/conversion and 24 stored-threshold assertions
+passed. Preallocated projection probes measured zero calling-thread Rust heap
+allocations after warmup for four scalars and both sides with Seq/Team(2);
+result ownership, coefficient promotion setup and worker heaps are outside that
+measurement. No whole-API allocation-free claim is made. Format/diff checks pass;
+frozen inventory and clean faer `19053d8` remain unchanged.

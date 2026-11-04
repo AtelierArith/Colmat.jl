@@ -1599,13 +1599,51 @@ and caller-controlled spectral-owner construction workspace remain unexposed.
 Saved factors also support `F \ B`, `B / F`, `ldiv!`, `rdiv!`, and square
 `inv(F)`, including transpose/adjoint and mixed scalar types. Solves project the
 RHS through the retained native factors, applying a truncated minimum-norm
-solution without building a full pseudoinverse. `atol`, `rtol`, and `team` are
+solution without building a full pseudoinverse. `atol`, `rtol`, `scratch`, and `team` are
 accepted; cutoff precision follows the stored factor even when the RHS promotes
 the computation. Signed self-adjoint eigenvalues are preserved. Three-argument
 mutation supports rectangular factors; two-argument mutation requires square
-factors. Destination conversion is staged before writeback. Solve work arrays
-are backend allocated; caller scratch is not exposed. Singular inverses throw
+factors. Destination conversion is staged before writeback. Caller scratch holds
+projection, weights and promoted U/V copies; native results and Julia/RHS
+conversions allocate separately. Right solves avoid an owned adjoint RHS copy.
+Singular inverses throw
 `SingularException`.
+
+### Reusable workspace for saved SVD/EVD solves
+
+```julia
+using Colmat, LinearAlgebra
+A0=Float32[3 0;0 0.1;0 0]
+F=svd(FaerMatrix(A0);native=true)
+B=ones(ComplexF64,3,2)
+X=zeros(ComplexF64,2,2)
+team=FaerTeam(2)
+work=FaerScratch(ldiv!,X,F,B;rtol=0.2,team)
+ldiv!(X,F,B;rtol=0.2,scratch=work,team)
+@assert X≈ComplexF64[1/3 1/3;0 0]
+C=ones(ComplexF64,2,2)
+Y=zeros(ComplexF64,2,3)
+reserve!(work,rdiv!,Y,C,F;rtol=0.2,team)
+rdiv!(Y,C,F;rtol=0.2,scratch=work,team)
+@assert Y≈ComplexF64[1/3 0 0;1/3 0 0]
+close(work)
+close(team)
+close(F)
+H0=[4.0 1;1 3]
+E=eigen(Hermitian(FaerMatrix(H0));native=true)
+work=FaerScratch(inv,E)
+inverse=inv(E;scratch=work)
+@assert Matrix(inverse)≈inv(H0)
+close(inverse)
+close(work)
+close(E)
+```
+
+`scratch_requirements` accepts the same operand order for backslash, `/`,
+`ldiv!`, `rdiv!` and `inv`. Optional tolerances are validated without changing
+capacity; scalar promotion changes the coefficient/projection buffer sizes.
+`reserve!` grows explicitly, and operations reject insufficient/already-closed
+resources before destination writeback. Factor construction remains separate.
 
 ### Reusable workspace for saved-factor pseudoinverses
 

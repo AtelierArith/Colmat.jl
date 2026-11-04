@@ -33,12 +33,14 @@ function _spectral_solve_rhs(
     atol = 0,
     rtol = _default_spectral_rtol(_spectral_parent(f), atol),
     team = nothing,
+    scratch = nothing,
     right = false,
 )
     lock(_matrix_lock) do
         original=_spectral_parent(f)
         _handle(original)
         _spectral_rhs_open(b)
+        _dense_rhs_validate(b)
         Base.require_one_based_indexing(b)
         isnothing(team) ||
             team isa FaerTeam ||
@@ -53,40 +55,63 @@ function _spectral_solve_rhs(
         P=promote_type(eltype(original), eltype(b))
         P<:_NativeScalar ||
             throw(ArgumentError("unsupported spectral solve scalar promotion"))
-        input=ndims(b)==1 ? reshape(b, :, 1) : b
-        rhs=b isa FaerMatrix ? _coerce(b, P) : FaerMatrix{P}(input)
+        extent=right ? size(b, 1) : ndims(b)==1 ? 1 : size(b, 2)
+        req=_spectral_solve_workspace_query(
+            original,
+            P,
+            _spectral_op(f),
+            right,
+            extent;
+            team,
+        )
+        temporary=isnothing(scratch)
+        work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+        work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
         try
-            dims=right ? (size(b, 1), size(f, 1)) : (size(f, 2), size(input, 2))
-            args=(
-                original,
-                rhs,
-                UInt(size(original, 1)),
-                UInt(size(original, 2)),
-                UInt(dims[1]),
-                UInt(dims[2]),
-                _tag(eltype(original)),
-                _tag(P),
-                typeof(original).parameters[2]===:eigen,
-                Int32(_spectral_op(f)),
-                right,
-                at,
-                rt,
-                promote_type(typeof(rtol), _realtype(eltype(original)))===Float32,
+            cap=scratch_capacity(work)
+            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+                ArgumentError(
+                    "spectral solve scratch capacity/alignment is insufficient; call reserve!",
+                ),
             )
-            fun=isnothing(team) ? RustCrate.spectral_solve : RustCrate.spectral_solve_team
-            tail=isnothing(team) ? () : (team,)
-            result=P===Float64 ? _matrix_result(fun, dims, args..., tail...) :
-                   _typed_result(P, fun, dims, args..., tail...)
-            if ndims(b)==1
-                try
-                    return vec(Matrix(result))
-                finally
-                    close(result)
+            input=ndims(b)==1 ? reshape(b, :, 1) : b
+            rhs=b isa FaerMatrix ? _coerce(b, P) : FaerMatrix{P}(input)
+            try
+                dims=right ? (size(b, 1), size(f, 1)) : (size(f, 2), size(input, 2))
+                args=(
+                    original,
+                    rhs,
+                    UInt(size(original, 1)),
+                    UInt(size(original, 2)),
+                    UInt(dims[1]),
+                    UInt(dims[2]),
+                    _tag(eltype(original)),
+                    _tag(P),
+                    typeof(original).parameters[2]===:eigen,
+                    Int32(_spectral_op(f)),
+                    right,
+                    at,
+                    rt,
+                    promote_type(typeof(rtol), _realtype(eltype(original)))===Float32,
+                )
+                fun=isnothing(team) ? RustCrate.spectral_solve_workspace :
+                    RustCrate.spectral_solve_workspace_team
+                tail=isnothing(team) ? (work,) : (work, team)
+                result=P===Float64 ? _matrix_result(fun, dims, args..., tail...) :
+                       _typed_result(P, fun, dims, args..., tail...)
+                if ndims(b)==1
+                    try
+                        return vec(Matrix(result))
+                    finally
+                        close(result)
+                    end
                 end
+                return result
+            finally
+                rhs===b || close(rhs)
             end
-            return result
         finally
-            rhs===b || close(rhs)
+            temporary && close(work)
         end
     end
 end
@@ -141,6 +166,7 @@ end
 function _spectral_ldiv!(dest, f, b; kwargs...)
     lock(_matrix_lock) do
         _spectral_rhs_open(dest)
+        _dense_rhs_validate(dest)
         size(dest)==(ndims(b)==1 ? (size(f, 2),) : (size(f, 2), size(b, 2))) ||
             throw(DimensionMismatch("spectral solve destination shape mismatch"))
         result=_spectral_solve_rhs(f, b; kwargs...)
@@ -152,14 +178,16 @@ function _spectral_ldiv!(dest, f, b; kwargs...)
     end
 end
 """
-    ldiv!(dest, F::FaerSpectralFactor, B; atol=0, rtol, team=nothing)
+    ldiv!(dest, F::FaerSpectralFactor, B; atol=0, rtol, scratch=nothing, team=nothing)
 
 Apply a retained SVD/self-adjoint EVD in a truncated minimum-norm solve. Stored
 factors are reused, including mixed-precision/complex RHS, transpose and adjoint.
 The cutoff follows the stored factor's precision. The solver projects/scales the
 RHS through native factors without constructing a full pseudoinverse. Destination
 conversion is staged before writeback; three-argument calls support rectangular
-factors, while two-argument calls require square factors. Work arrays allocate.
+factors, while two-argument calls require square factors. `scratch=` includes
+projection, weights and promoted coefficient buffers; result/Julia staging
+allocates separately. Queries/reserve also cover backslash and right division.
 """
 LinearAlgebra.ldiv!(
     dest::AbstractMatrix,
@@ -189,6 +217,7 @@ function LinearAlgebra.rdiv!(
 )
     lock(_matrix_lock) do
         _spectral_rhs_open(dest)
+        _dense_rhs_validate(dest)
         size(dest)==(size(b, 1), size(f, 1)) ||
             throw(DimensionMismatch("right spectral solve destination shape mismatch"))
         result=_spectral_solve_rhs(f, b; right = true, kwargs...)
@@ -212,20 +241,29 @@ function Base.inv(
     atol::Real = 0,
     rtol::Real = _default_spectral_rtol(_spectral_parent(f), atol),
     team = nothing,
+    scratch = nothing,
 )
     lock(_matrix_lock) do
         original=_spectral_parent(f)
         _handle(original)
+        _spectral_solve_workspace_query(
+            original,
+            eltype(original),
+            _spectral_op(f),
+            false,
+            0;
+            team,
+        )
         n=LinearAlgebra.checksquare(original)
         LinearAlgebra.rank(original; atol, rtol)==n ||
             throw(LinearAlgebra.SingularException(1))
-        _spectral_op(f)==0 && return _spectral_part(original, 4; atol, rtol, team)
         return _spectral_solve_rhs(
             f,
             Matrix{eltype(original)}(LinearAlgebra.I, n, n);
             atol,
             rtol,
             team,
+            scratch,
         )
     end
 end
