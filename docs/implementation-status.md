@@ -2114,4 +2114,4 @@ refactorization branch is removed. Auto/supernodal QR inverse actions retain
 native Householder/R/permutation buffers and allocate intermediates per apply.
 Focused integration checks pass 12,535 assertions. Canonical validation passes
 111,982 assertions across 82 files (16 workers). Rust tests pass 11 tests.
-README final validation is running.
+README passes 70 executable blocks.
