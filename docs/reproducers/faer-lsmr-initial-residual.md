@@ -25,3 +25,9 @@ The correction preserves the computed `norm` and `norm/norm_ref` on the initial
 tolerance return. The preceding zero-reference return is unchanged. The original
 [absolute-tolerance MWE](faer-lsmr-atol.rs) also succeeds on the selected upstream,
 so Colmat no longer converts atol into a relative bound for the fixed #207.
+
+PR #249 merged as `fc52fc9b5b025a9d4b75110415bb026584885e4e` after required CI.
+This main revision carries t4a-faer 0.29.0; its LSMR computation matches the
+verified candidate.
+The MWE was re-executed on merged main and again returned sqrt(2), 1,
+iter_count=0 and stopped=false with exit status 0.
