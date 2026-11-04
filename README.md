@@ -1975,3 +1975,23 @@ F=qr(FaerSparseMatrix(sparse(A0)); algorithm=:supernodal, ordering=[2,1])
 @assert Matrix(F)≈A0
 close(F)
 ```
+
+
+### Full orthogonal bases from sparse QR
+
+`F.Q` and `F.Qthin` return the independent thin basis; `F.Qfull` returns an
+independent square orthogonal/unitary basis for every sparse QR algorithm.
+The complement is formed from saved native Householder factors, including
+structurally missing pivots. No source snapshot is refactorized.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0=ComplexF64[2 0; im 3; 0 1; 0 0]
+F=qr(FaerSparseMatrix(sparse(A0)); algorithm=:supernodal)
+Q=Matrix(F.Qfull)
+@assert Q'*Q≈Matrix{ComplexF64}(I,4,4)
+@assert Q[:,1:2]≈Matrix(F.Qthin)
+@assert Q*vcat(Matrix(F.R),zeros(ComplexF64,2,2))≈A0[:,Vector(F.pcol)]
+close(F)
+@assert Q'*Q≈Matrix{ComplexF64}(I,4,4)
+```

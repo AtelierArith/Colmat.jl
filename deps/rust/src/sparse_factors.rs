@@ -850,11 +850,11 @@ impl SparseOwner {
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn sparse_qr_q(&mut self, factor: &SparseFactor) -> Result<(), String> {
+    pub fn sparse_qr_q(&mut self, factor: &SparseFactor, full: bool) -> Result<(), String> {
         guarded(|| {
             self.matrix = match factor.factors()? {
-                Factors::F64(Numeric::SimplicialQr(f)) => f.q(),
-                Factors::F64(Numeric::Qr(f)) => f.q()?,
+                Factors::F64(Numeric::SimplicialQr(f)) => (if full { f.q_full() } else { f.q() }),
+                Factors::F64(Numeric::Qr(f)) => (if full { f.q_full() } else { f.q() })?,
                 _ => return Err("QR Q requires Float64 QR factors".into()),
             };
             Ok(())
@@ -864,17 +864,33 @@ impl OwnedMatrix {
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn sparse_qr_q(&mut self, factor: &SparseFactor) -> Result<(), String> {
+    pub fn sparse_qr_q(&mut self, factor: &SparseFactor, full: bool) -> Result<(), String> {
         guarded(|| {
             self.data = Some(match factor.factors()? {
-                Factors::F32(Numeric::SimplicialQr(f)) => MatrixData::F32(f.q()),
-                Factors::F32(Numeric::Qr(f)) => MatrixData::F32(f.q()?),
-                Factors::F64(Numeric::SimplicialQr(f)) => MatrixData::F64(f.q()),
-                Factors::F64(Numeric::Qr(f)) => MatrixData::F64(f.q()?),
-                Factors::C32(Numeric::SimplicialQr(f)) => MatrixData::C32(f.q()),
-                Factors::C32(Numeric::Qr(f)) => MatrixData::C32(f.q()?),
-                Factors::C64(Numeric::SimplicialQr(f)) => MatrixData::C64(f.q()),
-                Factors::C64(Numeric::Qr(f)) => MatrixData::C64(f.q()?),
+                Factors::F32(Numeric::SimplicialQr(f)) => {
+                    MatrixData::F32((if full { f.q_full() } else { f.q() }))
+                }
+                Factors::F32(Numeric::Qr(f)) => {
+                    MatrixData::F32((if full { f.q_full() } else { f.q() })?)
+                }
+                Factors::F64(Numeric::SimplicialQr(f)) => {
+                    MatrixData::F64((if full { f.q_full() } else { f.q() }))
+                }
+                Factors::F64(Numeric::Qr(f)) => {
+                    MatrixData::F64((if full { f.q_full() } else { f.q() })?)
+                }
+                Factors::C32(Numeric::SimplicialQr(f)) => {
+                    MatrixData::C32((if full { f.q_full() } else { f.q() }))
+                }
+                Factors::C32(Numeric::Qr(f)) => {
+                    MatrixData::C32((if full { f.q_full() } else { f.q() })?)
+                }
+                Factors::C64(Numeric::SimplicialQr(f)) => {
+                    MatrixData::C64((if full { f.q_full() } else { f.q() }))
+                }
+                Factors::C64(Numeric::Qr(f)) => {
+                    MatrixData::C64((if full { f.q_full() } else { f.q() })?)
+                }
                 _ => return Err("QR Q requires simplicial factors".into()),
             });
             Ok(())

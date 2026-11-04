@@ -2122,3 +2122,12 @@ Identity and supplied column permutations now reach native symbolic LU/QR
 analysis for auto/supernodal algorithms. Upstream faer #239 / PR #240 provides
 the API. Candidate faer 3889bd1 passes seven focused tests and three doctests.
 Colmat integration validation is running. Other native tuning remains pending.
+
+## Issue #22: full Q from saved sparse QR factors (in progress)
+
+All algorithms expose `Qfull` and the explicit thin alias `Qthin`, while `Q`
+retains its existing thin contract. Missing pivots receive unused coordinate
+basis vectors before reflector application, preserving orthogonality for zero
+and rank-deficient inputs. Focused tests pass 1,224 assertions. Canonical
+validation is running. Rank-deficient/wide solves and rank tolerance remain
+separate unfinished contracts.
