@@ -2500,3 +2500,35 @@ Final canonical validation passes 158,626 assertions / 94 files / 16 workers
 (Julia 1.13.3 / RustCall 0.9.2), native 37 tests and 80 executable README blocks.
 The new Julia file contributes 7,079 assertions. Formatting/diff checks pass;
 the frozen inventory is unchanged.
+
+## Retained dense factor solve teams
+
+`ldiv!(X,F,B;team)` and `rdiv!(X,B,F;team)` now borrow a caller-owned native
+team for saved dense LU/full LU/QR/pivoted QR/Cholesky/LDLT/Bunch–Kaufman.
+Both two-argument square forms and three-argument rectangular forms support
+transpose/adjoint, all four native scalars and existing mixed-scalar promotion.
+The native regular, least-squares, reconstruction, SVD/pseudoinverse and final
+product paths all receive the borrowed Par. Tokens never escape execution.
+Construction and solve teams have independent lifetimes.
+
+A shared Julia staging path replaces the scattered mutating factor solve
+methods, snapshots RHS before output writeback and stages destination conversion.
+New checked native team entrypoints compare current dtype, shape, factor kind
+and RHS column count against requested metadata before assigning a result.
+Native singular status is checked independently of Julia's cached status.
+Native outputs and Julia destinations survive failed validation or conversion.
+
+Mixed-scalar promotion retains the existing reconstruction/refactorization
+policy; component extraction remains sequential, while promoted products and
+new factorization use the team. Ordinary backslash remains sequential; caller
+scratch, direct native in-place storage, component-extraction teams, sparse
+factor solve teams and the remaining 76-row/callback scope stay open. Native
+workspace and result staging still allocate. The selected faer remains the
+clean verified 19053d8 (0.29.0).
+
+Final canonical validation passes 170,823 assertions / 95 files / 16 workers
+(Julia 1.13.3 / RustCall 0.9.2), native 39 tests and 81 executable README blocks.
+The new dense-solve file contributes 12,197 assertions. Closed/invalid teams,
+unsuccessful factors, nonfinite RHS, conversion failure, current native dtype/
+shape/kind, copies, shared Tasks, zero shapes and blocked 129-order factors
+are covered. Formatting/diff checks pass; the frozen inventory is unchanged.

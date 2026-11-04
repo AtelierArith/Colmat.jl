@@ -8,7 +8,8 @@ independent FaerMatrix objects. `close(F)` invalidates only this factorization.
 
 Construction accepts `team=FaerTeam(...)` to borrow a reusable native team.
 Factors own their data and remain usable after the team or input closes.
-Property extraction and ordinary retained-factor solves remain sequential.
+`ldiv!` and `rdiv!` accept a solve-time `team=` independently of construction.
+Property extraction and ordinary `F \\ B` remain sequential.
 """
 mutable struct FaerFactorization{T,K,H} <: LinearAlgebra.Factorization{T}
     handle::Union{Nothing,H}
@@ -196,11 +197,15 @@ end
 function _factor_solve(
     f::FaerFactorization{Float64},
     b::FaerMatrix{Float64},
-    transposed = false,
+    transposed = false;
+    team = nothing,
 )
     size(b, 1) == size(f, transposed ? 2 : 1) ||
         throw(DimensionMismatch("factor and RHS rows do not match"))
     LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+    if !isnothing(team)
+        return _dense_team_native_result(f, b, transposed ? 1 : 0, team)
+    end
     return _matrix_result(
         RustCrate.factor_solve,
         (size(f, transposed ? 1 : 2), size(b, 2)),
@@ -223,51 +228,6 @@ Base.:\(f::_FaerTransposedFactor, b::FaerMatrix{Float64}) =
 Base.:\(f::_FaerTransposedFactor, b::AbstractMatrix{<:Real}) = f \ FaerMatrix{Float64}(b)
 Base.:\(f::_FaerTransposedFactor, b::AbstractVector{<:Real}) =
     vec(Matrix(f \ FaerMatrix(reshape(b, :, 1))))
-
-function LinearAlgebra.ldiv!(
-    dest::FaerMatrix{Float64},
-    f::Union{FaerFactorization{Float64},_FaerTransposedFactor},
-    b::FaerMatrix{Float64},
-)
-    size(dest) == (size(f, 2), size(b, 2)) ||
-        throw(DimensionMismatch("output size does not match solve"))
-    return copyto!(dest, f \ b)
-end
-function LinearAlgebra.ldiv!(
-    f::Union{FaerFactorization{Float64},_FaerTransposedFactor},
-    b::FaerMatrix{Float64},
-)
-    size(f, 1) == size(f, 2) ||
-        throw(DimensionMismatch("two-argument ldiv! requires a square factor"))
-    return LinearAlgebra.ldiv!(b, f, b)
-end
-function _ldiv_array!(dest, f, b)
-    result = f \ b
-    size(dest) == size(result) ||
-        throw(DimensionMismatch("output size does not match solve"))
-    copyto!(
-        dest,
-        dest isa FaerMatrix && result isa FaerMatrix ? result :
-        result isa FaerMatrix ? Matrix(result) : result,
-    )
-    return dest
-end
-
-LinearAlgebra.ldiv!(
-    dest::AbstractMatrix,
-    f::FaerFactorization{Float64},
-    b::AbstractMatrix,
-) = _ldiv_array!(dest, f, b)
-LinearAlgebra.ldiv!(
-    dest::AbstractVector,
-    f::FaerFactorization{Float64},
-    b::AbstractVector,
-) = _ldiv_array!(dest, f, b)
-LinearAlgebra.ldiv!(
-    dest::FaerMatrix{Float64},
-    f::FaerFactorization{Float64},
-    b::FaerMatrix{Float64},
-) = _ldiv_array!(dest, f, b)
 
 function Base.inv(f::FaerFactorization{Float64})
     size(f, 1)==size(f, 2) || throw(DimensionMismatch("inverse requires a square factor"))

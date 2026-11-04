@@ -590,68 +590,7 @@ impl OwnedMatrix {
         transposed: bool,
     ) -> Result<(), String> {
         guarded(|| {
-            let owner = factor;
-            let f = owner.get()?;
-            if owner.info != 0 {
-                return Err("singular factorization".into());
-            }
-            let b = rhs.matrix.as_ref();
-            check_finite(b)?;
-            let m = dispatch_factor!(f, x => x.nrows());
-            let n = dispatch_factor!(f, x => x.ncols());
-            if b.nrows() != if transposed { n } else { m } {
-                return Err("solve dimensions mismatch".into());
-            }
-            let rank_deficient = match f {
-                DenseFactor::Qr(x) => numerically_singular_r(x.thin_R()),
-                DenseFactor::PivotQr(x) => numerically_singular_r(x.thin_R()),
-                DenseFactor::Svd(_) => true,
-                _ => false,
-            };
-            self.matrix = if rank_deficient {
-                let a = dispatch_factor!(f, x => x.reconstruct(Par::Seq));
-                let a = if transposed {
-                    a.as_ref().transpose().to_owned()
-                } else {
-                    a
-                };
-                pseudoinverse_solve(a.as_ref(), b)?
-            } else if m == n {
-                if transposed {
-                    dispatch_factor!(f, x => x.solve_transpose(b, Par::Seq))
-                } else {
-                    dispatch_factor!(f, x => x.solve(b, Par::Seq))
-                }
-            } else if !transposed && m >= n {
-                match f {
-                    DenseFactor::Qr(x) => x.solve_lstsq(b, Par::Seq),
-                    DenseFactor::PivotQr(x) => x.solve_lstsq(b, Par::Seq),
-                    DenseFactor::Svd(x) => x.solve_lstsq(b, Par::Seq),
-                    _ => return Err("rectangular solve requires QR or SVD".into()),
-                }
-            } else {
-                let a = dispatch_factor!(f, x => x.reconstruct(Par::Seq));
-                let a = if transposed {
-                    a.as_ref().transpose().to_owned()
-                } else {
-                    a
-                };
-                let inverse = a
-                    .as_ref()
-                    .thin_svd(Par::Seq)
-                    .map_err(|e| format!("{e:?}"))?
-                    .pseudoinverse(Par::Seq);
-                let mut result = Mat::zeros(a.ncols(), b.ncols());
-                faer::linalg::matmul::matmul(
-                    result.as_mut(),
-                    Accum::Replace,
-                    inverse.as_ref(),
-                    b,
-                    1.0,
-                    Par::Seq,
-                );
-                result
-            };
+            self.matrix = dense_factor_solve_with_par(factor, rhs, transposed, Par::Seq)?;
             Ok(())
         })
     }
@@ -989,22 +928,6 @@ impl OwnedMatrix {
 fn numerically_singular_r(r: MatRef<'_, f64>) -> bool {
     let tolerance = f64::EPSILON * r.nrows().max(r.ncols()) as f64 * r.norm_max();
     (0..r.nrows().min(r.ncols())).any(|i| r[(i, i)].abs() <= tolerance)
-}
-fn pseudoinverse_solve(a: MatRef<'_, f64>, b: MatRef<'_, f64>) -> Result<Mat<f64>, String> {
-    let inverse = a
-        .thin_svd(Par::Seq)
-        .map_err(|e| format!("{e:?}"))?
-        .pseudoinverse(Par::Seq);
-    let mut x = Mat::zeros(a.ncols(), b.ncols());
-    faer::linalg::matmul::matmul(
-        x.as_mut(),
-        Accum::Replace,
-        inverse.as_ref(),
-        b,
-        1.0,
-        Par::Seq,
-    );
-    Ok(x)
 }
 
 #[julia]
@@ -1433,3 +1356,78 @@ mod dense_team_tests {
 
 #[cfg(test)]
 mod allocation_probe;
+
+mod dense_solve_team;
+
+fn dense_factor_solve_with_par(
+    factor: &OwnedFactor,
+    rhs: &OwnedMatrix,
+    transposed: bool,
+    mut par: Par<'_>,
+) -> Result<Mat<f64>, String> {
+    let owner = factor;
+    let f = owner.get()?;
+    if owner.info != 0 {
+        return Err("singular factorization".into());
+    }
+    let b = rhs.matrix.as_ref();
+    check_finite(b)?;
+    let m = dispatch_factor!(f, x => x.nrows());
+    let n = dispatch_factor!(f, x => x.ncols());
+    if b.nrows() != if transposed { n } else { m } {
+        return Err("solve dimensions mismatch".into());
+    }
+    let rank_deficient = match f {
+        DenseFactor::Qr(x) => numerically_singular_r(x.thin_R()),
+        DenseFactor::PivotQr(x) => numerically_singular_r(x.thin_R()),
+        DenseFactor::Svd(_) => true,
+        _ => false,
+    };
+    let result = if rank_deficient {
+        let a = dispatch_factor!(f, x => x.reconstruct(par.reborrow()));
+        let a = if transposed {
+            a.as_ref().transpose().to_owned()
+        } else {
+            a
+        };
+        dense_pseudoinverse_solve(a.as_ref(), b, par.reborrow())?
+    } else if m == n {
+        if transposed {
+            dispatch_factor!(f, x => x.solve_transpose(b, par.reborrow()))
+        } else {
+            dispatch_factor!(f, x => x.solve(b, par.reborrow()))
+        }
+    } else if !transposed && m >= n {
+        match f {
+            DenseFactor::Qr(x) => x.solve_lstsq(b, par.reborrow()),
+            DenseFactor::PivotQr(x) => x.solve_lstsq(b, par.reborrow()),
+            DenseFactor::Svd(x) => x.solve_lstsq(b, par.reborrow()),
+            _ => return Err("rectangular solve requires QR or SVD".into()),
+        }
+    } else {
+        let a = dispatch_factor!(f, x => x.reconstruct(par.reborrow()));
+        let a = if transposed {
+            a.as_ref().transpose().to_owned()
+        } else {
+            a
+        };
+        dense_pseudoinverse_solve(a.as_ref(), b, par.reborrow())?
+    };
+    Ok(result)
+}
+fn dense_pseudoinverse_solve(
+    a: MatRef<'_, f64>,
+    b: MatRef<'_, f64>,
+    mut par: Par<'_>,
+) -> Result<Mat<f64>, String> {
+    if a.nrows().min(a.ncols()) == 0 {
+        return Ok(Mat::zeros(a.ncols(), b.ncols()));
+    }
+    let inverse = a
+        .thin_svd(par.reborrow())
+        .map_err(|e| format!("{e:?}"))?
+        .pseudoinverse(par.reborrow());
+    let mut x = Mat::zeros(a.ncols(), b.ncols());
+    faer::linalg::matmul::matmul(x.as_mut(), Accum::Replace, inverse.as_ref(), b, 1.0, par);
+    Ok(x)
+}
