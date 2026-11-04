@@ -276,6 +276,78 @@ fn product<T: ComplexField>(a: &Operator<T>, b: MatRef<'_, T>) -> Result<Mat<T>,
     a.apply(out.as_mut(), b, par, MemStack::new(&mut mem));
     Ok(out)
 }
+// FFI leaf for an observer's independent Julia-owned column-major snapshot.
+// Nonfinite failed iterates must reach the same operator path as native output,
+// without going through the finite-only public matrix constructor.
+fn observer_product<T: ComplexField>(
+    a: &Operator<T>,
+    buffer: *const u8,
+    rows: usize,
+    cols: usize,
+) -> Result<Mat<T>, String> {
+    if rows != a.ncols() {
+        return Err("observer product dimensions must match".into());
+    }
+    let bytes = rows
+        .checked_mul(cols)
+        .and_then(|n| n.checked_mul(core::mem::size_of::<T>()))
+        .ok_or("observer buffer size overflow")?;
+    if bytes > isize::MAX as usize || rows > isize::MAX as usize {
+        return Err("observer buffer exceeds addressable range".into());
+    }
+    if bytes == 0 {
+        return product(a, Mat::<T>::zeros(rows, cols).as_ref());
+    }
+    if buffer.is_null() || (buffer as usize) % core::mem::align_of::<T>() != 0 {
+        return Err("observer buffer must be nonnull and aligned".into());
+    }
+    // SAFETY: _iteration_product passes a GC-preserved Matrix<T> with exactly
+    // rows*cols live elements, scalar type checked against a, and column stride
+    // rows. Dimensions, byte span and alignment are checked above. No pointer or
+    // borrowed view is retained after the synchronous FFI call.
+    let b = unsafe { MatRef::from_raw_parts(buffer.cast::<T>(), rows, cols, 1, rows as isize) };
+    product(a, b)
+}
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn operator_observer_product(
+        &mut self,
+        operator: &OwnedLinearOperator,
+        buffer: *const u8,
+        rows: usize,
+        cols: usize,
+    ) -> Result<(), String> {
+        guarded(|| match operator.data()? {
+            Data::F64(a) => {
+                self.matrix = observer_product(a, buffer, rows, cols)?;
+                Ok(())
+            }
+            _ => Err("observer scalar types must match".into()),
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn operator_observer_product(
+        &mut self,
+        operator: &OwnedLinearOperator,
+        buffer: *const u8,
+        rows: usize,
+        cols: usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(match operator.data()? {
+                Data::F32(a) => MatrixData::F32(observer_product(a, buffer, rows, cols)?),
+                Data::F64(a) => MatrixData::F64(observer_product(a, buffer, rows, cols)?),
+                Data::C32(a) => MatrixData::C32(observer_product(a, buffer, rows, cols)?),
+                Data::C64(a) => MatrixData::C64(observer_product(a, buffer, rows, cols)?),
+            });
+            Ok(())
+        })
+    }
+}
 fn precondition<T: ComplexField>(a: &Operator<T>, b: MatMut<'_, T>) -> Result<(), String> {
     if a.nrows() != a.ncols() || a.ncols() != b.nrows() {
         return Err("preconditioner dimensions must match".into());
@@ -457,6 +529,27 @@ impl VectorOwner {
         })
     }
 }
+// Synchronously borrowed on the calling Julia thread (all current solvers use
+// Par::Seq). The callback must copy values before returning; no pointer escapes.
+fn observe_iteration<T: ComplexField>(
+    x: MatRef<'_, T>,
+    observing: bool,
+    observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
+) -> core::ops::ControlFlow<()> {
+    if observing
+        && !observer(
+            x.as_ptr().cast(),
+            x.nrows(),
+            x.ncols(),
+            x.row_stride(),
+            x.col_stride(),
+        )
+    {
+        core::ops::ControlFlow::Break(())
+    } else {
+        core::ops::ControlFlow::Continue(())
+    }
+}
 fn solve<T: ComplexField>(
     a: &Operator<T>,
     m: Option<&Operator<T>>,
@@ -467,6 +560,8 @@ fn solve<T: ComplexField>(
     maxiter: usize,
     stats: *mut u8,
     iterations: *mut usize,
+    observing: bool,
+    observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
 ) -> Result<Mat<T>, String> {
     if a.nrows() != a.ncols() || a.ncols() != b.nrows() || initial.shape() != b.shape() {
         return Err("CG dimensions must match".into());
@@ -493,14 +588,20 @@ fn solve<T: ComplexField>(
             max_iters: maxiter,
             ..Default::default()
         },
-        |_| {
+        |x| {
             callbacks += 1;
+            observe_iteration(x, observing, observer)
         },
         par,
         MemStack::new(&mut mem),
     );
     let (mut status, estimate_abs, estimate_rel, count) = match result {
-        Ok(info) => (0, info.abs_residual, info.rel_residual, info.iter_count),
+        Ok(info) => (
+            if info.stopped { 5 } else { 0 },
+            info.abs_residual,
+            info.rel_residual,
+            info.iter_count,
+        ),
         Err(CgError::NoConvergence {
             abs_residual,
             rel_residual,
@@ -560,6 +661,8 @@ impl OwnedMatrix {
         maxiter: usize,
         stats: *mut u8,
         iterations: *mut usize,
+        observing: bool,
+        observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
         guarded(|| {
             let a = operator.data()?;
@@ -582,6 +685,8 @@ impl OwnedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?
                 }
                 (Data::F64(a), Some(Data::F64(m))) => {
@@ -595,6 +700,8 @@ impl OwnedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?
                 }
                 _ => return Err("CG scalar types must match".into()),
@@ -617,6 +724,8 @@ impl TypedMatrix {
         maxiter: usize,
         stats: *mut u8,
         iterations: *mut usize,
+        observing: bool,
+        observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
         guarded(|| {
             let a = operator.data()?;
@@ -639,6 +748,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::F32(a), Some(Data::F32(m)), MatrixData::F32(b), MatrixData::F32(x)) => {
@@ -652,6 +763,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C32(a), None, MatrixData::C32(b), MatrixData::C32(x)) => {
@@ -665,6 +778,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C32(a), Some(Data::C32(m)), MatrixData::C32(b), MatrixData::C32(x)) => {
@@ -678,6 +793,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C64(a), None, MatrixData::C64(b), MatrixData::C64(x)) => {
@@ -691,6 +808,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C64(a), Some(Data::C64(m)), MatrixData::C64(b), MatrixData::C64(x)) => {
@@ -704,6 +823,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 _ => return Err("CG scalar types must match".into()),
@@ -724,6 +845,8 @@ fn solve_bicg<T: ComplexField>(
     maxiter: usize,
     stats: *mut u8,
     iterations: *mut usize,
+    observing: bool,
+    observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
 ) -> Result<Mat<T>, String> {
     if a.nrows() != a.ncols() || a.ncols() != b.nrows() || initial.shape() != b.shape() {
         return Err("BiCGSTAB dimensions must match".into());
@@ -761,14 +884,20 @@ fn solve_bicg<T: ComplexField>(
             max_iters: maxiter,
             ..Default::default()
         },
-        |_| {
+        |x| {
             callbacks += 1;
+            observe_iteration(x, observing, observer)
         },
         par,
         MemStack::new(&mut mem),
     );
     let (mut status, estimate_abs, estimate_rel, count) = match result {
-        Ok(info) => (0, info.abs_residual, info.rel_residual, info.iter_count),
+        Ok(info) => (
+            if info.stopped { 5 } else { 0 },
+            info.abs_residual,
+            info.rel_residual,
+            info.iter_count,
+        ),
         Err(faer::matrix_free::bicgstab::BicgError::NoConvergence {
             abs_residual,
             rel_residual,
@@ -824,6 +953,8 @@ impl OwnedMatrix {
         maxiter: usize,
         stats: *mut u8,
         iterations: *mut usize,
+        observing: bool,
+        observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
         guarded(|| {
             let a = operator.data()?;
@@ -863,6 +994,8 @@ impl OwnedMatrix {
                 maxiter,
                 stats,
                 iterations,
+                observing,
+                observer,
             )?;
             Ok(())
         })
@@ -884,6 +1017,8 @@ impl TypedMatrix {
         maxiter: usize,
         stats: *mut u8,
         iterations: *mut usize,
+        observing: bool,
+        observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
         guarded(|| {
             let a = operator.data()?;
@@ -922,6 +1057,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C32(a), MatrixData::C32(b), MatrixData::C32(x)) => {
@@ -946,6 +1083,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C64(a), MatrixData::C64(b), MatrixData::C64(x)) => {
@@ -970,6 +1109,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 _ => return Err("operator scalar types must match".into()),
@@ -989,6 +1130,8 @@ fn solve_lsmr<T: ComplexField>(
     maxiter: usize,
     stats: *mut u8,
     iterations: *mut usize,
+    observing: bool,
+    observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
 ) -> Result<Mat<T>, String> {
     if a.nrows() != b.nrows() || initial.nrows() != a.ncols() || initial.ncols() != b.ncols() {
         return Err("LSMR dimensions must match".into());
@@ -1044,14 +1187,20 @@ fn solve_lsmr<T: ComplexField>(
                     max_iters: maxiter,
                     ..Default::default()
                 },
-                |_| {
+                |x| {
                     callbacks += 1;
+                    observe_iteration(x, observing, observer)
                 },
                 par,
                 MemStack::new(&mut mem),
             );
             match result {
-                Ok(info) => (0, info.abs_residual, info.rel_residual, info.iter_count),
+                Ok(info) => (
+                    if info.stopped { 5 } else { 0 },
+                    info.abs_residual,
+                    info.rel_residual,
+                    info.iter_count,
+                ),
                 Err(faer::matrix_free::lsmr::LsmrError::NoConvergence {
                     abs_residual,
                     rel_residual,
@@ -1114,6 +1263,8 @@ impl OwnedMatrix {
         maxiter: usize,
         stats: *mut u8,
         iterations: *mut usize,
+        observing: bool,
+        observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
         guarded(|| {
             let a = operator.data()?;
@@ -1136,6 +1287,8 @@ impl OwnedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?
                 }
                 (Data::F64(a), Some(Data::F64(m))) => {
@@ -1149,6 +1302,8 @@ impl OwnedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?
                 }
                 _ => return Err("LSMR scalar types must match".into()),
@@ -1171,6 +1326,8 @@ impl TypedMatrix {
         maxiter: usize,
         stats: *mut u8,
         iterations: *mut usize,
+        observing: bool,
+        observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
         guarded(|| {
             let a = operator.data()?;
@@ -1193,6 +1350,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::F32(a), Some(Data::F32(m)), MatrixData::F32(b), MatrixData::F32(x)) => {
@@ -1206,6 +1365,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C32(a), None, MatrixData::C32(b), MatrixData::C32(x)) => {
@@ -1219,6 +1380,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C32(a), Some(Data::C32(m)), MatrixData::C32(b), MatrixData::C32(x)) => {
@@ -1232,6 +1395,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C64(a), None, MatrixData::C64(b), MatrixData::C64(x)) => {
@@ -1245,6 +1410,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 (Data::C64(a), Some(Data::C64(m)), MatrixData::C64(b), MatrixData::C64(x)) => {
@@ -1258,6 +1425,8 @@ impl TypedMatrix {
                         maxiter,
                         stats,
                         iterations,
+                        observing,
+                        observer,
                     )?)
                 }
                 _ => return Err("LSMR scalar types must match".into()),

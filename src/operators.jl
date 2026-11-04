@@ -342,6 +342,7 @@ struct FaerCgResult{X,R}
     estimated_abs_residual::R
     estimated_rel_residual::R
     reason::Symbol
+    history::Vector{_IterationEntry{R}}
 end
 """CG failed; `.result` retains its last iterate and diagnostics."""
 struct FaerCgError{R} <: Exception
@@ -367,12 +368,13 @@ function _cg_matrix(a, ::Type{T}) where {T}
 end
 """
     cg(A, b; M=nothing, x0=nothing, atol=0, rtol=nothing,
-       maxiter=max(1,size(A,1)), check=true)
+       maxiter=max(1,size(A,1)), check=true, callback=nothing, history=false)
 
 Call faer's preconditioned block conjugate-gradient solver. A must be Hermitian
 positive definite, and M (if provided) must apply a Hermitian positive definite
 approximate inverse. Dense/sparse/diagonal/identity native operators are accepted;
-matrices are copied to an operator snapshot. Julia callbacks are not yet supported.
+matrices are copied to an operator snapshot. Julia-defined operator actions remain
+unavailable; iteration callbacks and histories are supported as described below.
 Returns FaerCgResult; x is a native vector for native vector RHS, a Julia vector
 for Julia vector RHS, or a native matrix for matrix RHS. Multiple RHS use faer's
 block algorithm. Inputs are unchanged. All native scalar types/promotions apply.
@@ -381,6 +383,22 @@ A true residual is recomputed independently; reported convergence is rejected if
 it exceeds the requested tolerance. `check=true` throws FaerCgError with the
 last result for nonconvergence or detected nonpositive operators/preconditioners.
 These diagnostics do not certify that A or M is positive definite.
+
+`history=true` retains a residual-only record after each native callback update.
+`callback(state)` receives `iteration`, an independent Julia array `x`, true
+`abs_residual`/`rel_residual`, and `normal_abs_residual`/`normal_rel_residual`
+(`nothing` for CG/BiCGSTAB; preconditioned normal residuals for LSMR). Return
+`nothing` or `true` to continue, `false` to stop. A requested stop returns
+`reason=:stopped`, `converged=false` even with `check=true`; in-place solvers
+copy that last iterate. Callback exceptions propagate after native return and
+leave in-place destinations unchanged. Initial convergence invokes no callback.
+
+Observation copies each iterate and recomputes residuals with extra native
+operator applications; it allocates. History stores the diagnostic fields,
+excluding `x`. With both options disabled, no iterate snapshot or extra operator
+application is made. Callbacks run synchronously on the calling Julia task;
+they may retain/mutate their copy of `x` and make nested Colmat calls.
+
 """
 function cg(
     A,
@@ -391,6 +409,8 @@ function cg(
     rtol = nothing,
     maxiter::Integer = max(1, size(A, 1)),
     check::Bool = true,
+    callback = nothing,
+    history::Bool = false,
 )
     lock(_matrix_lock) do
         op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
@@ -428,6 +448,14 @@ function cg(
                        _operator_coerce(precond, P)
         stats=Vector{P}(undef, 5)
         iterations=Ref{UInt}(0)
+        log, observing, observer, normalop=_iteration_observer(
+            P,
+            operator,
+            rhs,
+            callback,
+            history;
+            vector = b isa AbstractVector,
+        )
         args=(
             operator,
             preconditioner,
@@ -438,11 +466,17 @@ function cg(
             UInt(limit),
             Ptr{UInt8}(pointer(stats)),
             Base.unsafe_convert(Ptr{UInt}, iterations),
+            observing,
+            observer,
         )
-        solution=GC.@preserve stats iterations (
-            P===Float64 ? _matrix_result(RustCrate.operator_cg, size(rhs), args...) :
-            _typed_result(P, RustCrate.operator_cg, size(rhs), args...)
-        )
+        solution=try
+            GC.@preserve stats iterations (
+                P===Float64 ? _matrix_result(RustCrate.operator_cg, size(rhs), args...) :
+                _typed_result(P, RustCrate.operator_cg, size(rhs), args...)
+            )
+        finally
+            isnothing(normalop) || close(normalop)
+        end
         status=Int(real(stats[1]))
         x=b isa _BorrowVector ? _vector_from_source(solution) :
           b isa AbstractVector ? vec(Matrix(solution)) : solution
@@ -452,6 +486,7 @@ function cg(
             :nonpositive_operator,
             :nonpositive_preconditioner,
             :residual_mismatch,
+            :stopped,
         )[status+1]
         result=FaerCgResult(
             x,
@@ -462,8 +497,9 @@ function cg(
             R(real(stats[4])),
             R(real(stats[5])),
             reason,
+            log,
         )
-        check && !result.converged && throw(FaerCgError(result))
+        check && !result.converged && result.reason!==:stopped && throw(FaerCgError(result))
         return result
     end
 end
@@ -493,6 +529,7 @@ function cg!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
             result.estimated_abs_residual,
             result.estimated_rel_residual,
             result.reason,
+            result.history,
         )
     end
 end
@@ -507,6 +544,7 @@ struct FaerBicgstabResult{X,R}
     estimated_abs_residual::R
     estimated_rel_residual::R
     reason::Symbol
+    history::Vector{_IterationEntry{R}}
 end
 """BiCGSTAB failed; `.result` retains its last iterate and diagnostics."""
 struct FaerBicgstabError{R} <: Exception
@@ -526,7 +564,7 @@ LinearAlgebra.issuccess(result::FaerBicgstabResult) = result.converged
 
 """
     bicgstab(A, b; M=nothing, N=nothing, x0=nothing, atol=0,
-             rtol=nothing, maxiter=max(1,size(A,1)), check=true)
+             rtol=nothing, maxiter=max(1,size(A,1)), check=true, callback=nothing, history=false)
 
 Run faer's block BiCGSTAB for a square, possibly nonsymmetric operator.
 M and N apply left and right approximate inverses, respectively. Native
@@ -545,6 +583,8 @@ function bicgstab(
     rtol = nothing,
     maxiter::Integer = max(1, size(A, 1)),
     check::Bool = true,
+    callback = nothing,
+    history::Bool = false,
 )
     lock(_matrix_lock) do
         op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
@@ -596,6 +636,14 @@ function bicgstab(
                              _operator_coerce(right, P)
         stats=Vector{P}(undef, 5)
         iterations=Ref{UInt}(0)
+        log, observing, observer, normalop=_iteration_observer(
+            P,
+            operator,
+            rhs,
+            callback,
+            history;
+            vector = b isa AbstractVector,
+        )
         args=(
             operator,
             preconditioner,
@@ -607,11 +655,18 @@ function bicgstab(
             UInt(limit),
             Ptr{UInt8}(pointer(stats)),
             Base.unsafe_convert(Ptr{UInt}, iterations),
+            observing,
+            observer,
         )
-        solution=GC.@preserve stats iterations (
-            P===Float64 ? _matrix_result(RustCrate.operator_bicgstab, size(rhs), args...) :
-            _typed_result(P, RustCrate.operator_bicgstab, size(rhs), args...)
-        )
+        solution=try
+            GC.@preserve stats iterations (
+                P===Float64 ?
+                _matrix_result(RustCrate.operator_bicgstab, size(rhs), args...) :
+                _typed_result(P, RustCrate.operator_bicgstab, size(rhs), args...)
+            )
+        finally
+            isnothing(normalop) || close(normalop)
+        end
         status=Int(real(stats[1]))
         x=b isa _BorrowVector ? _vector_from_source(solution) :
           b isa AbstractVector ? vec(Matrix(solution)) : solution
@@ -621,6 +676,7 @@ function bicgstab(
             :nonpositive_operator,
             :nonpositive_preconditioner,
             :residual_mismatch,
+            :stopped,
         )[status+1]
         result=FaerBicgstabResult(
             x,
@@ -631,8 +687,12 @@ function bicgstab(
             R(real(stats[4])),
             R(real(stats[5])),
             reason,
+            log,
         )
-        check && !result.converged && throw(FaerBicgstabError(result))
+        check &&
+            !result.converged &&
+            result.reason!==:stopped &&
+            throw(FaerBicgstabError(result))
         return result
     end
 end
@@ -659,6 +719,7 @@ function bicgstab!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
             result.estimated_abs_residual,
             result.estimated_rel_residual,
             result.reason,
+            result.history,
         )
     end
 end
@@ -675,6 +736,7 @@ struct FaerLsmrResult{X,R}
     estimated_abs_residual::R
     estimated_rel_residual::R
     reason::Symbol
+    history::Vector{_IterationEntry{R}}
 end
 """LSMR failed; `.result` retains its last iterate and diagnostics."""
 struct FaerLsmrError{R} <: Exception
@@ -694,7 +756,7 @@ LinearAlgebra.issuccess(result::FaerLsmrResult) = result.converged
 
 """
     lsmr(A, b; M=nothing, x0=nothing, atol=0, rtol=nothing,
-         maxiter=max(1,4min(size(A)...)), check=true)
+         maxiter=max(1,4min(size(A)...)), check=true, callback=nothing, history=false)
 
 Run faer's block LSMR for rectangular least squares. M applies a square right
 preconditioner of size size(A,2). It must be nonsingular and support its
@@ -705,7 +767,7 @@ Convergence uses the Frobenius norm of `M' * A' * (b-A*x)`, with threshold
 `normal_abs_residual`/`normal_rel_residual` describe the preconditioned normal
 residual. Native estimates are normal residual estimates. Default rtol is
 128eps of the promoted real type. Absolute tolerance is translated to native
-relative tolerance because upstream currently ignores its absolute parameter.
+relative tolerance as a retained conversion from the now-fixed upstream #207.
 
 Returns `FaerLsmrResult`, with solution rows equal to size(A,2). Checked failures
 throw `FaerLsmrError` retaining the last iterate. Zero initial guesses give the
@@ -722,6 +784,8 @@ function lsmr(
     rtol = nothing,
     maxiter::Integer = max(1, 4 * min(size(A)...)),
     check::Bool = true,
+    callback = nothing,
+    history::Bool = false,
 )
     lock(_matrix_lock) do
         op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
@@ -760,6 +824,16 @@ function lsmr(
                        _operator_coerce(precond, P)
         stats=Vector{P}(undef, 7)
         iterations=Ref{UInt}(0)
+        log, observing, observer, normalop=_iteration_observer(
+            P,
+            operator,
+            rhs,
+            callback,
+            history;
+            vector = b isa AbstractVector,
+            normal = true,
+            preconditioner = isnothing(precond) ? nothing : preconditioner,
+        )
         args=(
             operator,
             preconditioner,
@@ -770,11 +844,17 @@ function lsmr(
             UInt(limit),
             Ptr{UInt8}(pointer(stats)),
             Base.unsafe_convert(Ptr{UInt}, iterations),
+            observing,
+            observer,
         )
-        solution=GC.@preserve stats iterations (
-            P===Float64 ? _matrix_result(RustCrate.operator_lsmr, dims, args...) :
-            _typed_result(P, RustCrate.operator_lsmr, dims, args...)
-        )
+        solution=try
+            GC.@preserve stats iterations (
+                P===Float64 ? _matrix_result(RustCrate.operator_lsmr, dims, args...) :
+                _typed_result(P, RustCrate.operator_lsmr, dims, args...)
+            )
+        finally
+            isnothing(normalop) || close(normalop)
+        end
         status=Int(real(stats[1]))
         x=b isa _BorrowVector ? _vector_from_source(solution) :
           b isa AbstractVector ? vec(Matrix(solution)) : solution
@@ -784,6 +864,7 @@ function lsmr(
             :nonpositive_operator,
             :nonpositive_preconditioner,
             :residual_mismatch,
+            :stopped,
         )[status+1]
         result=FaerLsmrResult(
             x,
@@ -796,8 +877,12 @@ function lsmr(
             R(real(stats[6])),
             R(real(stats[7])),
             reason,
+            log,
         )
-        check && !result.converged && throw(FaerLsmrError(result))
+        check &&
+            !result.converged &&
+            result.reason!==:stopped &&
+            throw(FaerLsmrError(result))
         return result
     end
 end
@@ -824,6 +909,7 @@ function lsmr!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
             result.estimated_abs_residual,
             result.estimated_rel_residual,
             result.reason,
+            result.history,
         )
     end
 end

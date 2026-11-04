@@ -600,7 +600,8 @@ CG requires a Hermitian positive definite operator and preconditioner action.
 `cg!` uses its destination as the initial guess. Failed checked solves throw
 `FaerCgError`, whose `result` contains the last iterate and residual diagnostics;
 `check=false` returns that result directly. Convergence includes an independently
-recomputed true residual check. Julia function callbacks are not yet supported.
+recomputed true residual check. Iteration callbacks and residual histories are
+available as described below; Julia-defined operator actions remain pending.
 
 For a nonsymmetric square matrix, use `bicgstab` or `bicgstab!`. `M` and `N`
 apply left and right approximate inverses, respectively:
@@ -2074,3 +2075,40 @@ b = ones(3)
 @assert isapprox(Vector(F \ b), pinv(A)*b; atol=1e-12)
 close(F)
 ```
+
+### Iterative histories and stopping callbacks
+
+`cg`, `bicgstab`, `lsmr` and their in-place forms accept `history=true` and
+`callback=state -> ...`. Each callback receives an independent Julia iterate
+`state.x`, the completed update number `state.iteration`, true primal residual
+norms, and (for LSMR) true preconditioned normal residual norms. Return `nothing`
+or `true` to continue and `false` to stop. A requested stop returns
+`reason=:stopped`, `converged=false`, including with `check=true`.
+
+```julia
+using Colmat, LinearAlgebra
+A = Diagonal(collect(1.0:6.0))
+b = ones(6)
+result = cg(A, b; history=true, callback=state -> state.iteration < 2)
+@assert result.reason == :stopped
+@assert result.iterations == length(result.history) == 2
+@assert isapprox(last(result.history).abs_residual, norm(b-A*result.x); atol=1e-12)
+@assert !result.converged
+```
+
+History retains residual records without full iterates. Observation allocates
+copies and makes extra native operator applications to recompute residuals.
+With both options disabled, these copies and extra applications are absent.
+Callbacks run synchronously on the calling Julia task; retained iterate copies
+stay valid after the solver returns. Initial convergence or zero update limits
+produce no callback/history entries. Callback exceptions propagate after safely
+returning through Rust; in-place destinations remain unchanged. A deliberate
+stop copies the stopped iterate into an in-place destination.
+
+These are iteration callbacks. Julia-defined operator/preconditioner actions
+and iteration workspace/team control remain separate work under Issue #22.
+
+LSMR can falsely report native convergence on extreme uniform scales
+([faer #245](https://github.com/tensor4all/faer/issues/245)). Colmat's true-residual
+check rejects those results. Observing a nonfinite failed iterate preserves the
+same failure diagnostics; the history bridge accepts its nonfinite values.

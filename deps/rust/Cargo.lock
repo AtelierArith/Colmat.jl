@@ -1027,7 +1027,7 @@ dependencies = [
 
 [[package]]
 name = "t4a-faer"
-version = "0.28.2"
+version = "0.28.3"
 dependencies = [
  "bytemuck",
  "dyn-stack",

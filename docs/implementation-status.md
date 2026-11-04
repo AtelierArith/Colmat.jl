@@ -2205,3 +2205,40 @@ allocations and incomplete rank-deficient/wide caller-owned scratch remain
 explicit limitations. Further native tuning, matrix-free callbacks/history,
 generalized Schur ordering, remaining workspace/in-place/team/view/scalar
 coverage and the full 76-row review remain open under Issue #22.
+
+## Issue #22: iterative observers, histories and stopping (in progress)
+
+CG/BiCGSTAB/LSMR and their in-place forms now accept `callback` and `history`.
+Callbacks receive independent Julia iterate snapshots and independently
+recomputed residuals. Returning false requests a real native stop, reported as
+`:stopped` without treating it as a checked numerical failure. Histories retain
+residual diagnostics without full iterate copies. Callback exceptions safely
+return through RustCall and preserve in-place destinations. Default unobserved
+solves make no snapshot copies or extra operator applications.
+
+Upstream main skipped BiCGSTAB's terminal half-step callback (#242). A native
+MWE failed on `1284351` and passed on public candidate `778afac`, which also
+extends the three canonical callbacks with unit/ControlFlow continuation and
+explicit stop info. PR tensor4all/faer#243 passed required CI and merged as `51d7584`.
+The dependency build now selects clean faer main `46154ca9ad1df24eeb2abeee76a7537415d4b9a0`
+(t4a-faer 0.28.3). Its faer/src and faer-traits trees match the validated candidate;
+additional upstream changes update release metadata and PATCHSET records.
+
+Final canonical validation passes 134,984 assertions / 89 files / 16 workers.
+Focused observer coverage passes 6,203 assertions across four scalar types,
+mixed RHS, native/Julia vectors and block matrices, dense/CSC/CSR, independent
+callback snapshots, nested callbacks, Julia Tasks, native destinations/views,
+RHS/output aliasing, checked failures and nonfinite failed iterates. Rust passes
+22 tests; README passes 76 executable blocks. Formatting and diff checks pass.
+
+An additional standalone Rust MWE confirms LSMR false convergence on tiny/huge
+scaled identity systems (#245); Colmat rejects it through true residual checks,
+and observation preserves its failed iterate. The upstream numerical correction
+remains open. The now-fixed #207 absolute-tolerance workaround still needs
+cleanup. Julia-defined operator/preconditioner callbacks, partial-spectrum
+callbacks, caller-owned iterative scratch and teams remain separate work.
+
+Merged-dependency adoption is verified: `deps/build.jl` built clean main
+`46154ca` / t4a-faer 0.28.3 and updated the Cargo lockfile. The canonical suite
+again passes all 134,984 assertions / 89 files / 16 workers on this revision;
+Rust 22 tests and README 76 blocks also pass on merged upstream main.
