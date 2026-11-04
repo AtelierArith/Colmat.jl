@@ -2104,4 +2104,6 @@ Final canonical rerun and merged upstream adoption remain pending.
 All sparse LU algorithms now use the native saved-factor inverse action for
 mixed RHS. Source snapshot closure is covered. Focused tests pass 6,768
 assertions for mixed reuse and 1,731 for auto/supernodal inverse/preconditioner
-actions. Canonical validation is running. Auto/supernodal QR remains pending.
+actions. Canonical validation passes 107,502 assertions across 81 files (16 workers). Auto/supernodal QR remains pending.
+
+LU mixed RHS follow-up README validation: 69 executable blocks passed.
