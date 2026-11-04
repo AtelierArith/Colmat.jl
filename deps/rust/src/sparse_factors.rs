@@ -330,6 +330,15 @@ fn numeric<T: ComplexField>(
     a: &Storage<T>,
     scratch: Option<&mut crate::workspace::OwnedScratch>,
 ) -> Result<Result<Numeric<T>, usize>, String> {
+    numeric_with_par(p, a, scratch, Par::Seq)
+}
+// Only the auto/supernodal QR resource entry points pass a caller team here.
+fn numeric_with_par<T: ComplexField>(
+    p: &Plan,
+    a: &Storage<T>,
+    scratch: Option<&mut crate::workspace::OwnedScratch>,
+    par: Par<'_>,
+) -> Result<Result<Numeric<T>, usize>, String> {
     let a = a.csc()?;
     let s = a.symbolic();
     if (s.nrows(), s.ncols()) != (p.pattern.nrows(), p.pattern.ncols())
@@ -364,8 +373,8 @@ fn numeric<T: ComplexField>(
             Numeric::SimplicialQr(crate::sparse_qr_components::Factors::new(sym, a.as_ref())?)
         }
         Analysis::Qr(sym) => Numeric::Qr(if let Some(s) = scratch {
-            let req = sym.factorize_numeric_qr_scratch::<T>(Par::Seq.shape(), Default::default());
-            crate::sparse_qr_owned::Factors::new_in(sym.clone(), a.as_ref(), s.stack(req)?)?
+            let req = sym.factorize_numeric_qr_scratch::<T>(par.shape(), Default::default());
+            crate::sparse_qr_owned::Factors::new_in_parallel(sym.clone(), a.as_ref(), s.stack(req)?, par)?
         } else {
             crate::sparse_qr_owned::Factors::new(sym.clone(), a.as_ref())?
         }),
@@ -1143,32 +1152,7 @@ impl TypedMatrix {
 impl SparseSymbolic {
     #[julia]
     pub fn sparse_qr_factor_requirements(&self, tag: i32, out: *mut usize) -> Result<(), String> {
-        guarded(|| {
-            let Analysis::Qr(sym) = &self.plan()?.analysis else {
-                return Err("factor workspace requires auto/supernodal QR".into());
-            };
-            let req = match tag {
-                0 => qr_construction_req::<f32>(sym),
-                1 => qr_construction_req::<f64>(sym),
-                2 => qr_construction_req::<c32>(sym),
-                3 => qr_construction_req::<c64>(sym),
-                _ => return Err("invalid scalar tag".into()),
-            };
-            if out.is_null()
-                || (out as usize) % std::mem::align_of::<usize>() != 0
-                || (out as usize)
-                    .checked_add(2 * std::mem::size_of::<usize>())
-                    .is_none()
-            {
-                return Err("query requires aligned two-entry usize buffer".into());
-            }
-            // SAFETY: caller preserves two writable usize entries; address/span checked.
-            unsafe {
-                out.write(req.size_bytes());
-                out.add(1).write(req.align_bytes());
-            }
-            Ok(())
-        })
+        guarded(|| construction_workspace::query(self, tag, out, Par::Seq))
     }
 }
 #[julia]
@@ -1180,37 +1164,7 @@ impl SparseFactor {
         matrix: &SparseOwner,
         scratch: &mut crate::workspace::OwnedScratch,
     ) -> Result<usize, String> {
-        guarded(|| {
-            let plan = analysis.plan()?;
-            if !matches!(plan.analysis, Analysis::Qr(_)) {
-                return Err("factor workspace requires auto/supernodal QR".into());
-            }
-            let Analysis::Qr(sym) = &plan.analysis else {
-                unreachable!()
-            };
-            let req = match matrix.data()? {
-                SparseData::F32(_) => qr_construction_req::<f32>(sym),
-                SparseData::F64(_) => qr_construction_req::<f64>(sym),
-                SparseData::C32(_) => qr_construction_req::<c32>(sym),
-                SparseData::C64(_) => qr_construction_req::<c64>(sym),
-            };
-            scratch.stack(req)?;
-            let result = match matrix.data()? {
-                SparseData::F32(a) => numeric(plan, a, Some(&mut *scratch))?.map(Factors::F32),
-                SparseData::F64(a) => numeric(plan, a, Some(&mut *scratch))?.map(Factors::F64),
-                SparseData::C32(a) => numeric(plan, a, Some(&mut *scratch))?.map(Factors::C32),
-                SparseData::C64(a) => numeric(plan, a, Some(&mut *scratch))?.map(Factors::C64),
-            };
-            match result {
-                Ok(f) => {
-                    let hint = rank_hint::prepare(&f, scratch.stack(rank_hint::requirements(&f))?);
-                    self.factors = Some(f);
-                    self.qr_rank_hint = hint;
-                    Ok(0)
-                }
-                Err(info) => Ok(info),
-            }
-        })
+        guarded(|| construction_workspace::run(self, analysis, matrix, scratch, Par::Seq))
     }
 }
 pub(crate) enum QrComponents {
@@ -1393,10 +1347,13 @@ mod qr_solve_workspace;
 
 fn qr_construction_req<T: ComplexField>(
     sym: &faer::sparse::linalg::qr::SymbolicQr<usize>,
+    par: &Par<'_>,
 ) -> faer::dyn_stack::StackReq {
-    sym.factorize_numeric_qr_scratch::<T>(Par::Seq.shape(), Default::default())
+    sym.factorize_numeric_qr_scratch::<T>(par.shape(), Default::default())
         .or(rank_hint::scratch(sym.ncols()))
 }
 mod rank_hint;
 
 mod input_metadata;
+
+mod construction_workspace;

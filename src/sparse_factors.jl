@@ -215,11 +215,14 @@ function LinearAlgebra.factorize(
     a::FaerSparseMatrix{T};
     check::Bool = true,
     scratch = nothing,
+    team = nothing,
 ) where {K,T}
     size(p)==size(a) ||
         throw(DimensionMismatch("symbolic analysis and numeric matrix shapes must match"))
     lock(_matrix_lock) do
         _sparse_factor_inputs(p, a)
+        (isnothing(scratch) && isnothing(team)) ||
+            _sparse_qr_factor_validate(p, a, scratch, team)
         snapshot=copy(a)
         finite = if K===:cholesky
             rows, cols, values=SparseArrays.findnz(snapshot)
@@ -240,9 +243,9 @@ function LinearAlgebra.factorize(
         plan=copy(p)
         h=RustCrate.SparseFactor()
         info=try
-            isnothing(scratch) ?
+            isnothing(scratch) && isnothing(team) ?
             Int(_native_call(RustCrate.sparse_factorize, h, plan, snapshot)) :
-            _sparse_qr_factor_workspace(h, plan, snapshot, scratch)
+            _sparse_qr_factor_workspace(h, plan, snapshot, scratch, team)
         catch e
             if e isa RustCall.RustError &&
                occursin("numeric matrix sparsity pattern must match", sprint(showerror, e))
@@ -297,6 +300,8 @@ LinearAlgebra.qr(
     dense_row::Real = 0.5,
     dense_col::Real = 0.5,
     aggressive::Bool = true,
+    scratch = nothing,
+    team = nothing,
 ) = LinearAlgebra.factorize(
     FaerSparseSymbolic(
         a;
@@ -307,7 +312,9 @@ LinearAlgebra.qr(
         dense_col,
         aggressive,
     ),
-    a,
+    a;
+    scratch,
+    team,
 )
 const _SparseSelfAdjoint=Union{
     LinearAlgebra.Hermitian{<:Any,<:FaerSparseMatrix},
