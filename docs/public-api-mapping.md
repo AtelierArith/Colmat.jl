@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-04
 - t4a-faer: `0.28.2`、コミット [`0bf88db6e70c29488df91a128f5e2562f8859730`](https://github.com/tensor4all/faer/tree/0bf88db6e70c29488df91a128f5e2562f8859730)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `5ba519c`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、103354 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 79 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み main `0c8fb2e` と以下の owned/wide 疎 QR 逆作用の追加。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、151547 件のテスト成功（追加前の main）。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 93 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -105,7 +105,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 線形作用素・双方向作用素 | `matrix_free::{LinOp,BiLinOp}` | `mul!` を持つ作用素型相当。LinearAlgebra に同一の trait はない | R: `FaerLinearOperator`、dense/CSC/CSR/diagonal/identity、積・共役・転置・随伴、native 所有の入れ子合成・再帰的スカラー型昇格、`mul!/explicit *` の `scratch=`/`team=` と必要量照会/reserve | 任意の Julia callback。auto/supernodal・wide 疎 QR 逆作用の allocating/逐次 fallback は外部 scratch/team 未接続 |
+| 線形作用素・双方向作用素 | `matrix_free::{LinOp,BiLinOp}` | `mul!` を持つ作用素型相当。LinearAlgebra に同一の trait はない | R: `FaerLinearOperator`、dense/CSC/CSR/diagonal/identity、積・共役・転置・随伴、native 所有の入れ子合成・再帰的スカラー型昇格、`mul!/explicit *` の `scratch=`/`team=` と必要量照会/reserve | 任意の Julia callback。owned/wide 疎 QR 逆作用も外部 scratch/team に接続。wide 逆作用の構築は dense R の疑似逆を保存し割り当てる |
 | 前処理 | `Precond/BiPrecond/IdentityPrecond` | 反復法の前処理（標準外） | R: native in-place 適用、`identity_preconditioner`、`diagonal_preconditioner`、`FaerLinearOperator(F)` の保存済み LU/完全ピボット LU/正方 QR（列ピボット含む）/Cholesky/LDLT/Bunch–Kaufman 逆作用、native SVD/EVD の打ち切り疑似逆作用（atol/rtol・長方形）、全方式の疎 LU・疎 Cholesky（全3分解方式）の sparse 逆作用、全方式の疎 QR の最小二乗/最小ノルム作用。混合型・転置/随伴対応、snapshot 再分解なし | callback・dense 矩形 QR の逆作用、auto/supernodal・wide 疎 QR 逆作用の caller-owned scratch/team |
 | 共役勾配法 | `conjugate_gradient::{conjugate_gradient,CgParams,CgInfo,CgError}` | CG solver（標準外） | R: `cg/cg!`、block RHS、4 型、初期値・許容誤差・反復上限、失敗 iterate・独立した真の残差、Julia 反復 callback・停止・残差履歴 | 独立 scratch API |
 | BiCGSTAB | `bicgstab::{bicgstab,BicgParams,BicgInfo,BicgError}` | BiCGSTAB solver（標準外） | R: `bicgstab/bicgstab!`、左右前処理・block RHS・4 型・初期値・許容誤差・反復上限、失敗 iterate・真の残差、Julia 反復 callback・停止・残差履歴 | 独立 scratch API |
@@ -181,3 +181,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - [Jacobi/Givens 回転](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/jacobi.rs)
 
 - [Householder 生成・block/sequence 適用](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/householder.rs)
+
+## owned/wide 疎 QR 逆作用の workspace 接続
+
+auto/supernodal と wide の保存済み QR 逆作用は、射影の行順序を構築時に保存し、呼び出し側の scratch と team を適用時に使用する。wide は dense R の疑似逆を構築時に一度保存し、型昇格時も元の打切りを保持する。直接の `F \ B`、結果の staging、Julia 側の変換・昇格はこの kernel scratch の外で割り当てる。任意の Julia callback と残りの kernel 接続は引き続き未完了。

@@ -1430,3 +1430,6 @@ mod dense_team_tests {
         assert!(f.data().is_ok());
     }
 }
+
+#[cfg(test)]
+mod allocation_probe;

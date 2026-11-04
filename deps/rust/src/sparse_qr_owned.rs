@@ -698,3 +698,5 @@ mod full_adjoint_tests {
         check::<faer::c64>(1e-10, faer::c64::new);
     }
 }
+
+pub(crate) mod projection;

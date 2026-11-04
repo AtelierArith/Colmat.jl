@@ -12,6 +12,8 @@ use faer::matrix_free::{
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{c32, c64, diag::Diag, Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
+mod qr_actions;
+use qr_actions::{OwnedQrInverse, WideQrInverse};
 #[derive(Clone)]
 enum Base<T> {
     Dense(Mat<T>),
@@ -25,8 +27,8 @@ enum Base<T> {
     InverseSpectral(Box<InverseSpectral<T>>),
     InverseSparseFactors(Box<InverseSparseFactors<T>>),
     InverseSparseQr(Box<crate::sparse_qr_components::Factors<T>>),
-    InverseOwnedSparseQr(Box<crate::sparse_qr_owned::Factors<T>>),
-    InverseWideSparseQr(Box<crate::sparse_qr_wide::Factors<T>>),
+    InverseOwnedSparseQr(Box<OwnedQrInverse<T>>),
+    InverseWideSparseQr(Box<WideQrInverse<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -1738,7 +1740,7 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
     };
     let base = match &a.base {
         Base::InverseWideSparseQr(f) => Base::InverseWideSparseQr(Box::new(f.map_values(cast)?)),
-        Base::InverseOwnedSparseQr(f) => Base::InverseOwnedSparseQr(Box::new(f.map_values(cast))),
+        Base::InverseOwnedSparseQr(f) => Base::InverseOwnedSparseQr(Box::new(f.map_values(cast)?)),
         Base::InverseSparseQr(f) => {
             // Preserve native Householder pivot ordering; do not sort triplets.
             let convert=|a:&faer::sparse::SparseColMat<usize,S>|->Result<faer::sparse::SparseColMat<usize,T>,String> {
@@ -2955,32 +2957,23 @@ impl OwnedLinearOperator {
             fn wrap_owned<T: ComplexField>(
                 f: crate::sparse_qr_owned::Factors<T>,
             ) -> Result<Operator<T>, String> {
-                let r = f.r()?;
-                for j in 0..r.ncols() {
-                    if r.as_ref()
-                        .row_idx_of_col(j)
-                        .zip(r.as_ref().val_of_col(j))
-                        .find(|(i, _)| *i == j)
-                        .is_none_or(|(_, v)| abs(v) == zero::<T::Real>())
-                    {
-                        return Err("sparse QR inverse action requires full column rank".into());
-                    }
-                }
-                Ok(Operator::new(Base::InverseOwnedSparseQr(Box::new(f))))
+                Ok(Operator::new(Base::InverseOwnedSparseQr(Box::new(
+                    OwnedQrInverse::new(f)?,
+                ))))
             }
             self.data = Some(match factor.simplicial_qr_components()? {
-                QrComponents::WideF32(f) => {
-                    Data::F32(Operator::new(Base::InverseWideSparseQr(Box::new(f))))
-                }
-                QrComponents::WideF64(f) => {
-                    Data::F64(Operator::new(Base::InverseWideSparseQr(Box::new(f))))
-                }
-                QrComponents::WideC32(f) => {
-                    Data::C32(Operator::new(Base::InverseWideSparseQr(Box::new(f))))
-                }
-                QrComponents::WideC64(f) => {
-                    Data::C64(Operator::new(Base::InverseWideSparseQr(Box::new(f))))
-                }
+                QrComponents::WideF32(f) => Data::F32(Operator::new(Base::InverseWideSparseQr(
+                    Box::new(WideQrInverse::new(f)?),
+                ))),
+                QrComponents::WideF64(f) => Data::F64(Operator::new(Base::InverseWideSparseQr(
+                    Box::new(WideQrInverse::new(f)?),
+                ))),
+                QrComponents::WideC32(f) => Data::C32(Operator::new(Base::InverseWideSparseQr(
+                    Box::new(WideQrInverse::new(f)?),
+                ))),
+                QrComponents::WideC64(f) => Data::C64(Operator::new(Base::InverseWideSparseQr(
+                    Box::new(WideQrInverse::new(f)?),
+                ))),
                 QrComponents::OwnedF32(f) => Data::F32(wrap_owned(f)?),
                 QrComponents::OwnedF64(f) => Data::F64(wrap_owned(f)?),
                 QrComponents::OwnedC32(f) => Data::C32(wrap_owned(f)?),
@@ -2992,118 +2985,6 @@ impl OwnedLinearOperator {
             });
             Ok(())
         })
-    }
-}
-
-impl<T> std::fmt::Debug for crate::sparse_qr_owned::Factors<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("OwnedSparseQrInverse")
-    }
-}
-// Saved-factor action; temporary matrices and native workspace allocate per application.
-// Caller-owned workspace support is tracked separately by Issue #22.
-fn owned_sparse_qr_action<T: ComplexField>(
-    f: &crate::sparse_qr_owned::Factors<T>,
-    mut out: MatMut<'_, T>,
-    b: MatRef<'_, T>,
-    trans: bool,
-    conjugated: bool,
-) {
-    let x = if trans {
-        f.solve_transpose(b, conjugated)
-            .expect("validated sparse QR transpose action")
-    } else if conjugated {
-        let rhs = b.conjugate().to_owned();
-        f.solve(rhs.as_ref())
-            .expect("validated sparse QR action")
-            .conjugate()
-            .to_owned()
-    } else {
-        f.solve(b).expect("validated sparse QR action")
-    };
-    out.copy_from(x.as_ref());
-}
-impl<T: ComplexField> LinOp<T> for crate::sparse_qr_owned::Factors<T> {
-    fn nrows(&self) -> usize {
-        self.dimensions().1
-    }
-    fn ncols(&self) -> usize {
-        self.dimensions().0
-    }
-    fn apply_scratch(&self, _k: usize, _p: ParShape) -> StackReq {
-        StackReq::EMPTY
-    }
-    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, _p: Par, _s: &mut MemStack) {
-        owned_sparse_qr_action(self, o, b, false, false)
-    }
-    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, _p: Par, _s: &mut MemStack) {
-        owned_sparse_qr_action(self, o, b, false, true)
-    }
-}
-impl<T: ComplexField> BiLinOp<T> for crate::sparse_qr_owned::Factors<T> {
-    fn transpose_apply_scratch(&self, _k: usize, _p: ParShape) -> StackReq {
-        StackReq::EMPTY
-    }
-    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, _p: Par, _s: &mut MemStack) {
-        owned_sparse_qr_action(self, o, b, true, false)
-    }
-    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, _p: Par, _s: &mut MemStack) {
-        owned_sparse_qr_action(self, o, b, true, true)
-    }
-}
-
-impl<T> std::fmt::Debug for crate::sparse_qr_wide::Factors<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("WideSparseQrInverse")
-    }
-}
-fn wide_qr_action<T: ComplexField>(
-    f: &crate::sparse_qr_wide::Factors<T>,
-    mut out: MatMut<'_, T>,
-    b: MatRef<'_, T>,
-    t: bool,
-    c: bool,
-) {
-    let x = if t {
-        f.solve_transpose(b, c)
-            .expect("validated wide QR transpose")
-    } else if c {
-        let rhs = b.conjugate().to_owned();
-        f.solve(rhs.as_ref())
-            .expect("validated wide QR")
-            .conjugate()
-            .to_owned()
-    } else {
-        f.solve(b).expect("validated wide QR")
-    };
-    out.copy_from(x.as_ref());
-}
-impl<T: ComplexField> LinOp<T> for crate::sparse_qr_wide::Factors<T> {
-    fn nrows(&self) -> usize {
-        self.dimensions().1
-    }
-    fn ncols(&self) -> usize {
-        self.dimensions().0
-    }
-    fn apply_scratch(&self, _k: usize, _p: ParShape) -> StackReq {
-        StackReq::EMPTY
-    }
-    fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, _p: Par, _s: &mut MemStack) {
-        wide_qr_action(self, o, b, false, false)
-    }
-    fn conj_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, _p: Par, _s: &mut MemStack) {
-        wide_qr_action(self, o, b, false, true)
-    }
-}
-impl<T: ComplexField> BiLinOp<T> for crate::sparse_qr_wide::Factors<T> {
-    fn transpose_apply_scratch(&self, _k: usize, _p: ParShape) -> StackReq {
-        StackReq::EMPTY
-    }
-    fn transpose_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, _p: Par, _s: &mut MemStack) {
-        wide_qr_action(self, o, b, true, false)
-    }
-    fn adjoint_apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, _p: Par, _s: &mut MemStack) {
-        wide_qr_action(self, o, b, true, true)
     }
 }
 
