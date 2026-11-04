@@ -155,12 +155,67 @@ impl OwnedHouseholderSequence {
         })
     }
 }
+fn requirement<T: ComplexField>(
+    s: &Sequence<T>,
+    extent: usize,
+    right: bool,
+    transpose: bool,
+) -> faer::dyn_stack::StackReq {
+    let (m, k, b) = (s.basis.nrows(), s.basis.ncols(), s.factor.nrows());
+    if k == 0 || (m == 1 && k == 1) {
+        return faer::dyn_stack::StackReq::EMPTY;
+    }
+    match (right, transpose) {
+        (false, false) => {
+            hh::apply_block_householder_sequence_on_the_left_in_place_scratch::<T>(m, b, extent)
+        }
+        (false, true) => {
+            hh::apply_block_householder_sequence_transpose_on_the_left_in_place_scratch::<T>(
+                m, b, extent,
+            )
+        }
+        (true, false) => {
+            hh::apply_block_householder_sequence_on_the_right_in_place_scratch::<T>(m, b, extent)
+        }
+        (true, true) => {
+            hh::apply_block_householder_sequence_transpose_on_the_right_in_place_scratch::<T>(
+                m, b, extent,
+            )
+        }
+    }
+}
 fn apply<T: ComplexField>(
+    s: &Sequence<T>,
+    a: MatMut<'_, T>,
+    right: bool,
+    transpose: bool,
+    conjugate: bool,
+) -> Result<(), String> {
+    let req = requirement(
+        s,
+        if right { a.nrows() } else { a.ncols() },
+        right,
+        transpose,
+    );
+    let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+    apply_in(
+        s,
+        a,
+        right,
+        transpose,
+        conjugate,
+        Par::Seq,
+        MemStack::new(&mut mem),
+    )
+}
+fn apply_in<T: ComplexField>(
     s: &Sequence<T>,
     mut a: MatMut<'_, T>,
     right: bool,
     transpose: bool,
     conjugate: bool,
+    par: Par,
+    stack: &mut MemStack,
 ) -> Result<(), String> {
     let m = s.basis.nrows();
     let k = s.basis.ncols();
@@ -208,40 +263,19 @@ fn apply<T: ComplexField>(
         }
         return Ok(());
     }
-    let extent = if right { a.nrows() } else { a.ncols() };
-    let req = match (right, transpose) {
-        (false, false) => {
-            hh::apply_block_householder_sequence_on_the_left_in_place_scratch::<T>(m, b, extent)
-        }
-        (false, true) => {
-            hh::apply_block_householder_sequence_transpose_on_the_left_in_place_scratch::<T>(
-                m, b, extent,
-            )
-        }
-        (true, false) => {
-            hh::apply_block_householder_sequence_on_the_right_in_place_scratch::<T>(m, b, extent)
-        }
-        (true, true) => {
-            hh::apply_block_householder_sequence_transpose_on_the_right_in_place_scratch::<T>(
-                m, b, extent,
-            )
-        }
-    };
-    let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
     if scalar_tail && right == transpose {
         scale_last(&mut a, right, &scalar);
     }
     let conj = if conjugate { Conj::Yes } else { Conj::No };
     let v = s.basis.as_ref().subcols(0, active);
     let f = s.factor.as_ref().subcols(0, active);
-    let stack = MemStack::new(&mut mem);
     match (right, transpose) {
         (false, false) => hh::apply_block_householder_sequence_on_the_left_in_place_with_conj(
             v,
             f,
             conj,
             a.rb_mut(),
-            Par::Seq,
+            par,
             stack,
         ),
         (false, true) => {
@@ -250,7 +284,7 @@ fn apply<T: ComplexField>(
                 f,
                 conj,
                 a.rb_mut(),
-                Par::Seq,
+                par,
                 stack,
             )
         }
@@ -259,7 +293,7 @@ fn apply<T: ComplexField>(
             f,
             conj,
             a.rb_mut(),
-            Par::Seq,
+            par,
             stack,
         ),
         (true, true) => {
@@ -268,7 +302,7 @@ fn apply<T: ComplexField>(
                 f,
                 conj,
                 a.rb_mut(),
-                Par::Seq,
+                par,
                 stack,
             )
         }
@@ -426,3 +460,5 @@ pub(crate) fn apply_compact_conj<T: ComplexField>(
 ) -> Result<(), String> {
     apply(&Sequence { basis, factor }, out, false, false, conjugate)
 }
+
+mod workspace;

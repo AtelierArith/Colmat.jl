@@ -183,7 +183,33 @@ impl OwnedHouseholder {
         })
     }
 }
+fn requirement<T: ComplexField>(
+    s: &Reflection<T>,
+    extent: usize,
+    right: bool,
+    _transpose: bool,
+) -> faer::dyn_stack::StackReq {
+    if s.basis.nrows() == 0 || s.tau == infinity::<T::Real>() {
+        return faer::dyn_stack::StackReq::EMPTY;
+    }
+    if right {
+        hh::apply_block_householder_on_the_right_in_place_scratch::<T>(s.basis.nrows(), 1, extent)
+    } else {
+        hh::apply_block_householder_on_the_left_in_place_scratch::<T>(s.basis.nrows(), 1, extent)
+    }
+}
 fn apply<T: ComplexField>(f: &Reflection<T>, a: MatMut<'_, T>, right: bool) -> Result<(), String> {
+    let req = requirement(f, if right { a.nrows() } else { a.ncols() }, right, false);
+    let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+    apply_in(f, a, right, Par::Seq, MemStack::new(&mut mem))
+}
+fn apply_in<T: ComplexField>(
+    f: &Reflection<T>,
+    a: MatMut<'_, T>,
+    right: bool,
+    par: Par,
+    stack: &mut MemStack,
+) -> Result<(), String> {
     let n = f.basis.nrows();
     if if right {
         a.ncols() != n
@@ -195,30 +221,25 @@ fn apply<T: ComplexField>(f: &Reflection<T>, a: MatMut<'_, T>, right: bool) -> R
     if n == 0 || f.tau == infinity::<T::Real>() {
         return Ok(());
     }
-    let factor = Mat::from_fn(1, 1, |_, _| from_real::<T>(&f.tau));
-    let req = if right {
-        hh::apply_block_householder_on_the_right_in_place_scratch::<T>(n, 1, a.nrows())
-    } else {
-        hh::apply_block_householder_on_the_left_in_place_scratch::<T>(n, 1, a.ncols())
-    };
-    let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+    let scalar = [from_real::<T>(&f.tau)];
+    let factor = faer::MatRef::from_column_major_slice(&scalar, 1, 1);
     if right {
         hh::apply_block_householder_on_the_right_in_place_with_conj(
             f.basis.as_ref(),
-            factor.as_ref(),
+            factor,
             Conj::No,
             a,
-            Par::Seq,
-            MemStack::new(&mut mem),
+            par,
+            stack,
         );
     } else {
         hh::apply_block_householder_on_the_left_in_place_with_conj(
             f.basis.as_ref(),
-            factor.as_ref(),
+            factor,
             Conj::No,
             a,
-            Par::Seq,
-            MemStack::new(&mut mem),
+            par,
+            stack,
         );
     }
     Ok(())
@@ -346,3 +367,5 @@ impl OwnedHouseholder {
         })
     }
 }
+
+mod workspace;
