@@ -2121,4 +2121,6 @@ README passes 70 executable blocks.
 Identity and supplied column permutations now reach native symbolic LU/QR
 analysis for auto/supernodal algorithms. Upstream faer #239 / PR #240 provides
 the API. Candidate faer 3889bd1 passes seven focused tests and three doctests.
-Colmat integration validation is running. Other native tuning remains pending.
+Colmat focused integration passes 2,016 assertions. Canonical validation passes
+113,998 assertions / 83 files / 16 workers; README passes 71 executable blocks.
+Other native tuning and merged upstream adoption remain pending.
