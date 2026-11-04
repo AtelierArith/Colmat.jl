@@ -64,7 +64,9 @@ end
     close(A)
     A=FaerSparseMatrix(sparse([1, 2], [1, 2], [1.0, 0.0], 2, 2))
     F=qr(A; algorithm = :simplicial)
-    @test_throws Colmat.RustCall.RustError FaerLinearOperator(F)
+    N=FaerLinearOperator(F)
+    @test Matrix(N)≈pinv(Matrix(A))
+    close(N)
     close(F)
     close(A)
 end

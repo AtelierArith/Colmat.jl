@@ -72,7 +72,7 @@ end
         close(update)
         bad=FaerSparseMatrix(sparse(T[1 0; 0 0; 0 0]))
         G=qr(bad; algorithm)
-        @test_throws Colmat.RustCall.RustError G'\ones(T, 2, 1)
+        @test Matrix(G'\ones(T, 2, 1))≈pinv(Matrix(bad)')*ones(T, 2, 1) atol=1e-3 rtol=1e-3
         close(G)
         close(bad)
     end

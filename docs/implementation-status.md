@@ -2164,3 +2164,21 @@ Focused wide integration passes 7,488 assertions; closed-snapshot copy/deepcopy
 regression passes 180 assertions for LU/QR/Cholesky. Native tests pass 20 tests.
 Canonical validation passes 126,858 assertions / 87 files / 16 workers;
 README passes 74 executable blocks.
+
+## Issue #22: default rank-aware sparse QR (in progress)
+
+Tall/square sparse QR backslash and inverse operators now use saved-factor
+minimum-norm solves for rank-deficient inputs. A conservative sparse R norm
+certificate preserves the existing sparse solve for certified full-rank cases;
+inconclusive cases use native dense SVD of R and thin Q. The default threshold
+uses the factor's scalar precision. This path allocates dense intermediates.
+Numerically rank-deficient caller-owned scratch solves reject before output
+mutation; their SVD scratch integration remains open.
+
+Canonical Julia tests pass 128,781 assertions across 88 files (16 workers).
+Focused coverage includes all four scalar types, mixed RHS, CSC/CSR, all QR
+algorithms, zero/structural/numerical rank deficiency, transpose/adjoint,
+closed source snapshots, and independent inverse operator ownership.
+Native Rust tests pass 22 cases, including large Float32 diagonal certificates,
+cutoff boundaries and an inconclusive nonsingular triangular factor. All 75
+README Julia blocks pass. Julia/Rust formatting and diff checks pass.

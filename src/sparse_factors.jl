@@ -368,6 +368,10 @@ function _sparse_factor_solve(
             trans &&
             !_native_call(RustCrate.sparse_qr_has_components, f) &&
             throw(ArgumentError("transpose/adjoint sparse QR components are unavailable"))
+        if K===:qr && _native_call(RustCrate.sparse_qr_needs_spectral_solve, f)
+            oriented=trans ? (adj ? adjoint(f) : transpose(f)) : f
+            return _sparse_qr_minimum_norm_solve(oriented, b)
+        end
         P=promote_type(T, _sparse_input_type(eltype(b)))
         if P!==T
             base=FaerLinearOperator(f)

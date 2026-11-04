@@ -1506,8 +1506,9 @@ snapshot. Four scalar types and CSC/CSR inputs are supported. For explicit
 simplicial QR, ordering is identity by default; `ordering=:colamd` or an explicit permutation selects another column
 order. COLAMD accepts `dense_row`, `dense_col` and `aggressive` controls and is
 retained across symbolic reuse and numeric updates. Auto/supernodal QR uses
-COLAMD ordering and exposes the same thin Q, sparse R and reconstruction. AMD,
-full Q and rank-deficient minimum-norm solves remain unavailable. Caller scratch
+COLAMD ordering and exposes the same thin Q, sparse R and reconstruction.
+Full Q and rank-deficient minimum-norm solves are described below. AMD ordering
+remains unavailable. Caller scratch
 is supported for auto/supernodal normal solves and numeric construction as
 described below; component extraction and transpose solves allocate workspace.
 
@@ -1534,9 +1535,8 @@ For every full-column-rank sparse QR algorithm, `transpose(F) \ B` and
 underdetermined system. They reuse the native R/Householder factors and column
 permutation, without constructing Q or a pseudoinverse. Three-argument `ldiv!`
 supports rectangular factors; two-argument `ldiv!` requires square factors.
-Native work arrays and sparse R extraction/conversion allocate per solve. A zero R
-diagonal is rejected; rank thresholds and rank-deficient solves remain
-unavailable. Mixed-type RHS reuse saved native factors for every sparse LU/QR/Cholesky algorithm. Factor values are promoted without
+Native work arrays and sparse R extraction/conversion allocate per solve.
+Rank-deficient factors use the SVD minimum-norm path described below. Mixed-type RHS reuse saved native factors for every sparse LU/QR/Cholesky algorithm. Factor values are promoted without
 refactorizing the input, so accuracy remains limited by the original factor
 precision. Mixed-type QR transpose/adjoint solves also reuse the saved reflectors and R.
 
@@ -1934,8 +1934,8 @@ inverse actions using saved reflectors and sparse triangular solves. All native
 scalar promotions preserve Householder pivot ordering. Explicit simplicial intermediates use native scratch; auto/supernodal actions
 currently allocate temporary matrices and native workspace per application.
 Every algorithm reuses saved factors without refactorizing source snapshots.
-Missing/zero R pivots are rejected; rank tolerance and rank-deficient inverse
-actions remain pending.
+Rank-deficient factors instead build an independent native dense pseudoinverse
+action, with the allocation costs described below.
 
 
 ```julia
@@ -2007,7 +2007,7 @@ tolerance is `min(size(F)...)*eps(real(eltype(F)))` when atol is zero.
 Three-argument `ldiv!(X,F,B;atol,rtol)` computes the corresponding minimum-norm
 least-squares solution, including transpose/adjoint factors and mixed RHS types.
 This explicit tolerance path allocates and cannot use caller-owned scratch.
-Ordinary `F \ B` retains its full-column-rank contract; wide sparse QR uses the native construction described below.
+Ordinary `F \ B` also supports rank-deficient factors; wide sparse QR uses the native construction described below.
 
 ```julia
 using Colmat,LinearAlgebra,SparseArrays
@@ -2052,4 +2052,25 @@ close(F)
 @assert Matrix(G)≈A0
 @assert G\b≈pinv(A0)*b
 close(G)
+```
+
+### Rank-aware sparse QR backslash
+
+For all sparse QR algorithms, ordinary `F \ B`, transpose/adjoint solves,
+and `FaerLinearOperator(F)` apply the default numerical-rank cutoff to saved
+factors, including zero and rank-deficient inputs. A sparse norm bound first
+certifies well-conditioned tall/square R factors; inconclusive cases use native
+SVD of dense R and materialize thin Q. This fallback allocates and can be costly
+for large sparse factors. It does not read the source snapshot.
+Caller-owned scratch currently rejects numerically rank-deficient factors before
+changing the output; omit `scratch` for the allocating minimum-norm solve.
+Explicit tolerances remain available through `ldiv!(X,F,B;atol,rtol)` and `pinv`.
+
+```julia
+using Colmat, SparseArrays, LinearAlgebra
+A = [1.0 2; 2 4; 0 0]
+F = qr(FaerSparseMatrix(sparse(A)))
+b = ones(3)
+@assert isapprox(Vector(F \ b), pinv(A)*b; atol=1e-12)
+close(F)
 ```

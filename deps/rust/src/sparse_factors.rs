@@ -1224,3 +1224,141 @@ impl SparseFactor {
         })
     }
 }
+
+// A strict row-dominance bound certifies sigma_min > cutoff without dense SVD.
+// Inconclusive bounds route to SVD; they never classify a factor as deficient.
+fn qr_needs_spectral_solve<T: crate::operators::NativeValue>(
+    a: faer::sparse::SparseColMatRef<'_, usize, T>,
+    epsilon: f64,
+) -> bool {
+    let n = a.ncols();
+    if n == 0 {
+        return false;
+    }
+    let mut rows = vec![0.0; n];
+    let mut cols = vec![0.0; n];
+    let mut diagonal = vec![0.0; n];
+    let mut diagonal_only = true;
+    for e in a.triplet_iter() {
+        let (re, im) = e.val.parts();
+        let x = re.hypot(im);
+        rows[e.row] += x;
+        cols[e.col] += x;
+        if e.row != e.col && x != 0.0 {
+            diagonal_only = false;
+        }
+        if e.row == e.col {
+            diagonal[e.row] += x;
+        }
+    }
+    if diagonal_only {
+        let lo = diagonal.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = diagonal.iter().copied().fold(0.0, f64::max);
+        return !lo.is_finite()
+            || !hi.is_finite()
+            || lo <= (n as f64) * epsilon * hi * (1.0 + 8.0 * epsilon);
+    }
+    let margin = (0..n)
+        .map(|i| 2.0 * diagonal[i] - rows[i] - 8.0 * f64::EPSILON * rows[i])
+        .fold(f64::INFINITY, f64::min);
+    let upper = rows.iter().copied().fold(0.0, f64::max).sqrt()
+        * cols.iter().copied().fold(0.0, f64::max).sqrt();
+    let lower = margin / (n as f64).sqrt();
+    !lower.is_finite()
+        || !upper.is_finite()
+        || lower <= 0.0
+        || lower <= (n as f64) * epsilon * upper
+}
+#[julia]
+impl SparseFactor {
+    #[julia]
+    pub fn sparse_qr_needs_spectral_solve(&self) -> Result<bool, String> {
+        guarded(|| {
+            fn needs<T: crate::operators::NativeValue>(
+                f: &Numeric<T>,
+                eps: f64,
+            ) -> Result<bool, String> {
+                Ok(match f {
+                    Numeric::SimplicialQr(f) => qr_needs_spectral_solve(f.r.as_ref(), eps),
+                    Numeric::Qr(f) => qr_needs_spectral_solve(f.r()?.as_ref(), eps),
+                    Numeric::WideQr(_) => false,
+                    _ => return Err("rank-aware solve requires sparse QR".into()),
+                })
+            }
+            match self.factors()? {
+                Factors::F32(f) => needs(f, f32::EPSILON as f64),
+                Factors::F64(f) => needs(f, f64::EPSILON),
+                Factors::C32(f) => needs(f, f32::EPSILON as f64),
+                Factors::C64(f) => needs(f, f64::EPSILON),
+            }
+        })
+    }
+}
+
+#[cfg(test)]
+mod rank_certificate_tests {
+    use super::qr_needs_spectral_solve;
+    use faer::sparse::{SparseColMat, Triplet};
+    #[test]
+    fn diagonal_certificate_scales_and_respects_cutoff() {
+        let n = 20_000;
+        let entries: Vec<_> = (0..n)
+            .map(|i| Triplet {
+                row: i,
+                col: i,
+                val: 1.0f32,
+            })
+            .collect();
+        let a = SparseColMat::<usize, f32>::try_new_from_triplets(n, n, &entries).unwrap();
+        assert!(!qr_needs_spectral_solve(a.as_ref(), f32::EPSILON as f64));
+        for x in [0.0, f64::EPSILON, 4.0 * f64::EPSILON] {
+            let a = SparseColMat::<usize, f64>::try_new_from_triplets(
+                2,
+                2,
+                &[
+                    Triplet {
+                        row: 0,
+                        col: 0,
+                        val: 1.0,
+                    },
+                    Triplet {
+                        row: 1,
+                        col: 1,
+                        val: x,
+                    },
+                ],
+            )
+            .unwrap();
+            assert_eq!(
+                qr_needs_spectral_solve(a.as_ref(), f64::EPSILON),
+                x <= 2.0 * f64::EPSILON
+            );
+        }
+    }
+    #[test]
+    fn inconclusive_row_bound_uses_svd() {
+        let a = SparseColMat::<usize, f64>::try_new_from_triplets(
+            2,
+            2,
+            &[
+                Triplet {
+                    row: 0,
+                    col: 0,
+                    val: 1.0,
+                },
+                Triplet {
+                    row: 0,
+                    col: 1,
+                    val: 2.0,
+                },
+                Triplet {
+                    row: 1,
+                    col: 1,
+                    val: 1.0,
+                },
+            ],
+        )
+        .unwrap();
+        assert!(qr_needs_spectral_solve(a.as_ref(), f64::EPSILON));
+    }
+}
