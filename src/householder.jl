@@ -22,6 +22,8 @@ does. Composing two reflections returns a dense native product.
 Views stage an independent native result before copying back. In-place calls
 convert the reflection's stored coefficients/metadata to the destination type
 before mutation. Adjoint/copy/conjugate/transpose return independent owners.
+`lmul!/rmul!/mul!/ldiv!/rdiv!` accept caller-owned `scratch=` and `team=`;
+see `scratch_requirements`. Result staging and conversions allocate separately.
 """
 mutable struct FaerHouseholder{T,H} <: AbstractFaerHouseholder{T}
     handle::Union{Nothing,H}
@@ -141,6 +143,7 @@ const _HouseholderArray=Union{_HouseholderMatrix,_HouseholderVector}
 function _householder_check(h, a, right)
     _handle(h)
     a isa _RotationArray && _rotation_open(a)
+    _householder_workspace_query(h, 0, right)
     size(a, right ? 2 : 1)==size(h, 1) ||
         throw(DimensionMismatch("Householder application dimensions must match"))
     return nothing
@@ -150,27 +153,37 @@ _householder_native_apply!(h::FaerHouseholder, a, right) =
 function _householder_apply!(
     h::AbstractFaerHouseholder,
     a::Union{FaerMatrix,FaerVector,FaerRow},
-    right,
+    right;
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
         _householder_check(h, a, right)
         reflected=_householder_coerce(h, eltype(a))
-        _householder_native_apply!(reflected, a, right)
+        _householder_resource_apply!(reflected, a, right; scratch, team)
         return a
     end
 end
-function _householder_apply!(h::AbstractFaerHouseholder, a::FaerView, right)
+function _householder_apply!(
+    h::AbstractFaerHouseholder,
+    a::FaerView,
+    right;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         _householder_check(h, a, right)
         result=copy(a)
-        _householder_apply!(h, result, right)
+        _householder_apply!(h, result, right; scratch, team)
         return copyto!(a, result)
     end
 end
 function _householder_apply!(
     h::AbstractFaerHouseholder,
     a::Union{StridedVector,StridedMatrix},
-    right,
+    right;
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
         _householder_check(h, a, right)
@@ -180,15 +193,23 @@ function _householder_apply!(
             ),
         )
         result=a isa AbstractVector ? FaerVector(a) : FaerMatrix(a)
-        _householder_apply!(h, result, right)
+        _householder_apply!(h, result, right; scratch, team)
         copyto!(a, result isa FaerVector ? Vector(result) : Matrix(result))
         return a
     end
 end
-LinearAlgebra.lmul!(h::AbstractFaerHouseholder, a::_HouseholderArray) =
-    _householder_apply!(h, a, false)
-LinearAlgebra.rmul!(a::_HouseholderMatrix, h::AbstractFaerHouseholder) =
-    _householder_apply!(h, a, true)
+LinearAlgebra.lmul!(
+    h::AbstractFaerHouseholder,
+    a::_HouseholderArray;
+    scratch = nothing,
+    team = nothing,
+) = _householder_apply!(h, a, false; scratch, team)
+LinearAlgebra.rmul!(
+    a::_HouseholderMatrix,
+    h::AbstractFaerHouseholder;
+    scratch = nothing,
+    team = nothing,
+) = _householder_apply!(h, a, true; scratch, team)
 function _householder_product(h, a, right)
     lock(_matrix_lock) do
         _householder_check(h, a, right)
@@ -227,7 +248,16 @@ function _householder_matrix_source(a, ::Type{T}) where {T}
     a isa _BorrowVector && return _coerce(_copy_view_matrix(a), T)
     return a isa AbstractVector ? FaerMatrix{T}(reshape(a, :, 1)) : FaerMatrix{T}(a)
 end
-function _householder_mul!(dest, h, a, alpha, beta, right)
+function _householder_mul!(
+    dest,
+    h,
+    a,
+    alpha,
+    beta,
+    right;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         _householder_check(h, a, right)
         _householder_check(h, dest, right)
@@ -249,12 +279,13 @@ function _householder_mul!(dest, h, a, alpha, beta, right)
         )
         P<:_NativeScalar ||
             throw(ArgumentError("unsupported Householder product scalar type"))
+        _householder_resource_check(h, a, P, right; scratch, team)
         dims=ndims(a)==1 ? (length(a), 1) : size(a)
         result=if iszero(alpha)
             _zeros(P, dims)
         else
             work=_householder_matrix_source(a, P)
-            alpha*_householder_apply!(_householder_coerce(h, P), work, right)
+            alpha*_householder_apply!(_householder_coerce(h, P), work, right; scratch, team)
         end
         !iszero(beta) && (result=result+beta*_householder_matrix_source(dest, P))
         # Convert the complete result before any destination writes, including
@@ -269,50 +300,74 @@ LinearAlgebra.mul!(
     h::AbstractFaerHouseholder,
     a::_HouseholderMatrix,
     alpha::Number,
-    beta::Number,
-) = _householder_mul!(dest, h, a, alpha, beta, false)
+    beta::Number;
+    scratch = nothing,
+    team = nothing,
+) = _householder_mul!(dest, h, a, alpha, beta, false; scratch, team)
 LinearAlgebra.mul!(
     dest::_HouseholderVector,
     h::AbstractFaerHouseholder,
     a::_HouseholderVector,
     alpha::Number,
-    beta::Number,
-) = _householder_mul!(dest, h, a, alpha, beta, false)
+    beta::Number;
+    scratch = nothing,
+    team = nothing,
+) = _householder_mul!(dest, h, a, alpha, beta, false; scratch, team)
 LinearAlgebra.mul!(
     dest::_HouseholderMatrix,
     a::_HouseholderMatrix,
     h::AbstractFaerHouseholder,
     alpha::Number,
-    beta::Number,
-) = _householder_mul!(dest, h, a, alpha, beta, true)
+    beta::Number;
+    scratch = nothing,
+    team = nothing,
+) = _householder_mul!(dest, h, a, alpha, beta, true; scratch, team)
 LinearAlgebra.mul!(
     dest::_HouseholderMatrix,
     h::AbstractFaerHouseholder,
-    a::_HouseholderMatrix,
-) = _householder_mul!(dest, h, a, 1, 0, false)
+    a::_HouseholderMatrix;
+    scratch = nothing,
+    team = nothing,
+) = _householder_mul!(dest, h, a, 1, 0, false; scratch, team)
 LinearAlgebra.mul!(
     dest::_HouseholderVector,
     h::AbstractFaerHouseholder,
-    a::_HouseholderVector,
-) = _householder_mul!(dest, h, a, 1, 0, false)
+    a::_HouseholderVector;
+    scratch = nothing,
+    team = nothing,
+) = _householder_mul!(dest, h, a, 1, 0, false; scratch, team)
 LinearAlgebra.mul!(
     dest::_HouseholderMatrix,
     a::_HouseholderMatrix,
-    h::AbstractFaerHouseholder,
-) = _householder_mul!(dest, h, a, 1, 0, true)
+    h::AbstractFaerHouseholder;
+    scratch = nothing,
+    team = nothing,
+) = _householder_mul!(dest, h, a, 1, 0, true; scratch, team)
 
-LinearAlgebra.ldiv!(h::AbstractFaerHouseholder, a::_HouseholderArray) =
-    _householder_apply!(adjoint(h), a, false)
+LinearAlgebra.ldiv!(
+    h::AbstractFaerHouseholder,
+    a::_HouseholderArray;
+    scratch = nothing,
+    team = nothing,
+) = _householder_apply!(adjoint(h), a, false; scratch, team)
 LinearAlgebra.ldiv!(
     dest::_HouseholderMatrix,
     h::AbstractFaerHouseholder,
-    a::_HouseholderMatrix,
-) = _householder_mul!(dest, adjoint(h), a, 1, 0, false)
+    a::_HouseholderMatrix;
+    scratch = nothing,
+    team = nothing,
+) = _householder_mul!(dest, adjoint(h), a, 1, 0, false; scratch, team)
 LinearAlgebra.ldiv!(
     dest::_HouseholderVector,
     h::AbstractFaerHouseholder,
-    a::_HouseholderVector,
-) = _householder_mul!(dest, adjoint(h), a, 1, 0, false)
-LinearAlgebra.rdiv!(a::_HouseholderMatrix, h::AbstractFaerHouseholder) =
-    _householder_apply!(adjoint(h), a, true)
+    a::_HouseholderVector;
+    scratch = nothing,
+    team = nothing,
+) = _householder_mul!(dest, adjoint(h), a, 1, 0, false; scratch, team)
+LinearAlgebra.rdiv!(
+    a::_HouseholderMatrix,
+    h::AbstractFaerHouseholder;
+    scratch = nothing,
+    team = nothing,
+) = _householder_apply!(adjoint(h), a, true; scratch, team)
 Base.:/(a::_HouseholderMatrix, h::AbstractFaerHouseholder) = a*adjoint(h)

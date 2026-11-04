@@ -16,7 +16,9 @@ objects; Q.transposed/Q.conjugated record its orientation. `reblock(Q,b)` and
 `reblock!(Q,b)` rebuild factors using faer's upgrade API. Array products and
 lmul!/rmul!/mul! do not materialize Q; Matrix(Q) and operator composition do.
 All four native scalars, promotion, views, left solve, transpose/adjoint/conj,
-copy/deepcopy and close are supported. External scratch is currently internal.
+copy/deepcopy and close are supported. In-place application accepts `scratch=`
+and `team=`; see `scratch_requirements`. Construction and reblock workspace
+and execution teams remain internal.
 """
 mutable struct FaerHouseholderSequence{T,H} <: AbstractFaerHouseholder{T}
     handle::Union{Nothing,H}

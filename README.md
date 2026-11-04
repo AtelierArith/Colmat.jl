@@ -379,7 +379,8 @@ ordering は値に依存せず、格納ゼロもパターンに含めます。�
 AMD の `statistics=true` は置換と faer の演算数見積もりを返します。
 `permute_rows`・`permute_cols` は疎数値行列と疎パターンに対応し、数値行列は
 `permute_rows!`・`permute_cols!` でも更新できます。構造が変わる更新では以前の
-`nonzeros` ビューが失効します。LU／QR への ordering の直接指定と外部 scratch は未対応です。
+`nonzeros` ビューが失効します。疎 LU／QR への恒等・任意 ordering の直接指定にも対応します。
+ordering 自体の caller-owned scratch は未対応です。
 
 疎 Cholesky には ordering と分解方式を直接指定できます。
 
@@ -526,7 +527,8 @@ rmul!(R, H)
 通常の Julia strided 配列も使え、in-place の出力は4数値型に限定します。
 係数・生成情報を出力型に変換できない場合は更新前に失敗します。ビューは一時結果を
 書き戻します。`Matrix(H)` と反射同士の積は密行列を作ります。
-単一反射の外部 scratch は未対応です。block／sequence の操作は次の所有型で扱います。
+単一反射・block／sequence の左右適用は `scratch=` と `team=` に対応します。
+必要量照会・reserve は以下の API を使います。block／sequence は次の所有型で扱います。
 
 複数の反射は `FaerHouseholderSequence` に compact な basis／factor として保持できます。
 
@@ -549,6 +551,31 @@ small_blocks = reblock(Q, 1)      # faer の factor upgrade を使って再構�
 reblock!(Q, 3)
 @assert Q.blocksize == 3
 ```
+
+```julia
+using Colmat, LinearAlgebra
+
+V = [1.0 0; 0.3 1; 0.4 0.5]
+tau = [sum(abs2, V[:, j]) / 2 for j in axes(V, 2)]
+Q = FaerHouseholderSequence(V, tau; blocksize=2)
+A = [1.0 2; 3 4; 5 6]
+expected = Matrix(Q) * A
+team = FaerTeam(2)
+work = FaerScratch(lmul!, Q, A; team)
+lmul!(Q, A; scratch=work, team)
+@assert A ≈ expected
+reserve!(work, ldiv!, Q, A; team)
+ldiv!(Q, A; scratch=work, team)
+@assert A ≈ [1.0 2; 3 4; 5 6]
+close(work)
+close(team)
+```
+
+`lmul!/rmul!/mul!/ldiv!/rdiv!` で作業領域を再利用できます。左右積の照会は
+演算と同じ引数順序を使い、`mul!` の照会は alpha/beta と型昇格も反映します。
+容量・alignment 不足や閉じた resource は出力更新前に拒否します。native kernel は
+caller-owned team を借用します。結果の staging・係数の型変換・Julia 配列変換は
+scratch の外で割り当てます。構築・reblock の scratch/team は別の未対応項目です。
 
 `Q = H₁*H₂*…*Hₖ` の順序で、m×k の basis には k≤m が必要です。
 対角は暗黙の 1、上三角は無視し、strict lower の値だけを使います。

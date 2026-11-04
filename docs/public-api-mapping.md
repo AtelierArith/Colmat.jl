@@ -117,7 +117,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
 | 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/full_piv_lu!/qr!/cholesky!/ldlt!/bunchkaufman!/svd!/svdvals!/eigen!/eigvals!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | 直接 in-place の低水準経路・全 tuning。caller-owned scratch は Pfaffian/SVD/単一行列・一般化 EVD/保存済みスペクトル因子の疑似逆/一般化 Schur 並べ替え/native LinOp query に基づく作用素適用に接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
-| Householder | `householder::make_householder_in_place/upgrade_householder_factor/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | R: `FaerHouseholder/householder`、`FaerHouseholderSequence`、4 型の basis/tau/factor 構築、block factor upgrade/reblock、左右の sequence 適用・求解・`mul!`、随伴/転置/共役・ビュー | `prev_block_size` の直接制御、外部 scratch |
+| Householder | `householder::make_householder_in_place/upgrade_householder_factor/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | R: `FaerHouseholder/householder`、`FaerHouseholderSequence`、4 型の basis/tau/factor 構築、block factor upgrade/reblock、左右の sequence 適用・求解・`mul!`、随伴/転置/共役・ビュー。左右適用/求解/mul! の caller-owned scratch/team・必要量照会/reserve | `prev_block_size` の直接制御、構築/reblock の外部 scratch/team |
 | Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転。`FaerJacobiRotation`、`rotg/make_givens`、2×2左右適用、transpose/conj/adjoint、Givens 埋め込み | — |
 | Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | R: 4 型の `hessenberg/hessenberg!`、明示的な Rust 所有 H/Q、Schur 段階への再利用。`balance/balance!`、`FaerBalance` の B/perm/scale/active、右固有ベクトルの `balance_eigenvectors[!]` | compact Householder 形式・全パラメータ・外部 scratch |
 | 対称三重対角化・三重対角 EVD | `evd::tridiag::tridiag_in_place`, `tridiagonal_self_adjoint_evd` | `SymTridiagonal`、構造化固有値分解 | R: `tridiagonalize[!]`、native self-adjoint wrapper の `hessenberg[!]`、実 H/明示 Q、`eigen/eigvals(F)`、native ベクトルを持つ SymTridiagonal、`tridiagonal_eigen/eigvals`、4 型・複素位相・QR/分割統治 | compact reflector の直接公開、外部 scratch・全 tuning |
@@ -197,3 +197,12 @@ forward/adjoint の in-place 関数から native LinOp/BiLinOp を構築し、4�
 ## dense QR の長方形・打ち切り逆作用
 
 `FaerLinearOperator(F::QR;atol,rtol)` は保存 Householder 因子・列置換と保存 R の SVD を用いた最小ノルム作用に対応。長方形は既定で疑似逆作用、正方は非ゼロ atol または明示的 rtol で打ち切り作用を選ぶ。正方の既定は従来の非特異逆作用を維持する。SVD の重みは構築時に決め、型昇格でも再判定しない。適用の scratch/team に接続し、元行列の再分解・dense Q・元行列の疑似逆全体は構築しない。全成分を捨てたゼロ作用は射影を省き、捨てた成分の `0*Inf` を伝播しない。構築・staging・型変換は独立に割り当て、残る kernel/反復法 workspace 等は継続。
+
+### Householder application resources (PR #45)
+
+Elementary and compact block sequences accept caller scratch and native teams
+for left/right in-place application, `mul!`, and inverse actions. Queries use the
+working scalar type, orientation and extent. Current native scalar/shape metadata
+is checked before promoted snapshots; closed/insufficient resources fail before
+writeback. Results and conversions stage independently of kernel scratch.
+Construction/reblock resources and direct dense-factor solve scratch remain open.

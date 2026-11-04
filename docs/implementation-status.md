@@ -2611,3 +2611,35 @@ The new file contributes 7,201 assertions, including empty-prefix wide QR and
 floatmax RHS with zero truncation. Native tests measure zero calling-thread Rust
 heap allocations during warmed Seq and two-thread applications (worker threads
 are not measured). Formatting/diff checks pass; frozen inventory is unchanged.
+
+## Householder application scratch and teams (PR #45)
+
+Baseline: main `814fd1d`, faer `19053d8` (0.29.0), canonical
+179,505 assertions / 97 files, Rust 47 tests, README 83 blocks.
+
+Elementary reflection and compact-sequence application now take caller-owned
+scratch and a scoped native team for left/right application, mul!, and inverse
+actions. Native query/compute use the same existing Householder kernels and
+scalar-tail handling; elementary 1x1 factors live on the Rust stack. The kernel
+receives the actual `Par`, not a retained token. Julia result staging, view
+writeback, coefficient promotion and scalar conversion allocate separately.
+Native owner scalar/shape/block metadata is validated before promoted clones;
+capacity/alignment and resource lifetimes are checked before destination writes.
+Construction/reblock scratch/team and direct retained dense solve scratch remain
+separate pending items within the complete 76-row objective.
+
+RustCall 0.9.2 glob-imported borrowed owner handling was independently reproduced
+without faer and reported as [RustCall #569](https://github.com/AtelierArith/RustCall.jl/issues/569),
+with complete executable Rust/Julia sources in
+`docs/reproducers/rustcall-glob-owner/`. Standalone Rust passes; Julia rejects
+`&Counter` as by-value, while the explicit-import control succeeds. Colmat uses
+explicit imports and checked owner handles, with no raw pointer bypass.
+Latest upstream resolver source was inspected (byte-identical to installed),
+not executed; the report distinguishes the conservative limitation from unsafe
+execution and proposes scoped unambiguous resolution plus accurate diagnostics.
+
+Final validation: canonical `Pkg.test(;allow_reresolve=false)` passed
+184,477 assertions / 98 files / 16 workers (5m29.0s); new focused coverage
+4,972 assertions, native 55 tests, executable README 84 blocks. Format/diff
+checks passed and frozen inventory is unchanged. The dependency remains clean
+at `19053d8`. No full-suite result is inferred from focused tests.
