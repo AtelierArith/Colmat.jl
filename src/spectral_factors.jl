@@ -7,7 +7,9 @@ independent copies: SVD exposes native U/V, Julia real S, and native-adjoint Vt;
 EVD exposes native vectors and Julia real values. `pinv(F;atol,rtol,team,scratch)` and
 `reconstruct(F;team)` reuse stored factors without another decomposition.
 Construction uses backend-owned workspace; caller `scratch` is unsupported
-for construction. Saved-factor pseudoinverse reconstruction accepts caller scratch. Default calls retain their existing Julia factorization results.
+for construction. Saved-factor pseudoinverse reconstruction and SVD/EVD solves/inverses accept
+caller scratch; result/Julia conversion buffers allocate separately. Default
+construction calls retain their existing Julia factorization results.
 """
 mutable struct FaerSpectralFactor{T,K,H} <: LinearAlgebra.Factorization{T}
     handle::Union{Nothing,H}

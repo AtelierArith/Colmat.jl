@@ -77,12 +77,12 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 正方連立方程式 | `Solve::solve/solve_in_place` | `A\B`, `ldiv!` | R: `A\B`、再利用可能な `F\B`、保存済み native SVD/EVD の混合型・許容誤差付き求解、alias-safe `ldiv!`。dense 保存因子の `ldiv!/rdiv!` に scratch/team・必要量照会/reserve | 真の無割当 in-place 求解・全引数形式 |
+| 正方連立方程式 | `Solve::solve/solve_in_place` | `A\B`, `ldiv!` | R: `A\B`、再利用可能な `F\B`、保存済み native SVD/EVD の混合型・許容誤差付き求解、alias-safe `ldiv!`。dense 保存因子の `ldiv!/rdiv!`、公開 native SVD/EVD の左右求解/逆行列に scratch/team・必要量照会/reserve | 真の無割当 in-place 求解・全引数形式 |
 | 共役・転置・随伴の求解 | `solve_conjugate/solve_transpose/solve_adjoint` と in-place 版 | `conj(A)\B`, `transpose(A)\B`, `A'\B` | R: 転置・随伴分解の求解、行列ラッパーの求解 | 行列ラッパーはコピー経由。全共役 in-place 形式 |
-| 右側からの求解 | `rsolve_*_in_place` | `B/A`, `rdiv!` | R: `B/A`、`B/F`、保存済み native SVD/EVD の転置/随伴・混合型を含む右求解、`rdiv!`。dense 保存因子の caller-owned scratch/team | 全型・全入力組合せの専用最適化 |
+| 右側からの求解 | `rsolve_*_in_place` | `B/A`, `rdiv!` | R: `B/A`、`B/F`、保存済み native SVD/EVD の転置/随伴・混合型を含む右求解、`rdiv!`。dense 保存因子と公開 native SVD/EVD の caller-owned scratch/team | 全型・全入力組合せの専用最適化 |
 | 最小二乗 | `SolveLstsq::{solve_lstsq,solve_lstsq_in_place,...}`（QR/SVD 等） | 長方形 `A\b`, `ldiv!` | R: 長方形の求解、QR と広幅・ランク不足時の SVD 経路、保存済み native SVD の `F\B`/3 引数 `ldiv!`（`atol/rtol/team`）。dense 保存 QR の矩形/ランク落ち、矩形 LU/full LU の再構成/SVD 求解 scratch/team、昇格後も元精度のランク判定 | 全アルゴリズム選択・許容誤差設定 |
 | 三角連立方程式 | `solve_{unit_}{lower,upper}_triangular_in_place`, `linalg::triangular_solve` | `LowerTriangular/UpperTriangular/UnitLowerTriangular/UnitUpperTriangular` の `\` | R: lower/upper/unit の三角ラッパーの求解 | 全 mixed-operand と低水準 scratch 公開 |
-| 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`（保存済み native SVD/EVD・転置/随伴を含む。数値的特異性を検査）、三角 inverse | 破壊的 inverse・全オプション |
+| 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`（保存済み native SVD/EVD・転置/随伴を含む。数値的特異性を検査、scratch/team 照会/reserve）、三角 inverse | 破壊的 inverse・全オプション |
 | 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | R: 4 型の `pinv(A;atol,rtol)`、native SVD 再構成、Hermitian/実 Symmetric の EVD 再構成、保存済み native SVD/EVD の `pinv(F;atol,rtol,team,scratch)`・必要量照会/reserve | 残りの分解形式、非標準スカラー・高度なアルゴリズム制御 |
 | 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT・Schur/Hessenberg・三重/二重対角化の `reconstruct/Matrix/FaerMatrix`・型指定変換、疎 Cholesky/全方式 LU の native 疎再構成、一般化 Schur/Hessenberg の `(A,B)` | その他の残りの形式 |
 | ランク・条件数 | SVD/QR などを組み合わせて構成（同名の高水準 API としては扱わない） | `rank/cond/opnorm` | R: native スペクトル・分解を使う `rank(;atol,rtol)`、`cond(A,1/2/Inf)`、4 型の `opnorm`、保存済み疎 QR の `svdvals/rank`（dense R の native SVD） | 推定条件数・全構造化入力の最適化。faer 同名の高水準 API としての主張ではない |
@@ -116,7 +116,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/full_piv_lu!/qr!/cholesky!/ldlt!/bunchkaufman!/svd!/svdvals!/eigen!/eigvals!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | 直接 in-place の低水準経路・全 tuning。caller-owned scratch は Pfaffian/SVD/単一行列・一般化 EVD/保存済みスペクトル因子の疑似逆/一般化 Schur 並べ替え/native LinOp query に基づく作用素適用/Householder 適用/dense 保存因子求解に接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
+| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/full_piv_lu!/qr!/cholesky!/ldlt!/bunchkaufman!/svd!/svdvals!/eigen!/eigvals!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | 直接 in-place の低水準経路・全 tuning。caller-owned scratch は Pfaffian/SVD/単一行列・一般化 EVD/保存済みスペクトル因子の疑似逆/一般化 Schur 並べ替え/native LinOp query に基づく作用素適用/Householder 適用/dense 保存因子・公開 native SVD/EVD 求解に接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
 | Householder | `householder::make_householder_in_place/upgrade_householder_factor/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | R: `FaerHouseholder/householder`、`FaerHouseholderSequence`、4 型の basis/tau/factor 構築、block factor upgrade/reblock、左右の sequence 適用・求解・`mul!`、随伴/転置/共役・ビュー。左右適用/求解/mul! の caller-owned scratch/team・必要量照会/reserve | `prev_block_size` の直接制御、構築/reblock の外部 scratch/team |
 | Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転。`FaerJacobiRotation`、`rotg/make_givens`、2×2左右適用、transpose/conj/adjoint、Givens 埋め込み | — |
 | Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | R: 4 型の `hessenberg/hessenberg!`、明示的な Rust 所有 H/Q、Schur 段階への再利用。`balance/balance!`、`FaerBalance` の B/perm/scale/active、右固有ベクトルの `balance_eigenvectors[!]` | compact Householder 形式・全パラメータ・外部 scratch |
@@ -205,7 +205,8 @@ for left/right in-place application, `mul!`, and inverse actions. Queries use th
 working scalar type, orientation and extent. Current native scalar/shape metadata
 is checked before promoted snapshots; closed/insufficient resources fail before
 writeback. Results and conversions stage independently of kernel scratch.
-Construction/reblock resources and direct dense-factor solve scratch remain open.
+At this Householder checkpoint construction/reblock resources and direct dense-factor
+solve scratch remained open; PR #46 below connects the latter.
 
 ### Retained dense solve workspaces (PR #46)
 
@@ -225,5 +226,18 @@ no original input snapshot is used. Existing nonzero-info LU factors still
 raise singular-factor errors.
 
 These dense solve resources target `FaerFactorization`. Public
-`FaerSpectralFactor` SVD/EVD solve scratch remains a separate pending item;
-the internal legacy SVD backend above is not a claim that it is connected.
+`FaerSpectralFactor` SVD/EVD solve scratch was separate and pending at PR #46;
+PR #47 below connects it rather than treating the legacy backend as completion.
+
+### Public retained SVD/EVD solve resources (PR #47)
+
+Public `FaerSpectralFactor` supports caller scratch for backslash, right division,
+ldiv!/rdiv! and inv, including transforms, full/thin/rectangular/empty SVD, signed
+self-adjoint EVD, mixed scalars and tolerance clipping. Matching queries and
+reserve include projection, reciprocal weights and promoted U/V storage.
+Original-precision cutoffs are preserved without reconstruction/refactorization
+or an explicit intermediate pseudoinverse. Right solves use a direct projection
+without an owned adjoint RHS. Native results and Julia/RHS conversion allocate
+separately. Default and explicit calls share kernels; factor construction remains
+backend-allocated. Sparse/iterative/kernel workspaces and all other 76-row
+constraints remain open as recorded.
