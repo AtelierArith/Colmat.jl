@@ -57,7 +57,9 @@ function _dense_solve_rhs(
         throw(DimensionMismatch("factor and RHS dimensions do not match"))
     op = _dense_op(f)
     right && (op = (2, 3, 0)[op+1])
-    input = right ? adjoint(b) : ndims(b)==1 ? reshape(b, :, 1) : b
+    input =
+        right ? reshape(adjoint(b), size(b, 2), size(b, 1)) :
+        ndims(b)==1 ? reshape(b, :, 1) : b
     rhs = FaerMatrix(input)
     try
         result = _typed_solve(original, rhs, op; scratch, team)

@@ -141,7 +141,8 @@ function _sparse_qr_resource_result(
             cap.bytes>=req.bytes&&cap.alignment>=req.alignment||throw(
                 ArgumentError("insufficient QR solve scratch; call reserve!"),
             )
-            input=right ? adjoint(b) : ndims(b)==1 ? reshape(b, :, 1) : b
+            input=right ? reshape(adjoint(b), size(b, 2), size(b, 1)) :
+                  ndims(b)==1 ? reshape(b, :, 1) : b
             rhs=FaerMatrix{P}(input)
             args=(
                 original,

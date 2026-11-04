@@ -138,7 +138,8 @@ end
 function _sparse_direct_result(f, b; scratch = nothing, team = nothing, right = false)
     lock(_matrix_lock) do
         original, op, P=_sparse_direct_prepare(f, b, team, right)
-        input=right ? adjoint(b) : ndims(b)==1 ? reshape(b, :, 1) : b
+        input=right ? reshape(adjoint(b), size(b, 2), size(b, 1)) :
+              ndims(b)==1 ? reshape(b, :, 1) : b
         rhs=FaerMatrix{P}(input)
         try
             result=if P===eltype(original)
