@@ -2115,3 +2115,10 @@ native Householder/R/permutation buffers and allocate intermediates per apply.
 Focused integration checks pass 12,535 assertions. Canonical validation passes
 111,982 assertions across 82 files (16 workers). Rust tests pass 11 tests.
 README passes 70 executable blocks.
+
+## Issue #22: native explicit LU/QR ordering (in progress)
+
+Identity and supplied column permutations now reach native symbolic LU/QR
+analysis for auto/supernodal algorithms. Upstream faer #239 / PR #240 provides
+the API. Candidate faer 3889bd1 passes seven focused tests and three doctests.
+Colmat integration validation is running. Other native tuning remains pending.
