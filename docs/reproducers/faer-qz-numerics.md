@@ -40,3 +40,29 @@ faer = { package = "t4a-faer", path = "../faer/faer", default-features = false, 
 None of the reports implies that every QZ numerical issue has been fixed.
 Colmat's selected dependency and existing scratch workaround remain unchanged
 until merged candidates and the original plus wrapper regressions are verified.
+
+## AED Sylvester index scratch after the rounded-window fix
+
+[faer-qz-aed-index-scratch.rs](faer-qz-aed-index-scratch.rs) independently
+reproduces [faer #260](https://github.com/tensor4all/faer/issues/260). Use the
+manifest above, but select faer main `3cc63cdb312e9f81eb6ac194bfea7fcda1d70d50`
+(PR #253) plus the exact sentinel correction from
+`d862cd76245c09c1058fcff3417ac83c565e96bf` (PR #255). This isolates #254;
+no Givens/range changes are present. Both commits can be fetched from the fork;
+cherry-picking the latter onto the former produces the tested source combination.
+
+`cargo run` with rustc 1.99.1 on Linux x86_64 queries 2,112 bytes for a valid
+18x18 Hessenberg/triangular pencil, `blocking_threshold=15`, default window.
+It exits 101 in full-pivot LU: zero workspace bytes remain for a requested
+24-byte `(usize, usize, f64)` record. The corresponding public regression also
+fails for f32. The rounded-window fix alone therefore does not complete #252's
+broader workspace audit.
+
+Changing only AED's one `[usize;8]` reservation to four arrays changes the
+query to 2,304 bytes and completes the QZ call without an allocation panic.
+The reproducer retains its independent numerical gate and still exits 101
+there: coupled residual ratio 61.6469 exceeds 20, with Q/Z orthogonality errors
+3.74745e-13 / 4.63070e-13. This is additional evidence for #257, not numerical
+success. Draft [faer PR #258](https://github.com/tensor4all/faer/pull/258)
+contains the array correction and focused public/private regressions. Colmat's
+construction scratch correction remains in place pending verified adoption.
