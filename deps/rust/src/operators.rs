@@ -276,6 +276,18 @@ fn product<T: ComplexField>(a: &Operator<T>, b: MatRef<'_, T>) -> Result<Mat<T>,
     a.apply(out.as_mut(), b, par, MemStack::new(&mut mem));
     Ok(out)
 }
+fn product_checked<T: ComplexField>(
+    a: &Operator<T>,
+    b: MatRef<'_, T>,
+    m: usize,
+    n: usize,
+    columns: usize,
+) -> Result<Mat<T>, String> {
+    if (a.nrows(), a.ncols()) != (m, n) || b.shape() != (n, columns) {
+        return Err("operator product native dimensions do not match requested metadata".into());
+    }
+    product(a, b)
+}
 // FFI leaf for an observer's independent Julia-owned column-major snapshot.
 // Nonfinite failed iterates must reach the same operator path as native output,
 // without going through the finite-only public matrix constructor.
@@ -365,12 +377,17 @@ impl OwnedMatrix {
         &mut self,
         operator: &OwnedLinearOperator,
         rhs: &OwnedMatrix,
+        m: usize,
+        n: usize,
+        columns: usize,
+        tag: i32,
     ) -> Result<(), String> {
         guarded(|| {
+            apply_workspace::validate(operator, m, n, tag)?;
             let b = rhs;
             match operator.data()? {
                 Data::F64(a) => {
-                    self.matrix = product(a, b.matrix.as_ref())?;
+                    self.matrix = product_checked(a, b.matrix.as_ref(), m, n, columns)?;
                     Ok(())
                 }
                 _ => Err("operator scalar types must match".into()),
@@ -405,13 +422,26 @@ impl TypedMatrix {
         &mut self,
         operator: &OwnedLinearOperator,
         rhs: &TypedMatrix,
+        m: usize,
+        n: usize,
+        columns: usize,
+        tag: i32,
     ) -> Result<(), String> {
         guarded(|| {
+            apply_workspace::validate(operator, m, n, tag)?;
             self.data = Some(match (operator.data()?, rhs.data()?) {
-                (Data::F32(a), MatrixData::F32(b)) => MatrixData::F32(product(a, b.as_ref())?),
-                (Data::F64(a), MatrixData::F64(b)) => MatrixData::F64(product(a, b.as_ref())?),
-                (Data::C32(a), MatrixData::C32(b)) => MatrixData::C32(product(a, b.as_ref())?),
-                (Data::C64(a), MatrixData::C64(b)) => MatrixData::C64(product(a, b.as_ref())?),
+                (Data::F32(a), MatrixData::F32(b)) => {
+                    MatrixData::F32(product_checked(a, b.as_ref(), m, n, columns)?)
+                }
+                (Data::F64(a), MatrixData::F64(b)) => {
+                    MatrixData::F64(product_checked(a, b.as_ref(), m, n, columns)?)
+                }
+                (Data::C32(a), MatrixData::C32(b)) => {
+                    MatrixData::C32(product_checked(a, b.as_ref(), m, n, columns)?)
+                }
+                (Data::C64(a), MatrixData::C64(b)) => {
+                    MatrixData::C64(product_checked(a, b.as_ref(), m, n, columns)?)
+                }
                 _ => return Err("operator scalar types must match".into()),
             });
             Ok(())
@@ -1814,8 +1844,16 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
 #[julia]
 impl OwnedLinearOperator {
     #[julia]
-    pub fn operator_promote(&mut self, source: &Self, tag: i32) -> Result<(), String> {
+    pub fn operator_promote(
+        &mut self,
+        source: &Self,
+        tag: i32,
+        m: usize,
+        n: usize,
+        source_tag: i32,
+    ) -> Result<(), String> {
         guarded(|| {
+            apply_workspace::validate(source, m, n, source_tag)?;
             self.data = Some(match (source.data()?, tag) {
                 (Data::F32(a), 0) => Data::F32(a.clone()),
                 (Data::F32(a), 1) => Data::F64(convert_operator(a)?),
@@ -3068,3 +3106,5 @@ impl<T: ComplexField> BiLinOp<T> for crate::sparse_qr_wide::Factors<T> {
         wide_qr_action(self, o, b, true, true)
     }
 }
+
+mod apply_workspace;

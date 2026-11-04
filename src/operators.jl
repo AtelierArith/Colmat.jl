@@ -8,7 +8,11 @@ operators do not store a dense coefficient matrix. `*`, `mul!`, conjugation,
 transpose and adjoint call native operator traits; Matrix(op) explicitly forms
 its dense matrix. `.coefficients` returns an independent base representation,
 with `.transposed/.conjugated` describing its orientation.
-Native composition is available with operator * operator. Arbitrary Julia-function callbacks remain unavailable.
+Native composition is available with operator * operator. Application supports
+`mul!(X, op, B[, alpha,beta]; scratch,team)` and explicit `*(op,B; scratch,team)`
+with scratch queries/reserve. Existing allocating owned/wide sparse-QR inverse
+fallbacks remain sequential and outside caller scratch. Arbitrary Julia-function
+callbacks remain unavailable.
 """
 mutable struct FaerLinearOperator{T,H} <: AbstractMatrix{T}
     handle::Union{Nothing,H}
@@ -165,7 +169,15 @@ function _operator_coerce(op::FaerLinearOperator, ::Type{T}) where {T<:_NativeSc
     _handle(op)
     eltype(op)===T && return op
     h=RustCrate.OwnedLinearOperator()
-    _native_call(RustCrate.operator_promote, h, op, _tag(T))
+    _native_call(
+        RustCrate.operator_promote,
+        h,
+        op,
+        _tag(T),
+        UInt(size(op, 1)),
+        UInt(size(op, 2)),
+        _tag(eltype(op)),
+    )
     return FaerLinearOperator{T,typeof(h)}(
         h,
         size(op),
@@ -178,7 +190,9 @@ const _OperatorMatrix=_HouseholderMatrix
 const _OperatorVector=_HouseholderVector
 function _operator_product(
     op::FaerLinearOperator,
-    a::Union{_OperatorMatrix,_OperatorVector},
+    a::Union{_OperatorMatrix,_OperatorVector};
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
         _handle(op)
@@ -188,22 +202,43 @@ function _operator_product(
         P=promote_type(eltype(op), _reflector_type(eltype(a)))
         rhs=_householder_matrix_source(a, P)
         dims=(size(op, 1), size(rhs, 2))
-        args=(_operator_coerce(op, P), rhs)
-        result=P===Float64 ? _matrix_result(RustCrate.operator_product, dims, args...) :
-               _typed_result(P, RustCrate.operator_product, dims, args...)
+        working=_operator_coerce(op, P)
+        args=(
+            working,
+            rhs,
+            UInt(size(op, 1)),
+            UInt(size(op, 2)),
+            UInt(size(rhs, 2)),
+            _tag(P),
+        )
+        result=if isnothing(scratch) && isnothing(team)
+            P===Float64 ? _matrix_result(RustCrate.operator_product, dims, args...) :
+            _typed_result(P, RustCrate.operator_product, dims, args...)
+        else
+            _operator_workspace_result(working, rhs; scratch, team)
+        end
         return a isa _BorrowVector ? _vector_from_source(result) :
                a isa AbstractVector ? vec(Matrix(result)) : result
     end
 end
-Base.:*(op::FaerLinearOperator, a::Union{_OperatorMatrix,_OperatorVector}) =
-    _operator_product(op, a)
-function Base.:*(a::_OperatorMatrix, op::FaerLinearOperator)
+Base.:*(
+    op::FaerLinearOperator,
+    a::Union{_OperatorMatrix,_OperatorVector};
+    scratch = nothing,
+    team = nothing,
+) = _operator_product(op, a; scratch, team)
+function Base.:*(
+    a::_OperatorMatrix,
+    op::FaerLinearOperator;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         work=_householder_matrix_source(
             a,
             promote_type(eltype(op), _reflector_type(eltype(a))),
         )
-        return copy(adjoint(op'*copy(adjoint(work))))
+        return copy(adjoint(_operator_product(op', copy(adjoint(work)); scratch, team)))
     end
 end
 function FaerMatrix(op::FaerLinearOperator{T}) where {T}
@@ -226,32 +261,45 @@ function _operator_copy_result!(dest, result)
     copyto!(dest, buffer)
     return dest
 end
-function _operator_mul!(dest, op, a, alpha, beta, right)
+function _operator_mul_prepare(dest, op, a, alpha, beta, right)
+    size(dest)==(
+        ndims(a)==1 ? (size(op, 1),) :
+        right ? (size(a, 1), size(op, 2)) : (size(op, 1), size(a, 2))
+    ) || throw(DimensionMismatch("operator product destination shape mismatch"))
+    dest isa _RotationArray && _rotation_open(dest)
+    _handle(op)
+    a isa _RotationArray && _rotation_open(a)
+    (right ? size(a, 2)==size(op, 1) : size(a, 1)==size(op, 2)) ||
+        throw(DimensionMismatch("operator/source product dimensions must match"))
+    P=promote_type(
+        eltype(op),
+        _reflector_type(eltype(a)),
+        _reflector_type(eltype(dest)),
+        typeof(alpha),
+        typeof(beta),
+    )
+    P<:_NativeScalar ||
+        throw(ArgumentError("operator mul! requires native working scalar types"))
+    return P
+end
+function _operator_mul!(dest, op, a, alpha, beta, right; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
-        size(dest)==(
-            ndims(a)==1 ? (size(op, 1),) :
-            right ? (size(a, 1), size(op, 2)) : (size(op, 1), size(a, 2))
-        ) || throw(DimensionMismatch("operator product destination shape mismatch"))
-        dest isa _RotationArray && _rotation_open(dest)
-        _handle(op)
-        a isa _RotationArray && _rotation_open(a)
-        (right ? size(a, 2)==size(op, 1) : size(a, 1)==size(op, 2)) ||
-            throw(DimensionMismatch("operator/source product dimensions must match"))
-        P=promote_type(
-            eltype(op),
-            _reflector_type(eltype(a)),
-            _reflector_type(eltype(dest)),
-            typeof(alpha),
-            typeof(beta),
-        )
-        P<:_NativeScalar ||
-            throw(ArgumentError("operator mul! requires native working scalar types"))
+        P=_operator_mul_prepare(dest, op, a, alpha, beta, right)
+        if iszero(alpha) && (!isnothing(scratch) || !isnothing(team))
+            working=_operator_coerce(op, P)
+            effective=right ? adjoint(working) : working
+            columns=right ? size(a, 1) : ndims(a)==1 ? 1 : size(a, 2)
+            _with_operator_workspace(effective, columns; scratch, team) do _
+                nothing
+            end
+        end
         scaled=if iszero(alpha)
             zeros(P, size(dest))
         else
             source=_householder_matrix_source(a, P)
             working=_operator_coerce(op, P)
-            result=right ? source*working : working*source
+            result=right ? *(source, working; scratch, team) :
+                   _operator_product(working, source; scratch, team)
             alpha .* (ndims(dest)==1 ? vec(Matrix(result)) : Matrix(result))
         end
         !iszero(beta) &&
@@ -264,28 +312,49 @@ LinearAlgebra.mul!(
     op::FaerLinearOperator,
     a::_OperatorMatrix,
     alpha::Number,
-    beta::Number,
-) = _operator_mul!(dest, op, a, alpha, beta, false)
+    beta::Number;
+    scratch = nothing,
+    team = nothing,
+) = _operator_mul!(dest, op, a, alpha, beta, false; scratch, team)
 LinearAlgebra.mul!(
     dest::_OperatorVector,
     op::FaerLinearOperator,
     a::_OperatorVector,
     alpha::Number,
-    beta::Number,
-) = _operator_mul!(dest, op, a, alpha, beta, false)
+    beta::Number;
+    scratch = nothing,
+    team = nothing,
+) = _operator_mul!(dest, op, a, alpha, beta, false; scratch, team)
 LinearAlgebra.mul!(
     dest::_OperatorMatrix,
     a::_OperatorMatrix,
     op::FaerLinearOperator,
     alpha::Number,
-    beta::Number,
-) = _operator_mul!(dest, op, a, alpha, beta, true)
-LinearAlgebra.mul!(dest::_OperatorMatrix, op::FaerLinearOperator, a::_OperatorMatrix) =
-    _operator_mul!(dest, op, a, 1, 0, false)
-LinearAlgebra.mul!(dest::_OperatorVector, op::FaerLinearOperator, a::_OperatorVector) =
-    _operator_mul!(dest, op, a, 1, 0, false)
-LinearAlgebra.mul!(dest::_OperatorMatrix, a::_OperatorMatrix, op::FaerLinearOperator) =
-    _operator_mul!(dest, op, a, 1, 0, true)
+    beta::Number;
+    scratch = nothing,
+    team = nothing,
+) = _operator_mul!(dest, op, a, alpha, beta, true; scratch, team)
+LinearAlgebra.mul!(
+    dest::_OperatorMatrix,
+    op::FaerLinearOperator,
+    a::_OperatorMatrix;
+    scratch = nothing,
+    team = nothing,
+) = _operator_mul!(dest, op, a, 1, 0, false; scratch, team)
+LinearAlgebra.mul!(
+    dest::_OperatorVector,
+    op::FaerLinearOperator,
+    a::_OperatorVector;
+    scratch = nothing,
+    team = nothing,
+) = _operator_mul!(dest, op, a, 1, 0, false; scratch, team)
+LinearAlgebra.mul!(
+    dest::_OperatorMatrix,
+    a::_OperatorMatrix,
+    op::FaerLinearOperator;
+    scratch = nothing,
+    team = nothing,
+) = _operator_mul!(dest, op, a, 1, 0, true; scratch, team)
 function LinearAlgebra.lmul!(
     op::FaerLinearOperator,
     a::Union{FaerMatrix,FaerVector,FaerRow},

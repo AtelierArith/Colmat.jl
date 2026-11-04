@@ -2430,3 +2430,45 @@ other kernels remain tracked. In particular, faer's current public QZ reordering
 accepts an ignored `_par`; no QZ parallelism or speed improvement is claimed.
 The clean selected dependency remains faer 19053d8 (0.29.0). The complete 76-row
 scope and frozen inventory are preserved.
+
+## Issue #22: caller resources for native operator application
+
+Native operator products support explicit `*(op,B; scratch,team)` and the
+right-operator form. `mul!` supports both orientations, vectors/matrices and
+alpha/beta with the same resource keywords. `scratch_requirements`,
+`FaerScratch` and `reserve!` resolve the actual working scalar, orientation,
+RHS count and team; mul! includes destination/alpha/beta promotion. Composition
+and saved-factor inverse actions reuse the LinOp-declared scratch and borrow a
+caller-owned team without storing its token. Default multiplication preserves
+its existing sequential allocation route.
+
+The new native entry points validate current operator/RHS scalar and dimensions
+against requested Julia metadata before application. Default products and
+operator widening now check the original native metadata too, before a
+conversion can mask a stale type. All output matrices stage errors; resource
+capacity/alignment/close and conversion failures preserve destinations.
+Zero-alpha calls validate supplied resources but do not read RHS elements or
+old output when beta is zero. Native query output spans are checked and all
+owners use RustCall's checked references. Shared reuse is serialized by the
+existing owner lock.
+
+The new focused file passes 4,655 assertions, covering four scalars, team widths
+one/two, dense/CSC/CSR/diagonal/identity, all four orientations, composition,
+saved dense/sparse inverse and spectral actions, rectangular spectral actions,
+scalar promotion, matrix/vector/native vector/view output, overlap, repeat/Task
+reuse, reserve, capacity/alignment/close failures, atomic conversion failure,
+and corrupted native dtype/shape in default, explicit and promoted paths.
+Existing operator/composition/QR-action suites pass; native checks pass 29
+tests. Final canonical `Pkg.test(;allow_reresolve=false)` passes 151,547
+assertions / 93 files / 16 workers; all 80 executable README blocks and
+formatting/diff checks pass.
+
+This is LinOp-query workspace: independent result matrices, Julia arithmetic/
+conversion buffers and promoted operator snapshots still allocate. Existing
+auto/supernodal and wide sparse-QR inverse actions still allocate application
+temporaries and run sequentially outside caller scratch. Those native wrapper
+fallbacks remain explicit incomplete work, as do direct retained-factor solve
+keywords, dense rectangular QR inverse actions and arbitrary Julia callbacks.
+No universal allocation-free or parallel-speed claim is made. The selected
+clean faer dependency is unchanged at 19053d8 (0.29.0); full 76-row scope and
+frozen inventory remain intact.

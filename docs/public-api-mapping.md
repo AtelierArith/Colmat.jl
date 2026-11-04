@@ -105,8 +105,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 線形作用素・双方向作用素 | `matrix_free::{LinOp,BiLinOp}` | `mul!` を持つ作用素型相当。LinearAlgebra に同一の trait はない | R: `FaerLinearOperator`、dense/CSC/CSR/diagonal/identity、積・共役・転置・随伴、native 所有の入れ子合成・scratch 中間領域・再帰的スカラー型昇格 | 任意の Julia callback |
-| 前処理 | `Precond/BiPrecond/IdentityPrecond` | 反復法の前処理（標準外） | R: native in-place 適用、`identity_preconditioner`、`diagonal_preconditioner`、`FaerLinearOperator(F)` の保存済み LU/完全ピボット LU/QR（列ピボット含む）/Cholesky/LDLT/Bunch–Kaufman 逆作用、native SVD/EVD の打ち切り疑似逆作用（atol/rtol・長方形）、全方式の疎 LU・疎 Cholesky（全3分解方式）の sparse 逆作用、全方式の疎 QR の最小二乗/最小ノルム作用。混合型・転置/随伴対応、snapshot 再分解なし | callback・疎 QR 疑似逆の caller-owned scratch |
+| 線形作用素・双方向作用素 | `matrix_free::{LinOp,BiLinOp}` | `mul!` を持つ作用素型相当。LinearAlgebra に同一の trait はない | R: `FaerLinearOperator`、dense/CSC/CSR/diagonal/identity、積・共役・転置・随伴、native 所有の入れ子合成・再帰的スカラー型昇格、`mul!/explicit *` の `scratch=`/`team=` と必要量照会/reserve | 任意の Julia callback。auto/supernodal・wide 疎 QR 逆作用の allocating/逐次 fallback は外部 scratch/team 未接続 |
+| 前処理 | `Precond/BiPrecond/IdentityPrecond` | 反復法の前処理（標準外） | R: native in-place 適用、`identity_preconditioner`、`diagonal_preconditioner`、`FaerLinearOperator(F)` の保存済み LU/完全ピボット LU/正方 QR（列ピボット含む）/Cholesky/LDLT/Bunch–Kaufman 逆作用、native SVD/EVD の打ち切り疑似逆作用（atol/rtol・長方形）、全方式の疎 LU・疎 Cholesky（全3分解方式）の sparse 逆作用、全方式の疎 QR の最小二乗/最小ノルム作用。混合型・転置/随伴対応、snapshot 再分解なし | callback・dense 矩形 QR の逆作用、auto/supernodal・wide 疎 QR 逆作用の caller-owned scratch/team |
 | 共役勾配法 | `conjugate_gradient::{conjugate_gradient,CgParams,CgInfo,CgError}` | CG solver（標準外） | R: `cg/cg!`、block RHS、4 型、初期値・許容誤差・反復上限、失敗 iterate・独立した真の残差、Julia 反復 callback・停止・残差履歴 | 独立 scratch API |
 | BiCGSTAB | `bicgstab::{bicgstab,BicgParams,BicgInfo,BicgError}` | BiCGSTAB solver（標準外） | R: `bicgstab/bicgstab!`、左右前処理・block RHS・4 型・初期値・許容誤差・反復上限、失敗 iterate・真の残差、Julia 反復 callback・停止・残差履歴 | 独立 scratch API |
 | LSMR | `lsmr::{lsmr,LsmrParams,LsmrInfo,LsmrError}` | 最小二乗反復 solver（標準外） | R: `lsmr/lsmr!`、長方形・block RHS・右前処理・4 型・初期値・許容誤差・反復上限、真の前処理付き正規残差、Julia 反復 callback・停止・残差履歴 | 独立 scratch API。極端なスケールでは [#245](https://github.com/tensor4all/faer/issues/245) の誤収束を真の残差チェックで拒否 |
@@ -116,7 +116,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/full_piv_lu!/qr!/cholesky!/ldlt!/bunchkaufman!/svd!/svdvals!/eigen!/eigvals!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | 直接 in-place の低水準経路・全 tuning。caller-owned scratch は Pfaffian/SVD/単一行列・一般化 EVD/保存済みスペクトル因子の疑似逆/一般化 Schur 並べ替えに接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
+| 破壊的分解・作業領域管理 | 各分解モジュールの `*_in_place / *_scratch`、`temp_mat_scratch/temp_mat_zeroed` | `lu!/qr!/cholesky!/svd!/eigen!`、LAPACK workspace 相当 | 一部 R: `lu!/full_piv_lu!/qr!/cholesky!/ldlt!/bunchkaufman!/svd!/svdvals!/eigen!/eigvals!`（pivoting 含む）、単一行列・行列対の `hessenberg! / schur!` は成功後に入力を更新 | 直接 in-place の低水準経路・全 tuning。caller-owned scratch は Pfaffian/SVD/単一行列・一般化 EVD/保存済みスペクトル因子の疑似逆/一般化 Schur 並べ替え/native LinOp query に基づく作用素適用に接続、他 kernel は未。現行の ! は独立因子・一時結果を割り当てる |
 | Householder | `householder::make_householder_in_place/upgrade_householder_factor/apply_block_householder_*/apply_block_householder_sequence_*` | reflector・QR の Q 適用相当 | R: `FaerHouseholder/householder`、`FaerHouseholderSequence`、4 型の basis/tau/factor 構築、block factor upgrade/reblock、左右の sequence 適用・求解・`mul!`、随伴/転置/共役・ビュー | `prev_block_size` の直接制御、外部 scratch |
 | Jacobi/Givens 回転 | `JacobiRotation::{make_givens,rotg,apply_*,transpose,adjoint}` | `givens`, `Givens`, `lmul!/rmul!` | R: native 配列の `givens`、標準 Givens の左/右適用・`*`、4 型・昇格・ベクトル・範囲ビュー、随伴/合成回転。`FaerJacobiRotation`、`rotg/make_givens`、2×2左右適用、transpose/conj/adjoint、Givens 埋め込み | — |
 | Hessenberg 化・balancing | `evd::hessenberg::hessenberg_in_place`, `evd::{balance_in_place,balance_eigenvectors_in_place,...}` | `hessenberg/hessenberg!`、LAPACK balancing 相当 | R: 4 型の `hessenberg/hessenberg!`、明示的な Rust 所有 H/Q、Schur 段階への再利用。`balance/balance!`、`FaerBalance` の B/perm/scale/active、右固有ベクトルの `balance_eigenvectors[!]` | compact Householder 形式・全パラメータ・外部 scratch |
@@ -128,8 +128,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 逐次実行 | `Par::Seq` | 同期・逐次の数値処理 | R: 既定の native 数値処理、幅1の FaerTeam | 明示的 team 行列積/Pfaffian/SVD/単一行列・一般化 EVD/dense LU・QR・Cholesky・LDLT・Bunch–Kaufman 構築以外は逐次 |
-| 呼び出し側所有の並列 team | `Par::Team`, `team::with_team`, `Par::reborrow`（threadteam feature） | Julia task/thread や BLAS thread 設定と関心は近いが、直接同一ではない | 一部 R: `FaerTeam` の pool/予約所有・再利用・copy/close/do、`team_mul`・team 指定 `mul!`・`pfaffian/svd/svdvals` と単一行列・一般化ペアの `eigen/eigvals(;team)`、dense LU/QR/Cholesky/LDLT/Bunch–Kaufman の構築・staged bang、4 型・promotion・ビュー・alias | 保存因子の求解・成分取り出し、疎分解・反復法・他 kernel の team 接続、外部 pool の借用、全 wait/cost tuning は未対応。owner lock により呼び出しを直列化 |
+| 逐次実行 | `Par::Seq` | 同期・逐次の数値処理 | R: 既定の native 数値処理、幅1の FaerTeam | 明示的 team 行列積/Pfaffian/SVD/単一行列・一般化 EVD/dense LU・QR・Cholesky・LDLT・Bunch–Kaufman 構築・native 作用素適用以外は逐次 |
+| 呼び出し側所有の並列 team | `Par::Team`, `team::with_team`, `Par::reborrow`（threadteam feature） | Julia task/thread や BLAS thread 設定と関心は近いが、直接同一ではない | 一部 R: `FaerTeam` の pool/予約所有・再利用・copy/close/do、`team_mul`・team 指定 `mul!`・`pfaffian/svd/svdvals` と単一行列・一般化ペアの `eigen/eigvals(;team)`、dense LU/QR/Cholesky/LDLT/Bunch–Kaufman の構築・staged bang、native 作用素適用、4 型・promotion・ビュー・alias | 保存因子の求解・成分取り出し、疎分解・反復法・他 kernel の team 接続、外部 pool の借用、全 wait/cost tuning は未対応。owner lock により呼び出しを直列化 |
 | 行・列の平均・分散 | `stats::{col_mean,row_mean,col_varm,row_varm,NanHandling}` | Statistics の `mean/varm` と dims/NaN 規約の対応 | R: `Statistics.mean/var/varm`、4 型・行/列/全体・dims・ビュー・NaN propagate/ignore・標本/母分散 | native データを primitive buffer にコピーして faer kernel を適用。指定平均は native 型へ昇格 |
 | 乱数・直交/ユニタリ行列の生成 | `CwiseMat/Col/RowDistribution`, `ComplexDistribution`, `UnitaryMat`（rand feature） | Random の `rand/randn`、ランダム直交行列の生成相当 | R: `FaerRNG`、`rand/randn` の native Mat/Col/Row、`rand!/randn!`・ビュー、`randunitary`、4 型・複素成分正規化・copy/seed/close | 任意の Rust Distribution/Julia callback の直接公開は未対応。Julia RNG は非空の生成ごとに UInt64 シードを1個渡す |
 | NPY 読み込み・ビュー | `io::npy::{Npy,FromNpy,...}`, `as_aligned_ref/to_mat`（npy feature） | NPY 対応 I/O（Julia 標準外） | R: `loadnpy/npyview/npyinfo`、4 型・versions 1–3・C/Fortran・両 endian、独立 Mat と owned read-only aligned view、metadata/copy/deepcopy/close | 真の mmap/元バッファ別名は未対応。rank>2・他 dtype・連結配列は拒否。aligned/native-endian 正規化で [faer #210](https://github.com/tensor4all/faer/issues/210)・[#211](https://github.com/tensor4all/faer/issues/211) を回避 |
@@ -140,7 +140,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 「R」は専用 Rust 経路、「J」は Julia 汎用実装であり、区別する。一部の操作は一時所有行列へコピーする。
 - `FaerMatrix` は上記 4 型を保持する。疎入力を密行列化できても疎行列サポートには数えない。
-- `rayon` はブロック二重対角化で必要な Y 更新が feature gate 内にある不具合の回避（[faer #203](https://github.com/tensor4all/faer/issues/203)）。既定の数値呼び出しは `Par::Seq`。明示的 team 行列積/Pfaffian/SVD/単一行列・一般化 EVD/dense LU・QR・Cholesky・LDLT・Bunch–Kaufman 構築は `Par::Team` を借用する。
+- `rayon` はブロック二重対角化で必要な Y 更新が feature gate 内にある不具合の回避（[faer #203](https://github.com/tensor4all/faer/issues/203)）。既定の数値呼び出しは `Par::Seq`。明示的 team 行列積/Pfaffian/SVD/単一行列・一般化 EVD/dense LU・QR・Cholesky・LDLT・Bunch–Kaufman 構築・native 作用素適用は `Par::Team` を借用する。
 - Cargo は `default-features=false, features=["std","linalg","rayon","rand","npy","threadteam"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
