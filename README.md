@@ -1751,6 +1751,49 @@ scratch. Returned factors do not borrow the workspace and remain valid after
 it or the input plan is closed. Explicit simplicial factor construction retains
 its previous workspace path.
 
+### Reuse operator application scratch and teams
+
+`mul!(X, op, B[, alpha, beta]; scratch, team)` and
+`*(op, B; scratch, team)` accept caller-owned resources for native LinOp
+application, including conjugate/transpose/adjoint and right-operator products.
+Query the exact working scalar and orientation with `scratch_requirements`;
+alpha/beta and output type participate in a `mul!` query.
+
+```julia
+using Colmat, LinearAlgebra
+
+a = [4.0 1; 1 3]
+A = FaerMatrix(a)
+F = lu(A)
+op = FaerLinearOperator(F)
+close(F)
+close(A)
+b = [1.0 3; 2 4]
+x = zeros(2, 2)
+FaerTeam(2) do team
+    work = FaerScratch(mul!, x, op, b; team)
+    req = scratch_requirements(mul!, x, op, b; team)
+    @assert scratch_capacity(work) == req
+    mul!(x, op, b; scratch=work, team)
+    @assert a * x ≈ b
+    first = copy(x)
+    reserve!(work, mul!, x, op, b, 2.0, 1.0; team)
+    mul!(x, op, b, 2.0, 1.0; scratch=work, team)
+    @assert x ≈ 3first
+    close(work)
+end
+close(op)
+```
+
+Kernel scratch covers the native LinOp query, including composition and saved
+factor inverse-action intermediates where implemented. Result staging, Julia
+scaling/conversion buffers and promoted operator snapshots allocate separately.
+Existing auto/supernodal and wide sparse-QR inverse fallbacks still allocate
+application temporaries and run sequentially outside this buffer; completing
+those paths remains tracked by Issue #22. Invalid/closed resources and insufficient
+capacity/alignment reject before destination writeback. Shared use is serialized
+by the owner lock.
+
 ### Compose native matrix-free operators
 
 ```julia
