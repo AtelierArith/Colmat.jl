@@ -108,7 +108,7 @@ end
     @test_throws SingularException reconstruct(F)
     close(F)
     F=lu(FaerSparseMatrix(sparse([2.0 1; 1 3])))
-    @test_throws Colmat.RustCall.RustError reconstruct(F)
+    @test Matrix(reconstruct(F))≈[2.0 1; 1 3]
     close(F)
     @test isempty(
         Test.detect_ambiguities(

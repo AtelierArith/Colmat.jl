@@ -100,7 +100,23 @@ impl SparseSymbolic {
                     Analysis::SimplicialLu(p)
                 }
                 0 => Analysis::Lu(
-                    SymbolicLu::try_new(pattern.as_ref()).map_err(|e| format!("{e:?}"))?,
+                    SymbolicLu::try_new_with_params(
+                        pattern.as_ref(),
+                        faer::sparse::linalg::lu::LuSymbolicParams {
+                            colamd_params: faer::sparse::linalg::colamd::Control {
+                                dense_row,
+                                dense_col,
+                                aggressive,
+                            },
+                            supernodal_flop_ratio_threshold: if supernodal == 2 {
+                                SupernodalThreshold::FORCE_SUPERNODAL
+                            } else {
+                                SupernodalThreshold::AUTO
+                            },
+                            ..Default::default()
+                        },
+                    )
+                    .map_err(|e| format!("{e:?}"))?,
                 ),
                 1 if supernodal == 1 => {
                     let owned;
@@ -684,6 +700,30 @@ fn lu_component<T: ComplexField>(
             .map_err(|e| format!("{e:?}"))?,
     ))
 }
+fn native_lu_component<T: ComplexField>(
+    f: &Lu<usize, T>,
+    upper: bool,
+) -> Result<Storage<T>, String> {
+    let (l, u) = f.as_ref().factors().map_err(|e| format!("{e:?}"))?;
+    Ok(Storage::Csc(if upper { u } else { l }))
+}
+fn native_lu_permutation<T: ComplexField>(
+    f: &Lu<usize, T>,
+    column: bool,
+) -> faer::perm::Perm<usize> {
+    let view = f.as_ref();
+    let p = if column {
+        view.col_perm()
+    } else {
+        view.row_perm()
+    };
+    let (forward, inverse) = p.arrays();
+    faer::perm::Perm::new_checked(
+        forward.to_vec().into_boxed_slice(),
+        inverse.to_vec().into_boxed_slice(),
+        forward.len(),
+    )
+}
 #[julia]
 impl SparseOwner {
     #[julia]
@@ -698,7 +738,11 @@ impl SparseOwner {
                 Factors::F64(Numeric::SimplicialLu(f)) => SparseData::F64(lu_component(f, upper)?),
                 Factors::C32(Numeric::SimplicialLu(f)) => SparseData::C32(lu_component(f, upper)?),
                 Factors::C64(Numeric::SimplicialLu(f)) => SparseData::C64(lu_component(f, upper)?),
-                _ => return Err("LU components require algorithm=:simplicial".into()),
+                Factors::F32(Numeric::Lu(f)) => SparseData::F32(native_lu_component(f, upper)?),
+                Factors::F64(Numeric::Lu(f)) => SparseData::F64(native_lu_component(f, upper)?),
+                Factors::C32(Numeric::Lu(f)) => SparseData::C32(native_lu_component(f, upper)?),
+                Factors::C64(Numeric::Lu(f)) => SparseData::C64(native_lu_component(f, upper)?),
+                _ => return Err("LU components require sparse LU factors".into()),
             });
             Ok(())
         })
@@ -727,7 +771,11 @@ impl OwnedPermutation {
                 Factors::F64(Numeric::SimplicialLu(f)) => get!(f),
                 Factors::C32(Numeric::SimplicialLu(f)) => get!(f),
                 Factors::C64(Numeric::SimplicialLu(f)) => get!(f),
-                _ => return Err("LU permutations require algorithm=:simplicial".into()),
+                Factors::F32(Numeric::Lu(f)) => native_lu_permutation(f, column),
+                Factors::F64(Numeric::Lu(f)) => native_lu_permutation(f, column),
+                Factors::C32(Numeric::Lu(f)) => native_lu_permutation(f, column),
+                Factors::C64(Numeric::Lu(f)) => native_lu_permutation(f, column),
+                _ => return Err("LU permutations require sparse LU factors".into()),
             });
             Ok(())
         })
