@@ -2382,3 +2382,16 @@ QZ construction scratch, nondefault tuning and team integration remain open.
 Upstream PR #253 merged after this candidate's dependency was selected. The
 wrapper's existing QZ construction bound is retained until the remaining
 upstream fixes and merged-dependency adoption checks complete.
+
+## Issue #22: independently reproduced AED index scratch shortfall
+
+[faer #260](https://github.com/tensor4all/faer/issues/260) now has an executed
+18x18 public-query reproduction, separately from #252's merged rounded-window
+fix. On PR #253 plus the exact #255 sentinel correction, 2,112 queried bytes
+panic in full-pivot LU. Changing only AED's one permutation-array reservation
+to four yields 2,304 bytes and completes the QZ call. Its retained numerical
+assertion still fails at ratio 61.65; #257 remains open. Source, baseline and
+run instructions are retained in [the numerical record](reproducers/faer-qz-numerics.md).
+The wider public tests also expose this capacity failure for f32. Draft #258
+contains the correction. No dependency checkout or selected revision is changed
+by this report-only update.
