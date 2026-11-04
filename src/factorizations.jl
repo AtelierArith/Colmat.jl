@@ -5,6 +5,10 @@ A reusable t4a-faer factorization, returned by `lu`, `qr`, `cholesky`, `ldlt`,
 `bunchkaufman` and `full_piv_lu` on `FaerMatrix`. Numerical factors are owned in
 Rust and independent of the input. `F \\ B` reuses them; factor properties return
 independent FaerMatrix objects. `close(F)` invalidates only this factorization.
+
+Construction accepts `team=FaerTeam(...)` to borrow a reusable native team.
+Factors own their data and remain usable after the team or input closes.
+Property extraction and ordinary retained-factor solves remain sequential.
 """
 mutable struct FaerFactorization{T,K,H} <: LinearAlgebra.Factorization{T}
     handle::Union{Nothing,H}
@@ -33,14 +37,29 @@ function Base.close(f::FaerFactorization)
 end
 LinearAlgebra.issuccess(f::FaerFactorization) = getfield(f, :info) == 0
 
-function _factor(a::FaerMatrix{Float64}, ::Val{K}, code; check = true, uplo = :L) where {K}
+function _initialize_dense_factor(h, a, code, lower, team)
+    isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
+    isnothing(team) || _handle(team)
+    args=(h, a, Int32(code), lower, UInt(size(a, 1)), UInt(size(a, 2)), _tag(eltype(a)))
+    return isnothing(team) ? _native_call(RustCrate.initialize, args...) :
+           _native_call(RustCrate.initialize_team, args..., team)
+end
+
+function _factor(
+    a::FaerMatrix{Float64},
+    ::Val{K},
+    code;
+    check = true,
+    uplo = :L,
+    team = nothing,
+) where {K}
     if K in (:cholesky, :ldlt, :bunchkaufman)
         size(a, 1) == size(a, 2) ||
             throw(DimensionMismatch("factorization requires a square matrix"))
     end
     lock(_matrix_lock) do
         h = RustCrate.OwnedFactor()
-        info = Int(_native_call(RustCrate.initialize, h, a, Int32(code), uplo === :L))
+        info = Int(_initialize_dense_factor(h, a, code, uplo === :L, team))
         if check && info != 0
             K === :cholesky && throw(LinearAlgebra.PosDefException(info))
             throw(LinearAlgebra.SingularException(info))
@@ -50,50 +69,59 @@ function _factor(a::FaerMatrix{Float64}, ::Val{K}, code; check = true, uplo = :L
 end
 
 """Factor a Rust-owned matrix using t4a-faer's partial row-pivot LU."""
-LinearAlgebra.lu(a::FaerMatrix{Float64}; check::Bool = true, allowsingular::Bool = false) =
-    _factor(a, Val(:lu), 0; check = check && !allowsingular)
+LinearAlgebra.lu(
+    a::FaerMatrix{Float64};
+    check::Bool = true,
+    allowsingular::Bool = false,
+    team = nothing,
+) = _factor(a, Val(:lu), 0; check = check && !allowsingular, team)
 LinearAlgebra.lu(a::FaerMatrix{Float64}, ::LinearAlgebra.RowMaximum; kwargs...) =
     LinearAlgebra.lu(a; kwargs...)
 
 """
-    full_piv_lu(A::FaerMatrix{Float64}; check=true)
+    full_piv_lu(A::FaerMatrix; check=true, team=nothing)
 
 Compute t4a-faer's full row-and-column-pivot LU. The permutation vectors satisfy
 `Matrix(A)[F.p,F.q] ≈ Matrix(F.L*F.U)`.
 """
-full_piv_lu(a::FaerMatrix{Float64}; check::Bool = true) =
-    _factor(a, Val(:full_lu), 1; check)
+full_piv_lu(a::FaerMatrix{Float64}; check::Bool = true, team = nothing) =
+    _factor(a, Val(:full_lu), 1; check, team)
 
 """Compute a reusable Rust-owned QR factorization, optionally with column pivoting."""
-LinearAlgebra.qr(a::FaerMatrix{Float64}) = _factor(a, Val(:qr), 2)
-LinearAlgebra.qr(a::FaerMatrix{Float64}, ::LinearAlgebra.NoPivot) = LinearAlgebra.qr(a)
-LinearAlgebra.qr(a::FaerMatrix{Float64}, ::LinearAlgebra.ColumnNorm) =
-    _factor(a, Val(:pivoted_qr), 3)
+LinearAlgebra.qr(a::FaerMatrix{Float64}; team = nothing) = _factor(a, Val(:qr), 2; team)
+LinearAlgebra.qr(a::FaerMatrix{Float64}, ::LinearAlgebra.NoPivot; team = nothing) =
+    LinearAlgebra.qr(a; team)
+LinearAlgebra.qr(a::FaerMatrix{Float64}, ::LinearAlgebra.ColumnNorm; team = nothing) =
+    _factor(a, Val(:pivoted_qr), 3; team)
 
 const _FaerSelfAdjoint = Union{
     LinearAlgebra.Symmetric{Float64,<:FaerMatrix{Float64}},
     LinearAlgebra.Hermitian{Float64,<:FaerMatrix{Float64}},
 }
 _uplo(a::_FaerSelfAdjoint) = a.uplo == 'L' ? :L : :U
-function LinearAlgebra.cholesky(a::FaerMatrix{Float64}; check::Bool = true)
+function LinearAlgebra.cholesky(a::FaerMatrix{Float64}; check::Bool = true, team = nothing)
     LinearAlgebra.issymmetric(a) || throw(LinearAlgebra.PosDefException(-1))
-    return _factor(a, Val(:cholesky), 4; check)
+    return _factor(a, Val(:cholesky), 4; check, team)
 end
-LinearAlgebra.cholesky(a::_FaerSelfAdjoint; check::Bool = true) =
-    _factor(parent(a), Val(:cholesky), 4; check, uplo = _uplo(a))
-function LinearAlgebra.ldlt(a::FaerMatrix{Float64}; check::Bool = true)
+LinearAlgebra.cholesky(a::_FaerSelfAdjoint; check::Bool = true, team = nothing) =
+    _factor(parent(a), Val(:cholesky), 4; check, team, uplo = _uplo(a))
+function LinearAlgebra.ldlt(a::FaerMatrix{Float64}; check::Bool = true, team = nothing)
     LinearAlgebra.issymmetric(a) || throw(ArgumentError("LDLT requires self-adjoint input"))
-    return _factor(a, Val(:ldlt), 5; check)
+    return _factor(a, Val(:ldlt), 5; check, team)
 end
-LinearAlgebra.ldlt(a::_FaerSelfAdjoint; check::Bool = true) =
-    _factor(parent(a), Val(:ldlt), 5; check, uplo = _uplo(a))
-function LinearAlgebra.bunchkaufman(a::FaerMatrix{Float64}; check::Bool = true)
+LinearAlgebra.ldlt(a::_FaerSelfAdjoint; check::Bool = true, team = nothing) =
+    _factor(parent(a), Val(:ldlt), 5; check, team, uplo = _uplo(a))
+function LinearAlgebra.bunchkaufman(
+    a::FaerMatrix{Float64};
+    check::Bool = true,
+    team = nothing,
+)
     LinearAlgebra.issymmetric(a) ||
         throw(ArgumentError("block LDLT requires self-adjoint input"))
-    return _factor(a, Val(:bunchkaufman), 6; check)
+    return _factor(a, Val(:bunchkaufman), 6; check, team)
 end
-LinearAlgebra.bunchkaufman(a::_FaerSelfAdjoint; check::Bool = true) =
-    _factor(parent(a), Val(:bunchkaufman), 6; check, uplo = _uplo(a))
+LinearAlgebra.bunchkaufman(a::_FaerSelfAdjoint; check::Bool = true, team = nothing) =
+    _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a))
 
 function _permutation(f::FaerFactorization{T,K}, column::Bool = false) where {T,K}
     n = size(f, column || K === :pivoted_qr ? 2 : 1)
@@ -247,9 +275,9 @@ function Base.inv(f::FaerFactorization{Float64})
     return _matrix_result(RustCrate.factor_inverse, size(f), f)
 end
 Base.inv(a::FaerMatrix{Float64}) = inv(LinearAlgebra.lu(a))
-LinearAlgebra.factorize(a::FaerMatrix{Float64}) =
-    size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a) :
-    LinearAlgebra.qr(a, LinearAlgebra.ColumnNorm())
+LinearAlgebra.factorize(a::FaerMatrix{Float64}; team = nothing) =
+    size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a; team) :
+    LinearAlgebra.qr(a, LinearAlgebra.ColumnNorm(); team)
 
 function LinearAlgebra.logabsdet(f::FaerFactorization{Float64})
     out=Vector{Float64}(undef, 2)

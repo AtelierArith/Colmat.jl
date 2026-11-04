@@ -462,6 +462,7 @@ fn factor_new<T: ComplexField>(
     a: MatRef<'_, T>,
     kind: i32,
     lower: bool,
+    par: Par<'_>,
 ) -> Result<(Option<Factor<T>>, usize), String> {
     let h = if (4..=6).contains(&kind) {
         Some(hermitian_copy(a, lower)?)
@@ -476,24 +477,24 @@ fn factor_new<T: ComplexField>(
     };
     let side = if lower { Side::Lower } else { Side::Upper };
     let f = match kind {
-        0 => Factor::Lu(a.partial_piv_lu(Par::Seq)),
-        1 => Factor::FullLu(a.full_piv_lu(Par::Seq)),
-        2 => Factor::Qr(a.qr(Par::Seq)),
-        3 => Factor::PivotQr(a.col_piv_qr(Par::Seq)),
-        4 => match a.llt(side, Par::Seq) {
+        0 => Factor::Lu(a.partial_piv_lu(par)),
+        1 => Factor::FullLu(a.full_piv_lu(par)),
+        2 => Factor::Qr(a.qr(par)),
+        3 => Factor::PivotQr(a.col_piv_qr(par)),
+        4 => match a.llt(side, par) {
             Ok(f) => Factor::Llt(f),
             Err(faer::linalg::solvers::LltError::NonPositivePivot { index }) => {
                 return Ok((None, index + 1))
             }
         },
-        5 => match a.ldlt(side, Par::Seq) {
+        5 => match a.ldlt(side, par) {
             Ok(f) => Factor::Ldlt(f),
             Err(faer::linalg::solvers::LdltError::ZeroPivot { index }) => {
                 return Ok((None, index + 1))
             }
         },
-        6 => Factor::Lblt(a.lblt(side, Par::Seq)),
-        7 => Factor::Svd(a.thin_svd(Par::Seq).map_err(|e| format!("{e:?}"))?),
+        6 => Factor::Lblt(a.lblt(side, par)),
+        7 => Factor::Svd(a.thin_svd(par).map_err(|e| format!("{e:?}"))?),
         _ => return Err("unknown factorization".into()),
     };
     let u = match &f {
@@ -735,32 +736,25 @@ impl TypedFactor {
         source: &TypedMatrix,
         kind: i32,
         lower: bool,
+        m: usize,
+        n: usize,
+        tag: i32,
+    ) -> Result<usize, String> {
+        guarded(|| self.initialize_with_par(source, kind, lower, Par::Seq, m, n, tag))
+    }
+    #[julia]
+    pub fn initialize_team(
+        &mut self,
+        source: &TypedMatrix,
+        kind: i32,
+        lower: bool,
+        m: usize,
+        n: usize,
+        tag: i32,
+        team: &crate::teams::OwnedTeam,
     ) -> Result<usize, String> {
         guarded(|| {
-            let a = source.data()?;
-            self.data = match a {
-                MatrixData::F32(x) => {
-                    let (f, i) = factor_new(x.as_ref(), kind, lower)?;
-                    self.info = i;
-                    f.map(FactorData::F32)
-                }
-                MatrixData::F64(x) => {
-                    let (f, i) = factor_new(x.as_ref(), kind, lower)?;
-                    self.info = i;
-                    f.map(FactorData::F64)
-                }
-                MatrixData::C32(x) => {
-                    let (f, i) = factor_new(x.as_ref(), kind, lower)?;
-                    self.info = i;
-                    f.map(FactorData::C32)
-                }
-                MatrixData::C64(x) => {
-                    let (f, i) = factor_new(x.as_ref(), kind, lower)?;
-                    self.info = i;
-                    f.map(FactorData::C64)
-                }
-            };
-            Ok(self.info)
+            team.execute(|par| self.initialize_with_par(source, kind, lower, par, m, n, tag))?
         })
     }
     #[julia]
@@ -1341,5 +1335,55 @@ impl TypedMatrix {
             });
             Ok(())
         })
+    }
+}
+
+impl TypedFactor {
+    fn initialize_with_par(
+        &mut self,
+        source: &TypedMatrix,
+        kind: i32,
+        lower: bool,
+        par: Par<'_>,
+        m: usize,
+        n: usize,
+        tag: i32,
+    ) -> Result<usize, String> {
+        let a = source.data()?;
+        let (shape, actual_tag) = match a {
+            MatrixData::F32(x) => (x.shape(), 0),
+            MatrixData::F64(x) => (x.shape(), 1),
+            MatrixData::C32(x) => (x.shape(), 2),
+            MatrixData::C64(x) => (x.shape(), 3),
+        };
+        if actual_tag != tag || shape != (m, n) {
+            return Err(
+                "factor input native scalar type/dimensions do not match requested metadata".into(),
+            );
+        }
+
+        self.data = match a {
+            MatrixData::F32(x) => {
+                let (f, i) = factor_new(x.as_ref(), kind, lower, par)?;
+                self.info = i;
+                f.map(FactorData::F32)
+            }
+            MatrixData::F64(x) => {
+                let (f, i) = factor_new(x.as_ref(), kind, lower, par)?;
+                self.info = i;
+                f.map(FactorData::F64)
+            }
+            MatrixData::C32(x) => {
+                let (f, i) = factor_new(x.as_ref(), kind, lower, par)?;
+                self.info = i;
+                f.map(FactorData::C32)
+            }
+            MatrixData::C64(x) => {
+                let (f, i) = factor_new(x.as_ref(), kind, lower, par)?;
+                self.info = i;
+                f.map(FactorData::C64)
+            }
+        };
+        Ok(self.info)
     }
 }
