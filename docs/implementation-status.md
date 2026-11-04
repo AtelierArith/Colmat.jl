@@ -5,8 +5,9 @@ The complete objective is the feature inventory in
 progress; completing one phase does not complete the issue.
 
 The remaining implementation work and acceptance criteria are tracked in
-[follow-up Issue #2](https://github.com/AtelierArith/Colmat.jl/issues/2) and the
-[handoff plan](issue-1-follow-up.md). Issue #1 remains the canonical overall mapping.
+[follow-up Issue #22](https://github.com/AtelierArith/Colmat.jl/issues/22).
+Earlier Issue #1/#2 records and the [handoff plan](issue-1-follow-up.md) remain
+historical evidence; the full 76-row inventory is still the overall scope.
 
 - [ ] Owned matrix/vector/diagonal types, scalar types, views and capacity management
 - [ ] Native arithmetic, reductions, structured products, permutations and Kronecker product
@@ -2643,3 +2644,60 @@ Final validation: canonical `Pkg.test(;allow_reresolve=false)` passed
 4,972 assertions, native 55 tests, executable README 84 blocks. Format/diff
 checks passed and frozen inventory is unchanged. The dependency remains clean
 at `19053d8`. No full-suite result is inferred from focused tests.
+
+## Retained dense solve scratch (PR #46)
+
+Baseline main `bd9d3d4`, faer clean `19053d8` (0.29.0), canonical
+184,477 assertions / 98 files, Rust 55 tests, README 84 blocks.
+
+Connect caller-owned solve scratch and exact capacity/alignment queries/reserve
+to dense LU/full LU/QR/pivoted QR/Cholesky/LDLT/Bunch–Kaufman left/right solves,
+all native scalars and orientations, scalar promotion and vector/matrix/view
+destinations. Native queries/compute use the actual scoped team. Results stage
+before destination writeback. Rectangular/rank-deficient QR uses saved R SVD
+and compact Householder inside the buffer; no original matrix or dense Q/pinv
+is formed. R SVD is recomputed per fallback solve, unlike the cached LinOp.
+Retained legacy SVD also consumes saved U/S/V in this native workspace path.
+
+New mixed-rank tests exposed a pre-existing wrapper issue: Float32 factor
+reconstruction noise could be retained as rank after Float64 promotion, changing
+the minimum-norm answer. Keep source-precision cutoffs through reconstruction
+and refactorization in both explicit-workspace and default promoted QR solves.
+This is a Colmat policy defect, not a RustCall/faer report. New tests retain an
+independent source-matrix pseudoinverse reference rather than accepting the
+perturbed promoted matrix's spurious rank. Mixed-scalar factor construction and
+Julia/native result staging allocate outside solve scratch; no allocation-free
+whole-API claim is made. Sparse solves and native direct in-place remain open.
+
+Executed baseline main `bd9d3d4` confirms Float32/ComplexF32 diagonal
+`[1,1e-8]` QR promoted to ComplexF64 returns approximately `[1,1e8]`
+(4 before-regression checks). Current default and explicit-scratch solves return
+`[1,0]` with the source cutoff (20 after-regression checks). No upstream
+dependency checkout was modified.
+
+A final shape audit found the existing wide/transformed LU reconstruction/SVD
+paths also require scratch coverage. Connect low-level saved-L/U/permutation
+reconstruction and SVD to the same buffer (query includes both native queries
+and their matrix/projection temporaries). Extend rectangular LU/full LU normal
+left solves to minimum-norm solutions as well; transformed/right/empty/native
+and mixed-scalar cases are covered. Nonzero-info LU keeps its existing singular
+error contract. The original input snapshot is never consulted. This final
+extension requires a fresh full-suite run after the earlier QR-only checkpoint;
+do not reuse that checkpoint as final validation.
+
+Array owner metadata is validated before Julia-side raw-buffer conversions,
+including native matrices, vectors/rows/diagonals, views and transforms. Source
+and destination scalar/shape/layout mismatches are rejected before reads or
+writeback; the negative tests construct mismatched wrappers but never call an
+unchecked buffer conversion. This check also protects default dense-factor RHS
+promotion. It is scoped to dense solves, not a package-wide metadata audit.
+
+Final exact-tree validation: canonical `Pkg.test(;allow_reresolve=false)` passed
+222,089 assertions / 99 files / 16 workers (7m09.5s), including 37,612 assertions
+in the new dense-solve workspace coverage; Rust 61 tests and all 85 executable
+README blocks passed. Native boundary/array-owner guards, source precision,
+rectangular LU/QR, blocked/empty shapes, all scalar/orientation/mixed cases,
+views/vector/row/diagonal layouts, aliases, Tasks and conversion/resource failure
+staging are covered. JuliaFormatter/rustfmt/diff checks pass; frozen inventory
+and faer checkout remain unchanged. Public FaerSpectralFactor solve scratch
+remains separate from this FaerFactorization API and legacy SVD backend.

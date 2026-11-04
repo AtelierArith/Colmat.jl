@@ -415,21 +415,24 @@ function _typed_solve(
     b::FaerMatrix{S},
     op = 0;
     team = nothing,
+    scratch = nothing,
 ) where {T,K,S}
-    isnothing(team) || _dense_solve_validate(f)
+    (isnothing(team) && isnothing(scratch)) || _dense_solve_validate(f)
     transposed=op in (1, 2)
     size(b, 1)==size(f, transposed ? 2 : 1) ||
         throw(DimensionMismatch("factor and RHS rows must match"))
     LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+    _dense_rhs_validate(b)
     P=promote_type(T, S)
+    isnothing(team) && isnothing(scratch) && P!==T && _dense_solve_validate(f)
     if T===Float64
         if S<:Complex
             data=Matrix(b)
-            r=_factor_solve(f, FaerMatrix{Float64}(real.(data)), transposed; team)
-            i=_factor_solve(f, FaerMatrix{Float64}(imag.(data)), transposed; team)
+            r=_factor_solve(f, FaerMatrix{Float64}(real.(data)), transposed; scratch, team)
+            i=_factor_solve(f, FaerMatrix{Float64}(imag.(data)), transposed; scratch, team)
             return r+im*i
         end
-        return _factor_solve(f, _coerce(b, Float64), transposed; team)
+        return _factor_solve(f, _coerce(b, Float64), transposed; scratch, team)
     elseif P!==T
         g=_factor(
             _promoted_factor_matrix(f, P; team),
@@ -439,11 +442,21 @@ function _typed_solve(
             team,
         )
         try
-            return _typed_solve(g, _coerce(b, P), op; team)
+            # Keep source precision when applying the promoted saved factor.
+            return _dense_workspace_native_result(
+                g,
+                _coerce(b, P),
+                op,
+                scratch,
+                team;
+                precision = Float64(eps(_realtype(T))),
+            )
         finally
             close(g)
         end
     end
+    (!isnothing(scratch) || (K in (:lu, :full_lu) && size(f, 1)!=size(f, 2))) &&
+        return _dense_workspace_native_result(f, _coerce(b, T), op, scratch, team)
     isnothing(team) || return _dense_team_native_result(f, _coerce(b, T), op, team)
     return _typed_result(
         T,

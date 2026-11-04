@@ -36,10 +36,17 @@ function _dense_team_native_result(f::FaerFactorization{T}, b, op, team) where {
     return T===Float64 ? _matrix_result(RustCrate.factor_solve_team, dims, args...) :
            _typed_result(T, RustCrate.factor_solve_team, dims, args...)
 end
-function _dense_solve_rhs(f::_DenseSolveFactor, b; team = nothing, right = false)
+function _dense_solve_rhs(
+    f::_DenseSolveFactor,
+    b;
+    scratch = nothing,
+    team = nothing,
+    right = false,
+)
     original=_dense_parent(f)
     _handle(original)
     _spectral_rhs_open(b)
+    _dense_rhs_validate(b)
     Base.require_one_based_indexing(b)
     isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
     isnothing(team) || _handle(team)
@@ -53,7 +60,7 @@ function _dense_solve_rhs(f::_DenseSolveFactor, b; team = nothing, right = false
     input = right ? adjoint(b) : ndims(b)==1 ? reshape(b, :, 1) : b
     rhs = FaerMatrix(input)
     try
-        result = _typed_solve(original, rhs, op; team)
+        result = _typed_solve(original, rhs, op; scratch, team)
         try
             return right ? copy(adjoint(Matrix(result))) :
                    ndims(b)==1 ? vec(Matrix(result)) : Matrix(result)
@@ -69,69 +76,90 @@ function _dense_copy_result!(dest, result)
     copyto!(dest, buffer)
     return dest
 end
-function _dense_ldiv!(dest, f, b; team = nothing)
+function _dense_ldiv!(dest, f, b; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
         _spectral_rhs_open(dest)
+        _dense_rhs_validate(dest)
         size(dest)==(ndims(b)==1 ? (size(f, 2),) : (size(f, 2), size(b, 2))) ||
             throw(DimensionMismatch("factor solve destination shape mismatch"))
-        return _dense_copy_result!(dest, _dense_solve_rhs(f, b; team))
+        return _dense_copy_result!(dest, _dense_solve_rhs(f, b; scratch, team))
     end
 end
 """
-    ldiv!(X, F::FaerFactorization, B; team=nothing)
-    ldiv!(F, B; team=nothing)
+    ldiv!(X, F::FaerFactorization, B; scratch=nothing, team=nothing)
+    ldiv!(F, B; scratch=nothing, team=nothing)
 
 Solve with retained dense factors and an optional caller-owned native team.
-Transpose/adjoint and rectangular or rank-deficient QR solves are supported.
+Transpose/adjoint, rectangular LU/full LU/QR and rank-deficient QR solves are supported.
 Three-argument calls stage conversion before writeback and support overlapping
 inputs. Two-argument calls require square factors. Native workspace and result
-staging allocate; caller-owned scratch is not connected here. Mixed scalar
+staging allocate separately. Caller scratch covers native solve work, including
+R SVD/projection for rectangular or deficient QR. Mixed scalar
 promotion retains the existing factor reconstruction/refactorization policy;
 component extraction remains sequential, while products and new factorization
-borrow the team. The factor never retains the team token.
+borrow the team. QR rank cutoffs keep the source precision after promotion.
+The factor never retains the team token.
 """
 LinearAlgebra.ldiv!(
     dest::AbstractMatrix,
     f::_DenseSolveFactor,
     b::AbstractMatrix;
+    scratch = nothing,
     team = nothing,
-) = _dense_ldiv!(dest, f, b; team)
+) = _dense_ldiv!(dest, f, b; scratch, team)
 LinearAlgebra.ldiv!(
     dest::AbstractVector,
     f::_DenseSolveFactor,
     b::AbstractVector;
+    scratch = nothing,
     team = nothing,
-) = _dense_ldiv!(dest, f, b; team)
-function LinearAlgebra.ldiv!(f::_DenseSolveFactor, b::AbstractVecOrMat; team = nothing)
+) = _dense_ldiv!(dest, f, b; scratch, team)
+function LinearAlgebra.ldiv!(
+    f::_DenseSolveFactor,
+    b::AbstractVecOrMat;
+    scratch = nothing,
+    team = nothing,
+)
     size(f, 1)==size(f, 2) || throw(
         DimensionMismatch("two-argument ldiv! requires square factors; use ldiv!(X,F,B)"),
     )
-    return _dense_ldiv!(b, f, b; team)
+    return _dense_ldiv!(b, f, b; scratch, team)
 end
 function LinearAlgebra.rdiv!(
     dest::AbstractMatrix,
     b::AbstractMatrix,
     f::_DenseSolveFactor;
+    scratch = nothing,
     team = nothing,
 )
     lock(_matrix_lock) do
         _spectral_rhs_open(dest)
+        _dense_rhs_validate(dest)
         size(dest)==(size(b, 1), size(f, 1)) ||
             throw(DimensionMismatch("right factor solve destination shape mismatch"))
-        return _dense_copy_result!(dest, _dense_solve_rhs(f, b; team, right = true))
+        return _dense_copy_result!(
+            dest,
+            _dense_solve_rhs(f, b; scratch, team, right = true),
+        )
     end
 end
-function LinearAlgebra.rdiv!(b::AbstractMatrix, f::_DenseSolveFactor; team = nothing)
+function LinearAlgebra.rdiv!(
+    b::AbstractMatrix,
+    f::_DenseSolveFactor;
+    scratch = nothing,
+    team = nothing,
+)
     size(f, 1)==size(f, 2) || throw(
         DimensionMismatch("two-argument rdiv! requires square factors; use rdiv!(X,B,F)"),
     )
-    return LinearAlgebra.rdiv!(b, b, f; team)
+    return LinearAlgebra.rdiv!(b, b, f; scratch, team)
 end
 # Resolve LinearAlgebra's transform-specific two-argument right-solve methods.
 for Wrapper in (LinearAlgebra.TransposeFactorization, LinearAlgebra.AdjointFactorization)
     @eval function LinearAlgebra.rdiv!(
         b::AbstractMatrix,
         f::$Wrapper{T,<:FaerFactorization{T}};
+        scratch = nothing,
         team = nothing,
     ) where {T}
         size(f, 1)==size(f, 2) || throw(
@@ -139,6 +167,6 @@ for Wrapper in (LinearAlgebra.TransposeFactorization, LinearAlgebra.AdjointFacto
                 "two-argument rdiv! requires square factors; use rdiv!(X,B,F)",
             ),
         )
-        return LinearAlgebra.rdiv!(b, b, f; team)
+        return LinearAlgebra.rdiv!(b, b, f; scratch, team)
     end
 end
