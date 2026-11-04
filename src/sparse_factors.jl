@@ -31,8 +31,8 @@ end
 Reusable Rust-owned sparse factors returned by `lu`, `qr`, `cholesky` and
 `LinearAlgebra.factorize(plan,A)` for FaerSparseMatrix. `F \\ B` reuses numeric factors; QR
 solves full-column-rank least-squares problems. LU/Cholesky also support
-transpose/adjoint solves. Explicit simplicial QR supports minimum-norm
-transpose/adjoint solves for full-column-rank factors. Inputs and symbolic plans
+transpose/adjoint solves. Sparse QR supports minimum-norm transpose/adjoint solves for full-column-rank
+factors with every algorithm. Inputs and symbolic plans
 may be closed independently.
 Mixed precision RHS reuse converted saved factors for explicit simplicial LU/QR
 and all Cholesky algorithms, without reading the source snapshot. Auto/supernodal
@@ -43,9 +43,9 @@ with `F.L * F.U ≈ A[F.p,F.p]`, and supports `Matrix(F)`, `FaerSparseMatrix(F)`
 order. Extracted components remain usable after F is updated or closed.
 Explicit `algorithm=:simplicial` LU also supports `Matrix(F)`, `FaerMatrix(F)`,
 `FaerSparseMatrix(F)` and `reconstruct(F)`, from current native L/U and inverse
-row/column permutations. Explicit simplicial QR exposes independent thin `Q`, sparse `R`, `p/pcol`
-and dense reconstruction. Auto/supernodal LU and auto QR components remain
-unexposed.
+row/column permutations. Sparse QR exposes independent thin `Q`, sparse `R`, `p/pcol` and dense
+reconstruction for all algorithms, using the current saved numeric buffers.
+Auto/supernodal LU components remain unexposed.
 It also exposes independent `F.p`, the actual `F.algorithm`
 and `F.factor_storage` (numeric scalar slots, including supernodal padding).
 `cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;
@@ -360,11 +360,7 @@ function _sparse_factor_solve(
         K===:qr &&
             trans &&
             !_native_call(RustCrate.sparse_qr_has_components, f) &&
-            throw(
-                ArgumentError(
-                    "transpose/adjoint sparse QR solves require algorithm=:simplicial",
-                ),
-            )
+            throw(ArgumentError("transpose/adjoint sparse QR components are unavailable"))
         P=promote_type(T, _sparse_input_type(eltype(b)))
         if P!==T
             if _native_call(RustCrate.sparse_factor_has_inverse_action, f)

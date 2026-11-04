@@ -415,7 +415,7 @@ fn solve<T: ComplexField>(
         }
         Numeric::Qr(f) => {
             if trans {
-                return Err("transpose/adjoint sparse QR solve is not provided by faer".into());
+                return f.solve_transpose(b, adj);
             }
             f.solve(b)?
         }
@@ -762,9 +762,13 @@ impl SparseOwner {
             }
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => SparseData::F32(export(f)?),
+                Factors::F32(Numeric::Qr(f)) => SparseData::F32(Storage::Csc(f.r()?)),
                 Factors::F64(Numeric::SimplicialQr(f)) => SparseData::F64(export(f)?),
+                Factors::F64(Numeric::Qr(f)) => SparseData::F64(Storage::Csc(f.r()?)),
                 Factors::C32(Numeric::SimplicialQr(f)) => SparseData::C32(export(f)?),
+                Factors::C32(Numeric::Qr(f)) => SparseData::C32(Storage::Csc(f.r()?)),
                 Factors::C64(Numeric::SimplicialQr(f)) => SparseData::C64(export(f)?),
+                Factors::C64(Numeric::Qr(f)) => SparseData::C64(Storage::Csc(f.r()?)),
                 _ => return Err("QR components require algorithm=:simplicial".into()),
             });
             Ok(())
@@ -776,10 +780,11 @@ impl OwnedMatrix {
     #[julia]
     pub fn sparse_qr_q(&mut self, factor: &SparseFactor) -> Result<(), String> {
         guarded(|| {
-            let Factors::F64(Numeric::SimplicialQr(f)) = factor.factors()? else {
-                return Err("QR Q requires Float64 simplicial factors".into());
+            self.matrix = match factor.factors()? {
+                Factors::F64(Numeric::SimplicialQr(f)) => f.q(),
+                Factors::F64(Numeric::Qr(f)) => f.q()?,
+                _ => return Err("QR Q requires Float64 QR factors".into()),
             };
-            self.matrix = f.q();
             Ok(())
         })
     }
@@ -791,9 +796,13 @@ impl TypedMatrix {
         guarded(|| {
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => MatrixData::F32(f.q()),
+                Factors::F32(Numeric::Qr(f)) => MatrixData::F32(f.q()?),
                 Factors::F64(Numeric::SimplicialQr(f)) => MatrixData::F64(f.q()),
+                Factors::F64(Numeric::Qr(f)) => MatrixData::F64(f.q()?),
                 Factors::C32(Numeric::SimplicialQr(f)) => MatrixData::C32(f.q()),
+                Factors::C32(Numeric::Qr(f)) => MatrixData::C32(f.q()?),
                 Factors::C64(Numeric::SimplicialQr(f)) => MatrixData::C64(f.q()),
+                Factors::C64(Numeric::Qr(f)) => MatrixData::C64(f.q()?),
                 _ => return Err("QR Q requires simplicial factors".into()),
             });
             Ok(())
@@ -826,10 +835,11 @@ impl OwnedMatrix {
     #[julia]
     pub fn sparse_qr_reconstruct(&mut self, factor: &SparseFactor) -> Result<(), String> {
         guarded(|| {
-            let Factors::F64(Numeric::SimplicialQr(f)) = factor.factors()? else {
-                return Err("QR reconstruction requires Float64 simplicial factors".into());
+            self.matrix = match factor.factors()? {
+                Factors::F64(Numeric::SimplicialQr(f)) => f.reconstruct(),
+                Factors::F64(Numeric::Qr(f)) => f.reconstruct()?,
+                _ => return Err("QR reconstruction requires Float64 QR factors".into()),
             };
-            self.matrix = f.reconstruct();
             Ok(())
         })
     }
@@ -841,9 +851,13 @@ impl TypedMatrix {
         guarded(|| {
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => MatrixData::F32(f.reconstruct()),
+                Factors::F32(Numeric::Qr(f)) => MatrixData::F32(f.reconstruct()?),
                 Factors::F64(Numeric::SimplicialQr(f)) => MatrixData::F64(f.reconstruct()),
+                Factors::F64(Numeric::Qr(f)) => MatrixData::F64(f.reconstruct()?),
                 Factors::C32(Numeric::SimplicialQr(f)) => MatrixData::C32(f.reconstruct()),
+                Factors::C32(Numeric::Qr(f)) => MatrixData::C32(f.reconstruct()?),
                 Factors::C64(Numeric::SimplicialQr(f)) => MatrixData::C64(f.reconstruct()),
+                Factors::C64(Numeric::Qr(f)) => MatrixData::C64(f.reconstruct()?),
                 _ => return Err("QR reconstruction requires simplicial factors".into()),
             });
             Ok(())
@@ -862,6 +876,10 @@ impl SparseFactor {
                     | Factors::F64(Numeric::SimplicialQr(_))
                     | Factors::C32(Numeric::SimplicialQr(_))
                     | Factors::C64(Numeric::SimplicialQr(_))
+                    | Factors::F32(Numeric::Qr(_))
+                    | Factors::F64(Numeric::Qr(_))
+                    | Factors::C32(Numeric::Qr(_))
+                    | Factors::C64(Numeric::Qr(_))
             ))
         })
     }

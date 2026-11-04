@@ -2055,3 +2055,32 @@ Final canonical Pkg.test passed 101,714 assertions / 78 files with 16 workers.
 All 10 native tests and 66 README blocks passed, as did ambiguity detection,
 Julia/Rust formatting and git diff --check. The dependency remains the clean
 d5be1473eed9314fca6f80ad8b4072d86282e890 checkout.
+
+### Owned auto/supernodal sparse QR components and transpose solves
+
+The build script fetched upstream 0bf88db6e70c29488df91a128f5e2562f8859730
+(t4a-faer 0.28.2), including merged PR #228's SymbolicQr::raw accessor.
+The dependency checkout is clean. Adapter-owned numeric buffers are split using
+public symbolic lengths and borrowed for component extraction. Simplicial and
+supernodal automatic selections both expose thin Q, sparse CSC R, permutations
+and reconstruction from current factors, independently of the retained input.
+Supernodal R exports only its mathematical triangular entries. Transpose/adjoint
+minimum-norm solves extract sparse R and apply saved Householder blocks in reverse
+order using their actual numeric dimensions and native Householder kernels.
+No dense Q or pseudoinverse is formed by the transpose solve. Extraction and
+transpose solves allocate native work arrays; mixed auto/supernodal QR RHS still
+refactorize snapshots. Full Q, rank-deficient solves, inverse operators and
+remaining Issue #1/#2 requirements are pending.
+
+Focused verification passed 1,640 assertions: four scalar types, CSC/CSR,
+auto/supernodal, empty/square/tall matrices, disconnected patterns and dense
+130-by-80 block cases, complex transpose/adjoint, numeric updates, retained
+components, closed source snapshots and invalid factors/owners.
+
+The first latest-upstream full run exposed a duplicate Jacobi-right correction:
+upstream #206 is fixed in this revision. The retained standalone Rust MWE passed
+with norm(I*J - actual)=0; the obsolete adapter conjugation was removed.
+
+Final Pkg.test passed 103,354 assertions / 79 files / 16 workers. Native Rust
+11 tests, README 67 blocks, ambiguity detection, formatting and diff checks
+passed on upstream 0bf88db.

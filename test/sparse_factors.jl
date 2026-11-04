@@ -34,7 +34,7 @@ using Colmat, Test, LinearAlgebra, SparseArrays, Random
                 @test Matrix(f'\rhs) ≈ a'\rhs
                 @test Matrix(transpose(f)\rhs) ≈ transpose(a)\rhs
             else
-                @test_throws ArgumentError f'\rhs
+                @test Matrix(f'\rhs) ≈ a'\rhs
             end
             # Symbolic analysis is shared only by faer's immutable Arc; numeric
             # owners and source snapshots stay independent.

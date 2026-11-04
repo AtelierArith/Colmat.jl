@@ -1373,7 +1373,8 @@ in original row/column order. Generalized Schur/Hessenberg return `(A,B)` named
 fields, reconstructing both members through Q/S-or-H/T/Z. The sparse LU path
 uses current native factors and permutations, including numeric updates; it
 never copies the retained input snapshot. Its default output is CSC. Auto/
-supernodal sparse LU and sparse QR reconstruction remain unavailable.
+supernodal sparse LU reconstruction remains unavailable. All sparse QR
+algorithms reconstruct a dense native matrix from their saved Q/R factors.
 
 `Matrix{T}(F)` and `FaerMatrix{T}(F)` also support the dense owned decompositions
 above; simplicial sparse LU adds these conversions and typed sparse CSC output.
@@ -1466,7 +1467,7 @@ outside scratch. Empty factors need no kernel workspace but still require an
 open buffer. This interface controls saved-factor pseudoinverse workspace;
 native factor construction and direct `pinv(A)` keep their existing interfaces.
 
-### Sparse simplicial QR components
+### Sparse QR components
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -1484,18 +1485,20 @@ close(p)
 close(A)
 ```
 
-Explicit simplicial sparse QR retains faer's native Householder/R factors and
+Every sparse QR algorithm retains faer's native Householder/R factors and
 symbolic analysis. `F.Q` is an independent thin `FaerMatrix` with dimensions
 `(m,n)`; `F.R` is an independent sparse CSC `(n,n)` factor. `F.pcol` (also `F.p`)
 is the column permutation satisfying `Q*R ≈ A[:,pcol]`. Extraction, reconstruction,
 copy and numeric updates use retained factors. `reconstruct(F)`, `Matrix(F)` and
 `FaerMatrix(F)` recover the original column order without using the stored input
-snapshot. Four scalar types and CSC/CSR inputs are supported. Ordering is identity
-by default; `ordering=:colamd` or an explicit permutation selects another column
+snapshot. Four scalar types and CSC/CSR inputs are supported. For explicit
+simplicial QR, ordering is identity by default; `ordering=:colamd` or an explicit permutation selects another column
 order. COLAMD accepts `dense_row`, `dense_col` and `aggressive` controls and is
-retained across symbolic reuse and numeric updates. AMD, full Q,
-rank-deficient minimum-norm solves and caller scratch remain unavailable. The default `algorithm=:auto` keeps the existing
-faer solver; its components remain unavailable.
+retained across symbolic reuse and numeric updates. Auto/supernodal QR uses
+COLAMD ordering and exposes the same thin Q, sparse R and reconstruction. AMD,
+full Q and rank-deficient minimum-norm solves remain unavailable. Caller scratch
+is supported for auto/supernodal normal solves and numeric construction as
+described below; component extraction and transpose solves allocate workspace.
 
 ### Minimum-norm solves with sparse QR transpose/adjoint
 
@@ -1515,18 +1518,18 @@ close(F)
 close(A)
 ```
 
-For explicit simplicial full-column-rank QR, `transpose(F) \ B` and
+For every full-column-rank sparse QR algorithm, `transpose(F) \ B` and
 `adjoint(F) \ B` return the minimum-norm solution of the corresponding
 underdetermined system. They reuse the native R/Householder factors and column
 permutation, without constructing Q or a pseudoinverse. Three-argument `ldiv!`
 supports rectangular factors; two-argument `ldiv!` requires square factors.
-Native work arrays and a transposed sparse R allocate per solve. A zero R
+Native work arrays and sparse R extraction/conversion allocate per solve. A zero R
 diagonal is rejected; rank thresholds and rank-deficient solves remain
 unavailable. Mixed-type RHS reuse saved native factors for explicit simplicial
 LU/QR and all sparse Cholesky algorithms. Factor values are promoted without
 refactorizing the input, so accuracy remains limited by the original factor
 precision. Auto/supernodal LU/QR still refactorize the retained input snapshot
-for mixed-type RHS; auto/supernodal QR reject transpose/adjoint solves.
+for mixed-type RHS, including QR transpose/adjoint solves.
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -1541,6 +1544,30 @@ close(F)
 close(A)
 ```
 
+
+### Auto/supernodal sparse QR components and minimum-norm solves
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[4 0; 1im 3; 0 1]
+F = qr(FaerSparseMatrix(sparse(A0)); algorithm=:supernodal)
+Q, R, p = F.Q, F.R, F.pcol
+@assert Matrix(Q) * Matrix(R) ≈ A0[:, Vector(p)]
+@assert Matrix(F) ≈ A0
+B = ones(ComplexF64, 2, 2)
+X = adjoint(F) \ B
+@assert Matrix(X) ≈ pinv(A0') * B
+close(F)
+@assert Matrix(Q)' * Matrix(Q) ≈ Matrix{ComplexF64}(I, 2, 2)
+close(Q)
+close(R)
+close(p)
+close(X)
+```
+
+The native transpose solve extracts sparse R and applies saved Householder
+blocks in reverse order. It does not form a dense Q or pseudoinverse. Extracted
+components own their storage and remain valid after numeric updates or close.
 
 ### COLAMD ordering in sparse LU/QR
 

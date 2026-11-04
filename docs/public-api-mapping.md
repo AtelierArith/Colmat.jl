@@ -5,9 +5,9 @@
 t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra の対応 API と Colmat の実装状況を追跡する。
 
 - 調査日: 2026-11-04
-- t4a-faer: `0.28.1`、コミット [`d5be1473eed9314fca6f80ad8b4072d86282e890`](https://github.com/tensor4all/faer/tree/d5be1473eed9314fca6f80ad8b4072d86282e890)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み実装コミット `6e4493b`。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、101714 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 78 ファイルを 16 プロセスで検証。
+- t4a-faer: `0.28.2`、コミット [`0bf88db6e70c29488df91a128f5e2562f8859730`](https://github.com/tensor4all/faer/tree/0bf88db6e70c29488df91a128f5e2562f8859730)。実際のビルド対象 `deps/t4a-faer` を調査。
+- Colmat の判定基準: 検証済み実装コミット `5ba519c`。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、103354 件のテスト成功。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 79 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -84,7 +84,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 三角連立方程式 | `solve_{unit_}{lower,upper}_triangular_in_place`, `linalg::triangular_solve` | `LowerTriangular/UpperTriangular/UnitLowerTriangular/UnitUpperTriangular` の `\` | R: lower/upper/unit の三角ラッパーの求解 | 全 mixed-operand と低水準 scratch 公開 |
 | 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`（保存済み native SVD/EVD・転置/随伴を含む。数値的特異性を検査）、三角 inverse | 破壊的 inverse・全オプション |
 | 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | R: 4 型の `pinv(A;atol,rtol)`、native SVD 再構成、Hermitian/実 Symmetric の EVD 再構成、保存済み native SVD/EVD の `pinv(F;atol,rtol,team,scratch)`・必要量照会/reserve | 残りの分解形式、非標準スカラー・高度なアルゴリズム制御 |
-| 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT・Schur/Hessenberg・三重/二重対角化の `reconstruct/Matrix/FaerMatrix`・型指定変換、疎 Cholesky/simplicial LU の native 疎再構成、一般化 Schur/Hessenberg の `(A,B)` | auto/supernodal 疎 LU・疎 QR 等の残りの形式 |
+| 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT・Schur/Hessenberg・三重/二重対角化の `reconstruct/Matrix/FaerMatrix`・型指定変換、疎 Cholesky/simplicial LU の native 疎再構成、一般化 Schur/Hessenberg の `(A,B)` | auto/supernodal 疎 LU 等の残りの形式 |
 | ランク・条件数 | SVD/QR などを組み合わせて構成（同名の高水準 API としては扱わない） | `rank/cond/opnorm` | R: native スペクトル・分解を使う `rank(;atol,rtol)`、`cond(A,1/2/Inf)`、4 型の `opnorm` | 推定条件数・全構造化入力の最適化。faer 同名の高水準 API としての主張ではない |
 
 ## 5. 疎行列
@@ -97,7 +97,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | R: 4 型・型 promotion、CSC/CSR の native 積、`mul!`、ベクトルとの積 | symbolic/numeric 積計画の再利用、低水準制御 |
 | 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | R: CSC/CSR・4 型、`cholesky`、選択三角、`FaerSparseSymbolic`、`cholesky!`、求解・全3方式の混合型 RHS は保存因子を再利用、AMD/恒等/任意 ordering、分解方式指定、`p/algorithm/factor_storage`、疎 `L/U` 抽出・再構成、分解対角からの `det/logdet/logabsdet` | 外部 scratch・追加の低水準制御 |
 | 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解（simplicial は保存因子再利用）。`algorithm=:simplicial` の native L/U・p/q、元順序への疎再構成・型指定変換、恒等/任意/COLAMD column ordering（dense_row/dense_col/aggressive） | auto/supernodal 混合型 RHS の snapshot 再分解、L/U・置換成分と低水準制御。明示的 simplicial の既定列順序は恒等 |
-| 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、明示的 `algorithm=:supernodal` 選択、auto/supernodal の COLAMD 調整・独立 p/pcol、`qr!`、symbolic 再利用、`ldiv!`。auto/supernodal の同型 matrix RHS 向け `ldiv!(X,F,B;scratch)` と作業領域照会/reserve、`factorize(plan,A;scratch)` の数値分解構築用 scratch。明示的 `algorithm=:simplicial` の薄い native Q・疎 R・p/pcol・元列順序への native 再構成・恒等/任意/COLAMD 列順序（dense_row/dense_col/aggressive）・転置/随伴の最小ノルム求解・混合型 RHS の保持因子再利用 | 元の入力が横長・rank-deficient の求解、auto/supernodal 混合型 RHS の snapshot 再分解、auto/supernodal の Q/R 成分・転置/随伴求解、完全 Q、低水準制御 |
+| 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、明示的 `algorithm=:supernodal` 選択、auto/supernodal の COLAMD 調整・独立 p/pcol、`qr!`、symbolic 再利用、`ldiv!`。auto/supernodal の同型 matrix RHS 向け `ldiv!(X,F,B;scratch)` と作業領域照会/reserve、`factorize(plan,A;scratch)` の数値分解構築用 scratch。全方式の薄い native Q・疎 R・p/pcol・元列順序への native 再構成・転置/随伴の最小ノルム求解、明示的 `algorithm=:simplicial` の・恒等/任意/COLAMD 列順序（dense_row/dense_col/aggressive）・転置/随伴の最小ノルム求解・混合型 RHS の保持因子再利用 | 元の入力が横長・rank-deficient の求解、auto/supernodal 混合型 RHS の snapshot 再分解、完全 Q、低水準制御 |
 | 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | R: CSC/CSR・4 型、通常/単位の上下三角、転置/随伴、matrix/vector RHS、`ldiv!` | 作業領域の外部指定、割り当てを伴わない直接 in-place 経路 |
 | Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | R: `amd/colamd`、numeric/symbolic CSC/CSR、長方形 COLAMD、制御値・AMD 演算数見積もり、`FaerPermutation` 返却、Cholesky と明示的 simplicial LU/QR への直接 ordering 指定 | auto/supernodal LU と QR の恒等/任意 ordering 指定、caller-owned scratch |
 
@@ -144,40 +144,40 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - Cargo は `default-features=false, features=["std","linalg","rayon","rand","npy","threadteam"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
-- auto/supernodal 疎 LU と疎 QR の成分公開・横長/ランク落ち QR・auto LU/QR への ordering 指定、matrix-free、残りの破壊的分解・scratch、並列 team は今後の実装対象。一般化 Schur の並べ替えにも未対応。
+- auto/supernodal 疎 LU の成分公開・横長/ランク落ち QR・auto LU/QR への ordering 指定、matrix-free、残りの破壊的分解・scratch、並列 team は今後の実装対象。一般化 Schur の並べ替えにも未対応。
 - `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - 実 Schur の共役対は 2×2 ブロックとして扱い、選択では対を分割しない。Hessenberg の Q は明示行列で、compact reflector 形式とは区別する。
 - QZ の α/β は無限固有値と 0/0 を保つ同次形式。検査した faer real-QZ の scratch 推奨量には偶数丸め window・index 配列数の不足があるため、依存クローンを変更せずラッパーで再帰的な割当上限を補正した。blocked 経路もテスト済み。
-- Jacobi の複素 zero-q r と 2×2 右適用の補正は [faer #205](https://github.com/tensor4all/faer/issues/205)、[#206](https://github.com/tensor4all/faer/issues/206) に Rust MWE 付きで報告。
+- Jacobi の複素 zero-q r と 2×2 右適用は [faer #205](https://github.com/tensor4all/faer/issues/205)、[#206](https://github.com/tensor4all/faer/issues/206) に Rust MWE 付きで報告。#206 は現在の依存版で修正済みであり、adapter の共役補正を除去。
 - RustCall [#564](https://github.com/AtelierArith/RustCall.jl/issues/564)・[#565](https://github.com/AtelierArith/RustCall.jl/issues/565) は v0.9.2 で解消。`FaerMatrix` のコピーは `Result<Self, String>` を返すメソッドを使用し、型が決まっている所有者の引数は `&T` / `&mut T` として検査する。型を実行時に切り替える引数と省略可能な所有者には明示的な生ポインタ経路を残す。
 
 ## ソース
 
-- [一般化 Hessenberg](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/gevd/gen_hessenberg/mod.rs)
-- [Real QZ と scratch](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/gevd/qz_real/mod.rs)
-- [Complex QZ](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/gevd/qz_cplx/mod.rs)
+- [一般化 Hessenberg](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/gevd/gen_hessenberg/mod.rs)
+- [Real QZ と scratch](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/gevd/qz_real/mod.rs)
+- [Complex QZ](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/gevd/qz_cplx/mod.rs)
 
-- [Hessenberg reduction](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/evd/hessenberg.rs)
-- [Schur・並べ替え・Schur 固有ベクトル](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/evd/mod.rs)
+- [Hessenberg reduction](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/evd/hessenberg.rs)
+- [Schur・並べ替え・Schur 固有ベクトル](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/evd/mod.rs)
 
-- [置換・行列交換](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/perm/mod.rs)
-- [SVD 疑似逆の許容誤差付き再構成](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/svd/mod.rs)
-- [自己随伴 EVD 疑似逆](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/evd/mod.rs)
+- [置換・行列交換](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/perm/mod.rs)
+- [SVD 疑似逆の許容誤差付き再構成](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/svd/mod.rs)
+- [自己随伴 EVD 疑似逆](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/evd/mod.rs)
 
-- [Julia との公式移行対応表（調査コミット固定）](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/docs/migration/julia.md)
-- [高水準 dense solver API](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/solvers.rs)
-- [MatRef の変換・reduction・determinant・kron](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/mat/matref.rs)
-- [低水準 linalg 公開モジュール](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/mod.rs)
-- [疎行列 solver](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/sparse/solvers.rs)
-- [matrix-free 公開モジュール](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/operator/mod.rs)
-- [stats](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/stats/mod.rs)
+- [Julia との公式移行対応表（調査コミット固定）](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/docs/migration/julia.md)
+- [高水準 dense solver API](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/solvers.rs)
+- [MatRef の変換・reduction・determinant・kron](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/mat/matref.rs)
+- [低水準 linalg 公開モジュール](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/mod.rs)
+- [疎行列 solver](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/sparse/solvers.rs)
+- [matrix-free 公開モジュール](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/operator/mod.rs)
+- [stats](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/stats/mod.rs)
 - Colmat 検証済みコミットの調査対象: `src/`, `deps/rust/src/`, `deps/rust/Cargo.toml`, `test/`。
 
-- [AMD ordering](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/sparse/linalg/amd.rs)
-- [COLAMD ordering](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/sparse/linalg/colamd.rs)
+- [AMD ordering](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/sparse/linalg/amd.rs)
+- [COLAMD ordering](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/sparse/linalg/colamd.rs)
 
-- [Cholesky symbolic ordering・simplicial/supernodal・数値分解](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/sparse/linalg/cholesky.rs)
+- [Cholesky symbolic ordering・simplicial/supernodal・数値分解](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/sparse/linalg/cholesky.rs)
 
-- [Jacobi/Givens 回転](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/jacobi.rs)
+- [Jacobi/Givens 回転](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/jacobi.rs)
 
-- [Householder 生成・block/sequence 適用](https://github.com/tensor4all/faer/blob/d5be1473eed9314fca6f80ad8b4072d86282e890/faer/src/linalg/householder.rs)
+- [Householder 生成・block/sequence 適用](https://github.com/tensor4all/faer/blob/0bf88db6e70c29488df91a128f5e2562f8859730/faer/src/linalg/householder.rs)
