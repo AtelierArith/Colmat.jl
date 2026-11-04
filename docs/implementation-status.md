@@ -2105,3 +2105,22 @@ This includes the no-Rayon numeric solve fix, saved LU public accessors and
 explicit sparse column ordering. Native tests pass 11 cases on this revision.
 Canonical Pkg.test on merged main also passes 103,851 assertions / 80 files
 with 16 workers. All 68 README blocks pass on the merged dependency.
+
+## Issue #22: LU mixed RHS saved-factor reuse (in progress)
+
+All sparse LU algorithms now use the native saved-factor inverse action for
+mixed RHS. Source snapshot closure is covered. Focused tests pass 6,768
+assertions for mixed reuse and 1,731 for auto/supernodal inverse/preconditioner
+actions. Canonical validation passes 107,502 assertions across 81 files (16 workers). Auto/supernodal QR remains pending.
+
+LU mixed RHS follow-up README validation: 69 executable blocks passed.
+
+## Issue #22: auto/supernodal QR mixed RHS and inverse actions (in progress)
+
+Saved numeric buffers are converted directly for scalar promotion; all sparse
+algorithms now reuse native factors for mixed RHS. The source snapshot
+refactorization branch is removed. Auto/supernodal QR inverse actions retain
+native Householder/R/permutation buffers and allocate intermediates per apply.
+Focused integration checks pass 12,535 assertions. Canonical validation passes
+111,982 assertions across 82 files (16 workers). Rust tests pass 11 tests.
+README passes 70 executable blocks.

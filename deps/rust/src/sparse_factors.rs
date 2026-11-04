@@ -1067,6 +1067,11 @@ impl SparseFactor {
 }
 
 pub(crate) enum QrComponents {
+    OwnedF32(crate::sparse_qr_owned::Factors<f32>),
+    OwnedF64(crate::sparse_qr_owned::Factors<f64>),
+    OwnedC32(crate::sparse_qr_owned::Factors<c32>),
+    OwnedC64(crate::sparse_qr_owned::Factors<c64>),
+
     F32(crate::sparse_qr_components::Factors<f32>),
     F64(crate::sparse_qr_components::Factors<f64>),
     C32(crate::sparse_qr_components::Factors<c32>),
@@ -1079,28 +1084,11 @@ impl SparseFactor {
             Factors::F64(Numeric::SimplicialQr(f)) => QrComponents::F64(f.clone()),
             Factors::C32(Numeric::SimplicialQr(f)) => QrComponents::C32(f.clone()),
             Factors::C64(Numeric::SimplicialQr(f)) => QrComponents::C64(f.clone()),
-            _ => return Err("QR inverse operator requires explicit simplicial factors".into()),
-        })
-    }
-}
-
-#[julia]
-impl SparseFactor {
-    #[julia]
-    pub fn sparse_factor_has_inverse_action(&self) -> Result<bool, String> {
-        guarded(|| {
-            fn supported<T: ComplexField>(f: &Numeric<T>) -> bool {
-                matches!(
-                    f,
-                    Numeric::SimplicialLu(_) | Numeric::SimplicialQr(_) | Numeric::Llt(_)
-                )
-            }
-            Ok(match self.factors()? {
-                Factors::F32(f) => supported(f),
-                Factors::F64(f) => supported(f),
-                Factors::C32(f) => supported(f),
-                Factors::C64(f) => supported(f),
-            })
+            Factors::F32(Numeric::Qr(f)) => QrComponents::OwnedF32(f.clone()),
+            Factors::F64(Numeric::Qr(f)) => QrComponents::OwnedF64(f.clone()),
+            Factors::C32(Numeric::Qr(f)) => QrComponents::OwnedC32(f.clone()),
+            Factors::C64(Numeric::Qr(f)) => QrComponents::OwnedC64(f.clone()),
+            _ => return Err("QR inverse operator requires sparse QR factors".into()),
         })
     }
 }

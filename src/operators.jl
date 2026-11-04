@@ -890,15 +890,15 @@ end
 """
     FaerLinearOperator(F::FaerSparseFactorization)
 
-Own a sparse inverse-action snapshot of explicit simplicial LU/QR or Cholesky factors. Native
+Own a sparse inverse-action snapshot of LU/QR/Cholesky factors for every algorithm. Native
 CSC L/U and row/column permutations are retained independently; mixed scalar
 promotion converts these factors without refactorizing the stored input.
-Application uses sparse triangular solves and an intermediate in native scratch.
-Auto/supernodal LU components are not yet available through this constructor.
+Application uses saved factors and sparse triangular solves. Auto/supernodal QR
+allocates intermediate matrices and workspace per application.
 """
 function FaerLinearOperator(f::FaerSparseFactorization{T,K}) where {T,K}
     K in (:lu, :cholesky, :qr) || throw(
-        ArgumentError("sparse inverse operator requires simplicial LU/QR or Cholesky"),
+        ArgumentError("sparse inverse operator requires LU/QR or Cholesky"),
     )
     lock(_matrix_lock) do
         _handle(f)
