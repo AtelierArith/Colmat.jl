@@ -7,6 +7,8 @@ using Colmat, LinearAlgebra, SparseArrays, Test
             (:lu, :auto),
             (:lu, :supernodal),
             (:lu, :simplicial),
+            (:qr, :auto),
+            (:qr, :supernodal),
             (:qr, :simplicial),
             (:cholesky, :auto),
             (:cholesky, :simplicial),
@@ -29,7 +31,8 @@ using Colmat, LinearAlgebra, SparseArrays, Test
         order=reverse(collect(1:n))
         F=kind===:lu ?
           lu(a; algorithm, ordering = algorithm===:simplicial ? order : :default) :
-          kind===:qr ? qr(a; algorithm, ordering = order) :
+          kind===:qr ?
+          qr(a; algorithm, ordering = algorithm===:simplicial ? order : :default) :
           cholesky(Hermitian(a); algorithm, ordering = order)
         close(a)
         close(F.source)

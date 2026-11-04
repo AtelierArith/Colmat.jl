@@ -59,7 +59,7 @@ end
     @test_throws ArgumentError FaerLinearOperator(F)
     close(M)
     F=qr(A)
-    @test_throws Colmat.RustCall.RustError FaerLinearOperator(F)
+    @test Matrix(FaerLinearOperator(F))≈inv(Matrix(A))
     close(F)
     close(A)
     A=FaerSparseMatrix(sparse([1, 2], [1, 2], [1.0, 0.0], 2, 2))
