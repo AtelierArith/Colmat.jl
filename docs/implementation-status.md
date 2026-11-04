@@ -2097,4 +2097,11 @@ Validation against candidate faer 55d54a1: canonical
 `Pkg.test(;allow_reresolve=false)` passed 103,851 assertions across 80 files
 (16 workers). Focused lifecycle/component/COLAMD checks passed 497 assertions.
 README passed 68 executable blocks; Rust passed 11 tests. Julia/Rust formatting
-and diff checks passed. Final merged upstream adoption remains pending.
+and diff checks passed.
+
+Upstream PRs #237, #238 and #240 are merged. `deps/build.jl` fetched clean
+faer main `12843515e07f8d6f27fc525668227088658ffe0f` (t4a-faer 0.28.2).
+This includes the no-Rayon numeric solve fix, saved LU public accessors and
+explicit sparse column ordering. Native tests pass 11 cases on this revision.
+Canonical Pkg.test on merged main also passes 103,851 assertions / 80 files
+with 16 workers. All 68 README blocks pass on the merged dependency.
