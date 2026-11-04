@@ -323,13 +323,14 @@ function _factor(
     code;
     check = true,
     uplo = :L,
+    team = nothing,
 ) where {T<:_ExtraScalar,K}
     if K in (:cholesky, :ldlt, :bunchkaufman)
         LinearAlgebra.checksquare(a)
     end
     lock(_matrix_lock) do
         h=RustCrate.TypedFactor()
-        info=Int(_native_call(RustCrate.initialize, h, a, Int32(code), uplo===:L))
+        info=Int(_initialize_dense_factor(h, a, code, uplo===:L, team))
         if check && info!=0
             K===:cholesky && throw(LinearAlgebra.PosDefException(info))
             throw(LinearAlgebra.SingularException(info))
@@ -341,19 +342,27 @@ LinearAlgebra.lu(
     a::FaerMatrix{T};
     check::Bool = true,
     allowsingular::Bool = false,
-) where {T<:_ExtraScalar} = _factor(a, Val(:lu), 0; check = check&&!allowsingular)
+    team = nothing,
+) where {T<:_ExtraScalar} = _factor(a, Val(:lu), 0; check = check&&!allowsingular, team)
 LinearAlgebra.lu(
     a::FaerMatrix{T},
     ::LinearAlgebra.RowMaximum;
     kwargs...,
 ) where {T<:_ExtraScalar} = LinearAlgebra.lu(a; kwargs...)
-full_piv_lu(a::FaerMatrix{T}; check::Bool = true) where {T<:_ExtraScalar} =
-    _factor(a, Val(:full_lu), 1; check)
-LinearAlgebra.qr(a::FaerMatrix{T}) where {T<:_ExtraScalar} = _factor(a, Val(:qr), 2)
-LinearAlgebra.qr(a::FaerMatrix{T}, ::LinearAlgebra.NoPivot) where {T<:_ExtraScalar} =
-    LinearAlgebra.qr(a)
-LinearAlgebra.qr(a::FaerMatrix{T}, ::LinearAlgebra.ColumnNorm) where {T<:_ExtraScalar} =
-    _factor(a, Val(:pivoted_qr), 3)
+full_piv_lu(a::FaerMatrix{T}; check::Bool = true, team = nothing) where {T<:_ExtraScalar} =
+    _factor(a, Val(:full_lu), 1; check, team)
+LinearAlgebra.qr(a::FaerMatrix{T}; team = nothing) where {T<:_ExtraScalar} =
+    _factor(a, Val(:qr), 2; team)
+LinearAlgebra.qr(
+    a::FaerMatrix{T},
+    ::LinearAlgebra.NoPivot;
+    team = nothing,
+) where {T<:_ExtraScalar} = LinearAlgebra.qr(a; team)
+LinearAlgebra.qr(
+    a::FaerMatrix{T},
+    ::LinearAlgebra.ColumnNorm;
+    team = nothing,
+) where {T<:_ExtraScalar} = _factor(a, Val(:pivoted_qr), 3; team)
 const _ExtraHermitian=LinearAlgebra.Hermitian{T,<:FaerMatrix{T}} where {T<:_ExtraScalar}
 const _ExtraSymmetric=LinearAlgebra.Symmetric{Float32,<:FaerMatrix{Float32}}
 const _ExtraSelfAdjoint=Union{_ExtraHermitian,_ExtraSymmetric}
@@ -361,24 +370,26 @@ _uplo(a::_ExtraSelfAdjoint) = a.uplo=='L' ? :L : :U
 function LinearAlgebra.cholesky(
     a::FaerMatrix{T};
     check::Bool = true,
+    team = nothing,
 ) where {T<:_ExtraScalar}
     LinearAlgebra.ishermitian(a) || throw(LinearAlgebra.PosDefException(-1))
-    return _factor(a, Val(:cholesky), 4; check)
+    return _factor(a, Val(:cholesky), 4; check, team)
 end
-LinearAlgebra.cholesky(a::_ExtraSelfAdjoint; check::Bool = true) =
-    _factor(parent(a), Val(:cholesky), 4; check, uplo = _uplo(a))
+LinearAlgebra.cholesky(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing) =
+    _factor(parent(a), Val(:cholesky), 4; check, team, uplo = _uplo(a))
 for (fn, code) in ((:ldlt, 5), (:bunchkaufman, 6))
     @eval begin
         function LinearAlgebra.$fn(
             a::FaerMatrix{T};
             check::Bool = true,
+            team = nothing,
         ) where {T<:_ExtraScalar}
             LinearAlgebra.ishermitian(a) ||
                 throw(ArgumentError("self-adjoint factorization requires Hermitian input"))
-            return _factor(a, Val($(QuoteNode(fn))), $code; check)
+            return _factor(a, Val($(QuoteNode(fn))), $code; check, team)
         end
-        LinearAlgebra.$fn(a::_ExtraSelfAdjoint; check::Bool = true) =
-            _factor(parent(a), Val($(QuoteNode(fn))), $code; check, uplo = _uplo(a))
+        LinearAlgebra.$fn(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing) =
+            _factor(parent(a), Val($(QuoteNode(fn))), $code; check, team, uplo = _uplo(a))
     end
 end
 _factor_part(f::FaerFactorization{T}, code, dims) where {T<:_ExtraScalar} =
@@ -454,9 +465,9 @@ function Base.inv(f::FaerFactorization{T}) where {T<:_ExtraScalar}
     return _typed_result(T, RustCrate.inverse_from, size(f), f)
 end
 Base.inv(a::FaerMatrix{T}) where {T<:_ExtraScalar} = inv(LinearAlgebra.lu(a))
-LinearAlgebra.factorize(a::FaerMatrix{T}) where {T<:_ExtraScalar} =
-    size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a) :
-    LinearAlgebra.qr(a, LinearAlgebra.ColumnNorm())
+LinearAlgebra.factorize(a::FaerMatrix{T}; team = nothing) where {T<:_ExtraScalar} =
+    size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a; team) :
+    LinearAlgebra.qr(a, LinearAlgebra.ColumnNorm(); team)
 Base.:\(a::FaerMatrix, b::FaerMatrix) = LinearAlgebra.factorize(a)\b
 Base.:\(a::FaerMatrix{T}, b::AbstractMatrix{<:Number}) where {T<:_ExtraScalar} =
     a\FaerMatrix(b)

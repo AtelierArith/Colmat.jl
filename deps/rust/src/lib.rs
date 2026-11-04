@@ -431,85 +431,27 @@ impl OwnedFactor {
         source: &OwnedMatrix,
         kind: i32,
         lower: bool,
+        m: usize,
+        n: usize,
+        tag: i32,
+    ) -> Result<usize, String> {
+        guarded(|| self.initialize_with_par(source, kind, lower, Par::Seq, m, n, tag))
+    }
+    #[julia]
+    pub fn initialize_team(
+        &mut self,
+        source: &OwnedMatrix,
+        kind: i32,
+        lower: bool,
+        m: usize,
+        n: usize,
+        tag: i32,
+        team: &crate::teams::OwnedTeam,
     ) -> Result<usize, String> {
         guarded(|| {
-            let a = source.matrix.as_ref();
-            if (4..=6).contains(&kind) {
-                if a.nrows() != a.ncols() {
-                    return Err("factorization requires square input".into());
-                }
-                for j in 0..a.ncols() {
-                    for i in 0..a.nrows() {
-                        if (if lower { i >= j } else { i <= j }) && !a[(i, j)].is_finite() {
-                            return Err("input triangle must be finite".into());
-                        }
-                    }
-                }
-            } else {
-                check_finite(a)?;
-            }
-            let side = if lower {
-                faer::Side::Lower
-            } else {
-                faer::Side::Upper
-            };
-            self.info = 0;
-            let factor = match kind {
-                0 => DenseFactor::Lu(a.partial_piv_lu(Par::Seq)),
-                1 => DenseFactor::FullLu(a.full_piv_lu(Par::Seq)),
-                2 => DenseFactor::Qr(a.qr(Par::Seq)),
-                3 => DenseFactor::PivotQr(a.col_piv_qr(Par::Seq)),
-                4 => match a.llt(side, Par::Seq) {
-                    Ok(f) => DenseFactor::Llt(f),
-                    Err(faer::linalg::solvers::LltError::NonPositivePivot { index }) => {
-                        self.factor = None;
-                        self.info = index + 1;
-                        return Ok(self.info);
-                    }
-                },
-                5 => match a.ldlt(side, Par::Seq) {
-                    Ok(f) => DenseFactor::Ldlt(f),
-                    Err(faer::linalg::solvers::LdltError::ZeroPivot { index }) => {
-                        self.factor = None;
-                        self.info = index + 1;
-                        return Ok(self.info);
-                    }
-                },
-                6 => DenseFactor::Lblt(a.lblt(side, Par::Seq)),
-                7 => DenseFactor::Svd(a.thin_svd(Par::Seq).map_err(|e| format!("{e:?}"))?),
-                _ => return Err("unknown factorization kind".into()),
-            };
-            let diagonal = match &factor {
-                DenseFactor::Lu(f) => Some(f.U()),
-                DenseFactor::FullLu(f) => Some(f.U()),
-                _ => None,
-            };
-            if let Some(u) = diagonal {
-                self.info = (0..u.nrows().min(u.ncols()))
-                    .find(|&i| u[(i, i)] == 0.0)
-                    .map_or(0, |i| i + 1);
-            }
-            if let DenseFactor::Lblt(x) = &factor {
-                let mut i = 0;
-                while i < x.nrows() {
-                    let block = i + 1 < x.nrows() && x.B_subdiag()[i] != 0.0;
-                    let determinant = if block {
-                        x.B_diag()[i] * x.B_diag()[i + 1] - x.B_subdiag()[i] * x.B_subdiag()[i]
-                    } else {
-                        x.B_diag()[i]
-                    };
-                    if determinant == 0.0 {
-                        self.info = i + 1;
-                        break;
-                    }
-                    i += if block { 2 } else { 1 };
-                }
-            }
-            self.factor = Some(factor);
-            Ok(self.info)
+            team.execute(|par| self.initialize_with_par(source, kind, lower, par, m, n, tag))?
         })
     }
-
     #[julia]
     pub fn qr_blocksize(&self) -> Result<usize, String> {
         guarded(|| match self.get()? {
@@ -1354,3 +1296,137 @@ pub mod spectral_solve;
 pub mod sparse_qr_components;
 mod sparse_qr_owned;
 mod sparse_qr_wide;
+
+impl OwnedFactor {
+    fn initialize_with_par(
+        &mut self,
+        source: &OwnedMatrix,
+        kind: i32,
+        lower: bool,
+        par: Par<'_>,
+        m: usize,
+        n: usize,
+        tag: i32,
+    ) -> Result<usize, String> {
+        let a = source.matrix.as_ref();
+        if tag != 1 || a.shape() != (m, n) {
+            return Err(
+                "factor input native scalar type/dimensions do not match requested metadata".into(),
+            );
+        }
+        if (4..=6).contains(&kind) {
+            if a.nrows() != a.ncols() {
+                return Err("factorization requires square input".into());
+            }
+            for j in 0..a.ncols() {
+                for i in 0..a.nrows() {
+                    if (if lower { i >= j } else { i <= j }) && !a[(i, j)].is_finite() {
+                        return Err("input triangle must be finite".into());
+                    }
+                }
+            }
+        } else {
+            check_finite(a)?;
+        }
+        let side = if lower {
+            faer::Side::Lower
+        } else {
+            faer::Side::Upper
+        };
+        self.info = 0;
+        let factor = match kind {
+            0 => DenseFactor::Lu(a.partial_piv_lu(par)),
+            1 => DenseFactor::FullLu(a.full_piv_lu(par)),
+            2 => DenseFactor::Qr(a.qr(par)),
+            3 => DenseFactor::PivotQr(a.col_piv_qr(par)),
+            4 => match a.llt(side, par) {
+                Ok(f) => DenseFactor::Llt(f),
+                Err(faer::linalg::solvers::LltError::NonPositivePivot { index }) => {
+                    self.factor = None;
+                    self.info = index + 1;
+                    return Ok(self.info);
+                }
+            },
+            5 => match a.ldlt(side, par) {
+                Ok(f) => DenseFactor::Ldlt(f),
+                Err(faer::linalg::solvers::LdltError::ZeroPivot { index }) => {
+                    self.factor = None;
+                    self.info = index + 1;
+                    return Ok(self.info);
+                }
+            },
+            6 => DenseFactor::Lblt(a.lblt(side, par)),
+            7 => DenseFactor::Svd(a.thin_svd(par).map_err(|e| format!("{e:?}"))?),
+            _ => return Err("unknown factorization kind".into()),
+        };
+        let diagonal = match &factor {
+            DenseFactor::Lu(f) => Some(f.U()),
+            DenseFactor::FullLu(f) => Some(f.U()),
+            _ => None,
+        };
+        if let Some(u) = diagonal {
+            self.info = (0..u.nrows().min(u.ncols()))
+                .find(|&i| u[(i, i)] == 0.0)
+                .map_or(0, |i| i + 1);
+        }
+        if let DenseFactor::Lblt(x) = &factor {
+            let mut i = 0;
+            while i < x.nrows() {
+                let block = i + 1 < x.nrows() && x.B_subdiag()[i] != 0.0;
+                let determinant = if block {
+                    x.B_diag()[i] * x.B_diag()[i + 1] - x.B_subdiag()[i] * x.B_subdiag()[i]
+                } else {
+                    x.B_diag()[i]
+                };
+                if determinant == 0.0 {
+                    self.info = i + 1;
+                    break;
+                }
+                i += if block { 2 } else { 1 };
+            }
+        }
+        self.factor = Some(factor);
+        Ok(self.info)
+    }
+}
+
+#[cfg(test)]
+mod dense_team_tests {
+    use super::*;
+    #[test]
+    fn team_factor_owns_results_and_rejects_closed_authority() {
+        let a = OwnedMatrix {
+            matrix: Mat::from_fn(4, 4, |i, j| if i == j { 4.0 + i as f64 } else { 0.1 }),
+        };
+        let mut team = teams::OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        team.execute(|par| assert!(matches!(par, Par::Team(_))))
+            .unwrap();
+        let mut f = OwnedFactor::new();
+        assert_eq!(f.initialize_team(&a, 0, true, 4, 4, 1, &team).unwrap(), 0);
+        team.team_close().unwrap();
+        assert!(f.initialize_team(&a, 0, true, 4, 4, 1, &team).is_err());
+        match f.get().unwrap() {
+            DenseFactor::Lu(x) => assert!((x.reconstruct(Par::Seq) - &a.matrix).norm_max() < 1e-12),
+            _ => panic!("wrong factor kind"),
+        }
+        assert!(f.initialize(&a, 0, true, 5, 4, 1).is_err());
+        assert!(f.initialize(&a, 0, true, 4, 4, 0).is_err());
+    }
+    #[test]
+    fn typed_factor_checks_current_dtype_and_shape_before_construction() {
+        let a = typed::TypedMatrix {
+            data: Some(typed::MatrixData::C32(Mat::identity(3, 3))),
+        };
+        let mut team = teams::OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        let mut f = typed::TypedFactor::new();
+        assert!(f.initialize_team(&a, 2, true, 3, 3, 0, &team).is_err());
+        assert!(f.data().is_err());
+        assert!(f.initialize_team(&a, 2, true, 4, 3, 2, &team).is_err());
+        assert!(f.data().is_err());
+        assert_eq!(f.initialize_team(&a, 2, true, 3, 3, 2, &team).unwrap(), 0);
+        team.team_close().unwrap();
+        assert!(f.data().is_ok());
+    }
+}

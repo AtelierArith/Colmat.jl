@@ -2395,3 +2395,38 @@ run instructions are retained in [the numerical record](reproducers/faer-qz-nume
 The wider public tests also expose this capacity failure for f32. Draft #258
 contains the correction. No dependency checkout or selected revision is changed
 by this report-only update.
+
+## Issue #22: dense native factor construction with caller-owned teams
+
+Dense partial/full-pivot LU, QR with/without column pivoting, unpivoted Cholesky,
+LDLT and Bunch–Kaufman construction accept `team=FaerTeam(...)`, including their
+staged bang forms and the owned-matrix `factorize` dispatcher. The native owner
+borrows the team only while constructing the decomposition and forwards its
+`Par` to the actual faer constructors and their scratch queries. Width one uses
+sequential execution. Returned factors store owned numerical data and remain
+usable after both source and team close; copies are independent.
+
+The same guarded initialization helper serves default and team calls. Requested
+scalar/dimensions are compared with the current native owner before construction,
+preventing stale Julia metadata from producing a wrongly typed/sized factor.
+Team arguments use RustCall's checked references and the existing matrix lock;
+no new raw-owner exception or per-element dispatch is introduced. The existing
+selected-triangle, unsuccessful `check=false` and atomic staged-writeback
+contracts are retained. Construction still allocates native factors/workspace.
+
+Focused tests cover all four scalars, team widths one/two, empty/singleton,
+rectangular QR, 129x129 blocked inputs, selected upper/lower triangles with NaNs
+in unused storage, 2x2 indefinite blocks, singular/nonpositive failures, existing
+views, Tasks, independent copies, close/lifetime and corrupted native metadata.
+The new file passes 3,470 assertions with precision/dimension-aware bounds;
+existing factorization and destructive suites also pass. Native checks pass 27
+tests, including closed-team rejection and native type/shape guards. Canonical
+`Pkg.test(;allow_reresolve=false)` passes 146,892 assertions / 92 files / 16
+workers; all 79 executable README blocks and formatting/diff checks pass.
+
+This connects the construction phase, not retained-factor solve/property calls.
+Pivoted Cholesky, sparse/iterative teams, caller-owned construction scratch and
+other kernels remain tracked. In particular, faer's current public QZ reordering
+accepts an ignored `_par`; no QZ parallelism or speed improvement is claimed.
+The clean selected dependency remains faer 19053d8 (0.29.0). The complete 76-row
+scope and frozen inventory are preserved.

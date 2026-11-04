@@ -147,6 +147,26 @@ E = eigen(Hermitian(A))
 @assert Matrix(A) * E.vectors ≈ E.vectors * Diagonal(E.values)
 ```
 
+dense LU・完全ピボット LU・QR（列ピボットを含む）・Cholesky・LDLT・
+Bunch–Kaufman の構築と対応する `!` 版には `team=` を指定できます。
+`factorize(A; team)` も対応します。構築後の因子は team や入力を閉じても独立に使えます。
+保存因子からの通常の求解・成分取り出しは引き続き逐次経路です。
+
+```julia
+using Colmat, LinearAlgebra
+
+a = [4.0 1; 1 3]
+A = FaerMatrix(a)
+F = FaerTeam(2) do team
+    Q = qr(A, ColumnNorm(); team)
+    @assert Matrix(Q) ≈ a
+    lu(A; team)
+end
+close(A)
+@assert Matrix(F) ≈ a
+@assert F \ [1.0, 2.0] ≈ a \ [1.0, 2.0]
+```
+
 Hessenberg 化と Schur 分解も native 経路を使います。
 
 ```julia
