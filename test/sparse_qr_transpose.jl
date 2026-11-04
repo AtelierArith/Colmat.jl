@@ -81,7 +81,7 @@ end
     # A structurally empty second column tests a genuinely rank-deficient R.
     b=FaerSparseMatrix(sparse([1.0 0; 0 0; 0 0]))
     G=qr(b; algorithm = :simplicial)
-    @test_throws Colmat.RustCall.RustError adjoint(G)\ones(2, 1)
+    @test Matrix(adjoint(G)\ones(2, 1))≈pinv(Matrix(b)')*ones(2, 1)
     close(G)
     close(b)
     close(F)

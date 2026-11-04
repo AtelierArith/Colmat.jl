@@ -897,15 +897,22 @@ Application uses saved factors and sparse triangular solves. Auto/supernodal QR
 allocates intermediate matrices and workspace per application.
 """
 function FaerLinearOperator(f::FaerSparseFactorization{T,K}) where {T,K}
-    K in (:lu, :cholesky, :qr) || throw(
-        ArgumentError("sparse inverse operator requires LU/QR or Cholesky"),
-    )
+    K in (:lu, :cholesky, :qr) ||
+        throw(ArgumentError("sparse inverse operator requires LU/QR or Cholesky"))
     lock(_matrix_lock) do
         _handle(f)
         LinearAlgebra.issuccess(f) || (
             K===:cholesky ? throw(LinearAlgebra.PosDefException(f.info)) :
             throw(LinearAlgebra.SingularException(f.info))
         )
+        if K===:qr && _native_call(RustCrate.sparse_qr_needs_spectral_solve, f)
+            inverse=LinearAlgebra.pinv(f)
+            try
+                return FaerLinearOperator(inverse)
+            finally
+                close(inverse)
+            end
+        end
         if K===:qr
             h=RustCrate.OwnedLinearOperator()
             _native_call(RustCrate.operator_sparse_qr_inverse, h, f)

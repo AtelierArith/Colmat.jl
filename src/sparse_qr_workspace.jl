@@ -5,7 +5,9 @@ Query native solve workspace for retained auto/supernodal sparse QR. Use
 `ldiv!(X,F,B; scratch=FaerScratch(ldiv!,F,B))` to reuse it. Factorization,
 RHS/result storage and destination copying allocate outside scratch. RHS must
 have the factor's scalar type; transposed and explicit simplicial QR are not
-supported by this workspace interface. The buffer never grows implicitly.
+supported by this workspace interface. Numerically rank-deficient factors are
+rejected; inconclusive sparse rank bounds require an allocating SVD validation.
+The buffer never grows implicitly.
 """
 function scratch_requirements(
     ::typeof(LinearAlgebra.ldiv!),
@@ -17,6 +19,14 @@ function scratch_requirements(
         size(b, 1)==size(f, 1) || throw(DimensionMismatch("factor and RHS rows must match"))
         eltype(b)===T ||
             throw(ArgumentError("workspace solve requires matching RHS scalar type"))
+        if _native_call(RustCrate.sparse_qr_needs_spectral_solve, f) &&
+           LinearAlgebra.rank(f)<min(size(f)...)
+            throw(
+                ArgumentError(
+                    "rank-deficient QR solve requires SVD workspace; omit scratch",
+                ),
+            )
+        end
         info=zeros(UInt, 2)
         GC.@preserve info _native_call(
             RustCrate.sparse_qr_solve_requirements,
