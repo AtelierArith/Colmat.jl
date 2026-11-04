@@ -465,6 +465,28 @@ impl<T: ComplexField> Factors<T> {
         self.symbolic
             .solve_in_place_scratch::<T>(k, Par::Seq.shape())
     }
+    pub(crate) fn solve_requirements_par(
+        &self,
+        k: usize,
+        p: faer::ParShape,
+    ) -> faer::dyn_stack::StackReq {
+        self.symbolic.solve_in_place_scratch::<T>(k, p)
+    }
+    pub(crate) fn solve_in_par(
+        &self,
+        b: MatRef<'_, T>,
+        par: Par,
+        stack: &mut MemStack,
+    ) -> Result<Mat<T>, String> {
+        if b.nrows() != self.symbolic.nrows() {
+            return Err("sparse QR RHS row mismatch".into());
+        }
+        let mut rhs = b.to_owned();
+        // SAFETY: numeric buffers belong to this immutable symbolic owner.
+        let qr = unsafe { QrRef::new_unchecked(&self.symbolic, &self.indices, &self.values) };
+        qr.solve_in_place_with_conj(Conj::No, rhs.as_mut(), par, stack);
+        Ok(rhs.as_ref().subrows(0, self.symbolic.ncols()).to_owned())
+    }
     pub(crate) fn solve(&self, b: MatRef<'_, T>) -> Result<Mat<T>, String> {
         let mut mem =
             MemBuffer::try_new(self.solve_requirements(b.ncols())).map_err(|e| format!("{e:?}"))?;

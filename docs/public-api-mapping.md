@@ -97,7 +97,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | R: 4 型・型 promotion、CSC/CSR の native 積、`mul!`、ベクトルとの積 | symbolic/numeric 積計画の再利用、低水準制御 |
 | 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | R: CSC/CSR・4 型、`cholesky`、選択三角、`FaerSparseSymbolic`、`cholesky!`、求解・全3方式の混合型 RHS は保存因子を再利用・左右/転置/随伴求解の scratch/team、AMD/恒等/任意 ordering、分解方式指定、`p/algorithm/factor_storage`、疎 `L/U` 抽出・再構成、分解対角からの `det/logdet/logabsdet` | 数値分解構築の外部 scratch・追加の低水準制御 |
 | 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解（全方式で保存因子再利用）・左右求解の scratch/team。全方式の native L/U・p/q、元順序への疎再構成・型指定変換、全方式の恒等/任意/COLAMD column ordering、全方式の COLAMD 調整値（dense_row/dense_col/aggressive） | 残る低水準制御。明示的 simplicial の既定列順序は恒等 |
-| 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、明示的 `algorithm=:supernodal` 選択、auto/supernodal の COLAMD 調整・独立 p/pcol、`qr!`、symbolic 再利用、`ldiv!`。auto/supernodal の同型 matrix RHS 向け `ldiv!(X,F,B;scratch)` と作業領域照会/reserve、`factorize(plan,A;scratch)` の数値分解構築用 scratch。横長入力の native prefix QR と保存 R の SVD による最小ノルム求解、通常 backslash と明示的 `ldiv!(X,F,B;atol,rtol)` の rank-deficient 最小ノルム求解・保存因子の `pinv`、全方式の薄い native Q/Qthin・完全 Qfull・疎 R・p/pcol・元列順序への native 再構成・転置/随伴の最小ノルム求解、全方式の恒等/任意/COLAMD 列順序（dense_row/dense_col/aggressive）・転置/随伴の最小ノルム求解・混合型 RHS の保持因子再利用 | rank-deficient / wide 求解の caller-owned scratch、低水準制御 |
+| 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、明示的 `algorithm=:supernodal` 選択、auto/supernodal の COLAMD 調整・独立 p/pcol、`qr!`、symbolic 再利用、`ldiv!`。全方式・混合型 vector/matrix RHS・左右/転置/随伴・rank-deficient/wide 求解の scratch/team と作業領域照会/reserve、`factorize(plan,A;scratch)` の数値分解構築用 scratch。横長入力の native prefix QR と保存 R の SVD による最小ノルム求解、通常 backslash と明示的 `ldiv!(X,F,B;atol,rtol)` の rank-deficient 最小ノルム求解・保存因子の `pinv`、全方式の薄い native Q/Qthin・完全 Qfull・疎 R・p/pcol・元列順序への native 再構成・転置/随伴の最小ノルム求解、全方式の恒等/任意/COLAMD 列順序（dense_row/dense_col/aggressive）・転置/随伴の最小ノルム求解・混合型 RHS の保持因子再利用 | Q/R 抽出・数値分解構築の残る caller-owned scratch、低水準制御 |
 | 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | R: CSC/CSR・4 型、通常/単位の上下三角、転置/随伴、matrix/vector RHS、`ldiv!` | 作業領域の外部指定、割り当てを伴わない直接 in-place 経路 |
 | Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | R: `amd/colamd`、numeric/symbolic CSC/CSR、長方形 COLAMD、制御値・AMD 演算数見積もり、`FaerPermutation` 返却、Cholesky と全方式の LU/QR への直接 ordering 指定 | caller-owned scratch |
 
@@ -255,3 +255,19 @@ outside the declared solve workspace. Cholesky permutation extraction now uses
 the retained numeric symbolic owner, so a closed external plan does not break
 mixed solves. Sparse QR solve resources and sparse factor construction remain
 separate entries; all 76 inventory rows remain in scope.
+
+
+### Sparse QR solve SVD/projection scratch and teams
+
+All algorithms now expose scratch/team for left/right, transpose/adjoint, mixed
+vector/matrix RHS, wide and rank-deficient solves, including explicit tolerances.
+The R SVD and cutoff run in the original factor precision inside caller scratch;
+coefficient promotion and RHS projection also use that buffer. No explicit dense
+pseudoinverse or source reconstruction is used by these solve kernels. Normal
+same-type calls with a sufficient rank certificate borrow native sparse factors
+and query the matching triangular/Householder solve scratch for the actual team.
+Default tall full-rank solves retain their previous fast path. Independent Q/R/
+permutation preparation for the SVD path still allocates outside solve scratch;
+Q extraction is sequential, and its construction workspace remains a separate
+constraint. RHS/result owners and destination conversion also allocate separately.
+Prepared inverse-operator construction still has its own allocation policy.

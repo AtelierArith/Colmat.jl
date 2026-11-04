@@ -246,6 +246,7 @@ include("spectral_solve.jl")
 include("dense_solve_team.jl")
 include("dense_solve_workspace.jl")
 include("sparse_direct_workspace.jl")
+include("sparse_qr_solve_workspace.jl")
 include("spectral_solve_workspace.jl")
 
 end

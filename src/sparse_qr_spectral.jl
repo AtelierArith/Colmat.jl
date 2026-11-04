@@ -66,26 +66,10 @@ end
 
 function _sparse_qr_minimum_norm_solve(f, b; atol = nothing, rtol = nothing)
     base=f isa FaerSparseFactorization ? f : parent(f)
-    base isa FaerSparseFactorization{<:Any,:qr} ||
-        throw(ArgumentError("rank-aware solve requires sparse QR factors"))
+    base isa FaerSparseFactorization{<:Any,:qr}||throw(
+        ArgumentError("rank-aware solve requires sparse QR factors"),
+    )
     at=isnothing(atol) ? 0 : atol
     rt=isnothing(rtol) ? _default_spectral_rtol(base, at) : rtol
-    inverse=converted=action=rhs=nothing
-    try
-        inverse=LinearAlgebra.pinv(base; atol = at, rtol = rt)
-        P=promote_type(eltype(base), _sparse_input_type(eltype(b)))
-        converted=P===eltype(inverse) ? inverse : FaerMatrix{P}(inverse)
-        action=f===base ? converted :
-               copy(
-            f isa LinearAlgebra.AdjointFactorization ? adjoint(converted) :
-            transpose(converted),
-        )
-        rhs=b isa FaerMatrix{P} ? copy(b) : FaerMatrix{P}(b)
-        return action*rhs
-    finally
-        isnothing(rhs) || close(rhs)
-        isnothing(action) || action===converted || close(action)
-        isnothing(converted) || converted===inverse || close(converted)
-        isnothing(inverse) || close(inverse)
-    end
+    return _sparse_qr_resource_result(f, b; atol = at, rtol = rt)
 end

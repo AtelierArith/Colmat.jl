@@ -66,6 +66,9 @@ pub(crate) struct Factors<T> {
     n: usize,
 }
 impl<T: ComplexField> Factors<T> {
+    pub(crate) fn dimensions(&self) -> (usize, usize) {
+        (self.m, self.n)
+    }
     pub(crate) fn new(plan: &Plan, a: SparseColMatRef<'_, usize, T>) -> Result<Self, String> {
         if (a.nrows(), a.ncols()) != (plan.m, plan.n) {
             return Err("wide QR numeric shape mismatch".into());
