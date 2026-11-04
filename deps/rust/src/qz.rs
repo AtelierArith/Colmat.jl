@@ -1,8 +1,10 @@
 //! Generalized Hessenberg reduction and native real/complex QZ.
 use crate::typed::{finite, MatrixData, TypedMatrix};
-use crate::{guarded, OwnedMatrix};
+use crate::{guarded, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::linalg::{gevd, matmul::matmul};
+use faer::mat::{AsMatMut, AsMatRef};
+use faer::prelude::ReborrowMut;
 use faer::traits::{math_utils::*, ComplexField, RealField};
 use faer::{c32, c64, Accum, Col, Mat, MatRef, Par};
 use rustcall_julia_macros::julia;
@@ -432,6 +434,13 @@ impl TypedMatrix {
 
 trait QzReorderScalar: ComplexField {
     type Alpha;
+    fn values_scratch(n: usize) -> StackReq {
+        if Self::IS_REAL {
+            faer::linalg::temp_mat_scratch::<Self::Real>(n, 3)
+        } else {
+            StackReq::EMPTY
+        }
+    }
     fn block_size(s: MatRef<'_, Self>, i: usize) -> usize {
         if Self::IS_REAL && i + 1 < s.nrows() && s[(i + 1, i)] != zero() {
             2
@@ -443,11 +452,16 @@ trait QzReorderScalar: ComplexField {
         p: &mut Pair<Self>,
         from: usize,
         to: usize,
-        memory: &mut MemBuffer,
+        stack: &mut MemStack,
     ) -> Result<(), String>;
     // SAFETY: The caller provides aligned, writable, nonoverlapping n-entry
     // Julia vectors of the corresponding Alpha/Self types and preserves them.
-    unsafe fn write_values(p: &Pair<Self>, alpha: *mut u8, beta: *mut u8) -> Result<(), String>;
+    unsafe fn write_values(
+        p: &Pair<Self>,
+        alpha: *mut u8,
+        beta: *mut u8,
+        stack: &mut MemStack,
+    ) -> Result<(), String>;
 }
 macro_rules! real_qz_reorder {
     ($r:ty,$c:ty) => {
@@ -457,7 +471,7 @@ macro_rules! real_qz_reorder {
                 p: &mut Pair<Self>,
                 from: usize,
                 to: usize,
-                memory: &mut MemBuffer,
+                stack: &mut MemStack,
             ) -> Result<(), String> {
                 gevd::reorder_schur_real(
                     p.s.as_mut(),
@@ -467,7 +481,7 @@ macro_rules! real_qz_reorder {
                     from,
                     to,
                     Par::Seq,
-                    MemStack::new(memory),
+                    stack,
                 )
                 .map(|_| ())
                 .map_err(|e| {
@@ -481,17 +495,18 @@ macro_rules! real_qz_reorder {
                 p: &Pair<Self>,
                 alpha: *mut u8,
                 beta: *mut u8,
+                stack: &mut MemStack,
             ) -> Result<(), String> {
                 let n = p.s.nrows();
-                let mut ar = Col::<Self>::zeros(n);
-                let mut ai = ar.clone();
-                let mut be = ar.clone();
+                let (mut values, _) = faer::linalg::temp_mat_zeroed::<Self, _, _>(n, 3, stack);
+                let (mut ab, mut be) = values.as_mat_mut().split_at_col_mut(2);
+                let (ar, ai) = ab.rb_mut().two_cols_mut(0, 1);
                 gevd::schur_eigenvalues_real(
                     p.s.as_ref(),
                     p.t.as_ref(),
-                    ar.as_mut(),
-                    ai.as_mut(),
-                    be.as_mut(),
+                    ar,
+                    ai,
+                    be.rb_mut().col_mut(0),
                 )
                 .map_err(|e| {
                     format!(
@@ -499,14 +514,18 @@ macro_rules! real_qz_reorder {
                         e.position + 1
                     )
                 })?;
-                if (0..n).any(|i| !ar[i].is_finite() || !ai[i].is_finite() || !be[i].is_finite()) {
+                let values = values.as_mat_ref();
+                if !values.is_all_finite() {
                     return Err("nonfinite generalized Schur homogeneous eigenvalues".into());
                 }
                 for i in 0..n {
                     // SAFETY: checked output buffers are preserved by the Julia caller.
                     unsafe {
-                        alpha.cast::<$c>().add(i).write(<$c>::new(ar[i], ai[i]));
-                        beta.cast::<Self>().add(i).write(be[i]);
+                        alpha
+                            .cast::<$c>()
+                            .add(i)
+                            .write(<$c>::new(values[(i, 0)], values[(i, 1)]));
+                        beta.cast::<Self>().add(i).write(values[(i, 2)]);
                     }
                 }
                 Ok(())
@@ -524,7 +543,7 @@ macro_rules! complex_qz_reorder {
                 p: &mut Pair<Self>,
                 from: usize,
                 to: usize,
-                memory: &mut MemBuffer,
+                stack: &mut MemStack,
             ) -> Result<(), String> {
                 gevd::reorder_schur_cplx(
                     p.s.as_mut(),
@@ -534,7 +553,7 @@ macro_rules! complex_qz_reorder {
                     from,
                     to,
                     Par::Seq,
-                    MemStack::new(memory),
+                    stack,
                 )
                 .map(|_| ())
                 .map_err(|e| {
@@ -548,6 +567,7 @@ macro_rules! complex_qz_reorder {
                 p: &Pair<Self>,
                 alpha: *mut u8,
                 beta: *mut u8,
+                _stack: &mut MemStack,
             ) -> Result<(), String> {
                 for i in 0..p.s.nrows() {
                     // SAFETY: checked output buffers are preserved by the Julia caller.
@@ -564,6 +584,35 @@ macro_rules! complex_qz_reorder {
 complex_qz_reorder!(c32);
 complex_qz_reorder!(c64);
 
+fn reorder_requirement<T: QzReorderScalar>(n: usize) -> StackReq {
+    StackReq::all_of(&[
+        StackReq::new::<u8>(n),
+        StackReq::any_of(&[gevd::reorder_schur_scratch::<T>(n), T::values_scratch(n)]),
+    ])
+}
+#[julia]
+pub fn qz_reorder_requirements(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
+    guarded(|| {
+        let req = match tag {
+            0 => reorder_requirement::<f32>(n),
+            1 => reorder_requirement::<f64>(n),
+            2 => reorder_requirement::<c32>(n),
+            3 => reorder_requirement::<c64>(n),
+            _ => return Err("invalid QZ reorder scalar tag".into()),
+        };
+        reorder_buffer::<usize>(out.cast(), 2)?;
+        // SAFETY: the Julia caller preserves a two-entry UInt output buffer;
+        // its alignment and span have been checked above.
+        unsafe {
+            out.write(req.size_bytes());
+            out.add(1).write(req.align_bytes());
+        }
+        Ok(())
+    })
+}
+fn reorder_requirement_for<T: QzReorderScalar>(s: MatRef<'_, T>) -> StackReq {
+    reorder_requirement::<T>(s.nrows())
+}
 fn reorder_buffer<T>(p: *const u8, n: usize) -> Result<(), String> {
     if n == 0 {
         return Ok(());
@@ -604,6 +653,7 @@ unsafe fn reorder_pair<T: QzReorderScalar>(
     n: usize,
     alpha: *mut u8,
     beta: *mut u8,
+    stack: &mut MemStack,
 ) -> Result<Pair<T>, String> {
     if s.nrows() != s.ncols()
         || s.shape() != t.shape()
@@ -627,11 +677,12 @@ unsafe fn reorder_pair<T: QzReorderScalar>(
     homogeneous_buffers::<T::Alpha, T>(alpha, beta, n)?;
     // SAFETY: n agrees with all factor dimensions and the caller's preserved
     // Julia selection vector; empty buffers need not have a nonnull pointer.
-    let mut flags = if n == 0 {
-        Vec::new()
+    let source = if n == 0 {
+        &[][..]
     } else {
-        unsafe { std::slice::from_raw_parts(select, n) }.to_vec()
+        unsafe { std::slice::from_raw_parts(select, n) }
     };
+    let (mut flags, stack) = stack.make_with::<u8>(n, |i| source[i]);
     if flags.iter().any(|&flag| flag > 1) {
         return Err("QZ selection must contain Boolean values".into());
     }
@@ -656,14 +707,13 @@ unsafe fn reorder_pair<T: QzReorderScalar>(
         ascl: None,
         bscl: None,
     };
-    let mut memory = MemBuffer::new(gevd::reorder_schur_scratch::<T>(n));
     let mut here = 0;
     let mut next = 0;
     while here < n {
         let size = T::block_size(p.s.as_ref(), here);
         if flags[here] != 0 {
             if here != next {
-                T::move_block(&mut p, here, next, &mut memory)?;
+                T::move_block(&mut p, here, next, stack)?;
                 flags[next..here + size].rotate_right(size);
             }
             next += size;
@@ -676,7 +726,7 @@ unsafe fn reorder_pair<T: QzReorderScalar>(
     // SAFETY: output types, length and alignment were checked before any work;
     // all factor and eigenvalue checks finish before writing either buffer.
     unsafe {
-        T::write_values(&p, alpha, beta)?;
+        T::write_values(&p, alpha, beta, stack)?;
     }
     Ok(p)
 }
@@ -697,6 +747,7 @@ impl OwnedMatrix {
         alpha: *mut u8,
         beta: *mut u8,
         tag: i32,
+        scratch: &mut OwnedScratch,
     ) -> Result<(), String> {
         guarded(|| {
             if tag != 1 {
@@ -713,6 +764,7 @@ impl OwnedMatrix {
                     n,
                     alpha,
                     beta,
+                    scratch.stack(reorder_requirement::<f64>(n))?,
                 )?
             };
             self.matrix = p.s;
@@ -740,6 +792,7 @@ impl TypedMatrix {
         alpha: *mut u8,
         beta: *mut u8,
         tag: i32,
+        scratch: &mut OwnedScratch,
     ) -> Result<(), String> {
         guarded(|| {
             macro_rules! run {
@@ -756,6 +809,7 @@ impl TypedMatrix {
                             n,
                             alpha,
                             beta,
+                            scratch.stack(reorder_requirement_for($s.as_ref()))?,
                         )?
                     };
                     out_t.data = Some(MatrixData::$variant(p.t));
@@ -823,6 +877,7 @@ mod reorder_tests {
                 usize::MAX,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
+                MemStack::new(&mut []),
             )
         };
         assert!(result.err().unwrap().contains("dimensions"));
@@ -845,6 +900,7 @@ mod reorder_tests {
                 2,
                 ptr,
                 ptr,
+                MemStack::new(&mut []),
             )
         };
         assert!(result.err().unwrap().contains("overlap"));

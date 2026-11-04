@@ -2355,3 +2355,30 @@ before adopting their merged revisions. Draft PR #258 stacks on #255, covers
 #256 plus the four-array local Sylvester workspace audit, and adds broader
 property tests. It does not resolve #257. The wrapper correction is retained
 and the selected dependency is unchanged by this report-only checkpoint.
+
+## Issue #22: caller-owned generalized Schur reorder workspace
+
+Saved-factor `ordschur` / `ordschur!` accept `scratch=FaerScratch(...)`.
+`scratch_requirements` and `reserve!` cover selection flags, native block moves
+and real homogeneous-value extraction. Native flags and temporary real alpha/
+beta columns now live in the supplied buffer. Four independent work factors and
+Julia output/conversion vectors still allocate, preserving atomic writeback and
+existing owners/views. Default calls create and close a temporary workspace.
+Insufficient bytes/alignment, closed or invalid scratch reject before input
+writeback. Shared workspace access uses the existing matrix lock.
+
+Validation on clean faer 19053d8 (0.29.0): canonical `Pkg.test` passes 143,422
+assertions / 91 files / 16 workers, native tests pass 25, and all 78 executable
+README blocks pass. The new workspace file passes 777 assertions, including a
+final focused run with precision-specific residual/orthogonality bounds. Its
+coverage includes all four scalar types, empty/singleton factors, real pairs,
+exact queried capacity, reserve, repeated/Task reuse, preserved owners/views,
+capacity/alignment/close errors and reuse after a numerical rejection. Existing
+QZ/reorder tests also pass. Formatting and diff checks pass; frozen inventory
+is unchanged. The final candidate initializes flags directly from the selection, avoiding a
+redundant zero-fill before copying.
+
+QZ construction scratch, nondefault tuning and team integration remain open.
+Upstream PR #253 merged after this candidate's dependency was selected. The
+wrapper's existing QZ construction bound is retained until the remaining
+upstream fixes and merged-dependency adoption checks complete.
