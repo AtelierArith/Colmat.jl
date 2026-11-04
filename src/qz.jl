@@ -113,6 +113,8 @@ function _native_qz(
                 only_hessenberg,
                 iq,
                 iz,
+                UInt(n),
+                _tag(T),
             )
         else
             _typed_result(
@@ -129,6 +131,8 @@ function _native_qz(
                 only_hessenberg,
                 iq,
                 iz,
+                UInt(n),
+                _tag(T),
             )
         end
         return only_hessenberg ? FaerGeneralizedHessenberg(s, t, q, z) :
@@ -167,10 +171,16 @@ function LinearAlgebra.schur(f::FaerGeneralizedHessenberg)
         return _native_qz(f.H, f.T; initial = f)
     end
 end
+function _distinct_qz_storage(matrices)
+    owners=map(m->_handle(m).ptr, matrices)
+    any(owners[i]==owners[j] for i in eachindex(owners) for j = (i+1):length(owners)) &&
+        throw(ArgumentError("mutating matrix-pair factors require distinct native storage"))
+    return nothing
+end
 function _distinct_pair_storage(a, b)
-    a===b && throw(ArgumentError("mutating a matrix pair requires distinct storage"))
     eltype(a)===eltype(b) ||
         throw(ArgumentError("mutating a matrix pair requires matching scalar types"))
+    _distinct_qz_storage((a, b))
 end
 """
     schur!(A::FaerMatrix, B::FaerMatrix)
@@ -207,8 +217,7 @@ end
 function LinearAlgebra.schur!(f::FaerGeneralizedHessenberg)
     lock(_matrix_lock) do
         matrices=_pair_matrices(f)
-        any(matrices[i]===matrices[j] for i = 1:4 for j = (i+1):4) &&
-            throw(ArgumentError("H/T/Q/Z must have distinct storage"))
+        _distinct_qz_storage(matrices)
         g=LinearAlgebra.schur(f)
         for (a, b) in zip(matrices, (g.S, g.T, g.Q, g.Z))
             copyto!(a, b)
@@ -232,3 +241,110 @@ Base.iterate(f::FaerGeneralizedHessenberg, ::Val{:done}) = nothing
 
 # Intersection with the mixed Julia-array/owned-matrix method.
 LinearAlgebra.schur(a::FaerMatrixView{<:Number}, b::FaerMatrix) = _promoted_qz(a, b)
+
+function _ordqz(f::_NativeQZ, select)
+    lock(_matrix_lock) do
+        n=_check_pair_factor(f)
+        length(select)==n ||
+            throw(DimensionMismatch("QZ selection length must match the factor dimension"))
+        data=UInt8.(select)
+        T=eltype(f)
+        t, q, z=(_zeros(T, (n, n)) for _ = 1:3)
+        alpha=Vector{Complex{_realtype(T)}}(undef, n)
+        beta=Vector{T}(undef, n)
+        args=(
+            f.S,
+            f.T,
+            f.Q,
+            f.Z,
+            t,
+            q,
+            z,
+            pointer(data),
+            UInt(n),
+            Ptr{UInt8}(pointer(alpha)),
+            Ptr{UInt8}(pointer(beta)),
+            _tag(T),
+        )
+        s=GC.@preserve data alpha beta if T===Float64
+            _matrix_result(RustCrate.qz_reorder_from, (n, n), args...)
+        else
+            _typed_result(T, RustCrate.qz_reorder_from, (n, n), args...)
+        end
+        return LinearAlgebra.GeneralizedSchur(s, t, alpha, beta, q, z)
+    end
+end
+"""
+    ordschur(F::GeneralizedSchur{T,<:FaerMatrix}, select)
+
+Reorder saved native generalized Schur factors so selected eigenvalue blocks
+appear first, preserving order within each group. Selecting either member of a
+real conjugate pair selects both. Return independent S/T/Q/Z and homogeneous
+α/β computed from the saved factors, including infinite eigenvalues. A rejected
+native move throws while preserving F. Work factors and scratch are allocated.
+"""
+LinearAlgebra.ordschur(f::_NativeQZ, select::Union{Vector{Bool},BitVector}) =
+    _ordqz(f, select)
+# Compare actual element byte intervals: strided alpha/beta views can share a
+# parent while remaining disjoint, including interleaved and reversed views.
+function _qz_metadata_alias(a::StridedVector, b::StridedVector)
+    (isempty(a)||isempty(b)) && return false
+    aw, bw=Base.elsize(a), Base.elsize(b)
+    (iszero(aw)||iszero(bw)) && return false
+    sa, sb=stride(a, 1), stride(b, 1)
+    GC.@preserve a b begin
+        ap=UInt(pointer(a, sa<0 ? length(a) : 1))
+        bp=UInt(pointer(b, sb<0 ? length(b) : 1))
+        da, db=UInt(abs(sa)*aw), UInt(abs(sb)*bw)
+        (ap+UInt(length(a)-1)*da+UInt(aw)<=bp || bp+UInt(length(b)-1)*db+UInt(bw)<=ap) &&
+            return false
+        i, j=1, 1
+        while i<=length(a) && j<=length(b)
+            if ap<bp+UInt(bw) && bp<ap+UInt(aw)
+                return true
+            elseif ap+UInt(aw)<=bp
+                ap+=da
+                i+=1
+            else
+                bp+=db
+                j+=1
+            end
+        end
+    end
+    return false
+end
+
+"""
+    ordschur!(F::GeneralizedSchur{T,<:FaerMatrix}, select)
+
+Reorder saved native generalized Schur factors and update F after all moves and
+metadata conversions succeed. Existing matrix owners and views are preserved.
+S/T/Q/Z must have distinct storage; α/β must be disjoint mutable strided vectors
+of the factor dimension. Work factors and scratch are allocated.
+"""
+function LinearAlgebra.ordschur!(f::_NativeQZ, select::Union{Vector{Bool},BitVector})
+    lock(_matrix_lock) do
+        n=_check_pair_factor(f)
+        matrices=_pair_matrices(f)
+        _distinct_qz_storage(matrices)
+        f.α isa StridedVector && f.β isa StridedVector || throw(
+            ArgumentError(
+                "mutating QZ requires mutable strided homogeneous eigenvalue storage",
+            ),
+        )
+        length(f.α)==n && length(f.β)==n || throw(
+            DimensionMismatch(
+                "QZ homogeneous eigenvalue lengths must match the factor dimension",
+            ),
+        )
+        _qz_metadata_alias(f.α, f.β) &&
+            throw(ArgumentError("QZ α/β must have disjoint storage"))
+        result=_ordqz(f, select)
+        alpha=Vector{eltype(f.α)}(result.α)
+        beta=Vector{eltype(f.β)}(result.β)
+        foreach(copyto!, matrices, _pair_matrices(result))
+        copyto!(f.α, alpha)
+        copyto!(f.β, beta)
+    end
+    return f
+end

@@ -231,9 +231,9 @@ generalized Schur reordering, nondefault tuning, balancing, specialized
 structured products, sparse storage/solvers, matrix-free algorithms,
 caller-owned scratch and remaining destructive factorizations, standalone
 reflectors/rotations, teams, statistics, random and NPY still require work.
-Generalized Schur reordering has no corresponding public faer entry point in
-the inspected revision and is not counted as implemented by returning the
-standard Julia factor type. Work results and internal scratch are allocated.
+At this historical checkpoint generalized Schur reordering had no public faer
+entry point. It is implemented by the Issue #22 reorder extension recorded below;
+work results and internal scratch remain allocated.
 
 
 ## Native sparse storage, patterns and arithmetic checkpoint
@@ -2275,3 +2275,53 @@ Merged faer main `fc52fc9` / t4a-faer 0.29.0 passes the canonical suite again:
 The original diagnostic MWE also passes on this merged revision. The Cargo
 lockfile now records 0.29.0. Upstream #248 is fixed and the #207 workaround is
 removed; the extreme-scale issue #245 remains open.
+
+
+## Issue #22: saved generalized Schur reordering
+
+`ordschur` and `ordschur!` operate on the saved native S/T/Q/Z factors through
+faer #250 / PR #251. Both keep stable order within selected/unselected groups.
+Selecting either member of a real conjugate block selects the whole pair,
+matching Julia's generalized Schur convention. The four native scalar types,
+empty/singleton factors, regular infinity and unchanged 0/0 blocks are covered.
+Crossing a nonregular block or another numerically unsafe move throws.
+
+All four work factors are independent native copies; no original input snapshot
+or QZ refactorization is used. Homogeneous alpha/beta are refreshed from current
+S/T, ignoring stale or modified metadata. The new faer real-block API performs
+joint equilibration and verifies its characteristic polynomial. Complex values
+copy the reordered diagonals. The native boundary checks current factor
+shapes before forming raw selection slices and validates nonnull/aligned spans
+and disjoint homogeneous output buffers. Explicit requested scalar tags are
+checked against the current erased native variants; both QZ construction and
+reordering reject stale Julia dtype/shape metadata before output writes.
+
+`ordschur!` stages every native result and metadata conversion before writeback.
+Owners and existing views remain live; failures preserve all four factors and
+both metadata vectors. Current native owner addresses detect aliasing even
+through distinct Julia wrappers; the same guard also protects existing matrix-
+pair and generalized-Hessenberg mutation. Homogeneous vectors can be disjoint
+contiguous, interleaved or reversed views into one parent; overlapping element
+byte intervals reject. Empty shared metadata is valid. Closed owners, malformed
+factor structure, stale cached dimensions and invalid lengths reject before
+input writeback.
+
+Focused validation passes 2,409 assertions, including 4-type random QZ results,
+conjugate masks, infinity, stale metadata, saved-owner lifetime, Julia Tasks,
+owner/view preservation, overlapping/disjoint metadata, conversion failures,
+nonregular rejection and current-owner guards. Native tests pass 25 cases,
+including raw buffer length/alignment/span/overlap validation. Canonical validation passes 142,645 assertions / 90 files / 16 workers;
+all 78 README blocks, 25 native tests and Julia/Rust formatting/diff checks pass.
+
+Caller-owned reorder scratch, nondefault QZ tuning and remaining workspace/team
+connections are still incomplete. The frozen inventory and full 76-row scope
+are retained.
+
+Merged upstream adoption selects clean faer main
+`19053d8c22993851c032d5373b4ec188998f2b5c` (0.29.0). PR #251 passed all hosted
+checks and merged with a tree identical to the tested candidate. The build
+fetched and recorded this merged revision. The real-QZ construction scratch
+workaround remains: its underlying query defect is now independently reproduced
+on this latest main and reported as [faer #252](https://github.com/tensor4all/faer/issues/252).
+The 96x96 public-query MWE and proposed corrections are retained in
+[the reproducer](reproducers/faer-qz-scratch.md); no upstream patch is claimed.
