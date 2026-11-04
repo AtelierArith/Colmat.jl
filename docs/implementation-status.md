@@ -2128,6 +2128,6 @@ Colmat integration validation is running. Other native tuning remains pending.
 All algorithms expose `Qfull` and the explicit thin alias `Qthin`, while `Q`
 retains its existing thin contract. Missing pivots receive unused coordinate
 basis vectors before reflector application, preserving orthogonality for zero
-and rank-deficient inputs. Focused tests pass 1,224 assertions. Canonical
-validation is running. Rank-deficient/wide solves and rank tolerance remain
+and rank-deficient inputs. Focused tests pass 1,224 assertions. Canonical validation passes 115,222 assertions / 84 files / 16 workers.
+Rust passes 11 tests; README validation is running. Rank-deficient/wide solves and rank tolerance remain
 separate unfinished contracts.
