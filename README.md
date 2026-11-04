@@ -1866,9 +1866,11 @@ is supported for every QR algorithm.
 using Colmat, LinearAlgebra, SparseArrays
 A = FaerSparseMatrix(sparse([2.0 0; 0 3; 1 0]))
 p = FaerSparseSymbolic(A; kind=:qr, algorithm=:supernodal)
-s = FaerScratch(factorize, p, A)
-F = factorize(p, A; scratch=s)
-G = factorize(p, A; scratch=s)
+team = FaerTeam(2)
+s = FaerScratch(factorize, p, A; team)
+F = factorize(p, A; scratch=s, team)
+G = factorize(p, A; scratch=s, team)
+close(team)
 @assert F \ ones(3) ≈ Matrix(A) \ ones(3)
 close(p)
 close(s)
@@ -1881,7 +1883,10 @@ close(A)
 `factorize(plan,A;scratch=s)` supplies caller-owned workspace to auto/supernodal
 QR numeric construction. `scratch_requirements(factorize,plan,A)` queries the
 scalar-dependent requirement and `reserve!(s,factorize,plan,A)` grows capacity
-explicitly. The numeric matrix must match the plan's stored pattern exactly.
+explicitly. Add `team=team` consistently to the query, scratch constructor,
+reserve and factorization to use a retained `FaerTeam`. `factorize(plan,A;team)`
+allocates temporary scratch; `qr(A;scratch=s,team)` forwards both resources to
+numeric construction. The symbolic analysis remains sequential. The numeric matrix must match the plan's stored pattern exactly.
 Symbolic analysis, sparse snapshots and owned factor buffers allocate outside
 scratch. Returned factors do not borrow the workspace and remain valid after
 it or the input plan is closed. Explicit simplicial factor construction retains

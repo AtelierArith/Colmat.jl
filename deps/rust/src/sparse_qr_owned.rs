@@ -42,16 +42,17 @@ impl<T: ComplexField> Factors<T> {
         a: SparseColMatRef<'_, usize, T>,
         stack: &mut MemStack,
     ) -> Result<Self, String> {
+        Self::new_in_parallel(symbolic, a, stack, Par::Seq)
+    }
+    pub(crate) fn new_in_parallel(
+        symbolic: Arc<SymbolicQr<usize>>,
+        a: SparseColMatRef<'_, usize, T>,
+        stack: &mut MemStack,
+        par: Par<'_>,
+    ) -> Result<Self, String> {
         let mut indices = vec![0; symbolic.len_idx()];
         let mut values = vec![zero::<T>(); symbolic.len_val()];
-        symbolic.factorize_numeric_qr(
-            &mut indices,
-            &mut values,
-            a,
-            Par::Seq,
-            stack,
-            Default::default(),
-        );
+        symbolic.factorize_numeric_qr(&mut indices, &mut values, a, par, stack, Default::default());
         Ok(Self {
             symbolic,
             indices,

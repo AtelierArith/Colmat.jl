@@ -2907,3 +2907,27 @@ construction assertions also passed in focused runs. Native cargo test passed al
 85 tests and all 88 README blocks passed. JuliaFormatter DefaultStyle, rustfmt
 for changed native modules, diff and frozen-inventory checks passed. The selected
 clean t4a-faer remains 0.29.0 / `19053d8`; no new upstream defect was confirmed.
+
+## Auto/supernodal sparse QR numeric construction teams
+
+Numeric factorization now accepts `team=` together with optional `scratch=`.
+Queries enter the reserved team scope to use the actual parallelism shape, and
+execution passes that same shape/token to faer's numeric QR kernel. The existing
+sequential path shares the same implementation. Team-only construction reserves
+a temporary buffer sized for the team and releases it after the native call.
+`qr(A;scratch,team)` forwards both resources to numeric factorization. Rank-bound
+preparation remains sequential and reuses the buffer after the numeric kernel.
+
+Invalid/closed team or scratch and insufficient capacity are rejected before
+snapshot reads. Saved numeric factors own their output and remain usable after
+resource/source/plan close. Symbolic analysis, simplicial/wide construction
+resources, sparse LU/Cholesky construction resources, input snapshots and owned
+output allocation remain pending; the full 76-row scope is unchanged.
+
+Final canonical `Pkg.test(;allow_reresolve=false)` passed **405,573 assertions /
+106 files / 16 workers in 8m16.7s**. New focused team checks passed 4,719
+assertions, plus 1,325 existing construction/metadata checks. All 89 native tests
+and 88 README blocks passed. JuliaFormatter DefaultStyle, rustfmt for the changed
+native module/owned constructor, diff and frozen-inventory checks passed.
+Julia 1.13.3 / RustCall.jl 0.9.2 and clean t4a-faer 0.29.0 / `19053d8` remain
+unchanged. No new upstream defect was confirmed.
