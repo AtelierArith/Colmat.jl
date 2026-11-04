@@ -2575,3 +2575,39 @@ passes eight assertions for migratable tasks, yields and scheduling restoration
 on success/failure. Original thrown values, including nothing, survive both
 action and observer boundaries. Formatting/diff checks pass and the frozen
 inventory is unchanged.
+
+## Rectangular and truncated dense QR inverse actions
+
+Saved QR/column-pivoted QR now supplies a minimum-norm action for rectangular
+inputs, including rank deficiency. Nonzero atol or explicit rtol selects the
+same truncated action for square QR; the square default retains its existing
+nonsingular triangular-solve contract. This preserves existing preconditioner
+behavior while making rank truncation explicit for square factors.
+
+Construction computes the SVD of saved R once, then retains its singular
+vectors/weights, compact Householder basis/coefficients and column permutation.
+The original matrix is not reconstructed or refactorized; no dense Q or full
+pseudoinverse of A is formed. Normal/conjugate/transpose/adjoint application uses
+native scratch for projections/permutations and propagates the caller team into
+Householder and spectral products. Promotion converts saved values and preserves
+rank-cutoff decisions. Construction, promoted snapshots and result staging
+allocate separately; construction uses internal sequential SVD workspace.
+
+faer stores infinity as an inverse-Householder coefficient for an identity
+reflector; validation accepts this representation and rejects NaNs. A reproduced
+all-truncated action with finite floatmax RHS returned NaN from an overflowing
+projection. Cached zero actions now return zeros before projection, and discarded
+spectral rows are set to zero without multiplying infinity by zero. This fixes
+the owning shared spectral-action helper too, with a direct partial-truncation
+regression and four-scalar QR/SVD zero-action tests. No upstream defect is claimed.
+
+Remaining direct-factor/iteration scratch, other kernel team/tuning and the
+full 76-row scope remain open. The selected dependency stays clean 19053d8
+(0.29.0); faer #258 is tracked separately.
+
+Final canonical validation passes 179,505 assertions / 97 files / 16 workers
+(Julia 1.13.3 / RustCall 0.9.2), native 47 tests and 83 executable README blocks.
+The new file contributes 7,201 assertions, including empty-prefix wide QR and
+floatmax RHS with zero truncation. Native tests measure zero calling-thread Rust
+heap allocations during warmed Seq and two-thread applications (worker threads
+are not measured). Formatting/diff checks pass; frozen inventory is unchanged.
