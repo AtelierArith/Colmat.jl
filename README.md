@@ -946,7 +946,7 @@ p, q = Vector(F.p), Vector(F.q)
 @assert Matrix(A) * (F \ ones(3)) ≈ ones(3)
 ```
 
-`algorithm=:simplicial` retains faer's public simplicial LU factors and exposes
+Every sparse LU algorithm retains native saved factors and exposes
 independent native CSC `F.L`/`F.U` and row/column `FaerPermutation` objects
 `F.p`/`F.q`. They are the factors used by normal, transpose and adjoint solves.
 CSC/CSR input and all four native scalar types are supported, including symbolic
@@ -956,10 +956,22 @@ native COLAMD once during symbolic analysis, or supply an explicit permutation.
 `dense_row=0.5`, `dense_col=0.5` and `aggressive=true` control COLAMD when selected.
 Numeric `lu!` updates retain that column ordering.
 
-The default `algorithm=:auto` keeps the existing high-level faer factorization
-and its fill-reducing selection. Its opaque factor storage does not expose
-these component getters through the adapter yet; select `:simplicial` when
-components are needed. Sparse component extraction sorts/copies entries.
+The default `algorithm=:auto` uses faer's fill-reducing selection;
+`algorithm=:supernodal` forces its supernodal path. Both expose saved components
+and accept default/COLAMD ordering with `dense_row`, `dense_col`, `aggressive`.
+Identity/custom ordering remains specific to explicit simplicial LU.
+Sparse component extraction allocates independent CSC storage.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[0 2+im 1; 3 1 0; 0 1 4-im]
+F = lu(FaerSparseMatrix(sparse(A0)); algorithm=:supernodal)
+L, U, p, q = F.L, F.U, Vector(F.p), Vector(F.q)
+@assert Matrix(L * U) ≈ A0[p, q]
+@assert Matrix(F) ≈ A0
+close(F)
+@assert Matrix(L * U) ≈ A0[p, q]
+```
 
 ### Caller-owned parallel teams
 
@@ -1368,16 +1380,15 @@ close(pair.B)
 
 `reconstruct(F)` returns independent native storage. Dense owned LU/QR/
 Cholesky/LDLT, Schur/Hessenberg and tridiagonal/bidiagonal reductions return
-`FaerMatrix`; sparse Cholesky and explicit simplicial LU return `FaerSparseMatrix`
+`FaerMatrix`; sparse Cholesky and every sparse LU algorithm return `FaerSparseMatrix`
 in original row/column order. Generalized Schur/Hessenberg return `(A,B)` named
 fields, reconstructing both members through Q/S-or-H/T/Z. The sparse LU path
 uses current native factors and permutations, including numeric updates; it
-never copies the retained input snapshot. Its default output is CSC. Auto/
-supernodal sparse LU reconstruction remains unavailable. All sparse QR
+never copies the retained input snapshot. Its default output is CSC. All sparse QR
 algorithms reconstruct a dense native matrix from their saved Q/R factors.
 
 `Matrix{T}(F)` and `FaerMatrix{T}(F)` also support the dense owned decompositions
-above; simplicial sparse LU adds these conversions and typed sparse CSC output.
+above; sparse LU adds these conversions and typed sparse CSC output.
 Numeric conversion follows Julia rules, including errors for nonrepresentable
 complex-to-real values. Conversion temporaries are closed on errors. Reconstructed
 owners remain valid after the original factors are updated or closed.

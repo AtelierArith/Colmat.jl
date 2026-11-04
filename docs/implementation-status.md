@@ -2084,3 +2084,14 @@ with norm(I*J - actual)=0; the obsolete adapter conjugation was removed.
 Final Pkg.test passed 103,354 assertions / 79 files / 16 workers. Native Rust
 11 tests, README 67 blocks, ambiguity detection, formatting and diff checks
 passed on upstream 0bf88db.
+
+
+## Issue #22: saved auto/supernodal sparse LU components (in progress)
+
+Native L/U and row/column permutation export is connected for all sparse LU
+algorithms, enabling existing saved-factor reconstruction. Forced supernodal
+selection and native COLAMD controls are connected. Upstream API: faer #235 /
+PR #238; separate no-Rayon numeric fix: #236 / PR #237. Candidate dependency
+55d54a1 is used for integration testing; final merged dependency adoption and
+canonical validation remain pending. Initial Julia lifecycle/component checks
+passed 401 assertions; larger COLAMD fixtures and the full suite are in progress.

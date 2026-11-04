@@ -41,11 +41,11 @@ Sparse Cholesky additionally exposes independent sparse CSC `F.L` and `F.U`,
 with `F.L * F.U ≈ A[F.p,F.p]`, and supports `Matrix(F)`, `FaerSparseMatrix(F)`,
 `det`, `logdet` and `logabsdet`. Reconstruction returns the original row/column
 order. Extracted components remain usable after F is updated or closed.
-Explicit `algorithm=:simplicial` LU also supports `Matrix(F)`, `FaerMatrix(F)`,
+Sparse LU exposes independent CSC `F.L`, `F.U` and permutations `F.p`, `F.q`
+for every algorithm, with `F.L * F.U ≈ A[F.p,F.q]`. It also supports `Matrix(F)`, `FaerMatrix(F)`,
 `FaerSparseMatrix(F)` and `reconstruct(F)`, from current native L/U and inverse
 row/column permutations. Sparse QR exposes independent thin `Q`, sparse `R`, `p/pcol` and dense
 reconstruction for all algorithms, using the current saved numeric buffers.
-Auto/supernodal LU components remain unexposed.
 It also exposes independent `F.p`, the actual `F.algorithm`
 and `F.factor_storage` (numeric scalar slots, including supernodal padding).
 `cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;
@@ -110,7 +110,7 @@ function FaerSparseSymbolic(
          algorithm===:supernodal ? 2 :
          throw(ArgumentError("algorithm must be :auto, :simplicial or :supernodal"))
     use_colamd=kind in (:lu, :qr) && algo==1 && ordering===:colamd
-    native_colamd=kind===:qr && algo!=1 && ordering in (:default, :colamd)
+    native_colamd=kind in (:lu, :qr) && algo!=1 && ordering in (:default, :colamd)
     row, col=Float64(dense_row), Float64(dense_col)
     isfinite(row)&&isfinite(col) || throw(ArgumentError("COLAMD thresholds must be finite"))
     !(use_colamd || native_colamd) &&

@@ -30,10 +30,9 @@ Base.Array(f::_NativeSchur) = Matrix(f)
 """
     FaerSparseMatrix(F::FaerSparseFactorization{T,:lu})
 
-Reconstruct independent native CSC storage from explicit simplicial LU factors
+Reconstruct independent native CSC storage from saved LU factors for every algorithm
 and inverse row/column permutations. Uses current numeric factors, including
-updates; original input snapshots are not used. Auto/supernodal LU components remain unavailable. Explicit simplicial QR
-supports independent dense reconstruction through `reconstruct(F)`.
+updates; original input snapshots are not used. Sparse QR supports independent dense reconstruction through `reconstruct(F)`.
 """
 function FaerSparseMatrix(f::_SparseLU)
     lock(_matrix_lock) do
