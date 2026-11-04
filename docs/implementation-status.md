@@ -2242,3 +2242,36 @@ Merged-dependency adoption is verified: `deps/build.jl` built clean main
 `46154ca` / t4a-faer 0.28.3 and updated the Cargo lockfile. The canonical suite
 again passes all 134,984 assertions / 89 files / 16 workers on this revision;
 Rust 22 tests and README 76 blocks also pass on merged upstream main.
+
+## Issue #22: direct native LSMR tolerances (in progress)
+
+Removed the old #207 conversion of absolute tolerance into a relative bound.
+LSMR receives atol and rtol independently; Colmat retains independent true
+normal-residual verification. The original standalone Rust atol MWE succeeds on
+selected upstream main `46154ca`.
+
+That validation exposed wrong zero initial-convergence diagnostic fields (#248).
+The standalone MWE fails on main and passes on public candidate `106d870` from
+PR #249. Its four focused Rust tests cover real/complex single/double precision,
+zero/nonzero initial guesses, strided block RHS and right preconditioning.
+PR #249 passed required CI and merged as `fc52fc9`; integration now selects
+clean main `fc52fc9b5b025a9d4b75110415bb026584885e4e` (t4a-faer 0.29.0).
+Relative to the tested candidate, changes are release/ledger/workflow metadata
+and the BiCGSTAB breakdown doc clarification; the LSMR computation is unchanged.
+
+Focused Julia LSMR validation passes 5,691 assertions. It covers independent
+absolute/relative and combined bounds, native diagnostics, mixed RHS, dense and
+CSC/CSR, native matrix RHS, right preconditioning, zero references, retained
+initial guesses, callback/history zero-update behavior and checked in-place
+failures. Coordinate RHS provide exact cutoff equality fixtures; dense block
+RHS use bounds with a clear margin because QR norm estimates can round by 1 ulp.
+
+Canonical candidate validation passes 140,236 assertions / 89 files / 16 workers.
+All 77 executable README blocks and 22 Rust tests pass. Julia/Rust formatting
+and diff checks pass. Merged upstream 0.29.0 adoption and final checks are recorded below.
+
+Merged faer main `fc52fc9` / t4a-faer 0.29.0 passes the canonical suite again:
+140,236 assertions / 89 files / 16 workers, README 77 blocks and Rust 22 tests.
+The original diagnostic MWE also passes on this merged revision. The Cargo
+lockfile now records 0.29.0. Upstream #248 is fixed and the #207 workaround is
+removed; the extreme-scale issue #245 remains open.
