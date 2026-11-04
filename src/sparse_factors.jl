@@ -17,8 +17,8 @@ column ordering and exposes thin Q, sparse R and column permutation on numeric
 factors. Explicit simplicial LU/QR additionally accept `ordering=:colamd` with
 `dense_row=0.5, dense_col=0.5, aggressive=true`. COLAMD is computed once from the
 stored pattern and retained by symbolic reuse and numeric updates. AMD tuning
-remains Cholesky-only. Auto/supernodal QR accepts default/COLAMD ordering with
-`dense_row`, `dense_col`, `aggressive`, and exposes `F.p/F.pcol`.
+remains Cholesky-only. Auto/supernodal LU/QR accepts default/COLAMD, identity or custom column ordering.
+COLAMD accepts `dense_row`, `dense_col`, `aggressive`. QR exposes `F.p/F.pcol`.
 """
 mutable struct FaerSparseSymbolic{K,H}
     handle::Union{Nothing,H}
@@ -110,6 +110,9 @@ function FaerSparseSymbolic(
          throw(ArgumentError("algorithm must be :auto, :simplicial or :supernodal"))
     use_colamd=kind in (:lu, :qr) && algo==1 && ordering===:colamd
     native_colamd=kind in (:lu, :qr) && algo!=1 && ordering in (:default, :colamd)
+    native_explicit=kind in (:lu, :qr) &&
+                    algo!=1 &&
+                    (ordering===:identity || ordering isa AbstractVector{<:Integer})
     row, col=Float64(dense_row), Float64(dense_col)
     isfinite(row)&&isfinite(col) || throw(ArgumentError("COLAMD thresholds must be finite"))
     !(use_colamd || native_colamd) &&
@@ -121,20 +124,19 @@ function FaerSparseSymbolic(
         )
     if kind!==:cholesky &&
        !(kind in (:lu, :qr) && algo==1 && threshold==10.0 && (aggressive || use_colamd)) &&
-       !(native_colamd && threshold==10.0) &&
+       !((native_colamd || (native_explicit && aggressive)) && threshold==10.0) &&
        (ordering!==:default || threshold!=10.0 || !aggressive || algo!=0)
         throw(
             ArgumentError(
-                "these controls require Cholesky, or explicit simplicial LU/QR with identity/custom/COLAMD ordering",
+                "these controls require Cholesky or supported sparse LU/QR ordering options",
             ),
         )
     end
     kind in (:lu, :qr) &&
-        algo==1 &&
         ordering===:amd &&
         throw(
             ArgumentError(
-                "simplicial LU/QR ordering supports :default (identity), :identity, :colamd or a permutation",
+                "LU/QR ordering supports :default, :identity, :colamd or a permutation",
             ),
         )
     custom=use_colamd || ordering isa AbstractVector{<:Integer}

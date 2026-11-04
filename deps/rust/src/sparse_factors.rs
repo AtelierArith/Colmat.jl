@@ -80,6 +80,22 @@ impl SparseSymbolic {
             if kind == 1 && m < n {
                 return Err("sparse QR requires at least as many rows as columns".into());
             }
+            let explicit_cols = if ordering == 2 {
+                Some(
+                    unsafe { &*permutation.cast::<OwnedPermutation>() }
+                        .data()?
+                        .clone(),
+                )
+            } else if ordering == 1 {
+                let p: Vec<usize> = (0..n).collect();
+                Some(faer::perm::Perm::new_checked(
+                    p.clone().into_boxed_slice(),
+                    p.into_boxed_slice(),
+                    n,
+                ))
+            } else {
+                None
+            };
             let analysis = match kind {
                 0 if supernodal == 1 => {
                     let p = if ordering == 2 {
@@ -99,25 +115,32 @@ impl SparseSymbolic {
                     }
                     Analysis::SimplicialLu(p)
                 }
-                0 => Analysis::Lu(
-                    SymbolicLu::try_new_with_params(
-                        pattern.as_ref(),
-                        faer::sparse::linalg::lu::LuSymbolicParams {
-                            colamd_params: faer::sparse::linalg::colamd::Control {
-                                dense_row,
-                                dense_col,
-                                aggressive,
-                            },
-                            supernodal_flop_ratio_threshold: if supernodal == 2 {
-                                SupernodalThreshold::FORCE_SUPERNODAL
-                            } else {
-                                SupernodalThreshold::AUTO
-                            },
-                            ..Default::default()
+                0 => {
+                    let params = faer::sparse::linalg::lu::LuSymbolicParams {
+                        colamd_params: faer::sparse::linalg::colamd::Control {
+                            dense_row,
+                            dense_col,
+                            aggressive,
                         },
-                    )
-                    .map_err(|e| format!("{e:?}"))?,
-                ),
+                        supernodal_flop_ratio_threshold: if supernodal == 2 {
+                            SupernodalThreshold::FORCE_SUPERNODAL
+                        } else {
+                            SupernodalThreshold::AUTO
+                        },
+                        ..Default::default()
+                    };
+                    let symbolic = if let Some(p) = &explicit_cols {
+                        SymbolicLu::try_new_with_column_ordering(
+                            pattern.as_ref(),
+                            params,
+                            p.as_ref(),
+                        )
+                    } else {
+                        SymbolicLu::try_new_with_params(pattern.as_ref(), params)
+                    }
+                    .map_err(|e| format!("{e:?}"))?;
+                    Analysis::Lu(symbolic)
+                }
                 1 if supernodal == 1 => {
                     let owned;
                     let cols = if ordering == 2 {
@@ -141,7 +164,7 @@ impl SparseSymbolic {
                     )?)
                 }
                 1 => Analysis::Qr(Arc::new(
-                    faer::sparse::linalg::qr::factorize_symbolic_qr(
+                    faer::sparse::linalg::qr::factorize_symbolic_qr_with_column_ordering(
                         pattern.as_ref(),
                         faer::sparse::linalg::qr::QrSymbolicParams {
                             colamd_params: faer::sparse::linalg::colamd::Control {
@@ -156,6 +179,7 @@ impl SparseSymbolic {
                             },
                             ..Default::default()
                         },
+                        explicit_cols.as_ref().map(|p| p.as_ref()),
                     )
                     .map_err(|e| format!("{e:?}"))?,
                 )),

@@ -959,7 +959,7 @@ Numeric `lu!` updates retain that column ordering.
 The default `algorithm=:auto` uses faer's fill-reducing selection;
 `algorithm=:supernodal` forces its supernodal path. Both expose saved components
 and accept default/COLAMD ordering with `dense_row`, `dense_col`, `aggressive`.
-Identity/custom ordering remains specific to explicit simplicial LU.
+Every LU algorithm accepts `ordering=:identity` or a supplied column permutation.
 Sparse component extraction allocates independent CSC storage.
 
 ```julia
@@ -1604,8 +1604,7 @@ close(B)
 same COLAMD controls as `FaerSparseSymbolic`. Stored zeros participate in the
 ordering; numeric values do not. The generated permutation is copied into
 Rust-owned analysis, so no temporary ordering handle needs to remain open.
-This explicit ordering option is currently available for simplicial LU/QR;
-auto/supernodal LU/QR retain their existing default selection.
+Every sparse LU/QR algorithm accepts this explicit ordering option.
 
 
 ### Explicit supernodal sparse QR
@@ -1650,7 +1649,7 @@ For auto/supernodal QR, `ordering=:default` and `ordering=:colamd` both select
 native COLAMD. For example, `qr(A; algorithm=:supernodal, ordering=:colamd,
 dense_row=-1.0, dense_col=0.0, aggressive=false)` retains the resulting order
 through copies and numeric updates. Identity/custom ordering for this path
-remains unavailable; explicit simplicial QR supports those options.
+is supported for every QR algorithm.
 
 ### Reuse workspace for sparse QR factor construction
 
@@ -1964,4 +1963,15 @@ M=FaerLinearOperator(F)
 close(F)
 @assert isapprox(M*b, ComplexF64.(A0)\b; rtol=1e-5)
 close(M)
+```
+
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0=ComplexF64[4 0; im 3; 0 1]
+F=qr(FaerSparseMatrix(sparse(A0)); algorithm=:supernodal, ordering=[2,1])
+@assert Vector(F.pcol)==[2,1]
+@assert Matrix(F.Q)*Matrix(F.R)≈A0[:,[2,1]]
+@assert Matrix(F)≈A0
+close(F)
 ```
