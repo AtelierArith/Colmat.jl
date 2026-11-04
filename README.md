@@ -1936,9 +1936,43 @@ Square native QR and column-pivoted QR factors can provide inverse actions.
 Their compact Householder basis/coefficients, R and column permutation are copied
 into an independent native owner. No explicit Q, inverse or refactorization is
 needed. Native QR solve kernels consume operator scratch, and mixed scalar
-promotion converts the saved components. Empty square factors are supported;
-rectangular factors and zero R pivots are rejected. This interface does not
-provide rank-tolerance control or rank-deficient pseudoinverse preconditioning.
+promotion converts the saved components. Empty square factors are supported.
+Without a nonzero atol or explicit rtol, square QR keeps this nonsingular
+inverse contract and rejects zero R pivots.
+
+Rectangular QR instead provides a minimum-norm action of shape `reverse(size(F))`,
+including rank-deficient inputs. `atol`/`rtol` select singular values of saved R
+using `max(atol,rtol*maximum(svdvals(R)))`. The default rtol is
+`min(size(F)...)*eps(real(eltype(F)))` when atol is zero, and zero otherwise.
+Nonzero atol or explicit rtol also select this truncated action for square QR.
+Construction computes an SVD of R once and stores its singular factors, compact
+Householder factors and column permutation. Applications form neither dense Q
+nor a pseudoinverse of A and reuse native scratch/team. Promotion converts the
+cache without recomputing rank; construction and result staging allocate.
+
+```julia
+using Colmat, LinearAlgebra
+A0=ComplexF64[1 im 2;0 2 1]
+F=qr(FaerMatrix(A0),ColumnNorm())
+M=FaerLinearOperator(F)
+close(F)
+B=ones(ComplexF64,2,2)
+FaerTeam(2) do team
+    X=zeros(ComplexF64,3,2)
+    scratch=FaerScratch(mul!,X,M,B;team)
+    @assert mul!(X,M,B;scratch,team)===X
+    @assert X≈pinv(A0)*B
+    close(scratch)
+end
+@assert Matrix(M')≈pinv(A0)'
+close(M)
+# Explicit rtol enables a truncated action for singular square QR too.
+F=qr(FaerMatrix([1.0 0;0 0]))
+M=FaerLinearOperator(F;rtol=1e-12)
+@assert Matrix(M)≈[1.0 0;0 0]
+close(M)
+close(F)
+```
 
 ### Retained LDLT preconditioners for indefinite systems
 
@@ -2032,8 +2066,7 @@ the current native factorization for every LU algorithm. It never uses the sourc
 or a dense coefficient matrix, including when promoting factors for a mixed RHS.
 Normal/conjugate/transpose/adjoint application uses sparse triangular solves
 and an RHS-sized native scratch intermediate. Copies remain independent after
-the original factors are updated or closed. Auto/supernodal sparse LU
-preconditioners require their component interface and remain pending.
+the original factors are updated or closed. All sparse LU algorithms expose the retained component interface used here.
 
 ### Native preconditioning from sparse Cholesky
 
@@ -2055,8 +2088,8 @@ Sparse Cholesky inverse actions support auto/simplicial/supernodal factors,
 both input triangles and retained symmetric ordering. Their independently owned
 sparse L/U factors use nonunit triangular solves; mixed scalar promotion,
 conjugation, transpose/adjoint and copy/composition preserve sparse storage.
-The operator does not read or refactor the source snapshot. Auto/supernodal
-sparse LU and sparse QR inverse actions remain pending.
+The operator does not read or refactor the source snapshot. All sparse LU and QR algorithms also provide saved-factor inverse actions,
+as described in their sections.
 
 ### Native inverse actions from sparse QR
 

@@ -14,9 +14,11 @@ use faer::{c32, c64, diag::Diag, Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 mod julia_callback;
 mod qr_actions;
+mod qr_pseudoinverse;
 use qr_actions::{OwnedQrInverse, WideQrInverse};
 #[derive(Clone)]
 enum Base<T> {
+    QrPseudo(Box<qr_pseudoinverse::QrPseudoInverse<T>>),
     Callback(julia_callback::JuliaCallback),
     Dense(Mat<T>),
     Sparse(Storage<T>),
@@ -41,6 +43,10 @@ struct Operator<T> {
 macro_rules! dispatch {
     ($op:expr,$a:ident=>$expr:expr) => {
         match &$op.base {
+            Base::QrPseudo($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
             Base::Callback($a) => $expr,
             Base::Dense($a) => $expr,
             Base::Sparse(Storage::Csc($a)) => $expr,
@@ -1755,6 +1761,7 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
+        Base::QrPseudo(f) => Base::QrPseudo(Box::new(f.map_values(cast))),
         Base::Callback(f) => Base::Callback(julia_callback::JuliaCallback {
             tag: T::tag(),
             ..*f
@@ -1791,6 +1798,7 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
             u: Mat::from_fn(f.u.nrows(), f.u.ncols(), |i, j| cast(&f.u[(i, j)])),
             v: Mat::from_fn(f.v.nrows(), f.v.ncols(), |i, j| cast(&f.v[(i, j)])),
             weights: f.weights.iter().map(cast).collect(),
+            zero: f.zero,
         })),
         Base::InverseLdlt(f) => {
             let mut d = Diag::zeros(f.diagonal.dim());
@@ -2527,6 +2535,7 @@ struct InverseSpectral<T> {
     u: Mat<T>,
     v: Mat<T>,
     weights: Vec<T>,
+    zero: bool,
 }
 impl<T> std::fmt::Debug for InverseSpectral<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -2545,7 +2554,7 @@ impl<T: ComplexField> InverseSpectral<T> {
     {
         let cutoff = crate::spectral_solve::threshold(f, atol, rtol, relative_f32)?;
         let k = f.s().dim();
-        let weights = (0..k)
+        let weights: Vec<T> = (0..k)
             .map(|i| {
                 let x = real(&f.s()[i]);
                 if abs(&x) > cutoff {
@@ -2558,6 +2567,7 @@ impl<T: ComplexField> InverseSpectral<T> {
         Ok(Self {
             u: f.u().subcols(0, k).to_owned(),
             v: f.v().subcols(0, k).to_owned(),
+            zero: weights.iter().all(|w| *w == zero::<T>()),
             weights,
         })
     }
@@ -2571,7 +2581,7 @@ impl<T: ComplexField> InverseSpectral<T> {
         c: bool,
     ) {
         let k = self.weights.len();
-        if k == 0 || b.ncols() == 0 {
+        if self.zero || k == 0 || b.ncols() == 0 {
             out.fill(zero::<T>());
             return;
         }
@@ -2597,7 +2607,11 @@ impl<T: ComplexField> InverseSpectral<T> {
         for j in 0..b.ncols() {
             for i in 0..k {
                 let x = copy(&projected.as_mat_ref()[(i, j)]);
-                projected.as_mat_mut()[(i, j)] = mul(&x, &self.weights[i]);
+                projected.as_mat_mut()[(i, j)] = if self.weights[i] == zero::<T>() {
+                    zero::<T>()
+                } else {
+                    mul(&x, &self.weights[i])
+                };
             }
         }
         matmul_with_conj(
@@ -2620,7 +2634,11 @@ impl<T: ComplexField> LinOp<T> for InverseSpectral<T> {
         self.u.nrows()
     }
     fn apply_scratch(&self, k: usize, _: ParShape) -> StackReq {
-        faer::linalg::temp_mat_scratch::<T>(self.weights.len(), k)
+        if self.zero {
+            StackReq::EMPTY
+        } else {
+            faer::linalg::temp_mat_scratch::<T>(self.weights.len(), k)
+        }
     }
     fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
         self.run(o, b, p, s, false, false)

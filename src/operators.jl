@@ -1027,7 +1027,8 @@ inverse action is positive definite, or with BiCGSTAB for general systems. No
 inverse matrix or new factorization is formed; each apply solves using saved
 triangular factors and any pivots with native scratch. Mixed native scalar types promote saved factors without refactorization.
 """
-function FaerLinearOperator(f::FaerFactorization{T,K}) where {T,K}
+FaerLinearOperator(f::FaerFactorization) = _dense_factor_operator(f)
+function _dense_factor_operator(f::FaerFactorization{T,K}) where {T,K}
     K in (:lu, :full_lu, :qr, :pivoted_qr, :cholesky, :ldlt, :bunchkaufman) || throw(
         ArgumentError(
             "factor preconditioner requires LU, QR (optionally pivoted), Cholesky or LDLT (optionally block pivoted)",
@@ -1041,11 +1042,68 @@ function FaerLinearOperator(f::FaerFactorization{T,K}) where {T,K}
             K===:cholesky ? throw(LinearAlgebra.PosDefException(f.info)) :
             throw(LinearAlgebra.SingularException(f.info))
         )
+        _dense_solve_validate(f)
         h=RustCrate.OwnedLinearOperator()
         fun=T===Float64 ? RustCrate.operator_factor_preconditioner :
             RustCrate.operator_typed_factor_preconditioner
         _native_call(fun, h, f)
         FaerLinearOperator{T,typeof(h)}(h, size(f), :factorization, false, false)
+    end
+end
+
+const _DenseQrFactor =
+    Union{FaerFactorization{T,:qr},FaerFactorization{T,:pivoted_qr}} where {T}
+"""
+    FaerLinearOperator(F::FaerFactorization{T,:qr}; atol=0, rtol=nothing)
+
+Build a saved-factor inverse/pseudoinverse action from QR, with or without
+column pivoting. Rectangular QR uses a
+minimum-norm action with cutoff `max(atol,rtol*maximum(svdvals(R)))` and a default
+rtol of `min(size(F)...)*eps(real(T))` when atol is zero (otherwise zero).
+Nonzero atol or explicit rtol also select this rank-truncated action for square QR.
+Square QR without tolerances keeps its existing nonsingular inverse contract.
+
+Construction computes an SVD of saved R and retains its singular factors plus
+compact Householder factors and column permutation. No dense Q, pseudoinverse
+of the original matrix or source refactorization is formed. Applications use
+native scratch/team; construction and result staging allocate separately.
+Promotion converts saved data and preserves the original cutoff decisions.
+"""
+function FaerLinearOperator(f::_DenseQrFactor; atol::Real = 0, rtol = nothing)
+    lock(_matrix_lock) do
+        _handle(f)
+        at, rt=_spectral_tolerances(
+            atol,
+            isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol,
+        )
+        if size(f, 1)==size(f, 2) && iszero(atol) && isnothing(rtol)
+            return _dense_factor_operator(f)
+        end
+        _dense_solve_validate(f)
+        LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+        relative=isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol
+        T=eltype(f)
+        h=RustCrate.OwnedLinearOperator()
+        fun=T===Float64 ? RustCrate.operator_qr_pseudoinverse :
+            RustCrate.operator_qr_pseudoinverse_typed
+        _native_call(
+            fun,
+            h,
+            f,
+            at,
+            rt,
+            promote_type(typeof(relative), _realtype(T))===Float32,
+            UInt(size(f, 1)),
+            UInt(size(f, 2)),
+            _tag(T),
+        )
+        return FaerLinearOperator{T,typeof(h)}(
+            h,
+            reverse(size(f)),
+            :factorization,
+            false,
+            false,
+        )
     end
 end
 
@@ -1055,8 +1113,8 @@ end
 Own a sparse inverse-action snapshot of LU/QR/Cholesky factors for every algorithm. Native
 CSC L/U and row/column permutations are retained independently; mixed scalar
 promotion converts these factors without refactorizing the stored input.
-Application uses saved factors and sparse triangular solves. Auto/supernodal QR
-allocates intermediate matrices and workspace per application.
+Application uses saved factors and sparse triangular solves. Prepared
+auto/supernodal and wide QR actions use declared native scratch and caller teams.
 """
 function FaerLinearOperator(f::FaerSparseFactorization{T,K}) where {T,K}
     K in (:lu, :cholesky, :qr) ||

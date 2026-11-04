@@ -31,7 +31,9 @@ using Colmat, LinearAlgebra, Test
         close(G)
     end
     F=qr(FaerMatrix(ones(3, 2)))
-    @test_throws DimensionMismatch FaerLinearOperator(F)
+    M=FaerLinearOperator(F)
+    @test Matrix(M)≈pinv(ones(3, 2))
+    close(M)
     close(F)
 end
 @testset "QR preconditioner iterative use and zero pivot" begin
