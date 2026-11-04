@@ -53,14 +53,19 @@ function _raw_owner_positions(f)
     end
     return ()
 end
+_operator_callback_owners(::Any) = nothing
+function _native_call_plain(f, args...)
+    native = map(_native_argument, args)
+    raw_positions = _raw_owner_positions(f)
+    ffi_args = ntuple(length(args)) do i
+        i in raw_positions ? _raw_owner_argument(native[i], args[i]) : native[i]
+    end
+    return GC.@preserve native RustCall.result_to_exception(f(ffi_args...))
+end
 function _native_call(f, args...)
     lock(_matrix_lock) do
-        native = map(_native_argument, args)
-        raw_positions = _raw_owner_positions(f)
-        ffi_args = ntuple(length(args)) do i
-            i in raw_positions ? _raw_owner_argument(native[i], args[i]) : native[i]
-        end
-        return GC.@preserve native RustCall.result_to_exception(f(ffi_args...))
+        any(x -> !isnothing(_operator_callback_owners(x)), args) ?
+        _native_call_with_callbacks(f, args...) : _native_call_plain(f, args...)
     end
 end
 

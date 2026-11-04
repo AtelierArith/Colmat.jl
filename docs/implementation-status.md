@@ -2532,3 +2532,46 @@ The new dense-solve file contributes 12,197 assertions. Closed/invalid teams,
 unsuccessful factors, nonfinite RHS, conversion failure, current native dtype/
 shape/kind, copies, shared Tasks, zero shapes and blocked 129-order factors
 are covered. Formatting/diff checks pass; the frozen inventory is unchanged.
+
+## Julia-defined native operator and preconditioner callbacks
+
+A new FaerLinearOperator constructor accepts forward/adjoint in-place Julia
+functions and matrix dimensions. Native operators retain integer identities,
+not Julia pointers. Julia owners retain function state across copies, transforms,
+promotion and compositions. A synchronous native scope installs a process-lived
+static dispatcher only on the original calling thread and restores prior state
+on every exit; native workers cannot invoke Julia through a foreign-thread scope.
+The calling task is temporarily pinned while native frames are live, preserving
+RustCall's same-thread callback borrow even if user code yields. Its prior
+scheduling state is restored on success and failure. Same-task nested calls
+remain reentrant; other tasks serialize on the existing owner lock.
+RustCall's scoped body callback keeps the native call on the Julia task. The
+separate static action dispatcher also composes with the solver's existing
+RustCall iteration callback slots without replacing them.
+
+The action dispatcher copies native input into owned Julia matrices and provides
+an owned output initialized with NaN, then checks complete finite overwrite
+before copying back. Escaped arrays remain owned and valid. User exceptions never
+unwind through C/Rust; the scope returns before the original Julia exception is
+rethrown. Failed actions cannot commit staged products or in-place solver output.
+Native conjugate/transpose applications use declared scratch for conjugating
+intermediates. Callback marshaling, Julia function work and result staging still
+allocate outside native scratch. Captured state is shared by reference even in
+deepcopy; native operator ownership remains independent.
+
+CG/BiCGSTAB/LSMR and partial spectra use their native algorithms with these
+LinOp/BiLinOp/Precond/BiPrecond actions. Existing explicit small/full-projection
+partial-spectrum dense fallbacks retain their reported algorithm labels.
+Iteration histories/stopping callbacks can run alongside action callbacks.
+Remaining iterative workspace/team, direct factor scratch, dense rectangular QR
+inverse actions and other incomplete 76-row features remain open. No new faer or
+RustCall defect is implied by the adapter; the selected dependency is unchanged
+at clean 19053d8 (0.29.0).
+
+Final canonical validation passes 172,304 assertions / 96 files / 16 workers
+(Julia 1.13.3 / RustCall 0.9.2), native 41 tests and 82 executable README blocks.
+The callback file contributes 1,481 assertions. A separate four-thread probe
+passes eight assertions for migratable tasks, yields and scheduling restoration
+on success/failure. Original thrown values, including nothing, survive both
+action and observer boundaries. Formatting/diff checks pass and the frozen
+inventory is unchanged.

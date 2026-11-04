@@ -1,6 +1,7 @@
 """
     FaerLinearOperator(A)
     FaerLinearOperator(I, n; T=Float64)
+    FaerLinearOperator(apply!, adjoint_apply!, m, n; T=Float64)
 
 Own an independent faer LinOp/BiLinOp snapshot of a dense matrix, native/Julia
 CSC or native CSR sparse matrix, or diagonal matrix. Identity and diagonal
@@ -11,8 +12,8 @@ with `.transposed/.conjugated` describing its orientation.
 Native composition is available with operator * operator. Application supports
 `mul!(X, op, B[, alpha,beta]; scratch,team)` and explicit `*(op,B; scratch,team)`
 with scratch queries/reserve, including prepared owned/wide sparse-QR inverse
-actions. Arbitrary Julia-function
-callbacks remain unavailable.
+actions. Julia callback operators retain function state by reference and marshal
+independent Julia arrays around native trait applications.
 """
 mutable struct FaerLinearOperator{T,H} <: AbstractMatrix{T}
     handle::Union{Nothing,H}
@@ -20,7 +21,10 @@ mutable struct FaerLinearOperator{T,H} <: AbstractMatrix{T}
     storage::Symbol
     transposed::Bool
     conjugated::Bool
+    callbacks::Union{Nothing,Dict{UInt,Any}}
 end
+FaerLinearOperator{T,H}(h, dims, storage, tr, cj) where {T,H} =
+    FaerLinearOperator{T,H}(h, dims, storage, tr, cj, nothing)
 function _handle(op::FaerLinearOperator)
     h=getfield(op, :handle)
     isnothing(h) && throw(ArgumentError("linear operator has been closed"))
@@ -36,6 +40,7 @@ Base.isopen(op::FaerLinearOperator) =
 function Base.close(op::FaerLinearOperator)
     lock(_matrix_lock) do ;
         op.handle=nothing
+        op.callbacks=nothing
     end
     return nothing
 end
@@ -119,6 +124,7 @@ function _operator_copy(
             op.storage,
             op.transposed⊻transpose,
             op.conjugated⊻conjugate,
+            op.callbacks,
         )
     end
 end
@@ -132,10 +138,8 @@ function _operator_coefficients(op::FaerLinearOperator{T}) where {T}
     lock(_matrix_lock) do
         _handle(op)
         dims=op.transposed ? reverse(size(op)) : size(op)
-        op.storage in (:composition, :factorization) && throw(
-            ArgumentError(
-                "composite operator has no single coefficient storage; use Matrix(op)",
-            ),
+        op.storage in (:composition, :factorization, :callback) && throw(
+            ArgumentError("operator has no single coefficient storage; use Matrix(op)"),
         )
         if op.storage===:dense
             return T===Float64 ? _matrix_result(RustCrate.operator_dense_from, dims, op) :
@@ -184,6 +188,7 @@ function _operator_coerce(op::FaerLinearOperator, ::Type{T}) where {T<:_NativeSc
         op.storage,
         op.transposed,
         op.conjugated,
+        op.callbacks,
     )
 end
 const _OperatorMatrix=_HouseholderMatrix
@@ -442,8 +447,9 @@ end
 Call faer's preconditioned block conjugate-gradient solver. A must be Hermitian
 positive definite, and M (if provided) must apply a Hermitian positive definite
 approximate inverse. Dense/sparse/diagonal/identity native operators are accepted;
-matrices are copied to an operator snapshot. Julia-defined operator actions remain
-unavailable; iteration callbacks and histories are supported as described below.
+matrices are copied to an operator snapshot. Julia callback operators and
+preconditioners are accepted; iteration callbacks and histories are supported
+as described below.
 Returns FaerCgResult; x is a native vector for native vector RHS, a Julia vector
 for Julia vector RHS, or a native matrix for matrix RHS. Multiple RHS use faer's
 block algorithm. Inputs are unchanged. All native scalar types/promotions apply.
@@ -1007,6 +1013,7 @@ function Base.:*(a::FaerLinearOperator, b::FaerLinearOperator)
             :composition,
             false,
             false,
+            _merge_operator_callbacks(left, right),
         )
     end
 end

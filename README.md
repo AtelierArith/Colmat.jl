@@ -2224,6 +2224,43 @@ b = ones(3)
 close(F)
 ```
 
+### Julia-defined operator and preconditioner actions
+
+`FaerLinearOperator(apply!,adjoint_apply!,m,n;T)` supplies native LinOp/BiLinOp
+traits with Julia functions. Each function receives owned Julia matrices `(Y,X)`
+and must overwrite all of Y with the forward or adjoint product. The functions
+must accept batched RHS and promoted native scalar types. Captured state is held
+by reference and shared by copies, transforms and compositions. Callback arrays
+may be retained after a call; they never borrow native temporary storage.
+
+```julia
+using Colmat, LinearAlgebra
+A0=[4.0 1;1 3]
+apply! = (Y,X)->mul!(Y,A0,X)
+op=FaerLinearOperator(apply!,apply!,2,2)
+jacobi! = (Y,X)->copyto!(Y,X ./ diag(A0))
+M=FaerLinearOperator(jacobi!,jacobi!,2,2)
+b=[1.0,2.0]
+@assert Vector(op*b)≈A0*b
+result=cg(op,b;M,history=true)
+@assert result.converged
+@assert result.x≈A0\b
+@assert Matrix(op)≈A0
+close(M)
+close(op)
+```
+
+CG/BiCGSTAB/LSMR, preconditioner application and partial spectra still run their
+native algorithms. They invoke Julia actions synchronously on the calling Julia
+thread. The task is temporarily pinned for this call. Same-task nested Colmat
+calls are supported; calls from other tasks serialize on the owner lock until
+the callback returns. User exceptions return through the native boundary before being rethrown;
+failed actions preserve staged destinations. Outputs must be finite and fully
+written. Empty-domain/range and zero-column products are treated as zero maps.
+Native composition/conjugation intermediates can reuse `scratch=`/`team=` as
+for other operators; Julia callback buffers and result staging allocate separately.
+This interface does not promise allocation-free Julia actions.
+
 ### Iterative histories and stopping callbacks
 
 `cg`, `bicgstab`, `lsmr` and their in-place forms accept `history=true` and
@@ -2253,8 +2290,8 @@ produce no callback/history entries. Callback exceptions propagate after safely
 returning through Rust; in-place destinations remain unchanged. A deliberate
 stop copies the stopped iterate into an in-place destination.
 
-These are iteration callbacks. Julia-defined operator/preconditioner actions
-and iteration workspace/team control remain separate work under Issue #22.
+Julia-defined operator/preconditioner actions are available through the constructor
+above. Iteration workspace/team control remains separate work under Issue #22.
 
 LSMR can falsely report native convergence on extreme uniform scales
 ([faer #245](https://github.com/tensor4all/faer/issues/245)). Colmat's true-residual
