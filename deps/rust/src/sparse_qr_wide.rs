@@ -124,9 +124,6 @@ impl<T: ComplexField> Factors<T> {
             n,
         })
     }
-    pub(crate) fn dimensions(&self) -> (usize, usize) {
-        (self.m, self.n)
-    }
     pub(crate) fn r(&self) -> SparseColMat<usize, T> {
         self.r.clone()
     }
@@ -165,6 +162,12 @@ impl<T: ComplexField> Factors<T> {
         );
         Ok(out)
     }
+    pub(crate) fn into_action_parts(
+        self,
+    ) -> Result<(sparse_qr_owned::Factors<T>, Mat<T>, Perm<usize>), String> {
+        let inverse = self.inverse_r()?;
+        Ok((self.head, inverse, self.columns))
+    }
     pub(crate) fn solve_transpose(
         &self,
         b: MatRef<'_, T>,
@@ -182,19 +185,6 @@ impl<T: ComplexField> Factors<T> {
             inverse.transpose() * &rhs
         };
         self.head.apply_q(projected.as_ref(), !adjoint)
-    }
-    pub(crate) fn map_values<U: ComplexField>(
-        &self,
-        cast: impl Fn(&T) -> U,
-    ) -> Result<Factors<U>, String> {
-        let symbolic = self.r.symbolic().to_owned().map_err(|e| format!("{e:?}"))?;
-        Ok(Factors {
-            head: self.head.map_values(&cast),
-            r: SparseColMat::new(symbolic, self.r.val().iter().map(cast).collect()),
-            columns: self.columns.clone(),
-            m: self.m,
-            n: self.n,
-        })
     }
     pub(crate) fn solve(&self, b: MatRef<'_, T>) -> Result<Mat<T>, String> {
         if b.nrows() != self.m {

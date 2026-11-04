@@ -1788,9 +1788,10 @@ close(op)
 Kernel scratch covers the native LinOp query, including composition and saved
 factor inverse-action intermediates where implemented. Result staging, Julia
 scaling/conversion buffers and promoted operator snapshots allocate separately.
-Existing auto/supernodal and wide sparse-QR inverse fallbacks still allocate
-application temporaries and run sequentially outside this buffer; completing
-those paths remains tracked by Issue #22. Invalid/closed resources and insufficient
+Prepared auto/supernodal and wide sparse-QR inverse actions use this buffer and
+propagate the team to their kernels. Wide inverse construction caches the dense
+pseudoinverse of R once; construction and direct factor solves have separate
+allocation costs. Invalid/closed resources and insufficient
 capacity/alignment reject before destination writeback. Shared use is serialized
 by the owner lock.
 
@@ -2047,8 +2048,9 @@ The action retains sparse Householder components, R and column permutation;
 no dense Q or pseudoinverse is formed. Full-column-rank tall and square factors
 produce an action of shape `reverse(size(F))`. Transpose/adjoint apply minimum-norm
 inverse actions using saved reflectors and sparse triangular solves. All native
-scalar promotions preserve Householder pivot ordering. Explicit simplicial intermediates use native scratch; auto/supernodal actions
-currently allocate temporary matrices and native workspace per application.
+scalar promotions preserve Householder pivot ordering. Explicit simplicial and
+auto/supernodal action intermediates use native scratch; caller scratch and team
+are supported for all orientations.
 Every algorithm reuses saved factors without refactorizing source snapshots.
 Rank-deficient factors instead build an independent native dense pseudoinverse
 action, with the allocation costs described below.
@@ -2149,10 +2151,13 @@ applications to project the remaining columns. Column projection processes one
 column at a time without materializing a dense Q or the complete tail. `F.Q` and
 `F.Qfull` are m×m; `F.R` is m×n. The full input column permutation is retained
 by symbolic reuse and numeric updates.
-Normal, transpose/adjoint and inverse actions use native dense SVD of saved R
-for minimum-norm least squares, including rank-deficient wide inputs. This solve
-path materializes m×n dense R and allocates SVD workspace; caller-owned scratch
-is not connected for wide factors. The default cutoff matches rank/pinv:
+Direct normal and transpose/adjoint solves use native dense SVD of saved R
+for minimum-norm least squares, including rank-deficient wide inputs. Each direct
+solve materializes m×n dense R and allocates SVD workspace; caller-owned scratch
+is not connected for these factor solves. A `FaerLinearOperator(F)` instead
+caches the pseudoinverse of R during construction and reuses caller scratch/team
+for subsequent applications. Scalar promotion preserves the cached rank cutoff.
+The default cutoff matches rank/pinv:
 `min(size(F)...)*eps(real(eltype(F)))*maximum(svdvals(F))`.
 
 ```julia

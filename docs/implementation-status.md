@@ -2472,3 +2472,31 @@ keywords, dense rectangular QR inverse actions and arbitrary Julia callbacks.
 No universal allocation-free or parallel-speed claim is made. The selected
 clean faer dependency is unchanged at 19053d8 (0.29.0); full 76-row scope and
 frozen inventory remain intact.
+
+## Prepared owned/wide sparse QR inverse workspace
+
+Owned auto/supernodal inverse actions now prepare the saved sparse R, column
+permutation and Householder projection layout once. Wide inverse actions cache
+the dense pseudoinverse of saved R once. Applications, conjugates, transposes
+and adjoints use declared caller scratch and propagate the caller team through
+native Householder, triangular-solve and matrix-product kernels. No dense Q or
+source refactorization is introduced. Scalar promotion converts the cached
+wide inverse and preserves its original rank cutoff.
+
+Eight native regression tests cover all four scalars, forced symbolic algorithms,
+permutations and an entirely empty wide prefix. After warmup, repeated Seq and
+two-thread Team applications perform zero Rust heap allocations on the calling
+thread. This counter does not measure worker-thread allocations. Julia regression
+coverage includes all orientations, CSC/CSR, zero shapes, large blocked factors,
+exact queries, shortage/reserve, factor lifetime, copies and shared Task reuse.
+
+Construction, direct factor solves, result staging and Julia promotion buffers
+still allocate separately. This closes the specific owned/wide action fallback
+recorded in the preceding checkpoint; remaining factor solve/kernel resources
+and arbitrary Julia callbacks stay open under Issue #22. The faer dependency
+remains 19053d8 (0.29.0).
+
+Final canonical validation passes 158,626 assertions / 94 files / 16 workers
+(Julia 1.13.3 / RustCall 0.9.2), native 37 tests and 80 executable README blocks.
+The new Julia file contributes 7,079 assertions. Formatting/diff checks pass;
+the frozen inventory is unchanged.

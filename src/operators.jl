@@ -10,8 +10,8 @@ its dense matrix. `.coefficients` returns an independent base representation,
 with `.transposed/.conjugated` describing its orientation.
 Native composition is available with operator * operator. Application supports
 `mul!(X, op, B[, alpha,beta]; scratch,team)` and explicit `*(op,B; scratch,team)`
-with scratch queries/reserve. Existing allocating owned/wide sparse-QR inverse
-fallbacks remain sequential and outside caller scratch. Arbitrary Julia-function
+with scratch queries/reserve, including prepared owned/wide sparse-QR inverse
+actions. Arbitrary Julia-function
 callbacks remain unavailable.
 """
 mutable struct FaerLinearOperator{T,H} <: AbstractMatrix{T}

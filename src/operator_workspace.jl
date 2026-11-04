@@ -25,9 +25,9 @@ end
 Query native operator application scratch at the promoted scalar type and team.
 Right-operator products have the corresponding `(A, op)` order. Includes intermediates declared by native LinOp scratch queries. Independent
 result matrices, Julia scaling/conversion buffers and promoted operator snapshots
-allocate separately. Existing owned/wide sparse-QR inverse fallbacks still
-allocate their own application temporaries and run sequentially; these remain
-separate workspace/team work.
+allocate separately. Prepared owned/wide sparse-QR inverse actions use caller
+scratch and propagate the team through projection, triangular solves and products.
+Wide inverse construction caches a dense pseudoinverse of R separately.
 """
 function scratch_requirements(
     ::typeof(*),
