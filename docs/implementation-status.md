@@ -2105,3 +2105,13 @@ All sparse LU algorithms now use the native saved-factor inverse action for
 mixed RHS. Source snapshot closure is covered. Focused tests pass 6,768
 assertions for mixed reuse and 1,731 for auto/supernodal inverse/preconditioner
 actions. Canonical validation is running. Auto/supernodal QR remains pending.
+
+## Issue #22: auto/supernodal QR mixed RHS and inverse actions (in progress)
+
+Saved numeric buffers are converted directly for scalar promotion; all sparse
+algorithms now reuse native factors for mixed RHS. The source snapshot
+refactorization branch is removed. Auto/supernodal QR inverse actions retain
+native Householder/R/permutation buffers and allocate intermediates per apply.
+Focused integration checks pass 12,535 assertions. Canonical validation passes
+111,982 assertions across 82 files (16 workers). Rust tests pass 11 tests.
+README final validation is running.

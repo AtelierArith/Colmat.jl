@@ -34,9 +34,8 @@ solves full-column-rank least-squares problems. LU/Cholesky also support
 transpose/adjoint solves. Sparse QR supports minimum-norm transpose/adjoint solves for full-column-rank
 factors with every algorithm. Inputs and symbolic plans
 may be closed independently.
-Mixed precision RHS reuse converted saved factors for all LU/Cholesky algorithms
-and explicit simplicial QR, without reading the source snapshot. Auto/supernodal
-QR currently reuses symbolic analysis to refactor the snapshot in the promoted type. `ldiv!` stages the result before overwriting.
+Mixed precision RHS reuse converted saved factors for all sparse algorithms,
+without reading or refactorizing the source snapshot. `ldiv!` stages the result before overwriting.
 Sparse Cholesky additionally exposes independent sparse CSC `F.L` and `F.U`,
 with `F.L * F.U ≈ A[F.p,F.p]`, and supports `Matrix(F)`, `FaerSparseMatrix(F)`,
 `det`, `logdet` and `logabsdet`. Reconstruction returns the original row/column
@@ -363,26 +362,13 @@ function _sparse_factor_solve(
             throw(ArgumentError("transpose/adjoint sparse QR components are unavailable"))
         P=promote_type(T, _sparse_input_type(eltype(b)))
         if P!==T
-            if _native_call(RustCrate.sparse_factor_has_inverse_action, f)
-                base=FaerLinearOperator(f)
-                action=trans ? (adj ? adjoint(base) : transpose(base)) : base
-                try
-                    return action*b
-                finally
-                    action===base || close(action)
-                    close(base)
-                end
-            end
-            source=FaerSparseMatrix{P}(f.source)
+            base=FaerLinearOperator(f)
+            action=trans ? (adj ? adjoint(base) : transpose(base)) : base
             try
-                promoted=LinearAlgebra.factorize(f.plan, source)
-                try
-                    return _sparse_factor_solve(promoted, b, trans, adj)
-                finally
-                    close(promoted)
-                end
+                return action*b
             finally
-                close(source)
+                action===base || close(action)
+                close(base)
             end
         end
         rhs=b isa FaerMatrix ? _coerce(b, T) : FaerMatrix{T}(b)

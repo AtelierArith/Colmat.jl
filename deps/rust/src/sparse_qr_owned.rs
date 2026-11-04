@@ -15,6 +15,18 @@ pub(crate) struct Factors<T> {
     values: Vec<T>,
 }
 impl<T: ComplexField> Factors<T> {
+    pub(crate) fn dimensions(&self) -> (usize, usize) {
+        (self.symbolic.nrows(), self.symbolic.ncols())
+    }
+
+    pub(crate) fn map_values<U: ComplexField>(&self, cast: impl Fn(&T) -> U) -> Factors<U> {
+        Factors {
+            symbolic: self.symbolic.clone(),
+            indices: self.indices.clone(),
+            values: self.values.iter().map(cast).collect(),
+        }
+    }
+
     pub(crate) fn new(
         symbolic: Arc<SymbolicQr<usize>>,
         a: SparseColMatRef<'_, usize, T>,
