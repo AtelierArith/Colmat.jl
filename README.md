@@ -1995,3 +1995,33 @@ Q=Matrix(F.Qfull)
 close(F)
 @assert Q'*Q≈Matrix{ComplexF64}(I,4,4)
 ```
+
+
+### Rank and tolerance-aware solves from saved sparse QR
+
+`svdvals(F)`, `rank(F;atol,rtol)` and `pinv(F;atol,rtol)` use saved sparse QR
+factors. Singular values are computed by native dense SVD of the n×n R factor.
+The rank threshold is `max(atol,rtol*maximum(svdvals(F)))`; the default relative
+tolerance is `min(size(F)...)*eps(real(eltype(F)))` when atol is zero.
+`pinv(F)` also materializes thin Q and returns an independent native dense result.
+Three-argument `ldiv!(X,F,B;atol,rtol)` computes the corresponding minimum-norm
+least-squares solution, including transpose/adjoint factors and mixed RHS types.
+This explicit tolerance path allocates and cannot use caller-owned scratch.
+Ordinary `F \ B` retains its full-column-rank contract; originally wide sparse
+QR inputs remain unsupported.
+
+```julia
+using Colmat,LinearAlgebra,SparseArrays
+A0=[1.0 2;0 0;0 0]
+F=qr(FaerSparseMatrix(sparse(A0));algorithm=:supernodal)
+close(F.source)
+@assert rank(F;rtol=1e-8)==1
+P=pinv(F;rtol=1e-8)
+@assert Matrix(P)≈pinv(A0;rtol=1e-8)
+X=zeros(2,1)
+ldiv!(X,F,ones(3,1);rtol=1e-8)
+@assert X≈pinv(A0)*ones(3,1)
+close(F)
+@assert Matrix(P)≈pinv(A0)
+close(P)
+```
