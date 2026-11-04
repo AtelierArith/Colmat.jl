@@ -645,10 +645,11 @@ fn rank_deficient<T: ComplexField>(r: MatRef<'_, T>) -> bool {
     );
     (0..r.nrows().min(r.ncols())).any(|i| abs(&r[(i, i)]) <= tolerance)
 }
-fn factor_solve<T: ComplexField>(
+pub(crate) fn factor_solve<T: ComplexField>(
     f: &Factor<T>,
     b: MatRef<'_, T>,
     op: i32,
+    mut par: Par<'_>,
 ) -> Result<Mat<T>, String> {
     finite(b)?;
     let m = factor_dispatch!(f,x=>x.nrows());
@@ -665,10 +666,10 @@ fn factor_solve<T: ComplexField>(
     };
     if !deficient && m == n {
         return Ok(match op {
-            0 => factor_dispatch!(f,x=>x.solve(b,Par::Seq)),
-            1 => factor_dispatch!(f,x=>x.solve_transpose(b,Par::Seq)),
-            2 => factor_dispatch!(f,x=>x.solve_adjoint(b,Par::Seq)),
-            3 => factor_dispatch!(f,x=>x.solve_conjugate(b,Par::Seq)),
+            0 => factor_dispatch!(f,x=>x.solve(b,par.reborrow())),
+            1 => factor_dispatch!(f,x=>x.solve_transpose(b,par.reborrow())),
+            2 => factor_dispatch!(f,x=>x.solve_adjoint(b,par.reborrow())),
+            3 => factor_dispatch!(f,x=>x.solve_conjugate(b,par.reborrow())),
             _ => return Err("unknown solve transform".into()),
         });
     }
@@ -676,22 +677,22 @@ fn factor_solve<T: ComplexField>(
         return Ok(match f {
             Factor::Qr(x) => {
                 if op == 3 {
-                    x.solve_conjugate_lstsq(b, Par::Seq)
+                    x.solve_conjugate_lstsq(b, par.reborrow())
                 } else {
-                    x.solve_lstsq(b, Par::Seq)
+                    x.solve_lstsq(b, par.reborrow())
                 }
             }
             Factor::PivotQr(x) => {
                 if op == 3 {
-                    x.solve_conjugate_lstsq(b, Par::Seq)
+                    x.solve_conjugate_lstsq(b, par.reborrow())
                 } else {
-                    x.solve_lstsq(b, Par::Seq)
+                    x.solve_lstsq(b, par.reborrow())
                 }
             }
             _ => return Err("rectangular solve requires QR or SVD".into()),
         });
     }
-    let a = factor_part(f, 0)?;
+    let a = factor_dispatch!(f,x=>x.reconstruct(par.reborrow()));
     let a = match op {
         0 => a,
         1 => a.as_ref().transpose().to_owned(),
@@ -703,11 +704,20 @@ fn factor_solve<T: ComplexField>(
         Mat::zeros(a.ncols(), a.nrows())
     } else {
         a.as_ref()
-            .thin_svd(Par::Seq)
+            .thin_svd(par.reborrow())
             .map_err(|e| format!("{e:?}"))?
-            .pseudoinverse(Par::Seq)
+            .pseudoinverse(par.reborrow())
     };
-    arithmetic(inverse.as_ref(), b, 2)
+    let mut out = Mat::zeros(inverse.nrows(), b.ncols());
+    faer::linalg::matmul::matmul(
+        out.as_mut(),
+        Accum::Replace,
+        inverse.as_ref(),
+        b,
+        one::<T>(),
+        par,
+    );
+    Ok(out)
 }
 #[julia]
 pub struct TypedFactor {
@@ -715,6 +725,13 @@ pub struct TypedFactor {
     info: usize,
 }
 impl TypedFactor {
+    pub(crate) fn solve_ready(&self) -> Result<(), String> {
+        self.data()?;
+        if self.info != 0 {
+            return Err("singular factorization".into());
+        }
+        Ok(())
+    }
     pub(crate) fn data(&self) -> Result<&FactorData, String> {
         self.data
             .as_ref()
@@ -817,7 +834,7 @@ impl TypedMatrix {
                 return Err("singular factorization".into());
             }
             let b = rhs.data()?;
-            self.data = Some(factor_rhs!(f.data()?,b,x,y=>factor_solve(x,y.as_ref(),op)?));
+            self.data = Some(factor_rhs!(f.data()?,b,x,y=>factor_solve(x,y.as_ref(),op,Par::Seq)?));
             Ok(())
         })
     }

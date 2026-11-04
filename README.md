@@ -1466,6 +1466,34 @@ Numeric conversion follows Julia rules, including errors for nonrepresentable
 complex-to-real values. Conversion temporaries are closed on errors. Reconstructed
 owners remain valid after the original factors are updated or closed.
 
+### Retained dense solves with reusable teams
+
+`ldiv!(X,F,B; team)` and `rdiv!(X,B,F; team)` borrow a native team for
+retained LU/full LU/QR/pivoted QR/Cholesky/LDLT/Bunch–Kaufman solves, including
+transpose/adjoint, rectangular QR and rank-deficient minimum-norm paths.
+Two-argument forms require square factors. Solve teams are independent of the
+team used to construct the factor; the factor remains usable after either team
+closes. Work arrays and staged result conversion allocate; caller scratch is
+not exposed for these solves. Mixed native scalar types use the existing
+promotion policy, which can reconstruct/refactor a factor. Component extraction
+remains sequential; promoted matrix products and factorization borrow the team.
+
+```julia
+using Colmat, LinearAlgebra
+A0=ComplexF64[4 im; 1 3]
+F=lu(FaerMatrix(A0))
+FaerTeam(2) do team
+    B=ones(ComplexF64,2,2)
+    X=zeros(ComplexF64,2,2)
+    @assert ldiv!(X,F,B;team)===X
+    @assert X≈A0\B
+    @assert rdiv!(X,B,F';team)===X
+    @assert X≈B/A0'
+end
+@assert F\ones(2)≈A0\ones(2)
+close(F)
+```
+
 ### Reusing Rust-owned spectral factors
 
 ```julia

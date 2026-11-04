@@ -410,7 +410,13 @@ function Base.deepcopy_internal(
         copy(f)
     end
 end
-function _typed_solve(f::FaerFactorization{T,K}, b::FaerMatrix{S}, op = 0) where {T,K,S}
+function _typed_solve(
+    f::FaerFactorization{T,K},
+    b::FaerMatrix{S},
+    op = 0;
+    team = nothing,
+) where {T,K,S}
+    isnothing(team) || _dense_solve_validate(f)
     transposed=op in (1, 2)
     size(b, 1)==size(f, transposed ? 2 : 1) ||
         throw(DimensionMismatch("factor and RHS rows must match"))
@@ -419,20 +425,26 @@ function _typed_solve(f::FaerFactorization{T,K}, b::FaerMatrix{S}, op = 0) where
     if T===Float64
         if S<:Complex
             data=Matrix(b)
-            r=_factor_solve(f, FaerMatrix{Float64}(real.(data)), transposed)
-            i=_factor_solve(f, FaerMatrix{Float64}(imag.(data)), transposed)
+            r=_factor_solve(f, FaerMatrix{Float64}(real.(data)), transposed; team)
+            i=_factor_solve(f, FaerMatrix{Float64}(imag.(data)), transposed; team)
             return r+im*i
         end
-        return _factor_solve(f, _coerce(b, Float64), transposed)
+        return _factor_solve(f, _coerce(b, Float64), transposed; team)
     elseif P!==T
         g=_factor(
-            _promoted_factor_matrix(f, P),
+            _promoted_factor_matrix(f, P; team),
             Val(K),
             getproperty(_FactorCodes, K);
             uplo = f.uplo,
+            team,
         )
-        return _typed_solve(g, _coerce(b, P), op)
+        try
+            return _typed_solve(g, _coerce(b, P), op; team)
+        finally
+            close(g)
+        end
     end
+    isnothing(team) || return _dense_team_native_result(f, _coerce(b, T), op, team)
     return _typed_result(
         T,
         RustCrate.factor_solve_from,
@@ -480,33 +492,7 @@ Base.:\(a::_AnyFaerTransposed, b::FaerMatrix) = copy(a)\b
 Base.:/(a::FaerMatrix, b::FaerMatrix) = copy(adjoint(copy(adjoint(b))\copy(adjoint(a))))
 Base.:/(a::FaerMatrix, f::FaerFactorization{T}) where {T<:_ExtraScalar} =
     copy(adjoint(adjoint(f)\copy(adjoint(a))))
-function LinearAlgebra.ldiv!(
-    dest::FaerMatrix,
-    f::FaerFactorization{T},
-    b::FaerMatrix,
-) where {T<:_ExtraScalar}
-    result=f\b
-    size(dest)==size(result) || throw(DimensionMismatch("output size must match solve"))
-    return copyto!(dest, result)
-end
-LinearAlgebra.ldiv!(f::FaerFactorization{T}, b::FaerMatrix) where {T<:_ExtraScalar} =
-    LinearAlgebra.ldiv!(b, f, b)
-function LinearAlgebra.ldiv!(
-    dest::AbstractMatrix,
-    f::FaerFactorization{T},
-    b::AbstractMatrix,
-) where {T<:_ExtraScalar}
-    return copyto!(dest, Matrix(f\b))
-end
-function LinearAlgebra.ldiv!(
-    dest::AbstractVector,
-    f::FaerFactorization{T},
-    b::AbstractVector,
-) where {T<:_ExtraScalar}
-    return copyto!(dest, f\b)
-end
-LinearAlgebra.rdiv!(b::FaerMatrix, f::FaerFactorization{T}) where {T<:_ExtraScalar} =
-    copyto!(b, b/f)
+
 LinearAlgebra.isposdef(a::FaerMatrix{T}) where {T<:_ExtraScalar} =
     LinearAlgebra.ishermitian(a)&&LinearAlgebra.issuccess(
         LinearAlgebra.cholesky(a; check = false),
@@ -584,17 +570,23 @@ function _promoted_matrix_solve(a::FaerMatrix{T}, b::FaerMatrix{S}) where {T,S}
     P=promote_type(T, S)
     return LinearAlgebra.factorize(_coerce(a, P))\_coerce(b, P)
 end
-function _promoted_factor_matrix(f::FaerFactorization{T,K}, ::Type{P}) where {T,K,P}
+function _promoted_factor_matrix(
+    f::FaerFactorization{T,K},
+    ::Type{P};
+    team = nothing,
+) where {T,K,P}
+    product(a, b) = isnothing(team) ? a*b : team_mul(team, a, b)
     if K in (:lu, :full_lu)
-        a=_coerce(f.L, P)*_coerce(f.U, P)
+        a=product(_coerce(f.L, P), _coerce(f.U, P))
         return K===:lu ? FaerMatrix{P}(a[invperm(f.p), :]) :
                FaerMatrix{P}(a[invperm(f.p), invperm(f.q)])
     elseif K in (:qr, :pivoted_qr)
-        a=_coerce(f.Qthin, P)*_coerce(f.R, P)
+        a=product(_coerce(f.Qthin, P), _coerce(f.R, P))
         return K===:qr ? a : FaerMatrix{P}(a[:, invperm(f.p)])
     else
         l=_coerce(f.L, P)
-        a=K===:cholesky ? l*copy(l') : l*_coerce(f.D, P)*copy(l')
+        a=K===:cholesky ? product(l, copy(l')) :
+          product(product(l, _coerce(f.D, P)), copy(l'))
         return K===:bunchkaufman ? FaerMatrix{P}(a[invperm(f.p), invperm(f.p)]) : a
     end
 end

@@ -398,20 +398,6 @@ for T in (Float32, ComplexF32, ComplexF64)
             _native_vector_solve(a, b)
     end
 end
-function _vector_ldiv!(dest::FaerVector, f::FaerFactorization, b::_BorrowVector)
-    copyto!(dest, f\b)
-    return dest
-end
-LinearAlgebra.ldiv!(dest::FaerVector, f::FaerFactorization{Float64}, b::_BorrowVector) =
-    _vector_ldiv!(dest, f, b)
-LinearAlgebra.ldiv!(
-    dest::FaerVector,
-    f::FaerFactorization{T},
-    b::_BorrowVector,
-) where {T<:_ExtraScalar} = _vector_ldiv!(dest, f, b)
-LinearAlgebra.ldiv!(f::FaerFactorization{Float64}, b::FaerVector) = _vector_ldiv!(b, f, b)
-LinearAlgebra.ldiv!(f::FaerFactorization{T}, b::FaerVector) where {T<:_ExtraScalar} =
-    _vector_ldiv!(b, f, b)
 
 function Base.deepcopy_internal(v::FaerView, dict::IdDict)
     get!(dict, v) do

@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 調査日: 2026-11-04
 - t4a-faer: `0.28.2`、コミット [`0bf88db6e70c29488df91a128f5e2562f8859730`](https://github.com/tensor4all/faer/tree/0bf88db6e70c29488df91a128f5e2562f8859730)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み main `0c8fb2e` と以下の owned/wide 疎 QR 逆作用の追加。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、151547 件のテスト成功（追加前の main）。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 93 ファイルを 16 プロセスで検証。
+- Colmat の判定基準: 検証済み main `946c890` と以下の dense 保存因子 team 求解の追加。以下は main ブランチの実装状況。
+- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、158626 件のテスト成功（追加前の main）。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 94 ファイルを 16 プロセスで検証。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -128,8 +128,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 逐次実行 | `Par::Seq` | 同期・逐次の数値処理 | R: 既定の native 数値処理、幅1の FaerTeam | 明示的 team 行列積/Pfaffian/SVD/単一行列・一般化 EVD/dense LU・QR・Cholesky・LDLT・Bunch–Kaufman 構築・native 作用素適用以外は逐次 |
-| 呼び出し側所有の並列 team | `Par::Team`, `team::with_team`, `Par::reborrow`（threadteam feature） | Julia task/thread や BLAS thread 設定と関心は近いが、直接同一ではない | 一部 R: `FaerTeam` の pool/予約所有・再利用・copy/close/do、`team_mul`・team 指定 `mul!`・`pfaffian/svd/svdvals` と単一行列・一般化ペアの `eigen/eigvals(;team)`、dense LU/QR/Cholesky/LDLT/Bunch–Kaufman の構築・staged bang、native 作用素適用、4 型・promotion・ビュー・alias | 保存因子の求解・成分取り出し、疎分解・反復法・他 kernel の team 接続、外部 pool の借用、全 wait/cost tuning は未対応。owner lock により呼び出しを直列化 |
+| 逐次実行 | `Par::Seq` | 同期・逐次の数値処理 | R: 既定の native 数値処理、幅1の FaerTeam | 明示的 team 行列積/Pfaffian/SVD/単一行列・一般化 EVD/dense LU・QR・Cholesky・LDLT・Bunch–Kaufman 構築・native 作用素適用・明示的 dense 保存因子の `ldiv!/rdiv!` 以外は逐次 |
+| 呼び出し側所有の並列 team | `Par::Team`, `team::with_team`, `Par::reborrow`（threadteam feature） | Julia task/thread や BLAS thread 設定と関心は近いが、直接同一ではない | 一部 R: `FaerTeam` の pool/予約所有・再利用・copy/close/do、`team_mul`・team 指定 `mul!`・`pfaffian/svd/svdvals` と単一行列・一般化ペアの `eigen/eigvals(;team)`、dense LU/QR/Cholesky/LDLT/Bunch–Kaufman の構築・staged bang、native 作用素適用、dense 保存因子の `ldiv!/rdiv!(;team)`、4 型・promotion・ビュー・alias | 保存因子の成分取り出し、疎保存因子の求解・分解・反復法・他 kernel の team 接続、外部 pool の借用、全 wait/cost tuning は未対応。owner lock により呼び出しを直列化 |
 | 行・列の平均・分散 | `stats::{col_mean,row_mean,col_varm,row_varm,NanHandling}` | Statistics の `mean/varm` と dims/NaN 規約の対応 | R: `Statistics.mean/var/varm`、4 型・行/列/全体・dims・ビュー・NaN propagate/ignore・標本/母分散 | native データを primitive buffer にコピーして faer kernel を適用。指定平均は native 型へ昇格 |
 | 乱数・直交/ユニタリ行列の生成 | `CwiseMat/Col/RowDistribution`, `ComplexDistribution`, `UnitaryMat`（rand feature） | Random の `rand/randn`、ランダム直交行列の生成相当 | R: `FaerRNG`、`rand/randn` の native Mat/Col/Row、`rand!/randn!`・ビュー、`randunitary`、4 型・複素成分正規化・copy/seed/close | 任意の Rust Distribution/Julia callback の直接公開は未対応。Julia RNG は非空の生成ごとに UInt64 シードを1個渡す |
 | NPY 読み込み・ビュー | `io::npy::{Npy,FromNpy,...}`, `as_aligned_ref/to_mat`（npy feature） | NPY 対応 I/O（Julia 標準外） | R: `loadnpy/npyview/npyinfo`、4 型・versions 1–3・C/Fortran・両 endian、独立 Mat と owned read-only aligned view、metadata/copy/deepcopy/close | 真の mmap/元バッファ別名は未対応。rank>2・他 dtype・連結配列は拒否。aligned/native-endian 正規化で [faer #210](https://github.com/tensor4all/faer/issues/210)・[#211](https://github.com/tensor4all/faer/issues/211) を回避 |
@@ -185,3 +185,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 ## owned/wide 疎 QR 逆作用の workspace 接続
 
 auto/supernodal と wide の保存済み QR 逆作用は、射影の行順序を構築時に保存し、呼び出し側の scratch と team を適用時に使用する。wide は dense R の疑似逆を構築時に一度保存し、型昇格時も元の打切りを保持する。直接の `F \ B`、結果の staging、Julia 側の変換・昇格はこの kernel scratch の外で割り当てる。任意の Julia callback と残りの kernel 接続は引き続き未完了。
+
+## dense 保存因子の明示的 team 求解
+
+`ldiv!/rdiv!(;team)` は4型・混合型・転置/随伴・長方形とランク落ち QR を含む既存の求解経路に caller-owned team を渡す。再構成/SVD/疑似逆が必要な native 求解も同じ team を使用する。混合型の既存の昇格方針では保存因子からの再構成・再分解があり、成分取り出しは逐次、行列積と再分解・求解は team を借用する。caller scratch・低水準の直接 in-place・疎保存因子などの資源接続は引き続き残項目。
