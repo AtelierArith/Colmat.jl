@@ -144,7 +144,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 - Cargo は `default-features=false, features=["std","linalg","rayon","rand","npy","threadteam"]`。public API の存在・feature の有効化・Julia 接続は別々に判定する。
 - SVD の Rust V に対して Julia `F.Vt` は Vᴴ。置換添字は Julia 側で 1-based にする。
 - 範囲ビューは親を保持し、native 呼び出し中にだけ MatRef/MatMut を作る。容量確保では維持し、親の形状変更・close では失効する。
-- 横長/ランク落ち QR の caller-owned scratch・matrix-free、残りの破壊的分解・scratch、並列 team は今後の実装対象。一般化 Schur の並べ替えにも未対応。
+- 横長/ランク落ち QR の caller-owned scratch・matrix-free、残りの破壊的分解・scratch、並列 team は今後の実装対象。一般化 Schur の保存因子並べ替えは PR #34 で対応済み。caller-owned scratch・非既定 tuning・team は未対応。
 - `pinv/rank` の既定 rtol は Julia の `min(size(A)...)*eps`。faer の既定値と異なるため明示して渡す。Float32 と Float64 許容誤差の境界比較も検証した。
 - 実 Schur の共役対は 2×2 ブロックとして扱い、選択では対を分割しない。Hessenberg の Q は明示行列で、compact reflector 形式とは区別する。
 - QZ の α/β は無限固有値と 0/0 を保つ同次形式。検査した faer real-QZ の scratch 推奨量には偶数丸め window・index 配列数の不足があるため、依存クローンを変更せずラッパーで再帰的な割当上限を補正した。blocked 経路もテスト済み。
