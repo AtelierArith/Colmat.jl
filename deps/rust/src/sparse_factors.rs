@@ -1092,7 +1092,7 @@ impl SparseFactor {
             fn supported<T: ComplexField>(f: &Numeric<T>) -> bool {
                 matches!(
                     f,
-                    Numeric::SimplicialLu(_) | Numeric::SimplicialQr(_) | Numeric::Llt(_)
+                    Numeric::Lu(_) | Numeric::SimplicialLu(_) | Numeric::SimplicialQr(_) | Numeric::Llt(_)
                 )
             }
             Ok(match self.factors()? {

@@ -1536,10 +1536,10 @@ permutation, without constructing Q or a pseudoinverse. Three-argument `ldiv!`
 supports rectangular factors; two-argument `ldiv!` requires square factors.
 Native work arrays and sparse R extraction/conversion allocate per solve. A zero R
 diagonal is rejected; rank thresholds and rank-deficient solves remain
-unavailable. Mixed-type RHS reuse saved native factors for explicit simplicial
-LU/QR and all sparse Cholesky algorithms. Factor values are promoted without
+unavailable. Mixed-type RHS reuse saved native factors for all sparse LU/Cholesky algorithms
+and explicit simplicial QR. Factor values are promoted without
 refactorizing the input, so accuracy remains limited by the original factor
-precision. Auto/supernodal LU/QR still refactorize the retained input snapshot
+precision. Auto/supernodal QR still refactorizes the retained input snapshot
 for mixed-type RHS, including QR transpose/adjoint solves.
 
 ```julia
@@ -1869,7 +1869,7 @@ promotion, conjugation and transpose/adjoint do not recompute the decomposition
 or materialize a pseudoinverse. Iterative preconditioning requires a suitable
 square nonsingular action; CG additionally requires positive definiteness.
 
-### Native preconditioning from simplicial sparse LU
+### Native preconditioning from sparse LU
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -1886,7 +1886,7 @@ close(A)
 ```
 
 The inverse-action operator retains sparse CSC L/U and both permutations from
-the current native simplicial factorization. It never uses the source snapshot
+the current native factorization for every LU algorithm. It never uses the source snapshot
 or a dense coefficient matrix, including when promoting factors for a mixed RHS.
 Normal/conjugate/transpose/adjoint application uses sparse triangular solves
 and an RHS-sized native scratch intermediate. Copies remain independent after
@@ -1938,3 +1938,17 @@ scalar promotions preserve Householder pivot ordering. Workspace intermediates
 come from native scratch; source snapshots are never refactorized. Missing/zero
 R pivots are rejected; rank tolerance, rank-deficient and auto/supernodal sparse
 QR inverse actions remain pending.
+
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0=Float32[4 1; 1 3]
+F=lu(FaerSparseMatrix(sparse(A0)); algorithm=:supernodal)
+close(F.source)
+b=ComplexF64[1+im,2-im]
+@assert A0*(F\b)≈b rtol=1e-5
+M=FaerLinearOperator(F)
+close(F)
+@assert A0*(M*b)≈b rtol=1e-5
+close(M)
+```

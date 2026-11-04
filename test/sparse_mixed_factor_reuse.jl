@@ -4,6 +4,8 @@ using Colmat, LinearAlgebra, SparseArrays, Test
         R in (Float32, Float64, ComplexF32, ComplexF64),
         format in (:csc, :csr),
         (kind, algorithm) in (
+            (:lu, :auto),
+            (:lu, :supernodal),
             (:lu, :simplicial),
             (:qr, :simplicial),
             (:cholesky, :auto),
@@ -25,7 +27,8 @@ using Colmat, LinearAlgebra, SparseArrays, Test
         end
         a=FaerSparseMatrix(sparse(A); format)
         order=reverse(collect(1:n))
-        F=kind===:lu ? lu(a; algorithm, ordering = order) :
+        F=kind===:lu ?
+          lu(a; algorithm, ordering = algorithm===:simplicial ? order : :default) :
           kind===:qr ? qr(a; algorithm, ordering = order) :
           cholesky(Hermitian(a); algorithm, ordering = order)
         close(a)

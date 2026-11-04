@@ -2098,3 +2098,10 @@ canonical validation remain pending. Focused Julia lifecycle/component/COLAMD ch
 80 files with 103,849 passes and two stale unsupported-operation expectations;
 those expectations are updated to verify the newly implemented behavior.
 Final canonical rerun and merged upstream adoption remain pending.
+
+## Issue #22: LU mixed RHS saved-factor reuse (in progress)
+
+All sparse LU algorithms now use the native saved-factor inverse action for
+mixed RHS. Source snapshot closure is covered. Focused tests pass 6,768
+assertions for mixed reuse and 1,731 for auto/supernodal inverse/preconditioner
+actions. Canonical validation is running. Auto/supernodal QR remains pending.
