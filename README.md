@@ -648,6 +648,20 @@ ordinary residual. Checked failures throw `FaerLsmrError` retaining the last
 iterate. A nonzero initial guess can retain nullspace components, and right
 preconditioning changes the minimum-norm metric.
 
+Absolute and relative LSMR tolerances are passed independently to faer. The
+absolute bound can accept a nonzero initial normal residual with no updates:
+
+```julia
+using Colmat, LinearAlgebra
+A = Matrix{Float64}(I, 2, 2)
+b = [1.0, 0.0]
+result = lsmr(A, b; atol=1.0, rtol=0, maxiter=0)
+@assert issuccess(result) && result.iterations == 0
+@assert iszero(result.x)
+@assert result.normal_abs_residual == result.estimated_abs_residual == 1.0
+@assert result.normal_rel_residual == result.estimated_rel_residual == 1.0
+```
+
 ### Standalone Jacobi rotations
 
 `rotg` returns faer's 2×2 unitary rotation, using its native sign convention:

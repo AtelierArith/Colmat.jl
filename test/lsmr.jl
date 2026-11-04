@@ -49,7 +49,7 @@ using Test, Colmat, LinearAlgebra, SparseArrays
             @test failed.reason==:no_convergence
             @test failed.iterations==0
             @test failed.x===dest
-            # Absolute tolerance must work despite upstream ignoring its parameter.
+            # Native absolute tolerance applies even with a zero relative tolerance.
             relaxed=lsmr(source, b; atol = 2norm(A'*b), rtol = 0, maxiter = 0)
             @test relaxed.converged
             @test relaxed.iterations==0
@@ -111,4 +111,104 @@ using Test, Colmat, LinearAlgebra, SparseArrays
             recursive = true,
         ),
     )
+end
+
+@testset "Independent native LSMR absolute and relative tolerances" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        Rhs in (T, ComplexF64),
+        storage in (:dense, :csc, :csr),
+        columns in (1, 2),
+        preconditioned in (false, true)
+
+        A=Matrix{T}(I, 4, 4)
+        # Coordinate RHS makes the QR residual exact at the equality boundary.
+        B=columns==1 ? Rhs[1, 0, 0, 0] : Rhs[1 0; 0 1; 0 0; 0 0]
+        Rhs<:Complex && (B .*= Rhs(im))
+        source=storage===:dense ? FaerMatrix(A) :
+               FaerSparseMatrix(sparse(A); format = storage)
+        phase=T<:Complex ? T(2im) : T(2)
+        right=preconditioned ? Diagonal(fill(phase, 4)) : Diagonal(ones(T, 4))
+        M=preconditioned ? FaerLinearOperator(right) : nothing
+        P=promote_type(T, Rhs)
+        realtype=typeof(real(zero(P)))
+        reference=norm(P.(right)'*P.(A)'*P.(B))
+        rhs=columns==1 ? B : FaerMatrix(B)
+        for (accepted, atol, rtol) in (
+            (true, reference, 0),
+            (false, reference/2, 0),
+            (true, 0, 1),
+            (true, 2reference, 0.25),
+            (true, reference/4, 2),
+            (false, reference/4, 0.25),
+        )
+            result=lsmr(
+                source,
+                rhs;
+                M,
+                atol,
+                rtol,
+                maxiter = 0,
+                check = false,
+                history = true,
+                callback = _->error("no update expected"),
+            )
+            @test result.converged==accepted
+            @test result.reason == (accepted ? :converged : :no_convergence)
+            @test result.iterations==0
+            @test iszero(result.x)
+            @test isempty(result.history)
+            @test result.normal_abs_residual≈reference rtol=32eps(realtype)
+            @test result.normal_rel_residual≈1 rtol=32eps(realtype)
+            @test result.estimated_abs_residual≈reference rtol=32eps(realtype)
+            @test result.estimated_rel_residual≈1 rtol=32eps(realtype)
+            result.x isa Union{FaerMatrix,FaerVector} && close(result.x)
+        end
+        columns==2 && close(rhs)
+        isnothing(M) || close(M)
+        close(source)
+    end
+end
+
+@testset "Native absolute tolerance preserves initial iterate and zero cases" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        unit=T<:Complex ? T(im) : one(T)
+        b=T[unit, 0, 0, 0]
+        source=FaerSparseMatrix(sparse(Matrix{T}(I, 4, 4)); format = :csr)
+        x=FaerVector(b/2)
+        result=lsmr!(
+            x,
+            source,
+            b;
+            atol = 0.5,
+            rtol = 0,
+            maxiter = 0,
+            history = true,
+            callback = _->error("no update expected"),
+        )
+        @test result.x===x
+        @test result.converged
+        @test Vector(x)==b/2
+        @test result.normal_abs_residual==result.estimated_abs_residual==0.5
+        @test result.normal_rel_residual==result.estimated_rel_residual==0.5
+        @test isempty(result.history)
+        @test_throws FaerLsmrError lsmr!(x, source, b; atol = 0.25, rtol = 0, maxiter = 0)
+        @test Vector(x)==b/2
+        dense_B=T[1 0; 1 0; 1 0; 0 1]
+        dense_result=lsmr(source, dense_B; atol = 2norm(dense_B), rtol = 0, maxiter = 0)
+        @test dense_result.converged
+        @test dense_result.iterations==0
+        @test dense_result.normal_abs_residual≈norm(dense_B)
+        @test dense_result.estimated_abs_residual≈norm(dense_B) rtol=32eps(
+            typeof(real(zero(T))),
+        )
+        close(dense_result.x)
+        close(x)
+        close(source)
+        zero_result=lsmr(zeros(T, 4, 2), b; atol = 0, rtol = 0, maxiter = 0, history = true)
+        @test zero_result.converged
+        @test iszero(zero_result.x)
+        @test zero_result.normal_abs_residual==zero_result.estimated_abs_residual==0
+        @test zero_result.normal_rel_residual==zero_result.estimated_rel_residual==0
+        @test isempty(zero_result.history)
+    end
 end

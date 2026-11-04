@@ -1150,16 +1150,6 @@ fn solve_lsmr<T: ComplexField>(
     let normal_ref = product(&madjoint, product(&adjoint, b)?.as_ref())?.norm_l2();
     let abs_tol = from_f64::<T::Real>(atol);
     let requested_rel = from_f64::<T::Real>(rtol);
-    let relative_abs = if normal_ref == zero::<T::Real>() {
-        zero::<T::Real>()
-    } else {
-        &abs_tol / &normal_ref
-    };
-    let effective_rel = if relative_abs > requested_rel {
-        relative_abs
-    } else {
-        copy(&requested_rel)
-    };
     let mut out = initial.to_owned();
     let mut callbacks = 0usize;
     let par = Par::Seq;
@@ -1183,7 +1173,7 @@ fn solve_lsmr<T: ComplexField>(
                 faer::matrix_free::lsmr::LsmrParams {
                     initial_guess: InitialGuessStatus::MaybeNonZero,
                     abs_tolerance: copy(&abs_tol),
-                    rel_tolerance: effective_rel,
+                    rel_tolerance: copy(&requested_rel),
                     max_iters: maxiter,
                     ..Default::default()
                 },

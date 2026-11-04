@@ -766,8 +766,8 @@ Convergence uses the Frobenius norm of `M' * A' * (b-A*x)`, with threshold
 `abs_residual`/`rel_residual` describe the primal residual, while
 `normal_abs_residual`/`normal_rel_residual` describe the preconditioned normal
 residual. Native estimates are normal residual estimates. Default rtol is
-128eps of the promoted real type. Absolute tolerance is translated to native
-relative tolerance as a retained conversion from the now-fixed upstream #207.
+128eps of the promoted real type. Absolute and relative tolerances are passed
+independently to the native solver.
 
 Returns `FaerLsmrResult`, with solution rows equal to size(A,2). Checked failures
 throw `FaerLsmrError` retaining the last iterate. Zero initial guesses give the
