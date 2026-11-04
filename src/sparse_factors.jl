@@ -505,7 +505,11 @@ FaerPermutation(p::FaerSparseSymbolic{:cholesky}) =
 function FaerPermutation(f::FaerSparseFactorization{T,:cholesky}) where {T}
     lock(_matrix_lock) do
         _handle(f)
-        return FaerPermutation(f.plan)
+        return _permutation_result(
+            size(f, 1),
+            RustCrate.sparse_numeric_cholesky_permutation,
+            f,
+        )
     end
 end
 function Base.getproperty(p::FaerSparseSymbolic{:cholesky}, name::Symbol)

@@ -2735,3 +2735,33 @@ allocations after warmup for four scalars and both sides with Seq/Team(2);
 result ownership, coefficient promotion setup and worker heaps are outside that
 measurement. No whole-API allocation-free claim is made. Format/diff checks pass;
 frozen inventory and clean faer `19053d8` remain unchanged.
+
+
+## Retained sparse LU/Cholesky solve scratch and teams
+
+Public backslash, right division, ldiv!/rdiv! (two/three arguments), scratch
+queries, FaerScratch construction and reserve now cover all sparse LU/Cholesky
+algorithms. Same-scalar solves borrow native numeric factors and invoke their
+matching scratch queries and kernels with the live team. LLT transpose/conjugate
+uses the Hermitian factor convention. Mixed scalars retain the existing
+saved-component inverse-action conversion policy without snapshot refactorization.
+Its preparation allocates outside solve scratch, as do output ownership, RHS
+conversion and staged writeback. No whole-API allocation-free claim is made.
+
+Testing closed source and symbolic owners exposed a Colmat bug: Cholesky p used
+the external analysis plan even though numeric LLT retained its own symbolic Arc.
+The getter now copies that numeric-owned permutation, keeping mixed-scalar
+solves independent of the closed plan. This is a wrapper correction, not a new
+RustCall/faer defect.
+
+Sparse QR workspace restrictions, sparse construction resources, iterative
+resources and the rest of the complete 76-row inventory remain pending.
+
+Validation at Julia 1.13.3 / RustCall.jl 0.9.2 and unchanged t4a-faer 0.29.0
+revision `19053d8c22993851c032d5373b4ec188998f2b5c`: canonical Pkg.test
+296,398 assertions / 101 files / 16 workers passed in 7m46.3s; the new
+workspace file contributes 46,439 assertions. Native cargo test passed 71 tests;
+all 87 README blocks passed. JuliaFormatter DefaultStyle, rustfmt for the new
+native module, diff and frozen-inventory checks passed. Earlier focused runs
+found the closed-plan permutation bug and method ambiguities; the final
+canonical run includes their fixes and all validation tests.

@@ -2426,3 +2426,42 @@ LSMR can falsely report native convergence on extreme uniform scales
 ([faer #245](https://github.com/tensor4all/faer/issues/245)). Colmat's true-residual
 check rejects those results. Observing a nonfinite failed iterate preserves the
 same failure diagnostics; the history bridge accepts its nonfinite values.
+
+
+### Reuse workspace and teams for sparse LU/Cholesky solves
+
+All three sparse LU/Cholesky algorithms support retained left/right solves with
+`scratch` and `team`, including transpose/adjoint, vectors, native arrays and
+mixed scalar RHS. Queries use the working scalar type and team; `reserve!`
+explicitly grows a buffer when either changes.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[5 1+0.2im; 1-0.2im 4]
+a = FaerSparseMatrix(sparse(A0))
+F = cholesky(Hermitian(a); algorithm=:supernodal, ordering=[2,1])
+team = FaerTeam(2)
+B = ones(ComplexF64,2,3)
+s = FaerScratch(ldiv!, F, B; team)
+close(a)
+close(F.source)
+close(F.plan)
+X = similar(B)
+ldiv!(X,F,B; scratch=s,team)
+@assert X ≈ A0 \ B
+C = ones(Float32,3,2)
+reserve!(s,rdiv!,C,transpose(F);team)
+Y = similar(C,ComplexF64)
+rdiv!(Y,C,transpose(F);scratch=s,team)
+@assert Y ≈ C / transpose(A0)
+close(s)
+close(team)
+close(F)
+```
+
+Same-type solves borrow the numeric factor directly. Mixed-type solves convert
+saved sparse factors into an inverse operator without refactorizing the source;
+preparing that operator allocates separately from solve scratch. Native output,
+RHS conversion and destination staging also allocate separately. Overlapping
+inputs are supported; conversion and resource failures leave destinations intact.
+Sparse QR keeps its separate workspace interface and remaining restrictions.
