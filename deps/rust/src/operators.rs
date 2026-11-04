@@ -12,10 +12,12 @@ use faer::matrix_free::{
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{c32, c64, diag::Diag, Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
+mod julia_callback;
 mod qr_actions;
 use qr_actions::{OwnedQrInverse, WideQrInverse};
 #[derive(Clone)]
 enum Base<T> {
+    Callback(julia_callback::JuliaCallback),
     Dense(Mat<T>),
     Sparse(Storage<T>),
     Diagonal(Diag<T>),
@@ -39,6 +41,7 @@ struct Operator<T> {
 macro_rules! dispatch {
     ($op:expr,$a:ident=>$expr:expr) => {
         match &$op.base {
+            Base::Callback($a) => $expr,
             Base::Dense($a) => $expr,
             Base::Sparse(Storage::Csc($a)) => $expr,
             Base::Sparse(Storage::Csr($a)) => $expr,
@@ -1696,10 +1699,14 @@ impl OwnedLinearOperator {
 }
 
 pub(crate) trait NativeValue: ComplexField {
+    fn tag() -> i32;
     fn parts(&self) -> (f64, f64);
     fn from_parts(re: f64, im: f64) -> Self;
 }
 impl NativeValue for f32 {
+    fn tag() -> i32 {
+        0
+    }
     fn parts(&self) -> (f64, f64) {
         (*self as f64, 0.0)
     }
@@ -1708,6 +1715,9 @@ impl NativeValue for f32 {
     }
 }
 impl NativeValue for f64 {
+    fn tag() -> i32 {
+        1
+    }
     fn parts(&self) -> (f64, f64) {
         (*self, 0.0)
     }
@@ -1716,6 +1726,9 @@ impl NativeValue for f64 {
     }
 }
 impl NativeValue for c32 {
+    fn tag() -> i32 {
+        2
+    }
     fn parts(&self) -> (f64, f64) {
         (self.re as f64, self.im as f64)
     }
@@ -1724,6 +1737,9 @@ impl NativeValue for c32 {
     }
 }
 impl NativeValue for c64 {
+    fn tag() -> i32 {
+        3
+    }
     fn parts(&self) -> (f64, f64) {
         (self.re, self.im)
     }
@@ -1739,6 +1755,10 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         T::from_parts(r, i)
     };
     let base = match &a.base {
+        Base::Callback(f) => Base::Callback(julia_callback::JuliaCallback {
+            tag: T::tag(),
+            ..*f
+        }),
         Base::InverseWideSparseQr(f) => Base::InverseWideSparseQr(Box::new(f.map_values(cast)?)),
         Base::InverseOwnedSparseQr(f) => Base::InverseOwnedSparseQr(Box::new(f.map_values(cast)?)),
         Base::InverseSparseQr(f) => {
