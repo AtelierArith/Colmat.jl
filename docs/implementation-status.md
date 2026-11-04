@@ -2106,7 +2106,7 @@ explicit sparse column ordering. Native tests pass 11 cases on this revision.
 Canonical Pkg.test on merged main also passes 103,851 assertions / 80 files
 with 16 workers. All 68 README blocks pass on the merged dependency.
 
-## Issue #22: LU mixed RHS saved-factor reuse (in progress)
+## Issue #22: LU mixed RHS saved-factor reuse (merged)
 
 All sparse LU algorithms now use the native saved-factor inverse action for
 mixed RHS. Source snapshot closure is covered. Focused tests pass 6,768
@@ -2115,7 +2115,7 @@ actions. Canonical validation passes 107,502 assertions across 81 files (16 work
 
 LU mixed RHS follow-up README validation: 69 executable blocks passed.
 
-## Issue #22: auto/supernodal QR mixed RHS and inverse actions (in progress)
+## Issue #22: auto/supernodal QR mixed RHS and inverse actions (merged)
 
 Saved numeric buffers are converted directly for scalar promotion; all sparse
 algorithms now reuse native factors for mixed RHS. The source snapshot
@@ -2125,16 +2125,16 @@ Focused integration checks pass 12,535 assertions. Canonical validation passes
 111,982 assertions across 82 files (16 workers). Rust tests pass 11 tests.
 README passes 70 executable blocks.
 
-## Issue #22: native explicit LU/QR ordering (in progress)
+## Issue #22: native explicit LU/QR ordering (merged)
 
 Identity and supplied column permutations now reach native symbolic LU/QR
 analysis for auto/supernodal algorithms. Upstream faer #239 / PR #240 provides
 the API. Candidate faer 3889bd1 passes seven focused tests and three doctests.
 Colmat focused integration passes 2,016 assertions. Canonical validation passes
 113,998 assertions / 83 files / 16 workers; README passes 71 executable blocks.
-Other native tuning and merged upstream adoption remain pending.
+Other native tuning remains pending. Merged upstream adoption is recorded below.
 
-## Issue #22: full Q from saved sparse QR factors (in progress)
+## Issue #22: full Q from saved sparse QR factors (merged)
 
 All algorithms expose `Qfull` and the explicit thin alias `Qthin`, while `Q`
 retains its existing thin contract. Missing pivots receive unused coordinate
@@ -2143,7 +2143,7 @@ and rank-deficient inputs. Focused tests pass 1,224 assertions. Canonical valida
 Rust passes 11 tests; README passes 72 executable blocks. Rank-deficient/wide solves and rank tolerance remain
 separate unfinished contracts.
 
-## Issue #22: sparse QR rank and explicit tolerance solves (in progress)
+## Issue #22: sparse QR rank and explicit tolerance solves (merged)
 
 Saved R supports native singular values, SVD-based rank and pseudoinverse;
 `ldiv!(X,F,B;atol,rtol)` supplies minimum-norm least squares for rank-deficient
@@ -2153,7 +2153,7 @@ Focused tests pass 3,960 assertions. Canonical validation passes 119,182
 assertions across 85 files (16 workers); README passes 73 executable blocks.
 Native Rust code is unchanged from the validated full-Q branch (11 tests).
 
-## Issue #22: originally wide sparse QR (in progress)
+## Issue #22: originally wide sparse QR (merged)
 
 Native prefix QR plus per-column Householder projections stores Q/R/full column
 ordering. Wide normal/transpose/adjoint solves and inverse actions use native
@@ -2165,7 +2165,7 @@ regression passes 180 assertions for LU/QR/Cholesky. Native tests pass 20 tests.
 Canonical validation passes 126,858 assertions / 87 files / 16 workers;
 README passes 74 executable blocks.
 
-## Issue #22: default rank-aware sparse QR (in progress)
+## Issue #22: default rank-aware sparse QR (merged)
 
 Tall/square sparse QR backslash and inverse operators now use saved-factor
 minimum-norm solves for rank-deficient inputs. A conservative sparse R norm
@@ -2182,3 +2182,26 @@ closed source snapshots, and independent inverse operator ownership.
 Native Rust tests pass 22 cases, including large Float32 diagonal certificates,
 cutoff boundaries and an inconclusive nonsingular triangular factor. All 75
 README Julia blocks pass. Julia/Rust formatting and diff checks pass.
+
+## Issue #22: main integration and dependency adoption
+
+PRs #23–#30 are integrated into main (QR mixed-factor PR #25 entered main
+through #24). The integrated code/test tree at `78576d4` matches the validated
+`a9b60b8`; only implementation-status documentation differs. Canonical tests
+pass 128,781 assertions / 88 files / 16 workers, Rust passes 22 tests, and all
+75 executable README blocks pass. Frozen issue-1 inventory is unchanged.
+
+The clean dependency is t4a-faer 0.28.2, main
+`12843515e07f8d6f27fc525668227088658ffe0f`, including merged upstream PRs
+#237 (no-Rayon solve), #238 (saved LU components), and #240 (column ordering).
+Its tree matches the ordering candidate used for final QR integration tests.
+LU and combined LU/QR canonical suites also passed on merged upstream main
+(103,851 and 111,982 assertions respectively).
+
+Native LU components/reconstruction, all-algorithm LU/QR mixed RHS and inverse
+actions, explicit column ordering, full Q, rank/pseudoinverse/tolerances, wide
+QR, and default rank-deficient backslash are integrated. Dense R/SVD fallback
+allocations and incomplete rank-deficient/wide caller-owned scratch remain
+explicit limitations. Further native tuning, matrix-free callbacks/history,
+generalized Schur ordering, remaining workspace/in-place/team/view/scalar
+coverage and the full 76-row review remain open under Issue #22.
