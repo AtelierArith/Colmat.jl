@@ -261,10 +261,13 @@ Base.:/(
 
 Query native QR solve scratch for all algorithms, shapes, scalar promotions and
 transforms. Includes source-precision R SVD, promoted coefficients and projection.
-Rank decisions retain the source precision. Independent saved Q/R/permutation
-extraction, RHS/result ownership and destination staging allocate separately;
-Q extraction remains sequential. No input reconstruction or explicit dense
-pseudoinverse is used. Resources never grow implicitly; use `reserve!` explicitly.
+Rank decisions retain the source precision. Saved R and column permutations are
+borrowed; Q is applied directly to the R singular vectors using caller scratch.
+No independent Q/R/column-permutation copy is prepared for a solve. The rank
+certificate is prepared once per numeric factor revision. RHS/result ownership
+and destination staging allocate separately. Indexed simplicial reflector
+traversal is sequential; blocked Householder calls use the team. No input
+reconstruction or explicit dense pseudoinverse is used. Use `reserve!` explicitly.
 """
 scratch_requirements(
     ::typeof(LinearAlgebra.ldiv!),

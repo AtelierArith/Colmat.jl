@@ -2827,3 +2827,47 @@ Final validation: canonical Pkg.test passed 399,095 assertions / 103 files /
 passed 36 assertions. JuliaFormatter DefaultStyle, diff and frozen-inventory
 checks passed. The Rust tree is byte-identical to PR #49's 75-test validated
 tree; this Julia-only correction does not change native code or faer revision.
+
+
+## Borrowed sparse QR solve component preparation
+
+The R-SVD solve no longer prepares a full dense Q, a sparse R export or copied
+column permutations. R is staged directly from retained simplicial/supernodal/
+wide numeric storage into the declared buffer. Saved reflectors apply Q directly
+to U_R, avoiding full-Q materialization. Pivot completion and supernodal block
+metadata use stack arrays; per-node gather and blocked Householder work share
+the tail of the buffer with the R SVD. Query and execution use matching layouts
+and actual team conditions. Indexed simplicial reflector traversal is sequential;
+blocked Householder calls borrow the caller team.
+
+The existing conservative rank bound is prepared once per numeric factor
+revision, before installation, and copied/refreshed with factor clones/updates.
+This preserves its original source-precision criterion while eliminating R
+exports and row/column-sum allocations from repeated selection queries. One-time
+rank-bound preparation remains part of the separately allocating construction
+policy, including numeric construction calls that accept caller scratch. It is
+not included in the numeric factorization kernel's scratch query yet.
+
+Native comparison tests cover all four scalars and all three algorithms,
+empty/tall/wide/square/96-by-64 blocked shapes, missing prefix pivots and deficient
+factors. They check R, permutations, Q application and independent reconstruction
+against the input. After warming, component staging/application and cached rank
+queries made zero Rust heap allocations on the calling thread with Seq/Team2.
+Worker-thread allocations, factor construction, native result ownership and
+Julia conversions are not covered by that measurement; no whole-API
+allocation-free claim is made. The full 76-row construction/iterative/kernel
+scope remains open.
+
+The no-copy statement concerns the R-SVD workspace kernel and mode query. Tall
+full-rank defaults without explicit resources retain legacy mixed-type and
+transpose/adjoint component preparation; forcing SVD there would regress large
+full-rank sparse solves. Their further workspace/temporary control remains in
+the full-scope audit alongside explicit Q/R output construction.
+
+Final validation at Julia 1.13.3 / RustCall.jl 0.9.2 and unchanged t4a-faer
+0.29.0 / `19053d8c22993851c032d5373b4ec188998f2b5c`: canonical Pkg.test
+passed 399,529 assertions / 104 files / 16 workers in 8m16.1s. The new revision
+tests contribute 434 assertions. Native cargo test passed all 80 tests; all 88
+README blocks passed. JuliaFormatter DefaultStyle, rustfmt for the new native
+modules, diff and frozen-inventory checks passed. No new RustCall/faer defect
+was identified.

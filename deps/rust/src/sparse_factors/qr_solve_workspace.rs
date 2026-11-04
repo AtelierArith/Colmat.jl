@@ -10,7 +10,7 @@ use faer::dyn_stack::StackReq;
 use faer::linalg::{svd, temp_mat_scratch, temp_mat_zeroed};
 use faer::mat::{AsMatMut, AsMatRef};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Accum, Mat, MatRef, Par, ParShape};
+use faer::{Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 fn dims<S: ComplexField>(f: &Numeric<S>) -> Result<(usize, usize), String> {
     Ok(match f {
@@ -51,7 +51,13 @@ fn validate(
     }
     Ok(())
 }
-fn req<S: ComplexField, T: ComplexField>(m: usize, n: usize, c: usize, p: ParShape) -> StackReq {
+fn req<S: ComplexField, T: ComplexField>(
+    m: usize,
+    n: usize,
+    c: usize,
+    p: ParShape,
+    projection: StackReq,
+) -> StackReq {
     let k = m.min(n);
     if k == 0 || c == 0 {
         return StackReq::EMPTY;
@@ -73,23 +79,72 @@ fn req<S: ComplexField, T: ComplexField>(m: usize, n: usize, c: usize, p: ParSha
             svd::ComputeSvdVectors::Thin,
             p,
             Default::default(),
-        ),
+        )
+        .or(projection),
     ])
 }
-fn parts<S: ComplexField>(
-    f: &Numeric<S>,
-) -> Result<
-    (
-        Mat<S>,
-        faer::sparse::SparseColMat<usize, S>,
-        faer::perm::Perm<usize>,
-    ),
-    String,
-> {
+fn q_scratch<S: ComplexField>(f: &Numeric<S>, k: usize) -> Result<StackReq, String> {
     Ok(match f {
-        Numeric::SimplicialQr(x) => (x.q(), x.r.clone(), x.plan.cols.clone()),
-        Numeric::Qr(x) => (x.q()?, x.r()?, x.permutation()),
-        Numeric::WideQr(x) => (x.q()?, x.r(), x.permutation()),
+        Numeric::SimplicialQr(x) => {
+            crate::sparse_qr_owned::borrowed::simplicial_scratch(x.h.nrows(), x.r.ncols())
+        }
+        Numeric::Qr(x) => x.apply_q_scratch(k),
+        Numeric::WideQr(x) => x.head_ref().apply_q_scratch(k),
+        _ => return Err("requires sparse QR".into()),
+    })
+}
+fn req_for<S: ComplexField, T: ComplexField>(
+    f: &Numeric<S>,
+    c: usize,
+    p: ParShape,
+) -> Result<StackReq, String> {
+    let (m, n) = dims(f)?;
+    let k = m.min(n);
+    if k == 0 || c == 0 {
+        return Ok(StackReq::EMPTY);
+    }
+    Ok(req::<S, T>(m, n, c, p, q_scratch(f, k)?))
+}
+fn write_r<S: ComplexField>(f: &Numeric<S>, mut r: MatMut<'_, S>) -> Result<(), String> {
+    r.fill(zero::<S>());
+    match f {
+        Numeric::SimplicialQr(x) => {
+            for e in x.r.as_ref().triplet_iter() {
+                r[(e.row, e.col)] = add(&r[(e.row, e.col)], e.val);
+            }
+        }
+        Numeric::Qr(x) => x.write_r(r),
+        Numeric::WideQr(x) => {
+            for e in x.r_ref().triplet_iter() {
+                r[(e.row, e.col)] = add(&r[(e.row, e.col)], e.val);
+            }
+        }
+        _ => return Err("requires sparse QR".into()),
+    }
+    Ok(())
+}
+fn apply_q<S: ComplexField>(
+    f: &Numeric<S>,
+    q: MatMut<'_, S>,
+    u: MatRef<'_, S>,
+    p: Par,
+    stack: &mut faer::dyn_stack::MemStack,
+) -> Result<(), String> {
+    match f {
+        Numeric::SimplicialQr(x) => {
+            crate::sparse_qr_owned::borrowed::simplicial_apply(x.h.as_ref(), &x.tau, q, u, stack)
+        }
+        Numeric::Qr(x) => x.apply_q_in(q, u, p, stack),
+        Numeric::WideQr(x) => x.head_ref().apply_q_in(q, u, p, stack),
+        _ => return Err("requires sparse QR".into()),
+    }
+    Ok(())
+}
+fn permutation<S: ComplexField>(f: &Numeric<S>) -> Result<faer::perm::PermRef<'_, usize>, String> {
+    Ok(match f {
+        Numeric::SimplicialQr(x) => x.plan.cols.as_ref(),
+        Numeric::Qr(x) => x.permutation_ref(),
+        Numeric::WideQr(x) => x.permutation_ref(),
         _ => return Err("requires sparse QR".into()),
     })
 }
@@ -114,18 +169,13 @@ where
         return Err("QR RHS native shape mismatch".into());
     }
     finite(b)?;
-    let stack = work.stack(req::<S, T>(m, n, columns, par.shape()))?;
+    let stack = work.stack(req_for::<S, T>(f, columns, par.shape())?)?;
     let mut out = Mat::zeros(if tr { m } else { n }, columns);
     if k == 0 || columns == 0 {
         return Ok(out);
     }
-    // Independent Q/R/permutation materialization is component preparation, outside
-    // solve scratch. No input reconstruction or explicit pseudoinverse is formed.
-    let (q, r, permutation) = parts(f)?;
     let (mut rdense, stack) = temp_mat_zeroed::<S, _, _>(k, n, stack);
-    for e in r.as_ref().triplet_iter() {
-        rdense.as_mat_mut()[(e.row, e.col)] = copy(e.val);
-    }
+    write_r(f, rdense.as_mat_mut())?;
     let (mut ur, stack) = temp_mat_zeroed::<S, _, _>(k, k, stack);
     let (mut vr, stack) = temp_mat_zeroed::<S, _, _>(n, k, stack);
     let (mut values, stack) = temp_mat_zeroed::<S, _, _>(k, 1, stack);
@@ -162,15 +212,8 @@ where
     if !(0..k).any(|i| weights.as_mat_ref()[(i, 0)] != zero::<T>()) {
         return Ok(out);
     }
-    faer::linalg::matmul::matmul(
-        qu.as_mat_mut(),
-        Accum::Replace,
-        q.as_ref(),
-        ur.as_mat_ref(),
-        one::<S>(),
-        par.reborrow(),
-    );
-    let p = permutation.as_ref().arrays().0;
+    apply_q(f, qu.as_mat_mut(), ur.as_mat_ref(), par.reborrow(), stack)?;
+    let p = permutation(f)?.arrays().0;
     for j in 0..k {
         for i in 0..m {
             let (re, im) = qu.as_mat_ref()[(i, j)].parts();
@@ -196,8 +239,8 @@ where
 }
 fn query(
     f: &SparseFactor,
-    m: usize,
-    n: usize,
+    _m: usize,
+    _n: usize,
     c: usize,
     target: i32,
     p: ParShape,
@@ -205,12 +248,12 @@ fn query(
     fast: bool,
 ) -> Result<(), String> {
     macro_rules! for_source {
-        ($s:ty) => {
+        ($s:ty,$factor:expr) => {
             match target {
-                0 => req::<$s, f32>(m, n, c, p),
-                1 => req::<$s, f64>(m, n, c, p),
-                2 => req::<$s, faer::c32>(m, n, c, p),
-                3 => req::<$s, faer::c64>(m, n, c, p),
+                0 => req_for::<$s, f32>($factor, c, p)?,
+                1 => req_for::<$s, f64>($factor, c, p)?,
+                2 => req_for::<$s, faer::c32>($factor, c, p)?,
+                3 => req_for::<$s, faer::c64>($factor, c, p)?,
                 _ => return Err("invalid QR solve target".into()),
             }
         };
@@ -224,10 +267,10 @@ fn query(
         }
     } else {
         match f.factors()? {
-            Factors::F32(_) => for_source!(f32),
-            Factors::F64(_) => for_source!(f64),
-            Factors::C32(_) => for_source!(faer::c32),
-            Factors::C64(_) => for_source!(faer::c64),
+            Factors::F32(x) => for_source!(f32, x),
+            Factors::F64(x) => for_source!(f64, x),
+            Factors::C32(x) => for_source!(faer::c32, x),
+            Factors::C64(x) => for_source!(faer::c64, x),
         }
     };
     if out.is_null()
@@ -733,7 +776,7 @@ mod tests {
                     let rows = if op == 1 || op == 2 { 3 } else { 4 };
                     let output = if rows == 3 { 4 } else { 3 };
                     let b = Mat::from_fn(rows, 2, |_, _| faer::c64::new(1.0, 0.3));
-                    let req = req::<S, faer::c64>(4, 3, 2, p.shape());
+                    let req = req_for::<S, faer::c64>(&f, 2, p.shape()).unwrap();
                     let mut work = OwnedScratch::new();
                     work.scratch_reserve(req.size_bytes(), req.align_bytes())
                         .unwrap();
@@ -814,6 +857,217 @@ mod tests {
     }
     #[test]
     fn c64_rank() {
+        check::<faer::c64>();
+    }
+}
+
+#[cfg(test)]
+mod borrowed_tests {
+    use super::*;
+    use faer::dyn_stack::{MemBuffer, MemStack};
+    use faer::sparse::linalg::{
+        qr::{self, QrSymbolicParams},
+        SupernodalThreshold,
+    };
+    use faer::sparse::{SparseColMat, Triplet};
+    fn source<S: NativeValue>(
+        m: usize,
+        n: usize,
+        mode: usize,
+        deficient: bool,
+    ) -> (Numeric<S>, SparseColMat<usize, S>) {
+        let entries: Vec<_> = (0..n)
+            .flat_map(|j| {
+                (0..m).filter_map(move |i| {
+                    if deficient && (j == 0 || j == n / 2) {
+                        return None;
+                    }
+                    let re = if i == j {
+                        5.0
+                    } else {
+                        0.03 * ((i + 2 * j + 1) as f64).sin()
+                    };
+                    let v = S::from_parts(re, 0.02 * ((2 * i + j + 1) as f64).cos());
+                    Some(Triplet {
+                        row: i,
+                        col: j,
+                        val: v,
+                    })
+                })
+            })
+            .collect();
+        let a = SparseColMat::<usize, S>::try_new_from_triplets(m, n, &entries).unwrap();
+        let indices: Vec<_> = (0..n).rev().collect();
+        let perm = faer::perm::Perm::new_checked(
+            indices.clone().into_boxed_slice(),
+            indices.into_boxed_slice(),
+            n,
+        );
+        let params = QrSymbolicParams {
+            supernodal_flop_ratio_threshold: if mode == 2 {
+                SupernodalThreshold::FORCE_SUPERNODAL
+            } else if mode == 1 {
+                SupernodalThreshold::FORCE_SIMPLICIAL
+            } else {
+                SupernodalThreshold::AUTO
+            },
+            ..Default::default()
+        };
+        let f = if m < n {
+            let plan = crate::sparse_qr_wide::Plan::new(a.symbolic(), perm, params).unwrap();
+            Numeric::WideQr(crate::sparse_qr_wide::Factors::new(&plan, a.as_ref()).unwrap())
+        } else if mode == 1 {
+            let plan = crate::sparse_qr_components::Plan::new(a.symbolic(), perm.as_ref()).unwrap();
+            Numeric::SimplicialQr(
+                crate::sparse_qr_components::Factors::new(&plan, a.as_ref()).unwrap(),
+            )
+        } else {
+            let sym = std::sync::Arc::new(
+                qr::factorize_symbolic_qr_with_column_ordering(
+                    a.symbolic(),
+                    params,
+                    Some(perm.as_ref()),
+                )
+                .unwrap(),
+            );
+            Numeric::Qr(crate::sparse_qr_owned::Factors::new(sym, a.as_ref()).unwrap())
+        };
+        (f, a)
+    }
+    fn legacy<S: ComplexField>(f: &Numeric<S>) -> (Mat<S>, Mat<S>, faer::perm::Perm<usize>) {
+        match f {
+            Numeric::SimplicialQr(x) => (x.q(), x.r.to_dense(), x.plan.cols.clone()),
+            Numeric::Qr(x) => (x.q().unwrap(), x.r().unwrap().to_dense(), x.permutation()),
+            Numeric::WideQr(x) => (x.q().unwrap(), x.r().to_dense(), x.permutation()),
+            _ => unreachable!(),
+        }
+    }
+    fn check<S: NativeValue>()
+    where
+        S::Real: ToleranceReal,
+    {
+        let mut team = OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        for mode in 0..3 {
+            for (m, n) in [
+                (0, 0),
+                (0, 3),
+                (3, 0),
+                (7, 4),
+                (4, 7),
+                (4, 4),
+                (96, 64),
+                (64, 96),
+            ] {
+                for deficient in [false, true] {
+                    let (f, a) = source::<S>(m, n, mode, deficient);
+                    let k = m.min(n);
+                    let tolerance =
+                        eps::<S::Real>() * from_f64::<S::Real>(20.0 * m.max(n).max(1) as f64);
+                    let (q, r, perm) = legacy(&f);
+                    let mut staged = Mat::<S>::zeros(k, n);
+                    write_r(&f, staged.as_mut()).unwrap();
+                    assert_eq!((&staged - &r).norm_max(), zero::<S::Real>());
+                    assert_eq!(
+                        permutation(&f).unwrap().arrays().0,
+                        perm.as_ref().arrays().0
+                    );
+                    // Independent input reconstruction checks factor coordinates as well as Q.
+                    let reconstructed = &q * &staged;
+                    let p = perm.as_ref().arrays().0;
+                    let dense = a.to_dense();
+                    for j in 0..n {
+                        for i in 0..m {
+                            assert!(
+                                abs(&(copy(&reconstructed[(i, j)]) - copy(&dense[(i, p[j])])))
+                                    < tolerance
+                            );
+                        }
+                    }
+                    let b =
+                        Mat::from_fn(k, 3, |i, j| S::from_parts((i + j + 1) as f64 * 0.02, 0.01));
+                    let expected = &q * &b;
+                    for parallel in [false, true] {
+                        let mut exercise = |mut par: Par| {
+                            let req = q_scratch(&f, 3).unwrap();
+                            let mut mem = MemBuffer::new(req);
+                            let mut out = Mat::<S>::zeros(m, 3);
+                            apply_q(
+                                &f,
+                                out.as_mut(),
+                                b.as_ref(),
+                                par.reborrow(),
+                                MemStack::new(&mut mem),
+                            )
+                            .unwrap();
+                            assert!((&out - &expected).norm_max() < tolerance);
+                            let allocations = crate::allocation_probe::count(|| {
+                                write_r(&f, staged.as_mut()).unwrap();
+                                apply_q(
+                                    &f,
+                                    out.as_mut(),
+                                    b.as_ref(),
+                                    par.reborrow(),
+                                    MemStack::new(&mut mem),
+                                )
+                                .unwrap();
+                                let _ = permutation(&f).unwrap();
+                            });
+                            assert_eq!(
+                                allocations, 0,
+                                "borrowed components allocate on calling thread"
+                            );
+                        };
+                        if parallel {
+                            team.execute(exercise).unwrap();
+                        } else {
+                            exercise(Par::Seq);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn rank_certificate_prepared_per_numeric_revision() {
+        let (full, _) = source::<f64>(7, 4, 2, false);
+        let (deficient, _) = source::<f64>(7, 4, 2, true);
+        let mut owner = SparseFactor::new();
+        owner.replace_factors(Factors::F64(full)).unwrap();
+        assert!(!owner.sparse_qr_needs_spectral_solve().unwrap());
+        let mut independent = SparseFactor::new();
+        independent.sparse_factor_clone(&owner).unwrap();
+        assert_eq!(
+            crate::allocation_probe::count(|| {
+                assert!(!owner.sparse_qr_needs_spectral_solve().unwrap());
+                assert!(!independent.sparse_qr_needs_spectral_solve().unwrap());
+            }),
+            0
+        );
+        owner.replace_factors(Factors::F64(deficient)).unwrap();
+        assert!(owner.sparse_qr_needs_spectral_solve().unwrap());
+        assert!(!independent.sparse_qr_needs_spectral_solve().unwrap());
+        assert_eq!(
+            crate::allocation_probe::count(|| {
+                assert!(owner.sparse_qr_needs_spectral_solve().unwrap());
+            }),
+            0
+        );
+    }
+    #[test]
+    fn borrowed_f32() {
+        check::<f32>();
+    }
+    #[test]
+    fn borrowed_f64() {
+        check::<f64>();
+    }
+    #[test]
+    fn borrowed_c32() {
+        check::<faer::c32>();
+    }
+    #[test]
+    fn borrowed_c64() {
         check::<faer::c64>();
     }
 }

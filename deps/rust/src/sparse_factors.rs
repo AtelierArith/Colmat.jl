@@ -315,6 +315,8 @@ enum Factors {
 #[derive(Default)]
 pub struct SparseFactor {
     factors: Option<Factors>,
+    // Source-precision rank certificate, prepared once per numeric revision.
+    qr_rank_hint: Option<bool>,
 }
 impl SparseFactor {
     fn factors(&self) -> Result<&Factors, String> {
@@ -445,11 +447,12 @@ impl SparseFactor {
             };
             match result {
                 Ok(f) => {
-                    self.factors = Some(f);
+                    self.replace_factors(f)?;
                     Ok(0)
                 }
                 Err(info) => {
                     self.factors = None;
+                    self.qr_rank_hint = None;
                     Ok(info)
                 }
             }
@@ -459,6 +462,7 @@ impl SparseFactor {
     pub fn sparse_factor_clone(&mut self, source: &Self) -> Result<(), String> {
         guarded(|| {
             self.factors = Some(source.factors()?.clone());
+            self.qr_rank_hint = source.qr_rank_hint;
             Ok(())
         })
     }
@@ -1180,7 +1184,7 @@ impl SparseFactor {
             };
             match result {
                 Ok(f) => {
-                    self.factors = Some(f);
+                    self.replace_factors(f)?;
                     Ok(0)
                 }
                 Err(info) => Ok(info),
@@ -1269,32 +1273,45 @@ fn qr_needs_spectral_solve<T: crate::operators::NativeValue>(
         || lower <= 0.0
         || lower <= (n as f64) * epsilon * upper
 }
+fn qr_rank_hint(factors: &Factors) -> Result<Option<bool>, String> {
+    fn needs<T: crate::operators::NativeValue>(
+        f: &Numeric<T>,
+        eps: f64,
+    ) -> Result<Option<bool>, String> {
+        Ok(match f {
+            Numeric::SimplicialQr(f) => Some(qr_needs_spectral_solve(f.r.as_ref(), eps)),
+            Numeric::Qr(f) => Some(qr_needs_spectral_solve(f.r()?.as_ref(), eps)),
+            Numeric::WideQr(_) => Some(false),
+            _ => None,
+        })
+    }
+    match factors {
+        Factors::F32(f) => needs(f, f32::EPSILON as f64),
+        Factors::F64(f) => needs(f, f64::EPSILON),
+        Factors::C32(f) => needs(f, f32::EPSILON as f64),
+        Factors::C64(f) => needs(f, f64::EPSILON),
+    }
+}
+impl SparseFactor {
+    fn replace_factors(&mut self, factors: Factors) -> Result<(), String> {
+        // Prepare before assignment so a failed preparation preserves the old revision.
+        let hint = qr_rank_hint(&factors)?;
+        self.factors = Some(factors);
+        self.qr_rank_hint = hint;
+        Ok(())
+    }
+}
 #[julia]
 impl SparseFactor {
     #[julia]
     pub fn sparse_qr_needs_spectral_solve(&self) -> Result<bool, String> {
         guarded(|| {
-            fn needs<T: crate::operators::NativeValue>(
-                f: &Numeric<T>,
-                eps: f64,
-            ) -> Result<bool, String> {
-                Ok(match f {
-                    Numeric::SimplicialQr(f) => qr_needs_spectral_solve(f.r.as_ref(), eps),
-                    Numeric::Qr(f) => qr_needs_spectral_solve(f.r()?.as_ref(), eps),
-                    Numeric::WideQr(_) => false,
-                    _ => return Err("rank-aware solve requires sparse QR".into()),
-                })
-            }
-            match self.factors()? {
-                Factors::F32(f) => needs(f, f32::EPSILON as f64),
-                Factors::F64(f) => needs(f, f64::EPSILON),
-                Factors::C32(f) => needs(f, f32::EPSILON as f64),
-                Factors::C64(f) => needs(f, f64::EPSILON),
-            }
+            self.factors()?;
+            self.qr_rank_hint
+                .ok_or_else(|| "rank-aware solve requires sparse QR".into())
         })
     }
 }
-
 #[cfg(test)]
 mod rank_certificate_tests {
     use super::qr_needs_spectral_solve;
