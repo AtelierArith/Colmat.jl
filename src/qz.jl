@@ -242,49 +242,71 @@ Base.iterate(f::FaerGeneralizedHessenberg, ::Val{:done}) = nothing
 # Intersection with the mixed Julia-array/owned-matrix method.
 LinearAlgebra.schur(a::FaerMatrixView{<:Number}, b::FaerMatrix) = _promoted_qz(a, b)
 
-function _ordqz(f::_NativeQZ, select)
+const _QzOrderFunction=Union{typeof(LinearAlgebra.ordschur),typeof(LinearAlgebra.ordschur!)}
+function _ordqz(f::_NativeQZ, select; scratch = nothing)
     lock(_matrix_lock) do
         n=_check_pair_factor(f)
         length(select)==n ||
             throw(DimensionMismatch("QZ selection length must match the factor dimension"))
-        data=UInt8.(select)
-        T=eltype(f)
-        t, q, z=(_zeros(T, (n, n)) for _ = 1:3)
-        alpha=Vector{Complex{_realtype(T)}}(undef, n)
-        beta=Vector{T}(undef, n)
-        args=(
-            f.S,
-            f.T,
-            f.Q,
-            f.Z,
-            t,
-            q,
-            z,
-            pointer(data),
-            UInt(n),
-            Ptr{UInt8}(pointer(alpha)),
-            Ptr{UInt8}(pointer(beta)),
-            _tag(T),
-        )
-        s=GC.@preserve data alpha beta if T===Float64
-            _matrix_result(RustCrate.qz_reorder_from, (n, n), args...)
-        else
-            _typed_result(T, RustCrate.qz_reorder_from, (n, n), args...)
+        req=scratch_requirements(LinearAlgebra.ordschur, f)
+        temporary=isnothing(scratch)
+        work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+        work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
+        try
+            cap=scratch_capacity(work)
+            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+                ArgumentError(
+                    "QZ reorder scratch capacity/alignment is insufficient; call reserve!(scratch, ordschur, F)",
+                ),
+            )
+            data=UInt8.(select)
+            T=eltype(f)
+            t, q, z=(_zeros(T, (n, n)) for _ = 1:3)
+            alpha=Vector{Complex{_realtype(T)}}(undef, n)
+            beta=Vector{T}(undef, n)
+            args=(
+                f.S,
+                f.T,
+                f.Q,
+                f.Z,
+                t,
+                q,
+                z,
+                pointer(data),
+                UInt(n),
+                Ptr{UInt8}(pointer(alpha)),
+                Ptr{UInt8}(pointer(beta)),
+                _tag(T),
+                work,
+            )
+            s=GC.@preserve data alpha beta if T===Float64
+                _matrix_result(RustCrate.qz_reorder_from, (n, n), args...)
+            else
+                _typed_result(T, RustCrate.qz_reorder_from, (n, n), args...)
+            end
+            return LinearAlgebra.GeneralizedSchur(s, t, alpha, beta, q, z)
+        finally
+            temporary && close(work)
         end
-        return LinearAlgebra.GeneralizedSchur(s, t, alpha, beta, q, z)
     end
 end
 """
-    ordschur(F::GeneralizedSchur{T,<:FaerMatrix}, select)
+    ordschur(F::GeneralizedSchur{T,<:FaerMatrix}, select; scratch=nothing)
 
 Reorder saved native generalized Schur factors so selected eigenvalue blocks
 appear first, preserving order within each group. Selecting either member of a
 real conjugate pair selects both. Return independent S/T/Q/Z and homogeneous
 α/β computed from the saved factors, including infinite eigenvalues. A rejected
-native move throws while preserving F. Work factors and scratch are allocated.
+native move throws while preserving F. Work factors allocate. `scratch` may be a
+caller-owned `FaerScratch`; without it a temporary workspace is allocated.
 """
-LinearAlgebra.ordschur(f::_NativeQZ, select::Union{Vector{Bool},BitVector}) =
-    _ordqz(f, select)
+function LinearAlgebra.ordschur(
+    f::_NativeQZ,
+    select::Union{Vector{Bool},BitVector};
+    scratch = nothing,
+)
+    return _ordqz(f, select; scratch)
+end
 # Compare actual element byte intervals: strided alpha/beta views can share a
 # parent while remaining disjoint, including interleaved and reversed views.
 function _qz_metadata_alias(a::StridedVector, b::StridedVector)
@@ -315,14 +337,19 @@ function _qz_metadata_alias(a::StridedVector, b::StridedVector)
 end
 
 """
-    ordschur!(F::GeneralizedSchur{T,<:FaerMatrix}, select)
+    ordschur!(F::GeneralizedSchur{T,<:FaerMatrix}, select; scratch=nothing)
 
 Reorder saved native generalized Schur factors and update F after all moves and
 metadata conversions succeed. Existing matrix owners and views are preserved.
 S/T/Q/Z must have distinct storage; α/β must be disjoint mutable strided vectors
-of the factor dimension. Work factors and scratch are allocated.
+of the factor dimension. Work factors allocate. `scratch` is reused when supplied;
+insufficient capacity/alignment or a closed workspace rejects before writeback.
 """
-function LinearAlgebra.ordschur!(f::_NativeQZ, select::Union{Vector{Bool},BitVector})
+function LinearAlgebra.ordschur!(
+    f::_NativeQZ,
+    select::Union{Vector{Bool},BitVector};
+    scratch = nothing,
+)
     lock(_matrix_lock) do
         n=_check_pair_factor(f)
         matrices=_pair_matrices(f)
@@ -339,12 +366,12 @@ function LinearAlgebra.ordschur!(f::_NativeQZ, select::Union{Vector{Bool},BitVec
         )
         _qz_metadata_alias(f.α, f.β) &&
             throw(ArgumentError("QZ α/β must have disjoint storage"))
-        result=_ordqz(f, select)
+        result=_ordqz(f, select; scratch)
         alpha=Vector{eltype(f.α)}(result.α)
         beta=Vector{eltype(f.β)}(result.β)
         foreach(copyto!, matrices, _pair_matrices(result))
         copyto!(f.α, alpha)
-        copyto!(f.β, beta)
+        return copyto!(f.β, beta)
     end
     return f
 end

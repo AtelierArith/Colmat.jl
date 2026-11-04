@@ -225,20 +225,29 @@ G = ordschur(F, select)
 @assert G.values[3] ≈ 4
 @assert Matrix(G.Q * G.S * G.Z') ≈ Matrix(A)
 @assert Matrix(G.Q * G.T * G.Z') ≈ Matrix(B)
+work = FaerScratch(ordschur, F)
+req = scratch_requirements(ordschur!, F)
+@assert scratch_capacity(work) == req
+H = ordschur(F, select; scratch=work)
+@assert H.values ≈ G.values
 Sview = view(F.S, :, :)
-@assert ordschur!(F, select) === F
+@assert ordschur!(F, select; scratch=work) === F
 @assert Matrix(Sview) == Matrix(F.S)
 @assert F.values ≈ G.values
+@assert scratch_capacity(work) == req
+close(work)
 ```
 
 `ordschur!` は全計算・固有値の変換に成功してから既存の S/T/Q/Z・α/β を
 更新し、元の所有者とビューを保ちます。行列は別々の native 所有者、α/β は
 要素領域の重ならない mutable strided vector が必要です。同じ Julia 配列の
 互いに重ならないビューも使えます。数値的に安全な交換や固有値評価ができない
-場合は例外を返し、元の分解を保ちます。作業因子と scratch は内部で確保します。
+場合は例外を返し、元の分解を保ちます。`scratch=` では `FaerScratch` を再利用でき、
+`reserve!(work, ordschur, F)` で容量を増やせます。容量・alignment の不足や閉じた
+scratch は入力を変更せずに拒否します。作業因子と Julia の出力・変換配列は別に確保します。
 `values`／`eigvals(F)` は Julia の α/β の比に従い、複素ゼロ除算では NaN を
 含む場合があるため、無限・不定値の判定には同次対を使ってください。
-既定値以外のアルゴリズム設定と外部から渡す作業領域は未対応です。
+QZ 構築の外部作業領域・既定値以外のアルゴリズム設定・team は未対応です。
 
 疎行列は CSC／CSR の実体を Rust に所有させます。
 
