@@ -2801,3 +2801,29 @@ tests; all 88 README blocks passed. An additional executed 1,440-assertion
 check covered all-zero maps, zero-column RHS and all-clipped tolerances.
 JuliaFormatter DefaultStyle, rustfmt for the new native module, diff and
 frozen-inventory checks passed. No new RustCall/faer defect was identified.
+
+
+## Right solves with transposed/adjoint vector operands
+
+An executed main-branch reproducer found that sparse LU/QR/Cholesky right
+solves rejected `adjoint(vector)` with a FaerMatrix constructor MethodError.
+The same normalization pattern existed in retained dense factor rdiv!.
+Although these row operands are AbstractMatrix, adjoint of an adjoint or
+transpose vector can be one-dimensional. The three frontends now explicitly
+reshape the normalized RHS to `(size(B,2),size(B,1))` before native conversion.
+This preserves row orientation and conjugation for vector-backed rows and
+ordinary matrix operands. Native Rust code and dependency revisions are unchanged;
+this was a Colmat wrapper defect, not a RustCall/faer issue.
+
+Regression tests cover all four scalar types and mixed complex RHS, source
+transpose/adjoint, transposed/adjoint row operands, empty/scalar/square and
+rectangular factors, all sparse algorithms, native destinations, source/plan
+closure, scratch/team, writable row destinations and failed conversions.
+The focused run passed 26,980 assertions. Final canonical/README results follow.
+
+Final validation: canonical Pkg.test passed 399,095 assertions / 103 files /
+16 workers in 8m16.4s, including 26,980 row-operand regression assertions. All
+88 README blocks passed. Additional executed FaerVector-backed row RHS checks
+passed 36 assertions. JuliaFormatter DefaultStyle, diff and frozen-inventory
+checks passed. The Rust tree is byte-identical to PR #49's 75-test validated
+tree; this Julia-only correction does not change native code or faer revision.
