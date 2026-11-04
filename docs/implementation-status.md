@@ -2765,3 +2765,39 @@ all 87 README blocks passed. JuliaFormatter DefaultStyle, rustfmt for the new
 native module, diff and frozen-inventory checks passed. Earlier focused runs
 found the closed-plan permutation bug and method ambiguities; the final
 canonical run includes their fixes and all validation tests.
+
+
+## Sparse QR R-SVD/projection solve resources
+
+All sparse QR algorithms now connect caller scratch/team to normal/transposed/
+adjoint left/right solves, including vector/matrix/native/view RHS, promotion,
+empty/rectangular/wide/rank-deficient factors and explicit atol/rtol. Default
+rank-deficient/tolerance and wide solves share the new kernel instead of forming
+an explicit dense pseudoinverse. Native scratch includes dense R staging, its
+source-precision SVD, source Q*U_R, promoted coefficients/weights and projection.
+Cutoff comparison remains in the source precision, while reciprocals are formed
+in the working precision, consistent with public retained spectral solves.
+
+Same-type normal solves without explicit tolerance use a sparse rank certificate
+and borrow native factors when it proves full column rank. Their query and
+kernel receive the actual team. This preserves linear-size solve work for large
+well-conditioned sparse factors rather than forcing a dense R SVD. Default tall
+full-rank calls retain their established fast path.
+
+Q/R/permutation materialization for the spectral path is independent preparation
+outside solve scratch; Q extraction remains sequential. This change does not
+claim allocation-free whole API calls or finish Q extraction/construction
+resources. RHS/result ownership and staged destination conversion also allocate
+outside scratch. Inverse-operator construction retains its separate policy.
+Other sparse factor construction, iterative resources and all 76 inventory rows
+remain in scope. Existing rejection tests for unsupported QR workspace forms
+are updated to verify newly supported behavior; insufficient-buffer checks remain.
+
+Final validation at Julia 1.13.3 / RustCall.jl 0.9.2 and unchanged t4a-faer
+0.29.0 revision `19053d8c22993851c032d5373b4ec188998f2b5c`: canonical
+Pkg.test passed 372,115 assertions / 102 files / 16 workers in 7m59.7s.
+The new file contributes 75,717 assertions. Native cargo test passed all 75
+tests; all 88 README blocks passed. An additional executed 1,440-assertion
+check covered all-zero maps, zero-column RHS and all-clipped tolerances.
+JuliaFormatter DefaultStyle, rustfmt for the new native module, diff and
+frozen-inventory checks passed. No new RustCall/faer defect was identified.

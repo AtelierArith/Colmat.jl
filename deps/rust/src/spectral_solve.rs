@@ -6,7 +6,7 @@ use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{MatRef, Par};
 use rustcall_julia_macros::julia;
-mod workspace;
+pub(crate) mod workspace;
 use workspace::{converted, same};
 pub(crate) fn threshold<T: ComplexField>(
     f: &Decomposition<T>,

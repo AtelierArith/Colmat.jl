@@ -45,12 +45,14 @@ end
     @test reserve!(s, ldiv!, F, B)===s
     @test ldiv!(X, F, B; scratch = s)≈Matrix(A)\B
     @test_throws DimensionMismatch scratch_requirements(ldiv!, F, ones(2, 2))
-    @test_throws ArgumentError scratch_requirements(ldiv!, F, ones(Float32, 3, 2))
+    @test scratch_requirements(ldiv!, F, ones(Float32, 3, 2))==req
     @test_throws DimensionMismatch ldiv!(zeros(3, 2), F, B; scratch = s)
     @test_throws ArgumentError ldiv!(X, F, B; scratch = :invalid)
-    @test_throws ArgumentError ldiv!(zeros(3, 2), adjoint(F), ones(2, 2); scratch = s)
+    reserve!(s, ldiv!, adjoint(F), ones(2, 2))
+    @test ldiv!(zeros(3, 2), adjoint(F), ones(2, 2); scratch = s)≈pinv(Matrix(A))' *
+                                                                  ones(2, 2)
     G=qr(A; algorithm = :simplicial)
-    @test_throws Colmat.RustCall.RustError scratch_requirements(ldiv!, G, B)
+    @test scratch_requirements(ldiv!, G, B).bytes>0
     close(G)
     close(F)
     close(A)

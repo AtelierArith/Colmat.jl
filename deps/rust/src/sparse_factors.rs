@@ -1364,3 +1364,5 @@ mod rank_certificate_tests {
 }
 
 mod solve_workspace;
+
+mod qr_solve_workspace;

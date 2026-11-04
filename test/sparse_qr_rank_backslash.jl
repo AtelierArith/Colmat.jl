@@ -35,10 +35,10 @@ using Colmat, LinearAlgebra, SparseArrays, Test
     end
 end
 
-@testset "Rank-deficient workspace solve rejects before output mutation" begin
+@testset "Rank-deficient solve rejects insufficient workspace before output mutation" begin
     F=qr(FaerSparseMatrix(sparse([1.0 0; 0 0; 0 0])))
     B=ones(3, 1)
-    @test_throws ArgumentError scratch_requirements(ldiv!, F, B)
+    @test scratch_requirements(ldiv!, F, B).bytes>0
     s=FaerScratch(0)
     X=fill(9.0, 2, 1)
     @test_throws ArgumentError ldiv!(X, F, B; scratch = s)

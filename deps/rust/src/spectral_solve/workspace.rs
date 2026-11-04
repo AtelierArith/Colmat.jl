@@ -70,7 +70,7 @@ pub(super) fn requirement_for(
         _ => return Err("invalid spectral solve target scalar".into()),
     })
 }
-fn project<T: ComplexField>(
+pub(crate) fn project<T: ComplexField>(
     mut out: MatMut<'_, T>,
     b: MatRef<'_, T>,
     u: MatRef<'_, T>,

@@ -1813,9 +1813,8 @@ numeric buffers. Normal least-squares solves, independent copies, symbolic
 reuse and numeric `qr!` updates support all four scalar types and CSC/CSR.
 This path uses native COLAMD ordering, with optional `dense_row`, `dense_col`
 and `aggressive` controls. `F.p/F.pcol` returns an independent column permutation.
-Q/R component getters and transpose/adjoint solves are not yet exposed for
-supernodal QR. Solve workspace is available through the interface below. The explicit simplicial path retains its existing
-component and transpose/adjoint interfaces.
+Q/R component getters, transpose/adjoint solves and solve workspace are
+available for every algorithm through the interfaces below.
 
 
 ### Reuse workspace for retained sparse QR solves
@@ -1834,12 +1833,19 @@ close(s)
 close(F)
 ```
 
-This interface accepts matrix RHS matching the factor's scalar type for normal
-auto/supernodal QR solves. `reserve!(s,ldiv!,F,B)` explicitly grows an existing
-buffer. Insufficient capacity/alignment is rejected before writing the result;
-the buffer never grows implicitly. Native RHS/result storage and destination
-copying allocate outside scratch. Factor construction has a separate workspace interface below. Simplicial QR and
-transpose/adjoint solves retain their existing workspace paths.
+This interface supports all QR algorithms, mixed vector/matrix RHS, transpose/
+adjoint, right solves, rank-deficient and wide factors. Tolerances may be passed
+to the query, constructor/reserve and solve. The source precision determines rank
+decisions, including after promotion. `reserve!` explicitly grows an existing
+buffer; insufficient or closed scratch fails before writeback. Normal full-rank
+calls without resources retain their existing fast path. Normal same-type
+scratch/team calls also borrow the sparse numeric factors when the rank bound
+certifies full column rank. Other explicit resource calls, wide defaults and
+rank/tolerance fallbacks use an R SVD, coefficient promotion and projection in
+caller scratch without constructing a dense pseudoinverse or reconstructing the
+input. Independent Q/R/permutation extraction, RHS/result storage and destination
+staging allocate outside solve scratch; Q extraction remains sequential. Factor
+construction has a separate workspace interface below.
 
 
 For auto/supernodal QR, `ordering=:default` and `ordering=:colamd` both select
@@ -2465,3 +2471,30 @@ preparing that operator allocates separately from solve scratch. Native output,
 RHS conversion and destination staging also allocate separately. Overlapping
 inputs are supported; conversion and resource failures leave destinations intact.
 Sparse QR keeps its separate workspace interface and remaining restrictions.
+
+
+### Sparse QR minimum-norm solves with scratch and a team
+
+```julia
+using Colmat,LinearAlgebra,SparseArrays
+A0 = Float32[1 2 1; 2 4 2]
+a = FaerSparseMatrix(sparse(A0))
+F = qr(a;algorithm=:simplicial,ordering=[3,1,2])
+team = FaerTeam(2)
+B = ones(ComplexF64,2,2)
+s = FaerScratch(ldiv!,F,B;team,rtol=1e-5)
+close(a)
+close(F.source)
+close(F.plan)
+X = zeros(ComplexF64,3,2)
+ldiv!(X,F,B;scratch=s,team,rtol=1e-5)
+@assert isapprox(X,pinv(ComplexF64.(A0);rtol=1e-5)*B;rtol=1e-4)
+C = ones(ComplexF64,2,3)
+reserve!(s,rdiv!,C,F;team,rtol=1e-5)
+Y = zeros(ComplexF64,2,2)
+rdiv!(Y,C,F;scratch=s,team,rtol=1e-5)
+@assert isapprox(Y,C*pinv(ComplexF64.(A0);rtol=1e-5);rtol=1e-4)
+close(s)
+close(team)
+close(F)
+```
