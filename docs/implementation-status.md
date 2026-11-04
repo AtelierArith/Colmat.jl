@@ -2086,25 +2086,34 @@ Final Pkg.test passed 103,354 assertions / 79 files / 16 workers. Native Rust
 passed on upstream 0bf88db.
 
 
-## Issue #22: saved auto/supernodal sparse LU components (in progress)
+## Issue #22: saved auto/supernodal sparse LU components
 
 Native L/U and row/column permutation export is connected for all sparse LU
 algorithms, enabling existing saved-factor reconstruction. Forced supernodal
 selection and native COLAMD controls are connected. Upstream API: faer #235 /
-PR #238; separate no-Rayon numeric fix: #236 / PR #237. Candidate dependency
-55d54a1 is used for integration testing; final merged dependency adoption and
-canonical validation remain pending. Focused Julia lifecycle/component/COLAMD checks pass 497 assertions. README
-68 executable blocks and Rust 11 tests pass. The first canonical run completed
-80 files with 103,849 passes and two stale unsupported-operation expectations;
-those expectations are updated to verify the newly implemented behavior.
-Final canonical rerun and merged upstream adoption remain pending.
+PR #238; separate no-Rayon numeric fix: #236 / PR #237.
+
+Validation against candidate faer 55d54a1: canonical
+`Pkg.test(;allow_reresolve=false)` passed 103,851 assertions across 80 files
+(16 workers). Focused lifecycle/component/COLAMD checks passed 497 assertions.
+README passed 68 executable blocks; Rust passed 11 tests. Julia/Rust formatting
+and diff checks passed.
+
+Upstream PRs #237, #238 and #240 are merged. `deps/build.jl` fetched clean
+faer main `12843515e07f8d6f27fc525668227088658ffe0f` (t4a-faer 0.28.2).
+This includes the no-Rayon numeric solve fix, saved LU public accessors and
+explicit sparse column ordering. Native tests pass 11 cases on this revision.
+Canonical Pkg.test on merged main also passes 103,851 assertions / 80 files
+with 16 workers. All 68 README blocks pass on the merged dependency.
 
 ## Issue #22: LU mixed RHS saved-factor reuse (in progress)
 
 All sparse LU algorithms now use the native saved-factor inverse action for
 mixed RHS. Source snapshot closure is covered. Focused tests pass 6,768
 assertions for mixed reuse and 1,731 for auto/supernodal inverse/preconditioner
-actions. Canonical validation is running. Auto/supernodal QR remains pending.
+actions. Canonical validation passes 107,502 assertions across 81 files (16 workers). Auto/supernodal QR remains pending.
+
+LU mixed RHS follow-up README validation: 69 executable blocks passed.
 
 ## Issue #22: auto/supernodal QR mixed RHS and inverse actions (in progress)
 
@@ -2121,7 +2130,9 @@ README passes 70 executable blocks.
 Identity and supplied column permutations now reach native symbolic LU/QR
 analysis for auto/supernodal algorithms. Upstream faer #239 / PR #240 provides
 the API. Candidate faer 3889bd1 passes seven focused tests and three doctests.
-Colmat integration validation is running. Other native tuning remains pending.
+Colmat focused integration passes 2,016 assertions. Canonical validation passes
+113,998 assertions / 83 files / 16 workers; README passes 71 executable blocks.
+Other native tuning and merged upstream adoption remain pending.
 
 ## Issue #22: full Q from saved sparse QR factors (in progress)
 
