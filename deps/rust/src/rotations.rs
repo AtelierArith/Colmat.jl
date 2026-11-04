@@ -232,13 +232,8 @@ pub fn jacobi_apply_2x2(
                 s: copy(&x[1]),
             };
             let (a, b, c, d) = if right {
-                // Upstream transposes an adjoint application, giving conj(J).
-                j.conjugate().apply_on_the_right_2x2(
-                    copy(&x[2]),
-                    copy(&x[3]),
-                    copy(&x[4]),
-                    copy(&x[5]),
-                )
+                // Upstream #206 is fixed in the selected 0.28.2 revision.
+                j.apply_on_the_right_2x2(copy(&x[2]), copy(&x[3]), copy(&x[4]), copy(&x[5]))
             } else {
                 j.apply_on_the_left_2x2(copy(&x[2]), copy(&x[3]), copy(&x[4]), copy(&x[5]))
             };
