@@ -5,8 +5,8 @@
 Own faer's symbolic sparse LU, QR or Cholesky analysis (`kind=:lu/:qr/:cholesky`).
 `LinearAlgebra.factorize(plan,A)` computes independent numeric factors without repeating the
 analysis. A must have exactly the original stored pattern, including stored
-zeros; CSC/CSR orientation and numeric scalar type may differ. Sparse QR
-currently requires at least as many rows as columns. Cholesky accesses `uplo`.
+zeros; CSC/CSR orientation and numeric scalar type may differ. Wide sparse QR uses a square-prefix native analysis and saved-reflector projections.
+Cholesky accesses `uplo`.
 
 Cholesky accepts `ordering=:default/:amd/:identity` or a permutation, AMD tuning
 `dense=10.0, aggressive=true`, and `algorithm=:auto/:simplicial/:supernodal`.
@@ -30,7 +30,8 @@ end
 
 Reusable Rust-owned sparse factors returned by `lu`, `qr`, `cholesky` and
 `LinearAlgebra.factorize(plan,A)` for FaerSparseMatrix. `F \\ B` reuses numeric factors; QR
-solves full-column-rank least-squares problems. LU/Cholesky also support
+solves full-column-rank tall/square problems, and minimum-norm wide problems
+using native SVD of saved R. LU/Cholesky also support
 transpose/adjoint solves. Sparse QR supports minimum-norm transpose/adjoint solves for full-column-rank
 factors with every algorithm. Inputs and symbolic plans
 may be closed independently.
@@ -100,9 +101,6 @@ function FaerSparseSymbolic(
     kind!==:qr &&
         size(p, 1)!=size(p, 2) &&
         throw(DimensionMismatch("sparse LU/Cholesky requires a square matrix"))
-    kind===:qr &&
-        size(p, 1)<size(p, 2) &&
-        throw(ArgumentError("sparse QR requires at least as many rows as columns"))
     threshold=Float64(dense)
     isfinite(threshold) || throw(ArgumentError("dense must be finite"))
     algo=algorithm===:auto ? 0 :
@@ -329,7 +327,14 @@ function Base.copy(f::FaerSparseFactorization{T,K}) where {T,K}
         h=RustCrate.SparseFactor()
         LinearAlgebra.issuccess(f) && _native_call(RustCrate.sparse_factor_clone, h, f)
         plan=copy(f.plan)
-        source=copy(f.source)
+        source=isopen(f.source) ? copy(f.source) :
+               typeof(f.source)(
+            nothing,
+            f.source.dims,
+            f.source.stored,
+            f.source.format,
+            f.source.epoch,
+        )
         return FaerSparseFactorization{T,K,typeof(h),typeof(plan),typeof(source)}(
             h,
             size(f),
@@ -631,12 +636,12 @@ function Base.getproperty(f::FaerSparseFactorization{T,:qr}, name::Symbol) where
                 return _permutation_result(size(f, 2), RustCrate.sparse_qr_permutation, f)
             name===:R && return _sparse_result(
                 T,
-                (size(f, 2), size(f, 2)),
+                (min(size(f)...), size(f, 2)),
                 :csc,
                 RustCrate.sparse_qr_r,
                 f,
             )
-            dims=name===:Qfull ? (size(f, 1), size(f, 1)) : size(f)
+            dims=name===:Qfull ? (size(f, 1), size(f, 1)) : (size(f, 1), min(size(f)...))
             return T===Float64 ?
                    _matrix_result(RustCrate.sparse_qr_q, dims, f, name===:Qfull) :
                    _typed_result(T, RustCrate.sparse_qr_q, dims, f, name===:Qfull)

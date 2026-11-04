@@ -28,6 +28,7 @@ enum Analysis {
     SimplicialQr(crate::sparse_qr_components::Plan),
     Lu(SymbolicLu<usize>),
     Qr(Arc<faer::sparse::linalg::qr::SymbolicQr<usize>>),
+    WideQr(crate::sparse_qr_wide::Plan),
     Llt(Arc<SymbolicCholesky<usize>>),
 }
 #[derive(Clone)]
@@ -76,9 +77,6 @@ impl SparseSymbolic {
             let (m, n) = (pattern.nrows(), pattern.ncols());
             if kind != 1 && m != n {
                 return Err("sparse LU/Cholesky requires a square matrix".into());
-            }
-            if kind == 1 && m < n {
-                return Err("sparse QR requires at least as many rows as columns".into());
             }
             let explicit_cols = if ordering == 2 {
                 Some(
@@ -140,6 +138,58 @@ impl SparseSymbolic {
                     }
                     .map_err(|e| format!("{e:?}"))?;
                     Analysis::Lu(symbolic)
+                }
+                1 if m < n => {
+                    let columns = if let Some(p) = &explicit_cols {
+                        p.clone()
+                    } else if supernodal == 1 {
+                        let p: Vec<usize> = (0..n).collect();
+                        faer::perm::Perm::new_checked(
+                            p.clone().into_boxed_slice(),
+                            p.into_boxed_slice(),
+                            n,
+                        )
+                    } else {
+                        let mut fwd = vec![0; n];
+                        let mut inv = vec![0; n];
+                        let mut mem = MemBuffer::try_new(
+                            faer::sparse::linalg::colamd::order_scratch::<usize>(
+                                m,
+                                n,
+                                pattern.compute_nnz(),
+                            ),
+                        )
+                        .map_err(|e| format!("{e:?}"))?;
+                        faer::sparse::linalg::colamd::order(
+                            &mut fwd,
+                            &mut inv,
+                            pattern.as_ref(),
+                            faer::sparse::linalg::colamd::Control {
+                                dense_row,
+                                dense_col,
+                                aggressive,
+                            },
+                            MemStack::new(&mut mem),
+                        )
+                        .map_err(|e| format!("{e:?}"))?;
+                        faer::perm::Perm::new_checked(
+                            fwd.into_boxed_slice(),
+                            inv.into_boxed_slice(),
+                            n,
+                        )
+                    };
+                    Analysis::WideQr(crate::sparse_qr_wide::Plan::new(
+                        pattern.as_ref(),
+                        columns,
+                        faer::sparse::linalg::qr::QrSymbolicParams {
+                            supernodal_flop_ratio_threshold: match supernodal {
+                                1 => SupernodalThreshold::FORCE_SIMPLICIAL,
+                                2 => SupernodalThreshold::FORCE_SUPERNODAL,
+                                _ => SupernodalThreshold::AUTO,
+                            },
+                            ..Default::default()
+                        },
+                    )?)
                 }
                 1 if supernodal == 1 => {
                     let owned;
@@ -251,6 +301,7 @@ enum Numeric<T> {
     SimplicialQr(crate::sparse_qr_components::Factors<T>),
     Lu(Lu<usize, T>),
     Qr(crate::sparse_qr_owned::Factors<T>),
+    WideQr(crate::sparse_qr_wide::Factors<T>),
     Llt(SparseLlt<T>),
 }
 #[derive(Clone)]
@@ -288,6 +339,9 @@ fn numeric<T: ComplexField>(
         );
     }
     Ok(Ok(match &p.analysis {
+        Analysis::WideQr(plan) => {
+            Numeric::WideQr(crate::sparse_qr_wide::Factors::new(plan, a.as_ref())?)
+        }
         Analysis::SimplicialLu(cols) => {
             match crate::sparse_lu_components::SimplicialFactors::new(a.as_ref(), cols.as_ref()) {
                 Ok(f) => Numeric::SimplicialLu(f),
@@ -452,6 +506,13 @@ fn solve<T: ComplexField>(
                 return f.solve_transpose(b, adj);
             }
             f.solve(b)?
+        }
+        Numeric::WideQr(f) => {
+            if trans {
+                f.solve_transpose(b, adj)?
+            } else {
+                f.solve(b)?
+            }
         }
         Numeric::Qr(f) => {
             if trans {
@@ -835,12 +896,16 @@ impl SparseOwner {
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => SparseData::F32(export(f)?),
                 Factors::F32(Numeric::Qr(f)) => SparseData::F32(Storage::Csc(f.r()?)),
+                Factors::F32(Numeric::WideQr(f)) => SparseData::F32(Storage::Csc(f.r())),
                 Factors::F64(Numeric::SimplicialQr(f)) => SparseData::F64(export(f)?),
                 Factors::F64(Numeric::Qr(f)) => SparseData::F64(Storage::Csc(f.r()?)),
+                Factors::F64(Numeric::WideQr(f)) => SparseData::F64(Storage::Csc(f.r())),
                 Factors::C32(Numeric::SimplicialQr(f)) => SparseData::C32(export(f)?),
                 Factors::C32(Numeric::Qr(f)) => SparseData::C32(Storage::Csc(f.r()?)),
+                Factors::C32(Numeric::WideQr(f)) => SparseData::C32(Storage::Csc(f.r())),
                 Factors::C64(Numeric::SimplicialQr(f)) => SparseData::C64(export(f)?),
                 Factors::C64(Numeric::Qr(f)) => SparseData::C64(Storage::Csc(f.r()?)),
+                Factors::C64(Numeric::WideQr(f)) => SparseData::C64(Storage::Csc(f.r())),
                 _ => return Err("QR components require algorithm=:simplicial".into()),
             });
             Ok(())
@@ -855,6 +920,7 @@ impl OwnedMatrix {
             self.matrix = match factor.factors()? {
                 Factors::F64(Numeric::SimplicialQr(f)) => (if full { f.q_full() } else { f.q() }),
                 Factors::F64(Numeric::Qr(f)) => (if full { f.q_full() } else { f.q() })?,
+                Factors::F64(Numeric::WideQr(f)) => f.q()?,
                 _ => return Err("QR Q requires Float64 QR factors".into()),
             };
             Ok(())
@@ -867,6 +933,10 @@ impl TypedMatrix {
     pub fn sparse_qr_q(&mut self, factor: &SparseFactor, full: bool) -> Result<(), String> {
         guarded(|| {
             self.data = Some(match factor.factors()? {
+                Factors::F32(Numeric::WideQr(f)) => MatrixData::F32(f.q()?),
+                Factors::F64(Numeric::WideQr(f)) => MatrixData::F64(f.q()?),
+                Factors::C32(Numeric::WideQr(f)) => MatrixData::C32(f.q()?),
+                Factors::C64(Numeric::WideQr(f)) => MatrixData::C64(f.q()?),
                 Factors::F32(Numeric::SimplicialQr(f)) => {
                     MatrixData::F32((if full { f.q_full() } else { f.q() }))
                 }
@@ -905,12 +975,16 @@ impl OwnedPermutation {
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
                 Factors::F32(Numeric::Qr(f)) => f.permutation(),
+                Factors::F32(Numeric::WideQr(f)) => f.permutation(),
                 Factors::F64(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
                 Factors::F64(Numeric::Qr(f)) => f.permutation(),
+                Factors::F64(Numeric::WideQr(f)) => f.permutation(),
                 Factors::C32(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
                 Factors::C32(Numeric::Qr(f)) => f.permutation(),
+                Factors::C32(Numeric::WideQr(f)) => f.permutation(),
                 Factors::C64(Numeric::SimplicialQr(f)) => f.plan.cols.clone(),
                 Factors::C64(Numeric::Qr(f)) => f.permutation(),
+                Factors::C64(Numeric::WideQr(f)) => f.permutation(),
                 _ => return Err("QR permutation requires simplicial factors".into()),
             });
             Ok(())
@@ -926,6 +1000,7 @@ impl OwnedMatrix {
             self.matrix = match factor.factors()? {
                 Factors::F64(Numeric::SimplicialQr(f)) => f.reconstruct(),
                 Factors::F64(Numeric::Qr(f)) => f.reconstruct()?,
+                Factors::F64(Numeric::WideQr(f)) => f.reconstruct()?,
                 _ => return Err("QR reconstruction requires Float64 QR factors".into()),
             };
             Ok(())
@@ -940,12 +1015,16 @@ impl TypedMatrix {
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => MatrixData::F32(f.reconstruct()),
                 Factors::F32(Numeric::Qr(f)) => MatrixData::F32(f.reconstruct()?),
+                Factors::F32(Numeric::WideQr(f)) => MatrixData::F32(f.reconstruct()?),
                 Factors::F64(Numeric::SimplicialQr(f)) => MatrixData::F64(f.reconstruct()),
                 Factors::F64(Numeric::Qr(f)) => MatrixData::F64(f.reconstruct()?),
+                Factors::F64(Numeric::WideQr(f)) => MatrixData::F64(f.reconstruct()?),
                 Factors::C32(Numeric::SimplicialQr(f)) => MatrixData::C32(f.reconstruct()),
                 Factors::C32(Numeric::Qr(f)) => MatrixData::C32(f.reconstruct()?),
+                Factors::C32(Numeric::WideQr(f)) => MatrixData::C32(f.reconstruct()?),
                 Factors::C64(Numeric::SimplicialQr(f)) => MatrixData::C64(f.reconstruct()),
                 Factors::C64(Numeric::Qr(f)) => MatrixData::C64(f.reconstruct()?),
+                Factors::C64(Numeric::WideQr(f)) => MatrixData::C64(f.reconstruct()?),
                 _ => return Err("QR reconstruction requires simplicial factors".into()),
             });
             Ok(())
@@ -965,9 +1044,13 @@ impl SparseFactor {
                     | Factors::C32(Numeric::SimplicialQr(_))
                     | Factors::C64(Numeric::SimplicialQr(_))
                     | Factors::F32(Numeric::Qr(_))
+                    | Factors::F32(Numeric::WideQr(_))
                     | Factors::F64(Numeric::Qr(_))
+                    | Factors::F64(Numeric::WideQr(_))
                     | Factors::C32(Numeric::Qr(_))
+                    | Factors::C32(Numeric::WideQr(_))
                     | Factors::C64(Numeric::Qr(_))
+                    | Factors::C64(Numeric::WideQr(_))
             ))
         })
     }
@@ -1107,6 +1190,11 @@ impl SparseFactor {
 }
 
 pub(crate) enum QrComponents {
+    WideF32(crate::sparse_qr_wide::Factors<f32>),
+    WideF64(crate::sparse_qr_wide::Factors<f64>),
+    WideC32(crate::sparse_qr_wide::Factors<c32>),
+    WideC64(crate::sparse_qr_wide::Factors<c64>),
+
     OwnedF32(crate::sparse_qr_owned::Factors<f32>),
     OwnedF64(crate::sparse_qr_owned::Factors<f64>),
     OwnedC32(crate::sparse_qr_owned::Factors<c32>),
@@ -1128,6 +1216,10 @@ impl SparseFactor {
             Factors::F64(Numeric::Qr(f)) => QrComponents::OwnedF64(f.clone()),
             Factors::C32(Numeric::Qr(f)) => QrComponents::OwnedC32(f.clone()),
             Factors::C64(Numeric::Qr(f)) => QrComponents::OwnedC64(f.clone()),
+            Factors::F32(Numeric::WideQr(f)) => QrComponents::WideF32(f.clone()),
+            Factors::F64(Numeric::WideQr(f)) => QrComponents::WideF64(f.clone()),
+            Factors::C32(Numeric::WideQr(f)) => QrComponents::WideC32(f.clone()),
+            Factors::C64(Numeric::WideQr(f)) => QrComponents::WideC64(f.clone()),
             _ => return Err("QR inverse operator requires sparse QR factors".into()),
         })
     }
