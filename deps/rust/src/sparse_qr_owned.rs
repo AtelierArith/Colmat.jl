@@ -157,7 +157,7 @@ impl<T: ComplexField> Factors<T> {
         SparseColMat::try_new_from_triplets(self.symbolic.ncols(), self.symbolic.ncols(), &entries)
             .map_err(|e| format!("{e:?}"))
     }
-    fn apply_q(&self, b: MatRef<'_, T>, conjugated: bool) -> Result<Mat<T>, String> {
+    pub(crate) fn apply_q(&self, b: MatRef<'_, T>, conjugated: bool) -> Result<Mat<T>, String> {
         self.apply_q_basis(b, conjugated, false)
     }
     fn apply_q_basis(
@@ -293,6 +293,100 @@ impl<T: ComplexField> Factors<T> {
             }
         }
         Ok(out)
+    }
+    pub(crate) fn apply_full_q_adjoint(&self, b: MatRef<'_, T>) -> Result<Mat<T>, String> {
+        use faer::traits::math_utils::{add, conj, copy, mul, mul_real, real, recip, sub, zero};
+        let (m, n) = (self.symbolic.nrows(), self.symbolic.ncols());
+        if b.nrows() != m {
+            return Err("full Q adjoint RHS row mismatch".into());
+        }
+        let mut out = b.to_owned();
+        let mut pivots = vec![None; n];
+        if let Some(f) = self.simplicial() {
+            let h = f.householder();
+            for j in 0..n {
+                let rows = h.row_idx_of_col_raw(j);
+                let vals = h.val_of_col(j);
+                pivots[j] = rows.first().copied();
+                if rows.is_empty() {
+                    continue;
+                }
+                let scale = recip(&real(&f.tau_val()[j]));
+                for k in 0..b.ncols() {
+                    let mut dot = zero::<T>();
+                    for (&i, v) in rows.iter().zip(vals) {
+                        dot = add(&dot, &mul(&conj(v), &out[(i, k)]));
+                    }
+                    dot = mul_real(&dot, &scale);
+                    for (&i, v) in rows.iter().zip(vals) {
+                        out[(i, k)] = sub(&out[(i, k)], &mul(v, &dot));
+                    }
+                }
+            }
+        } else {
+            let f = self.supernodal().unwrap();
+            let h = f.symbolic.householder();
+            let l = f.symbolic.R_adjoint();
+            let rp = h.col_ptr_for_householder_row_idx();
+            let mut block = 0;
+            for s in 0..h.n_supernodes() {
+                let rows = &f.rows[rp[s]..rp[s + 1]];
+                let begin = l.supernode_begin()[s];
+                let width = l.supernode_end()[s] - begin;
+                for i in 0..width.min(rows.len()) {
+                    pivots[begin + i] = Some(rows[i]);
+                }
+                let hv = &f.h
+                    [h.col_ptr_for_householder_val()[s]..h.col_ptr_for_householder_val()[s + 1]];
+                let cols = if rows.is_empty() {
+                    0
+                } else {
+                    hv.len() / rows.len()
+                };
+                let basis = MatRef::from_column_major_slice(hv, rows.len(), cols);
+                let tv = &f.tau[h.col_ptr_for_tau_val()[s]..h.col_ptr_for_tau_val()[s + 1]];
+                let rank = rows.len().min(cols);
+                let max_bs = if rank == 0 { 0 } else { tv.len() / rank };
+                let tau = MatRef::from_column_major_slice(tv, max_bs, rank);
+                let mut work = Mat::from_fn(rows.len(), b.ncols(), |i, j| copy(&out[(rows[i], j)]));
+                let mut start = 0;
+                while start < cols {
+                    let (bs, nr, nc) = (f.bs[block], f.nr[block], f.nc[block]);
+                    if nc > 0 {
+                        let req=faer::linalg::householder::apply_block_householder_sequence_transpose_on_the_left_in_place_scratch::<T>(nr,bs,b.ncols());
+                        let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+                        faer::linalg::householder::apply_block_householder_sequence_transpose_on_the_left_in_place_with_conj(basis.submatrix(start,start,nr,nc),tau.submatrix(0,start,bs,nc),Conj::Yes,work.as_mut().subrows_mut(start,nr),Par::Seq,MemStack::new(&mut mem));
+                    }
+                    start += nc;
+                    block += 1;
+                    if start >= rows.len() {
+                        break;
+                    }
+                }
+                for (i, &row) in rows.iter().enumerate() {
+                    for j in 0..b.ncols() {
+                        out[(row, j)] = copy(&work[(i, j)]);
+                    }
+                }
+            }
+        }
+        let mut used = vec![false; m];
+        for row in pivots.iter().flatten() {
+            used[*row] = true;
+        }
+        let mut cursor = 0;
+        for p in &mut pivots {
+            if p.is_none() {
+                while used[cursor] {
+                    cursor += 1;
+                }
+                *p = Some(cursor);
+                used[cursor] = true;
+            }
+        }
+        let mut order: Vec<_> = pivots.into_iter().flatten().collect();
+        order.extend((0..m).filter(|&i| !used[i]));
+        Ok(Mat::from_fn(m, b.ncols(), |i, j| copy(&out[(order[i], j)])))
     }
     pub(crate) fn q_full(&self) -> Result<Mat<T>, String> {
         use faer::traits::math_utils::one;
@@ -537,5 +631,70 @@ pub(crate) fn complete_q_seed<T: ComplexField>(
                 col += 1;
             }
         }
+    }
+}
+#[cfg(test)]
+mod full_adjoint_tests {
+    use super::*;
+    use faer::sparse::linalg::{
+        qr::{factorize_symbolic_qr, QrSymbolicParams},
+        SupernodalThreshold,
+    };
+    use faer::sparse::{SparseColMat, Triplet};
+    use faer::traits::math_utils::from_f64;
+    fn check<T: ComplexField>(tol: f64, value: fn(f64, f64) -> T) {
+        for (m, n) in [(0, 0), (5, 0), (5, 3), (5, 5), (40, 20)] {
+            for empty in [false, true] {
+                let entries: Vec<_> = (0..n)
+                    .flat_map(|j| (0..m).map(move |i| (i, j)))
+                    .filter(|&(i, j)| !empty && (i == m - n + j || i == j))
+                    .map(|(i, j)| Triplet {
+                        row: i,
+                        col: j,
+                        val: value(if i == m - n + j { 4.0 + j as f64 } else { 0.2 }, 0.1),
+                    })
+                    .collect();
+                let a = SparseColMat::<usize, T>::try_new_from_triplets(m, n, &entries).unwrap();
+                for threshold in [
+                    SupernodalThreshold::AUTO,
+                    SupernodalThreshold::FORCE_SIMPLICIAL,
+                    SupernodalThreshold::FORCE_SUPERNODAL,
+                ] {
+                    let symbolic = Arc::new(
+                        factorize_symbolic_qr(
+                            a.symbolic(),
+                            QrSymbolicParams {
+                                supernodal_flop_ratio_threshold: threshold,
+                                ..Default::default()
+                            },
+                        )
+                        .unwrap(),
+                    );
+                    let f = Factors::new(symbolic, a.as_ref()).unwrap();
+                    let b = Mat::from_fn(m, 2, |i, j| {
+                        value((i + j + 1) as f64, (i + 2 * j) as f64 * 0.2)
+                    });
+                    let expected = f.q_full().unwrap().adjoint() * &b;
+                    let actual = f.apply_full_q_adjoint(b.as_ref()).unwrap();
+                    assert!((&actual - &expected).norm_max() < from_f64::<T::Real>(tol));
+                }
+            }
+        }
+    }
+    #[test]
+    fn f32_full_adjoint() {
+        check::<f32>(1e-3, |r, _| r as f32);
+    }
+    #[test]
+    fn f64_full_adjoint() {
+        check::<f64>(1e-10, |r, _| r);
+    }
+    #[test]
+    fn c32_full_adjoint() {
+        check::<faer::c32>(1e-3, |r, i| faer::c32::new(r as f32, i as f32));
+    }
+    #[test]
+    fn c64_full_adjoint() {
+        check::<faer::c64>(1e-10, faer::c64::new);
     }
 }

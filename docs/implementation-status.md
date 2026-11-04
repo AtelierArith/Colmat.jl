@@ -2141,3 +2141,15 @@ Default backslash still requires full column rank; originally wide QR is pending
 Focused tests pass 3,960 assertions. Canonical validation passes 119,182
 assertions across 85 files (16 workers); README passes 73 executable blocks.
 Native Rust code is unchanged from the validated full-Q branch (11 tests).
+
+## Issue #22: originally wide sparse QR (in progress)
+
+Native prefix QR plus per-column Householder projections stores Q/R/full column
+ordering. Wide normal/transpose/adjoint solves and inverse actions use native
+SVD of saved R for minimum norm, with the same default cutoff as rank/pinv.
+This path allocates dense R/SVD workspace. Caller-owned wide scratch and tall/
+square default rank-deficient backslash remain pending.
+Focused wide integration passes 7,488 assertions; closed-snapshot copy/deepcopy
+regression passes 180 assertions for LU/QR/Cholesky. Native tests pass 20 tests.
+Canonical validation passes 126,858 assertions / 87 files / 16 workers;
+README passes 74 executable blocks.

@@ -1353,3 +1353,4 @@ pub mod spectral_solve;
 
 pub mod sparse_qr_components;
 mod sparse_qr_owned;
+mod sparse_qr_wide;

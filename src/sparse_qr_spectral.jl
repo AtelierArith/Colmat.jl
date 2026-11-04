@@ -2,7 +2,7 @@
     svdvals(F::FaerSparseFactorization{T,:qr})
 
 Compute singular values from the saved sparse R factor using native dense SVD.
-R is materialized as an n×n native dense matrix; the input snapshot is unused.
+R is materialized as an min(m,n)×n native dense matrix; the input snapshot is unused.
 """
 function LinearAlgebra.svdvals(f::FaerSparseFactorization{T,:qr}) where {T}
     lock(_matrix_lock) do

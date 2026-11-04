@@ -2007,8 +2007,7 @@ tolerance is `min(size(F)...)*eps(real(eltype(F)))` when atol is zero.
 Three-argument `ldiv!(X,F,B;atol,rtol)` computes the corresponding minimum-norm
 least-squares solution, including transpose/adjoint factors and mixed RHS types.
 This explicit tolerance path allocates and cannot use caller-owned scratch.
-Ordinary `F \ B` retains its full-column-rank contract; originally wide sparse
-QR inputs remain unsupported.
+Ordinary `F \ B` retains its full-column-rank contract; wide sparse QR uses the native construction described below.
 
 ```julia
 using Colmat,LinearAlgebra,SparseArrays
@@ -2024,4 +2023,33 @@ ldiv!(X,F,ones(3,1);rtol=1e-8)
 close(F)
 @assert Matrix(P)≈pinv(A0)
 close(P)
+```
+
+
+### Native QR for originally wide sparse inputs
+
+Wide inputs use a native square-prefix QR and direct saved Householder adjoint
+applications to project the remaining columns. Column projection processes one
+column at a time without materializing a dense Q or the complete tail. `F.Q` and
+`F.Qfull` are m×m; `F.R` is m×n. The full input column permutation is retained
+by symbolic reuse and numeric updates.
+Normal, transpose/adjoint and inverse actions use native dense SVD of saved R
+for minimum-norm least squares, including rank-deficient wide inputs. This solve
+path materializes m×n dense R and allocates SVD workspace; caller-owned scratch
+is not connected for wide factors. The default cutoff matches rank/pinv:
+`min(size(F)...)*eps(real(eltype(F)))*maximum(svdvals(F))`.
+
+```julia
+using Colmat,LinearAlgebra,SparseArrays
+A0=ComplexF64[0 0 2 im;0 0 0 3]
+F=qr(FaerSparseMatrix(sparse(A0));algorithm=:supernodal,ordering=[4,2,1,3])
+@assert Matrix(F.Q)*Matrix(F.R)≈A0[:,Vector(F.pcol)]
+close(F.source)
+b=ComplexF64[1+im,2]
+@assert F\b≈pinv(A0)*b
+G=copy(F)
+close(F)
+@assert Matrix(G)≈A0
+@assert G\b≈pinv(A0)*b
+close(G)
 ```
