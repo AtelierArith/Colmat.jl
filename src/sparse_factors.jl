@@ -399,17 +399,42 @@ function LinearAlgebra.ldiv!(
     f::_SparseSolveFactor,
     b::AbstractMatrix;
     scratch = nothing,
+    atol = nothing,
+    rtol = nothing,
 )
     size(dest)==(size(f, 2), size(b, 2)) ||
         throw(DimensionMismatch("sparse solve destination has the wrong shape"))
+    if !isnothing(atol) || !isnothing(rtol)
+        isnothing(scratch) || throw(
+            ArgumentError(
+                "rank-aware QR solve allocates native SVD workspace; omit scratch",
+            ),
+        )
+        result=_sparse_qr_minimum_norm_solve(f, b; atol, rtol)
+        try
+            return copyto!(dest, result)
+        finally
+            close(result)
+        end
+    end
     return copyto!(
         dest,
         isnothing(scratch) ? f\b : _sparse_qr_workspace_solve(f, b, scratch),
     )
 end
-function LinearAlgebra.ldiv!(dest::AbstractVector, f::_SparseSolveFactor, b::AbstractVector)
+function LinearAlgebra.ldiv!(
+    dest::AbstractVector,
+    f::_SparseSolveFactor,
+    b::AbstractVector;
+    atol = nothing,
+    rtol = nothing,
+)
     length(dest)==size(f, 2) ||
         throw(DimensionMismatch("sparse solve destination has the wrong length"))
+    if !isnothing(atol) || !isnothing(rtol)
+        LinearAlgebra.ldiv!(reshape(dest, :, 1), f, reshape(b, :, 1); atol, rtol)
+        return dest
+    end
     return copyto!(dest, f\b)
 end
 LinearAlgebra.ishermitian(a::FaerSparseMatrix) = lock(_matrix_lock) do

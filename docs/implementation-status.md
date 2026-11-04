@@ -2142,3 +2142,13 @@ basis vectors before reflector application, preserving orthogonality for zero
 and rank-deficient inputs. Focused tests pass 1,224 assertions. Canonical validation passes 115,222 assertions / 84 files / 16 workers.
 Rust passes 11 tests; README passes 72 executable blocks. Rank-deficient/wide solves and rank tolerance remain
 separate unfinished contracts.
+
+## Issue #22: sparse QR rank and explicit tolerance solves (in progress)
+
+Saved R supports native singular values, SVD-based rank and pseudoinverse;
+`ldiv!(X,F,B;atol,rtol)` supplies minimum-norm least squares for rank-deficient
+inputs. This path materializes dense R/thin Q and allocates native SVD workspace.
+Default backslash still requires full column rank; originally wide QR is pending.
+Focused tests pass 3,960 assertions. Canonical validation passes 119,182
+assertions across 85 files (16 workers); README passes 73 executable blocks.
+Native Rust code is unchanged from the validated full-Q branch (11 tests).
