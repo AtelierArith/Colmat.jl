@@ -199,10 +199,14 @@ function _factor_solve(
     b::FaerMatrix{Float64},
     transposed = false;
     team = nothing,
+    scratch = nothing,
 )
     size(b, 1) == size(f, transposed ? 2 : 1) ||
         throw(DimensionMismatch("factor and RHS rows do not match"))
     LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+    _dense_rhs_validate(b)
+    (!isnothing(scratch) || (size(f, 1)!=size(f, 2) && _dense_kind(f) in (0, 1))) &&
+        return _dense_workspace_native_result(f, b, transposed ? 1 : 0, scratch, team)
     if !isnothing(team)
         return _dense_team_native_result(f, b, transposed ? 1 : 0, team)
     end

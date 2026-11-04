@@ -1493,16 +1493,18 @@ Numeric conversion follows Julia rules, including errors for nonrepresentable
 complex-to-real values. Conversion temporaries are closed on errors. Reconstructed
 owners remain valid after the original factors are updated or closed.
 
-### Retained dense solves with reusable teams
+### Retained dense solves with reusable scratch and teams
 
-`ldiv!(X,F,B; team)` and `rdiv!(X,B,F; team)` borrow a native team for
+`ldiv!(X,F,B; scratch,team)` and `rdiv!(X,B,F; scratch,team)` borrow native resources for
 retained LU/full LU/QR/pivoted QR/Cholesky/LDLT/Bunch–Kaufman solves, including
-transpose/adjoint, rectangular QR and rank-deficient minimum-norm paths.
+transpose/adjoint, rectangular LU/full LU/QR and rank-deficient QR minimum-norm paths.
 Two-argument forms require square factors. Solve teams are independent of the
 team used to construct the factor; the factor remains usable after either team
-closes. Work arrays and staged result conversion allocate; caller scratch is
-not exposed for these solves. Mixed native scalar types use the existing
-promotion policy, which can reconstruct/refactor a factor. Component extraction
+closes. Native solve work, including the QR fallback R SVD and projections,
+uses caller scratch; the result and Julia staging allocate separately. Mixed
+native scalar types can reconstruct/refactor a factor outside this solve query.
+QR rank cutoffs retain the source precision after promotion so reconstruction
+roundoff does not become new solution directions. Component extraction
 remains sequential; promoted matrix products and factorization borrow the team.
 
 ```julia
@@ -1520,6 +1522,35 @@ end
 @assert F\ones(2)≈A0\ones(2)
 close(F)
 ```
+
+```julia
+using Colmat, LinearAlgebra
+A0=Float32[1 0; 0 1e-8; 0 0]
+F=qr(FaerMatrix(A0),ColumnNorm())
+B=ones(ComplexF64,3,2)
+X=zeros(ComplexF64,2,2)
+team=FaerTeam(2)
+work=FaerScratch(ldiv!,X,F,B;team)
+ldiv!(X,F,B;scratch=work,team)
+@assert X ≈ ComplexF64[1 1; 0 0]
+@assert Matrix(F\FaerMatrix(B)) ≈ X
+reserve!(work,ldiv!,X,F,B;team)
+close(work)
+close(team)
+close(F)
+```
+
+`scratch_requirements(ldiv!,X,F,B;team)` and the corresponding right-solve
+argument order describe the working scalar and actual team. Two-argument
+`ldiv!(F,B)` / `rdiv!(B,F)` have matching queries for square factors. Capacity,
+alignment, closed-resource, conversion and alias failures preserve destinations.
+Wide/rank-deficient QR uses the saved Householder/R and column permutation;
+the R SVD is computed inside scratch on each fallback solve. Rectangular LU/full
+LU reconstructs from saved L/U and permutations and computes its SVD inside
+the same workspace; the original input snapshot is not used. `FaerLinearOperator(F;rtol=...)` offers a separately configurable cached
+QR R SVD action for repeated applications. Float64 factors split
+complex RHS into two real solves that reuse one workspace. Factor construction
+and its mixed-scalar reconstruction/refactorization still allocate independently.
 
 ### Reusing Rust-owned spectral factors
 

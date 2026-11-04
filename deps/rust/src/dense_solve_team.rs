@@ -221,3 +221,7 @@ mod tests {
         team.team_close().unwrap();
     }
 }
+
+mod workspace;
+
+mod array_metadata;
