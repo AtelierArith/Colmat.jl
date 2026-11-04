@@ -2325,3 +2325,33 @@ workaround remains: its underlying query defect is now independently reproduced
 on this latest main and reported as [faer #252](https://github.com/tensor4all/faer/issues/252).
 The 96x96 public-query MWE and proposed corrections are retained in
 [the reproducer](reproducers/faer-qz-scratch.md); no upstream patch is claimed.
+
+
+## Issue #22: additional upstream QZ numerical findings
+
+Three further Rust-only reproductions are retained in
+[the QZ numerical record](reproducers/faer-qz-numerics.md). They execute against
+clean faer 19053d8, the currently selected Colmat dependency:
+
+- [faer #254](https://github.com/tensor4all/faer/issues/254): a completely
+  deflated window starting at row zero uses an unsigned sentinel. Computing
+  its count panics with overflow checks; an ample-workspace n=78 MWE isolates
+  this from #252. PR #255 proposes the explicit count branch.
+- [faer #256](https://github.com/tensor4all/faer/issues/256): the generalized-
+  Hessenberg Givens helper produces nonfinite factors from finite subnormal
+  entries, for all four native scalar types. The 3x3 pencil has identity B
+  and no unrepresentable norm. Colmat's finite-output check rejects the result;
+  the proposed stable-rotation correction is in draft faer PR #258.
+- [faer #257](https://github.com/tensor4all/faer/issues/257): a valid maximum
+  AED window produces a DGET54-style coupled residual ratio 436.6 and Q/Z
+  orthogonality errors near 1e-11 on a deterministic n=78 fixture. LAPACK on
+  identical data gives ratio 0.7724. Release mode isolates it from #254;
+  extra valid workspace isolates it from #252. A range-safety candidate improves
+  the ratio to 178.6 but still fails the diagnostic threshold 20.
+
+PR #253 addresses #252's even-rounded window. Its code and PR #255 match the
+independently checked local corrections; required hosted checks must complete
+before adopting their merged revisions. Draft PR #258 stacks on #255, covers
+#256 plus the four-array local Sylvester workspace audit, and adds broader
+property tests. It does not resolve #257. The wrapper correction is retained
+and the selected dependency is unchanged by this report-only checkpoint.
