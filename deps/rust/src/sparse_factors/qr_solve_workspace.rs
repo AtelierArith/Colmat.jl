@@ -1028,6 +1028,150 @@ mod borrowed_tests {
             }
         }
     }
+    fn rank_preparation<S: NativeValue>()
+    where
+        S::Real: ToleranceReal,
+    {
+        let epsilon = if S::tag() == 0 || S::tag() == 2 {
+            f32::EPSILON as f64
+        } else {
+            f64::EPSILON
+        };
+        for mode in 0..3 {
+            for (m, n) in [(0, 0), (3, 0), (1, 1), (7, 4), (4, 7), (96, 64), (64, 96)] {
+                for deficient in [false, true] {
+                    let (f, _) = source::<S>(m, n, mode, deficient);
+                    let (_, r, _) = legacy(&f);
+                    let expected = if m < n {
+                        false
+                    } else {
+                        let entries: Vec<_> = (0..n)
+                            .flat_map(|j| {
+                                let r = &r;
+                                (0..r.nrows()).map(move |i| Triplet {
+                                    row: i,
+                                    col: j,
+                                    val: copy(&r[(i, j)]),
+                                })
+                            })
+                            .collect();
+                        let sparse =
+                            SparseColMat::<usize, S>::try_new_from_triplets(r.nrows(), n, &entries)
+                                .unwrap();
+                        crate::sparse_factors::qr_needs_spectral_solve(sparse.as_ref(), epsilon)
+                    };
+                    let mut memory = MemBuffer::new(crate::sparse_factors::rank_hint::scratch(n));
+                    assert_eq!(
+                        crate::sparse_factors::rank_hint::needs(
+                            &f,
+                            epsilon,
+                            MemStack::new(&mut memory)
+                        ),
+                        Some(expected)
+                    );
+                    assert_eq!(
+                        crate::allocation_probe::count(|| {
+                            assert_eq!(
+                                crate::sparse_factors::rank_hint::needs(
+                                    &f,
+                                    epsilon,
+                                    MemStack::new(&mut memory)
+                                ),
+                                Some(expected)
+                            );
+                        }),
+                        0
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn construction_rank_f32() {
+        rank_preparation::<f32>();
+    }
+    #[test]
+    fn construction_rank_f64() {
+        rank_preparation::<f64>();
+    }
+    #[test]
+    fn construction_rank_c32() {
+        rank_preparation::<faer::c32>();
+    }
+    #[test]
+    fn construction_rank_c64() {
+        rank_preparation::<faer::c64>();
+    }
+    #[test]
+    fn construction_workspace_errors_preserve_numeric_revision() {
+        use crate::sparse::{SparseData, SparseOwner, Storage};
+        use crate::sparse_factors::{Analysis, Plan, SparseSymbolic};
+        let (_, a) = source::<f64>(7, 4, 2, false);
+        let symbolic = std::sync::Arc::new(
+            qr::factorize_symbolic_qr(a.symbolic(), Default::default()).unwrap(),
+        );
+        let plan = SparseSymbolic {
+            plan: Some(Plan {
+                analysis: Analysis::Qr(symbolic),
+                pattern: a.symbolic().to_owned().unwrap(),
+                lower: true,
+            }),
+        };
+        let matrix = SparseOwner {
+            data: Some(SparseData::F64(Storage::Csc(a.clone()))),
+        };
+        let mut query = [0usize; 2];
+        plan.sparse_qr_factor_requirements(1, query.as_mut_ptr())
+            .unwrap();
+        assert!(plan
+            .sparse_qr_factor_requirements(1, std::ptr::null_mut())
+            .is_err());
+        let mut work = OwnedScratch::new();
+        work.scratch_reserve(query[0], query[1]).unwrap();
+        let mut owner = SparseFactor::new();
+        assert_eq!(
+            owner
+                .sparse_qr_factor_workspace(&plan, &matrix, &mut work)
+                .unwrap(),
+            0
+        );
+        let mut before = Mat::zeros(4, 4);
+        let Factors::F64(f) = owner.factors().unwrap() else {
+            unreachable!()
+        };
+        write_r(f, before.as_mut()).unwrap();
+        let hint = owner.sparse_qr_needs_spectral_solve().unwrap();
+        let mut short = OwnedScratch::new();
+        short.scratch_reserve(query[0] - 1, query[1]).unwrap();
+        assert!(owner
+            .sparse_qr_factor_workspace(&plan, &matrix, &mut short)
+            .is_err());
+        let entries: Vec<_> = a
+            .as_ref()
+            .triplet_iter()
+            .filter(|e| !(e.row == 0 && e.col == 0))
+            .map(|e| Triplet {
+                row: e.row,
+                col: e.col,
+                val: copy(e.val),
+            })
+            .collect();
+        let bad = SparseOwner {
+            data: Some(SparseData::F64(Storage::Csc(
+                SparseColMat::try_new_from_triplets(7, 4, &entries).unwrap(),
+            ))),
+        };
+        assert!(owner
+            .sparse_qr_factor_workspace(&plan, &bad, &mut work)
+            .is_err());
+        assert_eq!(owner.sparse_qr_needs_spectral_solve().unwrap(), hint);
+        let mut after = Mat::zeros(4, 4);
+        let Factors::F64(f) = owner.factors().unwrap() else {
+            unreachable!()
+        };
+        write_r(f, after.as_mut()).unwrap();
+        assert_eq!((&before - &after).norm_max(), 0.0);
+    }
     #[test]
     fn rank_certificate_prepared_per_numeric_revision() {
         let (full, _) = source::<f64>(7, 4, 2, false);

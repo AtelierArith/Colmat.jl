@@ -1148,12 +1148,21 @@ impl SparseSymbolic {
                 return Err("factor workspace requires auto/supernodal QR".into());
             };
             let req = match tag {
-                0 => sym.factorize_numeric_qr_scratch::<f32>(Par::Seq.shape(), Default::default()),
-                1 => sym.factorize_numeric_qr_scratch::<f64>(Par::Seq.shape(), Default::default()),
-                2 => sym.factorize_numeric_qr_scratch::<c32>(Par::Seq.shape(), Default::default()),
-                3 => sym.factorize_numeric_qr_scratch::<c64>(Par::Seq.shape(), Default::default()),
+                0 => qr_construction_req::<f32>(sym),
+                1 => qr_construction_req::<f64>(sym),
+                2 => qr_construction_req::<c32>(sym),
+                3 => qr_construction_req::<c64>(sym),
                 _ => return Err("invalid scalar tag".into()),
             };
+            if out.is_null()
+                || (out as usize) % std::mem::align_of::<usize>() != 0
+                || (out as usize)
+                    .checked_add(2 * std::mem::size_of::<usize>())
+                    .is_none()
+            {
+                return Err("query requires aligned two-entry usize buffer".into());
+            }
+            // SAFETY: caller preserves two writable usize entries; address/span checked.
             unsafe {
                 out.write(req.size_bytes());
                 out.add(1).write(req.align_bytes());
@@ -1176,15 +1185,27 @@ impl SparseFactor {
             if !matches!(plan.analysis, Analysis::Qr(_)) {
                 return Err("factor workspace requires auto/supernodal QR".into());
             }
+            let Analysis::Qr(sym) = &plan.analysis else {
+                unreachable!()
+            };
+            let req = match matrix.data()? {
+                SparseData::F32(_) => qr_construction_req::<f32>(sym),
+                SparseData::F64(_) => qr_construction_req::<f64>(sym),
+                SparseData::C32(_) => qr_construction_req::<c32>(sym),
+                SparseData::C64(_) => qr_construction_req::<c64>(sym),
+            };
+            scratch.stack(req)?;
             let result = match matrix.data()? {
-                SparseData::F32(a) => numeric(plan, a, Some(scratch))?.map(Factors::F32),
-                SparseData::F64(a) => numeric(plan, a, Some(scratch))?.map(Factors::F64),
-                SparseData::C32(a) => numeric(plan, a, Some(scratch))?.map(Factors::C32),
-                SparseData::C64(a) => numeric(plan, a, Some(scratch))?.map(Factors::C64),
+                SparseData::F32(a) => numeric(plan, a, Some(&mut *scratch))?.map(Factors::F32),
+                SparseData::F64(a) => numeric(plan, a, Some(&mut *scratch))?.map(Factors::F64),
+                SparseData::C32(a) => numeric(plan, a, Some(&mut *scratch))?.map(Factors::C32),
+                SparseData::C64(a) => numeric(plan, a, Some(&mut *scratch))?.map(Factors::C64),
             };
             match result {
                 Ok(f) => {
-                    self.replace_factors(f)?;
+                    let hint = rank_hint::prepare(&f, scratch.stack(rank_hint::requirements(&f))?);
+                    self.factors = Some(f);
+                    self.qr_rank_hint = hint;
                     Ok(0)
                 }
                 Err(info) => Ok(info),
@@ -1192,7 +1213,6 @@ impl SparseFactor {
         })
     }
 }
-
 pub(crate) enum QrComponents {
     WideF32(crate::sparse_qr_wide::Factors<f32>),
     WideF64(crate::sparse_qr_wide::Factors<f64>),
@@ -1231,6 +1251,7 @@ impl SparseFactor {
 
 // A strict row-dominance bound certifies sigma_min > cutoff without dense SVD.
 // Inconclusive bounds route to SVD; they never classify a factor as deficient.
+#[cfg(test)]
 fn qr_needs_spectral_solve<T: crate::operators::NativeValue>(
     a: faer::sparse::SparseColMatRef<'_, usize, T>,
     epsilon: f64,
@@ -1274,23 +1295,9 @@ fn qr_needs_spectral_solve<T: crate::operators::NativeValue>(
         || lower <= (n as f64) * epsilon * upper
 }
 fn qr_rank_hint(factors: &Factors) -> Result<Option<bool>, String> {
-    fn needs<T: crate::operators::NativeValue>(
-        f: &Numeric<T>,
-        eps: f64,
-    ) -> Result<Option<bool>, String> {
-        Ok(match f {
-            Numeric::SimplicialQr(f) => Some(qr_needs_spectral_solve(f.r.as_ref(), eps)),
-            Numeric::Qr(f) => Some(qr_needs_spectral_solve(f.r()?.as_ref(), eps)),
-            Numeric::WideQr(_) => Some(false),
-            _ => None,
-        })
-    }
-    match factors {
-        Factors::F32(f) => needs(f, f32::EPSILON as f64),
-        Factors::F64(f) => needs(f, f64::EPSILON),
-        Factors::C32(f) => needs(f, f32::EPSILON as f64),
-        Factors::C64(f) => needs(f, f64::EPSILON),
-    }
+    let mut memory =
+        MemBuffer::try_new(rank_hint::requirements(factors)).map_err(|e| format!("{e:?}"))?;
+    Ok(rank_hint::prepare(factors, MemStack::new(&mut memory)))
 }
 impl SparseFactor {
     fn replace_factors(&mut self, factors: Factors) -> Result<(), String> {
@@ -1383,3 +1390,13 @@ mod rank_certificate_tests {
 mod solve_workspace;
 
 mod qr_solve_workspace;
+
+fn qr_construction_req<T: ComplexField>(
+    sym: &faer::sparse::linalg::qr::SymbolicQr<usize>,
+) -> faer::dyn_stack::StackReq {
+    sym.factorize_numeric_qr_scratch::<T>(Par::Seq.shape(), Default::default())
+        .or(rank_hint::scratch(sym.ncols()))
+}
+mod rank_hint;
+
+mod input_metadata;
