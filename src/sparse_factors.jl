@@ -43,7 +43,8 @@ order. Extracted components remain usable after F is updated or closed.
 Sparse LU exposes independent CSC `F.L`, `F.U` and permutations `F.p`, `F.q`
 for every algorithm, with `F.L * F.U ≈ A[F.p,F.q]`. It also supports `Matrix(F)`, `FaerMatrix(F)`,
 `FaerSparseMatrix(F)` and `reconstruct(F)`, from current native L/U and inverse
-row/column permutations. Sparse QR exposes independent thin `Q`, sparse `R`, `p/pcol` and dense
+row/column permutations. Sparse QR exposes independent thin `Q/Qthin`, square orthogonal/unitary `Qfull`,
+sparse `R`, `p/pcol` and dense
 reconstruction for all algorithms, using the current saved numeric buffers.
 It also exposes independent `F.p`, the actual `F.algorithm`
 and `F.factor_storage` (numeric scalar slots, including supernodal padding).
@@ -597,7 +598,7 @@ Base.propertynames(f::FaerSparseFactorization{T,:lu}, private::Bool = false) whe
     private ? (fieldnames(typeof(f))..., :L, :U, :p, :q) : (:dims, :info, :L, :U, :p, :q)
 
 function Base.getproperty(f::FaerSparseFactorization{T,:qr}, name::Symbol) where {T}
-    if name in (:Q, :R, :p, :pcol)
+    if name in (:Q, :Qthin, :Qfull, :R, :p, :pcol)
         return lock(_matrix_lock) do
             _handle(f)
             LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
@@ -610,15 +611,17 @@ function Base.getproperty(f::FaerSparseFactorization{T,:qr}, name::Symbol) where
                 RustCrate.sparse_qr_r,
                 f,
             )
-            return T===Float64 ? _matrix_result(RustCrate.sparse_qr_q, size(f), f) :
-                   _typed_result(T, RustCrate.sparse_qr_q, size(f), f)
+            dims=name===:Qfull ? (size(f, 1), size(f, 1)) : size(f)
+            return T===Float64 ?
+                   _matrix_result(RustCrate.sparse_qr_q, dims, f, name===:Qfull) :
+                   _typed_result(T, RustCrate.sparse_qr_q, dims, f, name===:Qfull)
         end
     end
     return getfield(f, name)
 end
 Base.propertynames(f::FaerSparseFactorization{T,:qr}, private::Bool = false) where {T} =
-    private ? (fieldnames(typeof(f))..., :Q, :R, :p, :pcol) :
-    (:dims, :info, :Q, :R, :p, :pcol)
+    private ? (fieldnames(typeof(f))..., :Q, :Qthin, :Qfull, :R, :p, :pcol) :
+    (:dims, :info, :Q, :Qthin, :Qfull, :R, :p, :pcol)
 function reconstruct(f::FaerSparseFactorization{T,:qr}) where {T}
     lock(_matrix_lock) do
         _handle(f)

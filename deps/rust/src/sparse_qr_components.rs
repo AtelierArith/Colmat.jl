@@ -141,7 +141,18 @@ impl<T: ComplexField> Factors<T> {
         self.apply_q_into(b, out.as_mut(), conjugated);
         out
     }
-    pub(crate) fn apply_q_into(&self, b: MatRef<'_, T>, mut q: MatMut<'_, T>, conjugated: bool) {
+    pub(crate) fn q_full(&self) -> Mat<T> {
+        use faer::traits::math_utils::one;
+        let (m, n) = (self.plan.symbolic.nrows(), self.plan.symbolic.ncols());
+        let seed = Mat::from_fn(n, m, |i, j| if i == j { one::<T>() } else { zero::<T>() });
+        let mut out = Mat::zeros(m, m);
+        self.apply_q_basis(seed.as_ref(), out.as_mut(), false, true);
+        out
+    }
+    pub(crate) fn apply_q_into(&self, b: MatRef<'_, T>, q: MatMut<'_, T>, conjugated: bool) {
+        self.apply_q_basis(b, q, conjugated, false);
+    }
+    fn apply_q_basis(&self, b: MatRef<'_, T>, mut q: MatMut<'_, T>, conjugated: bool, full: bool) {
         use faer::traits::math_utils::{add, conj, mul, mul_real, real, recip, sub};
         let s = &self.plan.symbolic;
         let (m, n) = (s.nrows(), s.ncols());
@@ -149,12 +160,22 @@ impl<T: ComplexField> Factors<T> {
         let h = self.h.as_ref();
         assert_eq!(q.shape(), (m, b.ncols()));
         q.fill(zero::<T>());
+        let complete = full || (0..n).any(|j| h.row_idx_of_col_raw(j).is_empty());
+        let mut used = if complete { vec![false; m] } else { Vec::new() };
+        let mut assigned = if complete { vec![false; n] } else { Vec::new() };
         for j in 0..n {
             if let Some(&pivot) = h.row_idx_of_col_raw(j).first() {
+                if complete {
+                    used[pivot] = true;
+                    assigned[j] = true;
+                }
                 for k in 0..b.ncols() {
                     q[(pivot, k)] = copy(&b[(j, k)]);
                 }
             }
+        }
+        if complete {
+            crate::sparse_qr_owned::complete_q_seed(q.as_mut(), b, &mut used, &assigned, full);
         }
         for j in (0..n).rev() {
             let rows = h.row_idx_of_col_raw(j);

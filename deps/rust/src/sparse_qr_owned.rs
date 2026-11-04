@@ -158,20 +158,39 @@ impl<T: ComplexField> Factors<T> {
             .map_err(|e| format!("{e:?}"))
     }
     fn apply_q(&self, b: MatRef<'_, T>, conjugated: bool) -> Result<Mat<T>, String> {
+        self.apply_q_basis(b, conjugated, false)
+    }
+    fn apply_q_basis(
+        &self,
+        b: MatRef<'_, T>,
+        conjugated: bool,
+        full: bool,
+    ) -> Result<Mat<T>, String> {
         use faer::traits::math_utils::{add, conj, copy, mul, mul_real, real, recip, sub};
         let (m, n) = (self.symbolic.nrows(), self.symbolic.ncols());
         if b.nrows() != n {
             return Err("sparse QR Q RHS row mismatch".into());
         }
         let mut out = Mat::zeros(m, b.ncols());
+
         if let Some(f) = self.simplicial() {
             let h = f.householder();
+            let complete = full || (0..n).any(|j| h.row_idx_of_col_raw(j).is_empty());
+            let mut used = if complete { vec![false; m] } else { Vec::new() };
+            let mut assigned = if complete { vec![false; n] } else { Vec::new() };
             for j in 0..n {
                 if let Some(&pivot) = h.row_idx_of_col_raw(j).first() {
+                    if complete {
+                        used[pivot] = true;
+                        assigned[j] = true;
+                    }
                     for k in 0..b.ncols() {
                         out[(pivot, k)] = copy(&b[(j, k)]);
                     }
                 }
+            }
+            if complete {
+                complete_q_seed(out.as_mut(), b, &mut used, &assigned, full);
             }
             for j in (0..n).rev() {
                 let rows = h.row_idx_of_col_raw(j);
@@ -198,15 +217,27 @@ impl<T: ComplexField> Factors<T> {
             let h = f.symbolic.householder();
             let l = f.symbolic.R_adjoint();
             let rp = h.col_ptr_for_householder_row_idx();
+            let complete = full
+                || (0..h.n_supernodes())
+                    .any(|s| l.supernode_end()[s] - l.supernode_begin()[s] > rp[s + 1] - rp[s]);
+            let mut used = if complete { vec![false; m] } else { Vec::new() };
+            let mut assigned = if complete { vec![false; n] } else { Vec::new() };
             // The first supernode-width rows are the coordinates retained in R.
             for s in 0..h.n_supernodes() {
                 let start = l.supernode_begin()[s];
                 let width = l.supernode_end()[s] - start;
-                for i in 0..width {
+                for i in 0..width.min(rp[s + 1] - rp[s]) {
+                    if complete {
+                        used[f.rows[rp[s] + i]] = true;
+                        assigned[start + i] = true;
+                    }
                     for k in 0..b.ncols() {
                         out[(f.rows[rp[s] + i], k)] = copy(&b[(start + i, k)]);
                     }
                 }
+            }
+            if complete {
+                complete_q_seed(out.as_mut(), b, &mut used, &assigned, full);
             }
             // Record actual numeric block dimensions (not a guessed fixed block
             // size); inverse application reverses nodes and blocks separately.
@@ -262,6 +293,12 @@ impl<T: ComplexField> Factors<T> {
             }
         }
         Ok(out)
+    }
+    pub(crate) fn q_full(&self) -> Result<Mat<T>, String> {
+        use faer::traits::math_utils::one;
+        let (m, n) = (self.symbolic.nrows(), self.symbolic.ncols());
+        let seed = Mat::from_fn(n, m, |i, j| if i == j { one::<T>() } else { zero::<T>() });
+        self.apply_q_basis(seed.as_ref(), false, true)
     }
     pub(crate) fn q(&self) -> Result<Mat<T>, String> {
         use faer::traits::math_utils::one;
@@ -468,6 +505,37 @@ mod tests {
             let x = f.solve_in(b.as_ref(), scratch.stack(req).unwrap()).unwrap();
             assert!((x[(0, 0)] - 2.0).abs() < 1e-12);
             assert!((x[(1, 0)] - 3.0).abs() < 1e-12);
+        }
+    }
+}
+
+pub(crate) fn complete_q_seed<T: ComplexField>(
+    mut out: faer::MatMut<'_, T>,
+    b: MatRef<'_, T>,
+    used: &mut [bool],
+    assigned: &[bool],
+    full: bool,
+) {
+    use faer::traits::math_utils::{copy, one};
+    let mut row = 0;
+    for (j, &present) in assigned.iter().enumerate() {
+        if !present {
+            while used[row] {
+                row += 1;
+            }
+            used[row] = true;
+            for k in 0..b.ncols() {
+                out[(row, k)] = copy(&b[(j, k)]);
+            }
+        }
+    }
+    if full {
+        let mut col = b.nrows();
+        for (row, &present) in used.iter().enumerate() {
+            if !present {
+                out[(row, col)] = one::<T>();
+                col += 1;
+            }
         }
     }
 }

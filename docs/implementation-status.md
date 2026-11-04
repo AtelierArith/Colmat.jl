@@ -2133,3 +2133,12 @@ the API. Candidate faer 3889bd1 passes seven focused tests and three doctests.
 Colmat focused integration passes 2,016 assertions. Canonical validation passes
 113,998 assertions / 83 files / 16 workers; README passes 71 executable blocks.
 Other native tuning and merged upstream adoption remain pending.
+
+## Issue #22: full Q from saved sparse QR factors (in progress)
+
+All algorithms expose `Qfull` and the explicit thin alias `Qthin`, while `Q`
+retains its existing thin contract. Missing pivots receive unused coordinate
+basis vectors before reflector application, preserving orthogonality for zero
+and rank-deficient inputs. Focused tests pass 1,224 assertions. Canonical validation passes 115,222 assertions / 84 files / 16 workers.
+Rust passes 11 tests; README passes 72 executable blocks. Rank-deficient/wide solves and rank tolerance remain
+separate unfinished contracts.
