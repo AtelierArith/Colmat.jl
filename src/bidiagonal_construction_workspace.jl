@@ -12,23 +12,26 @@ function _bidiagonalize_plan(a, blocksize)
     )
     return m, n, T, bs
 end
-function _bidiagonalize_requirement(m, n, T, full, bs, team)
+function _bidiagonalize_requirement(m, n, T, full, bs, team, policy)
     info=zeros(UInt, 2)
     GC.@preserve info begin
-        args=(UInt(m), UInt(n), _tag(T), full, UInt(bs), pointer(info))
-        isnothing(team) ? _native_call(RustCrate.bidiagonalize_requirements, args...) :
-        _native_call(RustCrate.bidiagonalize_team_requirements, team, args...)
+        args=(UInt(m), UInt(n), _tag(T), full, UInt(bs), policy.value, pointer(info))
+        isnothing(team) ?
+        _native_call(RustCrate.bidiagonalize_tuned_requirements, args...) :
+        _native_call(RustCrate.bidiagonalize_tuned_team_requirements, team, args...)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
 """
-    scratch_requirements(bidiagonalize, A; full=false, blocksize=0, team=nothing)
-    scratch_requirements(bidiagonalize!, A; full=false, blocksize=0, team=nothing)
+    scratch_requirements(bidiagonalize, A; full=false, blocksize=0, team=nothing, par_threshold=FaerParThreshold())
+    scratch_requirements(bidiagonalize!, A; full=false, blocksize=0, team=nothing, par_threshold=FaerParThreshold())
 
 Query reusable bidiagonal reduction and explicit U/V workspace: canonical work
 matrix, compact coefficients and a region reused by reduction and both basis
 applications. Query and kernels use the actual scoped team shape/token. Input
 conversion, returned owners and staged bang writeback allocate separately.
+Use the same `par_threshold` as computation; `FaerParThreshold(:never)` queries sequential kernels
+while still validating a supplied team.
 """
 function scratch_requirements(
     ::_BidiagonalReductionFunction,
@@ -36,11 +39,13 @@ function scratch_requirements(
     full::Bool = false,
     blocksize::Integer = 0,
     team = nothing,
+    par_threshold = FaerParThreshold(),
 )
     lock(_matrix_lock) do
         _iterative_resource_check(nothing, team)
+        policy=_par_threshold(par_threshold)
         m, n, T, bs=_bidiagonalize_plan(a, blocksize)
-        return _bidiagonalize_requirement(m, n, T, full, bs, team)
+        return _bidiagonalize_requirement(m, n, T, full, bs, team, policy)
     end
 end
 function FaerScratch(

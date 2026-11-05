@@ -3755,3 +3755,36 @@ unfinished rows of the frozen 76-row inventory remain in scope. Selected faer
 stays clean 44945d7 (0.30.0) with threadteam0.4; held upstream candidates and
 their performance/consent conditions remain unadopted. RustCall PR573 publication
 confirmation is still pending; its proposed features are not used here.
+
+
+## Bidiagonal reduction parallel thresholds
+
+`FaerParThreshold` exposes faer's existing derived/fixed/never policy for
+`bidiagonalize[!]` and the matching query/FaerScratch/reserve paths. A fixed floor
+counts elements of the native reduction's updated trailing block; zero and one
+are canonicalized to the same positive-work policy. The default remains derived.
+Never selects sequential numerical reduction and explicit U/V applications,
+while still validating a supplied team. Fixed thresholds leave explicit basis
+applications' own parallel rules intact. No team is created automatically.
+
+The bridge uses faer's documented integer conversion for `ParThreshold`, not
+its native enum layout. New tuned exports preserve all old construction entry
+point signatures and their derived behavior. The same parameters and effective
+parallel shape reach scratch queries and execution. No dependency source,
+numerical heuristic or upstream held performance candidate is changed.
+
+Focused checks pass 3,392 new assertions and 17,249 assertions including existing
+construction, scaling and bidiagonal suites. They cover four types, empty,
+square/tall/wide, full/thin, blocked n129, Seq/Team2, all policies, query/reserve,
+short/closed resources, closed teams even with Never, validation before input
+conversion, staged bang, independent reconstruction and the old native ABI.
+These tests establish correctness and policy forwarding, not measured worker
+utilization or speed. Remaining SVD/nested parameters, other kernel-family
+thresholds, compact-factor exposure and all unfinished inventory rows remain
+in scope. RustCall's unmerged slice/optional-owner features are not used here.
+
+Canonical verification passes **593,805 assertions / 129 files / 16 workers /
+9m40.1s**; all 151 native tests and all 110 executable README/manual blocks pass.
+All 295 frozen validation inputs stayed unchanged during these gates. Generated
+HTML contains the policy section; its cross-page fragment was corrected to the
+case-preserving Documenter anchor afterward and the documentation rebuilt.

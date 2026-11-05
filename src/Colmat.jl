@@ -13,6 +13,7 @@ export FaerSpectralFactor,
     scratch_capacity,
     scratch_requirements,
     FaerTeam,
+    FaerParThreshold,
     team_mul,
     partial_eigen,
     partial_self_adjoint_eigen,
@@ -221,6 +222,7 @@ include("structured_products.jl")
 include("pivoted_cholesky.jl")
 include("destructive.jl")
 include("teams.jl")
+include("parallel_threshold.jl")
 include("workspace.jl")
 include("ordering_workspace.jl")
 include("operator_workspace.jl")

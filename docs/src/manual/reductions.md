@@ -311,6 +311,39 @@ finally
 end
 ```
 
+## Bidiagonal parallel policy
+
+Use `FaerParThreshold` to select faer's derived, fixed or never-parallel policy.
+The default remains derived. Reuse the same policy for workspace planning and
+computation; changing it may change the required capacity. A fixed floor counts
+elements of the reduction's updated trailing block, while `:never` also keeps
+explicit U/V formation sequential. Supplied teams are validated for every policy.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[1 2; 3+im 4; 5 6-im])
+original = Matrix(A)
+team = FaerTeam(2)
+policy = FaerParThreshold(:never)
+work = FaerScratch(bidiagonalize, A; team, par_threshold=policy)
+try
+    F = bidiagonalize(A; scratch=work, team, par_threshold=policy)
+    @assert Matrix(F) ≈ original
+    close(F)
+    policy = FaerParThreshold(0)
+    reserve!(work, bidiagonalize!, A; team, par_threshold=policy)
+    F = bidiagonalize!(A; scratch=work, team, par_threshold=policy)
+    @assert Matrix(F) ≈ original
+    @assert Matrix(A)[1:2, :] ≈ Matrix(F.B)
+    @assert iszero(Matrix(A)[3, :])
+    close(F)
+finally
+    close(work)
+    close(team)
+    close(A)
+end
+```
+
 ## Reusing tridiagonal eigensolver workspace
 
 Dedicated tridiagonal eigenvectors and eigenvalues accept `scratch` and `team`.
