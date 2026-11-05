@@ -1,3 +1,4 @@
+_schur_validate(a::_OwnedCollection) = _dense_rhs_validate(a)
 function _schur_validate(a::FaerMatrix)
     _native_call(
         RustCrate.schur_input_validate,

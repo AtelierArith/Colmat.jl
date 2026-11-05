@@ -227,3 +227,30 @@ end
         close(h)
     end
 end
+@testset "Square matrix views retaining row collection owners" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        value=T<:Complex ? T(2+im) : T(2)
+        row=FaerRow(T[3, value, 5])
+        v=view(row, 1:1, 2:2)
+        expected=reshape(T[value], 1, 1)
+        team=FaerTeam(2)
+        for fn in (schur, hessenberg), resource in (nothing, team)
+            work=FaerScratch(fn, v; team = resource)
+            f=fn(v; scratch = work, team = resource)
+            scw_check(f, expected)
+            @test Matrix(row)==reshape(T[3, value, 5], 1, 3)
+            close(f)
+            close(work)
+        end
+        row.len=4
+        for fn in (schur, hessenberg)
+            @test_throws Colmat.RustCall.RustError scratch_requirements(fn, v)
+            @test_throws Colmat.RustCall.RustError fn(v)
+        end
+        row.len=3
+        close(row)
+        @test_throws ArgumentError schur(v)
+        @test_throws ArgumentError scratch_requirements(hessenberg, v)
+        close(team)
+    end
+end
