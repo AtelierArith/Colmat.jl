@@ -32,42 +32,68 @@ end
 function _tridiagonal_open(a::Union{LinearAlgebra.Hermitian,LinearAlgebra.Symmetric})
     return _tridiagonal_open(parent(a))
 end
-function tridiagonalize(a::AbstractMatrix{<:Number}; blocksize::Integer = 0)
+function tridiagonalize(
+    a::AbstractMatrix{<:Number};
+    blocksize::Integer = 0,
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
-        _tridiagonal_open(a)
-        n=LinearAlgebra.checksquare(a)
-        T=_reflector_type(eltype(a))
+        _iterative_resource_check(scratch, team)
+        n, T, bs=_tridiagonalize_plan(a, blocksize)
         R=_realtype(T)
-        data=Matrix{T}(a)
-        all(isfinite, data) ||
-            throw(ArgumentError("tridiagonalization input must be finite"))
-        LinearAlgebra.ishermitian(data) ||
-            throw(ArgumentError("tridiagonalization requires Hermitian input"))
-        bs=Int(blocksize)
-        0<=bs<=max(1, n-1) || throw(
-            ArgumentError("blocksize must be zero (automatic) or between 1 and max(1,n-1)"),
-        )
-        q=zeros(T, n, n)
-        diag=zeros(R, n)
-        off=zeros(R, max(0, n-1))
-        GC.@preserve data q diag off _native_call(
-            RustCrate.tridiagonalize_data,
-            Ptr{UInt8}(pointer(data)),
-            UInt(n),
-            Ptr{UInt8}(pointer(q)),
-            Ptr{UInt8}(pointer(diag)),
-            Ptr{UInt8}(pointer(off)),
-            _tag(T),
-            UInt(bs),
-        )
-        all(isfinite, q)&&all(isfinite, diag)&&all(isfinite, off) ||
-            throw(ArgumentError("tridiagonalization overflowed the working type"))
-        return FaerTridiagonalization(
-            LinearAlgebra.SymTridiagonal(diag, off),
-            FaerMatrix(q),
-        )
+        req=_tridiagonalize_requirement(n, T, bs, team)
+        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
+             scratch
+        try
+            cap=scratch_capacity(work)
+            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+                ArgumentError(
+                    "tridiagonal reduction scratch capacity/alignment is insufficient; call reserve!",
+                ),
+            )
+            data=Matrix{T}(a)
+            data isa Matrix{T} || throw(
+                ArgumentError(
+                    "tridiagonal conversion returned incompatible scalar storage",
+                ),
+            )
+            size(data)==(n, n) ||
+                throw(DimensionMismatch("tridiagonal conversion changed matrix shape"))
+            all(isfinite, data) ||
+                throw(ArgumentError("tridiagonalization input must be finite"))
+            LinearAlgebra.ishermitian(data) ||
+                throw(ArgumentError("tridiagonalization requires Hermitian input"))
+            q=Matrix{T}(undef, n, n)
+            diag=Vector{R}(undef, n)
+            off=Vector{R}(undef, max(0, n-1))
+            GC.@preserve data q diag off begin
+                args=(
+                    work,
+                    Ptr{UInt8}(pointer(data)),
+                    UInt(n),
+                    Ptr{UInt8}(pointer(q)),
+                    Ptr{UInt8}(pointer(diag)),
+                    Ptr{UInt8}(pointer(off)),
+                    _tag(T),
+                    UInt(bs),
+                )
+                isnothing(team) ?
+                _native_call(RustCrate.tridiagonalize_workspace, args...) :
+                _native_call(RustCrate.tridiagonalize_workspace_team, args..., team)
+            end
+            all(isfinite, q)&&all(isfinite, diag)&&all(isfinite, off) ||
+                throw(ArgumentError("tridiagonalization overflowed the working type"))
+            return FaerTridiagonalization(
+                LinearAlgebra.SymTridiagonal(diag, off),
+                FaerMatrix(q),
+            )
+        finally
+            isnothing(scratch) && close(work)
+        end
     end
 end
+
 """Stage native tridiagonalization, then replace A by explicit H; Q is independently owned."""
 function tridiagonalize!(a::FaerMatrix; kwargs...)
     lock(_matrix_lock) do

@@ -6,7 +6,7 @@ use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::linalg::householder as hh;
 use faer::prelude::ReborrowMut;
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{c32, c64, Conj, Mat, MatMut, Par};
+use faer::{c32, c64, Conj, Mat, MatMut, MatRef, Par};
 use rustcall_julia_macros::julia;
 #[derive(Clone)]
 struct Sequence<T> {
@@ -215,6 +215,27 @@ fn apply<T: ComplexField>(
 }
 fn apply_in<T: ComplexField>(
     s: &Sequence<T>,
+    a: MatMut<'_, T>,
+    right: bool,
+    transpose: bool,
+    conjugate: bool,
+    par: Par,
+    stack: &mut MemStack,
+) -> Result<(), String> {
+    apply_views_in(
+        s.basis.as_ref(),
+        s.factor.as_ref(),
+        a,
+        right,
+        transpose,
+        conjugate,
+        par,
+        stack,
+    )
+}
+fn apply_views_in<T: ComplexField>(
+    basis: MatRef<'_, T>,
+    factor: MatRef<'_, T>,
     mut a: MatMut<'_, T>,
     right: bool,
     transpose: bool,
@@ -222,9 +243,9 @@ fn apply_in<T: ComplexField>(
     par: Par,
     stack: &mut MemStack,
 ) -> Result<(), String> {
-    let m = s.basis.nrows();
-    let k = s.basis.ncols();
-    let b = s.factor.nrows();
+    let m = basis.nrows();
+    let k = basis.ncols();
+    let b = factor.nrows();
     if if right {
         a.ncols() != m
     } else {
@@ -240,7 +261,7 @@ fn apply_in<T: ComplexField>(
     let scalar_tail = m == k && (b == 1 || k % b == 1);
     let active = if scalar_tail { k - 1 } else { k };
     let scalar = if scalar_tail {
-        let tau = &s.factor[((k - 1) % b, k - 1)];
+        let tau = &factor[((k - 1) % b, k - 1)];
         if real(tau) == infinity::<T::Real>() {
             one::<T>()
         } else {
@@ -272,8 +293,8 @@ fn apply_in<T: ComplexField>(
         scale_last(&mut a, right, &scalar);
     }
     let conj = if conjugate { Conj::Yes } else { Conj::No };
-    let v = s.basis.as_ref().subcols(0, active);
-    let f = s.factor.as_ref().subcols(0, active);
+    let v = basis.subcols(0, active);
+    let f = factor.subcols(0, active);
     match (right, transpose) {
         (false, false) => hh::apply_block_householder_sequence_on_the_left_in_place_with_conj(
             v,
@@ -469,3 +490,13 @@ pub(crate) fn apply_compact_conj<T: ComplexField>(
 mod workspace;
 
 mod construction;
+
+pub(crate) fn apply_compact_in<T: ComplexField>(
+    basis: MatRef<'_, T>,
+    factor: MatRef<'_, T>,
+    out: MatMut<'_, T>,
+    par: Par,
+    stack: &mut MemStack,
+) -> Result<(), String> {
+    apply_views_in(basis, factor, out, false, false, false, par, stack)
+}
