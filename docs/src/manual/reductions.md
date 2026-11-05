@@ -421,3 +421,37 @@ finally
     close(A)
 end
 ```
+
+## Tridiagonal parallel policy
+
+`tridiagonalize[!]` and native Hermitian/Symmetric `hessenberg[!]` accept
+`par_threshold=FaerParThreshold()`. Fixed thresholds count `rem*rem÷2` elements
+for the updated triangle. Explicit Q applications keep their own parallel rule;
+`FaerParThreshold(:never)` makes both reduction and Q formation sequential.
+Use the same policy for workspace planning and execution. A supplied team must
+still be open, including for empty matrices and Never.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[4 1-im 2; 1+im 5 0.5im; 2 -0.5im 6])
+original = Matrix(A)
+H = Hermitian(A)
+team = FaerTeam(2)
+policy = FaerParThreshold(:never)
+work = FaerScratch(hessenberg, H; team, par_threshold=policy)
+try
+    F = hessenberg(H; scratch=work, team, par_threshold=policy)
+    @assert Matrix(F.Q)*Matrix(F.H)*Matrix(F.Q)' ≈ original
+    close(F)
+    policy = FaerParThreshold(0)
+    reserve!(work, hessenberg!, H; team, par_threshold=policy)
+    F = hessenberg!(H; scratch=work, team, par_threshold=policy)
+    @assert Matrix(F.Q)*Matrix(F.H)*Matrix(F.Q)' ≈ original
+    @assert Matrix(A) ≈ Matrix(F.H)
+    close(F)
+finally
+    close(work)
+    close(team)
+    close(A)
+end
+```

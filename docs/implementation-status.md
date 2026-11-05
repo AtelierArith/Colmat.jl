@@ -3788,3 +3788,27 @@ Canonical verification passes **593,805 assertions / 129 files / 16 workers /
 All 295 frozen validation inputs stayed unchanged during these gates. Generated
 HTML contains the policy section; its cross-page fragment was corrected to the
 case-preserving Documenter anchor afterward and the documentation rebuilt.
+
+
+## Tridiagonal reduction parallel thresholds
+
+`tridiagonalize[!]` and native Hermitian/Symmetric `hessenberg[!]` now forward
+`FaerParThreshold` through computation and query/FaerScratch/reserve. This exposes
+the public `TridiagParams.par_threshold` field. Fixed thresholds count
+`rem*rem/2` elements of the remaining triangle. Never selects sequential
+reduction and explicit Q formation, while still checking the supplied team.
+Default derived behavior and every old native construction signature remain.
+New tuned exports use faer's integer conversion, not its native enum ABI, and
+queries receive the same parameters and effective parallel shape as computation.
+
+Focused policy/compatibility checks pass 1,021 new assertions; combined with the
+existing construction, scaling, tridiagonal and bidiagonal-policy suites, 7,329
+assertions pass. Native tests pass all 151 cases. Coverage includes four types,
+empty/scalar/blocked reductions, Seq/Team2, all policies, workspace reuse and
+reserve, short/closed scratch, closed teams even with Never, validation before
+conversion, staged bang/Tasks, Hermitian and real Symmetric hessenberg[!]
+forwarding, independent reconstruction/unitarity and legacy query/compute ABI.
+No numerical heuristic, native dependency source or held upstream performance
+candidate changes. The checks do not measure worker utilization or speed.
+Compact reflectors, remaining EVD/nested parameters, thresholds in other kernel
+families and unfinished rows of the frozen 76-row inventory remain in scope.
