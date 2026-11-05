@@ -3347,3 +3347,18 @@ calling-thread allocation test excludes setup, owning output creation and worker
 heaps; it does not imply a whole-API allocation or scaling bound. Tuning, Schur
 reordering/eigenvector kernel resources, direct in-place and all other incomplete
 76-row inventory entries remain in scope.
+
+A review probe found a candidate-only dispatch omission for square matrix views
+whose retained owner is a FaerRow. Parent main supports that input. The checked
+collection-metadata validator is reused before view copies, and new four-scalar
+Seq/Team tests cover query, execution, stale owner metadata and close. The initial
+frozen validation processes were deliberately stopped before this source change;
+final gates use the corrected frozen source. No upstream defect was inferred.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **562,600 assertions / 119 files / 16 workers in 9m23.6s**, with
+**4,563 focused assertions** (2,953 new), **129 native tests** and **99 executable
+README blocks** passing. JuliaFormatter, native rustfmt and diff checks pass.
+All 250 runtime/test file hashes and clean faer `2d4ea4e` remained unchanged
+through the corrected final gates. Frozen inventory and all 76 mapping rows
+are retained.
