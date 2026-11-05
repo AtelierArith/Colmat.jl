@@ -1,14 +1,16 @@
 """
     scratch_requirements(factorize, plan::FaerSparseSymbolic, A::FaerSparseMatrix; team=nothing)
 
-Query numeric factor-construction workspace for tall/square QR, including explicit simplicial QR. Pass a
+Query numeric factor-construction workspace for all sparse QR shapes and algorithms. Pass a
 reserved buffer to `factorize(plan,A; scratch=s, team=team)`. Query and numeric
 execution use the same scoped `FaerTeam`; omission selects sequential execution.
 The explicit simplicial kernel is sequential even with a team.
-With `team` alone, construction allocates temporary scratch. The numeric QR kernel and
-source-precision rank-certificate preparation share this buffer sequentially.
-Symbolic analysis, input normalization/snapshot/finite checks and owned numeric
-factor storage allocate separately. The stored pattern must match.
+With `team` alone, construction allocates temporary scratch. Tall/square numeric
+QR and source-precision rank-certificate preparation share the buffer sequentially.
+Wide QR reuses it for prefix QR and saved full-Q-adjoint column projections.
+Symbolic analysis, input normalization/snapshot/finite checks, prefix CSC and
+output assembly, and owned numeric factor storage allocate separately. The stored
+pattern must match.
 """
 function scratch_requirements(
     ::typeof(LinearAlgebra.factorize),
@@ -64,7 +66,7 @@ function reserve!(
 end
 function _sparse_qr_factor_validate(p, a, s, team)
     p isa FaerSparseSymbolic{:qr} ||
-        throw(ArgumentError("construction resources currently require tall/square QR"))
+        throw(ArgumentError("construction resources currently require QR"))
     isnothing(s) ||
         s isa FaerScratch ||
         throw(ArgumentError("scratch must be a FaerScratch"))

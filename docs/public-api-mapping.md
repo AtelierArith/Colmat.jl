@@ -97,7 +97,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 疎×疎・疎×密・密×疎 | `sparse::linalg::matmul::{sparse_sparse_matmul,sparse_dense_matmul,dense_sparse_matmul}` | sparse/dense の `*/mul!` | R: 4 型・型 promotion、CSC/CSR の native 積、`mul!`、ベクトルとの積 | symbolic/numeric 積計画の再利用、低水準制御 |
 | 疎 Cholesky | `sp_cholesky`, `SymbolicLlt/Llt`、低水準の疎 Cholesky | `cholesky(sparse(Hermitian(A)))` | R: CSC/CSR・4 型、`cholesky`、選択三角、`FaerSparseSymbolic`、`cholesky!`、求解・全3方式の混合型 RHS は保存因子を再利用・左右/転置/随伴求解の scratch/team、AMD/恒等/任意 ordering、分解方式指定、`p/algorithm/factor_storage`、疎 `L/U` 抽出・再構成、分解対角からの `det/logdet/logabsdet` | 数値分解構築の外部 scratch・追加の低水準制御 |
 | 疎 LU | `sp_lu`, `SymbolicLu/Lu` | `lu(sparse(A))` | R: CSC/CSR・4 型、`lu`、symbolic 再利用、`lu!`、転置/随伴・混合精度の求解（全方式で保存因子再利用）・左右求解の scratch/team。全方式の native L/U・p/q、元順序への疎再構成・型指定変換、全方式の恒等/任意/COLAMD column ordering、全方式の COLAMD 調整値（dense_row/dense_col/aggressive） | 残る低水準制御。明示的 simplicial の既定列順序は恒等 |
-| 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、明示的 `algorithm=:supernodal` 選択、auto/supernodal の COLAMD 調整・独立 p/pcol、`qr!`、symbolic 再利用、`ldiv!`。全方式・混合型 vector/matrix RHS・左右/転置/随伴・rank-deficient/wide 求解の scratch/team と作業領域照会/reserve、縦長/正方の全方式の `factorize(plan,A;scratch,team)` / `qr(A;scratch,team)`（明示的 simplicial kernel は逐次） の数値分解構築用 scratch/team。横長入力の native prefix QR と保存 R の SVD による最小ノルム求解、通常 backslash と明示的 `ldiv!(X,F,B;atol,rtol)` の rank-deficient 最小ノルム求解・保存因子の `pinv`、全方式の薄い native Q/Qthin・完全 Qfull・疎 R・p/pcol・元列順序への native 再構成・転置/随伴の最小ノルム求解、全方式の恒等/任意/COLAMD 列順序（dense_row/dense_col/aggressive）・転置/随伴の最小ノルム求解・混合型 RHS の保持因子再利用 | 明示的 Q/R 抽出 API、wide の数値構築 scratch/team・symbolic team、低水準制御 |
+| 疎 QR・最小二乗 | `sp_qr`, `SymbolicQr/Qr`, `SolveLstsq` | `qr(sparse(A))`, sparse `A\b` | R: CSC/CSR・4 型、縦長/正方の列フルランク最小二乗、明示的 `algorithm=:supernodal` 選択、auto/supernodal の COLAMD 調整・独立 p/pcol、`qr!`、symbolic 再利用、`ldiv!`。全方式・混合型 vector/matrix RHS・左右/転置/随伴・rank-deficient/wide 求解の scratch/team と作業領域照会/reserve、全形状・全方式の `factorize(plan,A;scratch,team)` / `qr(A;scratch,team)`（明示的 simplicial kernel は逐次） の数値分解構築用 scratch/team。横長入力の native prefix QR と保存 R の SVD による最小ノルム求解、通常 backslash と明示的 `ldiv!(X,F,B;atol,rtol)` の rank-deficient 最小ノルム求解・保存因子の `pinv`、全方式の薄い native Q/Qthin・完全 Qfull・疎 R・p/pcol・元列順序への native 再構成・転置/随伴の最小ノルム求解、全方式の恒等/任意/COLAMD 列順序（dense_row/dense_col/aggressive）・転置/随伴の最小ノルム求解・混合型 RHS の保持因子再利用 | 明示的 Q/R 抽出 API、`qr!` の構築資源指定、symbolic team・疎出力組立等の残る構築用一時領域、低水準制御 |
 | 疎三角求解 | `sp_solve_{unit_}{lower,upper}_triangular_in_place` | sparse 三角ラッパーの `\` | R: CSC/CSR・4 型、通常/単位の上下三角、転置/随伴、matrix/vector RHS、`ldiv!` | 作業領域の外部指定、割り当てを伴わない直接 in-place 経路 |
 | Fill-reducing ordering | `sparse::linalg::{amd,colamd}` | 疎分解の並べ替え・ordering に相当 | R: `amd/colamd`、numeric/symbolic CSC/CSR、長方形 COLAMD、制御値・AMD 演算数見積もり、`FaerPermutation` 返却、Cholesky と全方式の LU/QR への直接 ordering 指定 | caller-owned scratch |
 
@@ -129,7 +129,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
 | 逐次実行 | `Par::Seq` | 同期・逐次の数値処理 | R: 既定の native 数値処理、幅1の FaerTeam | 明示的 team 対応の行列積/分解/保存因子求解/作用素・Householder 適用/auto・supernodal 疎 QR 数値構築以外は逐次。各資源接続節に方式別の範囲を記録 |
-| 呼び出し側所有の並列 team | `Par::Team`, `team::with_team`, `Par::reborrow`（threadteam feature） | Julia task/thread や BLAS thread 設定と関心は近いが、直接同一ではない | 一部 R: `FaerTeam` の pool/予約所有・再利用・copy/close/do、`team_mul`・team 指定 `mul!`・`pfaffian/svd/svdvals` と単一行列・一般化ペアの `eigen/eigvals(;team)`、dense LU/QR/Cholesky/LDLT/Bunch–Kaufman の構築・staged bang、native 作用素適用、dense 保存因子の `ldiv!/rdiv!(;team)`、公開 SVD/EVD の保存因子求解、疎 LU/Cholesky/QR の保存因子求解、Householder 適用、auto/supernodal 疎 QR 数値構築、4 型・promotion・ビュー・alias | 保存因子の成分取り出し、疎 LU/Cholesky と wide QR の構築・symbolic 分析・反復法・他 kernel の team 接続、外部 pool の借用、全 wait/cost tuning は未対応。owner lock により呼び出しを直列化 |
+| 呼び出し側所有の並列 team | `Par::Team`, `team::with_team`, `Par::reborrow`（threadteam feature） | Julia task/thread や BLAS thread 設定と関心は近いが、直接同一ではない | 一部 R: `FaerTeam` の pool/予約所有・再利用・copy/close/do、`team_mul`・team 指定 `mul!`・`pfaffian/svd/svdvals` と単一行列・一般化ペアの `eigen/eigvals(;team)`、dense LU/QR/Cholesky/LDLT/Bunch–Kaufman の構築・staged bang、native 作用素適用、dense 保存因子の `ldiv!/rdiv!(;team)`、公開 SVD/EVD の保存因子求解、疎 LU/Cholesky/QR の保存因子求解、Householder 適用、auto/supernodal 疎 QR 数値構築、4 型・promotion・ビュー・alias | 保存因子の成分取り出し、疎 LU/Cholesky の構築・symbolic 分析・反復法・他 kernel の team 接続、外部 pool の借用、全 wait/cost tuning は未対応。owner lock により呼び出しを直列化 |
 | 行・列の平均・分散 | `stats::{col_mean,row_mean,col_varm,row_varm,NanHandling}` | Statistics の `mean/varm` と dims/NaN 規約の対応 | R: `Statistics.mean/var/varm`、4 型・行/列/全体・dims・ビュー・NaN propagate/ignore・標本/母分散 | native データを primitive buffer にコピーして faer kernel を適用。指定平均は native 型へ昇格 |
 | 乱数・直交/ユニタリ行列の生成 | `CwiseMat/Col/RowDistribution`, `ComplexDistribution`, `UnitaryMat`（rand feature） | Random の `rand/randn`、ランダム直交行列の生成相当 | R: `FaerRNG`、`rand/randn` の native Mat/Col/Row、`rand!/randn!`・ビュー、`randunitary`、4 型・複素成分正規化・copy/seed/close | 任意の Rust Distribution/Julia callback の直接公開は未対応。Julia RNG は非空の生成ごとに UInt64 シードを1個渡す |
 | NPY 読み込み・ビュー | `io::npy::{Npy,FromNpy,...}`, `as_aligned_ref/to_mat`（npy feature） | NPY 対応 I/O（Julia 標準外） | R: `loadnpy/npyview/npyinfo`、4 型・versions 1–3・C/Fortran・両 endian、独立 Mat と owned read-only aligned view、metadata/copy/deepcopy/close | 真の mmap/元バッファ別名は未対応。rank>2・他 dtype・連結配列は拒否。aligned/native-endian 正規化で [faer #210](https://github.com/tensor4all/faer/issues/210)・[#211](https://github.com/tensor4all/faer/issues/211) を回避 |
@@ -303,7 +303,7 @@ Existing source-precision thresholds are preserved. Matrix dtype/shape/storage/
 stored-count and plan kind/shape/triangle metadata are validated against native
 owners before Julia snapshot value reads. Symbolic preparation, input normalization,
 snapshot/finite checks and persistent numeric buffers still allocate separately;
-wide construction and remaining team controls stay open; explicit simplicial
+sparse output assembly and remaining team controls stay open; explicit simplicial
 numeric kernels remain sequential.
 
 ## Auto/supernodal sparse QR numeric construction teams
@@ -314,8 +314,7 @@ token to the numeric QR kernel. `scratch_requirements(factorize,plan,A;team)`,
 the matching team shape. The numeric kernel and rank-bound stages still share
 one buffer sequentially. Team-only construction uses temporary scratch. Factors
 retain no team token or scratch borrow. Explicit simplicial construction also
-accepts these resources with a sequential kernel. Symbolic analysis, wide
-construction resources, sparse LU/Cholesky construction resources, input
+accepts these resources with a sequential kernel. Symbolic analysis, sparse output assembly, sparse LU/Cholesky construction resources, input
 snapshots and owned output allocation remain separate work within all 76 rows.
 
 ## Explicit simplicial sparse QR construction scratch
@@ -326,4 +325,19 @@ interface. The kernel uses caller scratch, followed by rank-bound preparation in
 the same buffer. Its native API has no parallelism argument and executes
 sequentially even with a retained team; requirements are team-width independent.
 Owned output, input normalization/snapshot and symbolic analysis still allocate.
-Wide construction resources remain pending within the full 76-row scope.
+Wide construction resources are also supported; sparse output assembly and
+normalization remain separately allocating within the full 76-row scope.
+
+## Wide sparse QR numeric construction resources
+
+All shapes/algorithms now accept construction query/FaerScratch/reserve and
+`factorize(plan,A;scratch,team)` / `qr(A;scratch,team)`. Wide construction uses
+the native prefix QR and full saved-Q-adjoint projections in the same buffer
+sequentially. Symbolic bounds include column/result/gather storage, pivot/used
+indices and the maximum block-Householder scratch per node, before numeric block
+metadata exists. Prefix QR and blocked Householder calls receive the caller team;
+indexed simplicial traversal remains sequential. No explicit Q is constructed.
+Source-precision rank policy and minimum-norm solves are unchanged.
+Input normalization, prefix CSC and output triplet/CSC assembly, symbolic
+analysis and owned numeric output still allocate outside scratch. The full
+76-row scope, other construction/iterative/kernel resources, remain open.

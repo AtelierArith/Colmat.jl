@@ -89,7 +89,9 @@ end
     @test Matrix(qr(a; team))≈A
     for algorithm in (:simplicial, :supernodal)
         wide=FaerSparseMatrix(sparse(ones(2, 3)))
-        @test_throws Colmat.RustCall.RustError qr(wide; algorithm, team)
+        wf=qr(wide; algorithm, team)
+        @test Matrix(wf)≈ones(2, 3)
+        close(wf)
         close(wide)
     end
     simp=FaerSparseSymbolic(a; kind = :qr, algorithm = :simplicial)

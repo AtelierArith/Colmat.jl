@@ -296,6 +296,17 @@ impl<T: ComplexField> Factors<T> {
         Ok(out)
     }
     pub(crate) fn apply_full_q_adjoint(&self, b: MatRef<'_, T>) -> Result<Mat<T>, String> {
+        if b.nrows() != self.symbolic.nrows() {
+            return Err("full Q adjoint RHS row mismatch".into());
+        }
+        let mut out = Mat::zeros(b.nrows(), b.ncols());
+        let mut memory = MemBuffer::try_new(Self::full_q_adjoint_scratch(&self.symbolic, b.ncols()))
+            .map_err(|e| format!("{e:?}"))?;
+        self.apply_full_q_adjoint_in(out.as_mut(), b, Par::Seq, MemStack::new(&mut memory));
+        Ok(out)
+    }
+    #[cfg(test)]
+    pub(crate) fn apply_full_q_adjoint_reference(&self, b: MatRef<'_, T>) -> Result<Mat<T>, String> {
         use faer::traits::math_utils::{add, conj, copy, mul, mul_real, real, recip, sub, zero};
         let (m, n) = (self.symbolic.nrows(), self.symbolic.ncols());
         if b.nrows() != m {
@@ -725,3 +736,5 @@ mod full_adjoint_tests {
 pub(crate) mod projection;
 
 pub(crate) mod borrowed;
+
+mod adjoint;

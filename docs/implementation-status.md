@@ -2954,3 +2954,34 @@ Final canonical `Pkg.test(;allow_reresolve=false)` passed **410,092 assertions /
 tests and 89 README blocks passed. JuliaFormatter DefaultStyle, rustfmt for
 changed native modules, diff and frozen-inventory checks passed. The selected
 clean t4a-faer remains 0.29.0 / `19053d8`, Julia 1.13.3 and RustCall.jl 0.9.2.
+
+## Wide sparse QR numeric construction scratch and teams
+
+Wide construction now uses caller scratch for prefix QR and saved full-Q-adjoint
+column projections, sequentially reusing one buffer. The symbolic query bounds
+pivot/used indices, column/result/gather matrices and block-Householder work per
+node; numeric block sizes cannot exceed their retained symbolic tau layout. The
+prefix kernel and blocked Householder calls use the same scoped caller team.
+Indexed simplicial reflection traversal remains sequential. R assembly visits
+retained prefix R directly and does not export another sparse R. Default wide
+construction uses the same implementation with a temporary buffer.
+
+Full-Q-adjoint application also shares the new scratch kernel in the default
+wide solve path, preserving the old source-precision minimum-norm policy. Native
+tests retain the old implementation as a test-only reference and compare both
+it and an independently formed full Q. Prepared application is measured with
+preallocated output and scratch; this does not include setup or worker heaps.
+Input normalization, prefix CSC, output triplet/CSC assembly, symbolic analysis
+and persistent numeric output allocate separately. All 76 rows remain in scope;
+no whole-API allocation-free construction claim is made.
+
+Final canonical `Pkg.test(;allow_reresolve=false)` passed **423,060 assertions /
+108 files / 16 workers in 8m25.1s**. Focused wide construction checks passed
+12,968 new assertions plus 4,719 existing construction-team checks. All 97 native
+tests and 90 executable README blocks passed. The prepared Q-adjoint kernel
+uses zero calling-thread Rust heap allocations after warmup with sequential and
+team2 execution; setup and worker heaps are excluded. JuliaFormatter DefaultStyle,
+rustfmt for changed native modules, diff and frozen-inventory checks passed.
+Julia 1.13.3 / RustCall.jl 0.9.2 and clean t4a-faer 0.29.0 / `19053d8` are
+unchanged; no new upstream defect was confirmed. Staged `qr!` resource keywords
+and separately allocating sparse output assembly remain tracked.

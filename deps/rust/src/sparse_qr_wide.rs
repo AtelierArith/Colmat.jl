@@ -1,6 +1,9 @@
 //! Wide QR assembled from native prefix QR and saved-reflector projections.
 use super::sparse_qr_owned;
+use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
+use faer::mat::AsMatMut;
 use faer::perm::Perm;
+use faer::prelude::ReborrowMut;
 use faer::sparse::linalg::qr::{self, QrSymbolicParams, SymbolicQr};
 use faer::sparse::{SparseColMat, SparseColMatRef, SymbolicSparseColMatRef, Triplet};
 use faer::traits::{math_utils::*, ComplexField};
@@ -70,6 +73,26 @@ impl<T: ComplexField> Factors<T> {
         (self.m, self.n)
     }
     pub(crate) fn new(plan: &Plan, a: SparseColMatRef<'_, usize, T>) -> Result<Self, String> {
+        let mut memory =
+            MemBuffer::try_new(Self::scratch(plan, &Par::Seq)).map_err(|e| format!("{e:?}"))?;
+        Self::new_in(plan, a, Par::Seq, MemStack::new(&mut memory))
+    }
+    pub(crate) fn scratch(plan: &Plan, par: &Par<'_>) -> StackReq {
+        let projection = faer::linalg::temp_mat_scratch::<T>(plan.m, 1)
+            .and(faer::linalg::temp_mat_scratch::<T>(plan.m, 1))
+            .and(sparse_qr_owned::Factors::<T>::full_q_adjoint_scratch(
+                &plan.head, 1,
+            ));
+        plan.head
+            .factorize_numeric_qr_scratch::<T>(par.shape(), Default::default())
+            .or(projection)
+    }
+    pub(crate) fn new_in(
+        plan: &Plan,
+        a: SparseColMatRef<'_, usize, T>,
+        mut par: Par<'_>,
+        stack: &mut MemStack,
+    ) -> Result<Self, String> {
         if (a.nrows(), a.ncols()) != (plan.m, plan.n) {
             return Err("wide QR numeric shape mismatch".into());
         }
@@ -88,25 +111,36 @@ impl<T: ComplexField> Factors<T> {
             .collect();
         let prefix = SparseColMat::<usize, T>::try_new_from_triplets(m, m, &entries)
             .map_err(|e| format!("{e:?}"))?;
-        let head = sparse_qr_owned::Factors::new(plan.head.clone(), prefix.as_ref())?;
-        let left = head.r()?;
-        let mut entries: Vec<_> = left
-            .as_ref()
-            .triplet_iter()
-            .map(|e| Triplet {
-                row: e.row,
-                col: e.col,
-                val: copy(e.val),
+        let head = sparse_qr_owned::Factors::new_in_parallel(
+            plan.head.clone(),
+            prefix.as_ref(),
+            stack,
+            par.reborrow(),
+        )?;
+        let mut entries = Vec::new();
+        head.visit_r(|row, col, val| {
+            entries.push(Triplet {
+                row,
+                col,
+                val: copy(val),
             })
-            .collect();
-        let mut column = Mat::<T>::zeros(m, 1);
+        });
+        let (mut column, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(m, 1, stack);
+        let mut column = column.as_mat_mut();
+        let (mut projected, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(m, 1, stack);
+        let mut projected = projected.as_mat_mut();
         // Project one column at a time: no dense Q or m-by-(n-m) temporary.
         for j in m..n {
             column.fill(zero::<T>());
             for (i, v) in a.row_idx_of_col(p[j]).zip(a.val_of_col(p[j])) {
                 column[(i, 0)] = copy(v);
             }
-            let projected = head.apply_full_q_adjoint(column.as_ref())?;
+            head.apply_full_q_adjoint_in(
+                projected.rb_mut(),
+                column.as_ref(),
+                par.reborrow(),
+                stack,
+            );
             for i in 0..m {
                 if projected[(i, 0)] != zero::<T>() {
                     entries.push(Triplet {
