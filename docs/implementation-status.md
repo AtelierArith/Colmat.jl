@@ -3554,7 +3554,7 @@ the frozen inventory and all 76 mapping rows remain unchanged. Tested runtime
 is `bdffb54`; later result-record commits are documentation only.
 
 
-## Tridiagonal reduction resources (candidate)
+## Tridiagonal reduction resources (PR #71)
 
 Building on merged PR #70, tridiagonalize and staged bang/self-adjoint
 hessenberg dispatch now accept reusable scratch/team, query, FaerScratch and
@@ -3590,13 +3590,17 @@ Four native tests check short-scratch output preservation, invalid buffers and
 warmed n=4 Seq calling-thread heap counts of zero. This excludes setup, Julia
 storage, worker heaps and larger inherited Householder allocation gaps (#267);
 it is not a whole-API allocation or performance claim. Compact factor exposure,
-remaining tuning and other rows remain unfinished. Final native/canonical/README
-gates remain pending.
+remaining tuning and other rows remain unfinished.
 
 
 Post-rebase native full suite: **143 passed**. An additional standalone public
 API probe (seed 257) passed **32 assertions** for all four scalars, n=129/257,
 blocksize 0/1 and Team(2), checking reconstruction with 2048 eps relative to the
 input Frobenius norm and orthogonality with a sqrt(n)-scaled bound. These are
-functional checks rather than performance evidence. The canonical 125-file
-suite and 105 README blocks are running with 271 frozen inputs.
+functional checks rather than performance evidence.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **575,034 assertions / 125 files / 16 workers in 9m34.3s**. All **105
+executable README blocks** pass. All 271 frozen input hashes, frozen inventory
+and all 76 mapping rows remain unchanged. Tested runtime is `2fcfebc`; later
+result-record commits are documentation only.
