@@ -66,3 +66,23 @@ there: coupled residual ratio 61.6469 exceeds 20, with Q/Z orthogonality errors
 success. Draft [faer PR #258](https://github.com/tensor4all/faer/pull/258)
 contains the array correction and focused public/private regressions. Colmat's
 construction scratch correction remains in place pending verified adoption.
+
+## Merged fixes selected for Colmat (2026-11-05)
+
+The validated dependency update selects main
+`2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7` (faer 0.29.0), which contains
+#253's even-rounded AED query and #254's fully-deflated sentinel correction.
+The two native n=78 regression tests in `deps/rust/src/qz/adoption_tests.rs`
+fail on the old `19053d8` for f32/f64 with unsigned subtraction overflow;
+on the selected revision both complete with coupled reconstruction and Q/Z
+orthogonality ratios below 20 (dimension/precision scaled). Julia tests use
+the same deterministic pencil and independent Julia matrix products.
+
+The #260 scratch correction is still needed: its Sylvester index-array fix
+is not on main. `real_qz_scratch` therefore retains the four-array live bound
+and the public recommendation. No unmerged #258/#267/#269 source is selected.
+The remaining #256/#257/#260 issues are not declared resolved by this update.
+RustCall's resolved path-dependency digest changes between the two checkouts
+before any Colmat source edit, so the dependency change participates in native
+cache invalidation. Build/reproducer evidence and complete Colmat validation
+are recorded in the proposing dependency-update PR.
