@@ -1,0 +1,6 @@
+[package]
+name = "schur-eigenvectors-allocation-mwe"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+faer = { package = "t4a-faer", git = "https://github.com/tensor4all/faer.git", rev = "2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7", default-features = false, features = ["std", "linalg", "rayon", "threadteam"] }

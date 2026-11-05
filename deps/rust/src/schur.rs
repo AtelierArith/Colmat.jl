@@ -8,6 +8,7 @@ use faer::traits::{math_utils::*, ComplexField};
 use faer::{c32, c64, Conj, Mat, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 mod construction;
+mod eigenvectors_workspace;
 mod reorder_workspace;
 
 // Power-of-two scaling follows faer's general EVD driver. Keep the
@@ -134,7 +135,6 @@ trait SchurScalar: ComplexField + Sized {
     fn block_size(h: MatRef<'_, Self>, i: usize) -> usize;
     fn validate(h: MatRef<'_, Self>) -> Result<(), String>;
     unsafe fn values(h: MatRef<'_, Self>, out: *mut u8);
-    fn eigenvectors(h: MatRef<'_, Self>, z: MatRef<'_, Self>) -> Result<MatrixData, String>;
 }
 macro_rules! real_scalar {
     ($r:ty,$c:ty,$variant:ident) => {
@@ -242,42 +242,6 @@ macro_rules! real_scalar {
                     }
                 }
             }
-            fn eigenvectors(
-                h: MatRef<'_, Self>,
-                z: MatRef<'_, Self>,
-            ) -> Result<MatrixData, String> {
-                let n = h.nrows();
-                let mut x = Mat::zeros(n, n);
-                if n > 0 {
-                    let mut mem = MemBuffer::new(evd::eigenvectors_from_schur_scratch::<Self>(n));
-                    evd::eigenvectors_from_schur_real(
-                        h,
-                        Some(z),
-                        x.as_mut(),
-                        Par::Seq,
-                        MemStack::new(&mut mem),
-                        Default::default(),
-                    )
-                    .map_err(|e| format!("{e:?}"))?;
-                }
-                let mut out = Mat::<$c>::zeros(n, n);
-                let mut j = 0;
-                while j < n {
-                    if Self::block_size(h, j) == 2 {
-                        for i in 0..n {
-                            out[(i, j)] = <$c>::new(x[(i, j)], x[(i, j + 1)]);
-                            out[(i, j + 1)] = <$c>::new(x[(i, j)], -x[(i, j + 1)]);
-                        }
-                        j += 2;
-                    } else {
-                        for i in 0..n {
-                            out[(i, j)] = <$c>::new(x[(i, j)], 0.0);
-                        }
-                        j += 1;
-                    }
-                }
-                Ok(MatrixData::$variant(out))
-            }
         }
     };
 }
@@ -351,26 +315,6 @@ macro_rules! complex_scalar {
                 for i in 0..h.nrows() {
                     out.cast::<Self>().add(i).write(h[(i, i)]);
                 }
-            }
-            fn eigenvectors(
-                h: MatRef<'_, Self>,
-                z: MatRef<'_, Self>,
-            ) -> Result<MatrixData, String> {
-                let n = h.nrows();
-                let mut x = Mat::zeros(n, n);
-                if n > 0 {
-                    let mut mem = MemBuffer::new(evd::eigenvectors_from_schur_scratch::<Self>(n));
-                    evd::eigenvectors_from_schur_cplx(
-                        h,
-                        Some(z),
-                        x.as_mut(),
-                        Par::Seq,
-                        MemStack::new(&mut mem),
-                        Default::default(),
-                    )
-                    .map_err(|e| format!("{e:?}"))?;
-                }
-                Ok(MatrixData::$variant(x))
             }
         }
     };
@@ -603,41 +547,6 @@ impl TypedMatrix {
             let z = (z).data()?;
 
             self.data = Some(typed_reorder!(t, z, out_z, selection(select, n), values));
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn schur_eigenvectors_from(
-        &mut self,
-        t: *const u8,
-        z: *const u8,
-        tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| unsafe {
-            self.data = Some(if tag == 1 {
-                let t = &*t.cast::<OwnedMatrix>();
-                let z = &*z.cast::<OwnedMatrix>();
-                validate(t.matrix.as_ref(), z.matrix.as_ref())?;
-                f64::eigenvectors(t.matrix.as_ref(), z.matrix.as_ref())?
-            } else {
-                let t = (&*t.cast::<TypedMatrix>()).data()?;
-                let z = (&*z.cast::<TypedMatrix>()).data()?;
-                match (t, z) {
-                    (MatrixData::F32(t), MatrixData::F32(z)) if tag == 0 => {
-                        validate(t.as_ref(), z.as_ref())?;
-                        f32::eigenvectors(t.as_ref(), z.as_ref())?
-                    }
-                    (MatrixData::C32(t), MatrixData::C32(z)) if tag == 2 => {
-                        validate(t.as_ref(), z.as_ref())?;
-                        c32::eigenvectors(t.as_ref(), z.as_ref())?
-                    }
-                    (MatrixData::C64(t), MatrixData::C64(z)) if tag == 3 => {
-                        validate(t.as_ref(), z.as_ref())?;
-                        c64::eigenvectors(t.as_ref(), z.as_ref())?
-                    }
-                    _ => return Err("Schur scalar types must match".into()),
-                }
-            });
             Ok(())
         })
     }

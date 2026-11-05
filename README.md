@@ -2845,3 +2845,31 @@ close(work)
 close(team)
 close(A)
 ```
+
+### Eigenvectors from saved Schur factors
+
+`eigvecs(F)` and `eigen(F)` reuse saved native Schur factors with caller scratch
+and an actual scoped team. Queries cover faer's declared kernel temporary space
+and packed real output; the returned complex matrix and Julia eigenvalue copies
+allocate separately. Extreme Schur entry magnitudes can still trigger an internal
+scaled copy in selected faer, tracked in [faer #270](https://github.com/tensor4all/faer/issues/270).
+No whole-call allocation or parallel scaling bound is implied.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([1.0 0.2 0.1; 0 2 0.3; 0 0 3])
+F = schur(A)
+team = FaerTeam(2)
+work = FaerScratch(eigvecs, F; team)
+V = eigvecs(F; scratch=work, team)
+@assert Matrix(A)*Matrix(V) ≈ Matrix(V)*Diagonal(F.values)
+reserve!(work, eigen, F; team)
+E = eigen(F; scratch=work, team)
+@assert Matrix(A)*Matrix(E.vectors) ≈ Matrix(E.vectors)*Diagonal(E.values)
+close(E.vectors)
+close(V)
+close(work)
+close(team)
+close(F)
+close(A)
+```

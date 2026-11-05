@@ -208,24 +208,27 @@ function LinearAlgebra.eigvals(f::_NativeSchur)
         return copy(f.values)
     end
 end
-function LinearAlgebra.eigvecs(f::_NativeSchur)
+"""
+    eigvecs(F::Schur{T,<:FaerMatrix}; scratch=nothing, team=nothing)
+    eigen(F::Schur{T,<:FaerMatrix}; scratch=nothing, team=nothing)
+
+Compute native unit-norm right eigenvectors in stored Schur diagonal order.
+Real conjugate columns are returned as complex vectors. Caller scratch covers
+real packing and faer's declared kernel temporary storage; owned output and
+Julia eigenvalue copies allocate separately. The selected faer may still allocate
+an internal scaled Schur copy for extreme entry magnitudes.
+"""
+LinearAlgebra.eigvecs(f::_NativeSchur; scratch = nothing, team = nothing) =
+    _saved_schur_eigenvectors(f; scratch, team)
+function LinearAlgebra.eigen(f::_NativeSchur; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
-        n=_check_schur(f)
-        T=eltype(f)
-        C=Complex{_realtype(T)}
-        return _typed_result(
-            C,
-            RustCrate.schur_eigenvectors_from,
-            (n, n),
-            f.T,
-            f.Z,
-            _tag(T),
-        )
-    end
-end
-function LinearAlgebra.eigen(f::_NativeSchur)
-    lock(_matrix_lock) do
-        return LinearAlgebra.Eigen(LinearAlgebra.eigvals(f), LinearAlgebra.eigvecs(f))
+        vectors=_saved_schur_eigenvectors(f; scratch, team)
+        try
+            LinearAlgebra.Eigen(LinearAlgebra.eigvals(f), vectors)
+        catch
+            close(vectors)
+            rethrow()
+        end
     end
 end
 
