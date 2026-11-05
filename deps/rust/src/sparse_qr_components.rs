@@ -67,6 +67,17 @@ pub(crate) struct Factors<T> {
 }
 impl<T: ComplexField> Factors<T> {
     pub fn new(plan: &Plan, a: SparseColMatRef<'_, usize, T>) -> Result<Self, String> {
+        let mut memory = MemBuffer::try_new(Self::scratch(plan)).map_err(|e| format!("{e:?}"))?;
+        Self::new_in(plan, a, MemStack::new(&mut memory))
+    }
+    pub(crate) fn scratch(plan: &Plan) -> StackReq {
+        simplicial::factorize_simplicial_numeric_qr_scratch::<usize, T>(&plan.symbolic)
+    }
+    pub(crate) fn new_in(
+        plan: &Plan,
+        a: SparseColMatRef<'_, usize, T>,
+        stack: &mut MemStack,
+    ) -> Result<Self, String> {
         let s = &plan.symbolic;
         let (m, n) = (a.nrows(), a.ncols());
         let mut rp = vec![0; n + 1];
@@ -76,10 +87,6 @@ impl<T: ComplexField> Factors<T> {
         let mut hi = vec![0; s.len_householder()];
         let mut hv = vec![zero::<T>(); s.len_householder()];
         let mut tau = vec![zero::<T>(); n];
-        let mut mem = MemBuffer::new(simplicial::factorize_simplicial_numeric_qr_scratch::<
-            usize,
-            T,
-        >(s));
         simplicial::factorize_simplicial_numeric_qr_unsorted(
             &mut rp,
             &mut ri,
@@ -91,7 +98,7 @@ impl<T: ComplexField> Factors<T> {
             a,
             Some(plan.cols.as_ref()),
             s,
-            MemStack::new(&mut mem),
+            stack,
         );
         // These unsorted CSC structures come directly from faer's numeric kernel;
         // preserve the leading Householder pivot and diagonal-last R ordering.

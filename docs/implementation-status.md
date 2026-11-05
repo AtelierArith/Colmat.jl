@@ -2931,3 +2931,26 @@ and 88 README blocks passed. JuliaFormatter DefaultStyle, rustfmt for the change
 native module/owned constructor, diff and frozen-inventory checks passed.
 Julia 1.13.3 / RustCall.jl 0.9.2 and clean t4a-faer 0.29.0 / `19053d8` remain
 unchanged. No new upstream defect was confirmed.
+
+## Explicit simplicial sparse QR numeric construction scratch
+
+The explicit simplicial QR adapter now separates owned numeric output from the
+faer kernel's temporary workspace. `new_in` uses a supplied MemStack; ordinary
+construction reserves a temporary buffer and calls the same implementation.
+The public construction query combines kernel scratch and the rank-bound
+accumulators sequentially, and resource execution installs the numeric revision
+only after both stages succeed. `factorize(plan,A;scratch,team)` and
+`qr(A;algorithm=:simplicial,scratch,team)` use the existing common resource path.
+The simplicial numeric kernel is sequential: faer's API takes no Par argument.
+A supplied team is checked/entered, but does not parallelize this kernel or
+change its scratch requirement. This is documented rather than claiming
+parallel speedup. Wide construction, symbolic analysis, input/snapshot and
+persistent output allocation remain separate work. All 76 inventory rows remain
+in scope. No new upstream defect was confirmed.
+
+Final canonical `Pkg.test(;allow_reresolve=false)` passed **410,092 assertions /
+107 files / 16 workers in 8m27.3s**. New focused construction checks passed
+4,519 assertions, plus 6,044 existing construction/metadata checks. All 93 native
+tests and 89 README blocks passed. JuliaFormatter DefaultStyle, rustfmt for
+changed native modules, diff and frozen-inventory checks passed. The selected
+clean t4a-faer remains 0.29.0 / `19053d8`, Julia 1.13.3 and RustCall.jl 0.9.2.
