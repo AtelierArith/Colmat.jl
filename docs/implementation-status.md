@@ -3552,3 +3552,51 @@ passes **573,955 assertions / 124 files / 16 workers in 9m50.9s**. All **104
 executable README blocks** pass. All 268 frozen validation input hashes,
 the frozen inventory and all 76 mapping rows remain unchanged. Tested runtime
 is `bdffb54`; later result-record commits are documentation only.
+
+
+## Tridiagonal reduction resources (candidate)
+
+Building on merged PR #70, tridiagonalize and staged bang/self-adjoint
+hessenberg dispatch now accept reusable scratch/team, query, FaerScratch and
+reserve. The canonical n×n work matrix and compact coefficients live on caller
+scratch; reduction and Q application reuse the kernel region. Actual Par shape
+and token are passed to both stages. Q is formed in caller-preserved Julia
+staging, initialized with raw writes before making MatMut. The basis/factor
+are borrowed for Q formation without owning copies. The shared Householder
+apply helper keeps its scalar-tail correction and numerical branches; existing
+owning callers delegate to the same borrowed helper. Legacy native reduction
+also delegates to the common automatic-scratch path.
+
+RustCall 0.9.2 checks OwnedScratch/OwnedTeam references without new raw-owner
+exceptions. Current source metadata, blocksize and scratch capacity/alignment
+are checked before conversion/output setup. Converted Matrix storage must have
+both the expected shape and scalar type before its pointer reaches Rust.
+Native span/alignment/non-overlap checks precede typed references and output
+initialization. Inputs, outputs and ownership remain independent; Julia
+conversion, returned Q/H and staged writeback allocate separately. The #70 real
+power-of-two restoration is retained in the new implementation.
+
+After rebasing onto main `e3f6111`, 16,348 focused assertions pass: 1,079 new
+construction/contract assertions, 216 parent rescaling regressions, 1,621
+existing tridiagonal assertions and 13,432 Householder sequence assertions.
+Four scalars, empty/singleton/65-order inputs, block sizes 0/1/2, Seq/Team2,
+reverse views, source-close independence, Task/GC, wrong shape/type conversion,
+stale metadata, insufficient/alignment/closed resources, failure writeback
+preservation and extreme-scale reconstruction are covered. Rebase resolved the
+old-body deletion conflict by keeping common workspace delegation and the #70
+restoration; original workspace source matches its saved pre-rebase snapshot.
+
+Four native tests check short-scratch output preservation, invalid buffers and
+warmed n=4 Seq calling-thread heap counts of zero. This excludes setup, Julia
+storage, worker heaps and larger inherited Householder allocation gaps (#267);
+it is not a whole-API allocation or performance claim. Compact factor exposure,
+remaining tuning and other rows remain unfinished. Final native/canonical/README
+gates remain pending.
+
+
+Post-rebase native full suite: **143 passed**. An additional standalone public
+API probe (seed 257) passed **32 assertions** for all four scalars, n=129/257,
+blocksize 0/1 and Team(2), checking reconstruction with 2048 eps relative to the
+input Frobenius norm and orthogonality with a sqrt(n)-scaled bound. These are
+functional checks rather than performance evidence. The canonical 125-file
+suite and 105 README blocks are running with 271 frozen inputs.

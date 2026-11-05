@@ -1,10 +1,14 @@
 """
-    tridiagonalize(A; blocksize=0) -> FaerTridiagonalization
+    tridiagonalize(A; blocksize=0, scratch=nothing, team=nothing) -> FaerTridiagonalization
 
 Reduce a finite Hermitian matrix through faer's native tridiagonalization.
 The result owns explicit native Q and a real `SymTridiagonal` H, satisfying
 `A ≈ Q*H*Q'`. Complex off-diagonal phases are absorbed into Q. Zero blocksize
 selects faer's recommendation; compact reflector storage is currently internal.
+Use `scratch_requirements`, `FaerScratch(tridiagonalize,A)` and `reserve!` to
+reuse the canonical work matrix, compact coefficients and reduction/Q kernel
+workspace. A supplied team lends its actual scoped token to both stages.
+Input conversion, Q/H ownership and staged bang writeback allocate separately.
 """
 struct FaerTridiagonalization{T,R,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
     H::LinearAlgebra.SymTridiagonal{R,Vector{R}}
