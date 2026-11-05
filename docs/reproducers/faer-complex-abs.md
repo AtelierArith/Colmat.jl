@@ -65,3 +65,33 @@ Proposed, not implemented or benchmarked here: normalize finite nonzero componen
 Regression tests should cover both complex precisions, pure real/pure imaginary axes including the exact `from_bits` cases, mixed components, zero, normal/subnormal transitions and large finite values. Compare with `f32/f64::hypot` and the bound `magnitude >= max(abs(re),abs(im))` whenever the mathematical result is representable.
 
 This is separate from #74's triangular-solve reciprocal issue. Native Householder also has a deliberate `head_norm < min_positive` flush; this report isolates the scalar magnitude behavior and does not claim that correcting `abs_impl` alone changes that separate kernel policy.
+
+
+## Resolution verified on 2026-11-06 JST
+
+Fork [PR #275](https://github.com/tensor4all/faer/pull/275) fixed #274 at
+`1621d94b47c83cab45aa5e5eeb6a395a84a17709`. It changes the outer-range
+power-of-two scaling in `abs_impl`; the ordinary inner-range path is retained.
+The original report and failing Git pin above are historical evidence.
+
+The exact Rust source was executed again with only its dependency revision
+changed to `1621d94b47c83cab45aa5e5eeb6a395a84a17709`, using Linux x86_64 and
+rustc 1.99.1. All four cases match `hypot`, with ratios equal to one, and the
+process exits 0. The deepest c32/c64 cases previously exited 101 at `44945d7`.
+The crate versions remain t4a-faer 0.30.0 and t4a-faer-traits 0.24.2, so record
+the selected Git revision as well as the version.
+
+The standalone [Julia consumer check](faer-complex-abs-fixed.jl) runs 24 exact
+checks through Colmat's native complex `norm(A,1)` and `norm(A,Inf)`. It covers
+both precisions, both pure axes, minimum subnormals, the reported deep cases and
+maximum finite values. Execute it from the Colmat repository root:
+
+```sh
+julia --project deps/build.jl
+julia --project=test docs/reproducers/faer-complex-abs-fixed.jl
+```
+
+It prints `24 public complex norm endpoint checks passed`. This confirms the
+consumer binary uses the corrected scalar behavior. It does not change the
+separate native Householder subnormal-head policy. Colmat's real arithmetic
+phase normalization and its component-scaled magnitude helper remain in place.

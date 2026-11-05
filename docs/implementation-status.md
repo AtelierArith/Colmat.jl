@@ -3898,3 +3898,27 @@ No numerical heuristic, dependency checkout, default native entrypoint or
 worker-utilization/speed claim changes. Deep Householder buffers remain subject
 to faer #267. Remaining SVD/nested tuning, compact Hessenberg and all other
 unfinished inventory rows remain in scope; the original 76 labels are preserved.
+
+
+## Verified complex-modulus fork correction
+
+The official build after compact-bidiagonal PR #81 selected accepted fork HEAD
+`1621d94b47c83cab45aa5e5eeb6a395a84a17709`, which merges faer #275 and closes
+our scalar-magnitude report #274. faer/traits versions stay 0.30.0/0.24.2 and
+threadteam stays 0.4.0. No dependency checkout was patched. The exact original
+Rust source now passes all four Git-pinned cases; a retained Julia consumer MWE
+passes 24 native complex norm endpoint checks, including the minimum subnormal
+and largest finite pure-axis values in both precisions.
+
+On this clean revision, canonical Pkg.test passes 606,597 assertions across
+133 files with 16 workers (10m56.7s), native Rust passes 157 tests and all 114
+README/manual blocks pass. Fresh binding identity and 30,342 related assertions
+also pass. The pre-merge compact-bidiagonal gate on 44945d7 is retained separately
+(606,597 assertions, 17m08.0s); those results are not relabeled as new-revision
+measurements. The 306 Colmat input hashes stayed unchanged across the revision
+revalidation. This documentation update changes no runtime numerical code.
+
+The consumer phase-normalization/magnitude guards remain. No performance
+acceptance or speedup is claimed here, and held candidates #267/#269/#272 remain
+unadopted. The original 76 inventory labels, historical reproducer and unfinished
+scope remain intact; compact Hessenberg and remaining tuning continue.
