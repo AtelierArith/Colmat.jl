@@ -393,6 +393,35 @@ finally
 end
 ```
 
+## Tiny relative complex tridiagonal phases
+
+A small nonzero complex off-diagonal can require a finite unit phase even when
+it is negligible in a global residual. Phase normalization uses real norms,
+without squaring a complex-typed tiny divisor. Check that component separately:
+
+```julia
+using Colmat, LinearAlgebra
+x = 1e-300
+A = ComplexF64[1 -im*x; im*x 2]
+F = tridiagonalize(A)
+try
+    Q = Matrix(F.Q)
+    restored = Q * Matrix(F.H) * adjoint(Q)
+    @assert all(isfinite, Q)
+    @assert adjoint(Q)*Q ≈ Matrix{ComplexF64}(I, 2, 2)
+    @assert abs(real(restored[2,1])/x) <= 128eps(Float64)
+    @assert abs(imag(restored[2,1])/x-1) <= 128eps(Float64)
+finally
+    close(F)
+end
+```
+
+Native Householder reduction deliberately discards subnormal heads in its
+working scale; componentwise retention of such relative subnormal entries is
+not promised. Whole-matrix scaling protects globally subnormal inputs. The
+separate scalar magnitude underflow is reported in
+[faer #274](https://github.com/tensor4all/faer/issues/274).
+
 ## Reusing tridiagonal reduction workspace
 
 `tridiagonalize` and its staged bang form accept `scratch` and `team`, including
