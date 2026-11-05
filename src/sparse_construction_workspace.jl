@@ -1,8 +1,10 @@
 """
     scratch_requirements(factorize, plan::FaerSparseSymbolic, A::FaerSparseMatrix; team=nothing)
 
-Query numeric factor-construction workspace for all sparse QR shapes and algorithms. Pass a
-reserved buffer to `factorize(plan,A; scratch=s, team=team)`. Query and numeric
+Query numeric factor-construction workspace for sparse QR and Cholesky (all
+algorithms). Pass a
+reserved buffer to `factorize(plan,A; scratch=s, team=team)`. Cholesky uses its
+native numeric LLT requirement and retained triangle. Query and numeric
 execution use the same scoped `FaerTeam`; omission selects sequential execution.
 The explicit simplicial kernel is sequential even with a team.
 With `team` alone, construction allocates temporary scratch. Tall/square numeric
@@ -14,10 +16,13 @@ pattern must match.
 """
 function scratch_requirements(
     ::typeof(LinearAlgebra.factorize),
-    p::FaerSparseSymbolic{:qr},
+    p::FaerSparseSymbolic{K},
     a::FaerSparseMatrix{T};
     team = nothing,
-) where {T}
+) where {T,K}
+    K in (:qr, :cholesky)||throw(
+        ArgumentError("construction resources currently require QR or Cholesky"),
+    )
     lock(_matrix_lock) do
         isnothing(team) ||
             team isa FaerTeam ||
@@ -28,14 +33,9 @@ function scratch_requirements(
         info=zeros(UInt, 2)
         GC.@preserve info begin
             isnothing(team) ?
+            _native_call(RustCrate.sparse_factor_requirements, p, _tag(T), pointer(info)) :
             _native_call(
-                RustCrate.sparse_qr_factor_requirements,
-                p,
-                _tag(T),
-                pointer(info),
-            ) :
-            _native_call(
-                RustCrate.sparse_qr_factor_requirements_team,
+                RustCrate.sparse_factor_requirements_team,
                 p,
                 _tag(T),
                 pointer(info),
@@ -64,9 +64,9 @@ function reserve!(
     req=scratch_requirements(fun, p, a; team)
     reserve!(s, req.bytes; alignment = req.alignment)
 end
-function _sparse_qr_factor_validate(p, a, s, team)
-    p isa FaerSparseSymbolic{:qr} ||
-        throw(ArgumentError("construction resources currently require QR"))
+function _sparse_factor_resource_validate(p, a, s, team)
+    p isa Union{FaerSparseSymbolic{:qr},FaerSparseSymbolic{:cholesky}} ||
+        throw(ArgumentError("construction resources currently require QR or Cholesky"))
     isnothing(s) ||
         s isa FaerScratch ||
         throw(ArgumentError("scratch must be a FaerScratch"))
@@ -78,14 +78,13 @@ function _sparse_qr_factor_validate(p, a, s, team)
     end
     return req
 end
-function _sparse_qr_factor_workspace(h, p, a, scratch, team = nothing)
-    req=_sparse_qr_factor_validate(p, a, scratch, team)
+function _sparse_factor_resource_workspace(h, p, a, scratch, team = nothing)
+    req=_sparse_factor_resource_validate(p, a, scratch, team)
     s=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
     try
         return Int(
-            isnothing(team) ?
-            _native_call(RustCrate.sparse_qr_factor_workspace, h, p, a, s) :
-            _native_call(RustCrate.sparse_qr_factor_workspace_team, h, p, a, s, team),
+            isnothing(team) ? _native_call(RustCrate.sparse_factor_workspace, h, p, a, s) :
+            _native_call(RustCrate.sparse_factor_workspace_team, h, p, a, s, team),
         )
     finally
         isnothing(scratch) && close(s)
@@ -123,6 +122,44 @@ function reserve!(
     s::FaerScratch,
     fun::typeof(LinearAlgebra.qr!),
     f::FaerSparseFactorization{T,:qr},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    req=scratch_requirements(fun, f, a; team)
+    return reserve!(s, req.bytes; alignment = req.alignment)
+end
+
+"""
+    scratch_requirements(cholesky!, F::FaerSparseFactorization{T,:cholesky}, A::FaerSparseMatrix{T}; team=nothing)
+
+Query numeric Cholesky update scratch using F's retained symbolic analysis and
+selected triangle. Updates are staged; input normalization/triangle assembly and
+owned output remain separate allocations. Simplicial kernels are sequential.
+"""
+function scratch_requirements(
+    ::typeof(LinearAlgebra.cholesky!),
+    f::FaerSparseFactorization{T,:cholesky},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        return scratch_requirements(LinearAlgebra.factorize, f.plan, a; team)
+    end
+end
+function FaerScratch(
+    fun::typeof(LinearAlgebra.cholesky!),
+    f::FaerSparseFactorization{T,:cholesky},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    req=scratch_requirements(fun, f, a; team)
+    return FaerScratch(req.bytes; alignment = req.alignment)
+end
+function reserve!(
+    s::FaerScratch,
+    fun::typeof(LinearAlgebra.cholesky!),
+    f::FaerSparseFactorization{T,:cholesky},
     a::FaerSparseMatrix{T};
     team = nothing,
 ) where {T}

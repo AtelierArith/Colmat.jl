@@ -3016,3 +3016,35 @@ Upstream main advanced to `c099d72` through PR #261, changing only PATCHSET.md's
 release wording (0.28.3 to the actually published 0.29.0). Production code and
 the held #258 numerical fixes/author condition are unchanged, so the validated
 dependency is retained.
+
+## Sparse Cholesky numeric construction scratch and execution teams
+
+A common sparse construction query/execute facade now covers QR and LLT. The
+Cholesky path uses the retained symbolic LLT requirement for the selected team
+and passes the supplied MemStack/Par to numeric factorization. Default
+construction uses a temporary native buffer through the same kernel. The
+selected triangle is still filtered before entering the native kernel so
+ignored values, including NaNs, cannot contaminate its workspace.
+
+Public plan-based factorize, Hermitian/Symmetric/plain sparse cholesky and
+staged cholesky! accept resources; query/FaerScratch/reserve support factorize
+and cholesky!. The retained plan fixes ordering and triangle. Checked failed
+updates preserve the prior revision; check=false installs unsuccessful status
+and supports recovery by a later update. Simplicial kernels remain sequential.
+The shared Julia resource file is now sparse_construction_workspace.jl.
+
+Input snapshots/CSC normalization, triangle triplet/CSC assembly, symbolic
+analysis and persistent output allocate separately. This is kernel workspace
+control, not whole-API allocation-free or direct native in-place construction.
+LU construction and the full 76-row iterative/kernel/tuning work remain open.
+
+Final canonical `Pkg.test(;allow_reresolve=false)` passed **449,861 assertions /
+110 files / 16 workers in 8m23.3s**. Focused construction/update checks passed
+16,667 new assertions plus 10,134 existing QR-update assertions. All 102 native
+tests and 92 executable README blocks passed. Prepared LLT kernel execution
+uses zero calling-thread Rust heap allocations after warmup with width1/width2
+(all scalar types, algorithms and triangles); setup and worker heaps are excluded.
+JuliaFormatter DefaultStyle, changed native-module rustfmt, diff and frozen
+inventory checks passed. No new upstream defect was confirmed.
+Julia 1.13.3 / RustCall.jl 0.9.2 and clean t4a-faer 0.29.0 / `19053d8` remain
+selected. Upstream main `c099d72` and the draft/open #258 hold are unchanged.
