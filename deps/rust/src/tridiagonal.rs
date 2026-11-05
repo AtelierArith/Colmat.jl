@@ -3,7 +3,7 @@ use crate::{guarded, typed::finite};
 use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::linalg::evd;
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Auto, Mat, MatRef, Par};
+use faer::{Mat, MatRef, Par};
 use rustcall_julia_macros::julia;
 unsafe fn reduction<T: ComplexField>(
     input: *const u8,
@@ -104,74 +104,7 @@ pub fn tridiagonalize_data(
         }
     })
 }
-unsafe fn band_eigen<T: ComplexField>(
-    diag: *const u8,
-    off: *const u8,
-    n: usize,
-    values: *mut u8,
-    vectors: *mut u8,
-    compute: bool,
-    threshold: usize,
-) -> Result<(), String> {
-    let mut band = Mat::<T>::zeros(n, 2);
-    for i in 0..n {
-        band[(i, 0)] = copy(&*diag.cast::<T>().add(i));
-        if i + 1 < n {
-            band[(i, 1)] = copy(&*off.cast::<T>().add(i));
-        }
-    }
-    finite(band.as_ref())?;
-    let scaling = crate::schur::scale(&mut band);
-    let params = evd::SelfAdjointEvdParams {
-        recursion_threshold: threshold,
-        ..<evd::SelfAdjointEvdParams as Auto<T>>::auto()
-    };
-    let mut vals = faer::diag::Diag::<T>::zeros(n);
-    let mut vecs = Mat::<T>::zeros(n, if compute { n } else { 0 });
-    let flag = if compute {
-        evd::ComputeEigenvectors::Yes
-    } else {
-        evd::ComputeEigenvectors::No
-    };
-    let mut mem = MemBuffer::try_new(evd::tridiagonal_self_adjoint_evd_scratch::<T>(
-        n,
-        flag,
-        Par::Seq.shape(),
-        params.into(),
-    ))
-    .map_err(|e| format!("{e:?}"))?;
-    evd::tridiagonal_self_adjoint_evd(
-        band.as_ref().col(0).as_diagonal(),
-        band.as_ref()
-            .col(1)
-            .get(..n.saturating_sub(1))
-            .as_diagonal(),
-        vals.as_mut(),
-        if compute { Some(vecs.as_mut()) } else { None },
-        Par::Seq,
-        MemStack::new(&mut mem),
-        params.into(),
-    )
-    .map_err(|e| format!("{e:?}"))?;
-    for i in 0..n {
-        let v = real(&vals[i]);
-        values
-            .cast::<T::Real>()
-            .add(i)
-            .write(if let Some(ref f) = scaling { v / f } else { v });
-    }
-    if compute {
-        for j in 0..n {
-            for i in 0..n {
-                vectors
-                    .cast::<T>()
-                    .add(i + j * n)
-                    .write(copy(&vecs[(i, j)]));
-            }
-        }
-    }
-    Ok(())
-}
+mod workspace;
 #[julia]
 pub fn tridiagonal_eigen_data(
     d: *const u8,
@@ -183,13 +116,5 @@ pub fn tridiagonal_eigen_data(
     compute: bool,
     threshold: usize,
 ) -> Result<(), String> {
-    guarded(|| unsafe {
-        match tag {
-            0 => band_eigen::<f32>(d, e, n, values, vectors, compute, threshold),
-            1 => band_eigen::<f64>(d, e, n, values, vectors, compute, threshold),
-            2 => band_eigen::<faer::c32>(d, e, n, values, vectors, compute, threshold),
-            3 => band_eigen::<faer::c64>(d, e, n, values, vectors, compute, threshold),
-            _ => Err("unsupported tridiagonal scalar".into()),
-        }
-    })
+    guarded(|| workspace::allocate(d, e, n, values, vectors, tag, compute, threshold))
 }

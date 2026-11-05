@@ -5,7 +5,7 @@ use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::linalg::{evd, householder};
 use faer::mat::{AsMatMut, AsMatRef};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{c32, c64, Conj, Mat, MatRef, Par, ParShape};
+use faer::{c32, c64, Conj, Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 mod construction;
 mod eigenvectors_workspace;
@@ -14,6 +14,9 @@ mod reorder_workspace;
 // Power-of-two scaling follows faer's general EVD driver. Keep the
 // reduction/QR kernels in their safe range without changing the similarity Q.
 pub(crate) fn scale<T: ComplexField>(h: &mut Mat<T>) -> Option<T::Real> {
+    scale_in(h.as_mut())
+}
+pub(crate) fn scale_in<T: ComplexField>(mut h: MatMut<'_, T>) -> Option<T::Real> {
     let mut anrm = zero::<T::Real>();
     for j in 0..h.ncols() {
         for i in 0..h.nrows() {

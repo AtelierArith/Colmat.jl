@@ -3471,3 +3471,40 @@ inventory and all 76 mapping rows are preserved. The tested runtime commit is
 `8fe8fa6`; subsequent result-record changes are documentation only. This change
 advances the reductions row without completing the full inventory or its
 remaining options.
+
+
+## Tridiagonal EVD resources (candidate)
+
+The dedicated band EVD now queries and consumes caller-owned scratch for the
+scaled n-by-2 band, temporary native eigenvalues and the faer kernel. Its actual
+Par token/shape are used consistently for query and execution. Direct APIs,
+saved FaerTridiagonalization and native SymTridiagonal dispatch share this path;
+saved-factor Q back-transformation uses the supplied team separately. The
+legacy native entry point delegates to the same computation with automatic
+scratch. RustCall 0.9.2 checks OwnedScratch/OwnedTeam references; no raw-owner
+exceptions were added. Shared scaling accepts a borrowed MatMut with unchanged
+arithmetic, so the band need not be an owning matrix. Output Julia staging is
+borrowed only during the call; conversion, output ownership and sorting still
+allocate separately. Tridiagonal reduction resources and compact factors remain
+unfinished work in the same inventory row.
+
+Capacity/alignment and current source metadata are checked before coefficient
+conversion/output setup. Native pointer spans, alignment and input/output
+overlap are checked before reference construction; immutable coefficient inputs
+may alias. Rejection from insufficient scratch preserves output sentinels.
+
+Focused tests pass 987 new assertions and 1,621 existing assertions, including
+four scalars, Seq/Team2, empty/singleton, QR/divide-and-conquer, complex phases,
+2^±100 (f32) and 2^±1000 (f64), repeated/reserved/short/misaligned/closed resources,
+Tasks, saved factors, native coefficients and stale metadata. A test initially
+compared whole eigenvalue vectors with only a fixed absolute tolerance; it now
+uses the same precision-based relative coefficient (1024 eps) alongside the
+absolute floor, matching the scale-aware residual oracle. Production numerical
+code was not changed in response. A closed-team fixture initially used Any[];
+it was corrected to Float64[] so the intended numeric method is tested.
+
+All 139 native tests pass. Four new tests check insufficient scratch output
+preservation, invalid pointers/overlap and warmed n=6 Seq calling-thread heap
+counts of zero. Setup, Julia staging, worker heaps and larger upstream kernel
+allocation gaps are outside that observation; no whole-API allocation or
+performance/scaling claim is made. Full canonical/README gates remain pending.
