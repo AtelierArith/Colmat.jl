@@ -3078,3 +3078,61 @@ inventory checks passed. Julia 1.13.3 / RustCall.jl 0.9.2 and clean t4a-faer
 0.29.0 / `19053d8` remain selected. No new upstream defect was confirmed.
 Upstream main `0693fae` (PR #263 after `c099d72`) changes only LU square-input
 panic documentation, with no behavior change; the #258 adoption hold remains.
+
+## Iterative CG/BiCGSTAB/LSMR resources (Issue #22)
+
+The three iterative solvers and their staged bang variants accept caller-owned
+`scratch` and scoped `team`, with matching `scratch_requirements`, `FaerScratch`
+and `reserve!`. The query uses the promoted scalar type, RHS columns, checked
+operator/preconditioner owners and actual team shape; it does not apply operators
+or invoke callbacks. Missing preconditioners become checked identity owners on
+the new resource boundary; no new optional raw-owner arguments are introduced.
+
+Native iteration, the LSMR reference normal residual, and independently recomputed
+final primal/normal residuals reuse one buffer sequentially. Default sequential
+entry points use the same core. Final diagnostics no longer clone adjoint
+operators or allocate temporary heap matrices. Warmed native diagnostic kernels
+are checked for zero calling-thread Rust heap allocations; result staging,
+operator/RHS conversion and promotion, Julia actions, snapshots and history
+storage remain separate allocations, and worker allocations are outside that
+measurement. No whole-call allocation-free or direct native in-place claim is made.
+
+The Julia task is pinned during every native iterative frame, including a native
+operator with a yielding Julia iteration callback, and its prior sticky state is
+restored on success or error. Callback snapshots remain independent, stop requests
+retain the stopped iterate, and callback errors (including `throw(nothing)`)
+return through Rust before propagation. Staged bang destinations remain unchanged
+on errors. Capacity validation precedes observer construction/applications; native
+failure tests preserve result owners and statistic buffers on insufficient scratch
+or a closed team. Existing LSMR true-normal-residual protection for faer #245 is
+preserved.
+
+Focused Julia tests pass 23,217 assertions: 22,651 basic/resource/metadata cases
+and 566 callback/shared-resource cases. They cover all four scalar types, native
+dense/CSC/CSR and Julia-defined operators, vectors/block RHS, empty and rectangular
+LSMR shapes, blocked dimensions, initial/native destinations, promotion, views,
+short/reserve/closed resources, history/stops, exception recovery, independent
+snapshots, task sharing and sticky-state restoration. The same 566 callback
+assertions also pass in a separate four-Julia-thread run. Native tests pass 112,
+including four scalar-specific solver/query/diagnostic allocation suites and an
+invalid-resource preservation test. An independent 96-assertion probe covers
+composed/transposed/adjoint/conjugated operators and retained Cholesky inverse
+preconditioners after their source/factor owners close.
+
+The full 76-row inventory remains frozen. Partial-spectral resources, remaining
+construction/kernel scratch/team/tuning, direct in-place and other limitations
+continue in the canonical mapping. No new upstream defect was confirmed.
+
+Upstream main advanced to `0f9330f5df129e9e7a4777b078a88741a711e8a7`:
+the change after previously inspected `0693fae` adds an internal real-QZ
+scratch-query regression test for #252/#253, with no production behavior change.
+The #258 draft remains open at `e475baf`, and its maintainer approval condition
+still applies; #256/#260 fixes remain candidates and #257 remains unresolved.
+The selected clean dependency remains t4a-faer 0.29.0 / `19053d8`.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **490,055 assertions / 113 files / 16 workers in 8m57.2s** on Julia
+1.13.3 / RustCall.jl 0.9.2 and clean faer `19053d8` (0.29.0). All **94 README
+blocks** pass. JuliaFormatter, the new native module rustfmt, diff checks and
+frozen inventory verification pass. Runtime/test checksums remained unchanged
+throughout these final gates.

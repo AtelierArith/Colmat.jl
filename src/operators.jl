@@ -434,6 +434,7 @@ Base.showerror(io::IO, e::FaerCgError) = print(
 )
 LinearAlgebra.issuccess(result::FaerCgResult) = result.converged
 function _cg_matrix(a, ::Type{T}) where {T}
+    _dense_rhs_validate(a)
     a isa _RotationArray && _rotation_open(a)
     buffer = a isa AbstractVector ? Vector(a) : Matrix(a)
     all(isfinite, buffer) ||
@@ -442,7 +443,8 @@ function _cg_matrix(a, ::Type{T}) where {T}
 end
 """
     cg(A, b; M=nothing, x0=nothing, atol=0, rtol=nothing,
-       maxiter=max(1,size(A,1)), check=true, callback=nothing, history=false)
+       maxiter=max(1,size(A,1)), check=true, callback=nothing, history=false,
+       scratch=nothing, team=nothing)
 
 Call faer's preconditioned block conjugate-gradient solver. A must be Hermitian
 positive definite, and M (if provided) must apply a Hermitian positive definite
@@ -458,6 +460,13 @@ A true residual is recomputed independently; reported convergence is rejected if
 it exceeds the requested tolerance. `check=true` throws FaerCgError with the
 last result for nonconvergence or detected nonpositive operators/preconditioners.
 These diagnostics do not certify that A or M is positive definite.
+
+`scratch` reuses caller-owned native iteration and final residual workspace;
+`team` supplies the scoped native parallel team. Query with
+`scratch_requirements(cg, A, b; M, x0, team)` and grow with `reserve!`.
+Result staging, promotion and Julia callback/history buffers allocate separately.
+Queries do not apply operators or invoke callbacks. BiCGSTAB and LSMR follow
+the same resource contract.
 
 `history=true` retains a residual-only record after each native callback update.
 `callback(state)` receives `iteration`, an independent Julia array `x`, true
@@ -486,8 +495,11 @@ function cg(
     check::Bool = true,
     callback = nothing,
     history::Bool = false,
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
+        _iterative_resource_check(scratch, team)
         op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
         _handle(op)
         size(op, 1)==size(op, 2) || throw(DimensionMismatch("CG operator must be square"))
@@ -521,6 +533,15 @@ function cg(
         operator=_operator_coerce(op, P)
         preconditioner=isnothing(precond) ? Ptr{UInt8}(C_NULL) :
                        _operator_coerce(precond, P)
+        resources=_iterative_resource_prepare(
+            0,
+            operator,
+            preconditioner,
+            nothing,
+            size(rhs, 2),
+            scratch,
+            team,
+        )
         stats=Vector{P}(undef, 5)
         iterations=Ref{UInt}(0)
         log, observing, observer, normalop=_iteration_observer(
@@ -545,9 +566,15 @@ function cg(
             observer,
         )
         solution=try
-            GC.@preserve stats iterations (
-                P===Float64 ? _matrix_result(RustCrate.operator_cg, size(rhs), args...) :
-                _typed_result(P, RustCrate.operator_cg, size(rhs), args...)
+            GC.@preserve stats iterations _iterative_solution(
+                resources,
+                0,
+                P,
+                RustCrate.operator_cg,
+                size(rhs),
+                args,
+                scratch,
+                team,
             )
         finally
             isnothing(normalop) || close(normalop)
@@ -639,7 +666,8 @@ LinearAlgebra.issuccess(result::FaerBicgstabResult) = result.converged
 
 """
     bicgstab(A, b; M=nothing, N=nothing, x0=nothing, atol=0,
-             rtol=nothing, maxiter=max(1,size(A,1)), check=true, callback=nothing, history=false)
+             rtol=nothing, maxiter=max(1,size(A,1)), check=true, callback=nothing, history=false,
+       scratch=nothing, team=nothing)
 
 Run faer's block BiCGSTAB for a square, possibly nonsymmetric operator.
 M and N apply left and right approximate inverses, respectively. Native
@@ -660,8 +688,11 @@ function bicgstab(
     check::Bool = true,
     callback = nothing,
     history::Bool = false,
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
+        _iterative_resource_check(scratch, team)
         op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
         _handle(op)
         size(op, 1)==size(op, 2) ||
@@ -709,6 +740,15 @@ function bicgstab(
                        _operator_coerce(precond, P)
         right_preconditioner=isnothing(right) ? Ptr{UInt8}(C_NULL) :
                              _operator_coerce(right, P)
+        resources=_iterative_resource_prepare(
+            1,
+            operator,
+            preconditioner,
+            right_preconditioner,
+            size(rhs, 2),
+            scratch,
+            team,
+        )
         stats=Vector{P}(undef, 5)
         iterations=Ref{UInt}(0)
         log, observing, observer, normalop=_iteration_observer(
@@ -734,10 +774,15 @@ function bicgstab(
             observer,
         )
         solution=try
-            GC.@preserve stats iterations (
-                P===Float64 ?
-                _matrix_result(RustCrate.operator_bicgstab, size(rhs), args...) :
-                _typed_result(P, RustCrate.operator_bicgstab, size(rhs), args...)
+            GC.@preserve stats iterations _iterative_solution(
+                resources,
+                1,
+                P,
+                RustCrate.operator_bicgstab,
+                size(rhs),
+                args,
+                scratch,
+                team,
             )
         finally
             isnothing(normalop) || close(normalop)
@@ -831,7 +876,8 @@ LinearAlgebra.issuccess(result::FaerLsmrResult) = result.converged
 
 """
     lsmr(A, b; M=nothing, x0=nothing, atol=0, rtol=nothing,
-         maxiter=max(1,4min(size(A)...)), check=true, callback=nothing, history=false)
+         maxiter=max(1,4min(size(A)...)), check=true, callback=nothing, history=false,
+       scratch=nothing, team=nothing)
 
 Run faer's block LSMR for rectangular least squares. M applies a square right
 preconditioner of size size(A,2). It must be nonsingular and support its
@@ -861,8 +907,11 @@ function lsmr(
     check::Bool = true,
     callback = nothing,
     history::Bool = false,
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
+        _iterative_resource_check(scratch, team)
         op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
         _handle(op)
         size(b, 1)==size(op, 1) ||
@@ -897,6 +946,15 @@ function lsmr(
         operator=_operator_coerce(op, P)
         preconditioner=isnothing(precond) ? Ptr{UInt8}(C_NULL) :
                        _operator_coerce(precond, P)
+        resources=_iterative_resource_prepare(
+            2,
+            operator,
+            preconditioner,
+            nothing,
+            size(rhs, 2),
+            scratch,
+            team,
+        )
         stats=Vector{P}(undef, 7)
         iterations=Ref{UInt}(0)
         log, observing, observer, normalop=_iteration_observer(
@@ -923,9 +981,15 @@ function lsmr(
             observer,
         )
         solution=try
-            GC.@preserve stats iterations (
-                P===Float64 ? _matrix_result(RustCrate.operator_lsmr, dims, args...) :
-                _typed_result(P, RustCrate.operator_lsmr, dims, args...)
+            GC.@preserve stats iterations _iterative_solution(
+                resources,
+                2,
+                P,
+                RustCrate.operator_lsmr,
+                dims,
+                args,
+                scratch,
+                team,
             )
         finally
             isnothing(normalop) || close(normalop)
