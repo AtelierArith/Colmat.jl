@@ -1,4 +1,4 @@
-//! Numeric QR/Cholesky construction with matching query/execution team shapes.
+//! Sparse numeric construction with matching query/execution team shapes.
 use super::{
     numeric_with_par, qr_construction_req, rank_hint, Analysis, Factors, SparseFactor,
     SparseSymbolic,
@@ -21,7 +21,10 @@ fn requirement<T: ComplexField>(analysis: &Analysis, par: &Par<'_>) -> Result<St
         Analysis::Llt(sym) => {
             sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default())
         }
-        _ => return Err("factor workspace requires QR or Cholesky".into()),
+        Analysis::Lu(sym) => sym.factorize_numeric_lu_scratch::<T>(par.shape(), Default::default()),
+        Analysis::SimplicialLu(cols) => {
+            crate::sparse_lu_components::SimplicialFactors::<T>::scratch(cols.len())
+        }
     })
 }
 pub(super) fn query(
@@ -573,6 +576,263 @@ mod tests {
     #[test]
     fn cholesky_construction_c64() {
         check_cholesky::<c64>();
+    }
+    fn check_lu<T: NativeValue>() {
+        use faer::sparse::linalg::{lu, SupernodalThreshold};
+        for width in [1, 2] {
+            let mut team = OwnedTeam::new();
+            team.team_initialize(width).unwrap();
+            for n in [0, 1, 4, 64] {
+                let dense = faer::Mat::from_fn(n, n, |i, j| {
+                    T::from_parts(
+                        if n - 1 - i == j {
+                            5.0
+                        } else {
+                            0.001 * ((i + 2 * j) as f64).sin()
+                        },
+                        0.001 * ((2 * i + j) as f64).cos(),
+                    )
+                });
+                let entries: Vec<_> = (0..n)
+                    .flat_map(|j| {
+                        let a = &dense;
+                        (0..n).map(move |i| Triplet {
+                            row: i,
+                            col: j,
+                            val: copy(&a[(i, j)]),
+                        })
+                    })
+                    .collect();
+                let a = SparseColMat::try_new_from_triplets(n, n, &entries).unwrap();
+                let ids: Vec<_> = (0..n).rev().collect();
+                let permutation = faer::perm::Perm::new_checked(
+                    ids.clone().into_boxed_slice(),
+                    ids.into_boxed_slice(),
+                    n,
+                );
+                let expected =
+                    faer::Mat::from_fn(n, 2, |i, j| T::from_parts((i + j + 1) as f64, 0.1));
+                let rhs = &dense * &expected;
+                for threshold in [
+                    SupernodalThreshold::AUTO,
+                    SupernodalThreshold::FORCE_SIMPLICIAL,
+                    SupernodalThreshold::FORCE_SUPERNODAL,
+                ] {
+                    let symbolic = Arc::new(
+                        lu::factorize_symbolic_lu_with_column_ordering(
+                            a.symbolic(),
+                            lu::LuSymbolicParams {
+                                supernodal_flop_ratio_threshold: threshold,
+                                ..Default::default()
+                            },
+                            Some(permutation.as_ref()),
+                        )
+                        .unwrap(),
+                    );
+                    let plan = SparseSymbolic {
+                        plan: Some(Plan {
+                            analysis: Analysis::Lu(symbolic.clone()),
+                            pattern: a.symbolic().to_owned().unwrap(),
+                            lower: true,
+                        }),
+                    };
+                    let mut out = [0usize; 2];
+                    plan.sparse_factor_requirements_team(T::tag(), out.as_mut_ptr(), &team)
+                        .unwrap();
+                    let mut scratch = OwnedScratch::new();
+                    scratch.scratch_reserve(out[0], out[1]).unwrap();
+                    let f = team
+                        .execute(|par| {
+                            let req = symbolic
+                                .factorize_numeric_lu_scratch::<T>(par.shape(), Default::default());
+                            assert_eq!(out, [req.size_bytes(), req.align_bytes()]);
+                            crate::sparse_lu_owned::Factors::new_in(
+                                symbolic.clone(),
+                                a.as_ref(),
+                                par,
+                                scratch.stack(req).unwrap(),
+                            )
+                            .unwrap()
+                        })
+                        .unwrap();
+                    let (l, u) = f.as_ref().factors().unwrap();
+                    let product = &l.to_dense() * &u.to_dense();
+                    let rows = f.as_ref().row_perm().arrays().0;
+                    let cols = f.as_ref().col_perm().arrays().0;
+                    for j in 0..n {
+                        for i in 0..n {
+                            let (x, y) = product[(i, j)].parts();
+                            let (u, v) = dense[(rows[i], cols[j])].parts();
+                            assert!((x - u).hypot(y - v) < 3e-4);
+                        }
+                    }
+                    let actual = f.solve(rhs.as_ref(), false, false).unwrap();
+                    for j in 0..2 {
+                        for i in 0..n {
+                            let (x, y) = actual[(i, j)].parts();
+                            let (u, v) = expected[(i, j)].parts();
+                            assert!((x - u).hypot(y - v) < 3e-4);
+                        }
+                    }
+                }
+                let plan = SparseSymbolic {
+                    plan: Some(Plan {
+                        analysis: Analysis::SimplicialLu(permutation),
+                        pattern: a.symbolic().to_owned().unwrap(),
+                        lower: true,
+                    }),
+                };
+                let mut out = [0usize; 2];
+                plan.sparse_factor_requirements_team(T::tag(), out.as_mut_ptr(), &team)
+                    .unwrap();
+                let req = crate::sparse_lu_components::SimplicialFactors::<T>::scratch(n);
+                assert_eq!(out, [req.size_bytes(), req.align_bytes()]);
+                let mut scratch = OwnedScratch::new();
+                scratch.scratch_reserve(out[0], out[1]).unwrap();
+                let matrix = crate::sparse::Storage::Csc(a);
+                let f = team
+                    .execute(|par| {
+                        numeric_with_par(plan.plan().unwrap(), &matrix, Some(&mut scratch), par)
+                            .unwrap()
+                            .unwrap()
+                    })
+                    .unwrap();
+                let actual = crate::sparse_factors::solve(&f, rhs.as_ref(), false, false).unwrap();
+                for j in 0..2 {
+                    for i in 0..n {
+                        let (x, y) = actual[(i, j)].parts();
+                        let (u, v) = expected[(i, j)].parts();
+                        assert!((x - u).hypot(y - v) < 3e-4);
+                    }
+                }
+            }
+            team.team_close().unwrap();
+        }
+    }
+    #[test]
+    fn lu_construction_f32() {
+        check_lu::<f32>();
+    }
+    #[test]
+    fn lu_construction_f64() {
+        check_lu::<f64>();
+    }
+    #[test]
+    fn lu_construction_c32() {
+        check_lu::<c32>();
+    }
+    #[test]
+    fn lu_construction_c64() {
+        check_lu::<c64>();
+    }
+    #[test]
+    fn failed_lu_construction_preserves_native_revision() {
+        use crate::sparse::Storage;
+        use faer::sparse::linalg::lu;
+        let entries: Vec<_> = (0..4)
+            .flat_map(|j| {
+                (0..4).map(move |i| Triplet {
+                    row: i,
+                    col: j,
+                    val: if i == j { 4.0 } else { 0.1 },
+                })
+            })
+            .collect();
+        let a = SparseColMat::try_new_from_triplets(4, 4, &entries).unwrap();
+        let symbolic = Arc::new(
+            lu::factorize_symbolic_lu(
+                a.symbolic(),
+                lu::LuSymbolicParams {
+                    supernodal_flop_ratio_threshold:
+                        faer::sparse::linalg::SupernodalThreshold::FORCE_SUPERNODAL,
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+        let plan = SparseSymbolic {
+            plan: Some(Plan {
+                analysis: Analysis::Lu(symbolic),
+                pattern: a.symbolic().to_owned().unwrap(),
+                lower: true,
+            }),
+        };
+        let good = SparseOwner {
+            data: Some(SparseData::F64(Storage::Csc(a))),
+        };
+        let mut team = OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        let mut req = [0usize; 2];
+        plan.sparse_factor_requirements_team(1, req.as_mut_ptr(), &team)
+            .unwrap();
+        assert!(plan
+            .sparse_factor_requirements_team(1, std::ptr::null_mut(), &team)
+            .is_err());
+        let mut work = OwnedScratch::new();
+        work.scratch_reserve(req[0], req[1]).unwrap();
+        let mut owner = SparseFactor::new();
+        assert_eq!(
+            owner
+                .sparse_factor_workspace_team(&plan, &good, &mut work, &team)
+                .unwrap(),
+            0
+        );
+        let before = match owner.factors.as_ref().unwrap() {
+            Factors::F64(crate::sparse_factors::Numeric::Lu(x)) => x.as_ref().factors().unwrap(),
+            _ => unreachable!(),
+        };
+        let zero: Vec<_> = entries
+            .iter()
+            .map(|e| Triplet {
+                row: e.row,
+                col: e.col,
+                val: 0.0,
+            })
+            .collect();
+        let bad = SparseOwner {
+            data: Some(SparseData::F64(Storage::Csc(
+                SparseColMat::try_new_from_triplets(4, 4, &zero).unwrap(),
+            ))),
+        };
+        assert_eq!(
+            owner
+                .sparse_factor_workspace_team(&plan, &bad, &mut work, &team)
+                .unwrap(),
+            1
+        );
+        let mut short = OwnedScratch::new();
+        short.scratch_reserve(req[0] - 1, req[1]).unwrap();
+        assert!(owner
+            .sparse_factor_workspace_team(&plan, &good, &mut short, &team)
+            .is_err());
+        let diagonal: Vec<_> = entries
+            .iter()
+            .filter(|e| e.row == e.col)
+            .map(|e| Triplet {
+                row: e.row,
+                col: e.col,
+                val: e.val,
+            })
+            .collect();
+        let mismatch = SparseOwner {
+            data: Some(SparseData::F64(Storage::Csc(
+                SparseColMat::try_new_from_triplets(4, 4, &diagonal).unwrap(),
+            ))),
+        };
+        assert!(owner
+            .sparse_factor_workspace_team(&plan, &mismatch, &mut work, &team)
+            .is_err());
+        team.team_close().unwrap();
+        assert!(owner
+            .sparse_factor_workspace_team(&plan, &good, &mut work, &team)
+            .is_err());
+        let after = match owner.factors.as_ref().unwrap() {
+            Factors::F64(crate::sparse_factors::Numeric::Lu(x)) => x.as_ref().factors().unwrap(),
+            _ => unreachable!(),
+        };
+        assert_eq!((&before.0.to_dense() - &after.0.to_dense()).norm_max(), 0.0);
+        assert_eq!((&before.1.to_dense() - &after.1.to_dense()).norm_max(), 0.0);
+        assert_eq!(owner.qr_rank_hint, None);
     }
     #[test]
     fn query_and_numeric_team_f32() {

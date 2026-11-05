@@ -3048,3 +3048,33 @@ JuliaFormatter DefaultStyle, changed native-module rustfmt, diff and frozen
 inventory checks passed. No new upstream defect was confirmed.
 Julia 1.13.3 / RustCall.jl 0.9.2 and clean t4a-faer 0.29.0 / `19053d8` remain
 selected. Upstream main `c099d72` and the draft/open #258 hold are unchanged.
+
+## Sparse LU numeric construction scratch and execution teams
+
+The retained LU plan now owns faer's public low-level SymbolicLu and an owned
+NumericLu adapter instead of a high-level owner with private symbolic storage.
+The adapter pairs those exact public outputs in LuRef for existing component,
+permutation and solve paths. Symbolic ordering/COLAMD controls are computed once
+and retained; no symbolic reanalysis is performed by numeric workspace queries.
+Default and caller-scratch construction use the same numeric kernel and actual
+Par. Explicit simplicial LU also has a provided-stack constructor; it remains
+sequential. No private faer fields, transmute or dependency-local edits are used.
+
+The common construction query/execute path covers LU/QR/Cholesky. LU and staged
+lu! accept scratch/team, with query/FaerScratch/reserve using the saved plan.
+Checked singular updates preserve the prior revision; check=false records an
+unsuccessful status and supports recovery. The low-level LU routine owns dynamic
+factor/permutation buffers, so output allocations can occur inside the kernel
+separately from its declared temporary scratch. Input normalization, symbolic/
+output assembly, direct native in-place updates and the full 76-row scope remain
+open. No whole-API allocation-free construction claim is made.
+
+Final canonical `Pkg.test(;allow_reresolve=false)` passed **466,838 assertions /
+111 files / 16 workers in 8m19.8s**. Focused LU construction/update checks
+passed 16,977 new assertions plus 21,386 existing QR/Cholesky construction
+checks. All 107 native tests and 93 executable README blocks passed.
+JuliaFormatter DefaultStyle, changed native-module rustfmt, diff and frozen
+inventory checks passed. Julia 1.13.3 / RustCall.jl 0.9.2 and clean t4a-faer
+0.29.0 / `19053d8` remain selected. No new upstream defect was confirmed.
+Upstream main `0693fae` (PR #263 after `c099d72`) changes only LU square-input
+panic documentation, with no behavior change; the #258 adoption hold remains.

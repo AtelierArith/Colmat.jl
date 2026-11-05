@@ -428,7 +428,20 @@ mod tests {
             3,
         );
         let factors = [
-            Numeric::Lu(a.sp_lu(Par::Seq).unwrap()),
+            Numeric::Lu(
+                crate::sparse_lu_owned::Factors::new(
+                    std::sync::Arc::new(
+                        faer::sparse::linalg::lu::factorize_symbolic_lu(
+                            a.symbolic(),
+                            Default::default(),
+                        )
+                        .unwrap(),
+                    ),
+                    a.as_ref(),
+                    Par::Seq,
+                )
+                .unwrap(),
+            ),
             Numeric::SimplicialLu(
                 crate::sparse_lu_components::SimplicialFactors::new(
                     a.as_ref(),

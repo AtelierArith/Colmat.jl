@@ -1,5 +1,5 @@
 //! Owned public simplicial LU components and their coherent solve permutations.
-use faer::dyn_stack::{MemBuffer, MemStack};
+use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::perm::{Perm, PermRef};
 use faer::sparse::linalg::{lu::simplicial, LuError};
 use faer::sparse::SparseColMatRef;
@@ -16,22 +16,29 @@ impl<T: ComplexField> SimplicialFactors<T> {
         a: SparseColMatRef<'_, usize, T>,
         cols: PermRef<'_, usize>,
     ) -> Result<Self, LuError> {
+        let mut memory = MemBuffer::try_new(Self::scratch(a.nrows()))?;
+        Self::new_in(a, cols, MemStack::new(&mut memory))
+    }
+    pub(crate) fn scratch(n: usize) -> StackReq {
+        simplicial::factorize_simplicial_numeric_lu_scratch::<usize, T>(n, n)
+    }
+    pub(crate) fn new_in(
+        a: SparseColMatRef<'_, usize, T>,
+        cols: PermRef<'_, usize>,
+        stack: &mut MemStack,
+    ) -> Result<Self, LuError> {
         let n = a.nrows();
         assert_eq!(n, a.ncols());
         let mut p = vec![0; n];
         let mut pinv = vec![0; n];
         let mut numeric = simplicial::SimplicialLu::new();
-        let mut mem = MemBuffer::new(simplicial::factorize_simplicial_numeric_lu_scratch::<
-            usize,
-            T,
-        >(n, n));
         simplicial::factorize_simplicial_numeric_lu(
             &mut p,
             &mut pinv,
             &mut numeric,
             a,
             cols,
-            MemStack::new(&mut mem),
+            stack,
         )?;
         let (q, qinv) = cols.arrays();
         // The factor kernel initializes both row arrays on success.

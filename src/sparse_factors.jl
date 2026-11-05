@@ -278,6 +278,8 @@ LinearAlgebra.lu(
     dense_row::Real = 0.5,
     dense_col::Real = 0.5,
     aggressive::Bool = true,
+    scratch = nothing,
+    team = nothing,
 ) = LinearAlgebra.factorize(
     FaerSparseSymbolic(
         a;
@@ -290,6 +292,8 @@ LinearAlgebra.lu(
     ),
     a;
     check,
+    scratch,
+    team,
 )
 LinearAlgebra.lu(a::FaerSparseMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
     LinearAlgebra.lu(a; kwargs...)
@@ -531,7 +535,9 @@ LinearAlgebra.lu!(
     f::FaerSparseFactorization{T,:lu},
     a::FaerSparseMatrix{T};
     check::Bool = true,
-) where {T} = _refactor_sparse!(f, a; check)
+    scratch = nothing,
+    team = nothing,
+) where {T} = _refactor_sparse!(f, a; check, scratch, team)
 """
     qr!(F::FaerSparseFactorization{T,:qr}, A::FaerSparseMatrix{T}; scratch=nothing, team=nothing)
 
