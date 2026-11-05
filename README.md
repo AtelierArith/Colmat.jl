@@ -2902,8 +2902,8 @@ Dedicated tridiagonal eigenvectors and eigenvalues accept `scratch` and `team`.
 The query includes the scaled band and native temporary eigenvalues. Coefficient
 conversion, result storage and sorting allocate separately. Saved tridiagonal
 factors and native `SymTridiagonal` inputs forward these resources; saved-factor
-Q back-transformation also uses the supplied team. Tridiagonal reduction itself
-still uses internal workspace.
+Q back-transformation also uses the supplied team. Tridiagonal reduction
+construction accepts its own reusable workspace as described below.
 
 ```julia
 using Colmat, LinearAlgebra
@@ -2942,5 +2942,34 @@ try
     @assert A ≈ Q * (Matrix(F.H) ./ scale) * Q'
 finally
     close(F)
+end
+```
+
+### Reusing tridiagonal reduction workspace
+
+`tridiagonalize` and its staged bang form accept `scratch` and `team`, including
+native Hermitian/Symmetric `hessenberg` dispatch. Workspace covers the canonical
+work matrix, compact coefficients and a region reused by reduction and explicit
+Q formation. Native Q and basis copies are avoided; Julia conversion, returned
+owners and bang writeback still allocate separately.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[4 1-0.5im; 1+0.5im 3])
+H = Hermitian(A)
+team = FaerTeam(2)
+work = FaerScratch(tridiagonalize, H; team)
+try
+    F = hessenberg(H; scratch=work, team)
+    @assert Matrix(F) ≈ Matrix(H)
+    close(F)
+    reserve!(work, tridiagonalize!, A; team)
+    F = tridiagonalize!(A; scratch=work, team)
+    @assert Matrix(A) ≈ Matrix(F.H)
+    close(F)
+finally
+    close(work)
+    close(team)
+    close(A)
 end
 ```
