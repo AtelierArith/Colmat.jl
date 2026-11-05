@@ -3191,3 +3191,66 @@ Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
 passes **501,235 assertions / 115 files / 16 workers in 9m08.1s**, on Julia
 1.13.3 / RustCall.jl 0.9.2 / clean faer `19053d8` (0.29.0). The final runtime/test
 checksums remained unchanged throughout the canonical, README and focused gates.
+
+## Householder sequence construction teams and saved-factor reblock (Issue #22)
+
+Sequence construction from basis/denominators or basis/block factors accepts
+`team`. Factor-input construction also accepts a target `blocksize` and
+`prev_block_size`. `reblock`/`reblock!` now create the replacement directly from
+the saved native basis/factor owner, instead of exporting basis/tau through Julia
+and regenerating from scalar blocks. They preserve orientation and commit the
+replacement handle/blocksize only after success. Exported component matrices
+remain independent.
+
+The previous width must positively divide both source and target block sizes;
+the default is their gcd. That ensures every copied previous block is contained
+in a valid source block and a target block. Its strict upper coefficients and
+diagonal denominators are copied into the new native output, then faer's upgrade
+receives that actual previous width and the scoped Par. Arbitrary positive target
+block sizes remain supported through the default. This interface describes
+reuse of already valid previous blocks, not unchecked claims that missing cross-
+block coefficients exist. Output owners still allocate independently.
+
+Native input spans/alignment/size are checked before reads, and Julia validates
+native source owners before snapshot conversion. Native source dtype, dimensions,
+reflection count and block size are checked before reblock allocation. Invalid
+widths, forged metadata, null input and closed teams preserve the existing native
+output; the staged Julia bang form preserves its original owner. Factor-matrix
+validation keeps the existing basis/denominator and upper-block checks, with
+validation owners closed in finally blocks. A validated provided factor is no
+longer redundantly upgraded just before its coefficients overwrite the result.
+
+Focused tests pass **45,674 assertions** (45,648 numerical/lifetime/orientation/
+block combinations plus 26 validation/atomic/shared-team checks), over all four
+scalars, no team/width 1/2, empty/rectangular/blocked/1024-row bases, identity
+reflectors, common previous widths, arbitrary new target widths, component
+snapshots and source/factor close. Independent sequential reflector applications
+check products without building a large dense Q. Existing sequence tests pass
+**13,432 assertions**. Native **122 tests** include four scalar suites with
+independent Gram/denominator references at up to 8192-by-32, width 1/2 and
+previous-width reuse, plus native failed-output preservation.
+
+Construction/reblock caller-owned scratch remains open. The native upgrade API
+has no scratch parameter/query and its deep parallel branch allocates a partial
+buffer on every call. On actually executed latest main `cd516af`, a standalone
+release MWE measures one allocation per warmed width-2 call (8192/16384/16384/
+32768 requested bytes for f32/f64/c32/c64), versus zero at width 1. Both paths
+pass independent strict-upper Gram checks. This is an already recorded site in
+[faer #93](https://github.com/tensor4all/faer/issues/93), so no duplicate issue
+was opened: [executed evidence and a concrete canonical scratch API proposal](https://github.com/tensor4all/faer/issues/93#issuecomment-6648218975)
+were added there. The retained, locked standalone crate is
+`docs/reproducers/householder-upgrade-allocation/`. No performance/scaling or
+whole-call allocation-free claim is made. The proposal has not been implemented.
+
+Upstream `0f9330f..cd516af` changes migration/owned-team documentation and examples
+only; the Householder kernel is identical to selected clean `19053d8` (0.29.0).
+The selected dependency is unchanged. #258 remains draft/open at `e475baf` and
+its approval condition still applies. The full 76-row scope, frozen inventory and
+remaining construction/kernel/symbolic/output workspace/tuning, direct in-place,
+view and scalar limitations remain tracked.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **546,909 assertions / 116 files / 16 workers in 9m22.5s**, on Julia
+1.13.3 / RustCall.jl 0.9.2 / clean faer `19053d8` (0.29.0). All **96 README
+blocks** pass. JuliaFormatter, new native module rustfmt, diff and frozen inventory
+checks pass; final runtime/test checksums remained unchanged through the gates.

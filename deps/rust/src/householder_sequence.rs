@@ -20,10 +20,15 @@ unsafe fn load<T: ComplexField>(
     tau: *const u8,
     b: usize,
     provided: *const u8,
+    mut par: Par<'_>,
 ) -> Result<Sequence<T>, String> {
     if k > m || b == 0 {
         return Err("invalid Householder sequence dimensions/blocksize".into());
     }
+    construction::span::<T>(p,m.checked_mul(k).ok_or("Householder basis size overflow")?)?;
+    construction::span::<T>(tau,k)?;
+    let count=b.checked_mul(k).ok_or("Householder factor size overflow")?;
+    if !provided.is_null(){construction::span::<T>(provided,count)?;}
     let mut basis = Mat::from_fn(m, k, |i, j| {
         if i < j {
             zero::<T>()
@@ -50,14 +55,14 @@ unsafe fn load<T: ComplexField>(
         }
     }
     let mut start = 0;
-    while start < k {
+    while provided.is_null() && start < k {
         let width = b.min(k - start);
         hh::upgrade_householder_factor(
             factor.as_mut().submatrix_mut(0, start, width, width),
             basis.as_ref().submatrix(start, start, m - start, width),
             width,
             1,
-            Par::Seq,
+            par.reborrow(),
         );
         start += width;
     }
@@ -109,10 +114,10 @@ impl OwnedHouseholderSequence {
         guarded(|| {
             self.data = Some(unsafe {
                 match tag {
-                    0 => Data::F32(load(basis, m, k, tau, b, provided)?),
-                    1 => Data::F64(load(basis, m, k, tau, b, provided)?),
-                    2 => Data::C32(load(basis, m, k, tau, b, provided)?),
-                    3 => Data::C64(load(basis, m, k, tau, b, provided)?),
+                    0 => Data::F32(load(basis, m, k, tau, b, provided, Par::Seq)?),
+                    1 => Data::F64(load(basis, m, k, tau, b, provided, Par::Seq)?),
+                    2 => Data::C32(load(basis, m, k, tau, b, provided, Par::Seq)?),
+                    3 => Data::C64(load(basis, m, k, tau, b, provided, Par::Seq)?),
                     _ => return Err("unsupported sequence scalar".into()),
                 }
             });
@@ -462,3 +467,5 @@ pub(crate) fn apply_compact_conj<T: ComplexField>(
 }
 
 mod workspace;
+
+mod construction;
