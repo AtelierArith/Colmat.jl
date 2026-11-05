@@ -3316,4 +3316,14 @@ the unchanged parent produces the same valid Schur blocks. Its checks now
 verify returned-block homogeneous consistency plus reconstruction/unitarity,
 and a separate regular pencil checks finite and infinite eigenvalues. No
 numerical tolerance was loosened and no upstream defect was inferred.
+Early preflight retains QZ-specific current-native-dimension and requested-scalar
+diagnostics, rather than masking them with the generic dense-solve validator.
+The existing execution regressions and 28 added scratch-query checks cover both.
 The 76-row inventory and the other kernel/tuning/in-place work remain open.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **559,647 assertions / 118 files / 16 workers in 9m24.1s**, with
+**8,544 focused assertions**, **127 native tests** and **98 executable README
+blocks** passing. JuliaFormatter, native rustfmt, diff and frozen-inventory
+checks pass. All 247 runtime/test file hashes and clean faer `2d4ea4e` remain
+unchanged through the final gates. The 76 mapping rows are retained.
