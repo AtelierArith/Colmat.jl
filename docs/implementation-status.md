@@ -3136,3 +3136,58 @@ passes **490,055 assertions / 113 files / 16 workers in 8m57.2s** on Julia
 blocks** pass. JuliaFormatter, the new native module rustfmt, diff checks and
 frozen inventory verification pass. Runtime/test checksums remained unchanged
 throughout these final gates.
+
+## Partial eigen/SVD resources (Issue #22)
+
+`partial_eigen`, `partial_self_adjoint_eigen` and `partial_svd` now accept
+caller-owned `scratch` and scoped `team`, with matching `scratch_requirements`,
+`FaerScratch` and `reserve!`. Default calls share the same resource core. Queries
+validate native dtype/shape before sizing or reading start buffers, account for
+projection options and actual team shape, and do not apply operators or callbacks.
+Zero requested columns or zero restarts require no kernel scratch.
+
+The native boundary keeps the existing restarted partial methods and the explicit
+small/full-projection self-adjoint/SVD fallback for faer #204/#213. Fallback
+materializes operator columns in caller scratch, then runs low-level EVD/SVD in
+the remaining stack with the actual Par. Self-adjoint fallback preserves Julia
+Hermitian's upper-triangle convention. Real general eigen requests still return
+complex vectors; the composite query includes scalar-promoted final residual
+applications and both forward/adjoint applications for SVD. Each stage reuses the
+buffer sequentially. Native output staging, start/result storage, sorting,
+operator promotion and Julia callback buffers allocate separately. No whole-call
+allocation-free claim is made.
+
+Every new native entry point uses checked operator/scratch/team owners. Start and
+output buffer alignment, byte span and dimensions are checked before native
+access; staged outputs are exported only after successful computation. Native
+failure tests preserve result arrays on insufficient scratch, closed teams and
+metadata mismatch. Julia task pinning covers the native frame, including yielding
+Julia operator actions, and restores prior state on exceptions. Existing true
+residuals, output sorting, returned column counts, start/projection validation and
+`:partial`/`:dense_fallback` reporting are retained.
+
+Focused resource tests pass **8,212 assertions**, covering four scalar types; dense/CSC/CSR and Julia-defined
+operators; empty/square/tall/wide shapes; partial and forced fallback paths;
+capacity/reserve; idle calls; invalid/closed owners; start-buffer and forged
+operator metadata; non-diagonal 129-order decompositions; composed and transformed
+operators. A separate four-Julia-thread run passes **2,968 assertions**, covering yield/thread identity,
+sticky restoration, `throw(nothing)` and ordinary errors, recovery, independent
+retained buffers and Tasks sharing scratch/team. Retained Cholesky inverse actions
+remain valid after source/factor owners close. Native tests pass **117**, including
+four scalar-specific native query/solve suites and resource-failure preservation.
+
+The complete 76-row mapping and frozen inventory are retained. Other constructor,
+primitive-kernel, symbolic/output-assembly scratch/team/tuning, direct native
+in-place, view and scalar limitations remain open. No new upstream defect was
+confirmed. Upstream main remains `0f9330f` and #258 remains draft/open at
+`e475baf`, with its approval condition unchanged; verified clean t4a-faer 0.29.0 /
+`19053d8` remains selected.
+
+All **95 executable README blocks** pass on the final runtime tree.
+JuliaFormatter, new native module rustfmt, diff checks and the frozen inventory
+verification pass; the mapping retains all 76 rows.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **501,235 assertions / 115 files / 16 workers in 9m08.1s**, on Julia
+1.13.3 / RustCall.jl 0.9.2 / clean faer `19053d8` (0.29.0). The final runtime/test
+checksums remained unchanged throughout the canonical, README and focused gates.
