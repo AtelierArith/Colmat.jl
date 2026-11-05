@@ -42,7 +42,7 @@ fn check<T: RealField>() {
     let mut im = re.clone();
     let mut beta = re.clone();
     let params = faer::auto!(T);
-    let mut memory = MemBuffer::new(super::real_qz_scratch::<T>(n, params));
+    let mut memory = MemBuffer::new(super::real_qz_scratch::<T>(n, params, Par::Seq.shape()));
     gevd::qz_real::hessenberg_to_qz(
         a.as_mut(),
         b.as_mut(),

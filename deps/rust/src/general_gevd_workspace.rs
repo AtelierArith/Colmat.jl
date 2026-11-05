@@ -35,7 +35,7 @@ macro_rules! real_scalar {
                     faer::linalg::temp_mat_scratch::<Self>(n, if values { 0 } else { n }),
                     faer::linalg::temp_mat_scratch::<Self>(n, if both && !values { n } else { 0 }),
                     StackReq::any_of(&[
-                        crate::qz::real_qz_scratch::<Self>(n, faer::auto!(Self)),
+                        crate::qz::real_qz_scratch::<Self>(n, faer::auto!(Self), par),
                         gevd::gevd_scratch::<Self>(
                             n,
                             Vectors::No,

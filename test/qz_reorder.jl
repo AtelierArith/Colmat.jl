@@ -293,6 +293,11 @@ end
         end
         for operation in (schur, hessenberg, schur!, hessenberg!)
             @test_throws r"current native dimension" operation(f.S, f.T)
+            @test_throws r"current native dimension" scratch_requirements(
+                operation,
+                f.S,
+                f.T,
+            )
         end
         for matrix in qzr_matrices(f)
             matrix.dims=(3, 3)
@@ -325,6 +330,7 @@ end
         end
         for operation in (schur, hessenberg, schur!, hessenberg!)
             @test_throws r"requested scalar type" operation(f.S, f.T)
+            @test_throws r"requested scalar type" scratch_requirements(operation, f.S, f.T)
         end
         for (matrix, data) in zip(qzr_matrices(f), before[1])
             GC.@preserve data Colmat._native_call(
