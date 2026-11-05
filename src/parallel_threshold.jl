@@ -10,10 +10,13 @@ Zero and one select the same fixed policy for every positive-work region.
 The fixed floor must satisfy `0 <= n < typemax(UInt)`. `:never` selects
 sequential numerical execution. A policy does not create a team.
 
-Currently `bidiagonalize[!]` and their workspace queries accept `par_threshold`.
-The fixed floor counts elements in the reduction's updated trailing block;
-explicit basis applications retain their own parallel rule. `:never` also
-keeps U/V formation sequential. A supplied team must still be open.
+Currently `bidiagonalize[!]`, `tridiagonalize[!]` and their workspace queries
+accept `par_threshold`; native Hermitian/Symmetric `hessenberg[!]` forwards it.
+Fixed floors count elements in the updated trailing
+block for bidiagonal reduction, or half the squared remaining order for
+tridiagonal reduction. Explicit basis applications retain their own parallel
+rules. `:never` also keeps U/V or Q formation sequential. A supplied team must
+still be open.
 """
 struct FaerParThreshold
     value::UInt

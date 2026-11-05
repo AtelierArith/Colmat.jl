@@ -6,8 +6,16 @@ use faer::linalg::{self, evd, householder as hh};
 use faer::mat::{AsMatMut, AsMatRef};
 use faer::prelude::ReborrowMut;
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{MatMut, MatRef, Par, ParShape};
+use faer::utils::cost::ParThreshold;
+use faer::{Auto, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
+fn params<T: ComplexField>(threshold: usize) -> faer::Spec<evd::tridiag::TridiagParams, T> {
+    evd::tridiag::TridiagParams {
+        par_threshold: ParThreshold::from(threshold),
+        ..<evd::tridiag::TridiagParams as Auto<T>>::auto()
+    }
+    .into()
+}
 fn block_size<T: ComplexField>(n: usize, bs: usize) -> Result<usize, String> {
     if bs > n.saturating_sub(1).max(1) {
         return Err("invalid tridiagonal blocksize".into());
@@ -22,30 +30,53 @@ fn block_size<T: ComplexField>(n: usize, bs: usize) -> Result<usize, String> {
         bs
     })
 }
-fn requirement<T: ComplexField>(n: usize, bs: usize, par: ParShape) -> Result<StackReq, String> {
+fn requirement<T: ComplexField>(
+    n: usize,
+    bs: usize,
+    par: ParShape,
+    threshold: usize,
+) -> Result<StackReq, String> {
+    let par = if threshold == usize::MAX {
+        ParShape::Seq
+    } else {
+        par
+    };
     let bs = block_size::<T>(n, bs)?;
     let work = linalg::temp_mat_scratch::<T>(n, n);
     if n < 2 {
         return Ok(work);
     }
     Ok(work.and(linalg::temp_mat_scratch::<T>(bs, n - 1)).and(
-        evd::tridiag::tridiag_in_place_scratch::<T>(n, par, Default::default()).or(
+        evd::tridiag::tridiag_in_place_scratch::<T>(n, par, params::<T>(threshold)).or(
             hh::apply_block_householder_sequence_on_the_left_in_place_scratch::<T>(n - 1, bs, n),
         ),
     ))
 }
-fn dispatch(n: usize, tag: i32, bs: usize, par: ParShape) -> Result<StackReq, String> {
+fn dispatch(
+    n: usize,
+    tag: i32,
+    bs: usize,
+    par: ParShape,
+    threshold: usize,
+) -> Result<StackReq, String> {
     match tag {
-        0 => requirement::<f32>(n, bs, par),
-        1 => requirement::<f64>(n, bs, par),
-        2 => requirement::<faer::c32>(n, bs, par),
-        3 => requirement::<faer::c64>(n, bs, par),
+        0 => requirement::<f32>(n, bs, par, threshold),
+        1 => requirement::<f64>(n, bs, par, threshold),
+        2 => requirement::<faer::c32>(n, bs, par, threshold),
+        3 => requirement::<faer::c64>(n, bs, par, threshold),
         _ => Err("unsupported tridiagonal scalar".into()),
     }
 }
-fn query(n: usize, tag: i32, bs: usize, par: ParShape, out: *mut usize) -> Result<(), String> {
+fn query(
+    n: usize,
+    tag: i32,
+    bs: usize,
+    par: ParShape,
+    threshold: usize,
+    out: *mut usize,
+) -> Result<(), String> {
     buffer::<usize>(out.cast(), 2)?;
-    let req = dispatch(n, tag, bs, par)?;
+    let req = dispatch(n, tag, bs, par, threshold)?;
     // SAFETY: caller preserves UInt[2]; span/alignment checked above.
     unsafe {
         out.write(req.size_bytes());
@@ -60,7 +91,7 @@ pub fn tridiagonalize_requirements(
     bs: usize,
     out: *mut usize,
 ) -> Result<(), String> {
-    guarded(|| query(n, tag, bs, ParShape::Seq, out))
+    guarded(|| query(n, tag, bs, ParShape::Seq, 0, out))
 }
 #[julia]
 impl OwnedTeam {
@@ -72,7 +103,7 @@ impl OwnedTeam {
         bs: usize,
         out: *mut usize,
     ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(n, tag, bs, par.shape(), out))?)
+        guarded(|| self.execute(|par| query(n, tag, bs, par.shape(), 0, out))?)
     }
 }
 unsafe fn compute<T: ComplexField>(
@@ -84,7 +115,11 @@ unsafe fn compute<T: ComplexField>(
     eout: *mut u8,
     bs: usize,
     mut par: Par,
+    threshold: usize,
 ) -> Result<(), String> {
+    if threshold == usize::MAX {
+        par = Par::Seq;
+    }
     let nn = n.checked_mul(n).ok_or("tridiagonal dimensions overflow")?;
     let ranges = [
         buffer::<T>(input, nn)?,
@@ -101,7 +136,7 @@ unsafe fn compute<T: ComplexField>(
             }
         }
     }
-    let stack = scratch.stack(requirement::<T>(n, bs, par.shape())?)?;
+    let stack = scratch.stack(requirement::<T>(n, bs, par.shape(), threshold)?)?;
     if n == 0 {
         return Ok(());
     }
@@ -130,7 +165,7 @@ unsafe fn compute<T: ComplexField>(
             factor.as_mat_mut(),
             par.reborrow(),
             stack,
-            Default::default(),
+            params::<T>(threshold),
         );
         crate::householder_sequence::apply_compact_in(
             work.as_mat_ref().submatrix(1, 0, n - 1, n - 1),
@@ -193,14 +228,15 @@ fn run(
     tag: i32,
     bs: usize,
     par: Par,
+    threshold: usize,
 ) -> Result<(), String> {
     // SAFETY: each branch checks every buffer before typed access.
     unsafe {
         match tag {
-            0 => compute::<f32>(scratch, input, n, q, d, e, bs, par),
-            1 => compute::<f64>(scratch, input, n, q, d, e, bs, par),
-            2 => compute::<faer::c32>(scratch, input, n, q, d, e, bs, par),
-            3 => compute::<faer::c64>(scratch, input, n, q, d, e, bs, par),
+            0 => compute::<f32>(scratch, input, n, q, d, e, bs, par, threshold),
+            1 => compute::<f64>(scratch, input, n, q, d, e, bs, par, threshold),
+            2 => compute::<faer::c32>(scratch, input, n, q, d, e, bs, par, threshold),
+            3 => compute::<faer::c64>(scratch, input, n, q, d, e, bs, par, threshold),
             _ => Err("unsupported tridiagonal scalar".into()),
         }
     }
@@ -216,7 +252,7 @@ pub fn tridiagonalize_workspace(
     tag: i32,
     bs: usize,
 ) -> Result<(), String> {
-    guarded(|| run(scratch, input, n, q, d, e, tag, bs, Par::Seq))
+    guarded(|| run(scratch, input, n, q, d, e, tag, bs, Par::Seq, 0))
 }
 #[julia]
 pub fn tridiagonalize_workspace_team(
@@ -230,7 +266,7 @@ pub fn tridiagonalize_workspace_team(
     bs: usize,
     team: &OwnedTeam,
 ) -> Result<(), String> {
-    guarded(|| team.execute(|par| run(scratch, input, n, q, d, e, tag, bs, par))?)
+    guarded(|| team.execute(|par| run(scratch, input, n, q, d, e, tag, bs, par, 0))?)
 }
 pub(super) fn allocate(
     input: *const u8,
@@ -241,10 +277,64 @@ pub(super) fn allocate(
     tag: i32,
     bs: usize,
 ) -> Result<(), String> {
-    let req = dispatch(n, tag, bs, ParShape::Seq)?;
+    let req = dispatch(n, tag, bs, ParShape::Seq, 0)?;
     let mut scratch = OwnedScratch::new();
     scratch.scratch_reserve(req.size_bytes(), req.align_bytes())?;
-    run(&mut scratch, input, n, q, d, e, tag, bs, Par::Seq)
+    run(&mut scratch, input, n, q, d, e, tag, bs, Par::Seq, 0)
+}
+
+#[julia]
+pub fn tridiagonalize_tuned_requirements(
+    n: usize,
+    tag: i32,
+    bs: usize,
+    threshold: usize,
+    out: *mut usize,
+) -> Result<(), String> {
+    guarded(|| query(n, tag, bs, ParShape::Seq, threshold, out))
+}
+#[julia]
+impl OwnedTeam {
+    #[julia]
+    pub fn tridiagonalize_tuned_team_requirements(
+        &self,
+        n: usize,
+        tag: i32,
+        bs: usize,
+        threshold: usize,
+        out: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| self.execute(|par| query(n, tag, bs, par.shape(), threshold, out))?)
+    }
+}
+#[julia]
+pub fn tridiagonalize_tuned_workspace(
+    scratch: &mut OwnedScratch,
+    input: *const u8,
+    n: usize,
+    q: *mut u8,
+    d: *mut u8,
+    e: *mut u8,
+    tag: i32,
+    bs: usize,
+    threshold: usize,
+) -> Result<(), String> {
+    guarded(|| run(scratch, input, n, q, d, e, tag, bs, Par::Seq, threshold))
+}
+#[julia]
+pub fn tridiagonalize_tuned_workspace_team(
+    scratch: &mut OwnedScratch,
+    input: *const u8,
+    n: usize,
+    q: *mut u8,
+    d: *mut u8,
+    e: *mut u8,
+    tag: i32,
+    bs: usize,
+    threshold: usize,
+    team: &OwnedTeam,
+) -> Result<(), String> {
+    guarded(|| team.execute(|par| run(scratch, input, n, q, d, e, tag, bs, par, threshold))?)
 }
 
 #[cfg(test)]
@@ -264,7 +354,7 @@ mod tests {
         let mut q: Vec<T> = (0..n * n).map(|_| from_f64::<T>(-9.0)).collect();
         let mut d: Vec<T::Real> = (0..n).map(|_| from_f64::<T::Real>(-9.0)).collect();
         let mut e: Vec<T::Real> = (0..n - 1).map(|_| from_f64::<T::Real>(-9.0)).collect();
-        let req = requirement::<T>(n, 2, ParShape::Seq).unwrap();
+        let req = requirement::<T>(n, 2, ParShape::Seq, 0).unwrap();
         let mut scratch = OwnedScratch::new();
         scratch
             .scratch_reserve(req.size_bytes() - 1, req.align_bytes())
@@ -279,6 +369,7 @@ mod tests {
                 e.as_mut_ptr().cast(),
                 2,
                 Par::Seq,
+                0,
             )
         }
         .is_err());
@@ -300,6 +391,7 @@ mod tests {
                 e.as_mut_ptr().cast(),
                 2,
                 Par::Seq,
+                0,
             )
             .unwrap();
         }
@@ -313,6 +405,7 @@ mod tests {
                 e.as_mut_ptr().cast(),
                 2,
                 Par::Seq,
+                0,
             )
             .unwrap();
         });
@@ -332,6 +425,7 @@ mod tests {
                 e.as_mut_ptr().cast(),
                 2,
                 Par::Seq,
+                0,
             )
         }
         .is_err());
@@ -345,6 +439,7 @@ mod tests {
                 e.as_mut_ptr().cast(),
                 2,
                 Par::Seq,
+                0,
             )
         }
         .is_err());
@@ -358,6 +453,7 @@ mod tests {
                 e.as_mut_ptr().cast(),
                 2,
                 Par::Seq,
+                0,
             )
         }
         .is_err());

@@ -1,5 +1,5 @@
 """
-    tridiagonalize(A; blocksize=0, scratch=nothing, team=nothing) -> FaerTridiagonalization
+    tridiagonalize(A; blocksize=0, scratch=nothing, team=nothing, par_threshold=FaerParThreshold()) -> FaerTridiagonalization
 
 Reduce a finite Hermitian matrix through faer's native tridiagonalization.
 The result owns explicit native Q and a real `SymTridiagonal` H, satisfying
@@ -9,6 +9,9 @@ Use `scratch_requirements`, `FaerScratch(tridiagonalize,A)` and `reserve!` to
 reuse the canonical work matrix, compact coefficients and reduction/Q kernel
 workspace. A supplied team lends its actual scoped token to both stages.
 Input conversion, Q/H ownership and staged bang writeback allocate separately.
+`par_threshold` selects faer's derived/fixed/never reduction policy. Fixed floors
+count elements of the updated triangle; `FaerParThreshold(:never)` also keeps
+explicit Q formation sequential. A supplied team must still be open.
 """
 struct FaerTridiagonalization{T,R,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
     H::LinearAlgebra.SymTridiagonal{R,Vector{R}}
@@ -41,12 +44,14 @@ function tridiagonalize(
     blocksize::Integer = 0,
     scratch = nothing,
     team = nothing,
+    par_threshold = FaerParThreshold(),
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
+        policy=_par_threshold(par_threshold)
         n, T, bs=_tridiagonalize_plan(a, blocksize)
         R=_realtype(T)
-        req=_tridiagonalize_requirement(n, T, bs, team)
+        req=_tridiagonalize_requirement(n, T, bs, team, policy)
         work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
              scratch
         try
@@ -81,10 +86,11 @@ function tridiagonalize(
                     Ptr{UInt8}(pointer(off)),
                     _tag(T),
                     UInt(bs),
+                    policy.value,
                 )
                 isnothing(team) ?
-                _native_call(RustCrate.tridiagonalize_workspace, args...) :
-                _native_call(RustCrate.tridiagonalize_workspace_team, args..., team)
+                _native_call(RustCrate.tridiagonalize_tuned_workspace, args...) :
+                _native_call(RustCrate.tridiagonalize_tuned_workspace_team, args..., team)
             end
             all(isfinite, q)&&all(isfinite, diag)&&all(isfinite, off) ||
                 throw(ArgumentError("tridiagonalization overflowed the working type"))
@@ -219,7 +225,8 @@ tridiagonal_eigvals(d::AbstractVector{<:Number}, e::AbstractVector{<:Number}; kw
 function LinearAlgebra.eigen(f::FaerTridiagonalization; kwargs...)
     lock(_matrix_lock) do
         _dense_rhs_validate(f.Q)
-        size(f.Q)==size(f.H) || throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
+        size(f.Q)==size(f.H) ||
+            throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
         E=tridiagonal_eigen(f.H.dv, f.H.ev; kwargs...)
         team=get(kwargs, :team, nothing)
         vectors=isnothing(team) ? f.Q*E.vectors : team_mul(team, f.Q, E.vectors)
@@ -229,7 +236,8 @@ end
 function LinearAlgebra.eigvals(f::FaerTridiagonalization; kwargs...)
     lock(_matrix_lock) do
         _dense_rhs_validate(f.Q)
-        size(f.Q)==size(f.H) || throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
+        size(f.Q)==size(f.H) ||
+            throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
         return tridiagonal_eigvals(f.H.dv, f.H.ev; kwargs...)
     end
 end
