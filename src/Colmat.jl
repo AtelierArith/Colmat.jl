@@ -26,6 +26,7 @@ export FaerSpectralFactor,
     FaerRNG,
     randunitary,
     FaerBidiagonalization,
+    FaerBidiagonalBasis,
     bidiagonalize,
     bidiagonalize!,
     bidiagonal_svd,
@@ -248,6 +249,7 @@ include("tridiagonal_compact.jl")
 include("tridiagonal.jl")
 include("tridiagonal_workspace.jl")
 include("tridiagonal_construction_workspace.jl")
+include("bidiagonal_compact.jl")
 include("bidiagonal.jl")
 include("bidiagonal_workspace.jl")
 include("bidiagonal_construction_workspace.jl")

@@ -10,7 +10,9 @@ use faer::utils::cost::ParThreshold;
 use faer::{Auto, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 
-fn params<T: ComplexField>(threshold: usize) -> faer::Spec<svd::bidiag::BidiagParams, T> {
+pub(super) fn params<T: ComplexField>(
+    threshold: usize,
+) -> faer::Spec<svd::bidiag::BidiagParams, T> {
     svd::bidiag::BidiagParams {
         // faer's documented C integer encoding, never a Rust enum ABI.
         par_threshold: ParThreshold::from(threshold),
@@ -19,7 +21,11 @@ fn params<T: ComplexField>(threshold: usize) -> faer::Spec<svd::bidiag::BidiagPa
     .into()
 }
 
-fn block_size<T: ComplexField>(rows: usize, k: usize, bs: usize) -> Result<usize, String> {
+pub(super) fn block_size<T: ComplexField>(
+    rows: usize,
+    k: usize,
+    bs: usize,
+) -> Result<usize, String> {
     if bs > k.max(1) {
         return Err("invalid bidiagonal blocksize".into());
     }
