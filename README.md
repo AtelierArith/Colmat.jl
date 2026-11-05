@@ -1967,6 +1967,37 @@ close(B)
 close(F)
 ```
 
+
+Sparse Cholesky construction and staged updates also accept scratch/team for
+all three algorithms. Query with `scratch_requirements(factorize,plan,A;team)`
+and `scratch_requirements(cholesky!,F,A;team)`; the corresponding `FaerScratch`
+and `reserve!` helpers use the same requirement. The retained plan selects the
+triangle and ordering. `check=true` preserves existing factors after a failed
+update; `check=false` installs the unsuccessful status, which can be replaced
+by a later successful update. Simplicial numeric kernels remain sequential.
+Input snapshots/CSC conversion, selected-triangle assembly and owned output
+allocate separately from native kernel scratch.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[4 0.1im; -0.1im 5]
+A = FaerSparseMatrix(sparse(A0); format=:csr)
+p = FaerSparseSymbolic(A;kind=:cholesky,uplo=:U,algorithm=:supernodal,ordering=[2,1])
+team = FaerTeam(2)
+s = FaerScratch(factorize,p,A;team)
+F = factorize(p,A;scratch=s,team)
+B = FaerSparseMatrix(sparse(2A0))
+reserve!(s,cholesky!,F,B;team)
+@assert cholesky!(F,B;scratch=s,team) === F
+close(s)
+close(team)
+close(p)
+close(A)
+close(B)
+@assert F \ ones(ComplexF64,2) ≈ (2A0) \ ones(ComplexF64,2)
+close(F)
+```
+
 ### Reuse operator application scratch and teams
 
 `mul!(X, op, B[, alpha, beta]; scratch, team)` and

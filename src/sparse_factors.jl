@@ -222,7 +222,7 @@ function LinearAlgebra.factorize(
     lock(_matrix_lock) do
         _sparse_factor_inputs(p, a)
         (isnothing(scratch) && isnothing(team)) ||
-            _sparse_qr_factor_validate(p, a, scratch, team)
+            _sparse_factor_resource_validate(p, a, scratch, team)
         snapshot=copy(a)
         finite = if K===:cholesky
             rows, cols, values=SparseArrays.findnz(snapshot)
@@ -245,7 +245,7 @@ function LinearAlgebra.factorize(
         info=try
             isnothing(scratch) && isnothing(team) ?
             Int(_native_call(RustCrate.sparse_factorize, h, plan, snapshot)) :
-            _sparse_qr_factor_workspace(h, plan, snapshot, scratch, team)
+            _sparse_factor_resource_workspace(h, plan, snapshot, scratch, team)
         catch e
             if e isa RustCall.RustError &&
                occursin("numeric matrix sparsity pattern must match", sprint(showerror, e))
@@ -325,6 +325,8 @@ function LinearAlgebra.cholesky(
     check::Bool = true,
     perm = nothing,
     ordering = :default,
+    scratch = nothing,
+    team = nothing,
     kwargs...,
 )
     !isnothing(perm) &&
@@ -342,6 +344,8 @@ function LinearAlgebra.cholesky(
         ),
         source;
         check,
+        scratch,
+        team,
     )
 end
 function LinearAlgebra.cholesky(a::FaerSparseMatrix; check::Bool = true, kwargs...)
@@ -547,7 +551,9 @@ LinearAlgebra.cholesky!(
     f::FaerSparseFactorization{T,:cholesky},
     a::FaerSparseMatrix{T};
     check::Bool = true,
-) where {T} = _refactor_sparse!(f, a; check)
+    scratch = nothing,
+    team = nothing,
+) where {T} = _refactor_sparse!(f, a; check, scratch, team)
 
 """Return an independent copy of the permutation used by sparse Cholesky analysis."""
 FaerPermutation(p::FaerSparseSymbolic{:cholesky}) =

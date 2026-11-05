@@ -332,7 +332,7 @@ fn numeric<T: ComplexField>(
 ) -> Result<Result<Numeric<T>, usize>, String> {
     numeric_with_par(p, a, scratch, Par::Seq)
 }
-// QR construction resources enter a team scope; explicit simplicial kernels are sequential.
+// QR/LLT construction resources enter a scoped team; scalar simplicial kernels remain sequential.
 fn numeric_with_par<T: ComplexField>(
     p: &Plan,
     a: &Storage<T>,
@@ -410,18 +410,24 @@ fn numeric_with_par<T: ComplexField>(
                 faer::sparse::SparseColMat::try_new_from_triplets(a.nrows(), a.ncols(), &entries)
                     .map_err(|e| format!("{e:?}"))?;
             let mut values = vec![zero::<T>(); sym.len_val()];
-            let par = Par::Seq;
-            let mut mem = MemBuffer::try_new(
-                sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default()),
-            )
-            .map_err(|e| format!("{e:?}"))?;
+            let req = sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default());
+            let mut memory = if scratch.is_none() {
+                Some(MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?)
+            } else {
+                None
+            };
+            let stack = if let Some(work) = scratch {
+                work.stack(req)?
+            } else {
+                MemStack::new(memory.as_mut().unwrap())
+            };
             match sym.factorize_numeric_llt(
                 &mut values,
                 triangle.as_ref(),
                 if p.lower { Side::Lower } else { Side::Upper },
                 Default::default(),
                 par,
-                MemStack::new(&mut mem),
+                stack,
                 Default::default(),
             ) {
                 Ok(_) => Numeric::Llt(SparseLlt {
