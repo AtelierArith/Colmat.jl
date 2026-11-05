@@ -9,7 +9,7 @@ use crate::{teams::OwnedTeam, workspace::OwnedScratch};
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{MatMut, Par};
 use rustcall_julia_macros::julia;
-fn validate(
+pub(super) fn validate(
     source: &OwnedHouseholderSequence,
     n: usize,
     k: usize,
@@ -294,6 +294,7 @@ mod tests {
                 tau.as_ptr().cast(),
                 2,
                 std::ptr::null(),
+                Par::Seq,
             )
             .unwrap()
         };

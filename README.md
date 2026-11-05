@@ -575,7 +575,7 @@ close(team)
 演算と同じ引数順序を使い、`mul!` の照会は alpha/beta と型昇格も反映します。
 容量・alignment 不足や閉じた resource は出力更新前に拒否します。native kernel は
 caller-owned team を借用します。結果の staging・係数の型変換・Julia 配列変換は
-scratch の外で割り当てます。構築・reblock の scratch/team は別の未対応項目です。
+scratch の外で割り当てます。sequence 構築・reblock の team は指定できます。
 
 `Q = H₁*H₂*…*Hₖ` の順序で、m×k の basis には k≤m が必要です。
 対角は暗黙の 1、上三角は無視し、strict lower の値だけを使います。
@@ -588,7 +588,29 @@ factor は blocksize×k で、各ブロックの上三角を連結した faer �
 は変換前の格納表現を返し、`.transposed`・`.conjugated` が適用方向を表します。
 積・左右の in-place 適用・`mul!`・左右の求解は密な Q を作りません。
 `Matrix(Q)` と演算子同士の積は明示的に密行列を作ります。
-外部 scratch と `prev_block_size` を直接渡す低水準 upgrade は未対応です。
+sequence の構築と `reblock/reblock!` は `team=` を受け取ります。
+factor 行列からの構築は `blocksize=` で変更後のサイズを指定でき、`prev_block_size=`
+（既定は元・先 blocksize の gcd）が両方を割り切る場合に保存済みの上三角 block を再利用します。
+reblock は basis/tau を Julia に戻さず native owner から構築し、変換方向と失敗時の旧 owner を保持します。
+
+```julia
+using Colmat, LinearAlgebra
+V = [1.0 0 0; 0.2 1 0; 0.3 0.4 1; 0.1 -0.2 0.3]
+tau = [sum(abs2, V[:,j])/2 for j in 1:3]
+team = FaerTeam(2)
+Q = FaerHouseholderSequence(V, tau; blocksize=2, team)
+R = reblock(Q, 4; prev_block_size=2, team)
+@assert Matrix(R) ≈ Matrix(Q)
+S = FaerHouseholderSequence(Q.basis, Q.factor; blocksize=4, prev_block_size=2, team)
+@assert Matrix(S) ≈ Matrix(Q)
+reblock!(R, 3; team)
+@assert Matrix(R) ≈ Matrix(Q)
+close(S); close(R); close(Q); close(team)
+```
+
+native upgrade は scratch 引数・必要量照会を持たず、深い並列分岐の内部 buffer を毎回確保します。
+[faer #93 の実行済み MWE](https://github.com/tensor4all/faer/issues/93#issuecomment-6648218975)
+と修正案で追跡し、構築/reblock の caller-owned scratch は未完了です。
 
 `nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
 `copyto!` は以前の値ビューを失効させます。`FaerSparsity` は元の行列の変更・close に
