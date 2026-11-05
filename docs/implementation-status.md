@@ -3684,3 +3684,28 @@ examples** run successfully; DocumenterVitepress HTML builds successfully and
 the generated reductions page contains the new section. All 290 final validation
 input hashes remain unchanged. The numerical full suite was not repeated for
 this documentation-only reconciliation.
+
+## faer 0.30 / threadteam 0.4 compatibility
+
+The official latest-HEAD build selected clean faer 44945d7 (0.30.0), which
+requires threadteam 0.4. The previous main bbc409d still used 0.3 directly,
+so `OwnedTeam::execute` no longer compiled: Par::Team expected the 0.4 TeamExec
+but received the distinct 0.3 type. The failure was reproduced on main's
+unchanged numerical adapter independently of the saved bidiagonal-construction
+work. This is a consumer dependency mismatch, not a demonstrated upstream bug.
+
+The adapter's threadteam requirement is now 0.4.0; Cargo.lock records faer
+0.30.0 and one shared threadteam 0.4.0. No numerical source changes are needed.
+The faer 2d4ea4e-to-44945d7 diff contains only manifest, lockfile and changelog.
+Threadteam 0.4 changes placement defaults; this change makes no speed/scaling
+claim and adds no placement-policy override. The scoped-token ownership and
+existing team API are preserved. Canonical Pkg.test passes **580,949 assertions /
+127 files / 16 workers / 9m45.2s**. All **108 README/manual examples**, **147
+native tests**, **5,579 focused team/resource assertions**, docs HTML build and
+diff checks pass. All 290 frozen validation input hashes remained unchanged.
+
+The four-scalar matrix, solve and resource contracts remain in the 76-row
+inventory. Faer draft candidates/known gaps and their performance/consent gates
+are not adopted or waived. RustCall PR573 remains separately unmerged/unadopted.
+Bidiagonal-construction resource work is saved separately and will be restored
+onto this compatibility fix rather than mixed into the dependency PR.
