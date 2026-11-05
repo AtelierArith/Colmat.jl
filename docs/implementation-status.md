@@ -3604,3 +3604,28 @@ passes **575,034 assertions / 125 files / 16 workers in 9m34.3s**. All **105
 executable README blocks** pass. All 271 frozen input hashes, frozen inventory
 and all 76 mapping rows remain unchanged. Tested runtime is `2fcfebc`; later
 result-record commits are documentation only.
+## Bidiagonal real rescaling follow-up
+
+The existing main `2333611` restored bidiagonal coefficients by dividing by a
+complex-valued copy of a real power-of-two scale. For the public 4-by-4
+ComplexF64 reproducer in `docs/reproducers/bidiagonal-rescaling.jl`, scaling by
+2^1000 raised `ArgumentError`; 2^-1000 returned finite coefficients but a
+dimensionless reconstruction residual of 1.0. This is an adapter defect, not a
+demonstrated RustCall or faer defect.
+
+The adapter now multiplies components by the real reciprocal, as the
+tridiagonal path already does. The chosen scale and its reciprocal are
+representable powers of two. Reduction, phases, compact reflectors, blocksize
+and output ownership are unchanged. The reproducer now reports
+6.133744167982741e-17 for both exponents. Four scalar types, square/tall/wide,
+thin/full, three block sizes and ordinary/extreme scales pass 1,728 new
+assertions; the existing bidiagonal suite passes 2,665 assertions. Native tests
+pass 143 cases. Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **576,762 assertions / 126 files / 16 workers / 9m27.1s**. All **106
+executable README blocks**, Julia/Rust formatting and diff checks pass. All
+273 frozen validation input hashes remained unchanged during the gates.
+
+This does not complete external scratch/team, compact factor exposure, tuning
+or the other remaining items in the frozen 76-row inventory. The selected faer
+checkout remains clean `2d4ea4e` (0.29.0); unadopted upstream candidates and
+their acceptance conditions remain unchanged.

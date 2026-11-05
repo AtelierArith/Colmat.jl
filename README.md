@@ -902,6 +902,21 @@ bases for `svd(F; full=true)`. B is upper for tall/square inputs and lower for
 wide inputs. `bidiagonalize!` stages its result before replacing a native input
 by the rectangular embedding of B. Compact reflectors stay internal.
 
+Real power-of-two scaling is restored componentwise, including complex inputs
+near the floating-point exponent limits:
+
+```julia
+using Colmat, LinearAlgebra
+A = ComplexF64[1 0.4-0.1im; 0.2+0.3im 1]
+scale = 2.0^-1000
+F = bidiagonalize(A .* scale)
+try
+    @assert A ≈ Matrix(F.U) * (Matrix(F.B) ./ scale) * Matrix(F.V)'
+finally
+    close(F)
+end
+```
+
 `bidiagonal_svd(d,e; uplo=:U)` supports real or complex diagonals and either
 selected offdiagonal, returning native U/Vt and nonnegative descending real S.
 `recursion_threshold` selects the native small/large SVD paths. Inputs remain
