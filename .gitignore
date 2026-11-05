@@ -2,3 +2,7 @@
 /deps/rust/target/
 /deps/build.log
 /extern/t4a-faer/
+/docs/build/
+/docs/Manifest.toml
+/docs/node_modules/
+/docs/package-lock.json
