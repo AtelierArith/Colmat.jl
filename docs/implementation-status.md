@@ -3442,7 +3442,7 @@ validation input hashes and clean selected faer `2d4ea4e` remained unchanged
 through the final gates. Internal scaling workspace #270 remains unresolved.
 
 
-## Native real extrema (candidate)
+## Native real extrema (PR #68)
 
 Float32 `minimum/maximum/extrema` now use a checked RustCall reference to the
 native TypedMatrix rather than generic Julia scalar iteration. Float64 uses
@@ -3463,6 +3463,11 @@ supported element setter before checking extrema. No production constructor or
 upstream behavior was changed for that fixture correction.
 
 The official `deps/build.jl` rebuilt the binding with 33 functions and 18 structs
-against unchanged clean faer `2d4ea4e`. Full package/native/README gates remain
-pending. This change advances the reductions row without completing the full
-76-row inventory or its remaining options.
+against unchanged clean faer `2d4ea4e`. Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **572,752 assertions / 122 files / 16 workers in 9m34.2s**. All **135
+native tests** and **102 executable README blocks** pass. All 263 frozen
+validation inputs remain unchanged through these gates, and the frozen
+inventory and all 76 mapping rows are preserved. The tested runtime commit is
+`8fe8fa6`; subsequent result-record changes are documentation only. This change
+advances the reductions row without completing the full inventory or its
+remaining options.
