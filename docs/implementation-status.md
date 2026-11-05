@@ -3440,3 +3440,29 @@ and **36 standalone release probes** pass. JuliaFormatter, native/MWE rustfmt,
 diff checks, frozen inventory and all 76 mapping rows pass. All 261 frozen
 validation input hashes and clean selected faer `2d4ea4e` remained unchanged
 through the final gates. Internal scaling workspace #270 remains unresolved.
+
+
+## Native real extrema (candidate)
+
+Float32 `minimum/maximum/extrema` now use a checked RustCall reference to the
+native TypedMatrix rather than generic Julia scalar iteration. Float64 uses
+the same real ordering rule through its existing reduction boundary. The
+adapter explicitly preserves Julia NaN propagation and orders negative zero
+below positive zero; it cannot use an unspecified equal-zero choice from the
+native primitive min/max operation. No raw output pointer or copied Julia
+matrix is required. The source lock and existing current native shape/type
+validator cover the empty-input decision and computation. Empty/closed inputs
+and corrupt shape metadata are rejected. Complex ordering, dims/map keywords
+and borrowed-view specializations retain their existing generic behavior.
+
+Focused tests: 240 new Julia assertions plus 107 existing reduction assertions
+pass; two new native tests pass. The first focused run attempted to construct a
+Float32 matrix containing Inf, which correctly failed the existing finite-only
+constructor. The test now constructs finite storage and writes Inf through the
+supported element setter before checking extrema. No production constructor or
+upstream behavior was changed for that fixture correction.
+
+The official `deps/build.jl` rebuilt the binding with 33 functions and 18 structs
+against unchanged clean faer `2d4ea4e`. Full package/native/README gates remain
+pending. This change advances the reductions row without completing the full
+76-row inventory or its remaining options.
