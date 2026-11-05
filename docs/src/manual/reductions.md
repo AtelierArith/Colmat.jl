@@ -257,7 +257,7 @@ dispatch accept `scratch=` and `team=`. The query includes coefficient copies
 and the declared kernel workspace at the actual team shape; U/V are written
 directly into preserved staging. Saved-factor back-transform products also use
 the team, with their own work/output storage. Julia conversions and result
-ownership allocate separately; reduction construction resources remain internal.
+ownership allocate separately. Reduction construction resources are described below.
 
 ```julia
 using Colmat, LinearAlgebra
@@ -276,6 +276,38 @@ finally
     close(work)
     close(team)
     close(F)
+end
+```
+
+## Reusing bidiagonal reduction workspace
+
+`bidiagonalize` and the native matrix's staged `bidiagonalize!` accept `scratch`
+and `team`, with matching query/FaerScratch/reserve. Workspace holds the canonical
+work matrix and compact factors; reduction and both basis applications reuse
+one kernel region and the actual scoped team token. U/V are formed in preserved
+Julia staging, borrowing the compact basis/factors without owning copies.
+Conversion, returned owners and bang writeback allocate separately. The native
+deep Householder upgrade buffer remains subject to [faer #93](https://github.com/tensor4all/faer/issues/93);
+declared kernel scratch does not imply whole-call zero allocations.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[1 2; 3+im 4; 5 6-im])
+team = FaerTeam(2)
+work = FaerScratch(bidiagonalize, A; full=true, team)
+try
+    F = bidiagonalize(A; full=true, scratch=work, team)
+    @assert Matrix(F) ≈ Matrix(A)
+    reserve!(work, svd, F; team)
+    E = svd(F; scratch=work, team)
+    @assert Matrix(E.U)*Diagonal(E.S)*Matrix(E.Vt) ≈ Matrix(A)
+    close(E.U)
+    close(E.Vt)
+    close(F)
+finally
+    close(work)
+    close(team)
+    close(A)
 end
 ```
 
