@@ -3327,3 +3327,38 @@ passes **559,647 assertions / 118 files / 16 workers in 9m24.1s**, with
 blocks** passing. JuliaFormatter, native rustfmt, diff and frozen-inventory
 checks pass. All 247 runtime/test file hashes and clean faer `2d4ea4e` remain
 unchanged through the final gates. The 76 mapping rows are retained.
+
+## Single-matrix Hessenberg/Schur construction resources
+
+Single-matrix `hessenberg`/`schur`, staged bang forms and Schur conversion from
+saved native Hessenberg factors accept caller scratch and an actual scoped team.
+The common query/execution path retains current-native metadata checks before
+view materialization or output setup. Capacity/alignment and closed resources
+are checked before native computation; saved H/Q use checked owner references.
+Hessenberg Householder coefficients and real/complex Schur temporary eigenvalue
+columns use stack storage. Sequential convenience calls use the same kernels
+with automatically owned workspace. Source scaling, structure validation,
+independent output ownership and staged bang writeback remain intact.
+
+Owned output matrices, view copies, Julia eigenvalue arrays and staged results
+allocate separately. The selected faer may allocate the deep Householder partial
+buffer; its external control awaits unmerged #267. The warmed Schur-step
+calling-thread allocation test excludes setup, owning output creation and worker
+heaps; it does not imply a whole-API allocation or scaling bound. Tuning, Schur
+reordering/eigenvector kernel resources, direct in-place and all other incomplete
+76-row inventory entries remain in scope.
+
+A review probe found a candidate-only dispatch omission for square matrix views
+whose retained owner is a FaerRow. Parent main supports that input. The checked
+collection-metadata validator is reused before view copies, and new four-scalar
+Seq/Team tests cover query, execution, stale owner metadata and close. The initial
+frozen validation processes were deliberately stopped before this source change;
+final gates use the corrected frozen source. No upstream defect was inferred.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **562,600 assertions / 119 files / 16 workers in 9m23.6s**, with
+**4,563 focused assertions** (2,953 new), **129 native tests** and **99 executable
+README blocks** passing. JuliaFormatter, native rustfmt and diff checks pass.
+All 250 runtime/test file hashes and clean faer `2d4ea4e` remained unchanged
+through the corrected final gates. Frozen inventory and all 76 mapping rows
+are retained.

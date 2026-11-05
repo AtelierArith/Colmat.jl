@@ -2786,3 +2786,32 @@ The selected faer QR can still allocate its deep Householder partial buffer;
 caller control of that buffer awaits faer #267. This is not a whole-API
 zero-allocation or scaling claim. The actual scoped team token reaches QR,
 Householder apply, projection, generalized Hessenberg and QZ kernels.
+
+### Single-matrix Hessenberg and Schur construction resources
+
+Single-matrix reductions and Schur iteration from a saved Hessenberg factor
+accept reusable scratch and a scoped team. Queries and `reserve!` use the same
+operation and team as execution. Owned factors, view copies, Julia eigenvalue
+arrays and staged bang results allocate separately. The selected faer may also
+allocate its internal deep Householder partial buffer; external control awaits
+faer #267. These interfaces do not imply a whole-call allocation or scaling bound.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[4 1+im 2; 2-im 3 0; 1 0 5])
+team = FaerTeam(2)
+work = FaerScratch(hessenberg, A; team)
+H = hessenberg(A; scratch=work, team)
+reserve!(work, schur, H; team)
+F = schur(H; scratch=work, team)
+@assert Matrix(F) ≈ Matrix(A)
+reserve!(work, schur!, A; team)
+G = schur!(copy(A); scratch=work, team)
+@assert Matrix(G) ≈ Matrix(A)
+close(G)
+close(F)
+close(H)
+close(work)
+close(team)
+close(A)
+```
