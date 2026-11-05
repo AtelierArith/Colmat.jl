@@ -2748,3 +2748,41 @@ allocation-free construction interface. Explicit simplicial QR shares this inter
 Wide construction uses prefix QR and one-column saved-reflector projections
 in the supplied buffer, with the same team for both stages. Sparse output
 assembly and input normalization still allocate separately.
+
+
+### Reuse workspace for generalized Hessenberg and QZ construction
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1; 2 3])
+B = FaerMatrix([2.0 0; 0 2])
+team = FaerTeam(2)
+work = FaerScratch(hessenberg, A, B; team)
+H = hessenberg(A, B; scratch=work, team)
+reserve!(work, schur, H; team)
+F = schur(H; scratch=work, team)
+@assert Matrix(F.Q*F.S*F.Z') ≈ Matrix(A)
+@assert Matrix(F.Q*F.T*F.Z') ≈ Matrix(B)
+reserve!(work, schur!, A, B; team)
+G = schur!(copy(A), copy(B); scratch=work, team)
+@assert isapprox(sort(real.(G.values)), sort(real.(F.values)))
+close(work)
+close(team)
+```
+
+`schur`/`hessenberg` on matrix pairs, their staged bang methods and
+`schur(H)`/`schur!(H)` accept `scratch` and `team`. Query the same operation,
+source and team with `scratch_requirements`; computations reject insufficient
+capacity/alignment instead of growing the buffer. Native metadata is checked
+before scalar promotion. Views, mixed native scalars and a native matrix paired
+with a Julia matrix are supported. Resource and native failures precede bang
+writeback; existing factor owners and views are preserved on successful updates.
+
+The workspace holds QR coefficients, projection storage, generalized Hessenberg
+work, QZ temporary homogeneous columns and the declared QZ kernel scratch
+(including the existing correction for faer #260). Source copies, owned
+factor outputs, staging and Julia conversion/output arrays allocate separately.
+The selected faer QR can still allocate its deep Householder partial buffer;
+caller control of that buffer awaits faer #267. This is not a whole-API
+zero-allocation or scaling claim. The actual scoped team token reaches QR,
+Householder apply, projection, generalized Hessenberg and QZ kernels.

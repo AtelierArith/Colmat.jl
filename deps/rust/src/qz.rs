@@ -6,7 +6,7 @@ use faer::linalg::{gevd, matmul::matmul};
 use faer::mat::{AsMatMut, AsMatRef};
 use faer::prelude::ReborrowMut;
 use faer::traits::{math_utils::*, ComplexField, RealField};
-use faer::{c32, c64, Accum, Col, Mat, MatRef, Par};
+use faer::{c32, c64, Accum, Mat, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 
 struct Pair<T: ComplexField> {
@@ -17,7 +17,12 @@ struct Pair<T: ComplexField> {
     ascl: Option<T::Real>,
     bscl: Option<T::Real>,
 }
-fn prepare<T: ComplexField>(a: MatRef<'_, T>, b: MatRef<'_, T>) -> Result<Pair<T>, String> {
+fn prepare<T: ComplexField>(
+    a: MatRef<'_, T>,
+    b: MatRef<'_, T>,
+    mut par: Par,
+    stack: &mut MemStack,
+) -> Result<Pair<T>, String> {
     if a.nrows() != a.ncols() || a.shape() != b.shape() {
         return Err("QZ requires matching square matrices".into());
     }
@@ -31,30 +36,46 @@ fn prepare<T: ComplexField>(a: MatRef<'_, T>, b: MatRef<'_, T>) -> Result<Pair<T
     let mut q = Mat::identity(n, n);
     let mut z = Mat::identity(n, n);
     if n > 0 {
-        let qr = t.qr(Par::Seq);
-        q = qr.compute_Q(Par::Seq);
-        t = qr.R().to_owned();
-        let source = s;
-        s = Mat::zeros(n, n);
-        matmul(
-            s.as_mut(),
-            Accum::Replace,
-            q.adjoint(),
-            source.as_ref(),
-            one::<T>(),
-            Par::Seq,
-        );
+        let block = faer::linalg::qr::no_pivoting::factor::recommended_block_size::<T>(n, n);
+        {
+            let (mut coeff, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(block, n, stack);
+            faer::linalg::qr::no_pivoting::factor::qr_in_place(
+                t.as_mut(),
+                coeff.as_mat_mut(),
+                par.reborrow(),
+                stack,
+                Default::default(),
+            );
+            faer::linalg::householder::apply_block_householder_sequence_on_the_left_in_place_with_conj(
+                t.as_ref(), coeff.as_mat_ref(), faer::Conj::No, q.as_mut(), par.reborrow(), stack);
+        }
+        // QR's basis shares the packed R storage; only after Q is formed may its
+        // strict lower triangle be discarded.
+        for j in 0..n {
+            for i in j + 1..n {
+                t[(i, j)] = zero::<T>();
+            }
+        }
+        {
+            let (mut projection, _) = faer::linalg::temp_mat_zeroed::<T, _, _>(n, n, stack);
+            matmul(
+                projection.as_mat_mut(),
+                Accum::Replace,
+                q.adjoint(),
+                s.as_ref(),
+                one::<T>(),
+                par.reborrow(),
+            );
+            s.copy_from(projection.as_mat_ref());
+        }
         let params: gevd::gen_hessenberg::GeneralizedHessenbergParams = faer::auto!(T);
-        let mut mem = MemBuffer::new(gevd::gen_hessenberg::generalized_hessenberg_scratch::<T>(
-            n, params,
-        ));
         gevd::gen_hessenberg::generalized_hessenberg(
             s.as_mut(),
             t.as_mut(),
             Some(q.as_mut()),
             Some(z.as_mut()),
-            Par::Seq,
-            MemStack::new(&mut mem),
+            par,
+            stack,
             params,
         );
     }
@@ -119,6 +140,7 @@ fn finish<T: ComplexField>(p: &mut Pair<T>) -> Result<(), String> {
 pub(crate) fn real_qz_scratch<T: RealField>(
     n: usize,
     params: gevd::GeneralizedSchurParams,
+    par: ParShape,
 ) -> StackReq {
     if n < usize::max(15, params.blocking_threshold) {
         return StackReq::EMPTY;
@@ -152,13 +174,13 @@ pub(crate) fn real_qz_scratch<T: RealField>(
         ]),
     ]);
     let aed = StackReq::any_of(&[
-        real_qz_scratch::<T>(nw, params),
+        real_qz_scratch::<T>(nw, params, par),
         local,
         temp(nw, n),
         temp(n, nw),
     ]);
     StackReq::any_of(&[
-        gevd::qz_real::hessenberg_to_qz_scratch::<T>(n, Par::Seq.shape(), params),
+        gevd::qz_real::hessenberg_to_qz_scratch::<T>(n, par, params),
         StackReq::all_of(&[temp(nw, nw), temp(nw, nw), aed]),
         StackReq::all_of(&[temp(panel, panel), temp(panel, panel), temp(n, 2 * ns)]),
     ])
@@ -166,34 +188,56 @@ pub(crate) fn real_qz_scratch<T: RealField>(
 
 trait QzScalar: ComplexField + Sized {
     type Alpha;
-    unsafe fn qz(p: &mut Pair<Self>, alpha: *mut u8, beta: *mut u8) -> Result<(), String>;
+    fn qz_scratch(n: usize, par: ParShape) -> StackReq;
+    unsafe fn qz(
+        p: &mut Pair<Self>,
+        alpha: *mut u8,
+        beta: *mut u8,
+        par: Par,
+        stack: &mut MemStack,
+    ) -> Result<(), String>;
 }
 macro_rules! real_qz {
     ($r:ty,$c:ty) => {
         impl QzScalar for $r {
             type Alpha = $c;
-            unsafe fn qz(p: &mut Pair<Self>, alpha: *mut u8, beta: *mut u8) -> Result<(), String> {
+            fn qz_scratch(n: usize, par: ParShape) -> StackReq {
+                if n == 0 {
+                    return StackReq::EMPTY;
+                }
+                StackReq::all_of(&[StackReq::new::<Self>(n); 3]).and(real_qz_scratch::<Self>(
+                    n,
+                    faer::auto!(Self),
+                    par,
+                ))
+            }
+            unsafe fn qz(
+                p: &mut Pair<Self>,
+                alpha: *mut u8,
+                beta: *mut u8,
+                par: Par,
+                stack: &mut MemStack,
+            ) -> Result<(), String> {
                 let n = p.s.nrows();
                 if n == 0 {
                     return finish(p);
                 }
-                let mut ar = Col::from_fn(n, |_| Self::NAN);
-                let mut ai = Col::from_fn(n, |_| Self::NAN);
-                let mut be = Col::from_fn(n, |_| Self::NAN);
+                let (mut ar, stack) = stack.make_with::<Self>(n, |_| Self::NAN);
+                let (mut ai, stack) = stack.make_with::<Self>(n, |_| Self::NAN);
+                let (mut be, stack) = stack.make_with::<Self>(n, |_| Self::NAN);
                 let params: gevd::GeneralizedSchurParams = faer::auto!(Self);
-                let mut mem = MemBuffer::new(real_qz_scratch::<Self>(n, params));
                 gevd::qz_real::hessenberg_to_qz(
                     p.s.as_mut(),
                     p.t.as_mut(),
                     Some(p.q.as_mut()),
                     Some(p.z.as_mut()),
-                    ar.as_mut(),
-                    ai.as_mut(),
-                    be.as_mut(),
+                    faer::ColMut::from_slice_mut(&mut ar),
+                    faer::ColMut::from_slice_mut(&mut ai),
+                    faer::ColMut::from_slice_mut(&mut be),
                     gevd::ComputeEigenvectors::Yes,
-                    Par::Seq,
+                    par,
                     params,
-                    MemStack::new(&mut mem),
+                    stack,
                 );
                 let ia = recip(&p.ascl.clone().unwrap_or(1.0));
                 let ib = recip(&p.bscl.clone().unwrap_or(1.0));
@@ -233,30 +277,41 @@ macro_rules! complex_qz {
     ($c:ty) => {
         impl QzScalar for $c {
             type Alpha = Self;
-            unsafe fn qz(p: &mut Pair<Self>, alpha: *mut u8, beta: *mut u8) -> Result<(), String> {
+            fn qz_scratch(n: usize, par: ParShape) -> StackReq {
+                if n == 0 {
+                    return StackReq::EMPTY;
+                }
+                StackReq::all_of(&[StackReq::new::<Self>(n); 2]).and(
+                    gevd::qz_cplx::hessenberg_to_qz_scratch::<Self>(n, par, faer::auto!(Self)),
+                )
+            }
+            unsafe fn qz(
+                p: &mut Pair<Self>,
+                alpha: *mut u8,
+                beta: *mut u8,
+                par: Par,
+                stack: &mut MemStack,
+            ) -> Result<(), String> {
                 let n = p.s.nrows();
                 if n == 0 {
                     return finish(p);
                 }
-                let mut a = Col::from_fn(n, |_| Self::new(<Self as ComplexField>::Real::NAN, 0.0));
-                let mut b = Col::from_fn(n, |_| Self::new(<Self as ComplexField>::Real::NAN, 0.0));
+                let (mut a, stack) = stack
+                    .make_with::<Self>(n, |_| Self::new(<Self as ComplexField>::Real::NAN, 0.0));
+                let (mut b, stack) = stack
+                    .make_with::<Self>(n, |_| Self::new(<Self as ComplexField>::Real::NAN, 0.0));
                 let params: gevd::GeneralizedSchurParams = faer::auto!(Self);
-                let mut mem = MemBuffer::new(gevd::qz_cplx::hessenberg_to_qz_scratch::<Self>(
-                    n,
-                    Par::Seq.shape(),
-                    params,
-                ));
                 gevd::qz_cplx::hessenberg_to_qz(
                     p.s.as_mut(),
                     p.t.as_mut(),
                     Some(p.q.as_mut()),
                     Some(p.z.as_mut()),
-                    a.as_mut(),
-                    b.as_mut(),
+                    faer::ColMut::from_slice_mut(&mut a),
+                    faer::ColMut::from_slice_mut(&mut b),
                     gevd::ComputeEigenvectors::Yes,
-                    Par::Seq,
+                    par,
                     params,
-                    MemStack::new(&mut mem),
+                    stack,
                 );
                 for j in 0..n.saturating_sub(1) {
                     if p.s[(j + 1, j)] != Self::new(0.0, 0.0) {
@@ -298,6 +353,41 @@ unsafe fn compute<T: QzScalar>(
     only_hessenberg: bool,
     n: usize,
 ) -> Result<Pair<T>, String> {
+    if a.nrows() != n || a.ncols() != n || b.shape() != a.shape() {
+        return Err("QZ current native dimensions do not match requested output".into());
+    }
+    let stage = if only_hessenberg {
+        1
+    } else if initial.is_some() {
+        2
+    } else {
+        0
+    };
+    let mut memory = MemBuffer::try_new(construction::requirement::<T>(n, stage, ParShape::Seq)?)
+        .map_err(|e| format!("{e:?}"))?;
+    compute_in(
+        a,
+        b,
+        initial,
+        alpha,
+        beta,
+        only_hessenberg,
+        n,
+        Par::Seq,
+        MemStack::new(&mut memory),
+    )
+}
+unsafe fn compute_in<T: QzScalar>(
+    a: MatRef<'_, T>,
+    b: MatRef<'_, T>,
+    initial: Option<(MatRef<'_, T>, MatRef<'_, T>)>,
+    alpha: *mut u8,
+    beta: *mut u8,
+    only_hessenberg: bool,
+    n: usize,
+    mut par: Par,
+    stack: &mut MemStack,
+) -> Result<Pair<T>, String> {
     if a.nrows() != n {
         return Err("QZ current native dimension does not match the requested output".into());
     }
@@ -307,12 +397,12 @@ unsafe fn compute<T: QzScalar>(
     let mut p = if let Some((q, z)) = initial {
         from_reduced(a, b, q, z)?
     } else {
-        prepare(a, b)?
+        prepare(a, b, par.reborrow(), stack)?
     };
     if only_hessenberg {
         finish(&mut p)?;
     } else {
-        T::qz(&mut p, alpha, beta)?;
+        T::qz(&mut p, alpha, beta, par, stack)?;
     }
     Ok(p)
 }
@@ -910,3 +1000,5 @@ mod reorder_tests {
 
 #[cfg(test)]
 mod adoption_tests;
+
+mod construction;

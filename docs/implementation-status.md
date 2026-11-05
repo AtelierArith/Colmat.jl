@@ -3285,3 +3285,35 @@ Final validation on the selected source: 556,244 assertions / 117 files /
 16 workers (9m06.0s), 125 native tests and 97 executable README blocks pass.
 Runtime/test file hashes and the clean dependency revision are unchanged
 through the gates. Formatting and the 76-row/frozen-inventory checks pass.
+
+## Generalized Hessenberg and QZ construction resources
+
+Matrix-pair `hessenberg`/`schur`, their staged bang forms, and saved generalized
+Hessenberg `schur`/`schur!` accept caller scratch and a scoped native team.
+Requirements, FaerScratch construction and reserve cover the same operation,
+promoted scalar and actual team shape. QR factor coefficients and Q formation
+use low-level routines; the coefficient phase, projection and Hessenberg/QZ
+phases reuse one queried stack. Homogeneous-value temporaries are initialized
+stack arrays. The real-QZ correction for #260 keeps its four index arrays and
+now receives the actual token shape, including generalized EVD queries.
+
+The new native execution path uses checked owner references for all four
+optional saved factors (no new raw-owner exception). Original native owner,
+view and common structured-wrapper metadata is checked before promotion;
+capacity/alignment and closed resources are rejected before conversion or
+output setup. Owning matrices and Julia outputs/promotion/staging allocate
+separately. The selected faer QR's internal deep Householder buffer can still
+allocate; its external control awaits #267. No whole-API allocation/scaling
+claim follows from the caller-thread zero-allocation test of the warmed QZ
+step with precreated pair owners (four scalars, Seq/Team(2); workers/setup are
+outside that counter).
+
+Public tests cover construction/reuse/bang, four scalars, empty/singleton and
+two-block-plus-tail shapes, views/mixed sources, capacity/alignment/reserve,
+Tasks/lifetime/close, native metadata before conversion, and failed writeback.
+A singular-pencil fixture initially assumed an invariant finite spectrum;
+the unchanged parent produces the same valid Schur blocks. Its checks now
+verify returned-block homogeneous consistency plus reconstruction/unitarity,
+and a separate regular pencil checks finite and infinite eigenvalues. No
+numerical tolerance was loosened and no upstream defect was inferred.
+The 76-row inventory and the other kernel/tuning/in-place work remain open.

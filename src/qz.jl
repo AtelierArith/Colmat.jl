@@ -1,9 +1,11 @@
 """
-    hessenberg(A::FaerMatrix, B::FaerMatrix) -> FaerGeneralizedHessenberg
+    hessenberg(A::FaerMatrix, B::FaerMatrix; scratch=nothing, team=nothing) -> FaerGeneralizedHessenberg
 
 Generalized Hessenberg reduction of a square matrix pair. H is upper Hessenberg,
 T is upper triangular, and explicit native orthogonal/unitary Q and Z satisfy
 `A ≈ Q*H*Z'` and `B ≈ Q*T*Z'`. Inputs are copied. `schur(F)` reuses this reduction.
+Construction and reuse accept caller `scratch`/`team` with requirements and reserve.
+Owning outputs, staging and scalar conversion allocate separately.
 """
 struct FaerGeneralizedHessenberg{Ty,M<:FaerMatrix{Ty}} <: LinearAlgebra.Factorization{Ty}
     H::M
@@ -84,91 +86,120 @@ function Base.deepcopy_internal(f::_NativeQZ, d::IdDict)
 end
 _qz_matrix(a::FaerMatrix) = a
 _qz_matrix(a::FaerMatrixView) = copy(a)
-function _native_qz(
+function _qz_native_result(
     a::FaerMatrix{T},
-    b::FaerMatrix{T};
-    only_hessenberg = false,
-    initial = nothing,
+    b::FaerMatrix{T},
+    initial,
+    only_hessenberg,
+    work,
+    team,
+    n,
 ) where {T}
-    lock(_matrix_lock) do
-        n=LinearAlgebra.checksquare(a)
-        size(b)==(n, n) ||
-            throw(DimensionMismatch("QZ inputs must have matching square shapes"))
-        t, q, z=(_zeros(T, (n, n)) for _ = 1:3)
-        alpha=Vector{Complex{_realtype(T)}}(undef, only_hessenberg ? 0 : n)
-        beta=Vector{T}(undef, only_hessenberg ? 0 : n)
-        iq, iz=isnothing(initial) ? (Ptr{UInt8}(C_NULL), Ptr{UInt8}(C_NULL)) :
-               (initial.Q, initial.Z)
-        s=GC.@preserve alpha beta if T===Float64
-            _matrix_result(
-                RustCrate.qz_from,
-                (n, n),
+    t, q, z=(_zeros(T, (n, n)) for _ = 1:3)
+    alpha=Vector{Complex{_realtype(T)}}(undef, only_hessenberg ? 0 : n)
+    beta=Vector{T}(undef, only_hessenberg ? 0 : n)
+    iq, iz=isnothing(initial) ? (a, a) : (initial.Q, initial.Z)
+    stage=only_hessenberg ? 1 : isnothing(initial) ? 0 : 2
+    try
+        s=GC.@preserve alpha beta begin
+            args=(
                 a,
                 b,
+                iq,
+                iz,
                 t,
                 q,
                 z,
+                work,
                 Ptr{UInt8}(pointer(alpha)),
                 Ptr{UInt8}(pointer(beta)),
-                only_hessenberg,
-                iq,
-                iz,
+                Int32(stage),
                 UInt(n),
                 _tag(T),
             )
-        else
-            _typed_result(
-                T,
-                RustCrate.qz_from,
-                (n, n),
-                a,
-                b,
-                t,
-                q,
-                z,
-                Ptr{UInt8}(pointer(alpha)),
-                Ptr{UInt8}(pointer(beta)),
-                only_hessenberg,
-                iq,
-                iz,
-                UInt(n),
-                _tag(T),
-            )
+            call=isnothing(team) ? RustCrate.qz_construction_workspace :
+                 RustCrate.qz_construction_workspace_team
+            argv=isnothing(team) ? args : (args..., team)
+            T===Float64 ? _matrix_result(call, (n, n), argv...) :
+            _typed_result(T, call, (n, n), argv...)
         end
         return only_hessenberg ? FaerGeneralizedHessenberg(s, t, q, z) :
                LinearAlgebra.GeneralizedSchur(s, t, alpha, beta, q, z)
+    catch
+        close(t)
+        close(q)
+        close(z)
+        rethrow()
     end
 end
-function _promoted_qz(a, b; kwargs...)
-    P=promote_type(eltype(a), eltype(b))
-    return _native_qz(_coerce(_qz_matrix(a), P), _coerce(_qz_matrix(b), P); kwargs...)
+function _promoted_qz(
+    a,
+    b;
+    only_hessenberg = false,
+    initial = nothing,
+    scratch = nothing,
+    team = nothing,
+)
+    lock(_matrix_lock) do
+        _qz_with_workspace(a, b, initial, only_hessenberg, scratch, team) do n, P, work
+            _with_qz_inputs(a, b, P) do aa, bb
+                _qz_native_result(aa, bb, initial, only_hessenberg, work, team, n)
+            end
+        end
+    end
 end
+
 """
-    schur(A::FaerMatrix, B::FaerMatrix)
+    schur(A::FaerMatrix, B::FaerMatrix; scratch=nothing, team=nothing)
 
 Native generalized Schur (QZ) factorization of a matching square matrix pair.
 Return `GeneralizedSchur` with native S/T/Q/Z and independent Julia α/β vectors.
 `A ≈ F.Q*F.S*F.Z'`, `B ≈ F.Q*F.T*F.Z'`. Homogeneous α/β are retained, including
 zero β (infinite eigenvalues) and α=β=0 (indeterminate eigenvalues). Mixed native
-scalar types are promoted before the reduction.
+scalar types are promoted before the reduction. `scratch`/`team` also apply to
+`schur(F::FaerGeneralizedHessenberg)` and the corresponding bang methods.
+See `scratch_requirements`; result owners and conversion/staging allocate separately.
 """
-LinearAlgebra.schur(a::FaerMatrix, b::FaerMatrix) = _promoted_qz(a, b)
-LinearAlgebra.schur(a::FaerMatrixView, b::_BorrowMatrix) = _promoted_qz(a, b)
-LinearAlgebra.schur(a::FaerMatrix, b::FaerMatrixView) = _promoted_qz(a, b)
-LinearAlgebra.schur(a::FaerMatrix, b::AbstractMatrix{<:Number}) =
-    LinearAlgebra.schur(a, FaerMatrix{promote_type(eltype(a), eltype(b))}(b))
-LinearAlgebra.schur(a::AbstractMatrix{<:Number}, b::FaerMatrix) =
-    LinearAlgebra.schur(FaerMatrix{promote_type(eltype(a), eltype(b))}(a), b)
-LinearAlgebra.hessenberg(a::FaerMatrix, b::FaerMatrix) =
-    _promoted_qz(a, b; only_hessenberg = true)
-LinearAlgebra.hessenberg(a::FaerMatrixView, b::_BorrowMatrix) =
-    _promoted_qz(a, b; only_hessenberg = true)
-LinearAlgebra.hessenberg(a::FaerMatrix, b::FaerMatrixView) =
-    _promoted_qz(a, b; only_hessenberg = true)
-function LinearAlgebra.schur(f::FaerGeneralizedHessenberg)
+LinearAlgebra.schur(a::_BorrowMatrix, b::_BorrowMatrix; scratch = nothing, team = nothing) =
+    _promoted_qz(a, b; scratch, team)
+LinearAlgebra.schur(
+    a::_BorrowMatrix,
+    b::AbstractMatrix{<:Number};
+    scratch = nothing,
+    team = nothing,
+) = _promoted_qz(a, b; scratch, team)
+LinearAlgebra.schur(
+    a::AbstractMatrix{<:Number},
+    b::_BorrowMatrix;
+    scratch = nothing,
+    team = nothing,
+) = _promoted_qz(a, b; scratch, team)
+LinearAlgebra.hessenberg(
+    a::_BorrowMatrix,
+    b::_BorrowMatrix;
+    scratch = nothing,
+    team = nothing,
+) = _promoted_qz(a, b; only_hessenberg = true, scratch, team)
+LinearAlgebra.hessenberg(
+    a::_BorrowMatrix,
+    b::AbstractMatrix{<:Number};
+    scratch = nothing,
+    team = nothing,
+) = _promoted_qz(a, b; only_hessenberg = true, scratch, team)
+LinearAlgebra.hessenberg(
+    a::AbstractMatrix{<:Number},
+    b::_BorrowMatrix;
+    scratch = nothing,
+    team = nothing,
+) = _promoted_qz(a, b; only_hessenberg = true, scratch, team)
+function LinearAlgebra.schur(
+    f::FaerGeneralizedHessenberg;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         _check_pair_factor(f)
-        return _native_qz(f.H, f.T; initial = f)
+        return _promoted_qz(f.H, f.T; initial = f, scratch, team)
     end
 end
 function _distinct_qz_storage(matrices)
@@ -187,13 +218,18 @@ end
 
 Compute native QZ and overwrite A/B with S/T after successful completion. The
 returned factor shares A/B, preserving their dimensions and existing views.
-Independent work results and scratch are allocated. A/B must be distinct and
+Independent work results are allocated; kernel scratch can be supplied. A/B must be distinct and
 have the same scalar type.
 """
-function LinearAlgebra.schur!(a::FaerMatrix, b::FaerMatrix)
+function LinearAlgebra.schur!(
+    a::FaerMatrix,
+    b::FaerMatrix;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         _distinct_pair_storage(a, b)
-        f=LinearAlgebra.schur(a, b)
+        f=LinearAlgebra.schur(a, b; scratch, team)
         copyto!(a, f.S)
         copyto!(b, f.T)
         return LinearAlgebra.GeneralizedSchur(a, b, f.α, f.β, f.Q, f.Z)
@@ -205,20 +241,29 @@ end
 Compute generalized Hessenberg form, then overwrite A with H and B with T.
 The returned factor shares these matrices; Q/Z are independent native owners.
 """
-function LinearAlgebra.hessenberg!(a::FaerMatrix, b::FaerMatrix)
+function LinearAlgebra.hessenberg!(
+    a::FaerMatrix,
+    b::FaerMatrix;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         _distinct_pair_storage(a, b)
-        f=LinearAlgebra.hessenberg(a, b)
+        f=LinearAlgebra.hessenberg(a, b; scratch, team)
         copyto!(a, f.H)
         copyto!(b, f.T)
         return FaerGeneralizedHessenberg(a, b, f.Q, f.Z)
     end
 end
-function LinearAlgebra.schur!(f::FaerGeneralizedHessenberg)
+function LinearAlgebra.schur!(
+    f::FaerGeneralizedHessenberg;
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         matrices=_pair_matrices(f)
         _distinct_qz_storage(matrices)
-        g=LinearAlgebra.schur(f)
+        g=LinearAlgebra.schur(f; scratch, team)
         for (a, b) in zip(matrices, (g.S, g.T, g.Q, g.Z))
             copyto!(a, b)
         end
@@ -239,8 +284,6 @@ Base.iterate(f::FaerGeneralizedHessenberg, ::Val{:Q}) = (f.Q, Val(:Z))
 Base.iterate(f::FaerGeneralizedHessenberg, ::Val{:Z}) = (f.Z, Val(:done))
 Base.iterate(f::FaerGeneralizedHessenberg, ::Val{:done}) = nothing
 
-# Intersection with the mixed Julia-array/owned-matrix method.
-LinearAlgebra.schur(a::FaerMatrixView{<:Number}, b::FaerMatrix) = _promoted_qz(a, b)
 
 const _QzOrderFunction=Union{typeof(LinearAlgebra.ordschur),typeof(LinearAlgebra.ordschur!)}
 function _ordqz(f::_NativeQZ, select; scratch = nothing)
