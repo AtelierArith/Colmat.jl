@@ -2985,3 +2985,34 @@ rustfmt for changed native modules, diff and frozen-inventory checks passed.
 Julia 1.13.3 / RustCall.jl 0.9.2 and clean t4a-faer 0.29.0 / `19053d8` are
 unchanged; no new upstream defect was confirmed. Staged `qr!` resource keywords
 and separately allocating sparse output assembly remain tracked.
+
+## Retained sparse QR numeric update resources
+
+`qr!(F,A)` accepts optional construction scratch/team and forwards them through
+the existing staged numeric refactorization. Queries and scratch/reserve helpers
+validate the factor handle and use its retained plan with the same selected
+team. Every shape/algorithm is supported, including wide prefix/projection and
+explicit simplicial's sequential kernel. Symbolic controls are preserved.
+The update builds the next numeric revision before replacing handle, dimensions,
+status, plan and source, then releases the former owned plan/snapshot. Failed
+capacity/resource/pattern/value/metadata checks preserve the existing revision.
+Native Rust code and dependency revision are unchanged; this wires the Julia
+update API to the previously validated construction kernels.
+
+The operation remains staged, with snapshots, sparse assembly and persistent
+output allocation separate from kernel scratch. Direct native in-place updates
+and the remaining construction/iterative/kernel resources remain in the full
+76-row scope. No new upstream defect was confirmed.
+
+Final canonical `Pkg.test(;allow_reresolve=false)` passed **433,194 assertions /
+109 files / 16 workers in 8m17.0s**. Focused update checks passed 10,134 new
+assertions plus 434 existing numeric-revision/source-precision checks. All 91
+README blocks passed. JuliaFormatter DefaultStyle, diff and frozen-inventory
+checks passed. The Rust tree is identical to PR #55's 97-test-validated tree;
+no native source or dependency checkout was changed. Julia 1.13.3 / RustCall.jl
+0.9.2 and clean t4a-faer 0.29.0 / `19053d8` remain selected.
+
+Upstream main advanced to `c099d72` through PR #261, changing only PATCHSET.md's
+release wording (0.28.3 to the actually published 0.29.0). Production code and
+the held #258 numerical fixes/author condition are unchanged, so the validated
+dependency is retained.

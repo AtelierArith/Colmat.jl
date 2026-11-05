@@ -1940,6 +1940,33 @@ close(A)
 close(F)
 ```
 
+
+Retained sparse QR factors accept the same construction resources during a
+staged numeric update. Query with `scratch_requirements(qr!,F,A;team)`, construct
+`FaerScratch(qr!,F,A;team)`, or grow it with `reserve!(s,qr!,F,A;team)`. The input
+must have the same stored pattern and scalar type as the retained plan/factor.
+The new numeric revision is installed after successful construction; errors
+preserve the previous factors, plan and source. Symbolic ordering is retained.
+Snapshot and owned-output allocation remain separate; this is a staged update.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = [4.0 0.1 0.2; 0.2 5 0.3]
+A = FaerSparseMatrix(sparse(A0))
+B = FaerSparseMatrix(sparse(2A0); format=:csr)
+F = qr(A; algorithm=:supernodal)
+team = FaerTeam(2)
+s = FaerScratch(qr!,F,B;team)
+@assert qr!(F,B;scratch=s,team) === F
+@assert Matrix(F) ≈ 2A0
+close(s)
+close(team)
+close(A)
+close(B)
+@assert F \ ones(2) ≈ pinv(2A0)*ones(2)
+close(F)
+```
+
 ### Reuse operator application scratch and teams
 
 `mul!(X, op, B[, alpha, beta]; scratch, team)` and

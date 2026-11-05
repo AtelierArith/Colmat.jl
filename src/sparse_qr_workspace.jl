@@ -91,3 +91,41 @@ function _sparse_qr_factor_workspace(h, p, a, scratch, team = nothing)
         isnothing(scratch) && close(s)
     end
 end
+
+"""
+    scratch_requirements(qr!, F::FaerSparseFactorization{T,:qr}, A::FaerSparseMatrix{T}; team=nothing)
+
+Query scratch for a staged numeric QR update using F's retained symbolic plan.
+The query validates current handles and metadata, without updating F or reading
+its source snapshot. Use the same team for query/reserve and `qr!(F,A; scratch,team)`.
+"""
+function scratch_requirements(
+    ::typeof(LinearAlgebra.qr!),
+    f::FaerSparseFactorization{T,:qr},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        return scratch_requirements(LinearAlgebra.factorize, f.plan, a; team)
+    end
+end
+function FaerScratch(
+    fun::typeof(LinearAlgebra.qr!),
+    f::FaerSparseFactorization{T,:qr},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    req=scratch_requirements(fun, f, a; team)
+    return FaerScratch(req.bytes; alignment = req.alignment)
+end
+function reserve!(
+    s::FaerScratch,
+    fun::typeof(LinearAlgebra.qr!),
+    f::FaerSparseFactorization{T,:qr},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    req=scratch_requirements(fun, f, a; team)
+    return reserve!(s, req.bytes; alignment = req.alignment)
+end
