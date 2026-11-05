@@ -3473,7 +3473,7 @@ advances the reductions row without completing the full inventory or its
 remaining options.
 
 
-## Tridiagonal EVD resources (candidate)
+## Tridiagonal EVD resources (PR #69)
 
 The dedicated band EVD now queries and consumes caller-owned scratch for the
 scaled n-by-2 band, temporary native eigenvalues and the faer kernel. Its actual
@@ -3507,4 +3507,10 @@ All 139 native tests pass. Four new tests check insufficient scratch output
 preservation, invalid pointers/overlap and warmed n=6 Seq calling-thread heap
 counts of zero. Setup, Julia staging, worker heaps and larger upstream kernel
 allocation gaps are outside that observation; no whole-API allocation or
-performance/scaling claim is made. Full canonical/README gates remain pending.
+performance/scaling claim is made.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **573,739 assertions / 123 files / 16 workers in 9m24.3s**. All **103
+executable README blocks** pass, and all 266 frozen validation input hashes,
+the frozen inventory and all 76 mapping rows are preserved. Tested runtime is
+`bc20ec4`; subsequent result-record changes are documentation only.
