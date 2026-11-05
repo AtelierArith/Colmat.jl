@@ -3,9 +3,11 @@ use crate::typed::{finite, MatrixData, TypedMatrix};
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::linalg::{evd, householder};
+use faer::mat::{AsMatMut, AsMatRef};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{c32, c64, Col, Conj, Mat, MatRef, Par};
+use faer::{c32, c64, Conj, Mat, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
+mod construction;
 
 // Power-of-two scaling follows faer's general EVD driver. Keep the
 // reduction/QR kernels in their safe range without changing the similarity Q.
@@ -57,6 +59,18 @@ pub(crate) fn restore<T: ComplexField>(h: &mut Mat<T>, factor: Option<T::Real>) 
 }
 
 fn hessenberg<T: ComplexField>(a: MatRef<'_, T>) -> Result<(Mat<T>, Mat<T>), String> {
+    let mut mem = MemBuffer::try_new(construction::hessenberg_requirement::<T>(
+        a.nrows(),
+        ParShape::Seq,
+    ))
+    .map_err(|e| format!("{e:?}"))?;
+    hessenberg_in(a, Par::Seq, MemStack::new(&mut mem))
+}
+fn hessenberg_in<T: ComplexField>(
+    a: MatRef<'_, T>,
+    mut par: Par,
+    stack: &mut MemStack,
+) -> Result<(Mat<T>, Mat<T>), String> {
     if a.nrows() != a.ncols() {
         return Err("Hessenberg/Schur input must be square".into());
     }
@@ -69,35 +83,21 @@ fn hessenberg<T: ComplexField>(a: MatRef<'_, T>) -> Result<(Mat<T>, Mat<T>), Str
     }
     let scaling = scale(&mut h);
     let bs = faer::linalg::qr::no_pivoting::factor::recommended_block_size::<T>(n - 1, n - 1);
-    let mut hh = Mat::zeros(bs, n - 1);
-    let req = StackReq::any_of(&[
-        evd::hessenberg::hessenberg_in_place_scratch::<T>(
-            n,
-            bs,
-            Par::Seq.shape(),
-            Default::default(),
-        ),
-        householder::apply_block_householder_sequence_on_the_right_in_place_scratch::<T>(
-            n - 1,
-            bs,
-            n - 1,
-        ),
-    ]);
-    let mut mem = MemBuffer::new(req);
+    let (mut hh, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(bs, n - 1, stack);
     evd::hessenberg::hessenberg_in_place(
         h.as_mut(),
-        hh.as_mut(),
-        Par::Seq,
-        MemStack::new(&mut mem),
+        hh.as_mat_mut(),
+        par.reborrow(),
+        stack,
         Default::default(),
     );
     householder::apply_block_householder_sequence_on_the_right_in_place_with_conj(
         h.as_ref().submatrix(1, 0, n - 1, n - 1),
-        hh.as_ref(),
+        hh.as_mat_ref(),
         Conj::No,
         z.as_mut().submatrix_mut(1, 1, n - 1, n - 1),
-        Par::Seq,
-        MemStack::new(&mut mem),
+        par.reborrow(),
+        stack,
     );
     for j in 0..n {
         for i in j + 2..n {
@@ -109,7 +109,19 @@ fn hessenberg<T: ComplexField>(a: MatRef<'_, T>) -> Result<(Mat<T>, Mat<T>), Str
     Ok((h, z))
 }
 trait SchurScalar: ComplexField + Sized {
-    fn step(h: &mut Mat<Self>, z: &mut Mat<Self>) -> Result<(), String>;
+    type Value;
+    fn step_scratch(n: usize, par: ParShape) -> StackReq;
+    fn step_in(
+        h: &mut Mat<Self>,
+        z: &mut Mat<Self>,
+        par: Par,
+        stack: &mut MemStack,
+    ) -> Result<(), String>;
+    fn step(h: &mut Mat<Self>, z: &mut Mat<Self>) -> Result<(), String> {
+        let mut mem = MemBuffer::try_new(Self::step_scratch(h.nrows(), ParShape::Seq))
+            .map_err(|e| format!("{e:?}"))?;
+        Self::step_in(h, z, Par::Seq, MemStack::new(&mut mem))
+    }
     fn move_block(
         h: &mut Mat<Self>,
         z: &mut Mat<Self>,
@@ -125,24 +137,40 @@ trait SchurScalar: ComplexField + Sized {
 macro_rules! real_scalar {
     ($r:ty,$c:ty,$variant:ident) => {
         impl SchurScalar for $r {
-            fn step(h: &mut Mat<Self>, z: &mut Mat<Self>) -> Result<(), String> {
+            type Value = $c;
+            fn step_scratch(n: usize, par: ParShape) -> StackReq {
+                if n == 0 {
+                    return StackReq::EMPTY;
+                }
+                StackReq::new::<Self>(n)
+                    .array(2)
+                    .and(evd::hessenberg_schur_scratch::<Self>(
+                        n,
+                        true,
+                        par,
+                        Default::default(),
+                    ))
+            }
+            fn step_in(
+                h: &mut Mat<Self>,
+                z: &mut Mat<Self>,
+                par: Par,
+                stack: &mut MemStack,
+            ) -> Result<(), String> {
                 let scaling = scale(h);
                 let n = h.nrows();
-                let mut wr = Col::zeros(n);
-                let mut wi = Col::zeros(n);
-                let mut mem = MemBuffer::new(evd::hessenberg_schur_scratch::<Self>(
-                    n,
-                    true,
-                    Par::Seq.shape(),
-                    Default::default(),
-                ));
+                if n == 0 {
+                    return Ok(());
+                }
+                let (mut wr, stack) = stack.make_with::<Self>(n, |_| Self::NAN);
+                let (mut wi, stack) = stack.make_with::<Self>(n, |_| Self::NAN);
                 evd::hessenberg_schur_real(
                     h.as_mut(),
                     Some(z.as_mut()),
-                    wr.as_mut(),
-                    wi.as_mut(),
-                    Par::Seq,
-                    MemStack::new(&mut mem),
+                    faer::ColMut::from_slice_mut(&mut wr),
+                    faer::ColMut::from_slice_mut(&mut wi),
+                    par,
+                    stack,
                     Default::default(),
                 )
                 .map_err(|e| format!("{e:?}"))?;
@@ -260,22 +288,37 @@ macro_rules! real_scalar {
 macro_rules! complex_scalar {
     ($c:ty,$variant:ident) => {
         impl SchurScalar for $c {
-            fn step(h: &mut Mat<Self>, z: &mut Mat<Self>) -> Result<(), String> {
-                let scaling = scale(h);
-                let n = h.nrows();
-                let mut w = Col::zeros(n);
-                let mut mem = MemBuffer::new(evd::hessenberg_schur_scratch::<Self>(
+            type Value = $c;
+            fn step_scratch(n: usize, par: ParShape) -> StackReq {
+                if n == 0 {
+                    return StackReq::EMPTY;
+                }
+                StackReq::new::<Self>(n).and(evd::hessenberg_schur_scratch::<Self>(
                     n,
                     true,
-                    Par::Seq.shape(),
+                    par,
                     Default::default(),
-                ));
+                ))
+            }
+            fn step_in(
+                h: &mut Mat<Self>,
+                z: &mut Mat<Self>,
+                par: Par,
+                stack: &mut MemStack,
+            ) -> Result<(), String> {
+                let scaling = scale(h);
+                let n = h.nrows();
+                if n == 0 {
+                    return Ok(());
+                }
+                let (mut w, stack) =
+                    stack.make_with::<Self>(n, |_| Self::new(f64::NAN as _, f64::NAN as _));
                 evd::hessenberg_schur_cplx(
                     h.as_mut(),
                     Some(z.as_mut()),
-                    w.as_mut(),
-                    Par::Seq,
-                    MemStack::new(&mut mem),
+                    faer::ColMut::from_slice_mut(&mut w),
+                    par,
+                    stack,
                     Default::default(),
                 )
                 .map_err(|e| format!("{e:?}"))?;
@@ -598,6 +641,16 @@ impl TypedMatrix {
 }
 
 fn reduced<T: SchurScalar>(h: MatRef<'_, T>, z: MatRef<'_, T>) -> Result<(Mat<T>, Mat<T>), String> {
+    let mut mem = MemBuffer::try_new(T::step_scratch(h.nrows(), ParShape::Seq))
+        .map_err(|e| format!("{e:?}"))?;
+    reduced_in(h, z, Par::Seq, MemStack::new(&mut mem))
+}
+fn reduced_in<T: SchurScalar>(
+    h: MatRef<'_, T>,
+    z: MatRef<'_, T>,
+    par: Par,
+    stack: &mut MemStack,
+) -> Result<(Mat<T>, Mat<T>), String> {
     if h.nrows() != h.ncols() || h.shape() != z.shape() {
         return Err("H and Q must have matching square dimensions".into());
     }
@@ -612,7 +665,7 @@ fn reduced<T: SchurScalar>(h: MatRef<'_, T>, z: MatRef<'_, T>) -> Result<(Mat<T>
     }
     let mut h = h.to_owned();
     let mut z = z.to_owned();
-    T::step(&mut h, &mut z)?;
+    T::step_in(&mut h, &mut z, par, stack)?;
     Ok((h, z))
 }
 #[julia]

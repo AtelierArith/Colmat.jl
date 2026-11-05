@@ -1,10 +1,12 @@
 """
-    hessenberg(A::FaerMatrix) -> FaerHessenberg
+    hessenberg(A::FaerMatrix; scratch=nothing, team=nothing) -> FaerHessenberg
 
 A native Hessenberg factorization with explicit Rust-owned `H` and orthogonal
 or unitary `Q`, satisfying `A ≈ Q*H*Q'`. Inputs are copied. Unlike Julia's compact
 Householder storage, `F.Q` is an explicit matrix and `F.H` contains no reflector
-workspace. Closing the factor closes its two owned matrices.
+workspace. Closing the factor closes its two owned matrices. Optional `scratch`
+and `team` control declared kernel workspace and execution; owned outputs and
+view copies allocate separately.
 """
 struct FaerHessenberg{T,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
     H::M
@@ -36,98 +38,50 @@ FaerMatrix(f::FaerHessenberg) = lock(() -> f.Q*f.H*f.Q', _matrix_lock)
 Base.Matrix(f::FaerHessenberg) = Matrix(FaerMatrix(f))
 Base.Array(f::FaerHessenberg) = Matrix(f)
 
-function _native_schur(a::FaerMatrix{T}, hessenberg_only = false) where {T}
-    lock(_matrix_lock) do
-        n=LinearAlgebra.checksquare(a)
-        z=_zeros(T, (n, n))
-        values=Vector{Complex{_realtype(T)}}(undef, hessenberg_only ? 0 : n)
-        t=GC.@preserve values if T===Float64
-            _matrix_result(
-                RustCrate.schur_from,
-                (n, n),
-                a,
-                z,
-                Ptr{UInt8}(pointer(values)),
-                hessenberg_only,
-            )
-        else
-            _typed_result(
-                T,
-                RustCrate.schur_from,
-                (n, n),
-                a,
-                z,
-                Ptr{UInt8}(pointer(values)),
-                hessenberg_only,
-            )
-        end
-        return hessenberg_only ? FaerHessenberg(t, z) : LinearAlgebra.Schur(t, z, values)
-    end
-end
 """
-    schur(A::FaerMatrix)
+    schur(A::FaerMatrix; scratch=nothing, team=nothing)
 
 Compute a real quasi-triangular or complex triangular Schur factorization in
 faer, returning `LinearAlgebra.Schur` with Rust-owned `T` and `Z`. The input is
 preserved and `A ≈ F.Z*F.T*F.Z'`. Eigenvalues are independent Julia vectors.
+Optional `scratch` and `team` also apply to conversion from `FaerHessenberg`;
+query with `scratch_requirements`, construct `FaerScratch`, or call `reserve!`.
 """
-LinearAlgebra.schur(a::FaerMatrix) = _native_schur(a)
-LinearAlgebra.schur(a::FaerMatrixView) = LinearAlgebra.schur(copy(a))
-LinearAlgebra.hessenberg(a::FaerMatrix) = _native_schur(a, true)
-LinearAlgebra.hessenberg(a::FaerMatrixView) = LinearAlgebra.hessenberg(copy(a))
-function LinearAlgebra.schur(f::FaerHessenberg{T}) where {T}
-    lock(_matrix_lock) do
-        n=LinearAlgebra.checksquare(f.H)
-        size(f.Q)==(n, n) || throw(DimensionMismatch("H and Q dimensions must match"))
-        z=_zeros(T, (n, n))
-        values=Vector{Complex{_realtype(T)}}(undef, n)
-        t=GC.@preserve values if T===Float64
-            _matrix_result(
-                RustCrate.schur_reduced_from,
-                (n, n),
-                f.H,
-                f.Q,
-                z,
-                Ptr{UInt8}(pointer(values)),
-            )
-        else
-            _typed_result(
-                T,
-                RustCrate.schur_reduced_from,
-                (n, n),
-                f.H,
-                f.Q,
-                z,
-                Ptr{UInt8}(pointer(values)),
-            )
-        end
-        return LinearAlgebra.Schur(t, z, values)
-    end
-end
+LinearAlgebra.schur(a::FaerMatrix; scratch = nothing, team = nothing) =
+    _native_schur(a; scratch, team)
+LinearAlgebra.schur(a::FaerMatrixView; scratch = nothing, team = nothing) =
+    _native_schur(a; scratch, team)
+LinearAlgebra.hessenberg(a::FaerMatrix; scratch = nothing, team = nothing) =
+    _native_schur(a, true; scratch, team)
+LinearAlgebra.hessenberg(a::FaerMatrixView; scratch = nothing, team = nothing) =
+    _native_schur(a, true; scratch, team)
+LinearAlgebra.schur(f::FaerHessenberg; scratch = nothing, team = nothing) =
+    _saved_schur(f; scratch, team)
 """
-    hessenberg!(A::FaerMatrix)
+    hessenberg!(A::FaerMatrix; scratch=nothing, team=nothing)
 
 Compute a native Hessenberg reduction, then overwrite A with explicit H.
 Return `FaerHessenberg(A,Q)`. The result shares H storage with A; existing views
-remain valid. Independent native work results and scratch are allocated.
+remain valid. Independent native work results allocate separately from declared
+caller scratch.
 """
-function LinearAlgebra.hessenberg!(a::FaerMatrix)
+function LinearAlgebra.hessenberg!(a::FaerMatrix; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
-        f=LinearAlgebra.hessenberg(a)
+        f=LinearAlgebra.hessenberg(a; scratch, team)
         copyto!(a, f.H)
         return FaerHessenberg(a, f.Q)
     end
 end
 """
-    schur!(H::FaerHessenberg)
+    schur!(H::FaerHessenberg; scratch=nothing, team=nothing)
 
 Reuse the Hessenberg reduction and update both H.H and H.Q after successful
 Schur QR iteration. The returned Schur factor shares these owned matrices.
 """
-function LinearAlgebra.schur!(f::FaerHessenberg)
+function LinearAlgebra.schur!(f::FaerHessenberg; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
         f.H===f.Q && throw(ArgumentError("H and Q must have distinct storage"))
-        result=LinearAlgebra.schur(f)
+        result=LinearAlgebra.schur(f; scratch, team)
         copyto!(f.H, result.T)
         copyto!(f.Q, result.Z)
         return LinearAlgebra.Schur(f.H, f.Q, result.values)
@@ -246,15 +200,15 @@ function LinearAlgebra.ordschur!(f::_NativeSchur, select::Union{Vector{Bool},Bit
     return f
 end
 """
-    schur!(A::FaerMatrix)
+    schur!(A::FaerMatrix; scratch=nothing, team=nothing)
 
 Compute a native Schur factorization and overwrite A with its Schur form.
 The result's T is A itself. Independent work results are allocated, and A is
 updated after convergence; its shape and existing views are preserved.
 """
-function LinearAlgebra.schur!(a::FaerMatrix)
+function LinearAlgebra.schur!(a::FaerMatrix; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
-        f=LinearAlgebra.schur(a)
+        f=LinearAlgebra.schur(a; scratch, team)
         copyto!(a, f.T)
         return LinearAlgebra.Schur(a, f.Z, f.values)
     end

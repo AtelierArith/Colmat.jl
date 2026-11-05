@@ -3327,3 +3327,23 @@ passes **559,647 assertions / 118 files / 16 workers in 9m24.1s**, with
 blocks** passing. JuliaFormatter, native rustfmt, diff and frozen-inventory
 checks pass. All 247 runtime/test file hashes and clean faer `2d4ea4e` remain
 unchanged through the final gates. The 76 mapping rows are retained.
+
+## Single-matrix Hessenberg/Schur construction resources
+
+Single-matrix `hessenberg`/`schur`, staged bang forms and Schur conversion from
+saved native Hessenberg factors accept caller scratch and an actual scoped team.
+The common query/execution path retains current-native metadata checks before
+view materialization or output setup. Capacity/alignment and closed resources
+are checked before native computation; saved H/Q use checked owner references.
+Hessenberg Householder coefficients and real/complex Schur temporary eigenvalue
+columns use stack storage. Sequential convenience calls use the same kernels
+with automatically owned workspace. Source scaling, structure validation,
+independent output ownership and staged bang writeback remain intact.
+
+Owned output matrices, view copies, Julia eigenvalue arrays and staged results
+allocate separately. The selected faer may allocate the deep Householder partial
+buffer; its external control awaits unmerged #267. The warmed Schur-step
+calling-thread allocation test excludes setup, owning output creation and worker
+heaps; it does not imply a whole-API allocation or scaling bound. Tuning, Schur
+reordering/eigenvector kernel resources, direct in-place and all other incomplete
+76-row inventory entries remain in scope.
