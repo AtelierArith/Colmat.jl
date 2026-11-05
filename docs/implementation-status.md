@@ -3432,3 +3432,11 @@ Seq/Team(2); setup/scratch acquisition/worker heaps are excluded. No whole-call
 allocation or speedup/scaling claim follows. Tuning, other workspace/team kernels,
 native parallelization of sequential Schur reorder, direct in-place and all
 incomplete entries in the 76-row inventory remain in scope.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **572,512 assertions / 121 files / 16 workers in 9m26.0s**; **8,553 focused
+assertions** (6,943 new), **133 native tests**, **101 executable README blocks**
+and **36 standalone release probes** pass. JuliaFormatter, native/MWE rustfmt,
+diff checks, frozen inventory and all 76 mapping rows pass. All 261 frozen
+validation input hashes and clean selected faer `2d4ea4e` remained unchanged
+through the final gates. Internal scaling workspace #270 remains unresolved.
