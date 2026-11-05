@@ -2895,3 +2895,33 @@ A[2, 2] = 0f0
 @assert !signbit(maximum(A))
 close(A)
 ```
+
+### Reusing tridiagonal eigensolver workspace
+
+Dedicated tridiagonal eigenvectors and eigenvalues accept `scratch` and `team`.
+The query includes the scaled band and native temporary eigenvalues. Coefficient
+conversion, result storage and sorting allocate separately. Saved tridiagonal
+factors and native `SymTridiagonal` inputs forward these resources; saved-factor
+Q back-transformation also uses the supplied team. Tridiagonal reduction itself
+still uses internal workspace.
+
+```julia
+using Colmat, LinearAlgebra
+d = ComplexF64[1, 2, 3]
+e = ComplexF64[0.25 + 0.125im, 0.25 - 0.125im]
+team = FaerTeam(2)
+work = FaerScratch(tridiagonal_eigen, d, e; team, recursion_threshold=2)
+try
+    F = tridiagonal_eigen(d, e; scratch=work, team, recursion_threshold=2)
+    X = Matrix(F.vectors)
+    A = Matrix(Tridiagonal(e, d, conj.(e)))
+    @assert A*X ≈ X*Diagonal(F.values)
+    close(F.vectors)
+    reserve!(work, tridiagonal_eigvals, d, e; team)
+    values = tridiagonal_eigvals(d, e; scratch=work, team)
+    @assert values ≈ eigvals(Hermitian(A))
+finally
+    close(work)
+    close(team)
+end
+```

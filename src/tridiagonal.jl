@@ -100,49 +100,73 @@ function _tridiagonal_evd(
     vectors;
     recursion_threshold::Integer = 128,
     sortby = nothing,
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
+        _iterative_resource_check(scratch, team)
         _tridiagonal_open(d)
         _tridiagonal_open(e)
+        _dense_rhs_validate(d)
+        _dense_rhs_validate(e)
         n=length(d)
         length(e)==max(0, n-1) ||
             throw(DimensionMismatch("subdiagonal length must be max(0,length(diag)-1)"))
         T=_reflector_type(promote_type(eltype(d), eltype(e)))
         R=_realtype(T)
-        diag=Vector{T}(d)
-        off=Vector{T}(e)
-        all(isfinite, diag)&&all(isfinite, off) ||
-            throw(ArgumentError("tridiagonal coefficients must be finite"))
-        all(isreal, diag) ||
-            throw(ArgumentError("Hermitian tridiagonal diagonal must be real"))
         threshold=Int(recursion_threshold)
         threshold>=2 || throw(ArgumentError("recursion_threshold must be at least two"))
-        values=zeros(R, n)
-        q=zeros(T, vectors ? n : 0, vectors ? n : 0)
-        GC.@preserve diag off values q _native_call(
-            RustCrate.tridiagonal_eigen_data,
-            Ptr{UInt8}(pointer(diag)),
-            Ptr{UInt8}(pointer(off)),
-            UInt(n),
-            Ptr{UInt8}(pointer(values)),
-            Ptr{UInt8}(pointer(q)),
-            _tag(T),
-            vectors,
-            UInt(threshold),
-        )
-        all(isfinite, values)&&all(isfinite, q) || throw(
-            ArgumentError("tridiagonal eigendecomposition overflowed the working type"),
-        )
-        if !isnothing(sortby)
-            order=sortperm(values; by = sortby)
-            values=values[order]
-            vectors && (q=q[:, order])
+        req=_tridiagonal_evd_requirement(n, T, vectors, threshold, team)
+        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
+             scratch
+        try
+            cap=scratch_capacity(work)
+            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+                ArgumentError(
+                    "tridiagonal EVD scratch capacity/alignment is insufficient; call reserve!",
+                ),
+            )
+            diag=Vector{T}(d)
+            off=Vector{T}(e)
+            all(isfinite, diag)&&all(isfinite, off) ||
+                throw(ArgumentError("tridiagonal coefficients must be finite"))
+            all(isreal, diag) ||
+                throw(ArgumentError("Hermitian tridiagonal diagonal must be real"))
+            values=zeros(R, n)
+            q=zeros(T, vectors ? n : 0, vectors ? n : 0)
+            GC.@preserve diag off values q begin
+                args=(
+                    work,
+                    Ptr{UInt8}(pointer(diag)),
+                    Ptr{UInt8}(pointer(off)),
+                    UInt(n),
+                    Ptr{UInt8}(pointer(values)),
+                    Ptr{UInt8}(pointer(q)),
+                    _tag(T),
+                    vectors,
+                    UInt(threshold),
+                )
+                isnothing(team) ?
+                _native_call(RustCrate.tridiagonal_evd_workspace, args...) :
+                _native_call(RustCrate.tridiagonal_evd_workspace_team, args..., team)
+            end
+            all(isfinite, values)&&all(isfinite, q) || throw(
+                ArgumentError("tridiagonal eigendecomposition overflowed the working type"),
+            )
+            if !isnothing(sortby)
+                order=sortperm(values; by = sortby)
+                values=values[order]
+                vectors && (q=q[:, order])
+            end
+            return vectors ? LinearAlgebra.Eigen(values, FaerMatrix(q)) : values
+        finally
+            isnothing(scratch) && close(work)
         end
-        return vectors ? LinearAlgebra.Eigen(values, FaerMatrix(q)) : values
     end
 end
+
 """
-    tridiagonal_eigen(d, e; recursion_threshold=128, sortby=nothing)
+    tridiagonal_eigen(d, e; recursion_threshold=128, sortby=nothing, scratch=nothing, team=nothing)
 
 Call faer's dedicated Hermitian tridiagonal eigensolver. d is real-valued;
 e is the subdiagonal and the superdiagonal is conj(e). All four native scalar
@@ -150,6 +174,12 @@ types and promotion are supported. Returns `Eigen` with real ascending values
 and native vectors; sortby overrides ordering. Inputs are unchanged. The native
 QR or divide-and-conquer path is selected by recursion_threshold. Coefficients
 use O(n) storage; eigenvectors require O(n²). Extreme inputs are scaled safely.
+Use `scratch_requirements`, `FaerScratch(tridiagonal_eigen,d,e)` and `reserve!`
+for reusable kernel workspace. The requirement includes the scaled band and
+native temporary eigenvalues. A supplied team lends its actual execution token;
+coefficient conversion, output and sorting arrays allocate separately. Saved
+tridiagonal factors and native `SymTridiagonal` eigen/eigvals forward these
+resources; a saved factor's separate Q back-transform also uses the team.
 """
 tridiagonal_eigen(d::AbstractVector{<:Number}, e::AbstractVector{<:Number}; kwargs...) =
     _tridiagonal_evd(d, e, true; kwargs...)
@@ -158,14 +188,18 @@ tridiagonal_eigvals(d::AbstractVector{<:Number}, e::AbstractVector{<:Number}; kw
     _tridiagonal_evd(d, e, false; kwargs...)
 function LinearAlgebra.eigen(f::FaerTridiagonalization; kwargs...)
     lock(_matrix_lock) do
-        _handle(f.Q)
+        _dense_rhs_validate(f.Q)
+        size(f.Q)==size(f.H) || throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
         E=tridiagonal_eigen(f.H.dv, f.H.ev; kwargs...)
-        return LinearAlgebra.Eigen(E.values, f.Q*E.vectors)
+        team=get(kwargs, :team, nothing)
+        vectors=isnothing(team) ? f.Q*E.vectors : team_mul(team, f.Q, E.vectors)
+        return LinearAlgebra.Eigen(E.values, vectors)
     end
 end
 function LinearAlgebra.eigvals(f::FaerTridiagonalization; kwargs...)
     lock(_matrix_lock) do
-        _handle(f.Q)
+        _dense_rhs_validate(f.Q)
+        size(f.Q)==size(f.H) || throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
         return tridiagonal_eigvals(f.H.dv, f.H.ev; kwargs...)
     end
 end
