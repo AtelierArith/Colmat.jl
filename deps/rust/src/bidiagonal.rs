@@ -89,9 +89,9 @@ unsafe fn reduce<T: ComplexField>(
             zero()
         };
         if let Some(ref f) = scaling {
-            let f = from_real::<T>(f);
-            d = d / &f;
-            e = e / &f;
+            let inv_scale = recip(f);
+            d = mul_real(&d, &inv_scale);
+            e = mul_real(&e, &inv_scale);
         }
         dout.cast::<T>()
             .add(i)
