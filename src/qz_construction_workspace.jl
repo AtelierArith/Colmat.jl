@@ -5,6 +5,20 @@ const _QzConstructionFunction=Union{
     typeof(LinearAlgebra.hessenberg!),
 }
 _qz_validate_operand(a) = _dense_rhs_validate(a)
+function _qz_validate_operand(a::FaerMatrix)
+    _native_call(
+        RustCrate.qz_input_validate,
+        a,
+        UInt(size(a, 1)),
+        UInt(size(a, 2)),
+        _tag(eltype(a)),
+    )
+end
+function _qz_validate_operand(a::FaerView)
+    owner=_view_owner(a)
+    eltype(a)===eltype(owner) || throw(ArgumentError("QZ view scalar metadata mismatch"))
+    return _qz_validate_operand(owner)
+end
 function _qz_validate_operand(
     a::Union{
         LinearAlgebra.Hermitian,
@@ -64,7 +78,7 @@ function _qz_plan(a, b, initial, team)
     if !isnothing(initial)
         _check_pair_factor(initial)
         for m in _pair_matrices(initial)
-            _dense_rhs_validate(m)
+            _qz_validate_operand(m)
         end
     end
     P=promote_type(eltype(a), eltype(b))

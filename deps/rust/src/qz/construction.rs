@@ -134,6 +134,40 @@ fn run<T: QzScalar>(
         )
     }
 }
+fn validate_metadata(
+    actual: (usize, usize, i32),
+    expected: (usize, usize, i32),
+) -> Result<(), String> {
+    if actual.2 != expected.2 {
+        return Err("QZ requested scalar type does not match its native owner".into());
+    }
+    if (actual.0, actual.1) != (expected.0, expected.1) {
+        return Err("QZ current native dimensions do not match requested output".into());
+    }
+    Ok(())
+}
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    pub fn qz_input_validate(&self, m: usize, n: usize, tag: i32) -> Result<(), String> {
+        guarded(|| validate_metadata((self.matrix.nrows(), self.matrix.ncols(), 1), (m, n, tag)))
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn qz_input_validate(&self, m: usize, n: usize, tag: i32) -> Result<(), String> {
+        guarded(|| {
+            let actual = match self.data()? {
+                MatrixData::F32(a) => (a.nrows(), a.ncols(), 0),
+                MatrixData::F64(a) => (a.nrows(), a.ncols(), 1),
+                MatrixData::C32(a) => (a.nrows(), a.ncols(), 2),
+                MatrixData::C64(a) => (a.nrows(), a.ncols(), 3),
+            };
+            validate_metadata(actual, (m, n, tag))
+        })
+    }
+}
 #[julia]
 impl OwnedMatrix {
     #[julia]
