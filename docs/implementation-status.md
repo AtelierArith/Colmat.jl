@@ -3362,3 +3362,39 @@ README blocks** passing. JuliaFormatter, native rustfmt and diff checks pass.
 All 250 runtime/test file hashes and clean faer `2d4ea4e` remained unchanged
 through the corrected final gates. Frozen inventory and all 76 mapping rows
 are retained.
+
+## Saved single Schur reordering resources
+
+Saved `ordschur`/`ordschur!` accept caller scratch, scoped teams, declared queries,
+FaerScratch construction and reserve. Native selection flags and block-swap
+workspace use the caller stack. The default path uses the same loop and kernels
+with automatically owned workspace. Original current-native T/Z metadata and
+resource capacity/alignment are checked before selection coefficient access or
+output setup. New native boundaries use checked owner references and validate
+selection/value spans, non-overlap and binary flags before use. Whole real
+conjugate-pair selection, independent working factors and staged bang conversion
+preserve caller state on failure; temporary bang results are explicitly closed.
+
+Selected faer `reorder_schur_real/cplx` accept but ignore Par and perform sequential
+work. Requirements therefore do not depend on team width; passing and validating
+a scoped token is not a scaling claim. Owning work factors and Julia selection,
+eigenvalue and conversion arrays allocate separately. The warmed n=6 native
+calling-thread allocation probe measures exactly the two owning outputs for
+four scalars at Seq/Team(2), excluding setup, scratch acquisition and worker heaps.
+No whole-call allocation or performance bound is implied. Saved Schur eigenvector
+kernel resources, tuning, other incomplete workspace/team/direct-in-place items
+and all 76 mapping rows remain in scope.
+
+The first independent Julia eigenspectrum check failed because lexicographic
+sorting by numerically equal real parts reordered complex conjugates after
+roundoff. It now matches eigenvalue multisets with the same numerical tolerances;
+reconstruction and orthogonality bounds are unchanged. No dependency defect was
+inferred from that test expectation.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **565,569 assertions / 120 files / 16 workers in 9m12.3s**; **4,579 focused
+assertions** (2,969 new), **131 native tests** and **100 executable README blocks**
+pass. JuliaFormatter, native rustfmt and diff checks pass. All 254 frozen
+validation inputs (253 runtime/test files and README), the clean selected faer
+`2d4ea4e`, frozen inventory and all 76 mapping rows remain unchanged through
+the final gates.

@@ -2815,3 +2815,33 @@ close(work)
 close(team)
 close(A)
 ```
+
+### Saved Schur reordering resources
+
+`ordschur` and `ordschur!` accept reusable scratch for native selection flags
+and block swaps. Working factors and Julia selection/eigenvalue/conversion
+vectors allocate separately. A supplied team is validated and lends its token;
+the selected faer reorder kernels currently perform sequential work, so no
+parallel speedup or whole-call allocation bound is implied.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([1.0 0.2 0.1; 0 2 0.3; 0 0 3])
+F = schur(A)
+team = FaerTeam(2)
+work = FaerScratch(ordschur, F; team)
+selected = Bool[false, false, true]
+G = ordschur(F, selected; scratch=work, team)
+@assert real(G.values[1]) ≈ 3
+@assert Matrix(G) ≈ Matrix(A)
+H = copy(F)
+reserve!(work, ordschur!, H; team)
+ordschur!(H, selected; scratch=work, team)
+@assert Matrix(H) ≈ Matrix(A)
+close(H)
+close(G)
+close(F)
+close(work)
+close(team)
+close(A)
+```
