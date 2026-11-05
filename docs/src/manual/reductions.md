@@ -195,7 +195,7 @@ S = SymTridiagonal(FaerVector([1.0, 2, 3]), FaerVector([0.2, 0.4]))
 @assert eigvals(S) ≈ tridiagonal_eigvals([1.0, 2, 3], [0.2, 0.4])
 ```
 
-`FaerTridiagonalization` owns explicit native `Q` and a real `SymTridiagonal` H;
+By default `FaerTridiagonalization` owns explicit native `Q` and a real `SymTridiagonal` H;
 complex phases are absorbed into Q. `tridiagonalize!` and `hessenberg!` on native
 self-adjoint wrappers stage the reduction and then store explicit H in the input.
 They preserve the input on failure. Compact Householder storage stays internal.
@@ -453,7 +453,7 @@ end
 
 ## Tridiagonal parallel policy
 
-`tridiagonalize[!]` and native Hermitian/Symmetric `hessenberg[!]` accept
+`tridiagonalize[!]` and native Hermitian/real Symmetric `hessenberg[!]` accept
 `par_threshold=FaerParThreshold()`. Fixed thresholds count `rem*rem÷2` elements
 for the updated triangle. Explicit Q applications keep their own parallel rule;
 `FaerParThreshold(:never)` makes both reduction and Q formation sequential.
@@ -484,3 +484,49 @@ finally
     close(A)
 end
 ```
+
+## Compact tridiagonal reflectors
+
+Use `compact=true` to retain Q as `FaerTridiagonalQ`. Products and in-place
+Householder actions apply saved native reflectors and phases without forming a
+dense Q. `Matrix(F.Q)` explicitly materializes it. `F.Q.basis`, `.factor` and
+`.phases` return independent Julia arrays describing the base representation;
+the factor can contain positive infinite denominators denoting identity.
+For n rows, the Householder product acts on rows 2:n, followed by the diagonal
+phase factor. Transpose/adjoint/conj record orientation and share immutable
+native storage; closing one wrapper leaves another open. Copy and deepcopy
+make independent native owners. Input arrays and native source owners can be
+changed or closed after construction.
+
+```julia
+using Colmat, LinearAlgebra
+A = ComplexF64[4 1+im 0; 1-im 3 0.5im; 0 -0.5im 2]
+team = FaerTeam(2)
+work = FaerScratch(tridiagonalize, A; compact=true, team)
+try
+    F = tridiagonalize(A; compact=true, scratch=work, team)
+    @assert F.Q isa FaerTridiagonalQ
+    X = ones(ComplexF64, 3, 2)
+    reserve!(work, lmul!, F.Q, X; team)
+    lmul!(F.Q, X; scratch=work, team)
+    @assert X ≈ Matrix(F.Q) * ones(ComplexF64, 3, 2)
+    reserve!(work, eigen, F; team)
+    E = eigen(F; scratch=work, team)
+    @assert A * Matrix(E.vectors) ≈ Matrix(E.vectors) * Diagonal(E.values)
+    close(F)
+finally
+    close(work)
+    close(team)
+end
+```
+
+Construction scratch covers only the reduction kernel in compact mode. The
+returned packed matrix, block factors and phases allocate their own storage;
+Julia input conversion and staged bang writeback also allocate separately.
+Use `compact=true` consistently in `scratch_requirements`, `FaerScratch` and
+`reserve!` for construction. Later Q applications have their own scratch/team
+contract. Saved-factor `eigen` reuses one workspace for the band eigensolver
+and implicit Q back-transformation; its query takes the maximum requirement.
+A construction `FaerParThreshold(:never)` governs the reduction and does not
+restrict separately requested Q applications. No speedup or worker utilization
+is claimed by this storage option.

@@ -1,19 +1,25 @@
 """
-    tridiagonalize(A; blocksize=0, scratch=nothing, team=nothing, par_threshold=FaerParThreshold()) -> FaerTridiagonalization
+    tridiagonalize(A; compact=false, blocksize=0, scratch=nothing, team=nothing, par_threshold=FaerParThreshold()) -> FaerTridiagonalization
 
 Reduce a finite Hermitian matrix through faer's native tridiagonalization.
-The result owns explicit native Q and a real `SymTridiagonal` H, satisfying
+The result owns Q and a real `SymTridiagonal` H, satisfying
 `A ≈ Q*H*Q'`. Complex off-diagonal phases are absorbed into Q. Zero blocksize
-selects faer's recommendation; compact reflector storage is currently internal.
+selects faer's recommendation. The default returns explicit native Q;
+`compact=true` returns [`FaerTridiagonalQ`](@ref), retaining native reflectors
+and phases and applying them without forming dense Q.
 Use `scratch_requirements`, `FaerScratch(tridiagonalize,A)` and `reserve!` to
 reuse the canonical work matrix, compact coefficients and reduction/Q kernel
 workspace. A supplied team lends its actual scoped token to both stages.
 Input conversion, Q/H ownership and staged bang writeback allocate separately.
+In compact mode scratch covers only the reduction kernel; returned packed
+reflectors, block factors and phases are owned outside scratch. Use the same
+`compact` option for construction and its workspace query.
 `par_threshold` selects faer's derived/fixed/never reduction policy. Fixed floors
 count elements of the updated triangle; `FaerParThreshold(:never)` also keeps
 explicit Q formation sequential. A supplied team must still be open.
 """
-struct FaerTridiagonalization{T,R,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
+struct FaerTridiagonalization{T,R,M<:Union{FaerMatrix{T},FaerTridiagonalQ{T}}} <:
+       LinearAlgebra.Factorization{T}
     H::LinearAlgebra.SymTridiagonal{R,Vector{R}}
     Q::M
 end
@@ -45,13 +51,14 @@ function tridiagonalize(
     scratch = nothing,
     team = nothing,
     par_threshold = FaerParThreshold(),
+    compact::Bool = false,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
         policy=_par_threshold(par_threshold)
         n, T, bs=_tridiagonalize_plan(a, blocksize)
         R=_realtype(T)
-        req=_tridiagonalize_requirement(n, T, bs, team, policy)
+        req=_tridiagonalize_requirement(n, T, bs, team, policy; compact)
         work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
              scratch
         try
@@ -73,6 +80,29 @@ function tridiagonalize(
                 throw(ArgumentError("tridiagonalization input must be finite"))
             LinearAlgebra.ishermitian(data) ||
                 throw(ArgumentError("tridiagonalization requires Hermitian input"))
+            if compact
+                diag=Vector{R}(undef, n)
+                off=Vector{R}(undef, max(0, n-1))
+                h=GC.@preserve data diag off begin
+                    args=(
+                        work,
+                        Ptr{UInt8}(pointer(data)),
+                        UInt(n),
+                        Ptr{UInt8}(pointer(diag)),
+                        Ptr{UInt8}(pointer(off)),
+                        _tag(T),
+                        UInt(bs),
+                        policy.value,
+                    )
+                    isnothing(team) ?
+                    _native_call(RustCrate.OwnedCompactTridiagonal, args...) :
+                    _native_call(RustCrate.OwnedCompactTridiagonal, args..., team)
+                end
+                return FaerTridiagonalization(
+                    LinearAlgebra.SymTridiagonal(diag, off),
+                    _compact_q(T, h),
+                )
+            end
             q=Matrix{T}(undef, n, n)
             diag=Vector{R}(undef, n)
             off=Vector{R}(undef, max(0, n-1))
@@ -227,6 +257,7 @@ function LinearAlgebra.eigen(f::FaerTridiagonalization; kwargs...)
         _dense_rhs_validate(f.Q)
         size(f.Q)==size(f.H) ||
             throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
+        f.Q isa FaerTridiagonalQ && return _compact_tridiagonal_eigen(f; kwargs...)
         E=tridiagonal_eigen(f.H.dv, f.H.ev; kwargs...)
         team=get(kwargs, :team, nothing)
         vectors=isnothing(team) ? f.Q*E.vectors : team_mul(team, f.Q, E.vectors)

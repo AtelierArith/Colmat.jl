@@ -9,7 +9,9 @@ use faer::traits::{math_utils::*, ComplexField};
 use faer::utils::cost::ParThreshold;
 use faer::{Auto, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
-fn params<T: ComplexField>(threshold: usize) -> faer::Spec<evd::tridiag::TridiagParams, T> {
+pub(super) fn params<T: ComplexField>(
+    threshold: usize,
+) -> faer::Spec<evd::tridiag::TridiagParams, T> {
     evd::tridiag::TridiagParams {
         par_threshold: ParThreshold::from(threshold),
         ..<evd::tridiag::TridiagParams as Auto<T>>::auto()
@@ -19,7 +21,7 @@ fn params<T: ComplexField>(threshold: usize) -> faer::Spec<evd::tridiag::Tridiag
 // A real norm must not be routed through complex division: its squared
 // denominator can underflow. Lifting subnormal norms also keeps the real
 // reciprocal finite, without changing the represented phase.
-fn normalize_phase<T: ComplexField>(value: &T, norm: &T::Real) -> T {
+pub(super) fn normalize_phase<T: ComplexField>(value: &T, norm: &T::Real) -> T {
     let inverse = recip(norm);
     if is_finite(&inverse) {
         mul_real(value, &inverse)
@@ -30,7 +32,7 @@ fn normalize_phase<T: ComplexField>(value: &T, norm: &T::Real) -> T {
 }
 // Scaling by the largest component also preserves subnormal magnitudes;
 // the generic faer complex magnitude can erase them (tensor4all/faer#274).
-fn phase_magnitude<T: ComplexField>(value: &T) -> T::Real {
+pub(super) fn phase_magnitude<T: ComplexField>(value: &T) -> T::Real {
     let re = abs(&real(value));
     let im = abs(&imag(value));
     if !is_finite(&re) || !is_finite(&im) {
@@ -43,7 +45,7 @@ fn phase_magnitude<T: ComplexField>(value: &T) -> T::Real {
     let ratio = div(&small, &large);
     mul(&large, &sqrt(&add(&one::<T::Real>(), &mul(&ratio, &ratio))))
 }
-fn block_size<T: ComplexField>(n: usize, bs: usize) -> Result<usize, String> {
+pub(super) fn block_size<T: ComplexField>(n: usize, bs: usize) -> Result<usize, String> {
     if bs > n.saturating_sub(1).max(1) {
         return Err("invalid tridiagonal blocksize".into());
     }

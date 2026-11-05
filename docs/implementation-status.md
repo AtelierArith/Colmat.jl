@@ -3842,3 +3842,34 @@ reproducer and proposed correction were posted as
 under docs/reproducers/faer-complex-abs. No dependency checkout was patched or
 unaccepted upstream candidate adopted. The full inventory remains in scope;
 compact reflector exposure continues after this prerequisite phase correction.
+
+
+## Owned compact tridiagonal reflectors
+
+`tridiagonalize[!](A; compact=true)` and native Hermitian/real Symmetric
+`hessenberg[!]` now return the existing `FaerTridiagonalization` with an owned
+`FaerTridiagonalQ`. The default explicit-Q path is retained. Native storage owns
+the packed reflectors, block factors and complex phase vector; it retains no
+caller buffer, scratch slice or execution token. Construction does not form Q.
+Base transpose/adjoint/conj wrappers share immutable native storage and close
+independently; copy/deepcopy clone it. Explicit basis/factor/phase properties
+return independent Julia arrays, including identity's infinite denominators.
+
+Existing Householder array products, left/right application and solves, mul!
+with alpha/beta, views, scalar promotion and scratch/team plumbing apply the
+compact representation. Queries check actual native metadata and select the
+promoted scalar's kernel layout without copying the factor. Scalar conversion
+copies only meaningful reflector data: irrelevant packed H entries cannot
+cause a valid Q conversion to overflow. Direct native matrix/vector/row actions
+avoid an additional staging copy when no external workspace/team is requested.
+
+Compact construction scratch covers only the native reduction kernel; packed
+outputs, Julia conversion and staged bang writeback allocate separately. Saved
+factor eigen combines band-EVD and Q-application requirements by maximum and
+reuses that workspace and team while applying Q implicitly. The construction
+parallel policy does not constrain later independently requested Q actions.
+The default explicit native ABI and its scratch requirement remain unchanged.
+No speedup or measured worker-utilization claim is made. Remaining EVD/nested
+parameters, compact bidiagonal/Hessenberg factors and all unfinished rows of
+the original 76-row inventory remain in scope. Native internal Householder
+partial-buffer allocations still depend on the unmerged faer #267 work.
