@@ -71,7 +71,22 @@ function scratch_requirements(
         end
         h=a isa FaerTridiagonalization ? a.H : a
         fun=f===LinearAlgebra.eigen ? tridiagonal_eigen : tridiagonal_eigvals
-        return scratch_requirements(fun, h.dv, h.ev; kwargs...)
+        req=scratch_requirements(fun, h.dv, h.ev; kwargs...)
+        if f===LinearAlgebra.eigen &&
+           a isa FaerTridiagonalization &&
+           a.Q isa FaerTridiagonalQ
+            applyreq=_householder_workspace_query(
+                a.Q,
+                size(a.Q, 1),
+                false;
+                team = get(kwargs, :team, nothing),
+            )
+            return (
+                bytes = max(req.bytes, applyreq.bytes),
+                alignment = max(req.alignment, applyreq.alignment),
+            )
+        end
+        return req
     end
 end
 function FaerScratch(

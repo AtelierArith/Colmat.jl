@@ -30,6 +30,7 @@ export FaerSpectralFactor,
     bidiagonalize!,
     bidiagonal_svd,
     FaerTridiagonalization,
+    FaerTridiagonalQ,
     tridiagonalize,
     tridiagonalize!,
     tridiagonal_eigen,
@@ -243,6 +244,7 @@ include("general_gevd_workspace.jl")
 include("jacobi.jl")
 include("statistics.jl")
 include("balance.jl")
+include("tridiagonal_compact.jl")
 include("tridiagonal.jl")
 include("tridiagonal_workspace.jl")
 include("tridiagonal_construction_workspace.jl")

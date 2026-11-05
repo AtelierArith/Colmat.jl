@@ -166,7 +166,23 @@ fn requirement<T: ComplexField>(
     right: bool,
     transpose: bool,
 ) -> faer::dyn_stack::StackReq {
-    let (m, k, b) = (s.basis.nrows(), s.basis.ncols(), s.factor.nrows());
+    layout_requirement::<T>(
+        s.basis.nrows(),
+        s.basis.ncols(),
+        s.factor.nrows(),
+        extent,
+        right,
+        transpose,
+    )
+}
+pub(crate) fn layout_requirement<T: ComplexField>(
+    m: usize,
+    k: usize,
+    b: usize,
+    extent: usize,
+    right: bool,
+    transpose: bool,
+) -> faer::dyn_stack::StackReq {
     if k == 0 || (m == 1 && k == 1) {
         return faer::dyn_stack::StackReq::EMPTY;
     }
@@ -233,7 +249,7 @@ fn apply_in<T: ComplexField>(
         stack,
     )
 }
-fn apply_views_in<T: ComplexField>(
+pub(crate) fn apply_views_in<T: ComplexField>(
     basis: MatRef<'_, T>,
     factor: MatRef<'_, T>,
     mut a: MatMut<'_, T>,

@@ -28,3 +28,5 @@ pub fn tridiagonal_eigen_data(
 ) -> Result<(), String> {
     guarded(|| workspace::allocate(d, e, n, values, vectors, tag, compute, threshold))
 }
+
+mod compact;

@@ -10,24 +10,40 @@ function _tridiagonalize_plan(a, blocksize)
     )
     return n, T, bs
 end
-function _tridiagonalize_requirement(n, T, bs, team, policy)
+function _tridiagonalize_requirement(n, T, bs, team, policy; compact = false)
     info=zeros(UInt, 2)
     GC.@preserve info begin
         args=(UInt(n), _tag(T), UInt(bs), policy.value, pointer(info))
         isnothing(team) ?
-        _native_call(RustCrate.tridiagonalize_tuned_requirements, args...) :
-        _native_call(RustCrate.tridiagonalize_tuned_team_requirements, team, args...)
+        _native_call(
+            (
+                compact ? RustCrate.compact_tridiagonal_requirements :
+                RustCrate.tridiagonalize_tuned_requirements
+            ),
+            args...,
+        ) :
+        _native_call(
+            (
+                compact ? RustCrate.compact_tridiagonal_team_requirements :
+                RustCrate.tridiagonalize_tuned_team_requirements
+            ),
+            team,
+            args...,
+        )
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
 """
-    scratch_requirements(tridiagonalize, A; blocksize=0, team=nothing, par_threshold=FaerParThreshold())
-    scratch_requirements(tridiagonalize!, A; blocksize=0, team=nothing, par_threshold=FaerParThreshold())
+    scratch_requirements(tridiagonalize, A; compact=false, blocksize=0, team=nothing, par_threshold=FaerParThreshold())
+    scratch_requirements(tridiagonalize!, A; compact=false, blocksize=0, team=nothing, par_threshold=FaerParThreshold())
 
 Query reusable workspace for Hermitian tridiagonal reduction and explicit Q
 formation, including the canonical work matrix and compact coefficients. The
 reduction/Q stages reuse one kernel region and the actual scoped team token.
 Julia input conversion, returned Q/H and staged writeback allocate separately.
+With `compact=true`, the returned Q owns the packed work matrix, compact factors
+and phases; scratch then covers only the reduction kernel. Use the same
+`compact` option for query and computation.
 Use the same `par_threshold` as computation. `FaerParThreshold(:never)` queries
 sequential numerical kernels while still validating a supplied team.
 """
@@ -37,12 +53,13 @@ function scratch_requirements(
     blocksize::Integer = 0,
     team = nothing,
     par_threshold = FaerParThreshold(),
+    compact::Bool = false,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(nothing, team)
         policy=_par_threshold(par_threshold)
         n, T, bs=_tridiagonalize_plan(a, blocksize)
-        return _tridiagonalize_requirement(n, T, bs, team, policy)
+        return _tridiagonalize_requirement(n, T, bs, team, policy; compact)
     end
 end
 function FaerScratch(
