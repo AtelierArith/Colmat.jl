@@ -59,10 +59,13 @@ unsafe fn reduction<T: ComplexField>(
             }
         }
         if let Some(scale) = scaling {
+            // The factor is a power of two. Componentwise real scaling avoids
+            // complex division's squared denominator overflowing/underflowing.
+            let inv_scale = recip(&scale);
             for i in 0..n {
-                work[(i, i)] = &work[(i, i)] / from_real::<T>(&scale);
+                work[(i, i)] = mul_real(&work[(i, i)], &inv_scale);
                 if i + 1 < n {
-                    work[(i + 1, i)] = &work[(i + 1, i)] / from_real::<T>(&scale);
+                    work[(i + 1, i)] = mul_real(&work[(i + 1, i)], &inv_scale);
                 }
             }
         }
