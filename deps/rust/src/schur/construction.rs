@@ -35,7 +35,7 @@ fn requirement<T: SchurScalar>(n: usize, stage: i32, par: ParShape) -> Result<St
         _ => Err("Schur construction stage must be 0, 1 or 2".into()),
     }
 }
-fn buffer<T>(p: *const u8, n: usize) -> Result<(), String> {
+pub(super) fn buffer<T>(p: *const u8, n: usize) -> Result<(), String> {
     if n == 0 {
         return Ok(());
     }

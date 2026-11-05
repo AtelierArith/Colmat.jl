@@ -147,43 +147,28 @@ function _schur_selection(f::_NativeSchur, select)
     end
     return data
 end
-function _ordschur(f::_NativeSchur, select)
-    lock(_matrix_lock) do
-        data=_schur_selection(f, select)
-        T=eltype(f)
-        n=size(f, 1)
-        z=_zeros(T, (n, n))
-        values=Vector{Complex{_realtype(T)}}(undef, n)
-        t=GC.@preserve data values if T===Float64
-            _matrix_result(
-                RustCrate.schur_reorder_from,
-                (n, n),
-                f.T,
-                f.Z,
-                z,
-                pointer(data),
-                UInt(n),
-                Ptr{UInt8}(pointer(values)),
-            )
-        else
-            _typed_result(
-                T,
-                RustCrate.schur_reorder_from,
-                (n, n),
-                f.T,
-                f.Z,
-                z,
-                pointer(data),
-                UInt(n),
-                Ptr{UInt8}(pointer(values)),
-            )
-        end
-        return LinearAlgebra.Schur(t, z, values)
-    end
-end
-LinearAlgebra.ordschur(f::_NativeSchur, select::Union{Vector{Bool},BitVector}) =
-    _ordschur(f, select)
-function LinearAlgebra.ordschur!(f::_NativeSchur, select::Union{Vector{Bool},BitVector})
+"""
+    ordschur(F::Schur{T,<:FaerMatrix}, select; scratch=nothing, team=nothing)
+
+Move selected Schur blocks to the leading positions, returning independent native
+factors. Select both members of each real conjugate pair. Optional scratch covers
+native flags and block swaps; working factors and Julia arrays allocate separately.
+A supplied team lends its token, but selected faer's reorder kernels are sequential.
+The bang form preserves existing owners and views and commits only after successful
+reordering and eigenvalue conversion.
+"""
+LinearAlgebra.ordschur(
+    f::_NativeSchur,
+    select::Union{Vector{Bool},BitVector};
+    scratch = nothing,
+    team = nothing,
+) = _ordschur(f, select; scratch, team)
+function LinearAlgebra.ordschur!(
+    f::_NativeSchur,
+    select::Union{Vector{Bool},BitVector};
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         f.T===f.Z && throw(ArgumentError("Schur T and Z must have distinct storage"))
         f.values isa StridedVector || throw(
@@ -191,11 +176,15 @@ function LinearAlgebra.ordschur!(f::_NativeSchur, select::Union{Vector{Bool},Bit
                 "mutating native Schur requires mutable strided eigenvalue storage",
             ),
         )
-        result=_ordschur(f, select)
-        values=Vector{eltype(f.values)}(result.values)
-        copyto!(f.T, result.T)
-        copyto!(f.Z, result.Z)
-        copyto!(f.values, values)
+        result=_ordschur(f, select; scratch, team)
+        try
+            values=Vector{eltype(f.values)}(result.values)
+            copyto!(f.T, result.T)
+            copyto!(f.Z, result.Z)
+            copyto!(f.values, values)
+        finally
+            close(result)
+        end
     end
     return f
 end

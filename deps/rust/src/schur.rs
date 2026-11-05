@@ -8,6 +8,7 @@ use faer::traits::{math_utils::*, ComplexField};
 use faer::{c32, c64, Conj, Mat, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 mod construction;
+mod reorder_workspace;
 
 // Power-of-two scaling follows faer's general EVD driver. Keep the
 // reduction/QR kernels in their safe range without changing the similarity Q.
@@ -127,7 +128,8 @@ trait SchurScalar: ComplexField + Sized {
         z: &mut Mat<Self>,
         from: usize,
         to: usize,
-        mem: &mut MemBuffer,
+        par: Par,
+        stack: &mut MemStack,
     ) -> Result<(), String>;
     fn block_size(h: MatRef<'_, Self>, i: usize) -> usize;
     fn validate(h: MatRef<'_, Self>) -> Result<(), String>;
@@ -184,18 +186,12 @@ macro_rules! real_scalar {
                 z: &mut Mat<Self>,
                 from: usize,
                 to: usize,
-                mem: &mut MemBuffer,
+                par: Par,
+                stack: &mut MemStack,
             ) -> Result<(), String> {
-                evd::reorder_schur_real(
-                    h.as_mut(),
-                    Some(z.as_mut()),
-                    from,
-                    to,
-                    Par::Seq,
-                    MemStack::new(mem),
-                )
-                .map(|_| ())
-                .map_err(|e| format!("Schur reorder rejected: {e:?}"))
+                evd::reorder_schur_real(h.as_mut(), Some(z.as_mut()), from, to, par, stack)
+                    .map(|_| ())
+                    .map_err(|e| format!("Schur reorder rejected: {e:?}"))
             }
             fn block_size(h: MatRef<'_, Self>, i: usize) -> usize {
                 if i + 1 < h.nrows() && h[(i + 1, i)] != 0.0 {
@@ -332,16 +328,10 @@ macro_rules! complex_scalar {
                 z: &mut Mat<Self>,
                 from: usize,
                 to: usize,
-                mem: &mut MemBuffer,
+                par: Par,
+                stack: &mut MemStack,
             ) -> Result<(), String> {
-                evd::reorder_schur_cplx(
-                    h.as_mut(),
-                    Some(z.as_mut()),
-                    from,
-                    to,
-                    Par::Seq,
-                    MemStack::new(mem),
-                );
+                evd::reorder_schur_cplx(h.as_mut(), Some(z.as_mut()), from, to, par, stack);
                 Ok(())
             }
             fn block_size(_h: MatRef<'_, Self>, _i: usize) -> usize {
@@ -403,11 +393,25 @@ fn reordered<T: SchurScalar>(
     z: MatRef<'_, T>,
     select: &[u8],
 ) -> Result<(Mat<T>, Mat<T>), String> {
+    let mut mem = MemBuffer::try_new(reorder_workspace::requirement::<T>(h.nrows()))
+        .map_err(|e| format!("{e:?}"))?;
+    reordered_in(h, z, select, Par::Seq, MemStack::new(&mut mem))
+}
+fn reordered_in<T: SchurScalar>(
+    h: MatRef<'_, T>,
+    z: MatRef<'_, T>,
+    select: &[u8],
+    mut par: Par,
+    stack: &mut MemStack,
+) -> Result<(Mat<T>, Mat<T>), String> {
     validate(h, z)?;
     if select.len() != h.nrows() {
         return Err("Schur selection length mismatch".into());
     }
-    let mut flags = select.to_vec();
+    if select.iter().any(|&v| v > 1) {
+        return Err("Schur selection flags must be zero or one".into());
+    }
+    let (mut flags, stack) = stack.make_with::<u8>(select.len(), |i| select[i]);
     let mut i = 0;
     while i < h.nrows() {
         let b = T::block_size(h, i);
@@ -424,14 +428,13 @@ fn reordered<T: SchurScalar>(
     if n == 0 {
         return Ok((h, z));
     }
-    let mut mem = MemBuffer::new(evd::reorder_schur_scratch::<T>(n));
     let mut here = 0;
     let mut next = 0;
     while here < n {
         let b = T::block_size(h.as_ref(), here);
         if flags[here] != 0 {
             if here != next {
-                T::move_block(&mut h, &mut z, here, next, &mut mem)?;
+                T::move_block(&mut h, &mut z, here, next, par.reborrow(), stack)?;
                 flags[next..here + b].rotate_right(b);
             }
             next += b;
