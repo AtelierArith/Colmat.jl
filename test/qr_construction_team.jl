@@ -93,7 +93,9 @@ end
         close(wide)
     end
     simp=FaerSparseSymbolic(a; kind = :qr, algorithm = :simplicial)
-    @test_throws Colmat.RustCall.RustError factorize(simp, a; team)
+    sf=factorize(simp, a; team)
+    @test Matrix(sf)≈A
+    close(sf)
     close(simp)
     square=FaerSparseMatrix(sparse([3.0 0; 0 4]))
     luplan=FaerSparseSymbolic(square; kind = :lu)

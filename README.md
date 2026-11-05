@@ -1889,8 +1889,32 @@ allocates temporary scratch; `qr(A;scratch=s,team)` forwards both resources to
 numeric construction. The symbolic analysis remains sequential. The numeric matrix must match the plan's stored pattern exactly.
 Symbolic analysis, sparse snapshots and owned factor buffers allocate outside
 scratch. Returned factors do not borrow the workspace and remain valid after
-it or the input plan is closed. Explicit simplicial factor construction retains
-its previous workspace path.
+it or the input plan is closed. Explicit simplicial QR uses the same public
+scratch interface with a sequential native numeric kernel.
+
+
+Explicit simplicial QR also accepts numeric construction scratch. Its native
+numeric kernel is sequential, including when a `FaerTeam` is supplied. The query
+includes both numeric-kernel work and source-precision rank-bound preparation;
+output indices/values, symbolic analysis and input snapshots allocate separately.
+Wide QR construction resources remain separate work.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF32[4 0.1im; 0.2 5; 0.1 0.3]
+A = FaerSparseMatrix(sparse(A0); format=:csr)
+p = FaerSparseSymbolic(A; kind=:qr, algorithm=:simplicial, ordering=[2,1])
+team = FaerTeam(2)
+s = FaerScratch(factorize, p, A; team)
+F = factorize(p, A; scratch=s, team)
+@assert scratch_requirements(factorize,p,A;team) == scratch_requirements(factorize,p,A)
+close(s)
+close(team)
+close(p)
+close(A)
+@assert F \ ones(ComplexF32,3) ≈ A0 \ ones(ComplexF32,3)
+close(F)
+```
 
 ### Reuse operator application scratch and teams
 
@@ -2524,5 +2548,5 @@ reuse one buffer; R is visited directly without a temporary sparse export.
 Construction validates current native matrix and plan metadata before reading
 snapshot values. Symbolic analysis, input conversion/snapshot/finite checks and
 owned numeric output remain separate allocations, so this is not a whole-API
-allocation-free construction interface. Explicit simplicial and wide construction
-workspaces remain separate work.
+allocation-free construction interface. Explicit simplicial QR shares this interface with a sequential native kernel.
+Wide construction workspaces remain separate work.

@@ -7,23 +7,31 @@ use crate::guarded;
 use crate::sparse::{SparseData, SparseOwner};
 use crate::teams::OwnedTeam;
 use crate::workspace::OwnedScratch;
+use faer::dyn_stack::StackReq;
+use faer::traits::ComplexField;
 use faer::{c32, c64, Par};
 use rustcall_julia_macros::julia;
 
+fn requirement<T: ComplexField>(analysis: &Analysis, par: &Par<'_>) -> Result<StackReq, String> {
+    Ok(match analysis {
+        Analysis::Qr(sym) => qr_construction_req::<T>(sym, par),
+        Analysis::SimplicialQr(plan) => crate::sparse_qr_components::Factors::<T>::scratch(plan)
+            .or(rank_hint::scratch(plan.symbolic.ncols())),
+        _ => return Err("factor workspace requires tall/square QR".into()),
+    })
+}
 pub(super) fn query(
     plan: &SparseSymbolic,
     tag: i32,
     out: *mut usize,
     par: Par<'_>,
 ) -> Result<(), String> {
-    let Analysis::Qr(sym) = &plan.plan()?.analysis else {
-        return Err("factor workspace requires auto/supernodal QR".into());
-    };
+    let analysis = &plan.plan()?.analysis;
     let req = match tag {
-        0 => qr_construction_req::<f32>(sym, &par),
-        1 => qr_construction_req::<f64>(sym, &par),
-        2 => qr_construction_req::<c32>(sym, &par),
-        3 => qr_construction_req::<c64>(sym, &par),
+        0 => requirement::<f32>(analysis, &par)?,
+        1 => requirement::<f64>(analysis, &par)?,
+        2 => requirement::<c32>(analysis, &par)?,
+        3 => requirement::<c64>(analysis, &par)?,
         _ => return Err("invalid scalar tag".into()),
     };
     if out.is_null()
@@ -49,14 +57,12 @@ pub(super) fn run(
     par: Par<'_>,
 ) -> Result<usize, String> {
     let plan = analysis.plan()?;
-    let Analysis::Qr(sym) = &plan.analysis else {
-        return Err("factor workspace requires auto/supernodal QR".into());
-    };
+    let analysis = &plan.analysis;
     let req = match matrix.data()? {
-        SparseData::F32(_) => qr_construction_req::<f32>(sym, &par),
-        SparseData::F64(_) => qr_construction_req::<f64>(sym, &par),
-        SparseData::C32(_) => qr_construction_req::<c32>(sym, &par),
-        SparseData::C64(_) => qr_construction_req::<c64>(sym, &par),
+        SparseData::F32(_) => requirement::<f32>(analysis, &par)?,
+        SparseData::F64(_) => requirement::<f64>(analysis, &par)?,
+        SparseData::C32(_) => requirement::<c32>(analysis, &par)?,
+        SparseData::C64(_) => requirement::<c64>(analysis, &par)?,
     };
     scratch.stack(req)?;
     let result = match matrix.data()? {
@@ -185,6 +191,89 @@ mod tests {
             }
             team.team_close().unwrap();
         }
+    }
+    fn check_simplicial<T: NativeValue>() {
+        for width in [1, 2] {
+            let mut team = OwnedTeam::new();
+            team.team_initialize(width).unwrap();
+            for (m, n) in [(0, 0), (3, 0), (7, 4), (96, 64)] {
+                let dense = faer::Mat::from_fn(m, n, |i, j| {
+                    T::from_parts(
+                        if i == j {
+                            5.0
+                        } else {
+                            0.01 * ((i + 2 * j) as f64).sin()
+                        },
+                        0.02 * ((2 * i + j) as f64).cos(),
+                    )
+                });
+                let entries: Vec<_> = (0..n)
+                    .flat_map(|j| {
+                        let a = &dense;
+                        (0..m).map(move |i| Triplet {
+                            row: i,
+                            col: j,
+                            val: copy(&a[(i, j)]),
+                        })
+                    })
+                    .collect();
+                let a = SparseColMat::try_new_from_triplets(m, n, &entries).unwrap();
+                let ids: Vec<_> = (0..n).rev().collect();
+                let permutation = faer::perm::Perm::new_checked(
+                    ids.clone().into_boxed_slice(),
+                    ids.into_boxed_slice(),
+                    n,
+                );
+                let symbolic =
+                    crate::sparse_qr_components::Plan::new(a.symbolic(), permutation.as_ref())
+                        .unwrap();
+                let plan = SparseSymbolic {
+                    plan: Some(Plan {
+                        analysis: Analysis::SimplicialQr(symbolic.clone()),
+                        pattern: a.symbolic().to_owned().unwrap(),
+                        lower: true,
+                    }),
+                };
+                let mut out = [0usize; 2];
+                plan.sparse_qr_factor_requirements_team(T::tag(), out.as_mut_ptr(), &team)
+                    .unwrap();
+                let req = crate::sparse_qr_components::Factors::<T>::scratch(&symbolic)
+                    .or(rank_hint::scratch(n));
+                assert_eq!(out, [req.size_bytes(), req.align_bytes()]);
+                let mut mem = MemBuffer::new(req);
+                let f = crate::sparse_qr_components::Factors::new_in(
+                    &symbolic,
+                    a.as_ref(),
+                    MemStack::new(&mut mem),
+                )
+                .unwrap();
+                let actual = f.reconstruct();
+                for j in 0..n {
+                    for i in 0..m {
+                        let (x, y) = actual[(i, j)].parts();
+                        let (u, v) = dense[(i, j)].parts();
+                        assert!((x - u).hypot(y - v) < 2e-4);
+                    }
+                }
+            }
+            team.team_close().unwrap();
+        }
+    }
+    #[test]
+    fn simplicial_construction_f32() {
+        check_simplicial::<f32>();
+    }
+    #[test]
+    fn simplicial_construction_f64() {
+        check_simplicial::<f64>();
+    }
+    #[test]
+    fn simplicial_construction_c32() {
+        check_simplicial::<c32>();
+    }
+    #[test]
+    fn simplicial_construction_c64() {
+        check_simplicial::<c64>();
     }
     #[test]
     fn query_and_numeric_team_f32() {

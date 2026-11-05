@@ -332,7 +332,7 @@ fn numeric<T: ComplexField>(
 ) -> Result<Result<Numeric<T>, usize>, String> {
     numeric_with_par(p, a, scratch, Par::Seq)
 }
-// Only the auto/supernodal QR resource entry points pass a caller team here.
+// QR construction resources enter a team scope; explicit simplicial kernels are sequential.
 fn numeric_with_par<T: ComplexField>(
     p: &Plan,
     a: &Storage<T>,
@@ -370,7 +370,12 @@ fn numeric_with_par<T: ComplexField>(
             Err(e) => return Err(format!("{e:?}")),
         },
         Analysis::SimplicialQr(sym) => {
-            Numeric::SimplicialQr(crate::sparse_qr_components::Factors::new(sym, a.as_ref())?)
+            Numeric::SimplicialQr(if let Some(s) = scratch {
+                let req = crate::sparse_qr_components::Factors::<T>::scratch(sym);
+                crate::sparse_qr_components::Factors::new_in(sym, a.as_ref(), s.stack(req)?)?
+            } else {
+                crate::sparse_qr_components::Factors::new(sym, a.as_ref())?
+            })
         }
         Analysis::Qr(sym) => Numeric::Qr(if let Some(s) = scratch {
             let req = sym.factorize_numeric_qr_scratch::<T>(par.shape(), Default::default());
