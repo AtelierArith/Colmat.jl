@@ -505,10 +505,12 @@ function _refactor_sparse!(
     f::FaerSparseFactorization{T},
     a::FaerSparseMatrix{T};
     check = true,
+    scratch = nothing,
+    team = nothing,
 ) where {T}
     lock(_matrix_lock) do
         _handle(f)
-        next=LinearAlgebra.factorize(f.plan, a; check)
+        next=LinearAlgebra.factorize(f.plan, a; check, scratch, team)
         oldplan=f.plan
         oldsource=f.source
         f.handle=next.handle
@@ -526,8 +528,21 @@ LinearAlgebra.lu!(
     a::FaerSparseMatrix{T};
     check::Bool = true,
 ) where {T} = _refactor_sparse!(f, a; check)
-LinearAlgebra.qr!(f::FaerSparseFactorization{T,:qr}, a::FaerSparseMatrix{T}) where {T} =
-    _refactor_sparse!(f, a)
+"""
+    qr!(F::FaerSparseFactorization{T,:qr}, A::FaerSparseMatrix{T}; scratch=nothing, team=nothing)
+
+Replace the numeric QR revision using F's retained symbolic analysis and ordering.
+A must match its stored pattern. Optional scratch/team use the same construction
+kernel and requirements as `factorize(F.plan,A; scratch,team)`, for every shape
+and algorithm. Failures preserve F. Snapshot and owned output allocation remain
+separate; the update stages a new factor before replacing F's numeric revision.
+"""
+LinearAlgebra.qr!(
+    f::FaerSparseFactorization{T,:qr},
+    a::FaerSparseMatrix{T};
+    scratch = nothing,
+    team = nothing,
+) where {T} = _refactor_sparse!(f, a; scratch, team)
 LinearAlgebra.cholesky!(
     f::FaerSparseFactorization{T,:cholesky},
     a::FaerSparseMatrix{T};
