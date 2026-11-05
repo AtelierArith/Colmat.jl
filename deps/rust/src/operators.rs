@@ -16,6 +16,7 @@ mod julia_callback;
 mod qr_actions;
 mod qr_pseudoinverse;
 mod iterative_workspace;
+mod partial_workspace;
 use qr_actions::{OwnedQrInverse, WideQrInverse};
 #[derive(Clone)]
 enum Base<T> {

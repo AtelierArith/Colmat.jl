@@ -958,6 +958,28 @@ input. A start orthogonal to a desired invariant subspace can miss it. Inspect
 self-adjoint and SVD requests use native dense decompositions to avoid upstream
 panics, with `algorithm == :dense_fallback`; iterative results report `:partial`.
 
+All three methods accept `scratch` and `team`. Query or reserve with the same
+projection controls and team used for execution. The buffer covers the partial
+kernel or dense fallback (including operator materialization), plus independent
+residual applications. Querying does not apply operators. Result staging, scalar
+promotion and Julia callback arrays allocate separately; callbacks run on the
+calling Julia task, including when a team executes the native kernels.
+
+```julia
+using Colmat, LinearAlgebra
+op = FaerLinearOperator(Diagonal(collect(1.0:96)))
+team = FaerTeam(2)
+work = FaerScratch(partial_self_adjoint_eigen, op, 2; team)
+F = partial_self_adjoint_eigen(op, 2; scratch=work, team, tol=1e-8)
+@assert F.values ≈ [96.0,95.0]
+reserve!(work, partial_svd, op, 2; max_dim=96, team)
+S = partial_svd(op, 2; max_dim=96, scratch=work, team)
+@assert S.algorithm == :dense_fallback && S.S ≈ [96.0,95.0]
+close(work)
+close(team)
+close(op)
+```
+
 ### Structured products
 
 ```julia
