@@ -3514,3 +3514,34 @@ passes **573,739 assertions / 123 files / 16 workers in 9m24.3s**. All **103
 executable README blocks** pass, and all 266 frozen validation input hashes,
 the frozen inventory and all 76 mapping rows are preserved. Tested runtime is
 `bc20ec4`; subsequent result-record changes are documentation only.
+
+
+## Real restoration of tridiagonal scale (candidate)
+
+At main `5d63ec5`, the unchanged public `tridiagonalize` adapter rejects a
+finite ComplexF64 Hermitian input scaled by 2^1000 and silently returns a wrong
+reconstruction at 2^-1000. The executed baseline 4x4 identity with conjugate
+0.2±0.3i off-diagonal reports `tridiagonalization overflowed the working type`
+for the large case and dimensionless reconstruction residual
+`2.0639767440550294` for the small case. The retained executable reproducer is
+`docs/reproducers/tridiagonal-rescaling.jl`.
+
+Isolation identified the adapter's scale restoration expression, complex
+`value / from_real(scale)`: its squared denominator can underflow/overflow
+although the restored components are finite. A standalone Rust check observes
+`(2^459 + 0.2*2^459*i) / (2^-541 + 0i)` producing Inf components, while real
+component division gives finite values. Complex absolute-value probes at the
+same scales match scalar hypot, so an absolute-value fault was ruled out.
+This is corrected in the application adapter; it is not reported as an
+unverified RustCall/faer defect.
+
+The restoration now uses `mul_real(value,recip(scale))`. The chosen scale is an
+exact power of two whose inverse is representable. Reduction, phase handling,
+blocksize selection and normalization are unchanged. The scratch/team
+construction work is saved separately and will be based on this fix after
+merge; it is not included in this candidate.
+
+Focused 216 new assertions and 1,621 existing tridiagonal assertions pass, across
+four scalars, block sizes 0/1/2 and ordinary/large/small scale (f32 2^±120,
+f64 2^±1000), with independent dimensionless reconstruction and orthogonality
+checks. Full canonical/native/README gates remain pending.

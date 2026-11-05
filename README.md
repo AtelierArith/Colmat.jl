@@ -2925,3 +2925,22 @@ finally
     close(team)
 end
 ```
+
+### Extreme-scale complex tridiagonal reduction
+
+Tridiagonal reduction restores its real power-of-two scale componentwise, so a
+finite complex result does not depend on squaring a tiny or huge complex divisor.
+Check reconstruction after removing the scale to keep the residual meaningful.
+
+```julia
+using Colmat, LinearAlgebra
+A = ComplexF64[1 0.2-0.3im; 0.2+0.3im 1]
+scale = 2.0^1000
+F = tridiagonalize(A .* scale)
+try
+    Q = Matrix(F.Q)
+    @assert A ≈ Q * (Matrix(F.H) ./ scale) * Q'
+finally
+    close(F)
+end
+```
