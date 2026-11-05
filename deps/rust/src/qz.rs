@@ -111,11 +111,11 @@ fn finish<T: ComplexField>(p: &mut Pair<T>) -> Result<(), String> {
     }
     Ok(())
 }
-// The inspected faer real-QZ scratch helper uses floor((n-3)/3), but the
-// blocked kernel rounds that maximum AED window upward to an even size. Its
-// local Sylvester solve also owns four index arrays rather than one. Derive
-// the live allocation bound using those actual sizes, while retaining the
-// public recommendation as a lower bound for future faer revisions.
+// Selected faer 2d4ea4e includes #253's even-window query fix and #254's
+// fully-deflated sentinel fix. #260 is still unmerged: the local Sylvester
+// solve owns four index arrays rather than the query's one. Retain the bound
+// for those live allocations, including even-rounded recursive windows, and
+// keep the public recommendation as a lower bound for future revisions.
 pub(crate) fn real_qz_scratch<T: RealField>(
     n: usize,
     params: gevd::GeneralizedSchurParams,
@@ -907,3 +907,6 @@ mod reorder_tests {
         assert_eq!(output, [c64::new(42.0, 0.0); 2]);
     }
 }
+
+#[cfg(test)]
+mod adoption_tests;

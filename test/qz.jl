@@ -222,3 +222,35 @@ end
         @test Matrix(f.Q*f.T*f.Z')≈b rtol=tol atol=tol
     end
 end
+
+
+@testset "Merged faer fully-deflated QZ regression" begin
+    # Same deterministic pencil as docs/reproducers/faer-qz-aed-sentinel.rs.
+    function sample(i, j)
+        x=UInt64(i+7)*0x9E3779B97F4A7C15 ⊻ UInt64(j+19)
+        x ⊻= x>>30
+        x *= 0xBF58476D1CE4E5B9
+        x ⊻= x>>27
+        return Float64(x>>11)/Float64(UInt64(1)<<53)-0.5
+    end
+    n=78
+    for T in (Float32, Float64)
+        a=T[
+            i==j ? 1+(i-1)/n : i==j+1 ? 0.2 : i<j ? 0.02*sample(i-1, j-1) : 0.0 for
+            i = 1:n, j = 1:n
+        ]
+        b=T[i==j ? 2.0 : i<j ? 0.01*sample(j-1, i-1) : 0.0 for i = 1:n, j = 1:n]
+        aa, bb=FaerMatrix(a), FaerMatrix(b)
+        f=schur(aa, bb)
+        q, z, s, t=map(Matrix, (f.Q, f.Z, f.S, f.T))
+        scale=n*eps(T)*(norm(a)+norm(b))
+        @test (norm(q*s*z'-a)+norm(q*t*z'-b))/scale < 20
+        @test norm(q'*q-I)/(n*eps(T)) < 20
+        @test norm(z'*z-I)/(n*eps(T)) < 20
+        @test all(isfinite, f.α)&&all(isfinite, f.β)
+        @test Matrix(aa)==a && Matrix(bb)==b
+        close(f)
+        close(aa)
+        close(bb)
+    end
+end

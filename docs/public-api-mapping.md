@@ -4,10 +4,10 @@
 
 t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra の対応 API と Colmat の実装状況を追跡する。
 
-- 調査日: 2026-11-04
-- t4a-faer: `0.28.2`、コミット [`0bf88db6e70c29488df91a128f5e2562f8859730`](https://github.com/tensor4all/faer/tree/0bf88db6e70c29488df91a128f5e2562f8859730)。実際のビルド対象 `deps/t4a-faer` を調査。
-- Colmat の判定基準: 検証済み main `704b949` と以下の dense QR 疑似逆作用の追加。以下は main ブランチの実装状況。
-- 直近の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、172304 件のテスト成功（追加前の main）。`Pkg.test(; allow_reresolve=false)` は ParallelTestRunner.jl 2.10.0 により 96 ファイルを 16 プロセスで検証。
+- 機能分類の調査日: 2026-11-04。依存と検証情報の更新: 2026-11-05
+- 検証対象 t4a-faer: `0.29.0`、コミット [`2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7`](https://github.com/tensor4all/faer/tree/2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7)。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
+- Colmat の判定基準: PR #62 までの main と、merged QZ 修正を含む依存の更新。各機能の追加・制約は以下の行と実装記録で追跡する。
+- 直近の統合済み検証: PR #62 は Julia 1.13.3 / RustCall.jl 0.9.2、556234 assertions / 117 files / 16 workers。今回の依存更新は別途 canonical `Pkg.test(; allow_reresolve=false)`・native・README を検証し、結果を更新 PR と実装記録に保存する。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。

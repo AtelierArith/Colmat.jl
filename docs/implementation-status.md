@@ -3267,3 +3267,16 @@ not change scratch size; the kernels are sequential. Temporary pattern
 conversion, query buffers and the owning output permutation allocate separately.
 Symbolic factor analysis's internal ordering workspace and the other incomplete
 entries in the 76-row mapping remain in scope.
+
+## Merged QZ fix dependency update
+
+The candidate faer 0.29.0 selection is main
+`2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7`: the even-window query and
+fully-deflated row-zero sentinel fixes are present. The native Float32/Float64
+n=78 regression fails on 19053d8 and passes with bounded independent
+reconstruction/orthogonality on the new revision. The related Julia regression
+and full package checks validate the integrated update. The wrapper's #260
+scratch correction stays in place until its separate upstream fix is merged
+and verified. See [the retained reproducers](reproducers/faer-qz-numerics.md).
+Householder/LLT constructor scratch proposals #267/#269 and #258's range/index
+changes remain unselected; the full 76-row inventory remains in scope.
