@@ -380,7 +380,23 @@ AMD の `statistics=true` は置換と faer の演算数見積もりを返しま
 `permute_rows`・`permute_cols` は疎数値行列と疎パターンに対応し、数値行列は
 `permute_rows!`・`permute_cols!` でも更新できます。構造が変わる更新では以前の
 `nonzeros` ビューが失効します。疎 LU／QR への恒等・任意 ordering の直接指定にも対応します。
-ordering 自体の caller-owned scratch は未対応です。
+`amd` / `colamd` は逐次 native kernel の caller-owned scratch に対応します。
+query は格納パターン（格納ゼロを含む）から必要量を計算し、数値には依存しません。
+容量・alignment 不足や閉じた workspace は拒否し、自動拡張はしません。
+CSC の複製／CSR 変換、Julia からのパターン構築、返却する置換は別途確保します。
+分解の symbolic analysis 内での ordering 用 scratch は別の残項目です。
+
+```julia
+using Colmat, SparseArrays
+A = FaerSparseMatrix(sparse([4.0 0 1; 0 3 1; 1 1 5]); format=:csr)
+work = FaerScratch(amd, A)
+info = amd(A; scratch=work, statistics=true)
+@assert isperm(Vector(info.permutation))
+reserve!(work, colamd, A)
+q = colamd(A; scratch=work)
+@assert Vector(q) == Vector(colamd(A))
+close(work)
+```
 
 疎 Cholesky には ordering と分解方式を直接指定できます。
 
