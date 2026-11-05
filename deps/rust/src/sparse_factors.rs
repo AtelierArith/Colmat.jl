@@ -5,11 +5,11 @@ use crate::sparsity::SparsityOwner;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::{MemBuffer, MemStack};
-use faer::linalg::solvers::Solve;
+use crate::sparse_lu_owned::Factors as Lu;
 use faer::sparse::{
     linalg::{
         cholesky::{self, LltRef, SymbolicCholesky, SymmetricOrdering},
-        solvers::{Lu, SymbolicLu},
+        lu::SymbolicLu,
         LuError, SupernodalThreshold,
     },
     SymbolicSparseColMat,
@@ -26,7 +26,7 @@ use std::sync::Arc;
 enum Analysis {
     SimplicialLu(faer::perm::Perm<usize>),
     SimplicialQr(crate::sparse_qr_components::Plan),
-    Lu(SymbolicLu<usize>),
+    Lu(Arc<SymbolicLu<usize>>),
     Qr(Arc<faer::sparse::linalg::qr::SymbolicQr<usize>>),
     WideQr(crate::sparse_qr_wide::Plan),
     Llt(Arc<SymbolicCholesky<usize>>),
@@ -127,16 +127,9 @@ impl SparseSymbolic {
                         },
                         ..Default::default()
                     };
-                    let symbolic = if let Some(p) = &explicit_cols {
-                        SymbolicLu::try_new_with_column_ordering(
-                            pattern.as_ref(),
-                            params,
-                            p.as_ref(),
-                        )
-                    } else {
-                        SymbolicLu::try_new_with_params(pattern.as_ref(), params)
-                    }
-                    .map_err(|e| format!("{e:?}"))?;
+                    let symbolic = Arc::new(faer::sparse::linalg::lu::factorize_symbolic_lu_with_column_ordering(
+                        pattern.as_ref(),params,explicit_cols.as_ref().map(|p|p.as_ref()),
+                    ).map_err(|e|format!("{e:?}"))?);
                     Analysis::Lu(symbolic)
                 }
                 1 if m < n => {
@@ -299,7 +292,7 @@ struct SparseLlt<T> {
 enum Numeric<T> {
     SimplicialLu(crate::sparse_lu_components::SimplicialFactors<T>),
     SimplicialQr(crate::sparse_qr_components::Factors<T>),
-    Lu(Lu<usize, T>),
+    Lu(Lu<T>),
     Qr(crate::sparse_qr_owned::Factors<T>),
     WideQr(crate::sparse_qr_wide::Factors<T>),
     Llt(SparseLlt<T>),
@@ -357,7 +350,11 @@ fn numeric_with_par<T: ComplexField>(
             } else {crate::sparse_qr_wide::Factors::new(plan,a.as_ref())?})
         }
         Analysis::SimplicialLu(cols) => {
-            match crate::sparse_lu_components::SimplicialFactors::new(a.as_ref(), cols.as_ref()) {
+            let result=if let Some(s)=scratch {
+                let req=crate::sparse_lu_components::SimplicialFactors::<T>::scratch(a.nrows());
+                crate::sparse_lu_components::SimplicialFactors::new_in(a.as_ref(),cols.as_ref(),s.stack(req)?)
+            }else {crate::sparse_lu_components::SimplicialFactors::new(a.as_ref(),cols.as_ref())};
+            match result {
                 Ok(f) => Numeric::SimplicialLu(f),
                 Err(LuError::SymbolicSingular { index } | LuError::NumericSingular { index }) => {
                     return Ok(Err(index + 1))
@@ -365,7 +362,10 @@ fn numeric_with_par<T: ComplexField>(
                 Err(e) => return Err(format!("{e:?}")),
             }
         }
-        Analysis::Lu(sym) => match Lu::try_new_with_symbolic(sym.clone(), a.as_ref(), Par::Seq) {
+        Analysis::Lu(sym) => match if let Some(s)=scratch {
+            let req=sym.factorize_numeric_lu_scratch::<T>(par.shape(),Default::default());
+            Lu::new_in(sym.clone(),a.as_ref(),par,s.stack(req)?)
+        }else {Lu::new(sym.clone(),a.as_ref(),par)} {
             Ok(f) => Numeric::Lu(f),
             Err(LuError::SymbolicSingular { index } | LuError::NumericSingular { index }) => {
                 return Ok(Err(index + 1))
@@ -496,21 +496,8 @@ fn solve<T: ComplexField>(
     trans: bool,
     adj: bool,
 ) -> Result<Mat<T>, String> {
-    macro_rules! run {
-        ($f:expr) => {
-            if trans {
-                if adj {
-                    $f.solve_adjoint(b, Par::Seq)
-                } else {
-                    $f.solve_transpose(b, Par::Seq)
-                }
-            } else {
-                $f.solve(b, Par::Seq)
-            }
-        };
-    }
     Ok(match f {
-        Numeric::Lu(f) => run!(f),
+        Numeric::Lu(f) => f.solve(b,trans,adj)?,
         Numeric::SimplicialLu(f) => f.solve(b, trans, trans && adj),
         Numeric::Llt(f) => {
             let mut out = b.to_owned();
@@ -813,14 +800,14 @@ fn lu_component<T: ComplexField>(
     ))
 }
 fn native_lu_component<T: ComplexField>(
-    f: &Lu<usize, T>,
+    f: &Lu<T>,
     upper: bool,
 ) -> Result<Storage<T>, String> {
     let (l, u) = f.as_ref().factors().map_err(|e| format!("{e:?}"))?;
     Ok(Storage::Csc(if upper { u } else { l }))
 }
 fn native_lu_permutation<T: ComplexField>(
-    f: &Lu<usize, T>,
+    f: &Lu<T>,
     column: bool,
 ) -> faer::perm::Perm<usize> {
     let view = f.as_ref();

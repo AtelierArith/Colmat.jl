@@ -1197,6 +1197,7 @@ pub mod structured_products;
 pub mod pivoted_cholesky;
 
 mod sparse_lu_components;
+mod sparse_lu_owned;
 
 pub mod teams;
 

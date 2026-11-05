@@ -1998,6 +1998,38 @@ close(B)
 close(F)
 ```
 
+
+Sparse LU construction and staged updates accept the same resources for all
+three algorithms. `scratch_requirements(factorize,plan,A;team)` and
+`scratch_requirements(lu!,F,A;team)` query the native numeric kernel;
+`FaerScratch`/`reserve!` use the corresponding signature. Symbolic ordering and
+COLAMD controls are retained across updates. The explicit simplicial kernel is
+sequential. LU numeric factor/permutation buffers are owned output and may
+allocate inside the native numeric routine, separately from caller scratch.
+Checked singular updates preserve the old factors; `check=false` installs the
+unsuccessful status and permits a later successful update.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[0.1 4; 5 0.2im]
+A = FaerSparseMatrix(sparse(A0))
+p = FaerSparseSymbolic(A;kind=:lu,algorithm=:supernodal,ordering=[2,1])
+team = FaerTeam(2)
+s = FaerScratch(factorize,p,A;team)
+F = factorize(p,A;scratch=s,team)
+B = FaerSparseMatrix(sparse(2A0);format=:csr)
+reserve!(s,lu!,F,B;team)
+@assert lu!(F,B;scratch=s,team) === F
+@assert Matrix(F.L)*Matrix(F.U) ≈ (2A0)[Vector(F.p),Vector(F.q)]
+close(s)
+close(team)
+close(p)
+close(A)
+close(B)
+@assert F \ ones(ComplexF64,2) ≈ (2A0) \ ones(ComplexF64,2)
+close(F)
+```
+
 ### Reuse operator application scratch and teams
 
 `mul!(X, op, B[, alpha, beta]; scratch, team)` and

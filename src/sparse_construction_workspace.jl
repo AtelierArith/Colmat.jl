@@ -1,7 +1,7 @@
 """
     scratch_requirements(factorize, plan::FaerSparseSymbolic, A::FaerSparseMatrix; team=nothing)
 
-Query numeric factor-construction workspace for sparse QR and Cholesky (all
+Query numeric factor-construction workspace for sparse LU, QR and Cholesky (all
 algorithms). Pass a
 reserved buffer to `factorize(plan,A; scratch=s, team=team)`. Cholesky uses its
 native numeric LLT requirement and retained triangle. Query and numeric
@@ -20,8 +20,8 @@ function scratch_requirements(
     a::FaerSparseMatrix{T};
     team = nothing,
 ) where {T,K}
-    K in (:qr, :cholesky)||throw(
-        ArgumentError("construction resources currently require QR or Cholesky"),
+    K in (:qr, :cholesky, :lu)||throw(
+        ArgumentError("construction resources require sparse LU, QR or Cholesky"),
     )
     lock(_matrix_lock) do
         isnothing(team) ||
@@ -65,8 +65,9 @@ function reserve!(
     reserve!(s, req.bytes; alignment = req.alignment)
 end
 function _sparse_factor_resource_validate(p, a, s, team)
-    p isa Union{FaerSparseSymbolic{:qr},FaerSparseSymbolic{:cholesky}} ||
-        throw(ArgumentError("construction resources currently require QR or Cholesky"))
+    p isa
+    Union{FaerSparseSymbolic{:qr},FaerSparseSymbolic{:cholesky},FaerSparseSymbolic{:lu}} ||
+        throw(ArgumentError("construction resources require sparse LU, QR or Cholesky"))
     isnothing(s) ||
         s isa FaerScratch ||
         throw(ArgumentError("scratch must be a FaerScratch"))
@@ -160,6 +161,44 @@ function reserve!(
     s::FaerScratch,
     fun::typeof(LinearAlgebra.cholesky!),
     f::FaerSparseFactorization{T,:cholesky},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    req=scratch_requirements(fun, f, a; team)
+    return reserve!(s, req.bytes; alignment = req.alignment)
+end
+
+"""
+    scratch_requirements(lu!, F::FaerSparseFactorization{T,:lu}, A::FaerSparseMatrix{T}; team=nothing)
+
+Query native LU construction scratch for a staged numeric update using F's
+retained symbolic analysis/ordering. Input normalization and owned output remain
+separate allocations. The explicit simplicial kernel is sequential.
+"""
+function scratch_requirements(
+    ::typeof(LinearAlgebra.lu!),
+    f::FaerSparseFactorization{T,:lu},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    lock(_matrix_lock) do
+        _handle(f)
+        return scratch_requirements(LinearAlgebra.factorize, f.plan, a; team)
+    end
+end
+function FaerScratch(
+    fun::typeof(LinearAlgebra.lu!),
+    f::FaerSparseFactorization{T,:lu},
+    a::FaerSparseMatrix{T};
+    team = nothing,
+) where {T}
+    req=scratch_requirements(fun, f, a; team)
+    return FaerScratch(req.bytes; alignment = req.alignment)
+end
+function reserve!(
+    s::FaerScratch,
+    fun::typeof(LinearAlgebra.lu!),
+    f::FaerSparseFactorization{T,:lu},
     a::FaerSparseMatrix{T};
     team = nothing,
 ) where {T}
