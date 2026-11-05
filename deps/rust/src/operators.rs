@@ -15,6 +15,7 @@ use rustcall_julia_macros::julia;
 mod julia_callback;
 mod qr_actions;
 mod qr_pseudoinverse;
+mod iterative_workspace;
 use qr_actions::{OwnedQrInverse, WideQrInverse};
 #[derive(Clone)]
 enum Base<T> {
@@ -570,8 +571,8 @@ impl VectorOwner {
         })
     }
 }
-// Synchronously borrowed on the calling Julia thread (all current solvers use
-// Par::Seq). The callback must copy values before returning; no pointer escapes.
+// Synchronously borrowed on the calling Julia thread, outside worker kernels.
+// The callback must copy values before returning; no pointer escapes.
 fn observe_iteration<T: ComplexField>(
     x: MatRef<'_, T>,
     observing: bool,
@@ -604,6 +605,23 @@ fn solve<T: ComplexField>(
     observing: bool,
     observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
 ) -> Result<Mat<T>, String> {
+    solve_resources(a, m, b, initial, atol, rtol, maxiter, stats, iterations, observing, observer, None, Par::Seq)
+}
+fn solve_resources<T: ComplexField>(
+    a: &Operator<T>,
+    m: Option<&Operator<T>>,
+    b: MatRef<'_, T>,
+    initial: MatRef<'_, T>,
+    atol: f64,
+    rtol: f64,
+    maxiter: usize,
+    stats: *mut u8,
+    iterations: *mut usize,
+    observing: bool,
+    observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
+    scratch: Option<&mut crate::workspace::OwnedScratch>,
+    mut par: Par<'_>,
+) -> Result<Mat<T>, String> {
     if a.nrows() != a.ncols() || a.ncols() != b.nrows() || initial.shape() != b.shape() {
         return Err("CG dimensions must match".into());
     }
@@ -612,11 +630,11 @@ fn solve<T: ComplexField>(
     if m.shape() != a.shape() {
         return Err("CG preconditioner dimensions must match".into());
     }
+    let req=iterative_workspace::requirement(a,m,m,0,b.ncols(),par.shape())?;
+    let mut memory=if scratch.is_none(){Some(MemBuffer::try_new(req).map_err(|e|format!("{e:?}"))?)}else{None};
+    let stack=if let Some(work)=scratch{work.stack(req)?}else{MemStack::new(memory.as_mut().unwrap())};
     let mut out = initial.to_owned();
     let mut callbacks = 0usize;
-    let par = Par::Seq;
-    let mut mem = MemBuffer::try_new(cg::conjugate_gradient_scratch(m, a, b.ncols(), par.shape()))
-        .map_err(|e| format!("{e:?}"))?;
     let result = cg::conjugate_gradient(
         out.as_mut(),
         m,
@@ -633,8 +651,8 @@ fn solve<T: ComplexField>(
             callbacks += 1;
             observe_iteration(x, observing, observer)
         },
-        par,
-        MemStack::new(&mut mem),
+        par.reborrow(),
+        stack,
     );
     let (mut status, estimate_abs, estimate_rel, count) = match result {
         Ok(info) => (
@@ -654,13 +672,7 @@ fn solve<T: ComplexField>(
             (3, nan::<T::Real>(), nan::<T::Real>(), callbacks)
         }
     };
-    let mut residual = product(a, out.as_ref())?;
-    for j in 0..b.ncols() {
-        for i in 0..b.nrows() {
-            residual[(i, j)] = &b[(i, j)] - &residual[(i, j)];
-        }
-    }
-    let actual = residual.norm_l2();
+    let (actual,_normal)=iterative_workspace::residual_norms(a,m,out.as_ref(),b,0,par,stack);
     let bnorm = b.norm_l2();
     let relative = if bnorm == zero::<T::Real>() {
         copy(&actual)
@@ -889,6 +901,24 @@ fn solve_bicg<T: ComplexField>(
     observing: bool,
     observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
 ) -> Result<Mat<T>, String> {
+    solve_bicg_resources(a, m, right, b, initial, atol, rtol, maxiter, stats, iterations, observing, observer, None, Par::Seq)
+}
+fn solve_bicg_resources<T: ComplexField>(
+    a: &Operator<T>,
+    m: Option<&Operator<T>>,
+    right: Option<&Operator<T>>,
+    b: MatRef<'_, T>,
+    initial: MatRef<'_, T>,
+    atol: f64,
+    rtol: f64,
+    maxiter: usize,
+    stats: *mut u8,
+    iterations: *mut usize,
+    observing: bool,
+    observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
+    scratch: Option<&mut crate::workspace::OwnedScratch>,
+    mut par: Par<'_>,
+) -> Result<Mat<T>, String> {
     if a.nrows() != a.ncols() || a.ncols() != b.nrows() || initial.shape() != b.shape() {
         return Err("BiCGSTAB dimensions must match".into());
     }
@@ -901,17 +931,11 @@ fn solve_bicg<T: ComplexField>(
     if right.shape() != a.shape() {
         return Err("BiCGSTAB right preconditioner dimensions must match".into());
     }
+    let req=iterative_workspace::requirement(a,m,right,1,b.ncols(),par.shape())?;
+    let mut memory=if scratch.is_none(){Some(MemBuffer::try_new(req).map_err(|e|format!("{e:?}"))?)}else{None};
+    let stack=if let Some(work)=scratch{work.stack(req)?}else{MemStack::new(memory.as_mut().unwrap())};
     let mut out = initial.to_owned();
     let mut callbacks = 0usize;
-    let par = Par::Seq;
-    let mut mem = MemBuffer::try_new(faer::matrix_free::bicgstab::bicgstab_scratch(
-        m,
-        right,
-        a,
-        b.ncols(),
-        par.shape(),
-    ))
-    .map_err(|e| format!("{e:?}"))?;
     let result = faer::matrix_free::bicgstab::bicgstab(
         out.as_mut(),
         m,
@@ -929,8 +953,8 @@ fn solve_bicg<T: ComplexField>(
             callbacks += 1;
             observe_iteration(x, observing, observer)
         },
-        par,
-        MemStack::new(&mut mem),
+        par.reborrow(),
+        stack,
     );
     let (mut status, estimate_abs, estimate_rel, count) = match result {
         Ok(info) => (
@@ -944,13 +968,7 @@ fn solve_bicg<T: ComplexField>(
             rel_residual,
         }) => (1, abs_residual, rel_residual, callbacks),
     };
-    let mut residual = product(a, out.as_ref())?;
-    for j in 0..b.ncols() {
-        for i in 0..b.nrows() {
-            residual[(i, j)] = &b[(i, j)] - &residual[(i, j)];
-        }
-    }
-    let actual = residual.norm_l2();
+    let (actual,_normal)=iterative_workspace::residual_norms(a,m,out.as_ref(),b,1,par,stack);
     let bnorm = b.norm_l2();
     let relative = if bnorm == zero::<T::Real>() {
         copy(&actual)
@@ -1174,6 +1192,23 @@ fn solve_lsmr<T: ComplexField>(
     observing: bool,
     observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
 ) -> Result<Mat<T>, String> {
+    solve_lsmr_resources(a, m, b, initial, atol, rtol, maxiter, stats, iterations, observing, observer, None, Par::Seq)
+}
+fn solve_lsmr_resources<T: ComplexField>(
+    a: &Operator<T>,
+    m: Option<&Operator<T>>,
+    b: MatRef<'_, T>,
+    initial: MatRef<'_, T>,
+    atol: f64,
+    rtol: f64,
+    maxiter: usize,
+    stats: *mut u8,
+    iterations: *mut usize,
+    observing: bool,
+    observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
+    scratch: Option<&mut crate::workspace::OwnedScratch>,
+    mut par: Par<'_>,
+) -> Result<Mat<T>, String> {
     if a.nrows() != b.nrows() || initial.nrows() != a.ncols() || initial.ncols() != b.ncols() {
         return Err("LSMR dimensions must match".into());
     }
@@ -1182,30 +1217,19 @@ fn solve_lsmr<T: ComplexField>(
     if m.shape() != (a.ncols(), a.ncols()) {
         return Err("LSMR preconditioner dimensions must match".into());
     }
-    let mut adjoint = a.clone();
-    adjoint.transpose = !adjoint.transpose;
-    adjoint.conjugate = !adjoint.conjugate;
-    let mut madjoint = m.clone();
-    madjoint.transpose = !madjoint.transpose;
-    madjoint.conjugate = !madjoint.conjugate;
-    let normal_ref = product(&madjoint, product(&adjoint, b)?.as_ref())?.norm_l2();
+    let req=iterative_workspace::requirement(a,m,m,2,b.ncols(),par.shape())?;
+    let mut memory=if scratch.is_none(){Some(MemBuffer::try_new(req).map_err(|e|format!("{e:?}"))?)}else{None};
+    let stack=if let Some(work)=scratch{work.stack(req)?}else{MemStack::new(memory.as_mut().unwrap())};
+    let normal_ref=iterative_workspace::normal_norm(a,m,b,par.reborrow(),stack);
     let abs_tol = from_f64::<T::Real>(atol);
     let requested_rel = from_f64::<T::Real>(rtol);
     let mut out = initial.to_owned();
     let mut callbacks = 0usize;
-    let par = Par::Seq;
     let (mut status, estimate_abs, estimate_rel, count) =
         if a.nrows() == 0 || a.ncols() == 0 || b.ncols() == 0 {
             out.fill(zero());
             (0, zero::<T::Real>(), zero::<T::Real>(), 0)
         } else {
-            let mut mem = MemBuffer::try_new(faer::matrix_free::lsmr::lsmr_scratch(
-                m,
-                a,
-                b.ncols(),
-                par.shape(),
-            ))
-            .map_err(|e| format!("{e:?}"))?;
             let result = faer::matrix_free::lsmr::lsmr(
                 out.as_mut(),
                 m,
@@ -1222,8 +1246,8 @@ fn solve_lsmr<T: ComplexField>(
                     callbacks += 1;
                     observe_iteration(x, observing, observer)
                 },
-                par,
-                MemStack::new(&mut mem),
+                par.reborrow(),
+                stack,
             );
             match result {
                 Ok(info) => (
@@ -1238,20 +1262,13 @@ fn solve_lsmr<T: ComplexField>(
                 }) => (1, abs_residual, rel_residual, callbacks),
             }
         };
-    let mut residual = product(a, out.as_ref())?;
-    for j in 0..b.ncols() {
-        for i in 0..b.nrows() {
-            residual[(i, j)] = &b[(i, j)] - &residual[(i, j)];
-        }
-    }
-    let actual = residual.norm_l2();
+    let (actual,normal)=iterative_workspace::residual_norms(a,m,out.as_ref(),b,2,par,stack);
     let bnorm = b.norm_l2();
     let relative = if bnorm == zero::<T::Real>() {
         copy(&actual)
     } else {
         &actual / &bnorm
     };
-    let normal = product(&madjoint, product(&adjoint, residual.as_ref())?.as_ref())?.norm_l2();
     let normal_relative = if normal_ref == zero::<T::Real>() {
         copy(&normal)
     } else {

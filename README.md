@@ -2575,7 +2575,29 @@ returning through Rust; in-place destinations remain unchanged. A deliberate
 stop copies the stopped iterate into an in-place destination.
 
 Julia-defined operator/preconditioner actions are available through the constructor
-above. Iteration workspace/team control remains separate work under Issue #22.
+above. The three iterative solvers and their in-place forms also accept
+`scratch` and `team`, with `scratch_requirements`, `FaerScratch` and `reserve!`.
+Queries account for the promoted scalar type, RHS columns, preconditioners and
+actual team shape without applying operators or invoking callbacks. The buffer
+covers the native iteration and independently recomputed final residuals.
+Result staging, operator promotion and Julia callback/history storage allocate
+separately. Short or closed resources fail before updating destinations.
+
+```julia
+using Colmat, LinearAlgebra
+A = Diagonal(collect(4.0:9.0))
+b = ones(6)
+team = FaerTeam(2)
+work = FaerScratch(cg, A, b; team)
+r = cg(A, b; scratch=work, team, history=true)
+@assert r.converged && r.x ≈ A\b
+x = zeros(6)
+reserve!(work, lsmr!, x, A, b; team)
+r2 = lsmr!(x, A, b; scratch=work, team)
+@assert r2.x === x && x ≈ A\b
+close(work)
+close(team)
+```
 
 LSMR can falsely report native convergence on extreme uniform scales
 ([faer #245](https://github.com/tensor4all/faer/issues/245)). Colmat's true-residual
