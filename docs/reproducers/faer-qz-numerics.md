@@ -69,7 +69,7 @@ construction scratch correction remains in place pending verified adoption.
 
 ## Merged fixes selected for Colmat (2026-11-05)
 
-The candidate dependency update selects main
+The validated dependency update selects main
 `2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7` (faer 0.29.0), which contains
 #253's even-rounded AED query and #254's fully-deflated sentinel correction.
 The two native n=78 regression tests in `deps/rust/src/qz/adoption_tests.rs`

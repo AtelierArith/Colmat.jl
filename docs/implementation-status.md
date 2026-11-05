@@ -3270,7 +3270,7 @@ entries in the 76-row mapping remain in scope.
 
 ## Merged QZ fix dependency update
 
-The candidate faer 0.29.0 selection is main
+The validated faer 0.29.0 selection is main
 `2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7`: the even-window query and
 fully-deflated row-zero sentinel fixes are present. The native Float32/Float64
 n=78 regression fails on 19053d8 and passes with bounded independent
@@ -3280,3 +3280,8 @@ scratch correction stays in place until its separate upstream fix is merged
 and verified. See [the retained reproducers](reproducers/faer-qz-numerics.md).
 Householder/LLT constructor scratch proposals #267/#269 and #258's range/index
 changes remain unselected; the full 76-row inventory remains in scope.
+
+Final validation on the selected source: 556,244 assertions / 117 files /
+16 workers (9m06.0s), 125 native tests and 97 executable README blocks pass.
+Runtime/test file hashes and the clean dependency revision are unchanged
+through the gates. Formatting and the 76-row/frozen-inventory checks pass.
