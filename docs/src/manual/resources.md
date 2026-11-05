@@ -27,6 +27,22 @@ by Colmat's owner lock, and faer may choose a narrower region for small work.
 The API controls worker reservations; it does not promise a speedup for every
 matrix size. Inputs needing conversion and destination writes use temporaries.
 
+## Parallel-region thresholds
+
+`bidiagonalize[!]` accepts `par_threshold=FaerParThreshold()` and forwards the
+same policy through `scratch_requirements`, `FaerScratch` and `reserve!`.
+`FaerParThreshold(:derived)` keeps faer's default cost model.
+`FaerParThreshold(n)` sets a fixed floor in updated trailing-block elements;
+zero and one select the same policy for positive work. The integer must satisfy
+`0 <= n < typemax(UInt)`. This fixed floor controls the reduction's trailing
+updates; explicit U/V applications retain their own parallel rules.
+
+`FaerParThreshold(:never)` keeps both reduction and explicit U/V formation
+sequential. A supplied `FaerTeam` must still be open. These policies create no
+team; reuse an explicit team when parallel work is desired. Query and execute
+with the same policy, and reserve again when changing it. See the
+[bidiagonal example](reductions.md#Bidiagonal-parallel-policy).
+
 ## Reusable native scratch
 
 ```julia

@@ -1,5 +1,5 @@
 """
-    bidiagonalize(A; full=false, blocksize=0, scratch=nothing, team=nothing)
+    bidiagonalize(A; full=false, blocksize=0, scratch=nothing, team=nothing, par_threshold=FaerParThreshold())
 
 Native faer reduction `A ≈ U * B * V'`, where B is a square `Bidiagonal` of
 order min(size(A)...). Tall/square inputs give upper B; wide inputs give lower B.
@@ -10,6 +10,9 @@ Use `scratch_requirements`, `FaerScratch(bidiagonalize,A)` and `reserve!` for th
 canonical work matrix, compact factors and declared reduction/U/V workspace.
 The actual scoped team token is used by all stages. Conversion, returned owners
 and staged bang writeback allocate separately.
+`par_threshold` selects the native reduction's derived/fixed/never policy;
+`FaerParThreshold(:never)` also makes U/V formation sequential, while validating
+any supplied team.
 """
 struct FaerBidiagonalization{T,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
     U::M
@@ -56,12 +59,14 @@ function bidiagonalize(
     blocksize::Integer = 0,
     scratch = nothing,
     team = nothing,
+    par_threshold = FaerParThreshold(),
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
+        policy=_par_threshold(par_threshold)
         m, n, T, bs=_bidiagonalize_plan(a, blocksize)
         k=min(m, n)
-        req=_bidiagonalize_requirement(m, n, T, full, bs, team)
+        req=_bidiagonalize_requirement(m, n, T, full, bs, team, policy)
         work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
              scratch
         try
@@ -96,9 +101,11 @@ function bidiagonalize(
                     _tag(T),
                     full,
                     UInt(bs),
+                    policy.value,
                 )
-                isnothing(team) ? _native_call(RustCrate.bidiagonalize_workspace, args...) :
-                _native_call(RustCrate.bidiagonalize_workspace_team, args..., team)
+                isnothing(team) ?
+                _native_call(RustCrate.bidiagonalize_tuned_workspace, args...) :
+                _native_call(RustCrate.bidiagonalize_tuned_workspace_team, args..., team)
             end
             all(isfinite, U)&&all(isfinite, V)&&all(isfinite, d)&&all(isfinite, e) ||
                 throw(ArgumentError("bidiagonalization overflowed the working type"))

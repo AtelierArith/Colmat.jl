@@ -6,8 +6,18 @@ use faer::linalg::{self, householder as hh, svd};
 use faer::mat::{AsMatMut, AsMatRef};
 use faer::prelude::{Reborrow, ReborrowMut};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{MatMut, MatRef, Par, ParShape};
+use faer::utils::cost::ParThreshold;
+use faer::{Auto, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
+
+fn params<T: ComplexField>(threshold: usize) -> faer::Spec<svd::bidiag::BidiagParams, T> {
+    svd::bidiag::BidiagParams {
+        // faer's documented C integer encoding, never a Rust enum ABI.
+        par_threshold: ParThreshold::from(threshold),
+        ..<svd::bidiag::BidiagParams as Auto<T>>::auto()
+    }
+    .into()
+}
 
 fn block_size<T: ComplexField>(rows: usize, k: usize, bs: usize) -> Result<usize, String> {
     if bs > k.max(1) {
@@ -29,7 +39,13 @@ fn requirement<T: ComplexField>(
     full: bool,
     bs: usize,
     par: ParShape,
+    threshold: usize,
 ) -> Result<StackReq, String> {
+    let par = if threshold == usize::MAX {
+        ParShape::Seq
+    } else {
+        par
+    };
     if m > isize::MAX as usize || n > isize::MAX as usize {
         return Err("bidiagonal dimensions overflow".into());
     }
@@ -38,8 +54,8 @@ fn requirement<T: ComplexField>(
     if k == 0 {
         return Ok(StackReq::EMPTY);
     }
-    let mut kernel = svd::bidiag::bidiag_in_place_scratch::<T>(rows, k, par, Default::default())
-        .or(
+    let mut kernel =
+        svd::bidiag::bidiag_in_place_scratch::<T>(rows, k, par, params::<T>(threshold)).or(
             hh::apply_block_householder_sequence_on_the_left_in_place_scratch::<T>(
                 rows,
                 bs,
@@ -65,12 +81,13 @@ fn dispatch(
     full: bool,
     bs: usize,
     par: ParShape,
+    threshold: usize,
 ) -> Result<StackReq, String> {
     match tag {
-        0 => requirement::<f32>(m, n, full, bs, par),
-        1 => requirement::<f64>(m, n, full, bs, par),
-        2 => requirement::<faer::c32>(m, n, full, bs, par),
-        3 => requirement::<faer::c64>(m, n, full, bs, par),
+        0 => requirement::<f32>(m, n, full, bs, par, threshold),
+        1 => requirement::<f64>(m, n, full, bs, par, threshold),
+        2 => requirement::<faer::c32>(m, n, full, bs, par, threshold),
+        3 => requirement::<faer::c64>(m, n, full, bs, par, threshold),
         _ => Err("unsupported bidiagonal scalar".into()),
     }
 }
@@ -82,9 +99,10 @@ fn query(
     bs: usize,
     par: ParShape,
     out: *mut usize,
+    threshold: usize,
 ) -> Result<(), String> {
     buffer::<usize>(out.cast(), 2)?;
-    let req = dispatch(m, n, tag, full, bs, par)?;
+    let req = dispatch(m, n, tag, full, bs, par, threshold)?;
     // SAFETY: caller preserves UInt[2]; checked span/alignment.
     unsafe {
         out.write(req.size_bytes());
@@ -101,7 +119,7 @@ pub fn bidiagonalize_requirements(
     bs: usize,
     out: *mut usize,
 ) -> Result<(), String> {
-    guarded(|| query(m, n, tag, full, bs, ParShape::Seq, out))
+    guarded(|| query(m, n, tag, full, bs, ParShape::Seq, out, 0))
 }
 #[julia]
 impl OwnedTeam {
@@ -115,7 +133,7 @@ impl OwnedTeam {
         bs: usize,
         out: *mut usize,
     ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(m, n, tag, full, bs, par.shape(), out))?)
+        guarded(|| self.execute(|par| query(m, n, tag, full, bs, par.shape(), out, 0))?)
     }
 }
 unsafe fn compute<T: ComplexField>(
@@ -130,7 +148,11 @@ unsafe fn compute<T: ComplexField>(
     full: bool,
     bs: usize,
     mut par: Par,
+    threshold: usize,
 ) -> Result<(), String> {
+    if threshold == usize::MAX {
+        par = Par::Seq;
+    }
     let k = m.min(n);
     let uc = if full { m } else { k };
     let vc = if full { n } else { k };
@@ -157,7 +179,7 @@ unsafe fn compute<T: ComplexField>(
             }
         }
     }
-    let stack = scratch.stack(requirement::<T>(m, n, full, bs, par.shape())?)?;
+    let stack = scratch.stack(requirement::<T>(m, n, full, bs, par.shape(), threshold)?)?;
     let a = if k == 0 {
         None
     } else {
@@ -214,7 +236,7 @@ unsafe fn compute<T: ComplexField>(
         hr.as_mat_mut(),
         par.reborrow(),
         stack,
-        Default::default(),
+        params::<T>(threshold),
     );
     crate::typed::finite(work.as_mat_ref())?;
     let (left, mut right) = if wide {
@@ -277,14 +299,15 @@ fn run(
     full: bool,
     bs: usize,
     par: Par,
+    threshold: usize,
 ) -> Result<(), String> {
     // SAFETY: tagged branches check every buffer before typed access.
     unsafe {
         match tag {
-            0 => compute::<f32>(scratch, input, m, n, u, v, d, e, full, bs, par),
-            1 => compute::<f64>(scratch, input, m, n, u, v, d, e, full, bs, par),
-            2 => compute::<faer::c32>(scratch, input, m, n, u, v, d, e, full, bs, par),
-            3 => compute::<faer::c64>(scratch, input, m, n, u, v, d, e, full, bs, par),
+            0 => compute::<f32>(scratch, input, m, n, u, v, d, e, full, bs, par, threshold),
+            1 => compute::<f64>(scratch, input, m, n, u, v, d, e, full, bs, par, threshold),
+            2 => compute::<faer::c32>(scratch, input, m, n, u, v, d, e, full, bs, par, threshold),
+            3 => compute::<faer::c64>(scratch, input, m, n, u, v, d, e, full, bs, par, threshold),
             _ => Err("unsupported bidiagonal scalar".into()),
         }
     }
@@ -303,7 +326,7 @@ pub fn bidiagonalize_workspace(
     full: bool,
     bs: usize,
 ) -> Result<(), String> {
-    guarded(|| run(scratch, input, m, n, u, v, d, e, tag, full, bs, Par::Seq))
+    guarded(|| run(scratch, input, m, n, u, v, d, e, tag, full, bs, Par::Seq, 0))
 }
 #[julia]
 pub fn bidiagonalize_workspace_team(
@@ -320,7 +343,7 @@ pub fn bidiagonalize_workspace_team(
     bs: usize,
     team: &OwnedTeam,
 ) -> Result<(), String> {
-    guarded(|| team.execute(|par| run(scratch, input, m, n, u, v, d, e, tag, full, bs, par))?)
+    guarded(|| team.execute(|par| run(scratch, input, m, n, u, v, d, e, tag, full, bs, par, 0))?)
 }
 pub(super) fn allocate(
     input: *const u8,
@@ -334,7 +357,7 @@ pub(super) fn allocate(
     full: bool,
     bs: usize,
 ) -> Result<(), String> {
-    let req = dispatch(m, n, tag, full, bs, ParShape::Seq)?;
+    let req = dispatch(m, n, tag, full, bs, ParShape::Seq, 0)?;
     let mut scratch = OwnedScratch::new();
     scratch.scratch_reserve(req.size_bytes(), req.align_bytes())?;
     run(
@@ -350,7 +373,94 @@ pub(super) fn allocate(
         full,
         bs,
         Par::Seq,
+        0,
     )
+}
+
+#[julia]
+pub fn bidiagonalize_tuned_requirements(
+    m: usize,
+    n: usize,
+    tag: i32,
+    full: bool,
+    bs: usize,
+    threshold: usize,
+    out: *mut usize,
+) -> Result<(), String> {
+    guarded(|| query(m, n, tag, full, bs, ParShape::Seq, out, threshold))
+}
+#[julia]
+impl OwnedTeam {
+    #[julia]
+    pub fn bidiagonalize_tuned_team_requirements(
+        &self,
+        m: usize,
+        n: usize,
+        tag: i32,
+        full: bool,
+        bs: usize,
+        threshold: usize,
+        out: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| self.execute(|par| query(m, n, tag, full, bs, par.shape(), out, threshold))?)
+    }
+}
+#[julia]
+pub fn bidiagonalize_tuned_workspace(
+    scratch: &mut OwnedScratch,
+    input: *const u8,
+    m: usize,
+    n: usize,
+    u: *mut u8,
+    v: *mut u8,
+    d: *mut u8,
+    e: *mut u8,
+    tag: i32,
+    full: bool,
+    bs: usize,
+    threshold: usize,
+) -> Result<(), String> {
+    guarded(|| {
+        run(
+            scratch,
+            input,
+            m,
+            n,
+            u,
+            v,
+            d,
+            e,
+            tag,
+            full,
+            bs,
+            Par::Seq,
+            threshold,
+        )
+    })
+}
+#[julia]
+pub fn bidiagonalize_tuned_workspace_team(
+    scratch: &mut OwnedScratch,
+    input: *const u8,
+    m: usize,
+    n: usize,
+    u: *mut u8,
+    v: *mut u8,
+    d: *mut u8,
+    e: *mut u8,
+    tag: i32,
+    full: bool,
+    bs: usize,
+    threshold: usize,
+    team: &OwnedTeam,
+) -> Result<(), String> {
+    guarded(|| {
+        team.execute(|par| {
+            run(
+                scratch, input, m, n, u, v, d, e, tag, full, bs, par, threshold,
+            )
+        })?
+    })
 }
 
 #[cfg(test)]
@@ -371,7 +481,7 @@ mod tests {
         let mut v: Vec<T> = (0..n * n).map(|_| from_f64::<T>(-9.0)).collect();
         let mut d: Vec<T> = (0..n).map(|_| from_f64::<T>(-9.0)).collect();
         let mut e: Vec<T> = (0..n - 1).map(|_| from_f64::<T>(-9.0)).collect();
-        let req = requirement::<T>(m, n, false, 2, ParShape::Seq).unwrap();
+        let req = requirement::<T>(m, n, false, 2, ParShape::Seq, 0).unwrap();
         let mut scratch = OwnedScratch::new();
         scratch
             .scratch_reserve(req.size_bytes() - 1, req.align_bytes())
@@ -391,6 +501,7 @@ mod tests {
                         false,
                         2,
                         Par::Seq,
+                        0,
                     )
                 }
             };
@@ -437,6 +548,7 @@ mod tests {
                     false,
                     2,
                     Par::Seq,
+                    0,
                 )
             }
             .is_err());
@@ -454,6 +566,7 @@ mod tests {
                 false,
                 2,
                 Par::Seq,
+                0,
             )
         }
         .is_err());
@@ -470,6 +583,7 @@ mod tests {
                 false,
                 2,
                 Par::Seq,
+                0,
             )
         }
         .is_err());
@@ -492,6 +606,7 @@ mod tests {
                 true,
                 0,
                 Par::Seq,
+                0,
             )
         }
         .unwrap();
