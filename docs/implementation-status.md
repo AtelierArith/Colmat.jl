@@ -3390,3 +3390,11 @@ sorting by numerically equal real parts reordered complex conjugates after
 roundoff. It now matches eigenvalue multisets with the same numerical tolerances;
 reconstruction and orthogonality bounds are unchanged. No dependency defect was
 inferred from that test expectation.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **565,569 assertions / 120 files / 16 workers in 9m12.3s**; **4,579 focused
+assertions** (2,969 new), **131 native tests** and **100 executable README blocks**
+pass. JuliaFormatter, native rustfmt and diff checks pass. All 254 frozen
+validation inputs (253 runtime/test files and README), the clean selected faer
+`2d4ea4e`, frozen inventory and all 76 mapping rows remain unchanged through
+the final gates.

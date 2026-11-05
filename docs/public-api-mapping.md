@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 機能分類の調査日: 2026-11-04。依存と検証情報の更新: 2026-11-05
 - 検証対象 t4a-faer: `0.29.0`、コミット [`2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7`](https://github.com/tensor4all/faer/tree/2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7)。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
-- Colmat の判定基準: PR #64 までの main と、PR #65 の単一行列 Hessenberg/Schur 構築 scratch/team。各機能の追加・制約は以下の行と実装記録で追跡する。
-- 直近の検証: Julia 1.13.3 / RustCall.jl 0.9.2、canonical `Pkg.test(; allow_reresolve=false)` 562600 assertions / 119 files / 16 workers、native 129 tests、README 99 blocks。依存更新は PR #63、QZ 構築は PR #64、単一行列 Hessenberg/Schur 構築の検証結果は PR #65 と実装記録に保存。全76機能行の完了は意味しない。
+- Colmat の判定基準: PR #65 までの main と、PR #66 の保存単一 Schur 並べ替え scratch/scoped token。各機能の追加・制約は以下の行と実装記録で追跡する。
+- 直近の検証: Julia 1.13.3 / RustCall.jl 0.9.2、canonical `Pkg.test(; allow_reresolve=false)` 565569 assertions / 120 files / 16 workers、native 131 tests、README 100 blocks。依存更新は PR #63、QZ 構築は PR #64、単一行列 Hessenberg/Schur 構築は PR #65、保存単一 Schur 並べ替えの検証結果は PR #66 と実装記録に保存。全76機能行の完了は意味しない。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
