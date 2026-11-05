@@ -104,81 +104,137 @@ function bidiagonalize!(a::FaerMatrix; kwargs...)
     end
 end
 """
-    bidiagonal_svd(d, e; uplo=:U, recursion_threshold=128)
+    bidiagonal_svd(d, e; uplo=:U, recursion_threshold=128, scratch=nothing, team=nothing)
 
 Call faer's square bidiagonal SVD directly. d and e are the diagonal and selected
 offdiagonal (`:U` superdiagonal, `:L` subdiagonal). All four native scalar types
 and promotion are supported. Inputs remain unchanged. Returns a Julia SVD with
-native U/Vt and nonnegative descending real S. Native workspace includes dense
-square factors, even when the caller only needs singular values.
+native U/Vt and nonnegative descending real S. Use `scratch_requirements`,
+`FaerScratch(bidiagonal_svd,d,e)` and `reserve!` for the coefficient copies and
+declared native workspace; U/V are written directly into preserved staging.
+Actual team shape/token is used for the query/kernel. Julia conversion, result
+owners and saved-factor back-transform products allocate separately. The native
+kernel still computes dense factors when the caller only needs singular values.
 """
 function bidiagonal_svd(
     d::AbstractVector{<:Number},
     e::AbstractVector{<:Number};
     uplo = :U,
     recursion_threshold::Integer = 128,
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
-        _tridiagonal_open(d)
-        _tridiagonal_open(e)
-        n=length(d)
-        length(e)==max(0, n-1) ||
-            throw(DimensionMismatch("offdiagonal length must be max(0,length(diag)-1)"))
-        uplo in (:U, :L, 'U', 'L') || throw(ArgumentError("uplo must be :U or :L"))
-        threshold=Int(recursion_threshold)
-        threshold>=2 || throw(ArgumentError("recursion_threshold must be at least two"))
-        T=_reflector_type(promote_type(eltype(d), eltype(e)))
+        _iterative_resource_check(scratch, team)
+        n, T, threshold=_bidiagonal_svd_plan(d, e, uplo, recursion_threshold)
         R=_realtype(T)
-        diag=Vector{T}(d)
-        off=Vector{T}(e)
-        all(isfinite, diag)&&all(isfinite, off) ||
-            throw(ArgumentError("bidiagonal coefficients must be finite"))
-        U=zeros(T, n, n)
-        V=zeros(T, n, n)
-        s=zeros(R, n)
-        GC.@preserve diag off U V s _native_call(
-            RustCrate.bidiagonal_svd_data,
-            Ptr{UInt8}(pointer(diag)),
-            Ptr{UInt8}(pointer(off)),
-            UInt(n),
-            Ptr{UInt8}(pointer(s)),
-            Ptr{UInt8}(pointer(U)),
-            Ptr{UInt8}(pointer(V)),
-            _tag(T),
-            uplo in (:U, 'U'),
-            UInt(threshold),
-        )
-        all(isfinite, U)&&all(isfinite, V)&&all(isfinite, s) ||
-            throw(ArgumentError("bidiagonal SVD overflowed the working type"))
-        return LinearAlgebra.SVD(FaerMatrix(U), s, FaerMatrix(copy(adjoint(V))))
+        req=_bidiagonal_svd_requirement(n, T, threshold, team)
+        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
+             scratch
+        try
+            cap=scratch_capacity(work)
+            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+                ArgumentError(
+                    "bidiagonal SVD scratch capacity/alignment is insufficient; call reserve!",
+                ),
+            )
+            diag=Vector{T}(d)
+            off=Vector{T}(e)
+            diag isa Vector{T} && off isa Vector{T} || throw(
+                ArgumentError("bidiagonal conversion returned incompatible scalar storage"),
+            )
+            length(diag)==n && length(off)==max(0, n-1) || throw(
+                DimensionMismatch("bidiagonal conversion changed coefficient lengths"),
+            )
+            all(isfinite, diag)&&all(isfinite, off) ||
+                throw(ArgumentError("bidiagonal coefficients must be finite"))
+            U=Matrix{T}(undef, n, n)
+            V=Matrix{T}(undef, n, n)
+            values=Vector{R}(undef, n)
+            GC.@preserve diag off U V values begin
+                args=(
+                    work,
+                    Ptr{UInt8}(pointer(diag)),
+                    Ptr{UInt8}(pointer(off)),
+                    UInt(n),
+                    Ptr{UInt8}(pointer(values)),
+                    Ptr{UInt8}(pointer(U)),
+                    Ptr{UInt8}(pointer(V)),
+                    _tag(T),
+                    uplo in (:U, 'U'),
+                    UInt(threshold),
+                )
+                isnothing(team) ?
+                _native_call(RustCrate.bidiagonal_svd_workspace, args...) :
+                _native_call(RustCrate.bidiagonal_svd_workspace_team, args..., team)
+            end
+            all(isfinite, U)&&all(isfinite, V)&&all(isfinite, values) ||
+                throw(ArgumentError("bidiagonal SVD overflowed the working type"))
+            return LinearAlgebra.SVD(FaerMatrix(U), values, FaerMatrix(copy(adjoint(V))))
+        finally
+            isnothing(scratch) && close(work)
+        end
     end
 end
-function LinearAlgebra.svd(f::FaerBidiagonalization; full::Bool = false, kwargs...)
+function LinearAlgebra.svd(
+    f::FaerBidiagonalization;
+    full::Bool = false,
+    scratch = nothing,
+    team = nothing,
+    kwargs...,
+)
     lock(_matrix_lock) do
-        _handle(f.U)
-        _handle(f.V)
+        _iterative_resource_check(scratch, team)
+        _bidiagonal_factor_validate(f; full)
         m, n=size(f)
         k=size(f.B, 1)
         T=eltype(f)
-        core=bidiagonal_svd(f.B.dv, f.B.ev; uplo = f.B.uplo, kwargs...)
-        if full
-            size(f.U, 2)==m && size(f.V, 2)==n ||
-                throw(ArgumentError("full SVD requires a reduction made with full=true"))
-            left=Matrix{T}(LinearAlgebra.I, m, m)
-            left[1:k, 1:k]=Matrix(core.U)
-            right=Matrix{T}(LinearAlgebra.I, n, n)
-            right[1:k, 1:k]=Matrix(core.Vt)
-            return LinearAlgebra.SVD(f.U*FaerMatrix(left), core.S, FaerMatrix(right)*f.V')
+        core=bidiagonal_svd(f.B.dv, f.B.ev; uplo = f.B.uplo, scratch, team, kwargs...)
+        try
+            if full
+                left=Matrix{T}(LinearAlgebra.I, m, m)
+                left[1:k, 1:k]=Matrix(core.U)
+                right=Matrix{T}(LinearAlgebra.I, n, n)
+                right[1:k, 1:k]=Matrix(core.Vt)
+                l, r=FaerMatrix(left), FaerMatrix(right)
+                try
+                    return LinearAlgebra.SVD(
+                        _bidiagonal_product(team, f.U, l),
+                        core.S,
+                        _bidiagonal_product(team, r, f.V'),
+                    )
+                finally
+                    close(l)
+                    close(r)
+                end
+            end
+            U, V=_bidiagonal_bases(f)
+            try
+                return LinearAlgebra.SVD(
+                    _bidiagonal_product(team, U, core.U),
+                    core.S,
+                    _bidiagonal_product(team, core.Vt, V'),
+                )
+            finally
+                close(U)
+                close(V)
+            end
+        finally
+            close(core.U)
+            close(core.Vt)
         end
-        U, V=_bidiagonal_bases(f)
-        return LinearAlgebra.SVD(U*core.U, core.S, core.Vt*V')
     end
 end
-function LinearAlgebra.svdvals(f::FaerBidiagonalization; kwargs...)
+function LinearAlgebra.svdvals(
+    f::FaerBidiagonalization;
+    scratch = nothing,
+    team = nothing,
+    kwargs...,
+)
     lock(_matrix_lock) do
-        _handle(f.U)
-        _handle(f.V)
-        return bidiagonal_svd(f.B.dv, f.B.ev; uplo = f.B.uplo, kwargs...).S
+        _iterative_resource_check(scratch, team)
+        _bidiagonal_factor_validate(f)
+        return _bidiagonal_values(f.B.dv, f.B.ev; uplo = f.B.uplo, scratch, team, kwargs...)
     end
 end
 const _NativeBidiagonal=LinearAlgebra.Bidiagonal{
@@ -188,4 +244,4 @@ const _NativeBidiagonal=LinearAlgebra.Bidiagonal{
 LinearAlgebra.svd(a::_NativeBidiagonal; full::Bool = false, kwargs...) =
     bidiagonal_svd(a.dv, a.ev; uplo = a.uplo, kwargs...)
 LinearAlgebra.svdvals(a::_NativeBidiagonal; kwargs...) =
-    bidiagonal_svd(a.dv, a.ev; uplo = a.uplo, kwargs...).S
+    _bidiagonal_values(a.dv, a.ev; uplo = a.uplo, kwargs...)

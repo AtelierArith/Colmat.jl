@@ -3,7 +3,8 @@ use crate::{guarded, typed::finite};
 use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::linalg::svd;
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Auto, Mat, MatRef, Par};
+use faer::{Mat, MatRef, Par};
+mod workspace;
 use rustcall_julia_macros::julia;
 unsafe fn reduce<T: ComplexField>(
     input: *const u8,
@@ -142,56 +143,6 @@ pub fn bidiagonalize_data(
         }
     })
 }
-unsafe fn band<T: ComplexField>(
-    diag: *const u8,
-    off: *const u8,
-    n: usize,
-    s: *mut u8,
-    uout: *mut u8,
-    vout: *mut u8,
-    upper: bool,
-    threshold: usize,
-) -> Result<(), String> {
-    let mut d = (0..n)
-        .map(|i| copy(&*diag.cast::<T>().add(i)))
-        .collect::<Vec<_>>();
-    let e = (0..n.saturating_sub(1))
-        .map(|i| copy(&*off.cast::<T>().add(i)))
-        .collect::<Vec<_>>();
-    let mut u = Mat::<T>::zeros(n, n);
-    let mut v = Mat::<T>::zeros(n, n);
-    let params = svd::SvdParams {
-        recursion_threshold: threshold,
-        ..<svd::SvdParams as Auto<T>>::auto()
-    };
-    let mut mem = MemBuffer::try_new(svd::bidiagonal_svd_scratch::<T>(
-        n,
-        Par::Seq.shape(),
-        params.into(),
-    ))
-    .map_err(|e| format!("{e:?}"))?;
-    svd::bidiagonal_svd(
-        &mut d,
-        &e,
-        upper,
-        u.as_mut(),
-        v.as_mut(),
-        Par::Seq,
-        MemStack::new(&mut mem),
-        params.into(),
-    )
-    .map_err(|e| format!("{e:?}"))?;
-    for i in 0..n {
-        s.cast::<T::Real>().add(i).write(real(&d[i]));
-    }
-    for j in 0..n {
-        for i in 0..n {
-            uout.cast::<T>().add(i + j * n).write(copy(&u[(i, j)]));
-            vout.cast::<T>().add(i + j * n).write(copy(&v[(i, j)]));
-        }
-    }
-    Ok(())
-}
 #[julia]
 pub fn bidiagonal_svd_data(
     d: *const u8,
@@ -204,13 +155,5 @@ pub fn bidiagonal_svd_data(
     upper: bool,
     threshold: usize,
 ) -> Result<(), String> {
-    guarded(|| unsafe {
-        match tag {
-            0 => band::<f32>(d, e, n, s, u, v, upper, threshold),
-            1 => band::<f64>(d, e, n, s, u, v, upper, threshold),
-            2 => band::<faer::c32>(d, e, n, s, u, v, upper, threshold),
-            3 => band::<faer::c64>(d, e, n, s, u, v, upper, threshold),
-            _ => Err("unsupported bidiagonal scalar".into()),
-        }
-    })
+    guarded(|| workspace::allocate(d, e, n, s, u, v, tag, upper, threshold))
 }

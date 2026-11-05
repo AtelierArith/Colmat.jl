@@ -250,6 +250,35 @@ selected offdiagonal, returning native U/Vt and nonnegative descending real S.
 unchanged. The public native bidiagonal SVD computes dense factors/workspace,
 including when `svdvals` requests only values.
 
+## Reusing bidiagonal SVD workspace
+
+`bidiagonal_svd`, saved reduction `svd/svdvals`, and native `Bidiagonal`
+dispatch accept `scratch=` and `team=`. The query includes coefficient copies
+and the declared kernel workspace at the actual team shape; U/V are written
+directly into preserved staging. Saved-factor back-transform products also use
+the team, with their own work/output storage. Julia conversions and result
+ownership allocate separately; reduction construction resources remain internal.
+
+```julia
+using Colmat, LinearAlgebra
+A = ComplexF64[1 2; 3+im 4; 5 6-im]
+F = bidiagonalize(A)
+team = FaerTeam(2)
+work = FaerScratch(svd, F; team, recursion_threshold=2)
+try
+    E = svd(F; scratch=work, team, recursion_threshold=2)
+    @assert Matrix(E.U)*Diagonal(E.S)*Matrix(E.Vt) ≈ A
+    reserve!(work, svdvals, F; team)
+    @assert svdvals(F; scratch=work, team) ≈ svdvals(A)
+    close(E.U)
+    close(E.Vt)
+finally
+    close(work)
+    close(team)
+    close(F)
+end
+```
+
 ## Reusing tridiagonal eigensolver workspace
 
 Dedicated tridiagonal eigenvectors and eigenvalues accept `scratch` and `team`.
