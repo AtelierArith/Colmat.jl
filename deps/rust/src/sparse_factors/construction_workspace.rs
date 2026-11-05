@@ -17,7 +17,8 @@ fn requirement<T: ComplexField>(analysis: &Analysis, par: &Par<'_>) -> Result<St
         Analysis::Qr(sym) => qr_construction_req::<T>(sym, par),
         Analysis::SimplicialQr(plan) => crate::sparse_qr_components::Factors::<T>::scratch(plan)
             .or(rank_hint::scratch(plan.symbolic.ncols())),
-        _ => return Err("factor workspace requires tall/square QR".into()),
+        Analysis::WideQr(plan) => crate::sparse_qr_wide::Factors::<T>::scratch(plan, par),
+        _ => return Err("factor workspace requires QR".into()),
     })
 }
 pub(super) fn query(

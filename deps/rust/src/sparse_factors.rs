@@ -351,7 +351,10 @@ fn numeric_with_par<T: ComplexField>(
     }
     Ok(Ok(match &p.analysis {
         Analysis::WideQr(plan) => {
-            Numeric::WideQr(crate::sparse_qr_wide::Factors::new(plan, a.as_ref())?)
+            Numeric::WideQr(if let Some(s)=scratch {
+                let req=crate::sparse_qr_wide::Factors::<T>::scratch(plan,&par);
+                crate::sparse_qr_wide::Factors::new_in(plan,a.as_ref(),par,s.stack(req)?)?
+            } else {crate::sparse_qr_wide::Factors::new(plan,a.as_ref())?})
         }
         Analysis::SimplicialLu(cols) => {
             match crate::sparse_lu_components::SimplicialFactors::new(a.as_ref(), cols.as_ref()) {

@@ -1897,7 +1897,7 @@ Explicit simplicial QR also accepts numeric construction scratch. Its native
 numeric kernel is sequential, including when a `FaerTeam` is supplied. The query
 includes both numeric-kernel work and source-precision rank-bound preparation;
 output indices/values, symbolic analysis and input snapshots allocate separately.
-Wide QR construction resources remain separate work.
+Wide QR uses the same construction interface; see the wide example below.
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -1913,6 +1913,30 @@ close(team)
 close(p)
 close(A)
 @assert F \ ones(ComplexF32,3) ≈ A0 \ ones(ComplexF32,3)
+close(F)
+```
+
+
+Wide QR also accepts construction scratch and teams for all three algorithms.
+The prefix QR and subsequent one-column Q-adjoint projections reuse the buffer.
+Blocked Householder operations use the caller team; indexed simplicial traversal
+is sequential. Input normalization, prefix CSC, output triplets/CSC assembly and
+owned numeric output allocate separately.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = ComplexF64[0 0 4im 0; 0 0 0 5]
+A = FaerSparseMatrix(sparse(A0); format=:csr)
+p = FaerSparseSymbolic(A; kind=:qr, algorithm=:supernodal, ordering=:identity)
+team = FaerTeam(2)
+s = FaerScratch(factorize,p,A;team)
+F = factorize(p,A;scratch=s,team)
+@assert Matrix(F) ≈ A0
+close(s)
+close(team)
+close(p)
+close(A)
+@assert F \ ones(ComplexF64,2) ≈ pinv(A0)*ones(ComplexF64,2)
 close(F)
 ```
 
@@ -2549,4 +2573,6 @@ Construction validates current native matrix and plan metadata before reading
 snapshot values. Symbolic analysis, input conversion/snapshot/finite checks and
 owned numeric output remain separate allocations, so this is not a whole-API
 allocation-free construction interface. Explicit simplicial QR shares this interface with a sequential native kernel.
-Wide construction workspaces remain separate work.
+Wide construction uses prefix QR and one-column saved-reflector projections
+in the supplied buffer, with the same team for both stages. Sparse output
+assembly and input normalization still allocate separately.
