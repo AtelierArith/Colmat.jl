@@ -1,11 +1,15 @@
 """
-    bidiagonalize(A; full=false, blocksize=0)
+    bidiagonalize(A; full=false, blocksize=0, scratch=nothing, team=nothing)
 
 Native faer reduction `A ≈ U * B * V'`, where B is a square `Bidiagonal` of
 order min(size(A)...). Tall/square inputs give upper B; wide inputs give lower B.
 The result owns native U/V with thin orthonormal columns by default; full=true
 retains complete bases. Inputs are preserved; complex phases stay in B.
 Compact reflectors remain internal. Zero blocksize selects faer's recommendation.
+Use `scratch_requirements`, `FaerScratch(bidiagonalize,A)` and `reserve!` for the
+canonical work matrix, compact factors and declared reduction/U/V workspace.
+The actual scoped team token is used by all stages. Conversion, returned owners
+and staged bang writeback allocate separately.
 """
 struct FaerBidiagonalization{T,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
     U::M
@@ -50,57 +54,79 @@ function bidiagonalize(
     a::AbstractMatrix{<:Number};
     full::Bool = false,
     blocksize::Integer = 0,
+    scratch = nothing,
+    team = nothing,
 )
     lock(_matrix_lock) do
-        _tridiagonal_open(a)
-        T=_reflector_type(eltype(a))
-        data=Matrix{T}(a)
-        all(isfinite, data) ||
-            throw(ArgumentError("bidiagonalization input must be finite"))
-        m, n=size(a)
+        _iterative_resource_check(scratch, team)
+        m, n, T, bs=_bidiagonalize_plan(a, blocksize)
         k=min(m, n)
-        bs=Int(blocksize)
-        0<=bs<=max(1, k) || throw(
-            ArgumentError(
-                "blocksize must be zero (automatic) or between 1 and max(1,min(size(A)...))",
-            ),
-        )
-        U=zeros(T, m, full ? m : k)
-        V=zeros(T, n, full ? n : k)
-        d=zeros(T, k)
-        e=zeros(T, max(0, k-1))
-        GC.@preserve data U V d e _native_call(
-            RustCrate.bidiagonalize_data,
-            Ptr{UInt8}(pointer(data)),
-            UInt(m),
-            UInt(n),
-            Ptr{UInt8}(pointer(U)),
-            Ptr{UInt8}(pointer(V)),
-            Ptr{UInt8}(pointer(d)),
-            Ptr{UInt8}(pointer(e)),
-            _tag(T),
-            full,
-            UInt(bs),
-        )
-        all(isfinite, U)&&all(isfinite, V)&&all(isfinite, d)&&all(isfinite, e) ||
-            throw(ArgumentError("bidiagonalization overflowed the working type"))
-        return FaerBidiagonalization(
-            FaerMatrix(U),
-            LinearAlgebra.Bidiagonal(d, e, m<n ? :L : :U),
-            FaerMatrix(V),
-        )
+        req=_bidiagonalize_requirement(m, n, T, full, bs, team)
+        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
+             scratch
+        try
+            cap=scratch_capacity(work)
+            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+                ArgumentError(
+                    "bidiagonal reduction scratch capacity/alignment is insufficient; call reserve!",
+                ),
+            )
+            data=Matrix{T}(a)
+            data isa Matrix{T} || throw(
+                ArgumentError("bidiagonal conversion returned incompatible scalar storage"),
+            )
+            size(data)==(m, n) ||
+                throw(DimensionMismatch("bidiagonal conversion changed matrix shape"))
+            all(isfinite, data) ||
+                throw(ArgumentError("bidiagonalization input must be finite"))
+            U=Matrix{T}(undef, m, full ? m : k)
+            V=Matrix{T}(undef, n, full ? n : k)
+            d=Vector{T}(undef, k)
+            e=Vector{T}(undef, max(0, k-1))
+            GC.@preserve data U V d e begin
+                args=(
+                    work,
+                    Ptr{UInt8}(pointer(data)),
+                    UInt(m),
+                    UInt(n),
+                    Ptr{UInt8}(pointer(U)),
+                    Ptr{UInt8}(pointer(V)),
+                    Ptr{UInt8}(pointer(d)),
+                    Ptr{UInt8}(pointer(e)),
+                    _tag(T),
+                    full,
+                    UInt(bs),
+                )
+                isnothing(team) ? _native_call(RustCrate.bidiagonalize_workspace, args...) :
+                _native_call(RustCrate.bidiagonalize_workspace_team, args..., team)
+            end
+            all(isfinite, U)&&all(isfinite, V)&&all(isfinite, d)&&all(isfinite, e) ||
+                throw(ArgumentError("bidiagonalization overflowed the working type"))
+            return FaerBidiagonalization(
+                FaerMatrix(U),
+                LinearAlgebra.Bidiagonal(d, e, m<n ? :L : :U),
+                FaerMatrix(V),
+            )
+        finally
+            isnothing(scratch) && close(work)
+        end
     end
 end
 """Stage native bidiagonalization, then replace A by the rectangular embedding of B."""
 function bidiagonalize!(a::FaerMatrix; kwargs...)
     lock(_matrix_lock) do
         f=bidiagonalize(a; kwargs...)
-        m, n=size(a)
-        k=size(f.B, 1)
-        buffer=zeros(eltype(a), m, n)
-        buffer[1:k, 1:k]=Matrix(f.B)
-        copyto!(a, buffer)
-        return f
+        try
+            m, n=size(a)
+            k=size(f.B, 1)
+            buffer=zeros(eltype(a), m, n)
+            buffer[1:k, 1:k]=Matrix(f.B)
+            copyto!(a, buffer)
+            return f
+        catch
+            close(f)
+            rethrow()
+        end
     end
 end
 """

@@ -469,24 +469,6 @@ impl VectorOwner {
     }
 }
 
-// Reuse scalar-tail correction when an external reduction supplies compact Q.
-pub(crate) fn apply_compact<T: ComplexField>(
-    basis: Mat<T>,
-    factor: Mat<T>,
-    out: MatMut<'_, T>,
-) -> Result<(), String> {
-    apply(&Sequence { basis, factor }, out, false, false, false)
-}
-
-pub(crate) fn apply_compact_conj<T: ComplexField>(
-    basis: Mat<T>,
-    factor: Mat<T>,
-    out: MatMut<'_, T>,
-    conjugate: bool,
-) -> Result<(), String> {
-    apply(&Sequence { basis, factor }, out, false, false, conjugate)
-}
-
 mod workspace;
 
 mod construction;
@@ -498,5 +480,17 @@ pub(crate) fn apply_compact_in<T: ComplexField>(
     par: Par,
     stack: &mut MemStack,
 ) -> Result<(), String> {
-    apply_views_in(basis, factor, out, false, false, false, par, stack)
+    apply_compact_conj_in(basis, factor, out, false, par, stack)
+}
+
+// External reductions borrow compact storage while retaining scalar-tail correction.
+pub(crate) fn apply_compact_conj_in<T: ComplexField>(
+    basis: MatRef<'_, T>,
+    factor: MatRef<'_, T>,
+    out: MatMut<'_, T>,
+    conjugate: bool,
+    par: Par,
+    stack: &mut MemStack,
+) -> Result<(), String> {
+    apply_views_in(basis, factor, out, false, false, conjugate, par, stack)
 }

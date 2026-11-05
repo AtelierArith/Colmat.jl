@@ -40,7 +40,7 @@ fn dispatch(n: usize, tag: i32, threshold: usize, par: ParShape) -> Result<Stack
         _ => Err("unsupported bidiagonal scalar".into()),
     }
 }
-fn buffer<T>(p: *const u8, n: usize) -> Result<(usize, usize), String> {
+pub(super) fn buffer<T>(p: *const u8, n: usize) -> Result<(usize, usize), String> {
     let first = p as usize;
     if n == 0 {
         return Ok((first, first));

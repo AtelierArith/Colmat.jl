@@ -3709,3 +3709,49 @@ inventory. Faer draft candidates/known gaps and their performance/consent gates
 are not adopted or waived. RustCall PR573 remains separately unmerged/unadopted.
 Bidiagonal-construction resource work is saved separately and will be restored
 onto this compatibility fix rather than mixed into the dependency PR.
+
+## Bidiagonal reduction construction resources
+
+`bidiagonalize` and the native matrix's staged bang now use caller scratch/team
+with matching query/FaerScratch/reserve. The canonical work matrix and left/right
+compact coefficients live on one caller stack. The public reduction/apply
+requirements share the remaining region sequentially and receive the actual
+scoped team token. Explicit U/V are formed in preserved Julia staging with raw
+initialization before MatMut; empty full reductions retain the surviving identity
+basis. Wide inputs retain the adjoint/swap/conjugate convention and the PR72
+real-scalar restoration. Legacy native entry uses the same automatic-scratch
+implementation. No raw-owner exception or dependency checkout patch was added.
+
+The common Householder borrowed helper now also accepts conjugation, retaining
+the existing scalar-tail correction. Owned work/basis/U/V temporary copies were
+removed. Source metadata and resource capacity/alignment are checked before
+conversion; converted matrix dtype/shape and all native spans/alignment/mutable
+overlap are checked before references. Nonfinite native inputs are rejected
+before output initialization. Input conversion, returned owners and staged
+writeback allocate separately; a failed writeback closes the temporary factor.
+The deep native Householder upgrade buffer remains tracked by faer93/267 and is
+not externally controlled by this change. Warm n5x3 Seq calling-thread Rust
+compute observes zero heap allocations for four types; setup/output/worker
+heaps are excluded, so this makes no whole-API allocation or speed claim.
+
+Focused successful runs cover 34,392 assertions: 9,464 new construction/contract
+checks, 13,432 Householder checks and 11,496 related bidiagonal/tridiagonal
+checks. Native tests pass 151 cases. Four types, upper/lower square/tall/wide,
+empty/full/thin, blocksize automatic/1/2/max, blocked n129, Seq/Team2, resource
+reuse/reserve/short/misaligned/closed, reverse/row-owner views, metadata,
+conversion failure ordering, Tasks/GC, source-close independence, staged bang,
+extreme scaling and the legacy native ABI are covered. An initial focused
+command used a misspelled Householder test filename; the correct file and the
+related suite were explicitly executed successfully afterward. Numerical
+assertions and production code were not changed for that command error.
+
+Canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])` passes
+**590,413 assertions / 128 files / 16 workers / 9m41.8s**. All **109 executable
+README/manual blocks**, docs HTML build, formatting of changed Julia/new Rust
+modules and the changed Householder helper region, and diff checks pass. All
+293 validation input hashes remained unchanged during the gates. Compact-factor
+exposure, remaining tuning, native internal upgrade workspace and all other
+unfinished rows of the frozen 76-row inventory remain in scope. Selected faer
+stays clean 44945d7 (0.30.0) with threadteam0.4; held upstream candidates and
+their performance/consent conditions remain unadopted. RustCall PR573 publication
+confirmation is still pending; its proposed features are not used here.
