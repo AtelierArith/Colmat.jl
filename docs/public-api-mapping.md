@@ -6,8 +6,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 機能分類の調査日: 2026-11-04。依存と検証情報の更新: 2026-11-05
 - 検証対象 t4a-faer: `0.29.0`、コミット [`2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7`](https://github.com/tensor4all/faer/tree/2d4ea4eab8d8f724269508e16b4aaafaf5c67ae7)。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
-- Colmat の判定基準: PR #66 までの main と、PR #67 の保存 Schur 右固有ベクトル declared scratch/team。各機能の追加・制約は以下の行と実装記録で追跡する。
-- 直近の検証: Julia 1.13.3 / RustCall.jl 0.9.2、canonical `Pkg.test(; allow_reresolve=false)` 572512 assertions / 121 files / 16 workers、native 133 tests、README 101 blocks。依存更新は PR #63、QZ 構築は PR #64、単一行列 Hessenberg/Schur 構築は PR #65、保存単一 Schur 並べ替えは PR #66、保存 Schur 右固有ベクトルの検証結果は PR #67 と実装記録に保存。全76機能行の完了は意味しない。
+- Colmat の判定基準: PR #66 までの main と、PR #67 の保存 Schur 右固有ベクトル declared scratch/team、PR #68 の実数 extrema。各機能の追加・制約は以下の行と実装記録で追跡する。
+- 直近の検証: Julia 1.13.3 / RustCall.jl 0.9.2、canonical `Pkg.test(; allow_reresolve=false)` 572752 assertions / 122 files / 16 workers、native 135 tests、README 102 blocks。依存更新は PR #63、QZ 構築は PR #64、単一行列 Hessenberg/Schur 構築は PR #65、保存単一 Schur 並べ替えは PR #66、保存 Schur 右固有ベクトルは PR #67、実数 extrema は PR #68 と実装記録に検証結果を保存。全76機能行の完了は意味しない。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -46,7 +46,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 内積 | `matmul::dot::inner_prod` | `dot(x,y)` | R: 行列・所有ベクトル・行・対角の `dot`、複素数の第 1 引数を共役 | 借用ベクトルビューの専用 dot 経路 |
 | 要素ごとの map / zip | `map/for_each`, `zip!/unzip!/Zip!` | `map`, `map!`, broadcast `f.(A)` | J: broadcast 動作確認 | Rust バルク処理の専用接続。要素単位 FFI、Julia Matrix の出力になる場合がある |
 | ノルム | `norm_l2/squared_norm_l2/norm_l1/norm_max` | `norm(A)`, `sum(abs2,A)`, `norm(A,1/Inf)` | R: 4 型の `norm(A,1/2/Inf)`。複素数は Julia の絶対値規約 | その他の p の専用経路。Frobenius norm と `opnorm(A,2)` は別 |
-| 和・最大・最小・検査 | `sum/max/min/is_all_finite/has_nan/is_identity` | `sum/maximum/minimum`, `all(isfinite,A)`, `any(isnan,A)`, `isone` 相当 | R: 和・軸別和、Float64 の extrema・finite/NaN/identity/symmetry 検査 | 集約・検査の全型・全オプションは要個別照合 |
+| 和・最大・最小・検査 | `sum/max/min/is_all_finite/has_nan/is_identity` | `sum/maximum/minimum`, `all(isfinite,A)`, `any(isnan,A)`, `isone` 相当 | R: 4 型の和・軸別和と finite/NaN/identity/symmetry 検査、Float32/Float64 の native minimum/maximum/extrema（NaN・符号付きゼロ・current metadata 検証） | extrema の dims/map/keyword と借用ビューの専用経路、その他の全オプションは要個別照合 |
 | 行列式 | `MatRef::determinant(par)` | `det`, 関連: `logdet/logabsdet` | R: `det`、分解を使う `logabsdet/logdet`、複素位相対応 | 高度な引数・エラー規約の網羅 |
 | トレース | diagonal ビュー＋集約で構成 | `tr(A)` | R: `tr(A)` | 全特殊構造の最適化 |
 | Kronecker 積 | `MatRef::kron`, `linalg::kron::kron` | `kron(A,B)` | R: 4 型・型 promotion の `kron(A,B)` | 疎行列・ビューの専用経路 |

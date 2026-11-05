@@ -2873,3 +2873,25 @@ close(team)
 close(F)
 close(A)
 ```
+
+### Real matrix extrema
+
+`minimum`, `maximum` and `extrema` use native storage directly for Float32 and
+Float64 matrices and return the input scalar type. NaNs propagate; negative zero
+sorts below positive zero. Empty matrices throw `ArgumentError`. Complex matrices
+retain Julia's generic ordering contract.
+
+```julia
+using Colmat
+A = FaerMatrix(Float32[3 -2; 1 4])
+@assert minimum(A) === -2f0
+@assert maximum(A) === 4f0
+@assert extrema(A) === (-2f0, 4f0)
+A[1, 1] = -0f0
+A[1, 2] = 0f0
+A[2, 1] = 0f0
+A[2, 2] = 0f0
+@assert signbit(minimum(A))
+@assert !signbit(maximum(A))
+close(A)
+```

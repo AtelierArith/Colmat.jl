@@ -638,28 +638,7 @@ impl OwnedMatrix {
                     }
                     a.determinant(Par::Seq)
                 }
-                6 | 7 => {
-                    let mut value = None;
-                    for j in 0..a.ncols() {
-                        for i in 0..a.nrows() {
-                            let x = a[(i, j)];
-                            if x.is_nan() {
-                                return Ok(x);
-                            }
-                            value = Some(match value {
-                                None => x,
-                                Some(v) => {
-                                    if kind == 6 {
-                                        f64::min(v, x)
-                                    } else {
-                                        f64::max(v, x)
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    value.ok_or("empty matrix has no extrema")?
-                }
+                6 | 7 => real_extrema::extremum_f64(a, kind == 6)?,
                 8 => {
                     if a.nrows() != a.ncols() {
                         return Err("trace requires a square matrix".into());
@@ -1432,3 +1411,5 @@ fn dense_pseudoinverse_solve(
     faer::linalg::matmul::matmul(x.as_mut(), Accum::Replace, inverse.as_ref(), b, 1.0, par);
     Ok(x)
 }
+
+mod real_extrema;

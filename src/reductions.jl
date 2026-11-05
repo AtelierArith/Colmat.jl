@@ -25,15 +25,23 @@ function LinearAlgebra.tr(a::FaerMatrix{Float64})
     LinearAlgebra.checksquare(a)
     return _native_call(RustCrate.reduction, a, Int32(8))
 end
-function Base.minimum(a::FaerMatrix{Float64})
-    isempty(a) && throw(ArgumentError("empty matrix has no minimum"))
-    return _native_call(RustCrate.reduction, a, Int32(6))
+function _real_extremum(
+    a::FaerMatrix{T},
+    minimum::Bool,
+) where {T <: Union{Float32, Float64}}
+    lock(_matrix_lock) do
+        _dense_rhs_validate(a)
+        isempty(a) && throw(ArgumentError("empty matrix has no extrema"))
+        T===Float32 && return _native_call(RustCrate.real_extremum_f32, a, minimum)
+        return _native_call(RustCrate.reduction, a, Int32(minimum ? 6 : 7))
+    end
 end
-function Base.maximum(a::FaerMatrix{Float64})
-    isempty(a) && throw(ArgumentError("empty matrix has no maximum"))
-    return _native_call(RustCrate.reduction, a, Int32(7))
-end
-Base.extrema(a::FaerMatrix{Float64}) = (minimum(a), maximum(a))
+Base.minimum(a::FaerMatrix{T}) where {T <: Union{Float32, Float64}} =
+    _real_extremum(a, true)
+Base.maximum(a::FaerMatrix{T}) where {T <: Union{Float32, Float64}} =
+    _real_extremum(a, false)
+Base.extrema(a::FaerMatrix{T}) where {T <: Union{Float32, Float64}} =
+    (minimum(a), maximum(a))
 Base.all(::typeof(isfinite), a::FaerMatrix{Float64}) =
     _native_call(RustCrate.predicate, a, Int32(0))
 Base.any(::typeof(isnan), a::FaerMatrix{Float64}) =
