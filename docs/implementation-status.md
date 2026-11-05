@@ -3254,3 +3254,16 @@ passes **546,909 assertions / 116 files / 16 workers in 9m22.5s**, on Julia
 1.13.3 / RustCall.jl 0.9.2 / clean faer `19053d8` (0.29.0). All **96 README
 blocks** pass. JuliaFormatter, new native module rustfmt, diff and frozen inventory
 checks pass; final runtime/test checksums remained unchanged through the gates.
+
+## AMD/COLAMD caller-owned workspace
+
+Standalone `amd`/`colamd` accept `scratch=` and provide exact requirements,
+`FaerScratch` construction and explicit `reserve!`, using the existing faer
+AMD/COLAMD queries and kernels. Four scalar numeric CSC/CSR inputs, symbolic
+patterns, Julia CSC and existing sparse wrappers retain their ordering and AMD
+statistics. Native shape metadata, workspace capacity/alignment and lifetime
+are checked before execution. Controls retain faer's existing semantics and do
+not change scratch size; the kernels are sequential. Temporary pattern
+conversion, query buffers and the owning output permutation allocate separately.
+Symbolic factor analysis's internal ordering workspace and the other incomplete
+entries in the 76-row mapping remain in scope.
