@@ -3629,3 +3629,58 @@ This does not complete external scratch/team, compact factor exposure, tuning
 or the other remaining items in the frozen 76-row inventory. The selected faer
 checkout remains clean `2d4ea4e` (0.29.0); unadopted upstream candidates and
 their acceptance conditions remain unchanged.
+
+## Dedicated bidiagonal SVD workspace and team
+
+`bidiagonal_svd(d,e;scratch,team)` now uses a common native workspace path for
+ordinary and explicit-resource calls. Query/FaerScratch/reserve includes both
+coefficient copies and the public kernel requirement at the actual scoped team
+shape. The same token reaches the kernel. Native U/V are written into preserved
+Julia staging after raw initialization; the previous owning U/V and copy are
+removed. The legacy native entry delegates to the same sequential kernel.
+RustCall 0.9.2 checked OwnedScratch/OwnedTeam references are used without adding
+raw-owner exceptions.
+
+Saved-factor svd/svdvals and native Bidiagonal dispatch forward resources; saved
+U/V back-transform products also use the supplied team. Source/factor metadata
+and closed/capacity/alignment contracts are checked before coefficient
+conversion. Converted vector dtype/length, native buffer spans/alignment and
+mutable overlap are checked before references; immutable coefficient aliasing
+is permitted. Saved full-factor shape is checked before computing. Temporary
+core/basis owners are explicitly closed after independent results are formed.
+
+Julia conversion, result owners and saved-factor back-transform output/work
+allocate separately. Values-only still computes dense factors. The n=6 warm
+Seq calling-thread compute probe observes zero Rust heap allocations, excluding
+setup/output allocation and worker heaps; no API-wide allocation or performance
+claim is made. Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **580,949 assertions / 127 files / 16 workers / 9m32.0s**. Before the
+concurrent documentation reorganization, all **107 executable README blocks**
+and **147 native tests** pass. Julia/Rust formatting
+and diff checks pass; all 275 validation input hashes remained unchanged.
+
+Focused coverage passes 8,580 assertions, including 4,187 new resource/contract
+checks: four scalar types, upper/lower, n=0/1/4/17/65/129, QR/divide-and-conquer,
+Seq/Team2, repeated/reused and short/misaligned/closed scratch, query/reserve,
+saved full/thin square/tall/wide/empty factors after source close, native vector
+metadata, bad conversion dtype/length, independent reconstruction/LAPACK values,
+Tasks/GC, legacy output and failure ordering. The initial saved-metadata fixture
+used a nonexistent field; it was corrected to the actual dims field without
+changing numerical assertions or production code.
+
+Reduction construction scratch/team, compact-factor exposure, remaining tuning
+and all other unfinished rows of the frozen 76-row inventory remain in scope.
+The selected faer remains clean 2d4ea4e (0.29.0), with existing upstream draft
+candidates, performance gates and consent conditions unchanged. No new upstream
+defect was confirmed. RustCall PR573 remains unmerged/unadopted while its
+automatic-publication confirmation is pending.
+
+Concurrent PR #73 moved README examples into DocumenterVitepress. This work was
+rebased on fe303a1, keeping the short README unchanged and adding the resource
+example to docs/src/manual/reductions.md. All 274 frozen non-README inputs,
+including every numerical source/test, match the tested tree exactly. Every
+previously tested code block is preserved. All **108 current README/manual
+examples** run successfully; DocumenterVitepress HTML builds successfully and
+the generated reductions page contains the new section. All 290 final validation
+input hashes remain unchanged. The numerical full suite was not repeated for
+this documentation-only reconciliation.
