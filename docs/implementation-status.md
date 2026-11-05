@@ -3812,3 +3812,33 @@ No numerical heuristic, native dependency source or held upstream performance
 candidate changes. The checks do not measure worker utilization or speed.
 Compact reflectors, remaining EVD/nested parameters, thresholds in other kernel
 families and unfinished rows of the frozen 76-row inventory remain in scope.
+
+
+## Tiny relative complex tridiagonal phases
+
+Finite Hermitian inputs such as `[1 -1e-300im; 1e-300im 2]` previously threw
+`tridiagonalization overflowed the working type`: bridge phase normalization
+cast a real norm to complex before dividing, so its squared denominator
+underflowed. Real scaling now computes the phase, with a bounded lift when a
+real reciprocal itself would overflow. Phase magnitude uses component scaling.
+The scalar helpers preserve the minimum positive subnormal in each precision;
+private native tests check both signs and the normal/subnormal/large regimes.
+
+The executed public reproducer fails on main dc1df07 and succeeds after the fix
+for ComplexF32 and ComplexF64, with zero scaled off-diagonal error. Focused
+checks pass 6,530 new assertions, or 10,467 with existing scaling, threshold,
+construction and reduction suites. They test Seq/Team, all policies, automatic
+and explicit block sizes, staged native/self-adjoint bang, input preservation,
+legacy allocating ABI, independent unitary reconstruction and scaled components
+that a global residual would miss. Globally subnormal matrices are checked after
+removing their scale. Native Householder intentionally flushes subnormal heads
+in its working scale; no componentwise retention is claimed in that separate
+relative-subnormal regime. The global residual and unitarity checks remain.
+
+Investigation also reproduced zero complex magnitude from nonzero subnormals
+in t4a-faer-traits on clean fork HEAD 44945d7. A complete Git-pinned Rust-only
+reproducer and proposed correction were posted as
+[tensor4all/faer #274](https://github.com/tensor4all/faer/issues/274) and retained
+under docs/reproducers/faer-complex-abs. No dependency checkout was patched or
+unaccepted upstream candidate adopted. The full inventory remains in scope;
+compact reflector exposure continues after this prerequisite phase correction.

@@ -16,6 +16,33 @@ fn params<T: ComplexField>(threshold: usize) -> faer::Spec<evd::tridiag::Tridiag
     }
     .into()
 }
+// A real norm must not be routed through complex division: its squared
+// denominator can underflow. Lifting subnormal norms also keeps the real
+// reciprocal finite, without changing the represented phase.
+fn normalize_phase<T: ComplexField>(value: &T, norm: &T::Real) -> T {
+    let inverse = recip(norm);
+    if is_finite(&inverse) {
+        mul_real(value, &inverse)
+    } else {
+        let lift = recip(&min_positive::<T::Real>());
+        mul_real(&mul_real(value, &lift), &recip(&mul(norm, &lift)))
+    }
+}
+// Scaling by the largest component also preserves subnormal magnitudes;
+// the generic faer complex magnitude can erase them (tensor4all/faer#274).
+fn phase_magnitude<T: ComplexField>(value: &T) -> T::Real {
+    let re = abs(&real(value));
+    let im = abs(&imag(value));
+    if !is_finite(&re) || !is_finite(&im) {
+        return abs(value);
+    }
+    let (large, small) = if re >= im { (re, im) } else { (im, re) };
+    if large == zero::<T::Real>() {
+        return large;
+    }
+    let ratio = div(&small, &large);
+    mul(&large, &sqrt(&add(&one::<T::Real>(), &mul(&ratio, &ratio))))
+}
 fn block_size<T: ComplexField>(n: usize, bs: usize) -> Result<usize, String> {
     if bs > n.saturating_sub(1).max(1) {
         return Err("invalid tridiagonal blocksize".into());
@@ -178,11 +205,11 @@ unsafe fn compute<T: ComplexField>(
             let mut phase = one::<T>();
             for i in 1..n {
                 let e = &work.as_mat_ref()[(i, i - 1)];
-                let norm = abs(e);
+                let norm = phase_magnitude(e);
                 if norm != zero::<T::Real>() {
-                    phase = &phase * (e / from_real::<T>(&norm));
-                    let pnorm = abs(&phase);
-                    phase = &phase / from_real::<T>(&pnorm);
+                    phase = &phase * normalize_phase::<T>(e, &norm);
+                    let pnorm = phase_magnitude(&phase);
+                    phase = normalize_phase::<T>(&phase, &pnorm);
                 }
                 for row in 0..n {
                     q[(row, i)] = &q[(row, i)] * &phase;
@@ -212,7 +239,7 @@ unsafe fn compute<T: ComplexField>(
             eout.cast::<T::Real>().add(i).write(if T::IS_REAL {
                 real(&work.as_mat_ref()[(i + 1, i)])
             } else {
-                abs(&work.as_mat_ref()[(i + 1, i)])
+                phase_magnitude(&work.as_mat_ref()[(i + 1, i)])
             });
         }
     }
@@ -473,5 +500,33 @@ mod tests {
     #[test]
     fn construction_c64() {
         check::<faer::c64>();
+    }
+    #[test]
+    fn phase_scalar_c32_full_range() {
+        for x in [1e-30_f32, f32::MIN_POSITIVE, f32::from_bits(1), 1e30_f32] {
+            for sign in [-1.0_f32, 1.0] {
+                let value = faer::c32::new(0.0, sign * x);
+                let norm = phase_magnitude(&value);
+                assert_eq!(norm, x);
+                let phase = normalize_phase(&value, &norm);
+                assert!(phase.re.abs() <= 4.0 * f32::EPSILON);
+                assert!((phase.im - sign).abs() <= 4.0 * f32::EPSILON);
+            }
+        }
+        assert_eq!(phase_magnitude(&faer::c32::new(0.0, 0.0)), 0.0);
+    }
+    #[test]
+    fn phase_scalar_c64_full_range() {
+        for x in [1e-300_f64, f64::MIN_POSITIVE, f64::from_bits(1), 1e300_f64] {
+            for sign in [-1.0_f64, 1.0] {
+                let value = faer::c64::new(0.0, sign * x);
+                let norm = phase_magnitude(&value);
+                assert_eq!(norm, x);
+                let phase = normalize_phase(&value, &norm);
+                assert!(phase.re.abs() <= 4.0 * f64::EPSILON);
+                assert!((phase.im - sign).abs() <= 4.0 * f64::EPSILON);
+            }
+        }
+        assert_eq!(phase_magnitude(&faer::c64::new(0.0, 0.0)), 0.0);
     }
 }
