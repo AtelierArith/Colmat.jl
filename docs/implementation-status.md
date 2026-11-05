@@ -3398,3 +3398,45 @@ pass. JuliaFormatter, native rustfmt and diff checks pass. All 254 frozen
 validation inputs (253 runtime/test files and README), the clean selected faer
 `2d4ea4e`, frozen inventory and all 76 mapping rows remain unchanged through
 the final gates.
+
+## Saved Schur right eigenvector declared resources
+
+Saved native `eigvecs(F)`/`eigen(F)` accept caller scratch, requirements,
+FaerScratch/reserve and an actual scoped team. Current native T/Z metadata and
+resources/capacity/alignment are checked before output setup. The old raw-owner
+`schur_eigenvectors_from` entry and its exception are removed; new native methods
+borrow checked OwnedMatrix or TypedMatrix inputs with a TypedMatrix complex
+output. Real packed output uses caller stack alongside faer's public kernel
+query; complex output owns only its returned matrix. Execution passes the actual
+token through Schur back substitution and Q back transformation. Default calls
+share this path. Values remain independent Julia copies and all results outlive
+input factors and resources.
+
+The selected faer internally allocates a range-scaled Schur copy outside its
+public query. A pinned standalone release MWE executed latest main `2d4ea4e`
+for f32/f64/c32/c64: n=32 Seq, three repetitions at each ordinary/large/small
+scale, zero allocations ordinarily and one n×n matrix for extreme scales;
+independent normalized residuals and unit-column checks pass. Complete source,
+observations and a canonical stack/lifetime/query proposal are in
+[faer #270](https://github.com/tensor4all/faer/issues/270) and the retained
+[locked reproducer](reproducers/schur-eigenvectors-allocation/README.md).
+This is a workspace coverage gap, not a wrong-result report. The binding retains
+that numerically correct kernel and its allocation. Prescaling the whole public
+call can change original real-pair classification after tiny subdiagonal
+underflow, so no such numerical workaround is introduced. Internal #270 storage
+remains unfinished upstream/downstream work.
+
+The warmed n=6 native compute probe sees one owning output allocation ordinarily,
+and two including the known scaled copy at extremes, for four scalars at
+Seq/Team(2); setup/scratch acquisition/worker heaps are excluded. No whole-call
+allocation or speedup/scaling claim follows. Tuning, other workspace/team kernels,
+native parallelization of sequential Schur reorder, direct in-place and all
+incomplete entries in the 76-row inventory remain in scope.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **572,512 assertions / 121 files / 16 workers in 9m26.0s**; **8,553 focused
+assertions** (6,943 new), **133 native tests**, **101 executable README blocks**
+and **36 standalone release probes** pass. JuliaFormatter, native/MWE rustfmt,
+diff checks, frozen inventory and all 76 mapping rows pass. All 261 frozen
+validation input hashes and clean selected faer `2d4ea4e` remained unchanged
+through the final gates. Internal scaling workspace #270 remains unresolved.

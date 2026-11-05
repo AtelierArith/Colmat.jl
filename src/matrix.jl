@@ -39,7 +39,6 @@ const _raw_owner_arguments = (
     (RustCrate.operator_load, (2,)),
     (RustCrate.operator_lsmr, (3,)),
     (RustCrate.qz_from, (10, 11)),
-    (RustCrate.schur_eigenvectors_from, (2, 3)),
     (RustCrate.sparse_analyze, (6,)),
     (RustCrate.vector_binary_views, (2, 4)),
     (RustCrate.vector_from_view, (2,)),
