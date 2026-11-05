@@ -89,7 +89,7 @@ function scratch_requirements(
         _iterative_resource_check(nothing, team)
         a isa FaerBidiagonalization && _bidiagonal_factor_validate(a; full)
         b=a isa FaerBidiagonalization ? a.B : a
-        return scratch_requirements(
+        req=scratch_requirements(
             bidiagonal_svd,
             b.dv,
             b.ev;
@@ -97,6 +97,19 @@ function scratch_requirements(
             recursion_threshold,
             team,
         )
+        if f===LinearAlgebra.svd &&
+           a isa FaerBidiagonalization &&
+           a.U isa FaerBidiagonalBasis
+            m, n=size(a)
+            k=size(b, 1)
+            l=_basis_requirement(a.U, eltype(a), full ? m : k, false; team)
+            r=_basis_requirement(a.V', eltype(a), full ? n : k, true; team)
+            return (
+                bytes = max(req.bytes, l.bytes, r.bytes),
+                alignment = max(req.alignment, l.alignment, r.alignment),
+            )
+        end
+        return req
     end
 end
 function FaerScratch(

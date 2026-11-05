@@ -530,3 +530,55 @@ and implicit Q back-transformation; its query takes the maximum requirement.
 A construction `FaerParThreshold(:never)` governs the reduction and does not
 restrict separately requested Q applications. No speedup or worker utilization
 is claimed by this storage option.
+
+## Compact bidiagonal bases
+
+`bidiagonalize(A; compact=true)` returns implicit `FaerBidiagonalBasis` U/V
+with the same thin shapes as the explicit default. `full=true` retains square
+bases. The two wrappers share immutable native packed storage, and each can be
+closed independently. Copying a factor duplicates its storage once, with the
+new U/V sharing that duplicate. Inputs can be changed or closed afterward.
+
+Products, transpose/adjoint/conj, rectangular `mul!`, and saved-factor SVD apply
+reflectors by embedding/projecting operands rather than forming a square Q.
+Shape-preserving `lmul!`/`rmul!` require a square basis; rectangular actions use
+a correctly shaped separate destination. Since each basis is a partial isometry,
+`Q \ A` and `A / Q` apply its adjoint (least-squares/minimum-norm as appropriate).
+`Matrix(Q)` explicitly materializes its exact thin/full shape. Independent Julia
+arrays `Q.basis` and `Q.factor` expose the base Householder representation;
+`Q.offset` gives its leading identity coordinates and `Q.basis_conjugated`
+indicates conjugation of that product. The usual orientation flags apply after
+embedding and selecting the retained columns. Complex band phases stay in B.
+
+```julia
+using Colmat, LinearAlgebra
+A = ComplexF64[1 im 2; 3 4-im 5; 6 7 8+im; 9 10 11]
+team = FaerTeam(2)
+work = FaerScratch(bidiagonalize, A; compact=true, team)
+try
+    F = bidiagonalize(A; compact=true, scratch=work, team)
+    @assert size(F.U) == (4, 3)
+    X = ones(ComplexF64, 3, 2)
+    Y = zeros(ComplexF64, 4, 2)
+    reserve!(work, mul!, Y, F.U, X; team)
+    mul!(Y, F.U, X; scratch=work, team)
+    @assert Y ≈ Matrix(F.U) * X
+    reserve!(work, svd, F; team)
+    S = svd(F; scratch=work, team)
+    @assert Matrix(S.U) * Diagonal(S.S) * Matrix(S.Vt) ≈ A
+    close(F)
+finally
+    close(work)
+    close(team)
+end
+```
+
+Compact construction scratch covers only the reduction kernel; the returned
+packed matrix and factors allocate their own storage. Application scratch
+includes operand embedding and the Householder kernel, while Julia input/output
+conversion allocates separately. Saved SVD queries the maximum of the band
+solver and successive U/V application requirements and reuses one workspace/team.
+A full SVD requires a reduction made with `full=true`, as for explicit factors.
+Values-only still uses the existing native full-factor band-SVD path. Construction
+parallel policy does not constrain later separately requested applications. No
+speedup is claimed; native internal Householder buffers remain subject to faer #267.

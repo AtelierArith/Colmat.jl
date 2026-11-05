@@ -1,20 +1,25 @@
 """
-    bidiagonalize(A; full=false, blocksize=0, scratch=nothing, team=nothing, par_threshold=FaerParThreshold())
+    bidiagonalize(A; compact=false, full=false, blocksize=0, scratch=nothing, team=nothing, par_threshold=FaerParThreshold())
 
 Native faer reduction `A ≈ U * B * V'`, where B is a square `Bidiagonal` of
 order min(size(A)...). Tall/square inputs give upper B; wide inputs give lower B.
 The result owns native U/V with thin orthonormal columns by default; full=true
 retains complete bases. Inputs are preserved; complex phases stay in B.
-Compact reflectors remain internal. Zero blocksize selects faer's recommendation.
+`compact=true` returns implicit [`FaerBidiagonalBasis`](@ref) U/V with the same
+thin/full shapes. Products and saved-factor SVD apply packed reflectors without
+forming square bases. Zero blocksize selects faer's recommendation.
 Use `scratch_requirements`, `FaerScratch(bidiagonalize,A)` and `reserve!` for the
 canonical work matrix, compact factors and declared reduction/U/V workspace.
 The actual scoped team token is used by all stages. Conversion, returned owners
-and staged bang writeback allocate separately.
+and staged bang writeback allocate separately. In compact mode the returned
+owner retains the packed matrix and both factors; scratch covers only the
+reduction kernel. Use the same `compact` option in queries and computation.
 `par_threshold` selects the native reduction's derived/fixed/never policy;
 `FaerParThreshold(:never)` also makes U/V formation sequential, while validating
 any supplied team.
 """
-struct FaerBidiagonalization{T,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
+struct FaerBidiagonalization{T,M<:Union{FaerMatrix{T},FaerBidiagonalBasis{T}}} <:
+       LinearAlgebra.Factorization{T}
     U::M
     B::LinearAlgebra.Bidiagonal{T,Vector{T}}
     V::M
@@ -34,6 +39,28 @@ function Base.copy(f::FaerBidiagonalization)
     lock(_matrix_lock) do
         _handle(f.U)
         _handle(f.V)
+        if f.U isa FaerBidiagonalBasis && _handle(f.U)===_handle(f.V)
+            _basis_validate(f.U)
+            _basis_validate(f.V)
+            h=_native_call(RustCrate.OwnedCompactBidiagonal, f.U)
+            u=_compact_basis(
+                eltype(f),
+                h,
+                f.U.left,
+                f.U.cols;
+                transposed = f.U.transposed,
+                conjugated = f.U.conjugated,
+            )
+            v=_compact_basis(
+                eltype(f),
+                h,
+                f.V.left,
+                f.V.cols;
+                transposed = f.V.transposed,
+                conjugated = f.V.conjugated,
+            )
+            return FaerBidiagonalization(u, copy(f.B), v)
+        end
         return FaerBidiagonalization(copy(f.U), copy(f.B), copy(f.V))
     end
 end
@@ -43,6 +70,8 @@ function _bidiagonal_bases(f)
     _handle(f.V)
     m, n=size(f)
     k=size(f.B, 1)
+    f.U isa FaerBidiagonalBasis &&
+        return _basis_copy(f.U; cols = k), _basis_copy(f.V; cols = k)
     return copy(view(f.U, 1:m, 1:k)), copy(view(f.V, 1:n, 1:k))
 end
 function FaerMatrix(f::FaerBidiagonalization)
@@ -60,13 +89,14 @@ function bidiagonalize(
     scratch = nothing,
     team = nothing,
     par_threshold = FaerParThreshold(),
+    compact::Bool = false,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
         policy=_par_threshold(par_threshold)
         m, n, T, bs=_bidiagonalize_plan(a, blocksize)
         k=min(m, n)
-        req=_bidiagonalize_requirement(m, n, T, full, bs, team, policy)
+        req=_bidiagonalize_requirement(m, n, T, full, bs, team, policy; compact)
         work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
              scratch
         try
@@ -84,6 +114,31 @@ function bidiagonalize(
                 throw(DimensionMismatch("bidiagonal conversion changed matrix shape"))
             all(isfinite, data) ||
                 throw(ArgumentError("bidiagonalization input must be finite"))
+            if compact
+                d=Vector{T}(undef, k)
+                e=Vector{T}(undef, max(0, k-1))
+                h=GC.@preserve data d e begin
+                    args=(
+                        work,
+                        Ptr{UInt8}(pointer(data)),
+                        UInt(m),
+                        UInt(n),
+                        Ptr{UInt8}(pointer(d)),
+                        Ptr{UInt8}(pointer(e)),
+                        _tag(T),
+                        UInt(bs),
+                        policy.value,
+                    )
+                    isnothing(team) ?
+                    _native_call(RustCrate.OwnedCompactBidiagonal, args...) :
+                    _native_call(RustCrate.OwnedCompactBidiagonal, args..., team)
+                end
+                return FaerBidiagonalization(
+                    _compact_basis(T, h, true, full ? m : k),
+                    LinearAlgebra.Bidiagonal(d, e, m<n ? :L : :U),
+                    _compact_basis(T, h, false, full ? n : k),
+                )
+            end
             U=Matrix{T}(undef, m, full ? m : k)
             V=Matrix{T}(undef, n, full ? n : k)
             d=Vector{T}(undef, k)
@@ -222,6 +277,8 @@ function LinearAlgebra.svd(
         m, n=size(f)
         k=size(f.B, 1)
         T=eltype(f)
+        f.U isa FaerBidiagonalBasis &&
+            return _compact_bidiagonal_svd(f; full, scratch, team, kwargs...)
         core=bidiagonal_svd(f.B.dv, f.B.ev; uplo = f.B.uplo, scratch, team, kwargs...)
         try
             if full

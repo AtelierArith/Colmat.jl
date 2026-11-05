@@ -3873,3 +3873,28 @@ No speedup or measured worker-utilization claim is made. Remaining EVD/nested
 parameters, compact bidiagonal/Hessenberg factors and all unfinished rows of
 the original 76-row inventory remain in scope. Native internal Householder
 partial-buffer allocations still depend on the unmerged faer #267 work.
+
+
+## Owned compact bidiagonal bases
+
+`bidiagonalize[!](A; compact=true)` preserves the existing thin/full shapes of
+U/V while returning `FaerBidiagonalBasis` wrappers sharing one immutable native
+packed matrix and its two block factors. Default explicit bases are unchanged.
+The rectangular action embeds/projects operands and calls native Householder
+kernels without forming square Q. It covers tall/wide/empty shapes, all four
+scalars, transpose/adjoint/conj, products/partial-isometry solves, rectangular
+mul! alpha/beta and shape-compatible in-place actions. Properties expose
+independent Julia basis/factor arrays with embedding/conjugation metadata.
+Close is per wrapper; copying a factor clones its shared owner once.
+
+Construction scratch covers only the reduction kernel; returned packed factors
+and input conversion allocate separately. Application scratch includes the
+operand embedding plus Householder kernels. Queries validate actual native
+shape/scalar metadata and choose promoted layouts without cloning the factors.
+Saved SVD uses the maximum band/left/right requirement and one scratch/team,
+applying the retained bases implicitly. Full SVD retains the existing full=true
+construction requirement. Values-only still invokes native full-factor band SVD.
+No numerical heuristic, dependency checkout, default native entrypoint or
+worker-utilization/speed claim changes. Deep Householder buffers remain subject
+to faer #267. Remaining SVD/nested tuning, compact Hessenberg and all other
+unfinished inventory rows remain in scope; the original 76 labels are preserved.

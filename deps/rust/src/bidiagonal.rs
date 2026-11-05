@@ -32,3 +32,5 @@ pub fn bidiagonal_svd_data(
 ) -> Result<(), String> {
     guarded(|| workspace::allocate(d, e, n, s, u, v, tag, upper, threshold))
 }
+
+mod compact;
