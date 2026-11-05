@@ -3516,7 +3516,7 @@ the frozen inventory and all 76 mapping rows are preserved. Tested runtime is
 `bc20ec4`; subsequent result-record changes are documentation only.
 
 
-## Real restoration of tridiagonal scale (candidate)
+## Real restoration of tridiagonal scale (PR #70)
 
 At main `5d63ec5`, the unchanged public `tridiagonalize` adapter rejects a
 finite ComplexF64 Hermitian input scaled by 2^1000 and silently returns a wrong
@@ -3544,4 +3544,11 @@ merge; it is not included in this candidate.
 Focused 216 new assertions and 1,621 existing tridiagonal assertions pass, across
 four scalars, block sizes 0/1/2 and ordinary/large/small scale (f32 2^±120,
 f64 2^±1000), with independent dimensionless reconstruction and orthogonality
-checks. Full canonical/native/README gates remain pending.
+checks. All 139 native tests pass, and the executable public reproducer reports
+dimensionless residual `1.9229626863835638e-16` at both scales.
+
+Final canonical `Pkg.test(;allow_reresolve=false,test_args=["--jobs=16"])`
+passes **573,955 assertions / 124 files / 16 workers in 9m50.9s**. All **104
+executable README blocks** pass. All 268 frozen validation input hashes,
+the frozen inventory and all 76 mapping rows remain unchanged. Tested runtime
+is `bdffb54`; later result-record commits are documentation only.
