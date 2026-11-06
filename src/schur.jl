@@ -1,5 +1,5 @@
 """
-    hessenberg(A::FaerMatrix; compact=false, scratch=nothing, team=nothing)
+    hessenberg(A::FaerMatrix; compact=false, scratch=nothing, team=nothing, par_threshold=FaerParThreshold(), blocking_threshold=65536)
 
 A native Hessenberg factorization with explicit Rust-owned `H` and orthogonal
 or unitary `Q`, satisfying `A ≈ Q*H*Q'`. Inputs are copied. Unlike Julia's compact
@@ -10,6 +10,14 @@ view copies allocate separately.
 With `compact=true`, return `FaerCompactHessenberg` with implicit native
 `FaerHessenbergQ` instead of materializing Q. The same keyword selects its
 construction workspace in `scratch_requirements`, `FaerScratch` and `reserve!`.
+`par_threshold` selects derived/fixed/never parallelism. A fixed floor counts
+squared trailing order. `:never` keeps reduction and explicit Q formation
+sequential, while still requiring any supplied team to be open.
+`blocking_threshold` is a nonnegative integer: reduction is unblocked when
+`n*n < blocking_threshold`, otherwise blocked. Zero always permits blocking;
+`typemax(UInt)` selects unblocked reduction for representable dimensions.
+Use the same options for workspace queries and computation. These options
+control this reduction; saved-factor Schur iteration has its own defaults.
 """
 struct FaerHessenberg{T,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
     H::M
@@ -54,18 +62,16 @@ LinearAlgebra.schur(a::FaerMatrix; scratch = nothing, team = nothing) =
     _native_schur(a; scratch, team)
 LinearAlgebra.schur(a::FaerMatrixView; scratch = nothing, team = nothing) =
     _native_schur(a; scratch, team)
-LinearAlgebra.hessenberg(
-    a::FaerMatrix;
+function LinearAlgebra.hessenberg(
+    a::Union{FaerMatrix,FaerMatrixView};
     scratch = nothing,
     team = nothing,
     compact::Bool = false,
-) = compact ? _compact_hessenberg(a; scratch, team) : _native_schur(a, true; scratch, team)
-LinearAlgebra.hessenberg(
-    a::FaerMatrixView;
-    scratch = nothing,
-    team = nothing,
-    compact::Bool = false,
-) = compact ? _compact_hessenberg(a; scratch, team) : _native_schur(a, true; scratch, team)
+    par_threshold = FaerParThreshold(),
+    blocking_threshold::Integer = 256*256,
+)
+    return _tuned_hessenberg(a; scratch, team, compact, par_threshold, blocking_threshold)
+end
 LinearAlgebra.schur(f::FaerHessenberg; scratch = nothing, team = nothing) =
     _saved_schur(f; scratch, team)
 """
@@ -83,9 +89,18 @@ function LinearAlgebra.hessenberg!(
     scratch = nothing,
     team = nothing,
     compact::Bool = false,
+    par_threshold = FaerParThreshold(),
+    blocking_threshold::Integer = 256*256,
 )
     lock(_matrix_lock) do
-        f=LinearAlgebra.hessenberg(a; scratch, team, compact)
+        f=LinearAlgebra.hessenberg(
+            a;
+            scratch,
+            team,
+            compact,
+            par_threshold,
+            blocking_threshold,
+        )
         try
             copyto!(a, f.H)
             return compact ? FaerCompactHessenberg(a, f.Q) : FaerHessenberg(a, f.Q)

@@ -646,3 +646,43 @@ requirements and reuses that one workspace/team. Packed factors, owned outputs,
 Julia conversions, eigenvalue arrays and staged bang writeback allocate
 separately. No allocation-free API, performance improvement, or new Hessenberg
 tuning is claimed; native internal Householder buffers remain subject to faer #267.
+
+## General Hessenberg reduction controls
+
+Both explicit and compact general Hessenberg factors accept faer's public
+`HessenbergParams` controls. `par_threshold=FaerParThreshold()` uses the derived
+cost model; an integer floor counts squared trailing order, and `:never` keeps
+reduction and explicit Q formation sequential. A supplied team must remain open.
+`blocking_threshold=65536` is the upstream default: orders satisfying
+`n*n < blocking_threshold` use unblocked reduction. Zero permits the blocked
+path at every order; `typemax(UInt)` selects the unblocked path for representable
+matrix dimensions. These choices control reduction, not saved Schur iteration.
+
+Use identical options for query, reserve and computation. The bang method writes
+H only after successful computation and retains an independent Q. Caller scratch
+covers declared kernel temporaries; output owners, packed reflectors and view
+copies allocate separately. Compact construction now reads the native input and
+returns a checked owned Q directly, without staging either input or H in Julia.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[4 im 2; 1 3-im 0; 2 1 5])
+original = Matrix(A)
+team = FaerTeam(2)
+work = FaerScratch(0)
+options = (; compact=true, team,
+    par_threshold=FaerParThreshold(:never), blocking_threshold=0)
+try
+    req = scratch_requirements(hessenberg!, A; options...)
+    reserve!(work, hessenberg!, A; options...)
+    @assert scratch_capacity(work).bytes >= req.bytes
+    F = hessenberg!(A; options..., scratch=work)
+    @assert F.H === A
+    @assert Matrix(F) ≈ original
+    close(F)
+finally
+    close(work)
+    close(team)
+    close(A)
+end
+```

@@ -61,67 +61,6 @@ Base.Array(f::FaerCompactHessenberg) = Matrix(f)
 Base.iterate(f::FaerCompactHessenberg) = (f.H, Val(:Q))
 Base.iterate(f::FaerCompactHessenberg, ::Val{:Q}) = (f.Q, Val(:done))
 Base.iterate(f::FaerCompactHessenberg, ::Val{:done}) = nothing
-function _compact_hessenberg_requirement(n, T, team)
-    info=zeros(UInt, 2)
-    GC.@preserve info begin
-        isnothing(team) ?
-        _native_call(
-            RustCrate.compact_hessenberg_requirements,
-            UInt(n),
-            _tag(T),
-            pointer(info),
-        ) :
-        _native_call(
-            RustCrate.compact_hessenberg_team_requirements,
-            team,
-            UInt(n),
-            _tag(T),
-            pointer(info),
-        )
-    end
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
-end
-function _compact_hessenberg(a; scratch = nothing, team = nothing)
-    lock(_matrix_lock) do
-        _iterative_resource_check(scratch, team)
-        n=_schur_plan(a, nothing, team)
-        T=eltype(a)
-        req=_compact_hessenberg_requirement(n, T, team)
-        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
-             scratch
-        try
-            cap=scratch_capacity(work)
-            cap.bytes>=req.bytes&&cap.alignment>=req.alignment||throw(
-                ArgumentError(
-                    "compact Hessenberg scratch capacity/alignment is insufficient; call reserve!",
-                ),
-            )
-            data=Matrix{T}(a)
-            data isa Matrix{T}&&size(data)==(n, n)||throw(
-                DimensionMismatch(
-                    "Hessenberg input conversion changed scalar storage or shape",
-                ),
-            )
-            out=Matrix{T}(undef, n, n)
-            h=GC.@preserve data out begin
-                args=(
-                    work,
-                    Ptr{UInt8}(pointer(data)),
-                    UInt(n),
-                    Ptr{UInt8}(pointer(out)),
-                    _tag(T),
-                )
-                isnothing(team) ? _native_call(RustCrate.OwnedCompactTridiagonal, args...) :
-                _native_call(RustCrate.OwnedCompactTridiagonal, args..., team)
-            end
-            q=_compact_q(T, h; wrapper = FaerHessenbergQ)
-            return FaerCompactHessenberg(FaerMatrix(out), q)
-        finally
-            isnothing(scratch)&&close(work)
-        end
-    end
-end
-
 const _SavedCompactSchurFunction=Union{
     typeof(LinearAlgebra.schur),
     typeof(LinearAlgebra.schur!),

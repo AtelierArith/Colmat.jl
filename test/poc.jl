@@ -1,7 +1,7 @@
 using Test, LinearAlgebra, Random, Colmat
 
 @testset "t4a-faer via RustCall" begin
-    @test v"0.9.2" <= pkgversion(Colmat.RustCall) < v"0.10"
+    @test v"0.10" <= pkgversion(Colmat.RustCall) < v"0.11"
     rng = MersenneTwister(42)
     @testset "matrix multiplication" begin
         for (m, k, n) in ((4, 3, 5), (0, 3, 2), (3, 0, 2), (3, 2, 0))

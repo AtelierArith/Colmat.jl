@@ -9,6 +9,7 @@ use faer::{c32, c64, Conj, Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 mod construction;
 mod eigenvectors_workspace;
+pub(crate) mod hessenberg_tuning;
 mod reorder_workspace;
 
 // Power-of-two scaling follows faer's general EVD driver. Keep the
@@ -73,9 +74,18 @@ fn hessenberg<T: ComplexField>(a: MatRef<'_, T>) -> Result<(Mat<T>, Mat<T>), Str
 }
 fn hessenberg_in<T: ComplexField>(
     a: MatRef<'_, T>,
-    mut par: Par,
+    par: Par,
     stack: &mut MemStack,
 ) -> Result<(Mat<T>, Mat<T>), String> {
+    hessenberg_in_tuned(a, par, stack, hessenberg_tuning::Policy::default())
+}
+pub(crate) fn hessenberg_in_tuned<T: ComplexField>(
+    a: MatRef<'_, T>,
+    par: Par,
+    stack: &mut MemStack,
+    policy: hessenberg_tuning::Policy,
+) -> Result<(Mat<T>, Mat<T>), String> {
+    let mut par = policy.execution(par);
     if a.nrows() != a.ncols() {
         return Err("Hessenberg/Schur input must be square".into());
     }
@@ -94,7 +104,7 @@ fn hessenberg_in<T: ComplexField>(
         hh.as_mat_mut(),
         par.reborrow(),
         stack,
-        Default::default(),
+        policy.params::<T>(),
     );
     householder::apply_block_householder_sequence_on_the_right_in_place_with_conj(
         h.as_ref().submatrix(1, 0, n - 1, n - 1),
