@@ -9,6 +9,16 @@ The remaining implementation work and acceptance criteria are tracked in
 Earlier Issue #1/#2 records and the [handoff plan](issue-1-follow-up.md) remain
 historical evidence; the full 76-row inventory is still the overall scope.
 
+The official build after PR #83 selected faer `2b87010` (0.31.0), adding the
+row-major-to-column-major triangular-copy path from faer PR #282. The preceding
+608,722-assertion compact-Hessenberg validation used `06d8e84`; those revisions
+are recorded separately. A [Git-pinned standalone control](reproducers/triangular-copy-validation/README.md)
+checks four scalars, 832 full/lower-copy cases with signed zeros/NaN payloads,
+reversed strides and conjugation, plus matching row/column-major Cholesky/LU
+factors and permutations with Seq/Team2. It measures no timings. Consumer-wide
+regression results for the selected revision are recorded on the dependency
+follow-up PR and Issue #22.
+
 General Hessenberg now also accepts `compact=true`, returning
 `FaerCompactHessenberg` with `FaerHessenbergQ`. Packed native reflectors support
 left/right products, solves and oriented actions without dense Q. Saved Schur

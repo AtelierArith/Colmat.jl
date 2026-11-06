@@ -5,10 +5,10 @@
 t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra の対応 API と Colmat の実装状況を追跡する。
 
 - 機能分類の調査日: 2026-11-04。依存と検証情報の更新: 2026-11-06
-- 現在のビルド対象 t4a-faer: `0.31.0`、コミット [`06d8e84c3e31e824dffe9fb1fc0945c7d90db1d0`](https://github.com/tensor4all/faer/tree/06d8e84c3e31e824dffe9fb1fc0945c7d90db1d0)、threadteam `0.4.0`。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
-- Colmat の判定基準: PR #82 までの main（`ba8ac30`）を土台に、一般 Hessenberg の compact Q と保存 Schur の implicit 変換を追加。三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換も含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
-- 直前 main の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、faer 0.30.0 / `1621d94b47c83cab45aa5e5eeb6a395a84a17709` で canonical `Pkg.test(; allow_reresolve=false,test_args=["--jobs=16"])` **606,597 assertions / 133 files / 16 workers**、native **157 tests**、README/マニュアル **114 blocks** が成功。faer #274 は fork [PR #275](https://github.com/tensor4all/faer/pull/275) で修正済み。元の Rust-only MWE と Colmat の複素ノルム境界値を再実行した。未統合の #267/#269/#272 等の性能候補は採用しておらず、全76機能行の完了も意味しない。
-- 現在の依存は既定 main の 0.31.0 に追随する。前回からの LU/TRSM 変更を含め数値回帰を検証し、性能改善は主張しない。本変更の全体検証は対応 PR と Issue #22 の進捗コメントに保存する。
+- 現在のビルド対象 t4a-faer: `0.31.0`、コミット [`2b87010cb82efbe0a90eceeb51931a833e1de8e6`](https://github.com/tensor4all/faer/tree/2b87010cb82efbe0a90eceeb51931a833e1de8e6)、threadteam `0.4.0`。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
+- Colmat の判定基準: PR #83 までの main（`57442d3`）。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
+- PR #83 の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、faer 0.31.0 / `06d8e84c3e31e824dffe9fb1fc0945c7d90db1d0` で canonical `Pkg.test(; allow_reresolve=false,test_args=["--jobs=16"])` **608,722 assertions / 134 files / 16 workers**、native **161 tests**、README/マニュアル **115 blocks** が成功。faer #274 は fork [PR #275](https://github.com/tensor4all/faer/pull/275) で修正済みで、修正採用時の Rust-only MWE と複素ノルム境界値の記録は PR #82 に保持する。
+- マージ後の公式 build が faer [PR #282](https://github.com/tensor4all/faer/pull/282) を取得したため、上記の新しい revision を別途検証する。[独立 Rust control](reproducers/triangular-copy-validation/README.md) は4型・832 copy ケースと Seq/Team2 の Cholesky/LU を bit 比較する。数値回帰の結果は依存追随の PR と Issue #22 の進捗コメントに保存する。速度改善は主張せず、未統合の #267/#269/#272 等の候補も採用していない。全76行の完了は意味しない。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
