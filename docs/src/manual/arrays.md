@@ -62,6 +62,13 @@ reserve!(v, 8)
 @assert capacity(v) >= 8
 @assert isopen(V)
 close(V)                        # A 自体は閉じない
+
+reserved = with_capacity(FaerMatrix{ComplexF64}, 8, 9)
+@assert size(reserved) == (0, 0)
+@assert all(capacity(reserved) .>= (8, 9))
+resize!(reserved, 2, 3; fill=1+im)
+@assert Matrix(reserved) == fill(1+im, 2, 3)
+close(reserved)
 ```
 
 `view` は親の所有者を保持し、ネイティブ呼び出しの間だけ Rust の
@@ -83,7 +90,7 @@ close(V)                        # A 自体は閉じない
 
 | faer API | Colmat の対応・制約 |
 |---|---|
-| `Mat::with_capacity` | 空の所有行列を作って `reserve!` する操作で容量を予約できます。専用の容量付きコンストラクタは未提供です。 |
+| `Mat::with_capacity` | `with_capacity(FaerMatrix{T}, rows, cols)` は次元 `(0,0)` の所有行列を予約済み容量で作ります。`FaerVector{T}` / `FaerRow{T}` と1個の容量を指定する形式もあり、`{T}` を省略すると Float64 です。 |
 | `try_reserve` / `reserve` | `reserve!` / `sizehint!` は `try_reserve` を使い、失敗を例外として返します。 |
 | `resize_with` | `resize!(...; fill=value)` は重なる領域を保持して新しい要素を固定値で初期化します。添字ごとに値を生成する任意関数は未接続です。 |
 | `truncate` | `truncate!` は縮小のみを受け付け、容量を保持します。 |
