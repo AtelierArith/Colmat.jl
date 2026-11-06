@@ -84,6 +84,16 @@ from_function_row = FaerRow(i->2i, 3)
 close(from_function)
 close(from_function_vector)
 close(from_function_row)
+
+native_zeros = zeros(FaerMatrix{Float32}, 2, 3)
+native_ones = ones(FaerRow{ComplexF64}, (3,))
+native_full = FaerDiagonal{ComplexF32}(3; fill=1-2im)
+@assert Matrix(native_zeros) == zeros(Float32, 2, 3)
+@assert Matrix(native_ones) == ones(ComplexF64, 1, 3)
+@assert Vector(native_full) == fill(ComplexF32(1-2im), 3)
+close(native_zeros)
+close(native_ones)
+close(native_full)
 ```
 
 `view` は親の所有者を保持し、ネイティブ呼び出しの間だけ Rust の
@@ -93,6 +103,13 @@ close(from_function_row)
 `copy(view(...))` は独立した Rust 所有行列・ベクトルを返します。
 ビューへの `copyto!` は入力を一時コピーし、代入先と重なる場合も値を保ちます。
 `FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
+
+`FaerMatrix{T}(m,n; fill=value)` と `FaerVector{T}(n; fill=value)` /
+`FaerRow{T}(n; fill=value)` / `FaerDiagonal{T}(n; fill=value)` は定数値から
+native に直接構築し、Julia の密配列を実体化しません。fill の既定値はゼロです。
+`zeros` / `ones` に所有型を指定する形式もあり、行列は `(m,n)`、collection は
+`(n,)` の tuple 指定にも対応します。型パラメータを省略すると Float64 です。
+`ones(FaerDiagonal{T},n)` は格納対角を1にし、非対角成分は暗黙のゼロです。
 
 `FaerMatrix{T}(f,m,n)` / `FaerVector{T}(f,n)` / `FaerRow{T}(f,n)` は
 関数または callable object から構築します。1-based の添字を渡し、要素ごとに
