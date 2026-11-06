@@ -68,6 +68,11 @@ reserved = with_capacity(FaerMatrix{ComplexF64}, 8, 9)
 @assert all(capacity(reserved) .>= (8, 9))
 resize!(reserved, 2, 3; fill=1+im)
 @assert Matrix(reserved) == fill(1+im, 2, 3)
+resize_with!(reserved, 4, 5) do i, j
+    complex(i, j)
+end
+@assert Matrix(reserved)[1:2, 1:3] == fill(1+im, 2, 3)
+@assert reserved[4, 5] == 4+5im
 close(reserved)
 ```
 
@@ -92,13 +97,21 @@ close(reserved)
 |---|---|
 | `Mat::with_capacity` | `with_capacity(FaerMatrix{T}, rows, cols)` は次元 `(0,0)` の所有行列を予約済み容量で作ります。`FaerVector{T}` / `FaerRow{T}` と1個の容量を指定する形式もあり、`{T}` を省略すると Float64 です。 |
 | `try_reserve` / `reserve` | `reserve!` / `sizehint!` は `try_reserve` を使い、失敗を例外として返します。 |
-| `resize_with` | `resize!(...; fill=value)` は重なる領域を保持して新しい要素を固定値で初期化します。添字ごとに値を生成する任意関数は未接続です。 |
+| `resize_with` | `resize!(...; fill=value)` は固定値で初期化します。`resize_with!(f,A,rows,cols)` / `resize_with!(f,x,length)` は新規要素だけを添字から生成し、重なる領域を保持します。 |
 | `truncate` | `truncate!` は縮小のみを受け付け、容量を保持します。 |
 | `row_capacity` / `col_capacity` / `capacity` | 所有型の `capacity` で実際の容量を照会します。 |
 | unsafe `set_dims` | 初期化済み領域の証明を呼び出し側に要求するため、Julia の公開 API としては提供していません。安全な `resize!` は新しい要素を初期化します。 |
 
+`resize_with!` の関数は1-based の添字を受け取り、新規要素だけを列優先順に
+評価します。do-block 形式も使えます。縮小のみ・形状不変なら関数を呼びません。
+新規値を Julia の一時 primitive buffer に評価・型変換してから native に渡すため、
+関数の例外や変換失敗では入力を更新しません。関数自身による owner の変更・close は
+禁止で、関数自身の副作用は巻き戻せません。形状・owner が変わった場合は拒否します。
+native 側も元形状・スカラー型・Row/Col の種類・buffer 長を検証し、truncate 前に
+必要容量を確保します。成功時の形状変更は既存ビューを失効させます。
+
 `Row` / `Col` は予約とサイズ変更に対応します。faer `Diag` に予約・サイズ変更の
-公開メソッドはなく、Colmat でも対角の次元は固定です。上の未接続形式は
+公開メソッドはなく、Colmat でも対角の次元は固定です。対応範囲と検証は
 [Issue #90](https://github.com/AtelierArith/Colmat.jl/issues/90) で追跡します。
 
 ## 置換・ランク・疑似逆行列

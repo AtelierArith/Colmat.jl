@@ -100,6 +100,7 @@ export FaerSpectralFactor,
     reserve!,
     capacity,
     with_capacity,
+    resize_with!,
     truncate!,
     full_piv_lu,
     full_piv_lu!,
@@ -282,5 +283,6 @@ include("spectral_solve_workspace.jl")
 include("pivoted_cholesky_workspace.jl")
 include("storage_capacity.jl")
 include("storage_construction.jl")
+include("storage_initializer.jl")
 
 end
