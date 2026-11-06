@@ -116,3 +116,14 @@ change. This differs from closed #37's reused nonzero buffer bug and #217's
 repeated-shift vector backsolve. Colmat detects nonfinite left outputs and
 recomputes the adjoint pencil's native right eigensystem before conjugating
 alpha/beta. Its dependency checkout is unchanged.
+
+## Triangular-copy adoption control
+
+[triangular-copy-validation](triangular-copy-validation/README.md) is an
+independent numerical control for the faer PR #282 path selected by Colmat's
+post-PR #83 official build. Its manifest and lock pin `2b87010` (faer 0.31.0).
+Four scalars cover 832 full/lower-copy cases, NaN payloads/signed zeros,
+reversed strides, conjugation and untouched upper triangles. Matching
+row/column-major Cholesky and LU factors/permutations are checked at 65, 129
+and 257 with Seq/Team2. It is not a bug report or benchmark, and the earlier
+elementwise implementation is also expected to pass.
