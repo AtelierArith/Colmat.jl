@@ -1,0 +1,4 @@
+interface:
+  display_name: "Report tensor4all/faer bugs"
+  short_description: "Isolate faer defects and file reproducible issues"
+  default_prompt: "Use $reporting-faer-bugs to investigate this faer failure and prepare an actionable issue."

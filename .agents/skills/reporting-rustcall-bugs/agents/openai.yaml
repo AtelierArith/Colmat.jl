@@ -1,0 +1,4 @@
+interface:
+  display_name: "RustCall bug reports"
+  short_description: "Isolate RustCall defects and file executable bug reports"
+  default_prompt: "Use $reporting-rustcall-bugs to isolate a RustCall.jl defect, execute a minimal Julia/Rust reproducer, and report it with a concrete proposed fix."
