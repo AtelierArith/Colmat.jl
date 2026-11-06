@@ -1,6 +1,7 @@
 const _ReconstructableDense=Union{
     FaerFactorization,
     FaerHessenberg,
+    FaerCompactHessenberg,
     _NativeSchur,
     FaerTridiagonalization,
     FaerBidiagonalization,

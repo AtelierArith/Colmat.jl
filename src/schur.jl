@@ -1,5 +1,5 @@
 """
-    hessenberg(A::FaerMatrix; scratch=nothing, team=nothing) -> FaerHessenberg
+    hessenberg(A::FaerMatrix; compact=false, scratch=nothing, team=nothing)
 
 A native Hessenberg factorization with explicit Rust-owned `H` and orthogonal
 or unitary `Q`, satisfying `A ≈ Q*H*Q'`. Inputs are copied. Unlike Julia's compact
@@ -7,6 +7,9 @@ Householder storage, `F.Q` is an explicit matrix and `F.H` contains no reflector
 workspace. Closing the factor closes its two owned matrices. Optional `scratch`
 and `team` control declared kernel workspace and execution; owned outputs and
 view copies allocate separately.
+With `compact=true`, return `FaerCompactHessenberg` with implicit native
+`FaerHessenbergQ` instead of materializing Q. The same keyword selects its
+construction workspace in `scratch_requirements`, `FaerScratch` and `reserve!`.
 """
 struct FaerHessenberg{T,M<:FaerMatrix{T}} <: LinearAlgebra.Factorization{T}
     H::M
@@ -44,32 +47,51 @@ Base.Array(f::FaerHessenberg) = Matrix(f)
 Compute a real quasi-triangular or complex triangular Schur factorization in
 faer, returning `LinearAlgebra.Schur` with Rust-owned `T` and `Z`. The input is
 preserved and `A ≈ F.Z*F.T*F.Z'`. Eigenvalues are independent Julia vectors.
-Optional `scratch` and `team` also apply to conversion from `FaerHessenberg`;
+Optional `scratch` and `team` also apply to saved explicit or compact Hessenberg factors;
 query with `scratch_requirements`, construct `FaerScratch`, or call `reserve!`.
 """
 LinearAlgebra.schur(a::FaerMatrix; scratch = nothing, team = nothing) =
     _native_schur(a; scratch, team)
 LinearAlgebra.schur(a::FaerMatrixView; scratch = nothing, team = nothing) =
     _native_schur(a; scratch, team)
-LinearAlgebra.hessenberg(a::FaerMatrix; scratch = nothing, team = nothing) =
-    _native_schur(a, true; scratch, team)
-LinearAlgebra.hessenberg(a::FaerMatrixView; scratch = nothing, team = nothing) =
-    _native_schur(a, true; scratch, team)
+LinearAlgebra.hessenberg(
+    a::FaerMatrix;
+    scratch = nothing,
+    team = nothing,
+    compact::Bool = false,
+) = compact ? _compact_hessenberg(a; scratch, team) : _native_schur(a, true; scratch, team)
+LinearAlgebra.hessenberg(
+    a::FaerMatrixView;
+    scratch = nothing,
+    team = nothing,
+    compact::Bool = false,
+) = compact ? _compact_hessenberg(a; scratch, team) : _native_schur(a, true; scratch, team)
 LinearAlgebra.schur(f::FaerHessenberg; scratch = nothing, team = nothing) =
     _saved_schur(f; scratch, team)
 """
-    hessenberg!(A::FaerMatrix; scratch=nothing, team=nothing)
+    hessenberg!(A::FaerMatrix; compact=false, scratch=nothing, team=nothing)
 
 Compute a native Hessenberg reduction, then overwrite A with explicit H.
 Return `FaerHessenberg(A,Q)`. The result shares H storage with A; existing views
 remain valid. Independent native work results allocate separately from declared
 caller scratch.
+With `compact=true`, return `FaerCompactHessenberg(A,Q)` whose implicit Q owns
+packed reflectors independently of A.
 """
-function LinearAlgebra.hessenberg!(a::FaerMatrix; scratch = nothing, team = nothing)
+function LinearAlgebra.hessenberg!(
+    a::FaerMatrix;
+    scratch = nothing,
+    team = nothing,
+    compact::Bool = false,
+)
     lock(_matrix_lock) do
-        f=LinearAlgebra.hessenberg(a; scratch, team)
-        copyto!(a, f.H)
-        return FaerHessenberg(a, f.Q)
+        f=LinearAlgebra.hessenberg(a; scratch, team, compact)
+        try
+            copyto!(a, f.H)
+            return compact ? FaerCompactHessenberg(a, f.Q) : FaerHessenberg(a, f.Q)
+        finally
+            compact && close(f.H)
+        end
     end
 end
 """

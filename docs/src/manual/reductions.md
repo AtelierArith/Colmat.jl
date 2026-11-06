@@ -582,3 +582,67 @@ A full SVD requires a reduction made with `full=true`, as for explicit factors.
 Values-only still uses the existing native full-factor band-SVD path. Construction
 parallel policy does not constrain later separately requested applications. No
 speedup is claimed; native internal Householder buffers remain subject to faer #267.
+
+## Compact general Hessenberg Q
+
+For a general native square matrix, `hessenberg(A; compact=true)` returns
+`FaerCompactHessenberg` with native H and an implicit `FaerHessenbergQ`. The
+explicit `FaerHessenberg` default is unchanged. The implicit Q uses saved native
+Householder factors acting on rows 2:n. Its `.basis` and `.factor` properties
+return independent arrays; `.phases` returns ones because this reduction has no
+additional diagonal phase factor. Products, left/right actions, solves and
+transpose/adjoint/conjugation apply those factors without forming dense Q.
+`Matrix(F.Q)` explicitly materializes it.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[4 im 2; 1 3-im 0; 2 1 5])
+original = Matrix(A)
+team = FaerTeam(2)
+work = FaerScratch(hessenberg, A; compact=true, team)
+try
+    F = hessenberg(A; compact=true, scratch=work, team)
+    @assert F.Q isa FaerHessenbergQ
+    @assert Matrix(F) ≈ original
+    X = ones(ComplexF64, 3, 2)
+    reserve!(work, lmul!, F.Q, X; team)
+    lmul!(F.Q, X; scratch=work, team)
+    @assert X ≈ Matrix(F.Q) * ones(ComplexF64, 3, 2)
+    reserve!(work, schur, F; team)
+    S = schur(F; scratch=work, team)
+    @assert Matrix(S.Z) * Matrix(S.T) * Matrix(S.Z)' ≈ original
+    oldQ = F.Q
+    savedQ = Matrix(oldQ)
+    schur!(F; scratch=work, team)
+    @assert F.Q isa FaerMatrix
+    @assert Matrix(oldQ) ≈ savedQ
+    @assert Matrix(F) ≈ original
+    close(oldQ)
+    close(S)
+    close(F)
+finally
+    close(work)
+    close(team)
+    close(A)
+end
+```
+
+Construction owns the packed reflectors independently of its input. In
+`hessenberg!`, H shares the input matrix while Q retains separate packed storage.
+Transpose/adjoint/conj wrappers share immutable reflector storage and close
+independently; copy/deepcopy duplicate it and preserve the concrete wrapper type.
+
+Saved `schur(F)` starts the Hessenberg QR stage with identity and applies the
+saved Q directly to the resulting native Schur basis. It preserves F and avoids
+materializing the original Q. `schur!(F)` stages the entire result, updates H,
+and replaces the implicit Q with the explicit Schur basis. Its result shares
+H and Q with F. A previously retained implicit Q remains a valid independent
+wrapper; close it separately. Repeated `schur!` keeps the existing explicit Q
+owner, as for the explicit default factor.
+
+Use `compact=true` for construction queries, `FaerScratch` and `reserve!`.
+Saved Schur queries the maximum of the QR-stage and implicit-Q application
+requirements and reuses that one workspace/team. Packed factors, owned outputs,
+Julia conversions, eigenvalue arrays and staged bang writeback allocate
+separately. No allocation-free API, performance improvement, or new Hessenberg
+tuning is claimed; native internal Householder buffers remain subject to faer #267.

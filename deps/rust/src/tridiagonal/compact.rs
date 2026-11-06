@@ -1,4 +1,6 @@
-//! Owned compact tridiagonal reflectors. No workspace or execution token escapes.
+//! Embedded compact Householder products for tridiagonal and Hessenberg Q.
+//! The existing facade name is retained for compatibility. Storage owns its
+//! matrices; no workspace or execution token escapes a call.
 use super::construction::{block_size, normalize_phase, params, phase_magnitude};
 use super::workspace::buffer;
 use crate::collections::{VectorData, VectorOwner};
@@ -48,7 +50,7 @@ impl<T: ComplexField> Core<T> {
         mut par: Par,
     ) -> Result<(), String> {
         if (if right { a.ncols() } else { a.nrows() }) != self.n() {
-            return Err("compact tridiagonal application dimensions must match".into());
+            return Err("compact Q application dimensions must match".into());
         }
         let stack = work.stack(self.requirement(
             if right { a.nrows() } else { a.ncols() },
@@ -73,7 +75,7 @@ impl<T: ComplexField> Core<T> {
                 }
             }
         };
-        if right == transpose {
+        if !self.phases.is_empty() && right == transpose {
             scale(&mut a);
         }
         if self.k() > 0 {
@@ -93,7 +95,7 @@ impl<T: ComplexField> Core<T> {
                 stack,
             )?;
         }
-        if right != transpose {
+        if !self.phases.is_empty() && right != transpose {
             scale(&mut a);
         }
         Ok(())
@@ -370,9 +372,7 @@ impl OwnedCompactTridiagonal {
             Data::C64(s) => (s.n(), s.b(), 3),
         };
         if n != actual_n || k != n.saturating_sub(1) || b != actual_b || tag != actual_tag {
-            return Err(
-                "compact tridiagonal native metadata does not match requested scalar/shape".into(),
-            );
+            return Err("compact Q native metadata does not match requested scalar/shape".into());
         }
         Ok(())
     }
@@ -489,7 +489,11 @@ impl OwnedCompactTridiagonal {
                     }
                     _ => {
                         for i in 0..s.n() {
-                            out.cast::<T>().add(i).write(copy(&s.phases[i]));
+                            out.cast::<T>().add(i).write(if s.phases.is_empty() {
+                                one::<T>()
+                            } else {
+                                copy(&s.phases[i])
+                            });
                         }
                     }
                 }
@@ -667,7 +671,7 @@ fn cast_core<T: ComplexField, U: ComplexField>(
     let mut out = Core {
         packed: Mat::zeros(s.n(), s.n()),
         factor: Mat::zeros(s.b(), s.k()),
-        phases: Vec::with_capacity(s.n()),
+        phases: Vec::with_capacity(s.phases.len()),
     };
     for j in 0..s.k() {
         let active = real(&s.factor[(j % s.b(), j)]) != infinity::<T::Real>();
@@ -999,6 +1003,128 @@ mod tests {
         assert_eq!(d, [71.0; 2]);
         assert_eq!(e, [72.0]);
     }
+
+    fn check_hessenberg<T: ComplexField>(a: Mat<T>, tolerance: f64) {
+        let n = a.nrows();
+        let input: Vec<T> = (0..n)
+            .flat_map(|j| {
+                (0..n).map({
+                    let a = &a;
+                    move |i| copy(&a[(i, j)])
+                })
+            })
+            .collect();
+        let mut band: Vec<T> = (0..n * n).map(|_| zero()).collect();
+        let mut work = OwnedScratch::new();
+        let req = hessenberg_req::<T>(n, ParShape::Seq).unwrap();
+        work.scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        // SAFETY: disjoint, correctly typed, column-major numeric buffers.
+        let core = unsafe {
+            build_hessenberg::<T>(
+                &mut work,
+                input.as_ptr().cast(),
+                n,
+                band.as_mut_ptr().cast(),
+                Par::Seq,
+            )
+        }
+        .unwrap();
+        assert!(core.phases.is_empty());
+        let h = Mat::from_fn(n, n, |i, j| copy(&band[i + j * n]));
+        for j in 0..n {
+            for i in j + 2..n {
+                assert_eq!(abs(&h[(i, j)]), zero::<T::Real>());
+            }
+        }
+        let req = core.requirement(n, false, false);
+        work.scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        let mut q = Mat::from_fn(n, n, |i, j| if i == j { one::<T>() } else { zero::<T>() });
+        core.apply(q.as_mut(), &mut work, false, false, false, Par::Seq)
+            .unwrap();
+        assert!((&q * &h * q.adjoint() - &a).norm_l2() <= from_f64::<T::Real>(tolerance));
+        let identity = Mat::from_fn(n, n, |i, j| if i == j { one::<T>() } else { zero::<T>() });
+        assert!((q.adjoint() * &q - identity).norm_l2() <= from_f64::<T::Real>(tolerance));
+    }
+
+    #[test]
+    fn compact_hessenberg_four_scalars_and_boundaries() {
+        for n in [0, 1, 2, 5, 33] {
+            check_hessenberg(
+                Mat::from_fn(n, n, |i, j| (1 + i + 3 * j) as f32 / 17.0),
+                0.01,
+            );
+            check_hessenberg(
+                Mat::from_fn(n, n, |i, j| (1 + i + 3 * j) as f64 / 17.0),
+                1e-10,
+            );
+            check_hessenberg(
+                Mat::from_fn(n, n, |i, j| {
+                    c32::new((1 + i + 3 * j) as f32 / 17.0, (2 * i + j) as f32 / 19.0)
+                }),
+                0.01,
+            );
+            check_hessenberg(
+                Mat::from_fn(n, n, |i, j| {
+                    c64::new((1 + i + 3 * j) as f64 / 17.0, (2 * i + j) as f64 / 19.0)
+                }),
+                1e-10,
+            );
+        }
+    }
+
+    #[test]
+    fn compact_hessenberg_failures_preserve_public_output() {
+        let mut input = vec![1.0f64; 25];
+        let mut output = vec![71.0f64; 25];
+        let mut work = OwnedScratch::new();
+        // SAFETY: input and output are preserved typed disjoint buffers; the
+        // short scratch is rejected before computing or publishing any H.
+        assert!(unsafe {
+            build_hessenberg::<f64>(
+                &mut work,
+                input.as_ptr().cast(),
+                5,
+                output.as_mut_ptr().cast(),
+                Par::Seq,
+            )
+        }
+        .is_err());
+        assert_eq!(output, vec![71.0; 25]);
+        let req = hessenberg_req::<f64>(5, ParShape::Seq).unwrap();
+        work.scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        input[3] = f64::NAN;
+        // SAFETY: no invalid reference is formed from the finite-check failure.
+        assert!(unsafe {
+            build_hessenberg::<f64>(
+                &mut work,
+                input.as_ptr().cast(),
+                5,
+                output.as_mut_ptr().cast(),
+                Par::Seq,
+            )
+        }
+        .is_err());
+        assert_eq!(output, vec![71.0; 25]);
+        input[3] = 1.0;
+        let old = input.clone();
+        // SAFETY: alias is presented only as raw pointers and rejected before
+        // constructing matrix references or touching either numeric buffer.
+        assert!(unsafe {
+            build_hessenberg::<f64>(
+                &mut work,
+                input.as_ptr().cast(),
+                5,
+                input.as_mut_ptr().cast(),
+                Par::Seq,
+            )
+        }
+        .is_err());
+        assert_eq!(input, old);
+        assert!(hessenberg_req::<f64>(usize::MAX, ParShape::Seq).is_err());
+    }
 }
 
 #[julia]
@@ -1078,6 +1204,190 @@ impl VectorOwner {
                     }
                     _ => Err("compact tridiagonal scalar types must match".into()),
                 }
+            })?
+        })
+    }
+}
+
+fn hessenberg_req<T: ComplexField>(n: usize, par: ParShape) -> Result<StackReq, String> {
+    n.checked_mul(n)
+        .and_then(|nn| nn.checked_mul(core::mem::size_of::<T>()))
+        .filter(|&bytes| bytes <= isize::MAX as usize)
+        .ok_or("Hessenberg dimensions overflow")?;
+    if n < 2 {
+        return Ok(StackReq::EMPTY);
+    }
+    let b = faer::linalg::qr::no_pivoting::factor::recommended_block_size::<T>(n - 1, n - 1);
+    Ok(evd::hessenberg::hessenberg_in_place_scratch::<T>(
+        n,
+        b,
+        par,
+        Default::default(),
+    ))
+}
+fn hessenberg_query(n: usize, tag: i32, par: ParShape, out: *mut usize) -> Result<(), String> {
+    buffer::<usize>(out.cast(), 2)?;
+    let req = match tag {
+        0 => hessenberg_req::<f32>(n, par)?,
+        1 => hessenberg_req::<f64>(n, par)?,
+        2 => hessenberg_req::<c32>(n, par)?,
+        3 => hessenberg_req::<c64>(n, par)?,
+        _ => return Err("unsupported Hessenberg scalar".into()),
+    };
+    // SAFETY: caller preserves a writable two-entry UInt buffer after span checks.
+    unsafe {
+        out.write(req.size_bytes());
+        out.add(1).write(req.align_bytes());
+    }
+    Ok(())
+}
+#[julia]
+pub fn compact_hessenberg_requirements(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
+    guarded(|| hessenberg_query(n, tag, ParShape::Seq, out))
+}
+#[julia]
+impl OwnedTeam {
+    #[julia]
+    pub fn compact_hessenberg_team_requirements(
+        &self,
+        n: usize,
+        tag: i32,
+        out: *mut usize,
+    ) -> Result<(), String> {
+        guarded(|| self.execute(|par| hessenberg_query(n, tag, par.shape(), out))?)
+    }
+}
+unsafe fn build_hessenberg<T: ComplexField>(
+    scratch: &mut OwnedScratch,
+    input: *const u8,
+    n: usize,
+    output: *mut u8,
+    mut par: Par,
+) -> Result<Core<T>, String> {
+    let nn = n.checked_mul(n).ok_or("Hessenberg dimensions overflow")?;
+    let (a, b) = buffer::<T>(input, nn)?;
+    let (c, d) = buffer::<T>(output, nn)?;
+    if a < b && c < d && a < d && c < b {
+        return Err("Hessenberg input/output buffers overlap".into());
+    }
+    let stack = scratch.stack(hessenberg_req::<T>(n, par.shape())?)?;
+    let ptr = if n == 0 {
+        std::ptr::NonNull::<T>::dangling().as_ptr().cast_const()
+    } else {
+        input.cast::<T>()
+    };
+    // SAFETY: preserved column-major numeric input, checked for span/alignment.
+    let a = MatRef::from_raw_parts(ptr, n, n, 1, n as isize);
+    crate::typed::finite(a)?;
+    let b = if n < 2 {
+        1
+    } else {
+        faer::linalg::qr::no_pivoting::factor::recommended_block_size::<T>(n - 1, n - 1)
+    };
+    let mut core = Core {
+        packed: a.to_owned(),
+        factor: Mat::zeros(b, n.saturating_sub(1)),
+        phases: Vec::new(),
+    };
+    let scale = crate::schur::scale_in(core.packed.as_mut());
+    if n > 1 {
+        evd::hessenberg::hessenberg_in_place(
+            core.packed.as_mut(),
+            core.factor.as_mut(),
+            par.reborrow(),
+            stack,
+            Default::default(),
+        );
+    }
+    crate::typed::finite(core.packed.as_ref())?;
+    for j in 0..core.k() {
+        for i in 0..=j % b {
+            let value = &core.factor[(i, j)];
+            if i == j % b {
+                if imag(value) != zero::<T::Real>() || !(real(value) > zero::<T::Real>()) {
+                    return Err("invalid Hessenberg Householder denominator".into());
+                }
+            } else if !is_finite(value) {
+                return Err("nonfinite Hessenberg Householder factor".into());
+            }
+        }
+    }
+    let inverse = scale.map(|s| recip(&s));
+    let value = |i: usize, j: usize| {
+        if i > j + 1 {
+            zero::<T>()
+        } else if let Some(ref s) = inverse {
+            mul_real(&core.packed[(i, j)], s)
+        } else {
+            copy(&core.packed[(i, j)])
+        }
+    };
+    // Validate the whole public H before publishing any output entry. Packed
+    // reflector essentials remain in their working scale and are not restored.
+    for j in 0..n {
+        for i in 0..n {
+            if !is_finite(&value(i, j)) {
+                return Err("Hessenberg reduction overflowed the working type".into());
+            }
+        }
+    }
+    // SAFETY: disjoint preserved n*n output checked before computing.
+    for j in 0..n {
+        for i in 0..n {
+            output.cast::<T>().add(i + j * n).write(value(i, j));
+        }
+    }
+    Ok(core)
+}
+fn hessenberg_data(
+    scratch: &mut OwnedScratch,
+    input: *const u8,
+    n: usize,
+    output: *mut u8,
+    tag: i32,
+    par: Par,
+) -> Result<Data, String> {
+    // SAFETY: each scalar branch checks numeric spans before accessing buffers.
+    unsafe {
+        Ok(match tag {
+            0 => Data::F32(build_hessenberg(scratch, input, n, output, par)?),
+            1 => Data::F64(build_hessenberg(scratch, input, n, output, par)?),
+            2 => Data::C32(build_hessenberg(scratch, input, n, output, par)?),
+            3 => Data::C64(build_hessenberg(scratch, input, n, output, par)?),
+            _ => return Err("unsupported Hessenberg scalar".into()),
+        })
+    }
+}
+#[julia]
+impl OwnedCompactTridiagonal {
+    #[julia]
+    pub fn from_hessenberg(
+        scratch: &mut OwnedScratch,
+        input: *const u8,
+        n: usize,
+        output: *mut u8,
+        tag: i32,
+    ) -> Result<Self, String> {
+        guarded(|| {
+            Ok(Self {
+                data: hessenberg_data(scratch, input, n, output, tag, Par::Seq)?,
+            })
+        })
+    }
+    #[julia]
+    pub fn from_hessenberg_team(
+        scratch: &mut OwnedScratch,
+        input: *const u8,
+        n: usize,
+        output: *mut u8,
+        tag: i32,
+        team: &OwnedTeam,
+    ) -> Result<Self, String> {
+        guarded(|| {
+            team.execute(|par| {
+                Ok(Self {
+                    data: hessenberg_data(scratch, input, n, output, tag, par)?,
+                })
             })?
         })
     }
