@@ -74,6 +74,16 @@ end
 @assert Matrix(reserved)[1:2, 1:3] == fill(1+im, 2, 3)
 @assert reserved[4, 5] == 4+5im
 close(reserved)
+
+from_function = FaerMatrix{ComplexF64}((i,j)->complex(i,j), 2, 3)
+from_function_vector = FaerVector{Float32}(i->i^2, 4)
+from_function_row = FaerRow(i->2i, 3)
+@assert Matrix(from_function) == [complex(i,j) for i in 1:2, j in 1:3]
+@assert Vector(from_function_vector) == Float32[1,4,9,16]
+@assert Matrix(from_function_row) == [2.0 4.0 6.0]
+close(from_function)
+close(from_function_vector)
+close(from_function_row)
 ```
 
 `view` は親の所有者を保持し、ネイティブ呼び出しの間だけ Rust の
@@ -83,6 +93,11 @@ close(reserved)
 `copy(view(...))` は独立した Rust 所有行列・ベクトルを返します。
 ビューへの `copyto!` は入力を一時コピーし、代入先と重なる場合も値を保ちます。
 `FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
+
+`FaerMatrix{T}(f,m,n)` / `FaerVector{T}(f,n)` / `FaerRow{T}(f,n)` は
+関数または callable object から構築します。1-based の添字を渡し、要素ごとに
+1回だけ、行列では列優先順に評価します。空の領域では関数を呼びません。
+`{T}` を省略すると Float64 なので、複素数の結果には複素型を明示してください。
 
 `capacity(A)` は所有行列の実際の行・列容量を組で返し、`capacity(v)` /
 `capacity(r)` / `capacity(D)` は格納要素の容量を整数で返します。

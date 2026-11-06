@@ -284,5 +284,6 @@ include("pivoted_cholesky_workspace.jl")
 include("storage_capacity.jl")
 include("storage_construction.jl")
 include("storage_initializer.jl")
+include("function_constructors.jl")
 
 end
