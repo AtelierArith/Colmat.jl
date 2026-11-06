@@ -10,11 +10,11 @@ Zero and one select the same fixed policy for every positive-work region.
 The fixed floor must satisfy `0 <= n < typemax(UInt)`. `:never` selects
 sequential numerical execution. A policy does not create a team.
 
-Currently `bidiagonalize[!]`, `tridiagonalize[!]` and their workspace queries
+Currently `bidiagonalize[!]`, `tridiagonalize[!]`, general `hessenberg[!]` and their workspace queries
 accept `par_threshold`; native Hermitian/Symmetric `hessenberg[!]` forwards it.
 Fixed floors count elements in the updated trailing
 block for bidiagonal reduction, or half the squared remaining order for
-tridiagonal reduction. Explicit basis applications retain their own parallel
+tridiagonal reduction, or squared trailing order for general Hessenberg reduction. Explicit basis applications retain their own parallel
 rules. `:never` also keeps U/V or Q formation sequential. A supplied team must
 still be open.
 """

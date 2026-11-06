@@ -15,8 +15,11 @@ Random = "1.11"
 Statistics = "1.11"
 SparseArrays = "1.13.0"
 LinearAlgebra = "1.13.0"
-RustCall = "0.9.2"
+RustCall = "0.10"
 julia = "1.13"
 
 [workspace]
 projects = ["test"]
+
+[sources]
+RustCall = {url = "https://github.com/AtelierArith/RustCall.jl.git", rev = "b53c9b963084231d784e68760001f15cc27d1ab1"}

@@ -48,20 +48,30 @@ buffer, whose external control awaits unmerged faer #267.
 For `hessenberg[!](; compact=true)`, pass the same keyword here and to
 `FaerScratch`/`reserve!`; only reduction-kernel scratch is declared, while the
 returned packed reflectors and block factors own separate storage.
+For general `hessenberg[!]`, pass the same `par_threshold` and
+`blocking_threshold` to query and compute. `FaerParThreshold(:never)` uses the
+sequential requirement even with an explicit team. Nondefault Hessenberg tuning
+is rejected for direct `schur` queries.
 """
 function scratch_requirements(
     fun::_QzConstructionFunction,
     a::_BorrowMatrix;
     team = nothing,
     compact::Bool = false,
+    par_threshold = FaerParThreshold(),
+    blocking_threshold::Integer = 256*256,
 )
     lock(_matrix_lock) do
         n=_schur_plan(a, nothing, team)
         stage=fun in (LinearAlgebra.hessenberg, LinearAlgebra.hessenberg!) ? 1 : 0
-        if compact
-            stage==1||throw(ArgumentError("compact is supported for Hessenberg reduction"))
-            return _compact_hessenberg_requirement(n, eltype(a), team)
+        policy, blocking = _hessenberg_options(par_threshold, blocking_threshold)
+        if stage==1
+            return _hessenberg_requirement(n, eltype(a), team, compact, policy, blocking)
         end
+        compact&&throw(ArgumentError("compact is supported for Hessenberg reduction"))
+        (policy.value==0&&blocking==256*256)||throw(
+            ArgumentError("Hessenberg tuning is supported for hessenberg[!] queries"),
+        )
         _schur_requirement(n, eltype(a), stage, team)
     end
 end

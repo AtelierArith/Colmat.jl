@@ -150,13 +150,21 @@ SVD の失敗は例外になります。Julia バッファは `GC.@preserve` で
 ポインタを残しません。この PoC はコピーと割り当てを行うため、性能測定用の
 ゼロコピー・並列実装ではありません。互換 API に通常の実数配列を渡す経路は
 Float64 に変換します。複素数を含め型を保持する場合は `FaerMatrix` を使ってください。
-疎分解の残りの機能などの API は Issue #1 で管理しています。
+残機能は Issue #22 と機能対応表で追跡しています。
 
 RustCall v0.9.2 で [#564](https://github.com/AtelierArith/RustCall.jl/issues/564)・
 [#565](https://github.com/AtelierArith/RustCall.jl/issues/565) が修正されました。
 `copy(::FaerMatrix)` は `duplicate(&self) -> Result<Self, String>` から独立した所有ハンドルを
 直接受け取ります。行列・分解など型が決まっている所有者の引数には Rust の `&T` / `&mut T` を
 使い、RustCall に型、生存状態、ライブラリ世代、可変借用の重複を検査させます。
-型を実行時に切り替えるビューなどと省略可能な所有者の引数には、明示的な生ポインタ経路を残しています。
-Rust 側の `rustcall_julia_macros` は 0.6 系が必要です。既存環境の更新時には
-`Pkg.update("RustCall")` を実行してください。更新後の Rust クレートは次回ロード時に再ビルドされます。
+型を実行時に切り替えるビューなどの既存 API には、明示的な生ポインタ経路を残しています。
+
+現在は未公開 RustCall 0.10 / macros 0.7 のマージ済みコミット
+[`b53c9b9`](https://github.com/AtelierArith/RustCall.jl/commit/b53c9b963084231d784e68760001f15cc27d1ab1)
+を `Project.toml` の `[sources]` と Cargo の Git 依存で同一 revision に固定しています。
+Hessenberg 化の新しい API は `Option<&OwnedTeam>` による checked な省略可能 team と、
+`#[rustcall_owned_return(OwnedCompactTridiagonal)]` による別所有型の直接返却を使います。
+必要量照会の UInt 配列も checked な可変 slice として渡し、手動の raw pointer 処理を除いています。
+これにより Seq/Team の wrapper 重複と compact reduction の Julia 入出力 staging を削っています。
+crate の registry 公開は行っていません。checkout 後は `Pkg.instantiate()` で固定した依存を
+解決してください。更新後の native クレートは次回ロード時に再ビルドされます。

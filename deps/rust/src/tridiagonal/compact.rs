@@ -855,6 +855,75 @@ impl OwnedCompactTridiagonal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn tuned_hessenberg<T: ComplexField>(tolerance: f64, imaginary: T) {
+        use crate::schur::hessenberg_tuning::Policy;
+        let mut team = OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        for n in [0, 1, 2, 17, 65] {
+            let input: Vec<T> = (0..n * n)
+                .map(|k| {
+                    add(
+                        &from_f64::<T>(((k * 7 + 3) % 19) as f64 / 19.0),
+                        &mul(&imaginary, &from_f64::<T>(((k * 3 + 2) % 13) as f64 / 13.0)),
+                    )
+                })
+                .collect();
+            let a = Mat::from_fn(n, n, |i, j| copy(&input[i + j * n]));
+            for parallel in [0, 1, usize::MAX - 1, usize::MAX] {
+                for blocking in [0, 256 * 256, usize::MAX] {
+                    let policy = Policy { parallel, blocking };
+                    for use_team in [false, true] {
+                        let run = |par: Par<'_>| {
+                            let req = hessenberg_req_tuned::<T>(n, par.shape(), policy).unwrap();
+                            let mut work = OwnedScratch::new();
+                            work.scratch_reserve(req.size_bytes(), req.align_bytes())
+                                .unwrap();
+                            let mut output: Vec<T> = (0..n * n).map(|_| zero()).collect();
+                            // SAFETY: disjoint contiguous numeric buffers remain alive throughout.
+                            let core = unsafe {
+                                build_hessenberg_tuned::<T>(
+                                    &mut work,
+                                    input.as_ptr().cast(),
+                                    n,
+                                    output.as_mut_ptr().cast(),
+                                    par,
+                                    policy,
+                                )
+                            }
+                            .unwrap();
+                            let h = Mat::from_fn(n, n, |i, j| copy(&output[i + j * n]));
+                            let req = core.requirement(n, false, false);
+                            work.scratch_reserve(req.size_bytes(), req.align_bytes())
+                                .unwrap();
+                            let mut q = Mat::<T>::identity(n, n);
+                            core.apply(q.as_mut(), &mut work, false, false, false, Par::Seq)
+                                .unwrap();
+                            assert!(
+                                (&q * &h * q.adjoint() - &a).norm_max()
+                                    <= from_f64::<T::Real>(tolerance)
+                            );
+                            assert!(
+                                (q.adjoint() * &q - Mat::<T>::identity(n, n)).norm_max()
+                                    <= from_f64::<T::Real>(tolerance)
+                            );
+                        };
+                        if use_team {
+                            team.execute(run).unwrap();
+                        } else {
+                            run(Par::Seq);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn compact_tuned_hessenberg_four_scalars() {
+        tuned_hessenberg::<f32>(2e-4, 0.0);
+        tuned_hessenberg::<f64>(2e-12, 0.0);
+        tuned_hessenberg::<c32>(2e-4, c32::new(0.0, 1.0));
+        tuned_hessenberg::<c64>(2e-12, c64::new(0.0, 1.0));
+    }
     fn check<T: ComplexField>(a: Mat<T>, tag: i32, tolerance: f64) {
         let n = a.nrows();
         let mut d: Vec<T::Real> = (0..n).map(|_| zero()).collect();
@@ -1210,6 +1279,14 @@ impl VectorOwner {
 }
 
 fn hessenberg_req<T: ComplexField>(n: usize, par: ParShape) -> Result<StackReq, String> {
+    hessenberg_req_tuned::<T>(n, par, crate::schur::hessenberg_tuning::Policy::default())
+}
+fn hessenberg_req_tuned<T: ComplexField>(
+    n: usize,
+    par: ParShape,
+    policy: crate::schur::hessenberg_tuning::Policy,
+) -> Result<StackReq, String> {
+    let par = policy.shape(par);
     n.checked_mul(n)
         .and_then(|nn| nn.checked_mul(core::mem::size_of::<T>()))
         .filter(|&bytes| bytes <= isize::MAX as usize)
@@ -1222,7 +1299,7 @@ fn hessenberg_req<T: ComplexField>(n: usize, par: ParShape) -> Result<StackReq, 
         n,
         b,
         par,
-        Default::default(),
+        policy.params::<T>(),
     ))
 }
 fn hessenberg_query(n: usize, tag: i32, par: ParShape, out: *mut usize) -> Result<(), String> {
@@ -1262,7 +1339,24 @@ unsafe fn build_hessenberg<T: ComplexField>(
     input: *const u8,
     n: usize,
     output: *mut u8,
-    mut par: Par,
+    par: Par,
+) -> Result<Core<T>, String> {
+    build_hessenberg_tuned(
+        scratch,
+        input,
+        n,
+        output,
+        par,
+        crate::schur::hessenberg_tuning::Policy::default(),
+    )
+}
+unsafe fn build_hessenberg_tuned<T: ComplexField>(
+    scratch: &mut OwnedScratch,
+    input: *const u8,
+    n: usize,
+    output: *mut u8,
+    par: Par,
+    policy: crate::schur::hessenberg_tuning::Policy,
 ) -> Result<Core<T>, String> {
     let nn = n.checked_mul(n).ok_or("Hessenberg dimensions overflow")?;
     let (a, b) = buffer::<T>(input, nn)?;
@@ -1270,7 +1364,6 @@ unsafe fn build_hessenberg<T: ComplexField>(
     if a < b && c < d && a < d && c < b {
         return Err("Hessenberg input/output buffers overlap".into());
     }
-    let stack = scratch.stack(hessenberg_req::<T>(n, par.shape())?)?;
     let ptr = if n == 0 {
         std::ptr::NonNull::<T>::dangling().as_ptr().cast_const()
     } else {
@@ -1278,6 +1371,26 @@ unsafe fn build_hessenberg<T: ComplexField>(
     };
     // SAFETY: preserved column-major numeric input, checked for span/alignment.
     let a = MatRef::from_raw_parts(ptr, n, n, 1, n as isize);
+    let (core, h) = reduce_hessenberg(a, scratch, par, policy)?;
+    for j in 0..n {
+        for i in 0..n {
+            output.cast::<T>().add(i + j * n).write(copy(&h[(i, j)]));
+        }
+    }
+    Ok(core)
+}
+fn reduce_hessenberg<T: ComplexField>(
+    a: MatRef<'_, T>,
+    scratch: &mut OwnedScratch,
+    par: Par,
+    policy: crate::schur::hessenberg_tuning::Policy,
+) -> Result<(Core<T>, Mat<T>), String> {
+    if a.nrows() != a.ncols() {
+        return Err("Hessenberg input must be square".into());
+    }
+    let n = a.nrows();
+    let mut par = policy.execution(par);
+    let stack = scratch.stack(hessenberg_req_tuned::<T>(n, par.shape(), policy)?)?;
     crate::typed::finite(a)?;
     let b = if n < 2 {
         1
@@ -1296,7 +1409,7 @@ unsafe fn build_hessenberg<T: ComplexField>(
             core.factor.as_mut(),
             par.reborrow(),
             stack,
-            Default::default(),
+            policy.params::<T>(),
         );
     }
     crate::typed::finite(core.packed.as_ref())?;
@@ -1331,14 +1444,10 @@ unsafe fn build_hessenberg<T: ComplexField>(
             }
         }
     }
-    // SAFETY: disjoint preserved n*n output checked before computing.
-    for j in 0..n {
-        for i in 0..n {
-            output.cast::<T>().add(i + j * n).write(value(i, j));
-        }
-    }
-    Ok(core)
+    let h = Mat::from_fn(n, n, value);
+    Ok((core, h))
 }
+
 fn hessenberg_data(
     scratch: &mut OwnedScratch,
     input: *const u8,
@@ -1389,6 +1498,115 @@ impl OwnedCompactTridiagonal {
                     data: hessenberg_data(scratch, input, n, output, tag, par)?,
                 })
             })?
+        })
+    }
+}
+
+#[julia]
+pub fn compact_hessenberg_tuned_requirements(
+    n: usize,
+    tag: i32,
+    parallel: usize,
+    blocking: usize,
+    team: Option<&OwnedTeam>,
+    out: &mut [usize],
+) -> Result<(), String> {
+    use crate::schur::hessenberg_tuning::{with_team, Policy};
+    guarded(|| {
+        with_team(team, |par| {
+            if out.len() != 2 {
+                return Err("Hessenberg requirements output must have length two".into());
+            }
+            let policy = Policy { parallel, blocking };
+            let req = match tag {
+                0 => hessenberg_req_tuned::<f32>(n, par.shape(), policy)?,
+                1 => hessenberg_req_tuned::<f64>(n, par.shape(), policy)?,
+                2 => hessenberg_req_tuned::<c32>(n, par.shape(), policy)?,
+                3 => hessenberg_req_tuned::<c64>(n, par.shape(), policy)?,
+                _ => return Err("unsupported Hessenberg scalar".into()),
+            };
+            out[0] = req.size_bytes();
+            out[1] = req.align_bytes();
+            Ok(())
+        })
+    })
+}
+#[julia]
+impl OwnedMatrix {
+    #[julia]
+    #[rustcall_owned_return(OwnedCompactTridiagonal)]
+    pub fn compact_hessenberg_tuned(
+        &self,
+        out_h: &mut OwnedMatrix,
+        scratch: &mut OwnedScratch,
+        n: usize,
+        tag: i32,
+        parallel: usize,
+        blocking: usize,
+        team: Option<&OwnedTeam>,
+    ) -> Result<OwnedCompactTridiagonal, String> {
+        use crate::schur::hessenberg_tuning::{with_team, Policy};
+        guarded(|| {
+            let policy = Policy { parallel, blocking };
+            if tag != 1 || self.matrix.shape() != (n, n) {
+                return Err("Hessenberg native metadata mismatch".into());
+            }
+            let (core, h) = with_team(team, |par| {
+                reduce_hessenberg(self.matrix.as_ref(), scratch, par, policy)
+            })?;
+            out_h.matrix = h;
+            Ok(OwnedCompactTridiagonal {
+                data: Data::F64(core),
+            })
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    #[rustcall_owned_return(OwnedCompactTridiagonal)]
+    pub fn compact_hessenberg_tuned(
+        &self,
+        out_h: &mut TypedMatrix,
+        scratch: &mut OwnedScratch,
+        n: usize,
+        tag: i32,
+        parallel: usize,
+        blocking: usize,
+        team: Option<&OwnedTeam>,
+    ) -> Result<OwnedCompactTridiagonal, String> {
+        use crate::schur::hessenberg_tuning::{with_team, Policy};
+        guarded(|| {
+            let policy = Policy { parallel, blocking };
+            let (data, h) = match self.data()? {
+                MatrixData::F32(a) if tag == 0 && a.shape() == (n, n) => {
+                    let (core, h) = with_team(team, |par| {
+                        reduce_hessenberg(a.as_ref(), scratch, par, policy)
+                    })?;
+                    (Data::F32(core), MatrixData::F32(h))
+                }
+                MatrixData::F64(a) if tag == 1 && a.shape() == (n, n) => {
+                    let (core, h) = with_team(team, |par| {
+                        reduce_hessenberg(a.as_ref(), scratch, par, policy)
+                    })?;
+                    (Data::F64(core), MatrixData::F64(h))
+                }
+                MatrixData::C32(a) if tag == 2 && a.shape() == (n, n) => {
+                    let (core, h) = with_team(team, |par| {
+                        reduce_hessenberg(a.as_ref(), scratch, par, policy)
+                    })?;
+                    (Data::C32(core), MatrixData::C32(h))
+                }
+                MatrixData::C64(a) if tag == 3 && a.shape() == (n, n) => {
+                    let (core, h) = with_team(team, |par| {
+                        reduce_hessenberg(a.as_ref(), scratch, par, policy)
+                    })?;
+                    (Data::C64(core), MatrixData::C64(h))
+                }
+                _ => return Err("Hessenberg native metadata mismatch".into()),
+            };
+            out_h.data = Some(h);
+            Ok(OwnedCompactTridiagonal { data })
         })
     }
 }

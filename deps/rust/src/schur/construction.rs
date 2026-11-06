@@ -13,12 +13,20 @@ use faer::traits::ComplexField;
 use faer::{Mat, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 pub(super) fn hessenberg_requirement<T: ComplexField>(n: usize, par: ParShape) -> StackReq {
+    hessenberg_requirement_tuned::<T>(n, par, super::hessenberg_tuning::Policy::default())
+}
+pub(crate) fn hessenberg_requirement_tuned<T: ComplexField>(
+    n: usize,
+    par: ParShape,
+    policy: super::hessenberg_tuning::Policy,
+) -> StackReq {
+    let par = policy.shape(par);
     if n <= 1 {
         return StackReq::EMPTY;
     }
     let b = qr::recommended_block_size::<T>(n - 1, n - 1);
     faer::linalg::temp_mat_scratch::<T>(b, n - 1).and(
-        evd::hessenberg::hessenberg_in_place_scratch::<T>(n, b, par, Default::default()).or(
+        evd::hessenberg::hessenberg_in_place_scratch::<T>(n, b, par, policy.params::<T>()).or(
             hh::apply_block_householder_sequence_on_the_right_in_place_scratch::<T>(
                 n - 1,
                 b,

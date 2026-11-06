@@ -1,7 +1,7 @@
 # Colmat.jl
 
 Rust の [t4a-faer](https://github.com/tensor4all/faer) を Julia から利用する線形代数パッケージです。
-RustCall.jl v0.9.2 の `#[julia]` と `@rust_crate` を使い、Rust が所有する密・疎行列、
+RustCall.jl の `#[julia]` と `@rust_crate` を使い、Rust が所有する密・疎行列、
 分解、反復法、作業領域を Julia の配列・LinearAlgebra API から扱います。
 
 Julia 1.13、Git、ネットワーク接続、Rust 1.89 以降が必要です。
