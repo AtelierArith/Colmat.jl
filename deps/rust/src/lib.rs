@@ -1417,3 +1417,5 @@ mod real_extrema;
 mod storage_capacity;
 
 mod storage_initializer;
+
+mod filled_construction;
