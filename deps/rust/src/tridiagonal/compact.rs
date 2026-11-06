@@ -1,7 +1,9 @@
 //! Embedded compact Householder products for tridiagonal and Hessenberg Q.
 //! The existing facade name is retained for compatibility. Storage owns its
 //! matrices; no workspace or execution token escapes a call.
-use super::construction::{block_size, normalize_phase, params, phase_magnitude};
+use super::construction::{
+    block_size, normalize_phase, params, phase_magnitude, real_subdiagonal, validate_real_bands,
+};
 use super::workspace::buffer;
 use crate::collections::{VectorData, VectorOwner};
 use crate::typed::{MatrixData, TypedMatrix};
@@ -280,15 +282,15 @@ unsafe fn build<T: ComplexField>(
             }
         }
     }
+    // Finite complex components can have an unrepresentable real magnitude.
+    validate_real_bands(core.packed.as_ref(), None)?;
     // SAFETY: disjoint preserved d/e buffers were checked before computation.
     for i in 0..n {
         d.cast::<T::Real>().add(i).write(real(&core.packed[(i, i)]));
         if i + 1 < n {
-            e.cast::<T::Real>().add(i).write(if T::IS_REAL {
-                real(&core.packed[(i + 1, i)])
-            } else {
-                phase_magnitude(&core.packed[(i + 1, i)])
-            });
+            e.cast::<T::Real>()
+                .add(i)
+                .write(real_subdiagonal(&core.packed[(i + 1, i)]));
         }
     }
     Ok(core)
@@ -855,6 +857,71 @@ impl OwnedCompactTridiagonal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn reject_real_band_overflow<T: ComplexField>(value: T) {
+        let mut team = OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        for n in [2, 3] {
+            let early = mul_real(
+                &one::<T>(),
+                &mul(&real(&value), &from_f64::<T::Real>(0.125)),
+            );
+            let input: Vec<T> = (0..n * n)
+                .map(|index| {
+                    let (i, j) = (index % n, index / n);
+                    if i == j + 1 {
+                        copy(if j + 2 == n { &value } else { &early })
+                    } else if j == i + 1 {
+                        conj(if i + 2 == n { &value } else { &early })
+                    } else {
+                        zero::<T>()
+                    }
+                })
+                .collect();
+            for use_team in [false, true] {
+                let run = |par: Par<'_>| {
+                    let req = requirement::<T>(n, 1, par.shape(), 0).unwrap();
+                    let mut work = OwnedScratch::new();
+                    work.scratch_reserve(req.size_bytes(), req.align_bytes())
+                        .unwrap();
+                    let mut diagonal: Vec<T::Real> = (0..n).map(|_| from_f64(17.0)).collect();
+                    let mut off: Vec<T::Real> = (0..n - 1).map(|_| from_f64(23.0)).collect();
+                    let before_d = diagonal.clone();
+                    let before_e = off.clone();
+                    // SAFETY: initialized, disjoint numeric buffers remain alive for the call.
+                    let error = unsafe {
+                        build::<T>(
+                            &mut work,
+                            input.as_ptr().cast(),
+                            n,
+                            diagonal.as_mut_ptr().cast(),
+                            off.as_mut_ptr().cast(),
+                            1,
+                            par,
+                            0,
+                        )
+                    }
+                    .err()
+                    .expect("unrepresentable real band must fail");
+                    assert!(error.contains("real bands"), "{error}");
+                    assert_eq!(diagonal, before_d);
+                    assert_eq!(off, before_e);
+                };
+                if use_team {
+                    team.execute(run).unwrap();
+                } else {
+                    run(Par::Seq);
+                }
+            }
+        }
+    }
+    #[test]
+    fn compact_real_band_overflow_c32_preserves_outputs() {
+        reject_real_band_overflow(c32::new(3.0e38, 3.0e38));
+    }
+    #[test]
+    fn compact_real_band_overflow_c64_preserves_outputs() {
+        reject_real_band_overflow(c64::new(1.3e308, 1.3e308));
+    }
     fn tuned_hessenberg<T: ComplexField>(tolerance: f64, imaginary: T) {
         use crate::schur::hessenberg_tuning::Policy;
         let mut team = OwnedTeam::new();
