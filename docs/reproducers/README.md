@@ -133,3 +133,10 @@ elementwise implementation is also expected to pass.
 [Standalone Rust reproduction](pivoted-cholesky-zero-block/README.md) for faer
 [#283](https://github.com/tensor4all/faer/issues/283). Positive block-size controls
 complete; zero is bounded by a timeout. The wrapper validates positive sizes.
+
+## Owning SVD/EVD workspace capability
+
+[owned-spectral-workspace](owned-spectral-workspace/README.md) checks successful
+owning and caller-scratch low-level SVD/EVD reconstruction and includes an
+optional compile-only probe for the owning constructor API gap tracked in
+[faer #268](https://github.com/tensor4all/faer/issues/268#issuecomment-6679048835).
