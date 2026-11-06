@@ -264,26 +264,6 @@ function reserve!(
     reserve!(s, req.bytes; alignment = req.alignment)
 end
 # Copy verified dense storage directly; do not invoke a user conversion twice.
-function _pivoted_native_buffer(data::Matrix{P}) where {P<:_NativeScalar}
-    GC.@preserve data begin
-        P===Float64&&return _matrix_result(
-            RustCrate.load_buffer,
-            size(data),
-            pointer(data),
-            UInt(size(data, 1)),
-            UInt(size(data, 2)),
-        )
-        return _typed_result(
-            P,
-            RustCrate.load,
-            size(data),
-            Ptr{UInt8}(pointer(data)),
-            UInt(size(data, 1)),
-            UInt(size(data, 2)),
-            _tag(P),
-        )
-    end
-end
 function _pivoted_convert(a, ::Type{P}, dims; name = "RHS") where {P}
     if a isa AbstractVector
         vector=Vector{P}(a)
@@ -303,7 +283,7 @@ function _pivoted_convert(a, ::Type{P}, dims; name = "RHS") where {P}
             DimensionMismatch("pivoted Cholesky $name conversion changed shape"),
         )
     end
-    return _pivoted_native_buffer(data)
+    return _matrix_from_dense(data)
 end
 function _pivoted_native_apply(F, b, op; scratch = nothing, team = nothing)
     lock(_matrix_lock) do

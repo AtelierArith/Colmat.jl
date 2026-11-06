@@ -14,9 +14,7 @@ function _typed_result(::Type{T}, f, dims, args...) where {T<:_ExtraScalar}
         return FaerMatrix{T,typeof(h)}(h, dims)
     end
 end
-function FaerMatrix{T}(a::AbstractMatrix) where {T<:_NativeScalar}
-    T===Float64 && return FaerMatrix(Matrix{Float64}(a))
-    data=Matrix{T}(a)
+function _matrix_from_dense(data::Matrix{T}) where {T<:_ExtraScalar}
     GC.@preserve data return _typed_result(
         T,
         RustCrate.load,
@@ -27,6 +25,8 @@ function FaerMatrix{T}(a::AbstractMatrix) where {T<:_NativeScalar}
         _tag(T),
     )
 end
+FaerMatrix{T}(a::AbstractMatrix) where {T<:_NativeScalar} =
+    _matrix_from_dense(_checked_dense(T, a))
 FaerMatrix(a::AbstractMatrix{Float32}) = FaerMatrix{Float32}(a)
 FaerMatrix(a::AbstractMatrix{ComplexF32}) = FaerMatrix{ComplexF32}(a)
 FaerMatrix(a::AbstractMatrix{ComplexF64}) = FaerMatrix{ComplexF64}(a)

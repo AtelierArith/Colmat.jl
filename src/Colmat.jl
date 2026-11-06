@@ -110,7 +110,14 @@ const RustCrate = @rust_crate joinpath(@__DIR__, "..", "deps", "rust")
 
 # Materialize views, transposes and other element types into owned column-major
 # buffers. All native calls are synchronous and preserve their Julia owners.
-_dense(a::AbstractMatrix{<:Real}) = Matrix{Float64}(a)
+function _checked_dense(::Type{T}, a::AbstractMatrix) where {T}
+    dims=size(a)
+    data=Matrix{T}(a)
+    data isa Matrix{T}||throw(ArgumentError("matrix conversion changed scalar storage"))
+    size(data)==dims||throw(DimensionMismatch("matrix conversion changed shape"))
+    return data
+end
+_dense(a::AbstractMatrix{<:Real}) = _checked_dense(Float64, a)
 
 """
     faer_mul(A::AbstractMatrix{<:Real}, B::AbstractMatrix{<:Real})

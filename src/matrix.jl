@@ -9,7 +9,8 @@ const _matrix_lock = ReentrantLock()
 An `AbstractMatrix{T}` owning a t4a-faer matrix in Rust. Float32, Float64,
 ComplexF32 and ComplexF64 inputs preserve their scalar type; other real inputs
 use Float64. The explicit constructor converts to a supported `T`.
-Construction copies `A`; arithmetic stays in Rust. `Matrix(A)` returns an
+Construction validates converted storage and shape before copying `A` to Rust.
+Arithmetic stays in Rust. `Matrix(A)` returns an
 independent Julia copy. Operations currently use `Par::Seq`.
 """
 mutable struct FaerMatrix{T,H} <: AbstractMatrix{T}
@@ -77,8 +78,7 @@ function _matrix_result(f, dims, args...)
     end
 end
 
-function FaerMatrix(a::AbstractMatrix{<:Real})
-    data = _dense(a)
+function _matrix_from_dense(data::Matrix{Float64})
     return GC.@preserve data _matrix_result(
         RustCrate.load_buffer,
         size(data),
@@ -87,6 +87,7 @@ function FaerMatrix(a::AbstractMatrix{<:Real})
         UInt(size(data, 2)),
     )
 end
+FaerMatrix(a::AbstractMatrix{<:Real}) = _matrix_from_dense(_dense(a))
 FaerMatrix(a::FaerMatrix{Float64}) = copy(a)
 
 Base.size(a::FaerMatrix) = a.dims

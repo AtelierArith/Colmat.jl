@@ -9,6 +9,10 @@
 LU 求解は Rust 内のバッファを使います。これらの結果も独立した `FaerMatrix` になります。
 `svd(A)`・`svdvals(A)` も Rust 側の行列を直接使い、分解結果を Julia 配列で返します。
 
+`FaerMatrix{T}(A)` は入力を `Matrix{T}` に一度変換してコピーします。
+ユーザー定義の変換が異なる格納型や入力と異なる形状を返した場合は、
+Rust へデータを渡す前に例外にします。
+
 ```julia
 using Colmat, LinearAlgebra
 

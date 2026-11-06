@@ -6,11 +6,12 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 機能分類の調査日: 2026-11-04。依存と検証情報の更新: 2026-11-06
 - 現在のビルド対象 t4a-faer: `0.31.0`、コミット [`2b87010cb82efbe0a90eceeb51931a833e1de8e6`](https://github.com/tensor4all/faer/tree/2b87010cb82efbe0a90eceeb51931a833e1de8e6)、threadteam `0.4.0`。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
-- Colmat の判定基準: PR #85 の main（`62bc2e4`）にピボット付き Cholesky の構築・保存因子操作の scratch/team と全 block_size 制御を接続した版。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
+- Colmat の判定基準: PR #86 の main（`ef44d1c`）に密行列構築の変換後格納型・形状の検証と共通 dense loader を加えた版。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
 - PR #83 の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、faer 0.31.0 / `06d8e84c3e31e824dffe9fb1fc0945c7d90db1d0` で canonical `Pkg.test(; allow_reresolve=false,test_args=["--jobs=16"])` **608,722 assertions / 134 files / 16 workers**、native **161 tests**、README/マニュアル **115 blocks** が成功。faer #274 は fork [PR #275](https://github.com/tensor4all/faer/pull/275) で修正済みで、修正採用時の Rust-only MWE と複素ノルム境界値の記録は PR #82 に保持する。
 - マージ後の公式 build が faer [PR #282](https://github.com/tensor4all/faer/pull/282) を取得したため、上記の新しい revision を別途検証する。[独立 Rust control](reproducers/triangular-copy-validation/README.md) は4型・832 copy ケースと Seq/Team2 の Cholesky/LU を bit 比較する。数値回帰の結果は依存追随の PR と Issue #22 の進捗コメントに保存する。速度改善は主張せず、未統合の #267/#269/#272 等の候補も採用していない。全76行の完了は意味しない。
 - 一般 Hessenberg 制御の検証: RustCall 0.10 / macros 0.7 は同一のマージ済み Git commit `b53c9b963084231d784e68760001f15cc27d1ab1` に固定し、registry 公開はしていない。faer は上記 `2b87010` を維持。canonical `Pkg.test` **617,136 assertions / 135 files / 16 workers / 10m24.2s**、native **163 tests**、README/マニュアル **116 blocks**、新規集中 **8,414 assertions**、旧 native API **24 assertions** が成功。元の全76行は維持し、Schur/EVD driver 内の制御値や他の残項目の完了は意味しない。
 - ピボット付き Cholesky の検証: canonical **624,158 assertions / 136 files / 16 workers / 10m40.9s**、新規 **7,022 assertions**（既存/Hessenberg 回帰を含む集中16,432）、native **166 tests**、README/マニュアル **117 blocks** が成功。RustCall/faer の固定 revision は上記を維持。faer 本体の block_size=0 の非停止は [#283](https://github.com/tensor4all/faer/issues/283) と[独立 Rust 再現例](reproducers/pivoted-cholesky-zero-block/README.md)で追跡し、wrapper は正数を必須にする。全76行の残作業は継続する。
+- 密行列変換境界の検証: canonical **624,397 assertions / 137 files / 16 workers / 10m53.9s**、新規 **239 assertions**、既存の型・行列・pivoted/destructive/Hessenberg を含む集中 **17,930 assertions**、README/マニュアル **117 blocks** が成功。Rust 実装・依存 revision は PR #86 と同一（native 166 tests の対象ソースを保持）。全体テスト後の追加は本説明の prose のみ。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -27,7 +28,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 密行列の所有・構築 | `Mat<T>`, `MatRef/MatMut/MatUninitMut`, `from_fn`, `zeros`, `ones`, `identity`, `full` | `Matrix`, `zeros`, `ones`, `Matrix(I,m,n)`, `fill` | R: 4 型の `FaerMatrix{T}(A)`、`undef`（ゼロ初期化）、単位行列、`similar/zero/fill!` | 全構築形式・非標準スカラー型 |
+| 密行列の所有・構築 | `Mat<T>`, `MatRef/MatMut/MatUninitMut`, `from_fn`, `zeros`, `ones`, `identity`, `full` | `Matrix`, `zeros`, `ones`, `Matrix(I,m,n)`, `fill` | R: 4 型の `FaerMatrix{T}(A)`、変換後の格納型・形状を native load 前に検証、検証済み dense buffer の共通コピー経路、`undef`（ゼロ初期化）、単位行列、`similar/zero/fill!` | 全構築形式・非標準スカラー型 |
 | 行・列ベクトル | `Row / Col`, `RowRef / ColRef`, `RowMut / ColMut` | `Vector`, 行ベクトル、`view` | R: `FaerVector` / `FaerRow`、4 型の所有・コピー・演算・容量管理 | 全 Row/Col 演算組合せ、任意の借用 Julia バッファ |
 | 対角行列 | `diag::{Diag, DiagRef, DiagMut}` | `Diagonal`, `diag`, `diagind` | R: `FaerDiagonal`、格納対角の演算・`filldiagonal!`・`diagonalview`、密/三角との左右の native 積 | 全 DiagRef/DiagMut 操作。対角積は現在 dense snapshot 経由 |
 | 読み書き・形状 | `nrows/ncols/shape`, 添字、`row/col` | `size/axes/getindex/setindex!` | R: shape・要素読み書き、行・列の範囲ビュー | 全形状・stride trait の公開 |
