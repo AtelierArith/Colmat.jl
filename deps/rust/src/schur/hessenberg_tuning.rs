@@ -80,16 +80,7 @@ fn query(
     out[1] = req.align_bytes();
     Ok(())
 }
-pub(crate) fn with_team<R>(
-    team: Option<&OwnedTeam>,
-    f: impl FnOnce(Par<'_>) -> Result<R, String>,
-) -> Result<R, String> {
-    if let Some(team) = team {
-        team.execute(f)?
-    } else {
-        f(Par::Seq)
-    }
-}
+pub(crate) use crate::teams::with_team;
 #[julia]
 pub fn hessenberg_tuned_requirements(
     n: usize,

@@ -69,9 +69,9 @@ for W in (:Hermitian, :Symmetric)
 end
 function _pivoted_writeback!(a; kwargs...)
     lock(_matrix_lock) do
-        source=a isa FaerMatrix ? a : parent(a)
+        source=a isa Union{FaerMatrix,FaerMatrixView} ? a : parent(a)
         f=LinearAlgebra.cholesky(a, LinearAlgebra.RowMaximum(); kwargs...)
-        upper=!(a isa FaerMatrix) && a.uplo=='U'
+        upper=!(a isa Union{FaerMatrix,FaerMatrixView}) && a.uplo=='U'
         copyto!(source, upper ? copy(adjoint(f.factors)) : f.factors)
         return f
     end
