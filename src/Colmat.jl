@@ -270,5 +270,6 @@ include("dense_solve_workspace.jl")
 include("sparse_direct_workspace.jl")
 include("sparse_qr_solve_workspace.jl")
 include("spectral_solve_workspace.jl")
+include("pivoted_cholesky_workspace.jl")
 
 end

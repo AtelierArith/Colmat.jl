@@ -1,4 +1,5 @@
 //! Public pivoted LLT factor kernel, primitive output adapter.
+mod workspace;
 use crate::guarded;
 use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::linalg::cholesky::llt_pivoting::factor;

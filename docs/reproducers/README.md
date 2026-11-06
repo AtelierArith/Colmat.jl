@@ -127,3 +127,9 @@ reversed strides, conjugation and untouched upper triangles. Matching
 row/column-major Cholesky and LU factors/permutations are checked at 65, 129
 and 257 with Seq/Team2. It is not a bug report or benchmark, and the earlier
 elementwise implementation is also expected to pass.
+
+## Pivoted Cholesky zero block size
+
+[Standalone Rust reproduction](pivoted-cholesky-zero-block/README.md) for faer
+[#283](https://github.com/tensor4all/faer/issues/283). Positive block-size controls
+complete; zero is bounded by a timeout. The wrapper validates positive sizes.

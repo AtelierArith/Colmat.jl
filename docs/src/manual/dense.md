@@ -89,6 +89,64 @@ kernels. Rank-deficient factors require `check=false`; their solves/inverses
 throw `RankDeficientException`. Native snapshots and workspace are allocated.
 `close(F)` closes its native factors; a copied factorization remains usable.
 
+### Pivoted Cholesky workspace and blocking
+
+`cholesky[!](A, RowMaximum(); scratch, team, block_size=128)` supports native
+matrices and views, including stored-triangle wrappers. A positive `block_size`
+controls both faer's automatic-tolerance kernel (`tol<0`) and the adapter's
+absolute-tolerance panel algorithm (`tol>=0`). The latter uses native matrix
+products for its trailing updates. A team selects the native execution context;
+small or sequential parts need not use every worker.
+`block_size=0` is rejected before query/compute: the selected faer revision otherwise
+loops without advancing its panel index ([faer #283](https://github.com/tensor4all/faer/issues/283)).
+
+The same `tol`, `block_size` and team must be used for query, reserve and compute.
+Declared caller scratch includes permutation arrays, faer's kernel temporaries,
+and the Hermitian working matrix for explicit tolerance. Returned factors,
+view copies, factor/RHS promotion, upper-factor conversion, owned results and
+Julia arrays allocate separately.
+
+Saved factors accept `scratch`/`team` in `ldiv!`, `rdiv!`, `inv`, and
+`reconstruct`; native RHS `\` and `/` return native matrices. Queries always
+put F before B, including right solves. The stored factors are reused across
+promoted RHS types. Bang construction and in-place solves stage their output;
+destination aliases of factor storage are rejected. Rank-deficient factors
+support reconstruction, while solve/inverse still require full rank.
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix(ComplexF64[4 im; -im 3])
+original = Matrix(A)
+team = FaerTeam(2)
+work = FaerScratch(0)
+try
+    reserve!(work, cholesky, Hermitian(A), RowMaximum(); tol=0, block_size=1, team)
+    F = cholesky(Hermitian(A), RowMaximum(); tol=0, block_size=1, scratch=work, team)
+    B = ComplexF64[1 2; 3 4]
+    rhs = copy(B)
+    reserve!(work, ldiv!, F, rhs; team)
+    ldiv!(F, rhs; scratch=work, team)
+    @assert original * rhs ≈ B
+    right = copy(B)
+    reserve!(work, rdiv!, F, right; team)
+    rdiv!(right, F; scratch=work, team)
+    @assert right * original ≈ B
+    reserve!(work, inv, F; team)
+    inverse = inv(F; scratch=work, team)
+    @assert Matrix(inverse) * original ≈ I
+    reserve!(work, reconstruct, F; team)
+    rebuilt = reconstruct(F; scratch=work, team)
+    @assert Matrix(rebuilt) ≈ original
+    close(rebuilt)
+    close(inverse)
+    close(F)
+finally
+    close(work)
+    close(team)
+    close(A)
+end
+```
+
 ## Destructive factorization entry points
 
 ```julia

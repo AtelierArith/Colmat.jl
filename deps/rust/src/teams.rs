@@ -23,6 +23,17 @@ impl OwnedTeam {
             .map_err(|e| format!("team execution: {e:?}"))
     }
 }
+pub(crate) fn with_team<R>(
+    team: Option<&OwnedTeam>,
+    f: impl FnOnce(Par<'_>) -> Result<R, String>,
+) -> Result<R, String> {
+    if let Some(team) = team {
+        team.execute(f)?
+    } else {
+        f(Par::Seq)
+    }
+}
+
 #[julia]
 impl OwnedTeam {
     #[julia]
