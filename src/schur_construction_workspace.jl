@@ -45,15 +45,23 @@ Householder coefficients and temporary eigenvalue columns use caller scratch;
 owned outputs, source/view copies, Julia eigenvalues and staged writeback allocate
 separately. The selected faer may allocate its internal deep Householder partial
 buffer, whose external control awaits unmerged faer #267.
+For `hessenberg[!](; compact=true)`, pass the same keyword here and to
+`FaerScratch`/`reserve!`; only reduction-kernel scratch is declared, while the
+returned packed reflectors and block factors own separate storage.
 """
 function scratch_requirements(
     fun::_QzConstructionFunction,
     a::_BorrowMatrix;
     team = nothing,
+    compact::Bool = false,
 )
     lock(_matrix_lock) do
         n=_schur_plan(a, nothing, team)
         stage=fun in (LinearAlgebra.hessenberg, LinearAlgebra.hessenberg!) ? 1 : 0
+        if compact
+            stage==1||throw(ArgumentError("compact is supported for Hessenberg reduction"))
+            return _compact_hessenberg_requirement(n, eltype(a), team)
+        end
         _schur_requirement(n, eltype(a), stage, team)
     end
 end
@@ -66,6 +74,19 @@ function scratch_requirements(
         n=_schur_plan(f.H, f, team)
         _schur_requirement(n, eltype(f.H), 2, team)
     end
+end
+function FaerScratch(fun::_QzConstructionFunction, a::_BorrowMatrix; kwargs...)
+    req=scratch_requirements(fun, a; kwargs...)
+    return FaerScratch(req.bytes; alignment = req.alignment)
+end
+function reserve!(
+    work::FaerScratch,
+    fun::_QzConstructionFunction,
+    a::_BorrowMatrix;
+    kwargs...,
+)
+    req=scratch_requirements(fun, a; kwargs...)
+    return reserve!(work, req.bytes; alignment = req.alignment)
 end
 function _schur_with_workspace(f, a, initial, stage, scratch, team)
     isnothing(scratch)||scratch isa FaerScratch ||

@@ -28,8 +28,11 @@ SB = schur!(B)
 `schur` は Rust 所有の `T`・`Z` と Julia の固有値ベクトルを持つ
 `LinearAlgebra.Schur` を返します。実数では共役対を 2×2 ブロックに保ち、
 `ordschur` の選択では対の両方を含めるか、両方を除外します。
-`hessenberg` の結果は `FaerHessenberg` で、Julia の compact Householder 表現と
+`hessenberg` の既定の結果は `FaerHessenberg` で、Julia の compact Householder 表現と
 異なり `H`・`Q` の両方を明示的な行列として所有します。
+`compact=true` は native reflector を保持する `FaerCompactHessenberg` を返し、
+保存因子からの Schur でも Q を暗黙に適用します。所有権と bang の Q 置換は
+[compact Hessenberg](reductions.md#Compact-general-Hessenberg-Q) を参照してください。
 `hessenberg!`・`schur!` は独立した作業結果を計算してから入力の所有バッファを
 更新し、形状と既存ビューを保ちます。`schur!(H)` は `H.H`・`H.Q` の両方を
 更新し、返す Schur 分解とストレージを共有します。並べ替えも成功後に更新する

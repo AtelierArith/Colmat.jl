@@ -79,6 +79,8 @@ export FaerSpectralFactor,
     compressed_storage,
     FaerGeneralizedHessenberg,
     FaerHessenberg,
+    FaerHessenbergQ,
+    FaerCompactHessenberg,
     FaerPermutation,
     permute_rows,
     permute_cols,
@@ -245,10 +247,12 @@ include("general_gevd_workspace.jl")
 include("jacobi.jl")
 include("statistics.jl")
 include("balance.jl")
+include("compact_reduction_q.jl")
 include("tridiagonal_compact.jl")
 include("tridiagonal.jl")
 include("tridiagonal_workspace.jl")
 include("tridiagonal_construction_workspace.jl")
+include("hessenberg_compact.jl")
 include("bidiagonal_compact.jl")
 include("bidiagonal.jl")
 include("bidiagonal_workspace.jl")

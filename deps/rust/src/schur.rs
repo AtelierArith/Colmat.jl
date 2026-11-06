@@ -560,17 +560,19 @@ fn reduced<T: SchurScalar>(h: MatRef<'_, T>, z: MatRef<'_, T>) -> Result<(Mat<T>
         .map_err(|e| format!("{e:?}"))?;
     reduced_in(h, z, Par::Seq, MemStack::new(&mut mem))
 }
-fn reduced_in<T: SchurScalar>(
+fn reduced_with_initial<T: SchurScalar>(
     h: MatRef<'_, T>,
-    z: MatRef<'_, T>,
+    z: Option<MatRef<'_, T>>,
     par: Par,
     stack: &mut MemStack,
 ) -> Result<(Mat<T>, Mat<T>), String> {
-    if h.nrows() != h.ncols() || h.shape() != z.shape() {
+    if h.nrows() != h.ncols() || z.is_some_and(|z| h.shape() != z.shape()) {
         return Err("H and Q must have matching square dimensions".into());
     }
     finite(h)?;
-    finite(z)?;
+    if let Some(z) = z {
+        finite(z)?;
+    }
     for j in 0..h.ncols() {
         for i in j + 2..h.nrows() {
             if h[(i, j)] != zero::<T>() {
@@ -579,10 +581,21 @@ fn reduced_in<T: SchurScalar>(
         }
     }
     let mut h = h.to_owned();
-    let mut z = z.to_owned();
+    let mut z = z
+        .map(|z| z.to_owned())
+        .unwrap_or_else(|| Mat::identity(h.nrows(), h.nrows()));
     T::step_in(&mut h, &mut z, par, stack)?;
     Ok((h, z))
 }
+fn reduced_in<T: SchurScalar>(
+    h: MatRef<'_, T>,
+    z: MatRef<'_, T>,
+    par: Par,
+    stack: &mut MemStack,
+) -> Result<(Mat<T>, Mat<T>), String> {
+    reduced_with_initial(h, Some(z), par, stack)
+}
+mod identity_workspace;
 #[julia]
 impl OwnedMatrix {
     #[julia]

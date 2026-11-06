@@ -9,6 +9,18 @@ The remaining implementation work and acceptance criteria are tracked in
 Earlier Issue #1/#2 records and the [handoff plan](issue-1-follow-up.md) remain
 historical evidence; the full 76-row inventory is still the overall scope.
 
+General Hessenberg now also accepts `compact=true`, returning
+`FaerCompactHessenberg` with `FaerHessenbergQ`. Packed native reflectors support
+left/right products, solves and oriented actions without dense Q. Saved Schur
+starts the QR stage with identity and implicitly transforms the resulting Z.
+The staged `schur!` result shares H and replaces implicit Q with the explicit
+Schur basis, while a previously retained implicit wrapper stays valid. Repeated
+bang calls retain that explicit Q owner. Query/FaerScratch/reserve construction
+and saved Schur use caller scratch/team; packed factors, outputs and conversion
+storage allocate separately. Legacy explicit factor types and native stage0/1/2
+entrypoints remain unchanged. Generalized compact Q/Z and remaining tuning are
+still outstanding. See the [manual](src/manual/reductions.md#Compact-general-Hessenberg-Q).
+
 - [ ] Owned matrix/vector/diagonal types, scalar types, views and capacity management
 - [ ] Native arithmetic, reductions, structured products, permutations and Kronecker product
 - [ ] Reusable LU, full-pivot LU, QR, pivoted QR, LLT, LDLT and block LDLT factorizations
