@@ -45,6 +45,33 @@ pub(super) fn phase_magnitude<T: ComplexField>(value: &T) -> T::Real {
     let ratio = div(&small, &large);
     mul(&large, &sqrt(&add(&one::<T::Real>(), &mul(&ratio, &ratio))))
 }
+pub(super) fn real_subdiagonal<T: ComplexField>(value: &T) -> T::Real {
+    if T::IS_REAL {
+        real(value)
+    } else {
+        phase_magnitude(value)
+    }
+}
+pub(super) fn validate_real_bands<T: ComplexField>(
+    packed: MatRef<'_, T>,
+    inverse_scale: Option<&T::Real>,
+) -> Result<(), String> {
+    let restored = |value: &T| match inverse_scale {
+        Some(scale) => mul_real(value, scale),
+        None => copy(value),
+    };
+    for i in 0..packed.nrows() {
+        if !is_finite(&real(&restored(&packed[(i, i)])))
+            || (i + 1 < packed.nrows()
+                && !is_finite(&real_subdiagonal(&restored(&packed[(i + 1, i)]))))
+        {
+            return Err(
+                "tridiagonal real bands overflowed the working type; scale the input first".into(),
+            );
+        }
+    }
+    Ok(())
+}
 pub(super) fn block_size<T: ComplexField>(n: usize, bs: usize) -> Result<usize, String> {
     if bs > n.saturating_sub(1).max(1) {
         return Err("invalid tridiagonal blocksize".into());
@@ -176,16 +203,19 @@ unsafe fn compute<T: ComplexField>(
     // SAFETY: every logical entry is copied before any read; native scalars.
     let (mut work, stack) = linalg::temp_mat_uninit::<T, _, _>(n, n, stack);
     work.as_mat_mut().copy_from(a);
-    // SAFETY: caller preserves disjoint n*n output storage, checked above.
-    // Julia may supply undef storage: initialize via raw writes before forming
-    // a MatMut whose logical entries must already be valid T values.
-    for k in 0..nn {
-        qout.cast::<T>().add(k).write(zero::<T>());
-    }
-    let mut q = MatMut::from_raw_parts_mut(qout.cast::<T>(), n, n, 1, n as isize);
-    for i in 0..n {
-        q[(i, i)] = one::<T>();
-    }
+    // INVARIANT: exactly one branch initializes Q, after checking every real band.
+    // SAFETY: qout has a disjoint checked n*n span. Raw writes initialize every
+    // element before forming a MatMut, including when Julia supplied undef storage.
+    let initialize_q = || unsafe {
+        for k in 0..nn {
+            qout.cast::<T>().add(k).write(zero::<T>());
+        }
+        let mut q = MatMut::from_raw_parts_mut(qout.cast::<T>(), n, n, 1, n as isize);
+        for i in 0..n {
+            q[(i, i)] = one::<T>();
+        }
+        q
+    };
     if n > 1 {
         let scaling = crate::schur::scale_in(work.as_mat_mut());
         let (mut factor, stack) = linalg::temp_mat_zeroed::<T, _, _>(bs, n - 1, stack);
@@ -196,6 +226,9 @@ unsafe fn compute<T: ComplexField>(
             stack,
             params::<T>(threshold),
         );
+        let inverse_scale = scaling.as_ref().map(recip);
+        validate_real_bands(work.as_mat_ref(), inverse_scale.as_ref())?;
+        let mut q = initialize_q();
         crate::householder_sequence::apply_compact_in(
             work.as_mat_ref().submatrix(1, 0, n - 1, n - 1),
             factor.as_mat_ref(),
@@ -232,17 +265,18 @@ unsafe fn compute<T: ComplexField>(
                 }
             }
         }
+    } else {
+        validate_real_bands(work.as_mat_ref(), None)?;
+        let _ = initialize_q();
     }
     for i in 0..n {
         dout.cast::<T::Real>()
             .add(i)
             .write(real(&work.as_mat_ref()[(i, i)]));
         if i + 1 < n {
-            eout.cast::<T::Real>().add(i).write(if T::IS_REAL {
-                real(&work.as_mat_ref()[(i + 1, i)])
-            } else {
-                phase_magnitude(&work.as_mat_ref()[(i + 1, i)])
-            });
+            eout.cast::<T::Real>()
+                .add(i)
+                .write(real_subdiagonal(&work.as_mat_ref()[(i + 1, i)]));
         }
     }
     Ok(())
@@ -369,6 +403,75 @@ pub fn tridiagonalize_tuned_workspace_team(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn reject_unrepresentable_bands<T: ComplexField>(value: T) {
+        let mut team = OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        for n in [2, 3] {
+            let early = mul_real(
+                &one::<T>(),
+                &mul(&real(&value), &from_f64::<T::Real>(0.125)),
+            );
+            let input: Vec<T> = (0..n * n)
+                .map(|index| {
+                    let (i, j) = (index % n, index / n);
+                    if i == j + 1 {
+                        copy(if j + 2 == n { &value } else { &early })
+                    } else if j == i + 1 {
+                        conj(if i + 2 == n { &value } else { &early })
+                    } else {
+                        zero::<T>()
+                    }
+                })
+                .collect();
+            for use_team in [false, true] {
+                let run = |par: Par<'_>| {
+                    let req = requirement::<T>(n, 1, par.shape(), 0).unwrap();
+                    let mut work = OwnedScratch::new();
+                    work.scratch_reserve(req.size_bytes(), req.align_bytes())
+                        .unwrap();
+                    let mut q: Vec<T> = (0..n * n).map(|_| from_f64(11.0)).collect();
+                    let mut diagonal: Vec<T::Real> = (0..n).map(|_| from_f64(17.0)).collect();
+                    let mut off: Vec<T::Real> = (0..n - 1).map(|_| from_f64(23.0)).collect();
+                    let before_q = q.clone();
+                    let before_d = diagonal.clone();
+                    let before_e = off.clone();
+                    // SAFETY: all initialized numeric buffers have disjoint checked spans.
+                    let error = unsafe {
+                        compute::<T>(
+                            &mut work,
+                            input.as_ptr().cast(),
+                            n,
+                            q.as_mut_ptr().cast(),
+                            diagonal.as_mut_ptr().cast(),
+                            off.as_mut_ptr().cast(),
+                            1,
+                            par,
+                            0,
+                        )
+                    }
+                    .err()
+                    .expect("unrepresentable bands must fail");
+                    assert!(error.contains("real bands"), "{error}");
+                    assert_eq!(q, before_q);
+                    assert_eq!(diagonal, before_d);
+                    assert_eq!(off, before_e);
+                };
+                if use_team {
+                    team.execute(run).unwrap();
+                } else {
+                    run(Par::Seq);
+                }
+            }
+        }
+    }
+    #[test]
+    fn explicit_real_band_overflow_c32_preserves_outputs() {
+        reject_unrepresentable_bands(faer::c32::new(3.0e38, 3.0e38));
+    }
+    #[test]
+    fn explicit_real_band_overflow_c64_preserves_outputs() {
+        reject_unrepresentable_bands(faer::c64::new(1.3e308, 1.3e308));
+    }
     fn check<T: ComplexField>() {
         let n = 4;
         let input: Vec<T> = (0..n * n)

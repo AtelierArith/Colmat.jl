@@ -11,6 +11,8 @@ Use `scratch_requirements`, `FaerScratch(tridiagonalize,A)` and `reserve!` to
 reuse the canonical work matrix, compact coefficients and reduction/Q kernel
 workspace. A supplied team lends its actual scoped token to both stages.
 Input conversion, Q/H ownership and staged bang writeback allocate separately.
+Finite input components can still produce an unrepresentable real band.
+Construction then throws; staged bang calls preserve their inputs.
 In compact mode scratch covers only the reduction kernel; returned packed
 reflectors, block factors and phases are owned outside scratch. Use the same
 `compact` option for construction and its workspace query.

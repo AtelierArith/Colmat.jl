@@ -498,6 +498,12 @@ native storage; closing one wrapper leaves another open. Copy and deepcopy
 make independent native owners. Input arrays and native source owners can be
 changed or closed after construction.
 
+Both explicit and compact reductions require representable finite real diagonal
+and off-diagonal bands. Finite complex components can still have an overflowing
+real magnitude. Construction then fails before publishing the bands; staged
+`tridiagonalize!` and self-adjoint `hessenberg!` preserve their input. Scale the
+input first when its real band representation would overflow.
+
 ```julia
 using Colmat, LinearAlgebra
 A = ComplexF64[4 1+im 0; 1-im 3 0.5im; 0 -0.5im 2]
