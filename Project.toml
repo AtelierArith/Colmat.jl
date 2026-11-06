@@ -22,4 +22,4 @@ julia = "1.13"
 projects = ["test"]
 
 [sources]
-RustCall = {url = "https://github.com/AtelierArith/RustCall.jl.git", rev = "b53c9b963084231d784e68760001f15cc27d1ab1"}
+RustCall = {url = "https://github.com/AtelierArith/RustCall.jl.git", rev = "5a86679af9f8189d1bab4e010debc72f0b94cfb3"}

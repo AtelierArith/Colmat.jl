@@ -57,6 +57,9 @@ V = view(A, 2:-1:1, :)           # 逆順・間引きの範囲を扱える
 copyto!(view(A, :, 1), v)         # 重複する領域からのコピーにも対応
 fill!(diagonalview(D), 5)         # 対角の格納領域を借用
 reserve!(A, 8, 8)                # 容量確保後も V は有効
+@assert all(capacity(A) .>= (8, 8)) # alignment padding を含む native 容量
+reserve!(v, 8)
+@assert capacity(v) >= 8
 @assert isopen(V)
 close(V)                        # A 自体は閉じない
 ```
@@ -68,6 +71,28 @@ close(V)                        # A 自体は閉じない
 `copy(view(...))` は独立した Rust 所有行列・ベクトルを返します。
 ビューへの `copyto!` は入力を一時コピーし、代入先と重なる場合も値を保ちます。
 `FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
+
+`capacity(A)` は所有行列の実際の行・列容量を組で返し、`capacity(v)` /
+`capacity(r)` / `capacity(D)` は格納要素の容量を整数で返します。
+予約した最小値より alignment padding の分だけ大きい場合があります。
+ビューには容量照会を定義していません。対角の容量を照会しても、固定の次元を
+変更できるようにはなりません。容量は native owner から読み取り、Julia 側で
+予約値や表示サイズから推測しません。
+
+容量管理の対応範囲は次のとおりです。
+
+| faer API | Colmat の対応・制約 |
+|---|---|
+| `Mat::with_capacity` | 空の所有行列を作って `reserve!` する操作で容量を予約できます。専用の容量付きコンストラクタは未提供です。 |
+| `try_reserve` / `reserve` | `reserve!` / `sizehint!` は `try_reserve` を使い、失敗を例外として返します。 |
+| `resize_with` | `resize!(...; fill=value)` は重なる領域を保持して新しい要素を固定値で初期化します。添字ごとに値を生成する任意関数は未接続です。 |
+| `truncate` | `truncate!` は縮小のみを受け付け、容量を保持します。 |
+| `row_capacity` / `col_capacity` / `capacity` | 所有型の `capacity` で実際の容量を照会します。 |
+| unsafe `set_dims` | 初期化済み領域の証明を呼び出し側に要求するため、Julia の公開 API としては提供していません。安全な `resize!` は新しい要素を初期化します。 |
+
+`Row` / `Col` は予約とサイズ変更に対応します。faer `Diag` に予約・サイズ変更の
+公開メソッドはなく、Colmat でも対角の次元は固定です。上の未接続形式は
+[Issue #90](https://github.com/AtelierArith/Colmat.jl/issues/90) で追跡します。
 
 ## 置換・ランク・疑似逆行列
 

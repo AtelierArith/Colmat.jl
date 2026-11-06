@@ -1413,3 +1413,5 @@ fn dense_pseudoinverse_solve(
 }
 
 mod real_extrema;
+
+mod storage_capacity;

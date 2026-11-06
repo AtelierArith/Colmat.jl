@@ -833,7 +833,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 [[package]]
 name = "rustcall_julia_core"
 version = "0.7.0"
-source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=b53c9b963084231d784e68760001f15cc27d1ab1#b53c9b963084231d784e68760001f15cc27d1ab1"
+source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=5a86679af9f8189d1bab4e010debc72f0b94cfb3#5a86679af9f8189d1bab4e010debc72f0b94cfb3"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -841,12 +841,13 @@ dependencies = [
  "serde",
  "syn 2.0.119",
  "toml",
+ "unicode-normalization",
 ]
 
 [[package]]
 name = "rustcall_julia_macros"
 version = "0.7.0"
-source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=b53c9b963084231d784e68760001f15cc27d1ab1#b53c9b963084231d784e68760001f15cc27d1ab1"
+source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=5a86679af9f8189d1bab4e010debc72f0b94cfb3#5a86679af9f8189d1bab4e010debc72f0b94cfb3"
 dependencies = [
  "rustcall_julia_macros_impl",
 ]
@@ -854,7 +855,7 @@ dependencies = [
 [[package]]
 name = "rustcall_julia_macros_impl"
 version = "0.7.0"
-source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=b53c9b963084231d784e68760001f15cc27d1ab1#b53c9b963084231d784e68760001f15cc27d1ab1"
+source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=5a86679af9f8189d1bab4e010debc72f0b94cfb3#5a86679af9f8189d1bab4e010debc72f0b94cfb3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1238,6 +1239,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyvec"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
+
+[[package]]
 name = "toml"
 version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1338,6 +1345,15 @@ name = "unicode-ident"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75cd3fb03d5288b3ba9a1ee103ac7e9cbb59f0b03d64f8ddfcc04dd42758a85d"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "valuable"

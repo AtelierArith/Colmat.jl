@@ -140,3 +140,11 @@ complete; zero is bounded by a timeout. The wrapper validates positive sizes.
 owning and caller-scratch low-level SVD/EVD reconstruction and includes an
 optional compile-only probe for the owning constructor API gap tracked in
 [faer #268](https://github.com/tensor4all/faer/issues/268#issuecomment-6679048835).
+
+## Owned storage capacity
+
+[owned-storage-capacity](owned-storage-capacity/README.md) retains the four-scalar
+reserve control and compile-only getter probe for [faer #284](https://github.com/tensor4all/faer/issues/284).
+[zero-sized-capacity](zero-sized-capacity/README.md) independently reproduces the
+zero-sized-element reservation panic in [faer #286](https://github.com/tensor4all/faer/issues/286);
+this does not affect Colmat's four advertised numeric scalars.
