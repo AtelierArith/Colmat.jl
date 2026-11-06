@@ -6,7 +6,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 機能分類の調査日: 2026-11-04。依存と検証情報の更新: 2026-11-06
 - 現在のビルド対象 t4a-faer: `0.31.0`、コミット [`a055727febfde5dd6bb78ba37478b0303b97c807`](https://github.com/tensor4all/faer/tree/a055727febfde5dd6bb78ba37478b0303b97c807)、threadteam `0.4.0`。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
-- Colmat の判定基準: PR #131 の main（`a88ad71`）に任意関数による所有配列の拡張を加えた版。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
+- Colmat の判定基準: PR #132 の main（`673c8b6`）に関数からの Mat/Col/Row 構築を加えた版。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
 - PR #83 の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、faer 0.31.0 / `06d8e84c3e31e824dffe9fb1fc0945c7d90db1d0` で canonical `Pkg.test(; allow_reresolve=false,test_args=["--jobs=16"])` **608,722 assertions / 134 files / 16 workers**、native **161 tests**、README/マニュアル **115 blocks** が成功。faer #274 は fork [PR #275](https://github.com/tensor4all/faer/pull/275) で修正済みで、修正採用時の Rust-only MWE と複素ノルム境界値の記録は PR #82 に保持する。
 - マージ後の公式 build が faer [PR #282](https://github.com/tensor4all/faer/pull/282) を取得したため、上記の新しい revision を別途検証する。[独立 Rust control](reproducers/triangular-copy-validation/README.md) は4型・832 copy ケースと Seq/Team2 の Cholesky/LU を bit 比較する。数値回帰の結果は依存追随の PR と Issue #22 の進捗コメントに保存する。速度改善は主張せず、未統合の #267/#269/#272 等の候補も採用していない。全76行の完了は意味しない。
 - 一般 Hessenberg 制御の検証: RustCall 0.10 / macros 0.7 は同一のマージ済み Git commit `b53c9b963084231d784e68760001f15cc27d1ab1` に固定し、registry 公開はしていない。faer は上記 `2b87010` を維持。canonical `Pkg.test` **617,136 assertions / 135 files / 16 workers / 10m24.2s**、native **163 tests**、README/マニュアル **116 blocks**、新規集中 **8,414 assertions**、旧 native API **24 assertions** が成功。元の全76行は維持し、Schur/EVD driver 内の制御値や他の残項目の完了は意味しない。
@@ -29,8 +29,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 密行列の所有・構築 | `Mat<T>`, `MatRef/MatMut/MatUninitMut`, `from_fn`, `zeros`, `ones`, `identity`, `full` | `Matrix`, `zeros`, `ones`, `Matrix(I,m,n)`, `fill` | R: 4 型の `FaerMatrix{T}(A)`、変換後の格納型・形状を native load 前に検証、検証済み dense buffer の共通コピー経路、`undef`（ゼロ初期化）、単位行列、`similar/zero/fill!` | 全構築形式・非標準スカラー型 |
-| 行・列ベクトル | `Row / Col`, `RowRef / ColRef`, `RowMut / ColMut` | `Vector`, 行ベクトル、`view` | R: `FaerVector` / `FaerRow`、4 型の所有・コピー・演算・容量管理 | 全 Row/Col 演算組合せ、任意の借用 Julia バッファ |
+| 密行列の所有・構築 | `Mat<T>`, `MatRef/MatMut/MatUninitMut`, `from_fn`, `zeros`, `ones`, `identity`, `full` | `Matrix`, `zeros`, `ones`, `Matrix(I,m,n)`, `fill` | R: 4 型の `FaerMatrix{T}(A)`、変換後の格納型・形状を native load 前に検証、検証済み dense buffer の共通コピー経路、`undef`（ゼロ初期化）、単位行列、`similar/zero/fill!`、1-based の関数を要素ごとに1回評価する `FaerMatrix{T}(f,m,n)` | zeros/ones/full の専用構築形式・非標準スカラー型 |
+| 行・列ベクトル | `Row / Col`, `RowRef / ColRef`, `RowMut / ColMut` | `Vector`, 行ベクトル、`view` | R: `FaerVector` / `FaerRow`、4 型の所有・コピー・演算・容量管理、`FaerVector{T}(f,n)` / `FaerRow{T}(f,n)` | 全 Row/Col 演算組合せ、任意の借用 Julia バッファ |
 | 対角行列 | `diag::{Diag, DiagRef, DiagMut}` | `Diagonal`, `diag`, `diagind` | R: `FaerDiagonal`、格納対角の演算・`filldiagonal!`・`diagonalview`、密/三角との左右の native 積 | 全 DiagRef/DiagMut 操作。対角積は現在 dense snapshot 経由 |
 | 読み書き・形状 | `nrows/ncols/shape`, 添字、`row/col` | `size/axes/getindex/setindex!` | R: shape・要素読み書き、行・列の範囲ビュー | 全形状・stride trait の公開 |
 | コピー・Julia との変換 | `clone/to_owned/copy_from` | `copy/deepcopy/copyto!/Matrix` | R: 所有型の独立コピー・Julia 変換・範囲ビューの一括コピー/代入 | 借用 Julia バッファの恒久的ゼロコピー型。ビュー代入は入力を一時コピー |
