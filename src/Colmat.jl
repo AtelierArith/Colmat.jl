@@ -98,6 +98,7 @@ export FaerSpectralFactor,
     FaerMatrix,
     FaerFactorization,
     reserve!,
+    capacity,
     truncate!,
     full_piv_lu,
     full_piv_lu!,
@@ -278,5 +279,6 @@ include("sparse_direct_workspace.jl")
 include("sparse_qr_solve_workspace.jl")
 include("spectral_solve_workspace.jl")
 include("pivoted_cholesky_workspace.jl")
+include("storage_capacity.jl")
 
 end

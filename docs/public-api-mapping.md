@@ -5,13 +5,14 @@
 t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra の対応 API と Colmat の実装状況を追跡する。
 
 - 機能分類の調査日: 2026-11-04。依存と検証情報の更新: 2026-11-06
-- 現在のビルド対象 t4a-faer: `0.31.0`、コミット [`2b87010cb82efbe0a90eceeb51931a833e1de8e6`](https://github.com/tensor4all/faer/tree/2b87010cb82efbe0a90eceeb51931a833e1de8e6)、threadteam `0.4.0`。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
-- Colmat の判定基準: PR #86 の main（`ef44d1c`）に密行列構築の変換後格納型・形状の検証と共通 dense loader を加えた版。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
+- 現在のビルド対象 t4a-faer: `0.31.0`、コミット [`a055727febfde5dd6bb78ba37478b0303b97c807`](https://github.com/tensor4all/faer/tree/a055727febfde5dd6bb78ba37478b0303b97c807)、threadteam `0.4.0`。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
+- Colmat の判定基準: PR #128/#129 の main（`fb1dcab`）に所有ストレージの容量照会を加えた版。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
 - PR #83 の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、faer 0.31.0 / `06d8e84c3e31e824dffe9fb1fc0945c7d90db1d0` で canonical `Pkg.test(; allow_reresolve=false,test_args=["--jobs=16"])` **608,722 assertions / 134 files / 16 workers**、native **161 tests**、README/マニュアル **115 blocks** が成功。faer #274 は fork [PR #275](https://github.com/tensor4all/faer/pull/275) で修正済みで、修正採用時の Rust-only MWE と複素ノルム境界値の記録は PR #82 に保持する。
 - マージ後の公式 build が faer [PR #282](https://github.com/tensor4all/faer/pull/282) を取得したため、上記の新しい revision を別途検証する。[独立 Rust control](reproducers/triangular-copy-validation/README.md) は4型・832 copy ケースと Seq/Team2 の Cholesky/LU を bit 比較する。数値回帰の結果は依存追随の PR と Issue #22 の進捗コメントに保存する。速度改善は主張せず、未統合の #267/#269/#272 等の候補も採用していない。全76行の完了は意味しない。
 - 一般 Hessenberg 制御の検証: RustCall 0.10 / macros 0.7 は同一のマージ済み Git commit `b53c9b963084231d784e68760001f15cc27d1ab1` に固定し、registry 公開はしていない。faer は上記 `2b87010` を維持。canonical `Pkg.test` **617,136 assertions / 135 files / 16 workers / 10m24.2s**、native **163 tests**、README/マニュアル **116 blocks**、新規集中 **8,414 assertions**、旧 native API **24 assertions** が成功。元の全76行は維持し、Schur/EVD driver 内の制御値や他の残項目の完了は意味しない。
 - ピボット付き Cholesky の検証: canonical **624,158 assertions / 136 files / 16 workers / 10m40.9s**、新規 **7,022 assertions**（既存/Hessenberg 回帰を含む集中16,432）、native **166 tests**、README/マニュアル **117 blocks** が成功。RustCall/faer の固定 revision は上記を維持。faer 本体の block_size=0 の非停止は [#283](https://github.com/tensor4all/faer/issues/283) と[独立 Rust 再現例](reproducers/pivoted-cholesky-zero-block/README.md)で追跡し、wrapper は正数を必須にする。全76行の残作業は継続する。
 - 密行列変換境界の検証: canonical **624,397 assertions / 137 files / 16 workers / 10m53.9s**、新規 **239 assertions**、既存の型・行列・pivoted/destructive/Hessenberg を含む集中 **17,930 assertions**、README/マニュアル **117 blocks** が成功。Rust 実装・依存 revision は PR #86 と同一（native 166 tests の対象ソースを保持）。全体テスト後の追加は本説明の prose のみ。
+- 容量照会: faer [PR #285](https://github.com/tensor4all/faer/pull/285) のマージ済み `a055727` を公式 build で取得。RustCall 0.10 / macros 0.7 は同一のマージ済み Git `5a86679af9f8189d1bab4e010debc72f0b94cfb3` を採用。公開容量の集中845 assertions と #89 回帰192、native170 tests は成功。全体・マニュアル検証は容量採用 PR に記録する。全76行と過去の revision 別検証記録を保持する。
 - 所有コレクション・範囲ビュー・置換・疑似逆・Hessenberg/Schur/QZ などを実装済み。全 76 項目の完了は意味しない。
 - 公開 API を**機能単位**で列挙する。型パラメータ違い、可変・不変ビュー、同族の `*_scratch`、内部実装用の doc-hidden 補助シンボルを一件ずつ数える一覧ではない。
 - Julia 欄は意味上の対応。型、分解の規約、引数、アルゴリズム選択が完全一致するという意味ではない。標準外のものはその旨を記す。
@@ -35,7 +36,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | コピー・Julia との変換 | `clone/to_owned/copy_from` | `copy/deepcopy/copyto!/Matrix` | R: 所有型の独立コピー・Julia 変換・範囲ビューの一括コピー/代入 | 借用 Julia バッファの恒久的ゼロコピー型。ビュー代入は入力を一時コピー |
 | 部分行列・分割・逆順 | `submatrix/subrows/subcols/split_at/reverse_rows/reverse_cols` | `view`, `@view`, slicing, `reverse` | R: `view` の範囲・間引き・逆順・入れ子、native copy/積/代入 | 任意の整数ベクトル添字は汎用処理。独立した split API |
 | 転置・共役・随伴 | `transpose/conjugate/adjoint` | `transpose/conj/adjoint`, `A'` | J: 遅延ラッパー。R: `conj`、転置・随伴のコピー、複素演算 | 積や求解で転置ラッパーを一時所有行列へコピーする経路あり |
-| 動的容量・サイズ変更 | `with_capacity/try_reserve/reserve/resize_with/truncate` | `sizehint!` 等に類する容量管理。Matrix に直接同等の公開 API はない | R: `reserve!`、`sizehint!`、`resize!(;fill)`、`truncate!` | 容量の照会・全低水準制御 |
+| 動的容量・サイズ変更 | `with_capacity/try_reserve/reserve/resize_with/truncate` | `sizehint!` 等に類する容量管理。Matrix に直接同等の公開 API はない | R: `reserve!`、`sizehint!`、`resize!(;fill)`、`truncate!`、所有 Mat/Col/Row/Diag の実容量 `capacity`（padding 含む） | 専用 with_capacity コンストラクタ、resize_with の任意関数初期化。unsafe set_dims は非公開、Diag は native API に従い次元固定（[#90](https://github.com/AtelierArith/Colmat.jl/issues/90)） |
 | 置換・行列交換 | `Perm/PermRef`, `permute_rows/cols`, `swap_rows/cols` | 置換ベクトル、`A[p,:]`, `A[:,p]` | R: `FaerPermutation`、逆置換・合成、`permute_rows/cols` と `!`、`swap_rows!/swap_cols!`、`A[p,:]/A[:,p]`、疎数値行列・疎パターンの native 置換 | ビューの更新は一時結果を経由。全低水準 PermRef 形式・caller-owned scratch |
 | スカラー型 | `f32/f64`, `c32/c64`、`fx128/cx128` の公開型エイリアス、generic field traits | `Float32/Float64/ComplexF32/ComplexF64` 等 | R: Float32 / Float64 / ComplexF32 / ComplexF64 の所有・演算・分解 | fx128/cx128、任意の field traits |
 

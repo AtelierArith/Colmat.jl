@@ -8,7 +8,7 @@ rust-version = "1.89"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rustcall_julia_macros = { git = "https://github.com/AtelierArith/RustCall.jl.git", rev = "b53c9b963084231d784e68760001f15cc27d1ab1" }
+rustcall_julia_macros = { git = "https://github.com/AtelierArith/RustCall.jl.git", rev = "5a86679af9f8189d1bab4e010debc72f0b94cfb3" }
 rand = "0.9.2"
 rand_distr = "0.5.1"
 threadteam = { version = "0.4.0", default-features = false, features = ["parallel"] }
