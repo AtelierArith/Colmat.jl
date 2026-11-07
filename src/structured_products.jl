@@ -225,7 +225,8 @@ function _structured_mul!(dest, a, b, alpha, beta, ds = Int32(0))
             x isa _OwnedCollection && _handle(x)
             x isa FaerView && _view_owner(x)
         end
-        ds==0 && _diagonal_scaling(a, b, eltype(dest)) &&
+        ds==0 &&
+            _diagonal_scaling(a, b, eltype(dest)) &&
             return _diagonal_mul!(dest, a, b, alpha, beta)
         P=promote_type(eltype(a), eltype(b), eltype(dest), typeof(alpha), typeof(beta))
         native=P===eltype(dest) && P<:_NativeScalar && !(dest isa FaerVectorView)
