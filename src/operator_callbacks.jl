@@ -67,24 +67,39 @@ function _operator_callback_apply!(
     yc,
 ) where {T}
     rows, inputs, cols=Int(m), Int(n), Int(k)
-    input=Matrix{T}(undef, inputs, cols)
-    # Native passes valid MatRef/MatMut spans and signed element strides.
-    # Copy every input before calling user code; escaped callback arrays
-    # own Julia storage and never alias the borrowed native buffers.
-    source=Ptr{T}(x)
-    for j = 1:cols, i = 1:inputs
-        input[i, j]=unsafe_load(source, 1+(i-1)*rs+(j-1)*cs)
+    # `buffers=:reuse` operators keep one input/output pair per scalar type,
+    # orientation and shape; a pair already in use (recursive application of
+    # the same operator) falls back to fresh arrays.
+    cache=get(owner, :cache, nothing)
+    key=(T, Int(adj), inputs, rows, cols)
+    pair=nothing
+    if !isnothing(cache)
+        pair=get(cache.free, key, nothing)
+        isnothing(pair) || delete!(cache.free, key)
     end
-    output=fill(T(NaN), rows, cols)
-    (adj==0 ? owner.forward : owner.adjoint)(output, input)
-    all(isfinite, output) || throw(
-        ArgumentError(
-            "operator callback must overwrite every output entry with finite values",
-        ),
-    )
-    destination=Ptr{T}(y)
-    for j = 1:cols, i = 1:rows
-        unsafe_store!(destination, output[i, j], 1+(i-1)*ys+(j-1)*yc)
+    input::Matrix{T}=isnothing(pair) ? Matrix{T}(undef, inputs, cols) : pair[1]
+    output::Matrix{T}=isnothing(pair) ? Matrix{T}(undef, rows, cols) : pair[2]
+    try
+        # Native passes valid MatRef/MatMut spans and signed element strides.
+        # Copy every input before calling user code; callback arrays are Julia
+        # storage and never alias the borrowed native buffers.
+        source=Ptr{T}(x)
+        for j = 1:cols, i = 1:inputs
+            input[i, j]=unsafe_load(source, 1+(i-1)*rs+(j-1)*cs)
+        end
+        fill!(output, T(NaN))
+        (adj==0 ? owner.forward : owner.adjoint)(output, input)
+        all(isfinite, output) || throw(
+            ArgumentError(
+                "operator callback must overwrite every output entry with finite values",
+            ),
+        )
+        destination=Ptr{T}(y)
+        for j = 1:cols, i = 1:rows
+            unsafe_store!(destination, output[i, j], 1+(i-1)*ys+(j-1)*yc)
+        end
+    finally
+        isnothing(cache) || (cache.free[key]=(input, output))
     end
     return nothing
 end
@@ -143,7 +158,7 @@ function _native_call_with_callbacks(f, args...)
     return result[]
 end
 """
-    FaerLinearOperator(apply!, adjoint_apply!, m, n; T=Float64)
+    FaerLinearOperator(apply!, adjoint_apply!, m, n; T=Float64, buffers=:owned)
 
 Create an m-by-n native LinOp/BiLinOp backed by Julia functions. Each function
 receives independent Julia matrices `(Y,X)` and must overwrite every entry of
@@ -154,8 +169,13 @@ state. User exceptions are rethrown after the native call returns and outputs
 are staged before writeback. Escaped callback arrays remain valid Julia arrays.
 
 The native solver still runs in Rust and invokes callbacks synchronously on the
-calling Julia thread. Callback marshaling allocates owned Julia arrays outside
-native scratch; this is not an allocation-free interface. The calling task is
+calling Julia thread. With the default `buffers=:owned`, every application
+passes freshly allocated Julia arrays that the callback may retain. With
+`buffers=:reuse`, the operator keeps one `(Y, X)` pair per scalar type,
+orientation and shape and reuses it across applications, so repeated products
+and iterative solves stop allocating per application; the callback must not
+retain `X` or `Y` after it returns (copy them if needed). A recursive
+application of the same operator from inside its callback gets fresh arrays. The calling task is
 pinned during the native call and its prior scheduling state is restored afterward.
 Same-task recursive Colmat calls are supported; other tasks serialize on the
 owner lock until the callback returns. Functions must define
@@ -168,9 +188,11 @@ function FaerLinearOperator(
     m::Integer,
     n::Integer;
     T::Type = Float64,
+    buffers::Symbol = :owned,
 )
     T<:_NativeScalar ||
         throw(ArgumentError("callback operators require a native scalar type"))
+    buffers in (:owned, :reuse) || throw(ArgumentError("buffers must be :owned or :reuse"))
     m>=0 && n>=0 || throw(ArgumentError("operator dimensions must be nonnegative"))
     dims=(Int(m), Int(n))
     lock(_matrix_lock) do
@@ -187,7 +209,13 @@ function FaerLinearOperator(
             UInt(dims[2]),
             _tag(T),
         )
-        owners=Dict{UInt,Any}(id=>(forward = apply!, adjoint = adjoint_apply!))
+        owner=buffers===:reuse ?
+              (
+            forward = apply!,
+            adjoint = adjoint_apply!,
+            cache = (free = Dict{Any,Tuple{Matrix,Matrix}}(),),
+        ) : (forward = apply!, adjoint = adjoint_apply!)
+        owners=Dict{UInt,Any}(id=>owner)
         return FaerLinearOperator{T,typeof(h)}(h, dims, :callback, false, false, owners)
     end
 end

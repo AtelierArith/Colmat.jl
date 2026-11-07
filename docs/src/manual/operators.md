@@ -383,7 +383,24 @@ failed actions preserve staged destinations. Outputs must be finite and fully
 written. Empty-domain/range and zero-column products are treated as zero maps.
 Native composition/conjugation intermediates can reuse `scratch=`/`team=` as
 for other operators; Julia callback buffers and result staging allocate separately.
-This interface does not promise allocation-free Julia actions.
+
+`buffers=:reuse` keeps one `(Y, X)` pair per scalar type, orientation and shape
+inside the operator and reuses it for every later application, so an iterative
+solve no longer allocates two Julia arrays per operator application. The
+callback must then not retain `Y` or `X` after it returns; a recursive
+application of the same operator from inside its callback receives fresh
+arrays. The default `buffers=:owned` keeps passing independent arrays.
+
+```julia
+using Colmat, LinearAlgebra
+d = collect(range(2.0, 3.0; length=1000))
+apply! = (Y, X) -> (Y .= d .* X; Y)
+op = FaerLinearOperator(apply!, apply!, 1000, 1000; buffers=:reuse)
+r = cg(op, FaerVector(ones(1000)))
+@assert Vector(r.x) ≈ 1 ./ d
+close(op)
+```
+
 
 ## Iterative histories and stopping callbacks
 
