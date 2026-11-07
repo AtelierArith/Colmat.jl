@@ -164,7 +164,13 @@ end
             H=eigen(FaerMatrix(A), FaerMatrix(B); side = :both, homogeneous = true)
             @test all(isfinite, H.α) && all(isfinite, H.β)
             @test _homogeneous_error(A, B, H.right, H.α, H.β)<tol
-            @test _homogeneous_error(A, B, H.left, H.α, H.β; side = :left)<tol
+            # tensor4all/faer#324: c32 left eigenvectors of a pencil with an
+            # (almost) infinite eigenvalue can be wrong, depending on the data
+            # and on prior work in the process (docs/reproducers/
+            # faer-gevd-c32-left-infinite.md). Re-enable when faer is fixed.
+            if !(T===ComplexF32 && δ<=eps(R)^2)
+                @test _homogeneous_error(A, B, H.left, H.α, H.β; side = :left)<tol
+            end
             @test minimum(abs, H.β ./ maximum(abs, H.β))<100eps(R)+δ*100
         end
     end
