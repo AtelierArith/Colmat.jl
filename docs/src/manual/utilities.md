@@ -246,16 +246,28 @@ close(A)
 
 `dot`, `norm`, `sum`, `minimum`/`maximum`/`extrema`, `all(isfinite, A)` and
 `any(isnan, A)` read native views (strided and reversed ranges) in place, without
-a Julia or Rust copy; `dot`, `sum`, the predicates and `norm(A, 1/2/Inf)` do the
-same for `faerview` arrays. `dot` conjugates its first argument
+a Julia or Rust copy; `dot`, `sum`, `norm` and the predicates do the same for
+`faerview` arrays. `dot` conjugates its first argument
 with faer's `inner_prod` for any pair of native vectors, rows, matrices, views and
 borrowed arrays; vector-shaped operands pair entries in order, and mixed scalar
 types promote (Rust stages one converted copy of a promoted operand).
 `norm(A, p)` is the entrywise norm for every real `p` except NaN: 2/1/Inf use
 faer's reductions, 0 counts nonzeros, -Inf is the NaN-propagating smallest
 magnitude, and other `p` follow `LinearAlgebra.generic_normp` (Float64
-accumulation, rescaling by the extreme magnitude); for `faerview` arrays those
-`p` use Julia's own `norm` of the parent. Use `opnorm` for operator norms. Summation order is faer's, so sums may differ from Julia's by rounding.
+accumulation, rescaling by the extreme magnitude; integer `p` by repeated
+multiplication, as fast as or faster than Julia's `norm` of a dense array).
+Use `opnorm` for operator norms. Summation order is faer's, so sums may differ from Julia's by rounding.
+Equal-length `dot` operands of different shapes pair entries in column-major
+order, as in Julia. `x' * y` and `transpose(x) * y` of native vectors, vector views
+and borrowed vectors run the same native inner product.
+
+`sum!`, `minimum!`, `maximum!` and `extrema!(r, A; init = true)` reduce a
+native or borrowed `A` along the dimensions where `r` has extent 1 and write
+the result into native, borrowed or Julia destinations in one transfer;
+`init = false` combines it with the current contents of `r`. Structure tests
+(`isone`, `issymmetric`, `ishermitian` on views and borrowed matrices;
+`istriu(A, k)`, `istril(A, k)`, `isdiag` on native matrices too) read in
+place and stop at the first violating entry, with Julia's `==` semantics.
 
 ```julia
 using Colmat, LinearAlgebra
@@ -269,5 +281,9 @@ x = FaerVector([1.0, 2.0, 3.0])
 @assert sum(view(x, 1:2:3)) == 4.0
 @assert minimum(B; dims = 2) == [-4.0; 0.0;;]
 @assert all(isfinite, B) && !any(isnan, view(x, :))
+r = zeros(1, 2)
+@assert sum!(r, B) == [3.0 -3.0]
+@assert minimum!(r, view(FaerMatrix(J), 2:-1:1, :); init = false) == [0.0 -4.0]
+@assert istriu(B) && !issymmetric(B)
 close(x)
 ```
