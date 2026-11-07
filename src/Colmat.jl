@@ -304,6 +304,7 @@ include("storage_construction.jl")
 include("storage_initializer.jl")
 include("function_constructors.jl")
 include("filled_constructors.jl")
+include("pivoted_qr_rank.jl")
 include("measures.jl")
 include("diagonal_ops.jl")
 

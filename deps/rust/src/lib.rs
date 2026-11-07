@@ -1441,5 +1441,6 @@ mod storage_initializer;
 
 mod filled_construction;
 
+mod pivoted_qr_rank;
 mod measures;
 mod diagonal_ops;

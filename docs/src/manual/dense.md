@@ -42,6 +42,31 @@ close(A)
 @assert F \ [1.0, 2.0] ≈ a \ [1.0, 2.0]
 ```
 
+## Column-pivoted QR rank and truncated solves
+
+```julia
+using Colmat, LinearAlgebra
+a = [1.0 2 3; 2 4 6; 1 0 1; 0 1 1]
+a[:, 2] = 2a[:, 1]                       # rank two
+F = qr(FaerMatrix(a), ColumnNorm())
+@assert rank(F) == 2
+@assert rank(F; atol=1e3) == 0
+B = reshape([1.0, 2, 3, 4], 4, 1)
+B, r = ldiv!(F, B, 1e-10)               # minimum-norm, rank-truncated
+@assert r == 2
+@assert B[1:3, :] ≈ pinv(a) * [1.0, 2, 3, 4]
+close(F)
+```
+
+`rank(F; atol, rtol)` follows `rank(::QRPivoted)`: the first stored
+`|R[i,i]| <= max(atol, rtol*|R[1,1]|)`, with the same default `rtol`. It reads
+the native R diagonal without reconstruction. `ldiv!(F, B, rcond; team)`
+matches `ldiv!(::QRPivoted, B, rcond)`. `B` needs at least `max(m,n)` rows,
+its first `n` rows receive the minimum-norm solution, and the rank is
+returned. The rank is decided with `rtol=rcond`, whereas LAPACK `xgelsy`
+estimates it incrementally, so the two can differ for pivots near the
+threshold. The leading rank rows of R are completed orthogonally on the
+native side. faer's `ColPivQr` has no rank or tolerance API of its own.
 ## Determinant and trace
 
 ```julia
