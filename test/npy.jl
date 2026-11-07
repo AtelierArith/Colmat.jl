@@ -469,13 +469,52 @@ end
         @test loadnpy(path)==[1.0 2; 30 4]
     end
     mktemp() do path, io
+        # NPY data after an 8-byte prefix stays element-aligned in the mapping.
+        write(io, zeros(UInt8, 8))
+        write(io, bytes)
+        seek(io, 8)
+        B=npyborrow(io)
+        @test B isa FaerBorrowedMatrix{Float64}
+        @test B==A
+        @test npyinfo(B).shape==(2, 2)
+        @test position(io)==8
+        close(io)
+    end
+    # An odd prefix misaligns the payload: the copying fallback applies.
+    mktemp() do path, io
         write(io, UInt8[1, 2, 3])
         write(io, bytes)
         seek(io, 3)
-        B=npyborrow(io)
-        @test B==A
-        @test npyinfo(B).shape==(2, 2)
+        @test npyborrow(io) isa FaerMatrix{Float64}
+        seek(io, 3)
+        @test Matrix(npyborrow(io))==A
+        seek(io, 3)
+        @test_throws ArgumentError npyborrow(io; fallback = false)
         close(io)
+    end
+    # A resized file is remapped and existing borrows of it move along.
+    mktemp() do path, io
+        write(io, bytes)
+        close(io)
+        B1=npyborrow(path; writable = true)
+        A2=[5.0 6; 7 8]
+        open(io->write(io, _npy_bytes(A2; big = nativebig)), path, "a")
+        # The writable mapping cannot be remapped through a read-only stream.
+        @test_throws ArgumentError open(s->(seek(s, length(bytes)); npyborrow(s)), path)
+        B2=open(s->(seek(s, length(bytes)); npyborrow(s)), path, "r+")
+        @test !npyinfo(B2).writable
+        @test B2==A2
+        @test B1==A
+        @test pointer(B2)==pointer(B1)+length(bytes)
+        B1[1, 1]=-1.0
+        @test loadnpy(read(path)[1:length(bytes)])==[-1.0 2; 3 4]
+        # Shrinking the file below a borrowed payload is reported on access
+        # once the file is remapped.
+        open(io->truncate(io, length(bytes)), path, "r+")
+        @test npyborrow(path)==[-1.0 2; 3 4]
+        @test_throws ArgumentError B2[1, 1]
+        @test_throws ArgumentError copy(B2)
+        @test B1==[-1.0 2; 3 4]
     end
     # A writable borrow never falls back to an independent copy.
     big=_npy_bytes(A; big = !nativebig)
