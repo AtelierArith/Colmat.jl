@@ -157,7 +157,18 @@ n×n の密な snapshot を作りません。`D*A` / `A*D` / `D\A` / `A/D` / `D�
 格納された n 個の要素だけを渡して同じ経路を使います。
 ゼロの対角要素で割ると `SingularException` を投げ、入力も代入先も変更しません。
 `diag(A)` と `FaerDiagonal(A)` は密行列・範囲ビューの主対角を native にコピーし、
-`v * w'` は Rust 所有の `FaerMatrix` を返します。
+`v * w'` と `v * r::FaerRow` は Rust 所有の `FaerMatrix` を返します。
+
+`FaerDiagonal` と `FaerDiagonal` / Julia `Diagonal` の `+`・`-`・`*`・`\`・`/` は
+`FaerDiagonal` を返します（Julia の `Diagonal` 同士の演算が `Diagonal` を返すのと同じ）。
+`transpose(D)` と `D'` は `D`（複素数では O(n) の共役コピー）として同じ native 経路を
+使い、`v'*D`・`transpose(v)*D`・`v'/D` は native の `FaerVector` を包む
+`Adjoint` / `Transpose` を返します。`mul!(y, D, x)` と `mul!(z, r, D)` は
+`FaerVector`・ベクトルビュー・`FaerRow` の出力先へ直接書き込みます。
+`all(isfinite, x)` / `any(isnan, x)` は格納要素に faer の `is_all_finite` /
+`has_nan` を使います。`map(f, D)` は格納要素を1回で読み、`f(0)==0` なら
+`FaerDiagonal`、そうでなければ密な `FaerMatrix` を返します（`Diagonal` と同じ規則）。
+`FaerRow ± v'`（`transpose(v)` も）は `FaerRow` を返します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -170,6 +181,10 @@ ldiv!(D, A)                      # A の格納領域を直接更新
 @assert Matrix(A) == [0.5 1; 0.75 1]
 @assert Vector(diag(inv(D))) == [0.5, 0.25]
 @assert Vector(diag(A)) == [0.5, 1.0]
+@assert (D * Diagonal([1.0, 2.0])) isa FaerDiagonal
+@assert Vector(diag(D \ Diagonal([4.0, 4.0]))) == [2.0, 1.0]
+@assert collect(FaerVector([1.0, 1.0])' * D) == [2.0 4.0]
+@assert map(x -> 2x, D) isa FaerDiagonal && all(isfinite, D)
 try
     FaerDiagonal([1.0, 0.0]) \ A
 catch e

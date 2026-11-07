@@ -31,7 +31,31 @@ end
 _dop_check(info) =
     iszero(info) ? nothing : throw(LinearAlgebra.SingularException(Int(info)))
 _dop_coerce(a, ::Type{P}) where {P} =
-    eltype(a)===P ? a : ndims(a)==1 ? FaerVector{P}(Vector(a)) : FaerMatrix{P}(Matrix(a))
+    eltype(a)===P ? a :
+    a isa _PromotableDense ? _native_promote(a, P) :
+    ndims(a)==1 ? FaerVector{P}(Vector(a)) : FaerMatrix{P}(Matrix(a))
+# Native dense operands of a narrower scalar type are converted once in Rust,
+# applying any transpose or conjugation, instead of through a Julia snapshot.
+const _PromotableDense=Union{
+    FaerMatrix,
+    FaerMatrixView,
+    LinearAlgebra.Transpose{<:Any,<:Union{FaerMatrix,FaerMatrixView}},
+    LinearAlgebra.Adjoint{<:Any,<:Union{FaerMatrix,FaerMatrixView}},
+}
+function _native_promote(a, ::Type{P}) where {P<:_NativeScalar}
+    lock(_matrix_lock) do
+        p, d=_view_source(a)
+        dims=size(a)
+        GC.@preserve d return P===Float64 ?
+                              _matrix_result(
+            RustCrate.view_promoted,
+            dims,
+            p,
+            pointer(d),
+            _tag(P),
+        ) : _typed_result(P, RustCrate.view_promoted, dims, p, pointer(d), _tag(P))
+    end
+end
 
 # Modes: 0 D*A, 1 A*D, 2 D\A, 3 A/D, 4 A+D, 5 A-D, 6 D-A.
 function _dop_matrix(d, a, mode)
