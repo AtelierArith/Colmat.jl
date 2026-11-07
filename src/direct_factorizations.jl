@@ -48,9 +48,11 @@ and `FaerVector`s of a square factor (one native copy solved in place and
 written back); a real factor solves a complex `b` as two real solves.
 `copy(F)` copies A and F's buffers into a new direct factor, and
 `FaerLinearOperator(F)` (also `cg(A, b; M = F)`) wraps such a copy as an
-inverse-action operator. Other retained-factor operations (factor promotion to
-another scalar type, rectangular-LU or wide-QR solves) require the default
-`lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
+inverse-action operator. `F \\ b` of a rectangular LU/full LU, a wide QR or a
+transposed rectangular factor returns the minimum-norm least-squares solution
+through the pseudoinverse (`pinv(F)` for QR, `pinv(reconstruct(F))` for LU),
+as the retained factor does. Promotion of the factor to another scalar type
+requires the default `lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
 """
 mutable struct FaerInPlaceFactorization{T,K,M<:FaerMatrix{T}} <:
                LinearAlgebra.Factorization{T}
@@ -597,7 +599,7 @@ function _direct_solve_rows(f::FaerInPlaceFactorization{T,K}, op) where {T,K}
     if K in (:qr, :pivoted_qr) && op==1
         m>=n || throw(
             DimensionMismatch(
-                "in-place QR solves require a tall or square factor; wide QR uses the default qr! result",
+                "in-place QR solves require a tall or square factor; use F \\ b for the pseudoinverse solution",
             ),
         )
         return m
@@ -836,10 +838,34 @@ for W in (:TransposeFactorization, :AdjointFactorization)
         team = nothing,
     ) = _direct_ldiv_array!(f, b; scratch, team)
 end
+# Whether the in-place kernels solve this shape: square factors, and tall QR
+# least squares without a transpose.
+function _direct_native_shape(f::FaerInPlaceFactorization{T,K}, op) where {T,K}
+    m, n=size(f)
+    return m==n || (K in (:qr, :pivoted_qr) && op==1 && m>n)
+end
+# Rectangular LU/full LU, wide QR and transposed rectangular solves: the
+# minimum-norm least-squares solution through the pseudoinverse, as the
+# retained factor's SVD/projection path returns. QR uses its native `pinv(F)`;
+# LU reconstructs A natively first.
+function _direct_pinv_solve(g::_DirectSolveFactor, b::AbstractVecOrMat)
+    f=_direct_parent(g)
+    T=eltype(f)
+    K=_direct_kind_symbol(f)
+    P=K in (:qr, :pivoted_qr) ? LinearAlgebra.pinv(f) : LinearAlgebra.pinv(reconstruct(f))
+    op=_direct_op(g)
+    Q=op==1 ? P : op==2 ? transpose(P) : adjoint(P)
+    size(b, 1)==size(Q, 2) || throw(DimensionMismatch("factor and RHS rows do not match"))
+    x=Q*FaerMatrix{T}(b isa AbstractVector ? reshape(collect(b), :, 1) : b)
+    return b isa AbstractVector ? vec(Matrix(x)) : x
+end
+_direct_kind_symbol(::FaerInPlaceFactorization{T,K}) where {T,K} = K
 function _direct_backslash(g::_DirectSolveFactor, b::AbstractVecOrMat)
     f=_direct_parent(g)
     T=eltype(f)
     op=_direct_op(g)
+    native=lock(() -> (_direct_source(f); _direct_native_shape(f, op)), _matrix_lock)
+    native || return _direct_pinv_solve(g, b)
     rows=lock(() -> (_direct_source(f); _direct_solve_rows(f, op)), _matrix_lock)
     size(b, 1)==rows || throw(DimensionMismatch("factor and RHS rows do not match"))
     x=FaerMatrix{T}(b isa AbstractVector ? reshape(collect(b), :, 1) : b)

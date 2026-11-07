@@ -111,7 +111,9 @@ _stored(S, uplo) =
                 @test Matrix(B)[1:n, :] ≈ X \ T.(reshape(1:(2m), m, 2)) rtol = _tol(T) atol =
                     _tol(T)
             else
-                @test_throws DimensionMismatch F \ T.(collect(1:m))
+                # Wide QR: the minimum-norm solution through the pseudoinverse.
+                b = T.(collect(1:m))
+                @test F \ b ≈ X \ b rtol = sqrt(eps(real(T))) atol = sqrt(eps(real(T)))
             end
             if m == n
                 b = T.(collect(1:n))
@@ -159,7 +161,8 @@ _stored(S, uplo) =
             @test Matrix(B)[1:n, :] ≈ X \ T.(reshape(1:(2m), m, 2)) rtol = _tol(T) atol =
                 _tol(T)
         else
-            @test_throws DimensionMismatch F \ T.(collect(1:m))
+            b = T.(collect(1:m))
+            @test F \ b ≈ X \ b rtol = sqrt(eps(real(T))) atol = sqrt(eps(real(T)))
         end
         if m == n
             b = T.(collect(1:n))
