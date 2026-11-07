@@ -4,11 +4,15 @@ const _ProductTriangular=Union{
     LinearAlgebra.UnitLowerTriangular,
     LinearAlgebra.UnitUpperTriangular,
 }
+# Triangular wrappers over native owners, views and their lazy transposes or
+# adjoints (`UpperTriangular(A)'` wraps `adjoint(A)`), all read through one
+# view descriptor.
+const _NativeTriangularParent=Union{_BorrowMatrix,_BorrowTranspose}
 const _NativeProductTriangular=Union{
-    LinearAlgebra.LowerTriangular{<:Any,<:FaerMatrix},
-    LinearAlgebra.UpperTriangular{<:Any,<:FaerMatrix},
-    LinearAlgebra.UnitLowerTriangular{<:Any,<:FaerMatrix},
-    LinearAlgebra.UnitUpperTriangular{<:Any,<:FaerMatrix},
+    LinearAlgebra.LowerTriangular{<:Any,<:_NativeTriangularParent},
+    LinearAlgebra.UpperTriangular{<:Any,<:_NativeTriangularParent},
+    LinearAlgebra.UnitLowerTriangular{<:Any,<:_NativeTriangularParent},
+    LinearAlgebra.UnitUpperTriangular{<:Any,<:_NativeTriangularParent},
 }
 const _ProductDense=Union{FaerMatrix,FaerMatrixView}
 const _ProductDiagonal=Union{FaerDiagonal,LinearAlgebra.Diagonal}
@@ -136,8 +140,12 @@ function _structured_operand(x, ::Type{P}) where {P}
         p, d=_view_source(y)
         return p, d, y
     end
-    y isa AbstractVector && (y=reshape(y, :, 1))
-    return _raw_operand(eltype(y)===P ? y : Matrix{P}(y))
+    # Julia strided arrays and their lazy transposes/adjoints are borrowed in
+    # place (converted natively from the borrow for another scalar type);
+    # anything else is copied once.
+    g=_gemm_operand(y, P)
+    p, d=_view_source(g)
+    return p, d, g
 end
 function _structured_scalar(a, b)
     size(a, 2)==size(b, 1) ||
@@ -172,10 +180,10 @@ function _structured_vector(a, b)
     lock(_matrix_lock) do
         P=_structured_scalar(a, b)
         p, pd, ka=_structured_operand(a, P)
-        bb=eltype(b)===P ? b : FaerVector{P}(Vector(b))
+        bb=_gemm_operand(b, P)
         q, qd=_view_source(bb)
         h=RustCrate.VectorOwner()
-        GC.@preserve pd qd ka _native_call(
+        GC.@preserve pd qd ka bb _native_call(
             RustCrate.structured_vector,
             h,
             p,
@@ -187,7 +195,8 @@ function _structured_vector(a, b)
         return FaerVector{P,typeof(h)}(h, size(a, 1), UInt(0))
     end
 end
-Base.:*(a::_NativeProductTriangular, b::_BorrowVector) = _structured_vector(a, b)
+Base.:*(a::_NativeProductTriangular, b::Union{_BorrowVector,_GemmJuliaVector}) =
+    _structured_vector(a, b)
 # Native dense operands include transposed and adjoint native wrappers.
 const _ProductOperand=Union{
     _ProductDense,
@@ -200,6 +209,12 @@ Base.:*(a::_NativeProductTriangular, b::_ProductTriangular) = _structured_produc
 Base.:*(a::_ProductTriangular, b::_NativeProductTriangular) = _structured_product(a, b)
 Base.:*(a::_NativeProductTriangular, b::_NativeProductTriangular) =
     _structured_product(a, b)
+# Julia strided matrices (and their lazy transposes) and borrowed arrays with a
+# native triangular operand are borrowed in place and give native results, as
+# the other mixed native/Julia products do.
+const _TriangularJulia=Union{_GemmJuliaMatrix,FaerBorrowedMatrix,_BorrowedTranspose}
+Base.:*(a::_NativeProductTriangular, b::_TriangularJulia) = _structured_product(a, b)
+Base.:*(a::_TriangularJulia, b::_NativeProductTriangular) = _structured_product(a, b)
 
 _alias_owner(x::Union{FaerMatrix,_OwnedCollection}) = x
 _alias_owner(x::FaerView) = x.owner
@@ -242,11 +257,18 @@ function _structured_mul!(dest, a, b, alpha, beta, ds = Int32(0); team = nothing
             x isa _OwnedCollection && _handle(x)
             x isa FaerView && _view_owner(x)
         end
-        ds==0 &&
+        _check_writable(dest)
+        # Julia (and borrowed) destinations are written through their view
+        # descriptor; the native diagonal kernel needs a native owner.
+        julia=dest isa _GemmJuliaDestination
+        !julia &&
+            ds==0 &&
             _diagonal_scaling(a, b, eltype(dest)) &&
             return _diagonal_mul!(dest, a, b, alpha, beta)
         P=promote_type(eltype(a), eltype(b), eltype(dest), typeof(alpha), typeof(beta))
         native=P===eltype(dest) && P<:_NativeScalar && !(dest isa FaerVectorView)
+        target=julia && native ? _gemm_destination(dest) : nothing
+        julia && isnothing(target) && (native=false)
         if !native
             ds==0 || throw(
                 ArgumentError(
@@ -259,6 +281,31 @@ function _structured_mul!(dest, a, b, alpha, beta, ds = Int32(0); team = nothing
             !isone(alpha) && (values .*= alpha)
             !iszero(beta) && (values .+= beta .* Array(dest))
             return copyto!(dest, values)
+        end
+        if julia
+            # Rust snapshots operands overlapping the destination's memory.
+            p, pd, ka=_structured_operand(a, P)
+            q, qd, kb=_structured_operand(b, P)
+            owner, dd=_view_source(target)
+            α=Ref{P}(alpha)
+            β=Ref{P}(beta)
+            GC.@preserve target dd pd qd ka kb α β _native_call(
+                RustCrate.structured_view_into,
+                owner,
+                pointer(dd),
+                Int32(ds),
+                p,
+                pointer(pd),
+                _product_structure(a),
+                q,
+                pointer(qd),
+                _product_structure(b),
+                Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, α)),
+                iszero(beta) ? Ptr{UInt8}(C_NULL) :
+                Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, β)),
+                team,
+            )
+            return dest
         end
         owner, dd=_view_source(dest)
         aa=_unalias_operand(a, owner)
@@ -298,7 +345,9 @@ Operands sharing `C`'s storage are snapshotted first. A zero `β` does not read
 `C` and a zero `α` does not read the operands. `team` lends a caller-owned
 `FaerTeam` to faer for this call; diagonal operands (elementwise scaling) and
 mixed scalar types that promote beyond `C`'s type run sequentially. The same
-`team` keyword is accepted by `mul!` with triangular and diagonal operands.
+`team` keyword is accepted by `mul!` with triangular and diagonal operands,
+whose destination may also be a strided Julia array or a `faerview` when an
+operand is native (written in place through its buffer).
 """
 function structured_mul!(
     c,
@@ -323,39 +372,49 @@ function structured_mul!(
         team,
     )
 end
-LinearAlgebra.mul!(
-    dest::FaerVector,
-    a::_NativeProductTriangular,
-    b::_BorrowVector,
-    alpha::Number,
-    beta::Number;
-    team = nothing,
-) = _structured_mul!(dest, a, b, alpha, beta; team)
-LinearAlgebra.mul!(
-    dest::FaerVector,
-    a::_NativeProductTriangular,
-    b::_BorrowVector;
-    team = nothing,
-) = _structured_mul!(dest, a, b, true, false; team)
 
-for (A, B) in (
+# Julia strided destinations (and `faerview`s) with native structured operands
+# are written in place too: LinearAlgebra's generic triangular `mul!` would
+# read the native operand element by element.
+const _StructuredJuliaDestination=_GemmJuliaDestination
+for D in (:_ProductDense, :_StructuredJuliaDestination), (A, B) in (
     (:_ProductTriangular, :_ProductOperand),
     (:_ProductOperand, :_ProductTriangular),
     (:_NativeProductTriangular, :_ProductTriangular),
     (:_ProductTriangular, :_NativeProductTriangular),
     (:_NativeProductTriangular, :_NativeProductTriangular),
+    (:_NativeProductTriangular, :_TriangularJulia),
+    (:_TriangularJulia, :_NativeProductTriangular),
 )
     @eval begin
         LinearAlgebra.mul!(
-            dest::_ProductDense,
+            dest::$D,
             a::$A,
             b::$B,
             alpha::Number,
             beta::Number;
             team = nothing,
         ) = _structured_mul!(dest, a, b, alpha, beta; team)
-        LinearAlgebra.mul!(dest::_ProductDense, a::$A, b::$B; team = nothing) =
+        LinearAlgebra.mul!(dest::$D, a::$A, b::$B; team = nothing) =
             _structured_mul!(dest, a, b, 1, 0; team)
+    end
+end
+for D in (:FaerVector, :_StructuredJuliaDestination)
+    @eval begin
+        LinearAlgebra.mul!(
+            dest::$D,
+            a::_NativeProductTriangular,
+            b::Union{_BorrowVector,_GemmJuliaVector},
+            alpha::Number,
+            beta::Number;
+            team = nothing,
+        ) = _structured_mul!(dest, a, b, alpha, beta; team)
+        LinearAlgebra.mul!(
+            dest::$D,
+            a::_NativeProductTriangular,
+            b::Union{_BorrowVector,_GemmJuliaVector};
+            team = nothing,
+        ) = _structured_mul!(dest, a, b, true, false; team)
     end
 end
 
@@ -371,18 +430,20 @@ for (A, B) in (
     (:_NativeProductTriangular, :FaerDiagonal),
     (:FaerDiagonal, :_NativeProductTriangular),
 )
-    @eval begin
-        Base.:*(a::$A, b::$B) = _structured_product(a, b)
-        LinearAlgebra.mul!(
-            dest::_ProductDense,
-            a::$A,
-            b::$B,
-            alpha::Number,
-            beta::Number;
-            team = nothing,
-        ) = _structured_mul!(dest, a, b, alpha, beta; team)
-        LinearAlgebra.mul!(dest::_ProductDense, a::$A, b::$B; team = nothing) =
-            _structured_mul!(dest, a, b, 1, 0; team)
+    @eval Base.:*(a::$A, b::$B) = _structured_product(a, b)
+    for D in (:_ProductDense, :_StructuredJuliaDestination)
+        @eval begin
+            LinearAlgebra.mul!(
+                dest::$D,
+                a::$A,
+                b::$B,
+                alpha::Number,
+                beta::Number;
+                team = nothing,
+            ) = _structured_mul!(dest, a, b, alpha, beta; team)
+            LinearAlgebra.mul!(dest::$D, a::$A, b::$B; team = nothing) =
+                _structured_mul!(dest, a, b, 1, 0; team)
+        end
     end
 end
 

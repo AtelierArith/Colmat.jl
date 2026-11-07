@@ -73,6 +73,8 @@ const _raw_owner_arguments = (
     (RustCrate.structured_product, (2, 5)),
     (RustCrate.structured_product_into, (4, 7)),
     (RustCrate.structured_vector, (2, 5)),
+    (RustCrate.structured_view_into, (1, 4, 7)),
+    (RustCrate.selfadjoint_expand, (2,)),
     (RustCrate.vector_view_kron, (2, 4)),
     (RustCrate.view_assign, (3,)),
     (RustCrate.view_convert, (2,)),

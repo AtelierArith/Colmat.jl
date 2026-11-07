@@ -342,5 +342,6 @@ include("pivoted_qr_rank.jl")
 include("measures.jl")
 include("diagonal_ops.jl")
 include("collection_ops.jl")
+include("structured_julia_products.jl")
 
 end

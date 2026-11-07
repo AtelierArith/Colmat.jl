@@ -4,7 +4,9 @@
 use crate::collections::{VectorData, VectorOwner, VectorStore};
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
-use crate::views::{borrowed_mut, source, Borrowed, Spec};
+use crate::views::{
+    borrowed_mut, destination, destination_span, operand, source, Arm, Borrowed, Spec,
+};
 use crate::{guarded, OwnedMatrix};
 use faer::linalg::matmul::triangular::{self, BlockStructure as B};
 use faer::traits::{math_utils::*, ComplexField};
@@ -474,6 +476,162 @@ impl VectorOwner {
     }
 }
 
+/// Structured `dst = alpha*op(a)*op(b) + beta*dst` written into any
+/// destination descriptor (native owner, view or borrowed Julia buffer).
+/// Inputs overlapping the destination are snapshot first
+/// (`views::destination::operand`); the rest are read in place.
+#[allow(clippy::too_many_arguments)]
+unsafe fn view_into<T: Arm>(
+    dest: *mut u8,
+    dd: Spec,
+    ds: i32,
+    o: &Operands,
+    alpha: *const u8,
+    beta: *const u8,
+    par: Par<'_>,
+) -> Result<(), String> {
+    let dspan = destination_span(dest, dd)?;
+    let x = operand::<T>(o.p, o.pd, dspan)?;
+    let y = operand::<T>(o.q, o.qd, dspan)?;
+    let dst = T::pick_mut(destination(dest, dd)?).ok_or("destination scalar types must match")?;
+    let beta = if beta.is_null() {
+        None
+    } else {
+        Some(scalar::<T>(beta))
+    };
+    let ((a, ca), (b, cb)) = (x.get(), y.get());
+    product_into(
+        dst,
+        ds,
+        (a, ca, o.sa),
+        (b, cb, o.sb),
+        scalar::<T>(alpha),
+        beta,
+        par,
+    )
+}
+
+/// Structured `mul!` into a destination named by a view descriptor, which may
+/// be a borrowed Julia strided buffer (descriptor kind 4) as well as a native
+/// owner or view. Tags and coefficients are as for `structured_product_into`.
+///
+/// # Safety
+/// Julia roots every owner, buffer, descriptor and coefficient for this call.
+#[allow(clippy::too_many_arguments)]
+#[julia]
+pub fn structured_view_into(
+    dest: *mut u8,
+    dd: *const isize,
+    ds: i32,
+    p: *const u8,
+    pd: *const isize,
+    sa: i32,
+    q: *const u8,
+    qd: *const isize,
+    sb: i32,
+    alpha: *const u8,
+    beta: *const u8,
+    team: Option<&OwnedTeam>,
+) -> Result<(), String> {
+    guarded(|| unsafe {
+        let o = Operands::read(p, pd, sa, q, qd, sb)?;
+        let dd = Spec::read(dd)?;
+        with_team(team, |par| match source(dest, dd)? {
+            Borrowed::F32(_) => view_into::<f32>(dest, dd, ds, &o, alpha, beta, par),
+            Borrowed::F64(_) => view_into::<f64>(dest, dd, ds, &o, alpha, beta, par),
+            Borrowed::C32(_) => view_into::<faer::c32>(dest, dd, ds, &o, alpha, beta, par),
+            Borrowed::C64(_) => view_into::<faer::c64>(dest, dd, ds, &o, alpha, beta, par),
+        })
+    })
+}
+
+/// The full matrix of `Symmetric`/`Hermitian(a, uplo)`: only the `lower` (or
+/// upper) stored triangle is read and mirrored, transposed for `Symmetric`
+/// and conjugate-transposed for `Hermitian`, whose diagonal keeps only its
+/// real part (as Julia's `Hermitian` reads it). faer has no self-adjoint
+/// product kernel, so products expand once and then use gemm.
+fn selfadjoint_full<T: ComplexField>(
+    a: MatRef<'_, T>,
+    c: bool,
+    lower: bool,
+    hermitian: bool,
+) -> Result<Mat<T>, String> {
+    let n = a.nrows();
+    if a.ncols() != n {
+        return Err("self-adjoint operand must be square".into());
+    }
+    Ok(Mat::from_fn(n, n, |i, j| {
+        let stored = if lower { i >= j } else { i <= j };
+        let (r, s) = if stored { (i, j) } else { (j, i) };
+        let v = if c {
+            conj(&a[(r, s)])
+        } else {
+            copy(&a[(r, s)])
+        };
+        if !hermitian {
+            v
+        } else if r == s {
+            from_real::<T>(&real(&v))
+        } else if stored {
+            v
+        } else {
+            conj(&v)
+        }
+    }))
+}
+unsafe fn selfadjoint_data(
+    p: *const u8,
+    pd: *const isize,
+    lower: bool,
+    hermitian: bool,
+) -> Result<MatrixData, String> {
+    let s = Spec::read(pd)?;
+    let c = s.conjugate;
+    Ok(match source(p, s)? {
+        Borrowed::F32(a) => MatrixData::F32(selfadjoint_full(a, c, lower, hermitian)?),
+        Borrowed::F64(a) => MatrixData::F64(selfadjoint_full(a, c, lower, hermitian)?),
+        Borrowed::C32(a) => MatrixData::C32(selfadjoint_full(a, c, lower, hermitian)?),
+        Borrowed::C64(a) => MatrixData::C64(selfadjoint_full(a, c, lower, hermitian)?),
+    })
+}
+#[julia]
+impl OwnedMatrix {
+    /// Expand a `Float64` symmetric operand (see [`selfadjoint_full`]).
+    #[julia]
+    pub fn selfadjoint_expand(
+        &mut self,
+        p: *const u8,
+        pd: *const isize,
+        lower: bool,
+        hermitian: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            match unsafe { selfadjoint_data(p, pd, lower, hermitian)? } {
+                MatrixData::F64(x) => self.matrix = x,
+                _ => return Err("Float64 output requires a Float64 operand".into()),
+            }
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    /// Expand a symmetric or Hermitian operand (see [`selfadjoint_full`]).
+    #[julia]
+    pub fn selfadjoint_expand(
+        &mut self,
+        p: *const u8,
+        pd: *const isize,
+        lower: bool,
+        hermitian: bool,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(unsafe { selfadjoint_data(p, pd, lower, hermitian)? });
+            Ok(())
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -623,5 +781,42 @@ mod tests {
                 None,
             )
             .is_err());
+    }
+    #[test]
+    fn view_destination_snapshots_aliased_inputs() {
+        // C = triu(A) * A written into A's own Julia buffer.
+        let mut a = [1.0f64, 2.0, 3.0, 4.0]; // [1 3; 2 4]
+        let ad = raw(2, 2, 1);
+        let (alpha, beta) = (1.0f64, 0.0f64);
+        let ptr = a.as_mut_ptr().cast::<u8>();
+        structured_view_into(
+            ptr,
+            ad.as_ptr(),
+            0,
+            ptr,
+            ad.as_ptr(),
+            2,
+            ptr,
+            ad.as_ptr(),
+            0,
+            (&alpha as *const f64).cast(),
+            (&beta as *const f64).cast(),
+            None,
+        )
+        .unwrap();
+        // [1 3; 0 4] * [1 3; 2 4] = [7 15; 8 16]
+        assert_eq!(a, [7.0, 8.0, 15.0, 16.0]);
+    }
+    #[test]
+    fn hermitian_expansion_mirrors_and_drops_diagonal_imaginary_parts() {
+        let c = |r, i| faer::c64::new(r, i);
+        let a = Mat::from_fn(2, 2, |i, j| c((i + 2 * j) as f64, 1.0 + i as f64));
+        let h = selfadjoint_full(a.as_ref(), false, true, true).unwrap();
+        assert_eq!(h[(0, 0)], c(0.0, 0.0));
+        assert_eq!(h[(1, 0)], c(1.0, 2.0));
+        assert_eq!(h[(0, 1)], c(1.0, -2.0));
+        let s = selfadjoint_full(a.as_ref(), false, false, false).unwrap();
+        assert_eq!(s[(1, 0)], a[(0, 1)]);
+        assert_eq!(s[(1, 1)], a[(1, 1)]);
     }
 }
