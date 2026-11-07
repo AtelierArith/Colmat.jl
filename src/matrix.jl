@@ -57,6 +57,9 @@ const _raw_owner_arguments = (
     (RustCrate.view_assign, (3,)),
     (RustCrate.view_binary, (2, 4)),
     (RustCrate.view_copy, (2,)),
+    (RustCrate.view_dot, (1, 3)),
+    (RustCrate.view_predicate, (1,)),
+    (RustCrate.view_reduce, (1,)),
 )
 function _raw_owner_positions(f)
     for (member, positions) in _raw_owner_arguments

@@ -158,7 +158,12 @@ pub(crate) unsafe fn norm_output<T: ComplexField>(
         }
         2 => {
             if T::IS_REAL {
-                a.norm_max()
+                // faer's real norm_max skips NaN; Julia's normInf propagates it.
+                if a.has_nan() {
+                    nan::<T::Real>()
+                } else {
+                    a.norm_max()
+                }
             } else {
                 (0..a.ncols()).fold(zero::<T::Real>(), |value, j| {
                     (0..a.nrows()).fold(value, |value, i| {
