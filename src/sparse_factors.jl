@@ -19,6 +19,11 @@ factors. Explicit simplicial LU/QR additionally accept `ordering=:colamd` with
 stored pattern and retained by symbolic reuse and numeric updates. AMD tuning
 remains Cholesky-only. Auto/supernodal LU/QR accepts default/COLAMD, identity or custom column ordering.
 COLAMD accepts `dense_row`, `dense_col`, `aggressive`. QR exposes `F.p/F.pcol`.
+
+`scratch=FaerScratch(FaerSparseSymbolic, P; kwargs...)` supplies the ordering
+kernel workspace for Cholesky AMD, wide QR COLAMD and explicit simplicial
+`ordering=:colamd`, with the same analysis as omitting it; see
+`scratch_requirements(FaerSparseSymbolic, P; kwargs...)` for what stays allocated.
 """
 mutable struct FaerSparseSymbolic{K,H}
     handle::Union{Nothing,H}
@@ -83,7 +88,7 @@ function Base.close(f::_SparseNativeFactor)
     return nothing
 end
 LinearAlgebra.issuccess(f::FaerSparseFactorization) = iszero(f.info)
-function FaerSparseSymbolic(
+function _sparse_symbolic_options(
     p::FaerSparsity;
     kind = :lu,
     uplo = :L,
@@ -147,29 +152,96 @@ function FaerSparseSymbolic(
             "ordering must be :default, :amd, :identity, :colamd or a permutation",
         ),
     )
+    return (;
+        kind,
+        code,
+        uplo,
+        ordering,
+        threshold,
+        aggressive,
+        algo,
+        row,
+        col,
+        use_colamd,
+        custom,
+        ordercode,
+    )
+end
+function _sparse_symbolic_requirements(p::FaerSparsity, o)
+    o.use_colamd && return _ordering_requirements(p, size(p), false)
+    info=zeros(UInt, 2)
+    GC.@preserve info _native_call(
+        RustCrate.sparse_analysis_requirements,
+        p,
+        UInt(size(p, 1)),
+        UInt(size(p, 2)),
+        Int32(o.code),
+        Int32(o.ordercode),
+        Int32(o.algo),
+        pointer(info),
+    )
+    return (bytes = Int(info[1]), alignment = Int(info[2]))
+end
+function FaerSparseSymbolic(p::FaerSparsity; scratch = nothing, kwargs...)
+    o=_sparse_symbolic_options(p; kwargs...)
+    isnothing(scratch) ||
+        scratch isa FaerScratch ||
+        throw(ArgumentError("scratch must be a FaerScratch"))
+    kind, uplo, row, col=o.kind, o.uplo, o.row, o.col
     lock(_matrix_lock) do
-        perm=use_colamd ? colamd(p; dense_row = row, dense_col = col, aggressive) :
-             custom ? _as_permutation(ordering) : Ptr{UInt8}(C_NULL)
-        try
-            custom && _check_permutation(p, perm, true)
-            h=RustCrate.SparseSymbolic()
-            _native_call(
-                RustCrate.sparse_analyze,
-                h,
-                p,
-                Int32(code),
-                uplo===:L,
-                Int32(ordercode),
-                perm,
-                threshold,
-                aggressive,
-                Int32(algo),
-                row,
-                col,
+        _handle(p)
+        if !isnothing(scratch)
+            req=_sparse_symbolic_requirements(p, o)
+            cap=scratch_capacity(scratch)
+            cap.bytes>=req.bytes&&cap.alignment>=req.alignment || throw(
+                ArgumentError(
+                    "insufficient symbolic analysis scratch; call reserve!(scratch, FaerSparseSymbolic, A; kwargs...)",
+                ),
             )
+        end
+        perm=o.use_colamd ?
+             colamd(p; dense_row = row, dense_col = col, o.aggressive, scratch) :
+             o.custom ? _as_permutation(o.ordering) : Ptr{UInt8}(C_NULL)
+        try
+            o.custom && _check_permutation(p, perm, true)
+            h=RustCrate.SparseSymbolic()
+            if isnothing(scratch) || o.use_colamd
+                _native_call(
+                    RustCrate.sparse_analyze,
+                    h,
+                    p,
+                    Int32(o.code),
+                    uplo===:L,
+                    Int32(o.ordercode),
+                    perm,
+                    o.threshold,
+                    o.aggressive,
+                    Int32(o.algo),
+                    row,
+                    col,
+                )
+            else
+                _native_call(
+                    RustCrate.sparse_analyze_workspace,
+                    h,
+                    p,
+                    scratch,
+                    UInt(size(p, 1)),
+                    UInt(size(p, 2)),
+                    Int32(o.code),
+                    uplo===:L,
+                    Int32(o.ordercode),
+                    perm,
+                    o.threshold,
+                    o.aggressive,
+                    Int32(o.algo),
+                    row,
+                    col,
+                )
+            end
             return FaerSparseSymbolic{kind,typeof(h)}(h, size(p), uplo)
         finally
-            use_colamd && close(perm)
+            o.use_colamd && close(perm)
         end
     end
 end
