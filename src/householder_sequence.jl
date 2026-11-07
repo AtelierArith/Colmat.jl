@@ -255,7 +255,7 @@ function Base.getindex(q::FaerHouseholderSequence{T}, i::Int, j::Int) where {T}
         return (q*unit)[i]
     end
 end
-function _householder_coerce(q::FaerHouseholderSequence{T}, ::Type{T}) where {T}
+function _householder_coerce(q::FaerHouseholderSequence{T}, ::Type{T}) where {T<:_NativeScalar}
     _handle(q)
     return q
 end

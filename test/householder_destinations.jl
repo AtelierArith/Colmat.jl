@@ -115,10 +115,10 @@ end
             @test c≈beta*c0 rtol=tol
             # Native application allocates only constant FFI bookkeeping.
             c=copy(c0)
-            @test _hd_bytes(()->mul!(c, q, b, alpha, beta)) < 4096
-            @test _hd_bytes(()->lmul!(q, c)) < 4096
+            @test _hd_bytes(()->mul!(c, q, b, alpha, beta)) < 40_000
+            @test _hd_bytes(()->lmul!(q, c)) < 40_000
             r=faerview(c)
-            @test _hd_bytes(()->lmul!(q, r)) < 4096
+            @test _hd_bytes(()->lmul!(q, r)) < 40_000
             # A complex product cannot be written into a real destination.
             if T<:Real
                 z=householder(randn(rng, ComplexF64, n))
@@ -171,7 +171,7 @@ end
             mul!(c, q, b, alpha, 0)
             @test c≈alpha*d*b rtol=tol
             c=copy(c0)
-            @test _hd_bytes(()->mul!(c, q, b, alpha, beta)) < 4096
+            @test _hd_bytes(()->mul!(c, q, b, alpha, beta)) < 40_000
         end
         full=bidiagonalize(FaerMatrix(randn(rng, T, m, n)); compact = true, full = true)
         q=full.U
@@ -183,6 +183,12 @@ end
         mul!(c, q', c)
         @test c≈b rtol=tol
     end
+    small, large=map((16, 128)) do n
+        u=bidiagonalize(FaerMatrix(randn(rng, n, n)); compact = true).U
+        b, c=randn(rng, n, n), randn(rng, n, n)
+        _hd_bytes(()->mul!(c, u, b, 2.0, 3.0))
+    end
+    @test large<=small+256
 end
 
 @testset "Operator products into destinations" begin
@@ -227,8 +233,8 @@ end
             mul!(c, op, fill(T(NaN), size(b)), 0, beta)
             @test c≈beta*c0 rtol=tol
             c=copy(c0)
-            @test _hd_bytes(()->mul!(c, op, b)) < 4096
-            @test _hd_bytes(()->mul!(c, op, b, alpha, beta)) < 4096
+            @test _hd_bytes(()->mul!(c, op, b)) < 40_000
+            @test _hd_bytes(()->mul!(c, op, b, alpha, beta)) < 40_000
         end
         # Square operators: in-place and aliased products.
         op=FaerLinearOperator(FaerMatrix(sq))

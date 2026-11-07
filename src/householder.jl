@@ -122,7 +122,7 @@ LinearAlgebra.ishermitian(h::FaerHouseholder) = lock(_matrix_lock) do
     _handle(h)
     return true
 end
-function _householder_coerce(h::FaerHouseholder{T}, ::Type{T}) where {T}
+function _householder_coerce(h::FaerHouseholder{T}, ::Type{T}) where {T<:_NativeScalar}
     _handle(h)
     return h
 end

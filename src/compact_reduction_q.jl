@@ -110,7 +110,7 @@ function Base.getindex(q::AbstractFaerCompactQ{T}, i::Int, j::Int) where {T}
         return (q*x)[i]
     end
 end
-function _householder_coerce(q::AbstractFaerCompactQ{T}, ::Type{T}) where {T}
+function _householder_coerce(q::AbstractFaerCompactQ{T}, ::Type{T}) where {T<:_NativeScalar}
     _compact_q_validate(q)
     return q
 end
