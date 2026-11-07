@@ -1,6 +1,7 @@
 //! Saved Schur reordering with caller stack and checked owner references.
 use super::construction::buffer;
 use super::{reordered_in, SchurScalar};
+use crate::teams::with_team;
 use crate::{
     guarded,
     teams::OwnedTeam,
@@ -36,20 +37,17 @@ fn query(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
     Ok(())
 }
 #[julia]
-pub fn schur_reorder_requirements(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
-    guarded(|| query(n, tag, out))
-}
-#[julia]
-pub fn schur_reorder_team_requirements(
-    team: &OwnedTeam,
+pub fn schur_reorder_requirements(
     n: usize,
     tag: i32,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
     // Selected faer reorder kernels accept, but currently ignore, the token.
     // Their declared requirement depends only on n and scalar, not team width.
-    guarded(|| team.execute(|_| query(n, tag, out))?)
+    guarded(|| with_team(team, |_| query(n, tag, out)))
 }
+
 fn run<T: SchurScalar>(
     t: MatRef<'_, T>,
     q: MatRef<'_, T>,
@@ -101,40 +99,7 @@ impl OwnedMatrix {
         n: usize,
         values: *mut u8,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            if tag != 1 {
-                return Err("Schur requested scalar type does not match its native owner".into());
-            }
-            let mut execute = |par: Par<'_>| {
-                run(
-                    t.matrix.as_ref(),
-                    q.matrix.as_ref(),
-                    work,
-                    select,
-                    n,
-                    values,
-                    par,
-                )
-            };
-            let (h, z) = execute(Par::Seq)?;
-            self.matrix = h;
-            out_q.matrix = z;
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn schur_reorder_workspace_team(
-        &mut self,
-        t: &OwnedMatrix,
-        q: &OwnedMatrix,
-        out_q: &mut OwnedMatrix,
-        work: &mut OwnedScratch,
-        select: *const u8,
-        n: usize,
-        values: *mut u8,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             if tag != 1 {
@@ -151,7 +116,7 @@ impl OwnedMatrix {
                     par,
                 )
             };
-            let (h, z) = team.execute(execute)??;
+            let (h, z) = with_team(team, execute)?;
             self.matrix = h;
             out_q.matrix = z;
             Ok(())
@@ -171,46 +136,14 @@ impl TypedMatrix {
         n: usize,
         values: *mut u8,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            macro_rules! one {
-                ($t:expr,$q:expr,$variant:ident) => {{
-                    let mut execute =
-                        |par: Par<'_>| run($t.as_ref(), $q.as_ref(), work, select, n, values, par);
-                    let (h, z) = execute(Par::Seq)?;
-                    self.data = Some(MatrixData::$variant(h));
-                    out_q.data = Some(MatrixData::$variant(z));
-                }};
-            }
-            match (t.data()?, q.data()?) {
-                (MatrixData::F32(t), MatrixData::F32(q)) if tag == 0 => one!(t, q, F32),
-                (MatrixData::F64(t), MatrixData::F64(q)) if tag == 1 => one!(t, q, F64),
-                (MatrixData::C32(t), MatrixData::C32(q)) if tag == 2 => one!(t, q, C32),
-                (MatrixData::C64(t), MatrixData::C64(q)) if tag == 3 => one!(t, q, C64),
-                _ => return Err("Schur scalar types must match the requested scalar type".into()),
-            }
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn schur_reorder_workspace_team(
-        &mut self,
-        t: &TypedMatrix,
-        q: &TypedMatrix,
-        out_q: &mut TypedMatrix,
-        work: &mut OwnedScratch,
-        select: *const u8,
-        n: usize,
-        values: *mut u8,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             macro_rules! one {
                 ($t:expr,$q:expr,$variant:ident) => {{
                     let execute =
                         |par: Par<'_>| run($t.as_ref(), $q.as_ref(), work, select, n, values, par);
-                    let (h, z) = team.execute(execute)??;
+                    let (h, z) = with_team(team, execute)?;
                     self.data = Some(MatrixData::$variant(h));
                     out_q.data = Some(MatrixData::$variant(z));
                 }};
@@ -260,7 +193,8 @@ mod tests {
                 flags.as_ptr(),
                 2,
                 values.as_mut_ptr().cast(),
-                1
+                1,
+                None
             )
             .is_err());
         work.scratch_reserve(req.size_bytes(), req.align_bytes())
@@ -278,7 +212,7 @@ mod tests {
             ),
         ] {
             assert!(out
-                .schur_reorder_workspace(&t, &q, &mut out_q, &mut work, select, n, ptr, tag)
+                .schur_reorder_workspace(&t, &q, &mut out_q, &mut work, select, n, ptr, tag, None)
                 .is_err());
         }
         let invalid = [0u8, 2];
@@ -291,7 +225,8 @@ mod tests {
                 invalid.as_ptr(),
                 2,
                 values.as_mut_ptr().cast(),
-                1
+                1,
+                None
             )
             .is_err());
         let overlap = out
@@ -304,12 +239,13 @@ mod tests {
                 2,
                 values.as_mut_ptr().cast(),
                 1,
+                None,
             )
             .unwrap_err();
         assert!(overlap.contains("overlap"));
         let team = OwnedTeam::new();
         assert!(out
-            .schur_reorder_workspace_team(
+            .schur_reorder_workspace(
                 &t,
                 &q,
                 &mut out_q,
@@ -318,13 +254,13 @@ mod tests {
                 2,
                 values.as_mut_ptr().cast(),
                 1,
-                &team
+                Some(&team)
             )
             .is_err());
         assert_eq!(out.matrix, Mat::<f64>::full(2, 2, 42.0));
         assert_eq!(out_q.matrix, Mat::<f64>::full(2, 2, 43.0));
         assert_eq!(values, [c64::new(44.0, 0.0); 2]);
-        assert!(schur_reorder_requirements(2, 1, core::ptr::null_mut()).is_err());
+        assert!(schur_reorder_requirements(2, 1, core::ptr::null_mut(), None).is_err());
     }
     fn allocations<T: SchurScalar>(mut par: Par) {
         let n = 6;

@@ -1,6 +1,7 @@
 //! QR iteration on a saved Hessenberg matrix with an owned identity initial Z.
 //! Separate entrypoints keep the legacy stage0/1/2 contract unchanged.
 use super::{construction, reduced_with_initial, SchurScalar};
+use crate::teams::with_team;
 use crate::{
     guarded,
     teams::OwnedTeam,
@@ -41,35 +42,7 @@ impl OwnedMatrix {
         values: *mut u8,
         n: usize,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let mut execute = |par: Par| -> Result<(Mat<f64>, Mat<f64>), String> {
-                if tag != 1 {
-                    return Err("Schur requested scalar does not match native owner".into());
-                }
-                let (h, z) = run(a.matrix.as_ref(), work, values, n, par)?;
-                Ok((h, z))
-            };
-            let (h, z) = execute(Par::Seq)?;
-            self.matrix = h;
-            out_q.matrix = z;
-            Ok(())
-        })
-    }
-}
-
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn schur_identity_workspace_team(
-        &mut self,
-        a: &OwnedMatrix,
-        out_q: &mut OwnedMatrix,
-        work: &mut OwnedScratch,
-        values: *mut u8,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             let execute = |par: Par| -> Result<(Mat<f64>, Mat<f64>), String> {
@@ -79,13 +52,16 @@ impl OwnedMatrix {
                 let (h, z) = run(a.matrix.as_ref(), work, values, n, par)?;
                 Ok((h, z))
             };
-            let (h, z) = team.execute(execute)??;
+            let (h, z) = with_team(team, execute)?;
             self.matrix = h;
             out_q.matrix = z;
             Ok(())
         })
     }
 }
+
+#[julia]
+impl OwnedMatrix {}
 
 #[julia]
 impl TypedMatrix {
@@ -98,9 +74,10 @@ impl TypedMatrix {
         values: *mut u8,
         n: usize,
         tag: i32,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let mut execute = |par: Par| match (a.data()?, tag) {
+            let execute = |par: Par| match (a.data()?, tag) {
                 (MatrixData::F32(a), 0) => {
                     let (h, z) = run::<f32>(a.as_ref(), work, values, n, par)?;
                     Ok::<_, String>((MatrixData::F32(h), MatrixData::F32(z)))
@@ -119,7 +96,7 @@ impl TypedMatrix {
                 }
                 _ => Err("Schur requested scalar does not match native owner".into()),
             };
-            let (h, z) = execute(Par::Seq)?;
+            let (h, z) = with_team(team, execute)?;
             self.data = Some(h);
             out_q.data = Some(z);
             Ok(())
@@ -188,7 +165,15 @@ mod tests {
         // Invalid lower bandwidth is rejected after all output capacities are
         // checked, without replacing either matrix or publishing eigenvalues.
         assert!(out
-            .schur_identity_workspace(&source, &mut q, &mut work, values.as_mut_ptr().cast(), 3, 1)
+            .schur_identity_workspace(
+                &source,
+                &mut q,
+                &mut work,
+                values.as_mut_ptr().cast(),
+                3,
+                1,
+                None
+            )
             .is_err());
         assert_eq!(out.matrix, Mat::full(3, 3, 71.0));
         assert_eq!(q.matrix, Mat::full(3, 3, 72.0));
@@ -202,7 +187,8 @@ mod tests {
                     &mut work,
                     values.as_mut_ptr().cast(),
                     n,
-                    tag
+                    tag,
+                    None
                 )
                 .is_err());
             assert_eq!(out.matrix, Mat::full(3, 3, 71.0));
@@ -211,49 +197,19 @@ mod tests {
         }
         source.matrix[(0, 0)] = f64::NAN;
         assert!(out
-            .schur_identity_workspace(&source, &mut q, &mut work, values.as_mut_ptr().cast(), 3, 1)
+            .schur_identity_workspace(
+                &source,
+                &mut q,
+                &mut work,
+                values.as_mut_ptr().cast(),
+                3,
+                1,
+                None
+            )
             .is_err());
         assert_eq!(values, [c64::new(73.0, 0.0); 3]);
     }
 }
 
 #[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn schur_identity_workspace_team(
-        &mut self,
-        a: &TypedMatrix,
-        out_q: &mut TypedMatrix,
-        work: &mut OwnedScratch,
-        values: *mut u8,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let execute = |par: Par| match (a.data()?, tag) {
-                (MatrixData::F32(a), 0) => {
-                    let (h, z) = run::<f32>(a.as_ref(), work, values, n, par)?;
-                    Ok::<_, String>((MatrixData::F32(h), MatrixData::F32(z)))
-                }
-                (MatrixData::F64(a), 1) => {
-                    let (h, z) = run::<f64>(a.as_ref(), work, values, n, par)?;
-                    Ok::<_, String>((MatrixData::F64(h), MatrixData::F64(z)))
-                }
-                (MatrixData::C32(a), 2) => {
-                    let (h, z) = run::<faer::c32>(a.as_ref(), work, values, n, par)?;
-                    Ok::<_, String>((MatrixData::C32(h), MatrixData::C32(z)))
-                }
-                (MatrixData::C64(a), 3) => {
-                    let (h, z) = run::<faer::c64>(a.as_ref(), work, values, n, par)?;
-                    Ok::<_, String>((MatrixData::C64(h), MatrixData::C64(z)))
-                }
-                _ => Err("Schur requested scalar does not match native owner".into()),
-            };
-            let (h, z) = team.execute(execute)??;
-            self.data = Some(h);
-            out_q.data = Some(z);
-            Ok(())
-        })
-    }
-}
+impl TypedMatrix {}

@@ -117,9 +117,8 @@ function _qz_native_result(
                 UInt(n),
                 _tag(T),
             )
-            call=isnothing(team) ? RustCrate.qz_construction_workspace :
-                 RustCrate.qz_construction_workspace_team
-            argv=isnothing(team) ? args : (args..., team)
+            call=RustCrate.qz_construction_workspace
+            argv=(args..., team)
             T===Float64 ? _matrix_result(call, (n, n), argv...) :
             _typed_result(T, call, (n, n), argv...)
         end

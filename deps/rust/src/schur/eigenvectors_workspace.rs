@@ -1,6 +1,7 @@
 //! Declared kernel workspace for right eigenvectors of saved Schur factors.
 use super::construction::buffer;
 use super::{validate, SchurScalar};
+use crate::teams::with_team;
 use crate::{
     guarded,
     teams::OwnedTeam,
@@ -134,18 +135,15 @@ fn query(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
     Ok(())
 }
 #[julia]
-pub fn schur_eigenvectors_requirements(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
-    guarded(|| query(n, tag, out))
-}
-#[julia]
-pub fn schur_eigenvectors_team_requirements(
-    team: &OwnedTeam,
+pub fn schur_eigenvectors_requirements(
     n: usize,
     tag: i32,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| team.execute(|_| query(n, tag, out))?)
+    guarded(|| with_team(team, |_| query(n, tag, out)))
 }
+
 fn run<T: SavedEigen>(
     t: MatRef<'_, T>,
     q: MatRef<'_, T>,
@@ -170,38 +168,19 @@ impl TypedMatrix {
         work: &mut OwnedScratch,
         n: usize,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            if tag != 1 {
-                return Err("Schur requested scalar type does not match its native owner".into());
-            }
-            let mut execute =
-                |par: Par<'_>| run(t.matrix.as_ref(), q.matrix.as_ref(), work, n, par);
-            let out = execute(Par::Seq)?;
-            self.data = Some(MatrixData::C64(out));
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn schur_eigenvectors_owned_workspace_team(
-        &mut self,
-        t: &OwnedMatrix,
-        q: &OwnedMatrix,
-        work: &mut OwnedScratch,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             if tag != 1 {
                 return Err("Schur requested scalar type does not match its native owner".into());
             }
             let execute = |par: Par<'_>| run(t.matrix.as_ref(), q.matrix.as_ref(), work, n, par);
-            let out = team.execute(execute)??;
+            let out = with_team(team, execute)?;
             self.data = Some(MatrixData::C64(out));
             Ok(())
         })
     }
+
     #[julia]
     pub fn schur_eigenvectors_typed_workspace(
         &mut self,
@@ -210,40 +189,13 @@ impl TypedMatrix {
         work: &mut OwnedScratch,
         n: usize,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            macro_rules! one {
-                ($t:expr,$q:expr,$out:ident) => {{
-                    let mut execute = |par: Par<'_>| run($t.as_ref(), $q.as_ref(), work, n, par);
-                    let out = execute(Par::Seq)?;
-                    self.data = Some(MatrixData::$out(out));
-                }};
-            }
-            match (t.data()?, q.data()?) {
-                (MatrixData::F32(t), MatrixData::F32(q)) if tag == 0 => one!(t, q, C32),
-                (MatrixData::F64(t), MatrixData::F64(q)) if tag == 1 => one!(t, q, C64),
-                (MatrixData::C32(t), MatrixData::C32(q)) if tag == 2 => one!(t, q, C32),
-                (MatrixData::C64(t), MatrixData::C64(q)) if tag == 3 => one!(t, q, C64),
-                _ => return Err("Schur scalar types must match the requested scalar type".into()),
-            }
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn schur_eigenvectors_typed_workspace_team(
-        &mut self,
-        t: &TypedMatrix,
-        q: &TypedMatrix,
-        work: &mut OwnedScratch,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             macro_rules! one {
                 ($t:expr,$q:expr,$out:ident) => {{
                     let execute = |par: Par<'_>| run($t.as_ref(), $q.as_ref(), work, n, par);
-                    let out = team.execute(execute)??;
+                    let out = with_team(team, execute)?;
                     self.data = Some(MatrixData::$out(out));
                 }};
             }
@@ -279,29 +231,29 @@ mod tests {
         w.scratch_reserve(req.size_bytes() - 1, req.align_bytes())
             .unwrap();
         assert!(out
-            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 2, 1)
+            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 2, 1, None)
             .is_err());
         w.scratch_reserve(req.size_bytes(), req.align_bytes())
             .unwrap();
         assert!(out
-            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 3, 1)
+            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 3, 1, None)
             .is_err());
         assert!(out
-            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 2, 0)
+            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 2, 0, None)
             .is_err());
         let team = OwnedTeam::new();
         assert!(out
-            .schur_eigenvectors_owned_workspace_team(&t, &q, &mut w, 2, 1, &team)
+            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 2, 1, Some(&team))
             .is_err());
         w.scratch_close().unwrap();
         assert!(out
-            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 2, 1)
+            .schur_eigenvectors_owned_workspace(&t, &q, &mut w, 2, 1, None)
             .is_err());
         match out.data().unwrap() {
             MatrixData::C64(m) => assert_eq!(m, &Mat::<c64>::full(2, 2, c64::new(42.0, 0.0))),
             _ => panic!("output scalar changed"),
         }
-        assert!(schur_eigenvectors_requirements(2, 1, core::ptr::null_mut()).is_err());
+        assert!(schur_eigenvectors_requirements(2, 1, core::ptr::null_mut(), None).is_err());
     }
     fn allocation_probe<T: SavedEigen>(mut par: Par) {
         let n = 6;
