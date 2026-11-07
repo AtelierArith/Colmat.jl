@@ -31,25 +31,26 @@ fn rank<T: ComplexField>(f: &ColPivQr<T>, atol: f64, rtol: f64) -> usize {
     let tol = if atol > scaled { atol } else { scaled };
     (0..k).find(|&i| abs(&r[(i, i)]) <= tol).unwrap_or(k)
 }
-/// Minimum-norm solution of the rank-`r` truncated problem and `r`.
+/// Minimum-norm solution of the problem truncated to the leading `r` rows of
+/// R. The caller chooses `r` with `rank`, so every tolerance form shares one cutoff.
 fn truncated_solve<T: ComplexField>(
     f: &ColPivQr<T>,
     b: MatRef<'_, T>,
-    rcond: f64,
+    r: usize,
     mut par: Par<'_>,
-) -> Result<(Mat<T>, usize), String> {
+) -> Result<Mat<T>, String> {
     let (m, n) = (f.nrows(), f.ncols());
     if b.nrows() != m {
         return Err("solve dimensions mismatch".into());
     }
-    if !(rcond >= 0.0) {
-        return Err("rcond must be nonnegative".into());
+    if r > m.min(n) {
+        return Err("truncation rank exceeds min(size(F))".into());
     }
+    crate::typed::finite(b)?;
     let k = b.ncols();
-    let r = rank(f, 0.0, rcond);
     let mut x = Mat::<T>::zeros(n, k);
     if r == 0 || k == 0 {
-        return Ok((x, r));
+        return Ok(x);
     }
     let mut c = b.to_owned();
     let (basis, coeff) = (f.Q_basis(), f.Q_coeff());
@@ -86,7 +87,7 @@ fn truncated_solve<T: ComplexField>(
             x[(forward[i], j)] = copy(&z[(i, j)]);
         }
     }
-    Ok((x, r))
+    Ok(x)
 }
 fn owned(f: &OwnedFactor) -> Result<&ColPivQr<f64>, String> {
     match f.get()? {
@@ -122,21 +123,20 @@ impl TypedFactor {
 }
 #[julia]
 impl OwnedMatrix {
-    /// Writes the truncated solution into `self` and returns the rank.
+    /// Writes the solution truncated to the leading `rank` rows of R into `self`.
     #[julia]
     pub fn pivoted_qr_truncated_solve(
         &mut self,
         f: &OwnedFactor,
         rhs: &OwnedMatrix,
-        rcond: f64,
+        rank: usize,
         team: Option<&OwnedTeam>,
-    ) -> Result<usize, String> {
+    ) -> Result<(), String> {
         guarded(|| {
-            let (x, r) = with_team(team, |par| {
-                truncated_solve(owned(f)?, rhs.matrix.as_ref(), rcond, par)
+            self.matrix = with_team(team, |par| {
+                truncated_solve(owned(f)?, rhs.matrix.as_ref(), rank, par)
             })?;
-            self.matrix = x;
-            Ok(r)
+            Ok(())
         })
     }
 }
@@ -147,19 +147,18 @@ impl TypedMatrix {
         &mut self,
         f: &TypedFactor,
         rhs: &TypedMatrix,
-        rcond: f64,
+        rank: usize,
         team: Option<&OwnedTeam>,
-    ) -> Result<usize, String> {
+    ) -> Result<(), String> {
         guarded(|| {
             macro_rules! go {
                 ($x:expr, $V:ident) => {{
                     let MatrixData::$V(b) = rhs.data()? else {
                         return Err("factor and right-hand side scalar types must match".into());
                     };
-                    let (x, r) =
-                        with_team(team, |par| truncated_solve($x, b.as_ref(), rcond, par))?;
+                    let x = with_team(team, |par| truncated_solve($x, b.as_ref(), rank, par))?;
                     self.data = Some(MatrixData::$V(x));
-                    Ok(r)
+                    Ok(())
                 }};
             }
             match f.data()? {
@@ -191,14 +190,18 @@ mod tests {
         assert_eq!(rank(&f, 0.0, 3.0 * f64::EPSILON), 2);
         assert_eq!(rank(&f, 1e3, 0.0), 0);
         let b = Mat::from_fn(4, 1, |i, _| (i + 1) as f64);
-        let (x, r) = truncated_solve(&f, b.as_ref(), 1e-10, Par::Seq).unwrap();
+        let r = rank(&f, 0.0, 1e-10);
         assert_eq!(r, 2);
+        let x = truncated_solve(&f, b.as_ref(), r, Par::Seq).unwrap();
         // The minimum-norm solution satisfies the normal equations and lies in
         // the row space: x1 and x2 are proportional to (1, 2).
         let res = &a * &x - &b;
         let g = a.transpose() * res;
         assert!(g.norm_max() < 1e-10);
         assert!((x[(1, 0)] - 2.0 * x[(0, 0)]).abs() < 1e-10);
-        assert!(truncated_solve(&f, b.as_ref(), -1.0, Par::Seq).is_err());
+        assert!(truncated_solve(&f, b.as_ref(), 4, Par::Seq).is_err());
+        let mut bad = b.clone();
+        bad[(0, 0)] = f64::INFINITY;
+        assert!(truncated_solve(&f, bad.as_ref(), r, Par::Seq).is_err());
     }
 }
