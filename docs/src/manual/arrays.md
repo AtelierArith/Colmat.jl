@@ -496,8 +496,8 @@ t4a-faer の `fx128`／`cx128`（`qd::Quad`、2つの f64 による double-doubl
 `size`、`axes`、インデックスによる読み書き、`similar`、`fill!`、`copy`、
 `deepcopy`、ブロードキャストにも対応します。`A'` / `transpose(A)` は Julia の
 遅延ラッパーで、`copy(A')` は Rust 側で転置行列を作ります。ブロードキャスト・
-`map`・連結は次節の一括経路を使います。それ以外の汎用の配列演算（`collect`、
-反復、Julia 配列が先頭の `map` 等）は要素ごとに FFI を呼ぶ場合があります。
+`map`・連結・`foreach`・`mapreduce` は次節の一括経路を使います。それ以外の汎用の
+配列演算（`collect`、`for` による反復等）は要素ごとに FFI を呼ぶ場合があります。
 
 ### 密配列全体の broadcast・`map`・連結
 
@@ -532,7 +532,10 @@ D = [A B; B A]                 # hvcat も一括で FaerMatrix
 - それ以外は Julia の結果をそのまま返します（比較の `BitMatrix`、
   `Int`／`BigFloat` 等の配列、3次元以上の配列、`SparseMatrixCSC` との積の疎行列等）。
 - `FaerSparseMatrix` を含む式は疎行列の規約に従います（[疎行列](sparse.md)）。
-  `FaerDiagonal` 自体は対象外で、混在時は通常の要素アクセスで読みます。
+  `FaerDiagonal` は格納要素を1回読んだ `Diagonal` として扱い、Julia が対角のまま
+  返す結果（`D .* 2`・`abs.(D)`・`D .* D`）は `FaerDiagonal`、それ以外（`D .+ 1`・
+  `D .+ A`）は密な native owner です。`D .= 式` は `Diagonal` の作業領域で計算し
+  （非零の非対角要素は書き込み前に例外）、格納要素を1回で書き戻します。
 - 借用配列だけの broadcast は従来どおり Julia 配列を返します。
 
 同じ形状・同じ数値型の `FaerMatrix` 同士の `A .+ B`／`A .- B` と、実数行列の
@@ -550,12 +553,51 @@ Julia 配列からの `dest .= B` は直接の一括 `copyto!` です（他の�
 `materialize!` で書き込み、借用配列は親配列として別名解析されます。
 
 `map(f, A, Bs...)`／`map!(f, dest, A, Bs...)` は、最初の配列（`map!` では出力先）が
-native の場合に同じ転送を行い、Julia の `map` を実行します。`hcat`・`vcat`・
-`hvcat`（`[A B; C D]` 形式のリテラル）・`cat(...; dims)` は、最初の引数が native の
-場合に全引数を一括転送して Julia のアルゴリズムで連結し、`vcat` によるベクトル
-同士の連結は `FaerVector`、全 native 引数が `FaerRow` の1行結果は `FaerRow`、
-それ以外の2次元結果は `FaerMatrix`、3次元以上は Julia 配列を返します。Julia 配列が
-先頭の呼び出しは Base／SparseArrays の経路のままです。
+native の場合に同じ転送を行い、Julia の `map` を実行します。Julia 配列の後に native
+配列が続く `map(f, J, A)`（native より前の Julia 配列は3個まで）と、Julia 配列が
+出力先の `map!(f, J, A)` も同じ経路です。
+
+`hcat`・`vcat`・`hvcat`（`[A B; C D]`）・`hvncat`（`[A;; B]`、`[A;;; B]`）・
+`cat(...; dims)` と型指定リテラル（`T[A B]`・`T[A; B]`・`T[A B; C D]`・`T[A;; B]`）は、
+どの位置の引数が native でも全 native 引数を1回ずつ一括転送し、Julia／SparseArrays の
+アルゴリズムで連結します。
+
+```julia
+J = [5.0 6; 7 8]
+hcat(J, A)                # FaerMatrix（Julia 配列が先頭でも native）
+[J A; A J]                # FaerMatrix
+vcat(1.0, v)              # FaerVector（スカラーが先頭）
+ComplexF64[J A]           # FaerMatrix{ComplexF64}
+Int[J round.(Int, J)]     # Int は native 型ではないため Matrix{Int}
+[A;;; J]                  # 3次元の結果は Array{Float64,3}
+S = FaerSparseMatrix(sparse([1.0 0; 0 2]))
+[S J; A S]                # FaerSparseMatrix（CSC）
+reduce(hcat, [v, v])      # FaerMatrix
+```
+
+結果の規約は broadcast と同じで、`vcat` によるベクトル同士の連結は `FaerVector`、
+全 native 引数が `FaerRow` の1行結果は `FaerRow`、それ以外の native 型の2次元結果は
+`FaerMatrix`、3次元以上や native 型以外（`Int`・`BigFloat` 等）は Julia 配列です。
+疎行列は SparseArrays の規約（疎行列を含む `hcat`／`vcat`／`hvcat` は疎行列）に従い、
+`FaerSparseMatrix` が含まれる疎の結果は CSC の `FaerSparseMatrix` になります。Julia の
+`SparseMatrixCSC` と native 密配列だけの連結は、broadcast と同じく `SparseMatrixCSC` の
+ままです。借用配列（`faerview`）や Julia 配列だけの連結は Base／SparseArrays の結果の
+ままです。
+
+native 引数より前に置ける引数は、スカラー・`Array`・`BitArray`・範囲・Julia 配列の
+`SubArray`／`'`／`transpose`・`SparseMatrixCSC`・`SparseVector`・借用配列で、15個まで
+（4×4 のブロックリテラルの全位置）です。これ以外の型（`Diagonal`・`UniformScaling`
+等）の後に native 引数が来る場合や16個目以降の場合は、従来の要素単位の Base 経路で
+正しい結果を返します。`reduce(hcat, vs)`／`reduce(vcat, vs)` は、要素型が native の
+ベクトルでは Base の一括経路で native owner を返し、Julia 配列との混在ベクトルでは
+上記の2引数連結の繰り返しになります。
+
+`foreach(f, A, Bs...)` は、`A`（native 密配列またはその `'`／`transpose`）と他の
+native 引数を反復前に1回ずつ一括転送します。`f` が反復中に `A` を変更しても反復する
+値は呼び出し時点のものです。`mapreduce(f, op, A; dims, init)`（`sum(f, A)`・
+`prod(f, A)`・`maximum(f, A)`・`minimum(f, A)` を含む）も1回の転送の後に Julia の
+`mapreduce` を実行し、`dims` 付きの native 型の結果は native owner です。`sum(A)` や
+`sum(abs2, A)` 等の既存の native リダクションはそのままです。
 
 faer の `mat!`／`row!`／`col!`・`concat!`・`zip!`／`unzip!` マクロは Rust の
 コンパイル時構文で、Julia には移植しません。それぞれ配列リテラルからの構築
@@ -566,7 +608,13 @@ faer の `mat!`／`row!`／`col!`・`concat!`・`zip!`／`unzip!` マクロは R
 
 200×200 の `Float64` で、Julia ヒープの割り当ては `sin.(A)` が約 52 MB から約 0.66 MB、
 `hcat(A, B)` が約 218 MB から約 1.3 MB、`A .+ B` が約 103 MB から 2 KB 未満、
-`A .+= B` が約 161 MB から約 3 KB になりました。一般経路で残る割り当ては入力の
+`A .+= B` が約 161 MB から約 3 KB になりました。Julia 配列が先頭の連結や `map` も、
+`hcat(J, A)` が約 93 MB から約 1 MB、`[J A; A J]` が約 187 MB から約 1.6 MB、
+`Float64[A J; J A]` が約 582 MB から約 1.6 MB、`[A;; J]` が約 297 MB から約 1 MB、
+`map(+, J, A)` が約 96 MB から約 0.7 MB、`hcat(S, A)`（`FaerSparseMatrix` と
+`FaerMatrix`）が約 95 MB から約 3.2 MB、`foreach(f, A)` と `sum(abs2, A)` が約 93 MB
+から約 0.3 MB、`D .* 2`（`FaerDiagonal`）が約 0.8 MB の `Matrix` から 10 KB 程度の
+`FaerDiagonal` になりました。一般経路で残る割り当ては入力の
 転送と結果の作業配列で、出力 owner は Rust 側に確保します。
 
 RustCall の所有ハンドルにより、GC 時に Rust の行列も解放されます。
