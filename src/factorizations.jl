@@ -306,7 +306,7 @@ LinearAlgebra.factorize(a::FaerMatrix{Float64}; team = nothing) =
 
 function LinearAlgebra.logabsdet(f::FaerFactorization{Float64})
     out=Vector{Float64}(undef, 2)
-    GC.@preserve out _native_call(RustCrate.logabsdet_buffer, f, pointer(out))
+    GC.@preserve out _native_call(RustCrate.logabsdet_buffer, f, out)
     return (out[1], out[2])
 end
 function LinearAlgebra.det(f::FaerFactorization{Float64})

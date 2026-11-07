@@ -43,15 +43,33 @@ unsafe fn output(value: MatRef<'_, f64>, ptr: *mut f64) {
     }
 }
 
+/// A Julia `Float64` buffer of exactly `rows * cols` entries (checked slice
+/// from RustCall), as the pointer the column-major helpers read or write.
+fn f64_in(data: &[f64], rows: usize, cols: usize) -> Result<*const f64, String> {
+    let len = rows.checked_mul(cols).ok_or("matrix size overflow")?;
+    if data.len() != len {
+        return Err(format!("buffer must hold {len} entries, got {}", data.len()));
+    }
+    Ok(data.as_ptr())
+}
+fn f64_out(data: &mut [f64], rows: usize, cols: usize) -> Result<*mut f64, String> {
+    let len = rows.checked_mul(cols).ok_or("matrix size overflow")?;
+    if data.len() != len {
+        return Err(format!("output must hold {len} entries, got {}", data.len()));
+    }
+    Ok(data.as_mut_ptr())
+}
+
 #[julia]
 pub fn matmul_f64(
-    a: *const f64,
-    b: *const f64,
-    out: *mut f64,
+    a: &[f64],
+    b: &[f64],
+    out: &mut [f64],
     m: usize,
     k: usize,
     n: usize,
 ) -> Result<(), String> {
+    let (a, b, out) = (f64_in(a, m, k)?, f64_in(b, k, n)?, f64_out(out, m, n)?);
     guarded(|| unsafe {
         let a = input(a, m, k)?;
         let b = input(b, k, n)?;
@@ -71,12 +89,13 @@ pub fn matmul_f64(
 
 #[julia]
 pub fn solve_f64(
-    a: *const f64,
-    b: *const f64,
-    out: *mut f64,
+    a: &[f64],
+    b: &[f64],
+    out: &mut [f64],
     n: usize,
     nrhs: usize,
 ) -> Result<(), String> {
+    let (a, b, out) = (f64_in(a, n, n)?, f64_in(b, n, nrhs)?, f64_out(out, n, nrhs)?);
     guarded(|| unsafe {
         let a = input(a, n, n)?;
         let b = input(b, n, nrhs)?;
@@ -92,13 +111,15 @@ pub fn solve_f64(
 
 #[julia]
 pub fn svd_f64(
-    a: *const f64,
-    u: *mut f64,
-    s: *mut f64,
-    v: *mut f64,
+    a: &[f64],
+    u: &mut [f64],
+    s: &mut [f64],
+    v: &mut [f64],
     m: usize,
     n: usize,
 ) -> Result<(), String> {
+    let k = m.min(n);
+    let (a, u, s, v) = (f64_in(a, m, n)?, f64_out(u, m, k)?, f64_out(s, k, 1)?, f64_out(v, n, k)?);
     guarded(|| unsafe {
         let a = input(a, m, n)?;
         let svd = a
@@ -132,10 +153,11 @@ impl OwnedMatrix {
     #[julia]
     pub fn load_buffer(
         &mut self,
-        data: *const f64,
+        data: &[f64],
         rows: usize,
         cols: usize,
     ) -> Result<(), String> {
+        let data = f64_in(data, rows, cols)?;
         guarded(|| {
             self.matrix = unsafe { load_input(data, rows, cols)? };
             Ok(())
@@ -182,11 +204,12 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn copy_buffer(&self, out: *mut f64, len: usize) -> Result<(), String> {
+    pub fn copy_buffer(&self, out: &mut [f64], len: usize) -> Result<(), String> {
         guarded(|| {
-            if len != self.matrix.nrows() * self.matrix.ncols() {
+            if len != self.matrix.nrows() * self.matrix.ncols() || out.len() != len {
                 return Err("output length mismatch".into());
             }
+            let out = out.as_mut_ptr();
             unsafe {
                 output(self.matrix.as_ref(), out);
             }
@@ -296,11 +319,16 @@ impl OwnedMatrix {
     #[julia]
     pub fn svd_buffers(
         &self,
-        u: *mut f64,
-        s: *mut f64,
-        v: *mut f64,
+        u: &mut [f64],
+        s: &mut [f64],
+        v: &mut [f64],
         full: bool,
     ) -> Result<(), String> {
+        let (m, n) = (self.matrix.nrows(), self.matrix.ncols());
+        let k = m.min(n);
+        let u = f64_out(u, m, if full { m } else { k })?;
+        let s = f64_out(s, k, 1)?;
+        let v = f64_out(v, n, if full { n } else { k })?;
         guarded(|| {
             let a = self.matrix.as_ref();
             check_finite(a)?;
@@ -343,7 +371,8 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn singular_values_buffer(&self, s: *mut f64) -> Result<(), String> {
+    pub fn singular_values_buffer(&self, s: &mut [f64]) -> Result<(), String> {
+        let s = f64_out(s, self.matrix.nrows().min(self.matrix.ncols()), 1)?;
         guarded(|| {
             let a = self.matrix.as_ref();
             check_finite(a)?;
@@ -1027,7 +1056,8 @@ pub(crate) fn permutation_sign(p: &[usize]) -> f64 {
 #[julia]
 impl OwnedFactor {
     #[julia]
-    pub fn logabsdet_buffer(&self, out: *mut f64) -> Result<(), String> {
+    pub fn logabsdet_buffer(&self, out: &mut [f64]) -> Result<(), String> {
+        let out = f64_out(out, 2, 1)?;
         guarded(|| {
             let f = self.get()?;
             let n = dispatch_factor!(f,x=>x.nrows());
