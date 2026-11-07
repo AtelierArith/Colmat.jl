@@ -1,6 +1,7 @@
 //! Declared caller workspace for generalized Hessenberg and QZ construction.
 use super::{compute_in, Pair, QzScalar};
 use crate::sparsity::{Pattern, SparsityOwner};
+use crate::teams::with_team;
 use crate::teams::OwnedTeam;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::workspace::OwnedScratch;
@@ -64,19 +65,11 @@ pub fn qz_construction_requirements(
     tag: i32,
     stage: i32,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| query(n, tag, stage, ParShape::Seq, out))
+    guarded(|| with_team(team, |par| query(n, tag, stage, par.shape(), out)))
 }
-#[julia]
-pub fn qz_construction_team_requirements(
-    team: &OwnedTeam,
-    n: usize,
-    tag: i32,
-    stage: i32,
-    out: *mut usize,
-) -> Result<(), String> {
-    guarded(|| team.execute(|par| query(n, tag, stage, par.shape(), out))?)
-}
+
 #[julia]
 impl SparsityOwner {
     #[julia]
@@ -186,50 +179,7 @@ impl OwnedMatrix {
         stage: i32,
         n: usize,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            if tag != 1 {
-                return Err("QZ native scalar does not match requested metadata".into());
-            }
-            let mut execute = |par: Par<'_>| {
-                run(
-                    a.matrix.as_ref(),
-                    b.matrix.as_ref(),
-                    iq.matrix.as_ref(),
-                    iz.matrix.as_ref(),
-                    work,
-                    alpha,
-                    beta,
-                    stage,
-                    n,
-                    par,
-                )
-            };
-            let p = execute(Par::Seq)?;
-            self.matrix = p.s;
-            out_t.matrix = p.t;
-            out_q.matrix = p.q;
-            out_z.matrix = p.z;
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn qz_construction_workspace_team(
-        &mut self,
-        a: &OwnedMatrix,
-        b: &OwnedMatrix,
-        iq: &OwnedMatrix,
-        iz: &OwnedMatrix,
-        out_t: &mut OwnedMatrix,
-        out_q: &mut OwnedMatrix,
-        out_z: &mut OwnedMatrix,
-        work: &mut OwnedScratch,
-        alpha: *mut u8,
-        beta: *mut u8,
-        stage: i32,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             if tag != 1 {
@@ -249,7 +199,7 @@ impl OwnedMatrix {
                     par,
                 )
             };
-            let p = team.execute(execute)??;
+            let p = with_team(team, execute)?;
             self.matrix = p.s;
             out_t.matrix = p.t;
             out_q.matrix = p.q;
@@ -276,78 +226,7 @@ impl TypedMatrix {
         stage: i32,
         n: usize,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            macro_rules! one {
-                ($a:expr,$b:expr,$q:expr,$z:expr,$v:ident) => {{
-                    let mut execute = |par: Par<'_>| {
-                        run(
-                            $a.as_ref(),
-                            $b.as_ref(),
-                            $q.as_ref(),
-                            $z.as_ref(),
-                            work,
-                            alpha,
-                            beta,
-                            stage,
-                            n,
-                            par,
-                        )
-                    };
-                    let p = execute(Par::Seq)?;
-                    out_t.data = Some(MatrixData::$v(p.t));
-                    out_q.data = Some(MatrixData::$v(p.q));
-                    out_z.data = Some(MatrixData::$v(p.z));
-                    MatrixData::$v(p.s)
-                }};
-            }
-            self.data = Some(match (a.data()?, b.data()?, iq.data()?, iz.data()?) {
-                (
-                    MatrixData::F32(a),
-                    MatrixData::F32(b),
-                    MatrixData::F32(q),
-                    MatrixData::F32(z),
-                ) if tag == 0 => one!(a, b, q, z, F32),
-                (
-                    MatrixData::F64(a),
-                    MatrixData::F64(b),
-                    MatrixData::F64(q),
-                    MatrixData::F64(z),
-                ) if tag == 1 => one!(a, b, q, z, F64),
-                (
-                    MatrixData::C32(a),
-                    MatrixData::C32(b),
-                    MatrixData::C32(q),
-                    MatrixData::C32(z),
-                ) if tag == 2 => one!(a, b, q, z, C32),
-                (
-                    MatrixData::C64(a),
-                    MatrixData::C64(b),
-                    MatrixData::C64(q),
-                    MatrixData::C64(z),
-                ) if tag == 3 => one!(a, b, q, z, C64),
-                _ => return Err("QZ native scalar does not match requested metadata".into()),
-            });
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn qz_construction_workspace_team(
-        &mut self,
-        a: &TypedMatrix,
-        b: &TypedMatrix,
-        iq: &TypedMatrix,
-        iz: &TypedMatrix,
-        out_t: &mut TypedMatrix,
-        out_q: &mut TypedMatrix,
-        out_z: &mut TypedMatrix,
-        work: &mut OwnedScratch,
-        alpha: *mut u8,
-        beta: *mut u8,
-        stage: i32,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             macro_rules! one {
@@ -366,7 +245,7 @@ impl TypedMatrix {
                             par,
                         )
                     };
-                    let p = team.execute(execute)??;
+                    let p = with_team(team, execute)?;
                     out_t.data = Some(MatrixData::$v(p.t));
                     out_q.data = Some(MatrixData::$v(p.q));
                     out_z.data = Some(MatrixData::$v(p.z));
@@ -450,7 +329,8 @@ mod tests {
                 beta.as_mut_ptr().cast(),
                 0,
                 2,
-                1
+                1,
+                None
             )
             .is_err());
         work.scratch_reserve(req.size_bytes(), req.align_bytes())
@@ -469,7 +349,8 @@ mod tests {
                 beta.as_mut_ptr().cast(),
                 0,
                 3,
-                1
+                1,
+                None
             )
             .is_err());
         assert!(s
@@ -486,12 +367,13 @@ mod tests {
                 beta.as_mut_ptr().cast(),
                 0,
                 2,
-                0
+                0,
+                None
             )
             .is_err());
         let team = OwnedTeam::new();
         assert!(s
-            .qz_construction_workspace_team(
+            .qz_construction_workspace(
                 &a,
                 &b,
                 &a,
@@ -505,7 +387,7 @@ mod tests {
                 0,
                 2,
                 1,
-                &team
+                Some(&team)
             )
             .is_err());
         assert_eq!(s.matrix[(0, 0)], 42.0);
@@ -514,7 +396,7 @@ mod tests {
         assert_eq!(z.matrix[(0, 0)], 45.0);
         assert_eq!(alpha, [c64::new(41.0, 0.0); 2]);
         assert_eq!(beta, [40.0; 2]);
-        assert!(qz_construction_requirements(2, 1, 0, std::ptr::null_mut()).is_err());
+        assert!(qz_construction_requirements(2, 1, 0, std::ptr::null_mut(), None).is_err());
     }
     fn qz_step_alloc<T: QzScalar>(mut par: Par)
     where

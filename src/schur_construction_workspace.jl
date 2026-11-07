@@ -28,8 +28,7 @@ function _schur_requirement(n, T, stage, team)
     info=zeros(UInt, 2)
     GC.@preserve info begin
         args=(UInt(n), _tag(T), Int32(stage), pointer(info))
-        isnothing(team) ? _native_call(RustCrate.schur_construction_requirements, args...) :
-        _native_call(RustCrate.schur_construction_team_requirements, team, args...)
+        _native_call(RustCrate.schur_construction_requirements, args..., team)
     end
     (bytes = Int(info[1]), alignment = Int(info[2]))
 end
@@ -120,8 +119,7 @@ function _schur_native_result(a::FaerMatrix{T}, initial, stage, n, work, team) w
     q=_zeros(T, (n, n))
     values=Vector{Complex{_realtype(T)}}(undef, stage==1 ? 0 : n)
     iq=isnothing(initial) ? a : initial.Q
-    fn=isnothing(team) ? RustCrate.schur_construction_workspace :
-       RustCrate.schur_construction_workspace_team
+    fn=RustCrate.schur_construction_workspace
     try
         h=GC.@preserve values begin
             args=(
@@ -134,7 +132,7 @@ function _schur_native_result(a::FaerMatrix{T}, initial, stage, n, work, team) w
                 UInt(n),
                 _tag(T),
             )
-            args=isnothing(team) ? args : (args..., team)
+            args=(args..., team)
             T===Float64 ? _matrix_result(fn, (n, n), args...) :
             _typed_result(T, fn, (n, n), args...)
         end

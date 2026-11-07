@@ -1,5 +1,6 @@
 //! Caller-owned kernel workspace and scoped team for Hessenberg/Schur construction.
 use super::{hessenberg_in, reduced_in, SchurScalar};
+use crate::teams::with_team;
 use crate::{
     guarded,
     teams::OwnedTeam,
@@ -81,19 +82,11 @@ pub fn schur_construction_requirements(
     tag: i32,
     stage: i32,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| query(n, tag, stage, ParShape::Seq, out))
+    guarded(|| with_team(team, |par| query(n, tag, stage, par.shape(), out)))
 }
-#[julia]
-pub fn schur_construction_team_requirements(
-    team: &OwnedTeam,
-    n: usize,
-    tag: i32,
-    stage: i32,
-    out: *mut usize,
-) -> Result<(), String> {
-    guarded(|| team.execute(|par| query(n, tag, stage, par.shape(), out))?)
-}
+
 fn validate(actual: (usize, usize, i32), m: usize, n: usize, tag: i32) -> Result<(), String> {
     if actual.2 != tag {
         return Err("Schur requested scalar type does not match its native owner".into());
@@ -154,40 +147,7 @@ impl OwnedMatrix {
         stage: i32,
         n: usize,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            if tag != 1 {
-                return Err("Schur requested scalar type does not match its native owner".into());
-            }
-            let mut execute = |par: Par<'_>| {
-                run(
-                    a.matrix.as_ref(),
-                    q.matrix.as_ref(),
-                    work,
-                    values,
-                    stage,
-                    n,
-                    par,
-                )
-            };
-            let (h, z) = execute(Par::Seq)?;
-            self.matrix = h;
-            out_q.matrix = z;
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn schur_construction_workspace_team(
-        &mut self,
-        a: &OwnedMatrix,
-        q: &OwnedMatrix,
-        out_q: &mut OwnedMatrix,
-        work: &mut OwnedScratch,
-        values: *mut u8,
-        stage: i32,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             if tag != 1 {
@@ -204,7 +164,7 @@ impl OwnedMatrix {
                     par,
                 )
             };
-            let (h, z) = team.execute(execute)??;
+            let (h, z) = with_team(team, execute)?;
             self.matrix = h;
             out_q.matrix = z;
             Ok(())
@@ -236,46 +196,14 @@ impl TypedMatrix {
         stage: i32,
         n: usize,
         tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            macro_rules! one {
-                ($a:expr,$q:expr,$variant:ident) => {{
-                    let mut execute =
-                        |par: Par<'_>| run($a.as_ref(), $q.as_ref(), work, values, stage, n, par);
-                    let (h, z) = execute(Par::Seq)?;
-                    self.data = Some(MatrixData::$variant(h));
-                    out_q.data = Some(MatrixData::$variant(z));
-                }};
-            }
-            match (a.data()?, q.data()?) {
-                (MatrixData::F32(a), MatrixData::F32(q)) if tag == 0 => one!(a, q, F32),
-                (MatrixData::F64(a), MatrixData::F64(q)) if tag == 1 => one!(a, q, F64),
-                (MatrixData::C32(a), MatrixData::C32(q)) if tag == 2 => one!(a, q, C32),
-                (MatrixData::C64(a), MatrixData::C64(q)) if tag == 3 => one!(a, q, C64),
-                _ => return Err("Schur scalar types must match the requested scalar type".into()),
-            }
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn schur_construction_workspace_team(
-        &mut self,
-        a: &TypedMatrix,
-        q: &TypedMatrix,
-        out_q: &mut TypedMatrix,
-        work: &mut OwnedScratch,
-        values: *mut u8,
-        stage: i32,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             macro_rules! one {
                 ($a:expr,$q:expr,$variant:ident) => {{
                     let execute =
                         |par: Par<'_>| run($a.as_ref(), $q.as_ref(), work, values, stage, n, par);
-                    let (h, z) = team.execute(execute)??;
+                    let (h, z) = with_team(team, execute)?;
                     self.data = Some(MatrixData::$variant(h));
                     out_q.data = Some(MatrixData::$variant(z));
                 }};
@@ -321,7 +249,8 @@ mod tests {
                 values.as_mut_ptr().cast(),
                 0,
                 2,
-                1
+                1,
+                None
             )
             .is_err());
         work.scratch_reserve(req.size_bytes(), req.align_bytes())
@@ -334,12 +263,12 @@ mod tests {
             (2, 1, 3, values.as_mut_ptr().cast()),
         ] {
             assert!(out
-                .schur_construction_workspace(&a, &a, &mut q, &mut work, ptr, stage, n, tag)
+                .schur_construction_workspace(&a, &a, &mut q, &mut work, ptr, stage, n, tag, None)
                 .is_err());
         }
         let team = OwnedTeam::new();
         assert!(out
-            .schur_construction_workspace_team(
+            .schur_construction_workspace(
                 &a,
                 &a,
                 &mut q,
@@ -348,13 +277,13 @@ mod tests {
                 0,
                 2,
                 1,
-                &team
+                Some(&team)
             )
             .is_err());
         assert_eq!(out.matrix, Mat::<f64>::full(2, 2, 42.0));
         assert_eq!(q.matrix, Mat::<f64>::full(2, 2, 43.0));
         assert_eq!(values, [c64::new(44.0, 0.0); 2]);
-        assert!(schur_construction_requirements(2, 1, 0, core::ptr::null_mut()).is_err());
+        assert!(schur_construction_requirements(2, 1, 0, core::ptr::null_mut(), None).is_err());
     }
     fn step_alloc<T: SchurScalar>(mut par: Par) {
         let n = 6;

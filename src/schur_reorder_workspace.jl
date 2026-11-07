@@ -10,8 +10,7 @@ function _schur_order_requirement(n, T, team)
     info=zeros(UInt, 2)
     GC.@preserve info begin
         args=(UInt(n), _tag(T), pointer(info))
-        isnothing(team) ? _native_call(RustCrate.schur_reorder_requirements, args...) :
-        _native_call(RustCrate.schur_reorder_team_requirements, team, args...)
+        _native_call(RustCrate.schur_reorder_requirements, args..., team)
     end
     (bytes = Int(info[1]), alignment = Int(info[2]))
 end
@@ -44,8 +43,7 @@ function _schur_order_result(f::_NativeSchur, data, n, work, team)
     T=eltype(f)
     z=_zeros(T, (n, n))
     values=Vector{Complex{_realtype(T)}}(undef, n)
-    fn=isnothing(team) ? RustCrate.schur_reorder_workspace :
-       RustCrate.schur_reorder_workspace_team
+    fn=RustCrate.schur_reorder_workspace
     try
         h=GC.@preserve data values begin
             args=(
@@ -58,7 +56,7 @@ function _schur_order_result(f::_NativeSchur, data, n, work, team)
                 Ptr{UInt8}(pointer(values)),
                 _tag(T),
             )
-            args=isnothing(team) ? args : (args..., team)
+            args=(args..., team)
             T===Float64 ? _matrix_result(fn, (n, n), args...) :
             _typed_result(T, fn, (n, n), args...)
         end

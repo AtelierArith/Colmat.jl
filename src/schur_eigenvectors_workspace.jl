@@ -3,8 +3,7 @@ function _schur_eigen_requirement(n, T, team)
     info=zeros(UInt, 2)
     GC.@preserve info begin
         args=(UInt(n), _tag(T), pointer(info))
-        isnothing(team) ? _native_call(RustCrate.schur_eigenvectors_requirements, args...) :
-        _native_call(RustCrate.schur_eigenvectors_team_requirements, team, args...)
+        _native_call(RustCrate.schur_eigenvectors_requirements, args..., team)
     end
     (bytes = Int(info[1]), alignment = Int(info[2]))
 end
@@ -50,14 +49,12 @@ function _saved_schur_eigenvectors(f::_NativeSchur; scratch = nothing, team = no
                 ),
             )
             fn=if T===Float64
-                isnothing(team) ? RustCrate.schur_eigenvectors_owned_workspace :
-                RustCrate.schur_eigenvectors_owned_workspace_team
+                RustCrate.schur_eigenvectors_owned_workspace
             else
-                isnothing(team) ? RustCrate.schur_eigenvectors_typed_workspace :
-                RustCrate.schur_eigenvectors_typed_workspace_team
+                RustCrate.schur_eigenvectors_typed_workspace
             end
             args=(f.T, f.Z, work, UInt(n), _tag(T))
-            args=isnothing(team) ? args : (args..., team)
+            args=(args..., team)
             _typed_result(Complex{_realtype(T)}, fn, (n, n), args...)
         finally
             isnothing(scratch) && close(work)

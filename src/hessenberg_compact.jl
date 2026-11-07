@@ -99,12 +99,11 @@ end
 function _schur_identity_result(a::FaerMatrix{T}, n, work, team) where {T}
     q=_zeros(T, (n, n))
     values=Vector{Complex{_realtype(T)}}(undef, n)
-    fn=isnothing(team) ? RustCrate.schur_identity_workspace :
-       RustCrate.schur_identity_workspace_team
+    fn=RustCrate.schur_identity_workspace
     try
         h=GC.@preserve values begin
             args=(a, q, work, Ptr{UInt8}(pointer(values)), UInt(n), _tag(T))
-            args=isnothing(team) ? args : (args..., team)
+            args=(args..., team)
             T===Float64 ? _matrix_result(fn, (n, n), args...) :
             _typed_result(T, fn, (n, n), args...)
         end
