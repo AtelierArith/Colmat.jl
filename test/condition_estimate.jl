@@ -61,3 +61,85 @@ end
         @test_throws ArgumentError opnorm(a, 1)
     end
 end
+
+function _tri_sample(T, n)
+    a=T[(i==j ? 4+i : 0.3sin(i+2j)) for i = 1:n, j = 1:n]
+    T<:Complex && (a .+= T(0.2im) .* T[cos(i+3j) for i = 1:n, j = 1:n])
+    return a
+end
+
+@testset "Estimated dense triangular 1/Inf condition numbers" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        W in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular),
+        n in (1, 2, 7, 40),
+        wrap in (identity, transpose, adjoint, x->view(x, :, :))
+
+        R=real(T)
+        a=_tri_sample(T, n)
+        source=FaerMatrix(a)
+        parent=wrap(source)
+        w=W(parent)
+        dense=Matrix(W(wrap(a)))
+        for p in (1, Inf)
+            exact=cond(dense, p)
+            est=cond(w, p)
+            @test est isa R
+            @test est<=exact*(1+sqrt(eps(R)))
+            @test est>=exact/n
+            n<=2 && @test est≈exact rtol=sqrt(eps(R))
+            @test cond(w, p)==est
+        end
+        @test cond(w)≈cond(dense) rtol=sqrt(eps(R))
+        @test cond(w, 2)≈cond(dense, 2) rtol=sqrt(eps(R))
+        @test Matrix(source)==a
+        close(source)
+    end
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        R=real(T)
+        singular=FaerMatrix(T[1 2; 0 0])
+        @test cond(UpperTriangular(singular), 1)===R(Inf)
+        @test cond(UpperTriangular(singular), Inf)===R(Inf)
+        @test cond(UnitUpperTriangular(singular), 1)≈cond(T[1 2; 0 1], 1)
+        e=FaerMatrix(zeros(T, 0, 0))
+        @test cond(UpperTriangular(e), 1)===zero(R)
+        @test cond(LowerTriangular(e), Inf)===zero(R)
+        @test_throws ArgumentError cond(UpperTriangular(singular), 3)
+        close(singular)
+        close(e)
+    end
+end
+
+@testset "Hermitian 2-norm condition numbers from native eigenvalues" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        S in (Hermitian, Symmetric),
+        uplo in (:U, :L),
+        n in (1, 3, 9)
+
+        T<:Complex && S===Symmetric && continue
+        R=real(T)
+        a=_tri_sample(T, n)
+        a=a+a'
+        a[1, 1]=-a[1, 1]
+        source=FaerMatrix(a)
+        h=S(source, uplo)
+        dense=Matrix(S(a, uplo))
+        @test cond(h) isa R
+        @test cond(h)≈cond(dense) rtol=sqrt(eps(R))
+        @test cond(h, 2)≈cond(dense, 2) rtol=sqrt(eps(R))
+        for p in (1, Inf)
+            @test cond(h, p)≈cond(dense, p) rtol=sqrt(eps(R))
+        end
+        close(source)
+    end
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        R=real(T)
+        z=FaerMatrix(zeros(T, 2, 2))
+        @test cond(Hermitian(z))===R(Inf)
+        s=FaerMatrix(T[1 0; 0 0])
+        @test cond(Hermitian(s))===R(Inf)
+        e=FaerMatrix(zeros(T, 0, 0))
+        @test cond(Hermitian(e))===zero(R)
+        @test_throws ArgumentError cond(Hermitian(s), 3)
+        foreach(close, (z, s, e))
+    end
+end
