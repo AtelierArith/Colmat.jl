@@ -78,6 +78,7 @@ const _raw_owner_arguments = (
     (RustCrate.view_measure, (1,)),
     (RustCrate.view_binary, (2, 4)),
     (RustCrate.view_copy, (2,)),
+    (RustCrate.view_promoted, (2,)),
     (RustCrate.view_dot, (1, 3)),
     (RustCrate.view_kron, (2, 4)),
     (RustCrate.view_kron_into, (3, 5)),

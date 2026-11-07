@@ -19,9 +19,14 @@ _product_structure(a::_ProductTriangular) =
 _product_parent(a) = a
 _product_parent(a::_ProductTriangular) = parent(a)
 
-# Diagonal scaling borrows the stored diagonal and the dense or native
-# triangular operand in Rust; neither is expanded into a dense snapshot.
-const _DiagonalScaled=Union{_ProductDense,_NativeProductTriangular}
+# Diagonal scaling borrows the stored diagonal and the dense (possibly
+# transposed or adjoint) or native triangular operand in Rust; neither is
+# expanded into a dense snapshot.
+const _DiagonalDenseWrap=Union{
+    LinearAlgebra.Transpose{<:Any,<:_ProductDense},
+    LinearAlgebra.Adjoint{<:Any,<:_ProductDense},
+}
+const _DiagonalScaled=Union{_ProductDense,_DiagonalDenseWrap,_NativeProductTriangular}
 _diagonal_scaling(a::_ProductDiagonal, b::_DiagonalScaled, ::Type{P}) where {P} =
     eltype(_product_parent(b))===P && promote_type(eltype(a), P)===P
 _diagonal_scaling(a::_DiagonalScaled, b::_ProductDiagonal, ::Type{P}) where {P} =
@@ -38,10 +43,11 @@ function _diagonal_source(d::FaerDiagonal, ::Type{P}) where {P}
 end
 _diagonal_source(d::LinearAlgebra.Diagonal, ::Type{P}) where {P} =
     _diagonal_buffer(d.diag isa Vector{P} ? d.diag : Vector{P}(d.diag))
-_diagonal_owner(x::FaerMatrixView) = _view_owner(x)
+_diagonal_owner(x::FaerView) = _view_owner(x)
 _diagonal_owner(x) = x
 # Return (diagonal, dense operand, left?) in the product's operand order.
-_diagonal_operands(a::_ProductDiagonal, b::Union{_DiagonalScaled,FaerVector}) = (a, b, true)
+_diagonal_operands(a::_ProductDiagonal, b::Union{_DiagonalScaled,_BorrowVector}) =
+    (a, b, true)
 _diagonal_operands(a::Union{_DiagonalScaled,FaerRow}, b::_ProductDiagonal) = (b, a, false)
 function _diagonal_call(f, ::Type{P}, a, b, dest...) where {P}
     g, x, left=_diagonal_operands(a, b)
@@ -49,10 +55,16 @@ function _diagonal_call(f, ::Type{P}, a, b, dest...) where {P}
     y=_product_parent(x)
     structure=x isa _ProductTriangular ? _product_structure(x) : Int32(0)
     q, qd=_view_source(y)
-    if !isempty(dest) && _diagonal_owner(dest[1])===q
-        # mul!(A, D, A) and overlapping views: snapshot the operand natively.
-        y=copy(y)
-        q, qd=_view_source(y)
+    if !isempty(dest)
+        owner=_diagonal_owner(dest[1])
+        # mul!(A, D, A), overlapping views and transposed operands sharing the
+        # destination: snapshot the operand natively.
+        if owner===q
+            y=_unalias(y)
+            q, qd=_view_source(y)
+        end
+        # A destination viewing the diagonal's own storage (`diagonalview`).
+        owner===g && ((dp, dd, dkeep)=_diagonal_buffer(Vector{P}(Vector(g))))
     end
     GC.@preserve dd qd dkeep y return f(dp, dd, q, qd, left, structure)
 end
@@ -322,6 +334,8 @@ end
 for (A, B) in (
     (:_ProductDiagonal, :_ProductDense),
     (:_ProductDense, :_ProductDiagonal),
+    (:_ProductDiagonal, :_DiagonalDenseWrap),
+    (:_DiagonalDenseWrap, :_ProductDiagonal),
     (:FaerDiagonal, :_ProductTriangular),
     (:_ProductTriangular, :FaerDiagonal),
     (:_NativeProductTriangular, :_ProductDiagonal),

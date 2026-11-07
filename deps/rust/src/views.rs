@@ -1,6 +1,7 @@
 //! Borrowed refs exist only inside one synchronous FFI call. Julia retains all
 //! owners and serializes calls; no Rust reference is stored across calls.
 use super::collections::{VectorData, VectorOwner, VectorStore};
+use super::statistics::{widens, Native};
 use super::typed::{MatrixData, TypedMatrix};
 use super::{guarded, OwnedMatrix};
 use faer::traits::{math_utils::*, ComplexField};
@@ -204,6 +205,54 @@ unsafe fn snapshot(p: *const u8, s: Spec) -> Result<MatrixData, String> {
         Borrowed::C32(a) => MatrixData::C32(copied(a, s.conjugate)),
         Borrowed::C64(a) => MatrixData::C64(copied(a, s.conjugate)),
     })
+}
+/// One converted copy of a view at the wider scalar `tag`, applying the
+/// descriptor's transpose and conjugation (conjugating only complex sources).
+unsafe fn promoted(p: *const u8, s: Spec, tag: i32) -> Result<MatrixData, String> {
+    converted(p, s, tag, false)
+}
+/// Copies a borrowed matrix into scalar `tag`, applying its transpose and
+/// conjugation. Without `narrowing` the target must widen the source; with it
+/// any real or complex precision is allowed except complex to real.
+pub(crate) unsafe fn converted(
+    p: *const u8,
+    s: Spec,
+    tag: i32,
+    narrowing: bool,
+) -> Result<MatrixData, String> {
+    fn convert_to<S: Native, W: Native>(
+        a: MatRef<'_, S>,
+        conjugate: bool,
+        narrowing: bool,
+    ) -> Result<Mat<W>, String> {
+        if S::TAG >= 2 && W::TAG < 2 {
+            return Err("complex matrices cannot convert to a real scalar type".into());
+        }
+        if !narrowing && !widens(S::TAG, W::TAG) {
+            return Err("native promotion must widen the scalar type".into());
+        }
+        let conjugate = conjugate && S::TAG >= 2;
+        Ok(Mat::from_fn(a.nrows(), a.ncols(), |i, j| {
+            let (re, im) = a[(i, j)].parts();
+            W::from_parts(re, if conjugate { -im } else { im })
+        }))
+    }
+    fn to<S: Native>(a: MatRef<'_, S>, c: bool, tag: i32, n: bool) -> Result<MatrixData, String> {
+        Ok(match tag {
+            0 => MatrixData::F32(convert_to(a, c, n)?),
+            1 => MatrixData::F64(convert_to(a, c, n)?),
+            2 => MatrixData::C32(convert_to(a, c, n)?),
+            3 => MatrixData::C64(convert_to(a, c, n)?),
+            _ => return Err("unknown promotion scalar".into()),
+        })
+    }
+    let c = s.conjugate;
+    match source(p, s)? {
+        Borrowed::F32(a) => to(a, c, tag, narrowing),
+        Borrowed::F64(a) => to(a, c, tag, narrowing),
+        Borrowed::C32(a) => to(a, c, tag, narrowing),
+        Borrowed::C64(a) => to(a, c, tag, narrowing),
+    }
 }
 fn binary<T: ComplexField>(
     a: MatRef<'_, T>,
@@ -454,6 +503,21 @@ impl OwnedMatrix {
         })
     }
     #[julia]
+    pub fn view_promoted(
+        &mut self,
+        p: *const u8,
+        desc: *const isize,
+        tag: i32,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.matrix = match unsafe { promoted(p, Spec::read(desc)?, tag)? } {
+                MatrixData::F64(a) => a,
+                _ => return Err("Float64 output requires the Float64 tag".into()),
+            };
+            Ok(())
+        })
+    }
+    #[julia]
     pub fn view_binary(
         &mut self,
         left: *const u8,
@@ -497,6 +561,18 @@ impl TypedMatrix {
     pub fn view_copy(&mut self, p: *const u8, desc: *const isize) -> Result<(), String> {
         guarded(|| {
             self.data = Some(unsafe { snapshot(p, Spec::read(desc)?)? });
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn view_promoted(
+        &mut self,
+        p: *const u8,
+        desc: *const isize,
+        tag: i32,
+    ) -> Result<(), String> {
+        guarded(|| {
+            self.data = Some(unsafe { promoted(p, Spec::read(desc)?, tag)? });
             Ok(())
         })
     }
@@ -677,6 +753,42 @@ mod tests {
         assign(out.as_mut(), ts, input).unwrap();
         assert_eq!(out[(0, 0)], 3.0);
         assert_eq!(out[(1, 2)], 4.0);
+    }
+
+    #[test]
+    fn promotion_widens_and_applies_transpose_and_conjugation() {
+        // A 2 x 2 complex f32 buffer read as its adjoint and widened to c64.
+        let data = [
+            faer::c32::new(1.0, 2.0),
+            faer::c32::new(3.0, -1.0),
+            faer::c32::new(-2.0, 0.5),
+            faer::c32::new(4.0, 0.0),
+        ];
+        let mut desc = raw_desc(2, 2, 1, 2, true);
+        desc[8] = 1;
+        desc[13] = 2;
+        let s = unsafe { Spec::read(desc.as_ptr()) }.unwrap();
+        let MatrixData::C64(a) = (unsafe { promoted(data.as_ptr().cast(), s, 3) }.unwrap()) else {
+            panic!("expected c64");
+        };
+        assert_eq!(a[(0, 1)], faer::c64::new(3.0, 1.0));
+        assert_eq!(a[(1, 0)], faer::c64::new(-2.0, -0.5));
+        // Real sources keep a positive zero imaginary part under conjugation.
+        let real = [1.5f32, -2.0];
+        let mut desc = raw_desc(2, 1, 1, 2, false);
+        desc[8] = 1;
+        desc[13] = 0;
+        let s = unsafe { Spec::read(desc.as_ptr()) }.unwrap();
+        let MatrixData::C64(b) = (unsafe { promoted(real.as_ptr().cast(), s, 3) }.unwrap()) else {
+            panic!("expected c64");
+        };
+        assert!(b[(1, 0)].im == 0.0 && b[(1, 0)].im.is_sign_positive());
+        assert!(unsafe { promoted(real.as_ptr().cast(), s, 0) }.is_ok());
+        let wide = [1.0f64];
+        let mut desc = raw_desc(1, 1, 1, 1, false);
+        desc[13] = 1;
+        let s = unsafe { Spec::read(desc.as_ptr()) }.unwrap();
+        assert!(unsafe { promoted(wide.as_ptr().cast(), s, 0) }.is_err());
     }
 
     #[test]
