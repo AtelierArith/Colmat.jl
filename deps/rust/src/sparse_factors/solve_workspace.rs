@@ -180,9 +180,10 @@ impl SparseFactor {
         n: usize,
         tag: i32,
         kind: i32,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             with_team(team, |p| {
                 validate(self, m, n, tag, kind)?;

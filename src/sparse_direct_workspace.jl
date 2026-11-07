@@ -87,7 +87,7 @@ function _sparse_direct_native_query(f, columns, op; team = nothing)
         UInt(size(f, 2)),
         _tag(eltype(f)),
         _sparse_direct_kind(f),
-        pointer(info),
+        info,
     )
     GC.@preserve info begin
         _native_call(RustCrate.sparse_direct_requirements, args..., team)

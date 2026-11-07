@@ -60,7 +60,7 @@ function _dense_triangular_query(a, ::Type{P}) where {P}
         p,
         pointer(d),
         _tag(P),
-        pointer(info),
+        info,
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
@@ -395,7 +395,7 @@ function _dense_invert_requirements(a; team = nothing)
             RustCrate.dense_triangular_invert_requirements,
             UInt(size(a, 1)),
             _tag(eltype(a)),
-            pointer(info),
+            info,
         )
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end

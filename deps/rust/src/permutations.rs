@@ -179,8 +179,9 @@ pub fn permutation_requirements(
     n: usize,
     tag: i32,
     columns: bool,
-    out: *mut usize,
+    out: &mut [usize],
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let req = match tag {
             0 => requirement::<f32>(m, n, columns),

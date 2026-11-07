@@ -157,7 +157,7 @@ function _permutation_requirements(a, columns)
         UInt(n),
         _tag(eltype(a)),
         columns,
-        pointer(info),
+        info,
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

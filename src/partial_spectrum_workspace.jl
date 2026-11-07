@@ -32,7 +32,7 @@ function _partial_validate(
         UInt(0),
         UInt(0),
         UInt(0),
-        pointer(info),
+        info,
         nothing,
     )
     0<=k<=min(m, n) || throw(ArgumentError("requested count must be in 0:min(size(op)...)"))
@@ -84,7 +84,7 @@ function _partial_workspace_query(op, kind, k; min_dim, max_dim, max_restarts, t
         UInt(min_dim),
         UInt(max_dim),
         UInt(max_restarts),
-        pointer(info),
+        info,
     )
     GC.@preserve info begin
         _native_call(RustCrate.partial_requirements, args..., team)

@@ -319,9 +319,10 @@ pub fn operator_qr_pseudoinverse_requirements(
     m: usize,
     n: usize,
     tag: i32,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let req = with_team(team, |p| construction_requirement(m, n, tag, p.shape()))?;
         write_requirement(req, out);
@@ -783,7 +784,7 @@ mod tests {
         f.initialize(&a, 2, true, 4, 3, 1, None).unwrap();
         let mut out = OwnedLinearOperator::new();
         let mut info = [0usize; 2];
-        operator_qr_pseudoinverse_requirements(4, 3, 1, info.as_mut_ptr(), None).unwrap();
+        operator_qr_pseudoinverse_requirements(4, 3, 1, &mut info[..], None).unwrap();
         assert!(info[0] > 0);
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0] - 1, info[1]).unwrap();

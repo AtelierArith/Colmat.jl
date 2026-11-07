@@ -660,8 +660,9 @@ impl SparseProductPlan {
     pub fn sparse_product_plan_requirements(
         &self,
         tag: i32,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             write_req(requirement_for(self.plan()?, tag, ParShape::Seq)?, out);
             Ok(())
@@ -683,8 +684,9 @@ impl OwnedTeam {
         &self,
         plan: &SparseProductPlan,
         tag: i32,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             let p = plan.plan()?;
             let req = self.execute(|par| requirement_for(p, tag, par.shape()))??;
@@ -855,7 +857,7 @@ mod tests {
     }
     fn scratch_for(p: &SparseProductPlan) -> OwnedScratch {
         let mut req = [0usize; 2];
-        p.sparse_product_plan_requirements(3, req.as_mut_ptr())
+        p.sparse_product_plan_requirements(3, &mut req[..])
             .unwrap();
         let mut s = OwnedScratch::new();
         s.scratch_reserve(req[0], req[1]).unwrap();
@@ -956,7 +958,7 @@ mod tests {
         let mixed = plan_for(&a, &b_csr);
         let mut short = OwnedScratch::new();
         let mut req = [0usize; 2];
-        p.sparse_product_plan_requirements(3, req.as_mut_ptr())
+        p.sparse_product_plan_requirements(3, &mut req[..])
             .unwrap();
         short.scratch_reserve(req[0], req[1]).unwrap();
         assert_eq!(
@@ -996,7 +998,7 @@ mod tests {
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut req = [0usize; 2];
-        team.sparse_product_plan_team_requirements(&q, 3, req.as_mut_ptr())
+        team.sparse_product_plan_team_requirements(&q, 3, &mut req[..])
             .unwrap();
         let mut s = OwnedScratch::new();
         s.scratch_reserve(req[0], req[1]).unwrap();

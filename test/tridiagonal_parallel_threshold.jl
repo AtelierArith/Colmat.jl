@@ -181,7 +181,7 @@ end
             A=X+X'
             info=zeros(UInt, 2)
             GC.@preserve info begin
-                args=(UInt(5), Colmat._tag(T), UInt(0), UInt(0), pointer(info))
+                args=(UInt(5), Colmat._tag(T), UInt(0), UInt(0), info)
                 Colmat._native_call(
                     Colmat.RustCrate.tridiagonalize_requirements,
                     args...,

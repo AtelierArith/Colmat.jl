@@ -89,7 +89,7 @@ end
 function _qz_native_requirement(n, P, stage, team)
     info=zeros(UInt, 2)
     GC.@preserve info begin
-        args=(UInt(n), _tag(P), Int32(stage), pointer(info))
+        args=(UInt(n), _tag(P), Int32(stage), info)
         _native_call(RustCrate.qz_construction_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))

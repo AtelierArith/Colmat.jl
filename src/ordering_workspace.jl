@@ -15,7 +15,7 @@ function _ordering_requirements(pattern, shape, symmetric)
         UInt(shape[1]),
         UInt(shape[2]),
         symmetric,
-        pointer(info),
+        info,
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

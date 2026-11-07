@@ -10,7 +10,7 @@ function _operator_workspace_query(op::FaerLinearOperator, columns; team = nothi
         UInt(size(op, 1)),
         UInt(size(op, 2)),
         _tag(eltype(op)),
-        pointer(info),
+        info,
     )
     GC.@preserve info begin
         _native_call(RustCrate.operator_requirements, args..., team)

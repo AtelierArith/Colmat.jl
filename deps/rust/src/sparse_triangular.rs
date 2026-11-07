@@ -298,8 +298,9 @@ impl SparseOwner {
         unit: bool,
         op: i32,
         tag: i32,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             fn query<S: Native, P: Native>(
                 a: &Storage<S>,
@@ -697,7 +698,7 @@ mod tests {
             };
             let mut req = [0usize; 2];
             sparse
-                .sparse_triangular_requirements(true, false, 0, 3, req.as_mut_ptr())
+                .sparse_triangular_requirements(true, false, 0, 3, &mut req[..])
                 .unwrap();
             assert_eq!(req[0] == 0, !full);
             let mut scratch = OwnedScratch::new();

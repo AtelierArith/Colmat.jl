@@ -1185,8 +1185,9 @@ impl SparseFactor {
     pub fn sparse_qr_solve_requirements(
         &self,
         columns: usize,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             let req = match self.factors()? {
                 Factors::F32(Numeric::Qr(f)) => f.solve_requirements(columns),
@@ -1264,9 +1265,10 @@ impl SparseSymbolic {
     pub fn sparse_qr_factor_requirements(
         &self,
         tag: i32,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             crate::teams::with_team(team, |par| construction_workspace::query(self, tag, out, par))
         })

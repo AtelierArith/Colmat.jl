@@ -334,9 +334,10 @@ pub fn compact_bidiagonal_requirements(
     tag: i32,
     bs: usize,
     threshold: usize,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         with_team(team, |par| {
             construction_query(m, n, tag, bs, threshold, par.shape(), out)
@@ -431,8 +432,9 @@ impl OwnedCompactBidiagonal {
         extent: usize,
         right: bool,
         t: bool,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             self.validate(m, n, b, tag)?;
             write_req(

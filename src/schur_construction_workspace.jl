@@ -27,7 +27,7 @@ end
 function _schur_requirement(n, T, stage, team)
     info=zeros(UInt, 2)
     GC.@preserve info begin
-        args=(UInt(n), _tag(T), Int32(stage), pointer(info))
+        args=(UInt(n), _tag(T), Int32(stage), info)
         _native_call(RustCrate.schur_construction_requirements, args..., team)
     end
     (bytes = Int(info[1]), alignment = Int(info[2]))

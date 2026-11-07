@@ -345,9 +345,10 @@ impl SparseFactor {
         atol: f64,
         rtol: f64,
         fast: bool,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             with_team(team, |p| {
                 validate(self, m, n, source, target, op, atol, rtol)?;
@@ -928,10 +929,10 @@ mod borrowed_tests {
             data: Some(SparseData::F64(Storage::Csc(a.clone()))),
         };
         let mut query = [0usize; 2];
-        plan.sparse_qr_factor_requirements(1, query.as_mut_ptr(), None)
+        plan.sparse_qr_factor_requirements(1, &mut query[..], None)
             .unwrap();
         assert!(plan
-            .sparse_qr_factor_requirements(1, std::ptr::null_mut(), None)
+            .sparse_qr_factor_requirements(1, &mut [], None)
             .is_err());
         let mut work = OwnedScratch::new();
         work.scratch_reserve(query[0], query[1]).unwrap();

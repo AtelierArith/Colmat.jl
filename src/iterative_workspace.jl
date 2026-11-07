@@ -33,7 +33,7 @@ function _iterative_prepared_query(kind, op, m, n, columns, team)
         UInt(size(op, 1)),
         UInt(size(op, 2)),
         _tag(eltype(op)),
-        pointer(info),
+        info,
     )
     GC.@preserve info begin
         _native_call(RustCrate.iterative_requirements, args..., team)

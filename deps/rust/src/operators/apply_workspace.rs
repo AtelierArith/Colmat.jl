@@ -82,9 +82,10 @@ impl OwnedLinearOperator {
         m: usize,
         n: usize,
         tag: i32,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| with_team(team, |p| query(self, columns, m, n, tag, p.shape(), out)))
     }
 }
@@ -213,19 +214,20 @@ mod tests {
             data: Some(Data::F64(Operator::new(Base::Dense(Mat::identity(2, 2))))),
         };
         assert!(op
-            .operator_requirements(1, 2, 2, 0, std::ptr::null_mut(), None)
+            .operator_requirements(1, 2, 2, 0, &mut [], None)
             .is_err());
         assert!(op
-            .operator_requirements(1, 3, 2, 1, std::ptr::null_mut(), None)
+            .operator_requirements(1, 3, 2, 1, &mut [], None)
             .is_err());
         assert!(op
-            .operator_requirements(1, 2, 2, 1, std::ptr::null_mut(), None)
+            .operator_requirements(1, 2, 2, 1, &mut [], None)
+            .is_err());
+        // Slices carry their alignment; a short output is rejected by length.
+        assert!(op
+            .operator_requirements(1, 2, 2, 1, &mut [0usize; 1], None)
             .is_err());
         assert!(op
-            .operator_requirements(1, 2, 2, 1, 1usize as *mut usize, None)
-            .is_err());
-        assert!(op
-            .operator_requirements(1, 2, 2, 1, (usize::MAX - 7) as *mut usize, None)
+            .operator_requirements(1, 2, 2, 1, &mut [0usize; 3], None)
             .is_err());
     }
     #[test]
@@ -246,7 +248,7 @@ mod tests {
         let mut info = [0usize; 2];
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
-        op.operator_requirements(2, 2, 2, 1, info.as_mut_ptr(), Some(&team))
+        op.operator_requirements(2, 2, 2, 1, &mut info[..], Some(&team))
             .unwrap();
         assert!(info[0] > 0);
         let mut scratch = OwnedScratch::new();

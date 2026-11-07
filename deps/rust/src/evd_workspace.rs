@@ -40,9 +40,10 @@ pub fn evd_requirements(
     n: usize,
     tag: i32,
     values: bool,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let req = with_team(team, |par| dispatch(n, tag, values, par.shape()))?;
         write_req(req, out);

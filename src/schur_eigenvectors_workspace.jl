@@ -2,7 +2,7 @@ const _SchurEigenFunction=Union{typeof(LinearAlgebra.eigen),typeof(LinearAlgebra
 function _schur_eigen_requirement(n, T, team)
     info=zeros(UInt, 2)
     GC.@preserve info begin
-        args=(UInt(n), _tag(T), pointer(info))
+        args=(UInt(n), _tag(T), info)
         _native_call(RustCrate.schur_eigenvectors_requirements, args..., team)
     end
     (bytes = Int(info[1]), alignment = Int(info[2]))

@@ -74,8 +74,9 @@ impl OwnedHouseholder {
         extent: usize,
         right: bool,
         transpose: bool,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| query(self, n, tag, extent, right, transpose, out))
     }
 }

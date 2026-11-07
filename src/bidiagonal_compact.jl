@@ -164,7 +164,7 @@ function _basis_requirement(q, T, extent, right; team = nothing)
         UInt(extent),
         right,
         q.transposed,
-        pointer(info),
+        info,
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

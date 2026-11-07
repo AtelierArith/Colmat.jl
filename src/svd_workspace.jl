@@ -35,8 +35,8 @@ function scratch_requirements(
                 f in (LinearAlgebra.svdvals, LinearAlgebra.svdvals!),
             )
             isnothing(team) ?
-            _native_call(RustCrate.svd_requirements, args..., UInt(width), pointer(info)) :
-            _native_call(RustCrate.svd_team_requirements, team, args..., pointer(info))
+            _native_call(RustCrate.svd_requirements, args..., UInt(width), info) :
+            _native_call(RustCrate.svd_team_requirements, team, args..., info)
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end

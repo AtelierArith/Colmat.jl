@@ -24,7 +24,7 @@ function _with_construction_scratch(f, req, scratch)
 end
 function _qr_pseudoinverse_requirement(f, team)
     info=zeros(UInt, 2)
-    args=(UInt(size(f, 1)), UInt(size(f, 2)), _tag(eltype(f)), pointer(info))
+    args=(UInt(size(f, 1)), UInt(size(f, 2)), _tag(eltype(f)), info)
     GC.@preserve info begin
         _native_call(RustCrate.operator_qr_pseudoinverse_requirements, args..., team)
     end
@@ -33,7 +33,7 @@ end
 function _sparse_qr_inverse_requirement(f, team)
     info=zeros(UInt, 2)
     GC.@preserve info begin
-        _native_call(RustCrate.operator_sparse_qr_inverse_requirements, f, pointer(info), team)
+        _native_call(RustCrate.operator_sparse_qr_inverse_requirements, f, info, team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

@@ -57,8 +57,9 @@ impl SparsityOwner {
         m: usize,
         n: usize,
         symmetric: bool,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             let req = requirement(self, m, n, symmetric)?;
             validate_output(out, 2)?;
@@ -220,7 +221,7 @@ mod tests {
             assert_eq!(out.data().unwrap().as_ref().arrays().0, saved);
             assert_eq!(stats, [-1.0; 3]);
             assert!(source
-                .ordering_requirements(3, 3, symmetric, std::ptr::null_mut())
+                .ordering_requirements(3, 3, symmetric, &mut [])
                 .is_err());
             assert!(out
                 .sparse_ordering(

@@ -719,9 +719,10 @@ impl OwnedFactor {
         tag: i32,
         kind: i32,
         precision: f64,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             with_team(team, |par| {
                 validate_owned(self, m, n, tag, kind)?;
@@ -746,9 +747,10 @@ impl TypedFactor {
         tag: i32,
         kind: i32,
         precision: f64,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             with_team(team, |par| {
                 validate_typed(self, m, n, tag, kind)?;
@@ -1099,7 +1101,7 @@ mod tests {
             matrix: Mat::identity(4, 4),
         };
         let mut info = [0; 2];
-        f.factor_solve_requirements(4, 0, 4, 4, 1, 0, f64::EPSILON, info.as_mut_ptr(), None)
+        f.factor_solve_requirements(4, 0, 4, 4, 1, 0, f64::EPSILON, &mut info[..], None)
             .unwrap();
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0], info[1]).unwrap();

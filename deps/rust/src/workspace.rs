@@ -5,6 +5,15 @@ use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{MatRef, Par};
 use rustcall_julia_macros::julia;
+/// A `(bytes, alignment)` requirement output from Julia (`UInt[2]`), checked
+/// by RustCall's slice conversion and here for its length, as the raw pointer
+/// the per-module query helpers write through.
+pub(crate) fn requirement_out(out: &mut [usize]) -> Result<*mut usize, String> {
+    if out.len() != 2 {
+        return Err("requirement output must hold two entries (bytes, alignment)".into());
+    }
+    Ok(out.as_mut_ptr())
+}
 #[julia]
 pub struct OwnedScratch {
     memory: Option<MemBuffer>,
@@ -73,7 +82,8 @@ fn requirement(n: usize, tag: i32) -> Result<StackReq, String> {
     })
 }
 #[julia]
-pub fn pfaffian_requirements(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
+pub fn pfaffian_requirements(n: usize, tag: i32, out: &mut [usize]) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let req = requirement(n, tag)?;
         unsafe {
@@ -220,7 +230,7 @@ mod spectral_workspace_tests {
                 .unwrap();
             let mut req = [0usize; 2];
             factor
-                .spectral_pinv_requirements(3, 3, 1, eigen, req.as_mut_ptr(), None)
+                .spectral_pinv_requirements(3, 3, 1, eigen, &mut req[..], None)
                 .unwrap();
             let mut scratch = OwnedScratch::new();
             let mut output = OwnedMatrix {
@@ -243,7 +253,7 @@ mod spectral_workspace_tests {
             assert_eq!(output.matrix[(0, 0)], 99.0);
             let mut info = [123usize, 456];
             assert!(factor
-                .spectral_pinv_requirements(4, 3, 1, eigen, info.as_mut_ptr(), None)
+                .spectral_pinv_requirements(4, 3, 1, eigen, &mut info[..], None)
                 .is_err());
             assert_eq!(info, [123, 456]);
             scratch.scratch_reserve(req[0], req[1]).unwrap();

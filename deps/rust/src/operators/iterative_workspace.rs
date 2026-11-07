@@ -155,9 +155,10 @@ impl OwnedLinearOperator {
         rows: usize,
         cols: usize,
         tag: i32,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             with_team(team, |par| {
                 query(self, m, n, kind, k, rows, cols, tag, par.shape(), out)
@@ -516,7 +517,7 @@ mod tests {
                         rows,
                         cols,
                         T::tag(),
-                        info.as_mut_ptr(), Some(&team),
+                        &mut info[..], Some(&team),
                     )
                     .unwrap();
                     let mut work = OwnedScratch::new();
@@ -655,16 +656,16 @@ mod tests {
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut req = [0usize; 2];
-        a.iterative_requirements(&m, &n, 0, 1, 4, 4, 1, req.as_mut_ptr(), Some(&team))
+        a.iterative_requirements(&m, &n, 0, 1, 4, 4, 1, &mut req[..], Some(&team))
             .unwrap();
         assert!(a
-            .iterative_requirements(&m, &n, 0, 1, 4, 4, 1, std::ptr::null_mut(), Some(&team))
+            .iterative_requirements(&m, &n, 0, 1, 4, 4, 1, &mut [], Some(&team))
             .is_err());
         assert!(a
-            .iterative_requirements(&m, &n, 0, 1, 3, 4, 1, req.as_mut_ptr(), Some(&team))
+            .iterative_requirements(&m, &n, 0, 1, 3, 4, 1, &mut req[..], Some(&team))
             .is_err());
         assert!(a
-            .iterative_requirements(&m, &n, 0, 1, 4, 4, 0, req.as_mut_ptr(), Some(&team))
+            .iterative_requirements(&m, &n, 0, 1, 4, 4, 0, &mut req[..], Some(&team))
             .is_err());
         let mut work = OwnedScratch::new();
         work.scratch_reserve(req[0] - 1, req[1]).unwrap();
