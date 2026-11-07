@@ -18,7 +18,8 @@ F aliases A: later writes to A change F, and closing, resizing or truncating A
 invalidates F (its operations then throw `ArgumentError`). `close(F)` only
 invalidates F. Solves (`\\`, `ldiv!` with optional `scratch=`/`team=`, transpose
 and adjoint for square factors, tall QR least squares), `L/U/p/P/R/Q/Qthin/
-Qbasis/Qcoeff/packed`, `Matrix(F)`, `inv`, and `det/logabsdet/logdet` (LU and
+Qbasis/Qcoeff/packed`, `reconstruct(F)`/`Matrix(F)`/`FaerMatrix(F)` and their
+typed forms, `inv`, and `det/logabsdet/logdet` (LU and
 Cholesky) read A's storage. `copy(F)` copies A and F's buffers into a new direct
 factor. Other retained-factor operations (`rdiv!`, linear-operator and
 preconditioner use, pseudoinverse, mixed-scalar promotion, rectangular-LU or
@@ -331,7 +332,12 @@ function _cholesky_failure(f::FaerInPlaceFactorization{T,K}) where {T,K}
     LinearAlgebra.SingularException(info)
 end
 FaerMatrix(f::FaerInPlaceFactorization) = _direct_part(f, 0, size(f))
-Base.Matrix(f::FaerInPlaceFactorization) = Matrix(FaerMatrix(f))
+FaerMatrix{T}(f::FaerInPlaceFactorization) where {T<:_NativeScalar} =
+    _typed_dense_reconstruction(T, f)
+reconstruct(f::FaerInPlaceFactorization) = FaerMatrix(f)
+Base.Matrix(f::FaerInPlaceFactorization) = _convert_dense_reconstruction(Matrix, f)
+Base.Matrix{T}(f::FaerInPlaceFactorization) where {T} =
+    _convert_dense_reconstruction(Matrix{T}, f)
 Base.Array(f::FaerInPlaceFactorization) = Matrix(f)
 function Base.inv(f::FaerInPlaceFactorization{T,K}) where {T,K}
     size(f, 1)==size(f, 2) || throw(DimensionMismatch("inverse requires a square factor"))

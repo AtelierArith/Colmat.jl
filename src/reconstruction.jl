@@ -9,7 +9,9 @@ const _ReconstructableDense=Union{
 const _SparseLU=FaerSparseFactorization{T,:lu} where {T}
 const _ReconstructableSparse=Union{_SparseLU,_SparseCholesky}
 
-function FaerMatrix{T}(f::_ReconstructableDense) where {T<:_NativeScalar}
+# Typed reconstruction goes through one independent native reconstruction,
+# which is closed unless it is already the requested result.
+function _typed_dense_reconstruction(::Type{T}, f) where {T<:_NativeScalar}
     native=FaerMatrix(f)
     T===eltype(native) && return native
     try
@@ -18,14 +20,18 @@ function FaerMatrix{T}(f::_ReconstructableDense) where {T<:_NativeScalar}
         close(native)
     end
 end
-function Base.Matrix{T}(f::_ReconstructableDense) where {T}
+function _convert_dense_reconstruction(convert_result, f)
     native=FaerMatrix(f)
     try
-        return Matrix{T}(native)
+        return convert_result(native)
     finally
         close(native)
     end
 end
+FaerMatrix{T}(f::_ReconstructableDense) where {T<:_NativeScalar} =
+    _typed_dense_reconstruction(T, f)
+Base.Matrix{T}(f::_ReconstructableDense) where {T} =
+    _convert_dense_reconstruction(Matrix{T}, f)
 Base.Array(f::_NativeSchur) = Matrix(f)
 
 """
@@ -93,7 +99,8 @@ end
     reconstruct(F)
 
 Reconstruct independent native matrices from owned factors. Dense LU/QR/
-Cholesky/LDLT, Schur/Hessenberg and tridiagonal/bidiagonal reductions return a
+Cholesky/LDLT (including the in-place `lu!/qr!/cholesky!(A; scratch)` results),
+Schur/Hessenberg and tridiagonal/bidiagonal reductions return a
 `FaerMatrix`; retained spectral factors also support reconstruction. Sparse Cholesky and explicit simplicial LU return a
 `FaerSparseMatrix` in original row/column order. Explicit simplicial sparse QR
 returns a dense `FaerMatrix` in original column order. Generalized Schur/Hessenberg
