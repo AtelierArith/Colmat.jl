@@ -1442,6 +1442,8 @@ mod storage_initializer;
 mod filled_construction;
 
 mod schur_tuning;
+
+mod evd_tuning;
 mod pivoted_qr_rank;
 mod measures;
 mod diagonal_ops;

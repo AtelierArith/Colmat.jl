@@ -726,7 +726,7 @@ LinearAlgebra.eigen(
 ) where {T<:_ExtraScalar} =
     _balanced_check(permute, scale) ?
     _balanced_eigen(a, true; side, sortby, scratch, team) :
-    side===:right && isnothing(scratch) && isnothing(team) ? _typed_eigen(a; sortby) :
+    side===:right && _evd_default_path(scratch, team) ? _typed_eigen(a; sortby) :
     _general_evd_workspace_result(a; sortby, scratch, team, side)
 LinearAlgebra.eigvals(
     a::FaerMatrix{T};
@@ -737,7 +737,7 @@ LinearAlgebra.eigvals(
     scale::Bool = false,
 ) where {T<:_ExtraScalar} =
     _balanced_check(permute, scale) ? _balanced_eigen(a, false; sortby, scratch, team) :
-    isnothing(scratch) && isnothing(team) ? _typed_eigen(a; vectors = false, sortby) :
+    _evd_default_path(scratch, team) ? _typed_eigen(a; vectors = false, sortby) :
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_ExtraSelfAdjoint;
@@ -748,7 +748,7 @@ LinearAlgebra.eigen(
 ) =
     native ?
     _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
-    isnothing(scratch) && isnothing(team) ?
+    _evd_default_path(scratch, team) ?
     _typed_eigen(parent(a); hermitian = true, lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; sortby, scratch, team)
 LinearAlgebra.eigvals(
@@ -757,7 +757,7 @@ LinearAlgebra.eigvals(
     scratch = nothing,
     team = nothing,
 ) =
-    isnothing(scratch) && isnothing(team) ?
+    _evd_default_path(scratch, team) ?
     _typed_eigen(
         parent(a);
         vectors = false,

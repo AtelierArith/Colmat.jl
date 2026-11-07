@@ -15,7 +15,7 @@ fn req<T: ComplexField>(n: usize, values: bool, par: ParShape) -> StackReq {
             n,
             if values { Vectors::No } else { Vectors::Yes },
             par,
-            Default::default(),
+            crate::evd_tuning::self_adjoint_params::<T>(),
         ),
     ])
 }
@@ -108,7 +108,7 @@ unsafe fn run<T: ComplexField>(
             u,
             par,
             stack,
-            Default::default(),
+            crate::evd_tuning::self_adjoint_params::<T>(),
         )
         .map_err(|e| format!("EVD: {e:?}"))?;
         for i in 0..n {
