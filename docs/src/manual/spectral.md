@@ -228,17 +228,33 @@ dense EVD/SVD; they report `algorithm == :dense_fallback`, and iterative results
 report `:partial`. The self-adjoint dense branch reads the lower triangle of the
 materialized operator, so results are defined only for Hermitian operators. If
 the branch fails, for example because the materialized operator is not finite,
-it returns `nconverged == 0` instead of throwing. Native results are written
-directly into the returned arrays without an intermediate Rust copy.
+it returns `nconverged == 0` instead of throwing. faer emits the converged
+results sorted by decreasing magnitude, and they are written directly into the
+returned Julia arrays: there is no Rust or Julia staging copy, no sort
+permutation copy, and truncation to `nconverged` resizes the arrays in place.
+`partial_svd` writes the right singular vectors straight into the rows of the
+returned `Vt::Matrix` (conjugated in place), so no transpose copy is made. The
+residuals are recomputed natively in the same call; a real operator acts on the
+real and imaginary parts of complex `partial_eigen` vectors instead of being
+promoted to a complex copy. A `v0` given as a `FaerVector`, a one-dimensional
+`FaerView`, a [`faerview`](@ref) borrow or a strided Julia vector of the
+operator's scalar type is read in place; other start vectors are converted once.
+
+Measured Julia `@allocated` for `k = 6` and a dense `Float64` operator,
+before → after: `partial_eigen` 567 KB → 66 KB (n = 400) and 1.84 MB → 181 KB
+(n = 1600); `partial_self_adjoint_eigen` 973 KB → 99 KB and `partial_svd`
+(1600×800) 1.56 MB → 148 KB at n = 1600. What remains is the returned arrays
+plus a fixed FFI marshalling overhead of roughly 16–30 KB; a Julia callback
+operator adds about 100 B per application for its trampoline.
 
 All three methods accept `scratch` and `team`. Query or reserve with the same
 projection controls and team used for execution. The buffer covers the partial
 kernel, including its full-subspace operator materialization and dense EVD/SVD,
 plus independent residual applications. For the self-adjoint full-subspace
 branch Colmat also adds the `n×n` eigenvector buffer that faer's own scratch
-query omits. Querying does not apply operators. Result staging, scalar
-promotion and Julia callback arrays allocate separately; callbacks run on the
-calling Julia task, including when a team executes the native kernels.
+query omits. Querying does not apply operators. Julia callback operators reuse
+their per-operator marshalling arrays; callbacks run on the calling Julia task,
+including when a team executes the native kernels.
 
 ```julia
 using Colmat, LinearAlgebra

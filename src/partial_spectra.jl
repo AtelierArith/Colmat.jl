@@ -7,9 +7,13 @@ Estimate largest-magnitude eigenpairs through faer's restarted partial spectrum
 algorithms. The self-adjoint variant assumes the operator is Hermitian.
 Return values, vectors, nconverged, requested, residuals and algorithm. Only
 converged columns are returned; max_restarts=0 may return none. Residuals are
-independently recomputed as LinearAlgebra.norm(A*v-lambda*v). Eigenpairs are sorted by
-magnitude. v0 defaults to a deterministic nonzero vector; use another start if
-it is orthogonal to a desired invariant subspace.
+independently recomputed natively as LinearAlgebra.norm(A*v-lambda*v) (a real
+operator acts on the real and imaginary parts of complex eigenvectors, so it is
+never promoted). Eigenpairs come out of faer sorted by decreasing magnitude.
+v0 defaults to a deterministic nonzero vector; use another start if it is
+orthogonal to a desired invariant subspace. A `FaerVector`, a one-dimensional
+`FaerView`, a `faerview` borrow or a strided Julia vector of the operator's
+scalar type is read in place; other `v0` are converted to it once.
 
 Small/full-subspace self-adjoint requests (max(max_dim, 64, 2nev) >= n) take
 faer's native full-subspace branch, which materializes the operator and runs a
@@ -21,7 +25,9 @@ Projection dimension controls are lower bounds in faer (at least 64 and 2nev).
 `scratch` reuses caller-owned native kernel/materialization and final residual
 workspace; `team` supplies the scoped native team. Query with
 `scratch_requirements(partial_eigen,op,nev;min_dim,max_dim,max_restarts,team)`.
-Result staging, promotion and Julia callback buffers allocate separately.
+faer writes the converged results, already in their final order, straight into
+the returned Julia arrays; truncation to the converged count resizes them in
+place. Julia callback operators reuse their per-operator marshalling buffers.
 """
 function partial_eigen end
 function partial_self_adjoint_eigen end
@@ -31,7 +37,9 @@ function partial_self_adjoint_eigen end
 Estimate largest singular triplets using faer's partial SVD. Keywords match
 [`partial_eigen`](@ref). Return U, S, Vt, nconverged, requested, residuals and
 algorithm. Residuals check both A*v=s*u and A'*u=s*v. Only reported converged
-triplets are returned. Full-projection requests (max(max_dim, 64, 2nsv) >=
+triplets are returned. faer writes the right singular vectors directly into
+`Vt`'s rows (conjugated in place), so `Vt` is a plain `Matrix` built without a
+transpose copy. Full-projection requests (max(max_dim, 64, 2nsv) >=
 min(size(op)...)) take faer's native full-subspace dense SVD branch; algorithm
 reports :dense_fallback, and a failure there reports nconverged == 0. Other
 requests do not materialize the operator.
@@ -70,24 +78,32 @@ function _partial_spectrum(
         work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
              scratch
         try
-            E=kind==0 ? Complex{_realtype(T)} : T
-            vectors=zeros(E, m, k)
-            values=zeros(E, k)
-            right=zeros(T, n, kind==2 ? k : 0)
+            R=_realtype(T)
+            E=kind==0 ? Complex{R} : T
+            # Rust writes sorted results, residuals and (for SVD) the conjugated,
+            # compacted Vt rows straight into these buffers; truncating to the
+            # converged count is an in-place resize, not a copy.
+            vectors=Vector{E}(undef, m*k)
+            values=Vector{E}(undef, k)
+            right=Vector{T}(undef, kind==2 ? n*k : 0)
+            residuals=Vector{R}(undef, k)
             algorithm=:partial
             count=0
             if k>0 && max_restarts>0
                 # Mirrors faer's full-subspace trigger max(max_dim, 2MIN_DIM, 2k) >= limit.
                 algorithm=kind in (1, 2) && max(Int(max_dim), 64, 2k)>=min(m, n) ?
                           :dense_fallback : :partial
-                GC.@preserve start vectors values right begin
+                source, desc=isnothing(start) ? (Ptr{UInt8}(C_NULL), nothing) :
+                             _view_source(start)
+                GC.@preserve start desc vectors values right residuals begin
                     args=(
                         kind,
                         UInt(k),
                         UInt(m),
                         UInt(n),
                         _tag(T),
-                        Ptr{UInt8}(pointer(start)),
+                        source,
+                        isnothing(desc) ? Ptr{Int}(C_NULL) : pointer(desc),
                         Float64(tolerance),
                         UInt(min_dim),
                         UInt(max_dim),
@@ -95,49 +111,27 @@ function _partial_spectrum(
                         Ptr{UInt8}(pointer(vectors)),
                         Ptr{UInt8}(pointer(values)),
                         Ptr{UInt8}(pointer(right)),
+                        Ptr{UInt8}(pointer(residuals)),
                     )
                     count=Int(_partial_native(op, args, work, team))
                 end
             end
-            order=sortperm(abs.(values[1:count]); rev = true)
-            vectors=vectors[:, order]
-            values=values[order]
+            vectors=reshape(resize!(vectors, m*count), m, count)
+            resize!(values, count)
+            resize!(residuals, count)
             if kind==2
-                right=right[:, order]
-                singular=real.(values)
-                residuals=[
-                    max(
-                        LinearAlgebra.norm(
-                            _partial_apply(op, right[:, j], work, team)-singular[j]*vectors[
-                                :,
-                                j,
-                            ],
-                        ),
-                        LinearAlgebra.norm(
-                            _partial_apply(adjoint(op), vectors[:, j], work, team)-singular[j]*right[
-                                :,
-                                j,
-                            ],
-                        ),
-                    ) for j = 1:count
-                ]
                 return (
                     U = vectors,
-                    S = singular,
-                    Vt = Matrix(adjoint(right)),
+                    S = T<:Real ? values : real.(values),
+                    Vt = reshape(resize!(right, count*n), count, n),
                     nconverged = count,
                     requested = k,
                     residuals,
                     algorithm,
                 )
             end
-            residuals=[
-                LinearAlgebra.norm(
-                    _partial_apply(op, vectors[:, j], work, team)-values[j]*vectors[:, j],
-                ) for j = 1:count
-            ]
             return (
-                values = kind==1 ? real.(values) : values,
+                values = kind==1 && T<:Complex ? real.(values) : values,
                 vectors,
                 nconverged = count,
                 requested = k,
