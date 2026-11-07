@@ -113,6 +113,7 @@ export FaerSpectralFactor,
     full_piv_lu!,
     pfaffian,
     faer_mul,
+    with_schur_tuning,
     structured_mul!,
     faer_solve,
     faer_svd
@@ -305,6 +306,7 @@ include("storage_construction.jl")
 include("storage_initializer.jl")
 include("function_constructors.jl")
 include("filled_constructors.jl")
+include("schur_tuning.jl")
 include("balanced_eigen.jl")
 include("pivoted_qr_rank.jl")
 include("measures.jl")
