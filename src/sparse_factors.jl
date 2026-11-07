@@ -272,7 +272,7 @@ function _sparse_symbolic_requirements(p::_RawAnalysisSource, o)
         Int32(o.code),
         Int32(o.ordercode),
         Int32(o.algo),
-        pointer(info),
+        info,
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

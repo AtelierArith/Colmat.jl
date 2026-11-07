@@ -268,8 +268,9 @@ pub fn sparse_analysis_requirements_shape(
     kind: i32,
     ordering: i32,
     supernodal: i32,
-    out: *mut usize,
+    out: &mut [usize],
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let req = shape_requirement(m, n, nnz, m, n, kind, ordering, supernodal)?;
         if out.is_null() || (out as usize) % std::mem::align_of::<usize>() != 0 {

@@ -65,7 +65,7 @@ function _sparse_triangular_query(
             _isunit(a),
             op,
             _tag(P),
-            pointer(info),
+            info,
         )
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))

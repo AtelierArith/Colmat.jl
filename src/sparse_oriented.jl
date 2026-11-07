@@ -140,9 +140,9 @@ function _with_sparse_words(f, b::FaerBorrowedSparseMatrix)
 end
 function _with_sparse_words(f, a::FaerSparseMatrix)
     _handle(a)
-    words=Vector{UInt}(undef, 7)
-    csr=GC.@preserve words _native_call(RustCrate.sparse_csc_raw_parts, a, pointer(words))
-    words[7]=csr
+    parts=Vector{UInt}(undef, 6)
+    csr=_native_call(RustCrate.sparse_csc_raw_parts, a, parts)
+    words=push!(parts, UInt(csr))
     GC.@preserve a words return f(pointer(words))
 end
 function _sparse_mixed_binary(a, b, kind)

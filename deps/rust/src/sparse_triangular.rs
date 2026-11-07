@@ -579,8 +579,9 @@ pub fn borrowed_sparse_triangular_requirements(
     unit: bool,
     op: i32,
     tag: i32,
-    out: *mut usize,
+    out: &mut [usize],
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let src = borrowed_source(m, n, ptr, idx, val, k, stag);
         let req: StackReq = with_borrowed!(src, c => match tag {
