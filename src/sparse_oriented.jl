@@ -122,3 +122,63 @@ LinearAlgebra.mul!(c::FaerMatrix, a::_OwnerSparseOperand, b::_OwnerMulDense) =
     _borrowed_sparse_mul!(c, a, b, true, false, true)
 LinearAlgebra.mul!(c::FaerMatrix, a::_OwnerMulDense, b::_OwnerSparseOperand) =
     _borrowed_sparse_mul!(c, a, b, true, false, false)
+
+# Plan-less `+`, `-` and `*` with at least one borrowed Julia CSC operand (or
+# its transpose/adjoint). Each operand is handed to Rust as the words of its
+# column-major view (`_with_sparse_words`): borrowed arrays through the
+# per-call 0-based buffers, owners in place; nothing is copied into an owner.
+# The result orientation follows `op(A)` as for owner pairs.
+_oriented_format(a::_BorrowedSparseOperand) = a isa FaerBorrowedSparseMatrix ? :csc : :csr
+_any_sparse_promote(a::_BorrowedSparseOperand, ::Type{P}) where {P} =
+    _borrowed_sparse_promote(a, P)
+_any_sparse_promote(a::_OwnerSparseOperand, ::Type{P}) where {P} = _owner_sparse_promote(a, P)
+function _with_sparse_words(f, b::FaerBorrowedSparseMatrix)
+    _with_borrowed_sparse(b) do m, n, p, i, v, k, _
+        words=UInt[m, n, UInt(p), UInt(i), UInt(v), k, 0]
+        GC.@preserve words f(pointer(words))
+    end
+end
+function _with_sparse_words(f, a::FaerSparseMatrix)
+    _handle(a)
+    parts=Vector{UInt}(undef, 6)
+    csr=_native_call(RustCrate.sparse_csc_raw_parts, a, parts)
+    words=push!(parts, UInt(csr))
+    GC.@preserve a words return f(pointer(words))
+end
+function _sparse_mixed_binary(a, b, kind)
+    lock(_matrix_lock) do
+        kind==2 ? size(a, 2)==size(b, 1) || throw(DimensionMismatch("sparse operation dimensions must match")) :
+        size(a)==size(b) || throw(DimensionMismatch("sparse operation dimensions must match"))
+        P=promote_type(eltype(a), eltype(b))
+        P<:_NativeScalar || _unsupported_scalar(P)
+        aa, bb=_any_sparse_promote(a, P), _any_sparse_promote(b, P)
+        dims=kind==2 ? (size(a, 1), size(b, 2)) : size(a)
+        _with_sparse_words(_sparse_stored(aa)) do x
+            _with_sparse_words(_sparse_stored(bb)) do y
+                _sparse_result(
+                    P,
+                    dims,
+                    _oriented_format(aa),
+                    RustCrate.sparse_raw_oriented,
+                    x,
+                    _sparse_orientation(aa),
+                    y,
+                    _sparse_orientation(bb),
+                    _tag(P),
+                    Int32(kind),
+                )
+            end
+        end
+    end
+end
+for (A, B) in (
+    (:_BorrowedSparseOperand, :_BorrowedSparseOperand),
+    (:_BorrowedSparseOperand, :_OwnerSparseOperand),
+    (:_OwnerSparseOperand, :_BorrowedSparseOperand),
+)
+    @eval begin
+        Base.:+(a::$A, b::$B) = _sparse_mixed_binary(a, b, 0)
+        Base.:-(a::$A, b::$B) = _sparse_mixed_binary(a, b, 1)
+        Base.:*(a::$A, b::$B) = _sparse_mixed_binary(a, b, 2)
+    end
+end

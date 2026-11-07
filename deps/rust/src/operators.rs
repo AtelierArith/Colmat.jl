@@ -248,6 +248,41 @@ impl OwnedLinearOperator {
             Ok(())
         })
     }
+    /// Snapshot `op(A)` of a borrowed Julia CSC matrix (validated raw parts;
+    /// `trans` as in `borrowed_sparse::snapshot`) as a sparse operator. The
+    /// pointers are read only during this call; applies use the snapshot.
+    #[julia]
+    pub fn operator_load_borrowed(
+        &mut self,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        val: *const u8,
+        k: usize,
+        tag: i32,
+        trans: i32,
+    ) -> Result<(), String> {
+        use crate::borrowed_sparse::{numeric, snapshot, Raw};
+        guarded(|| unsafe {
+            let raw = Raw {
+                m,
+                n,
+                ptr,
+                idx,
+                val,
+                k,
+            };
+            self.data = Some(match tag {
+                0 => Data::F32(Operator::new(Base::Sparse(snapshot(numeric(raw)?, trans)?))),
+                1 => Data::F64(Operator::new(Base::Sparse(snapshot(numeric(raw)?, trans)?))),
+                2 => Data::C32(Operator::new(Base::Sparse(snapshot(numeric(raw)?, trans)?))),
+                3 => Data::C64(Operator::new(Base::Sparse(snapshot(numeric(raw)?, trans)?))),
+                _ => return Err("unsupported sparse scalar".into()),
+            });
+            Ok(())
+        })
+    }
     #[julia]
     pub fn operator_identity(&mut self, n: usize, tag: i32) -> Result<(), String> {
         guarded(|| {

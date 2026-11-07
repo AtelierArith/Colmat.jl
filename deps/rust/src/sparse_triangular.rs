@@ -8,6 +8,7 @@
 //! caller's scratch, never in a heap allocation. CSR storage, `transpose` and
 //! `adjoint` are mapped onto the column-major kernels and their `transpose`
 //! variants with a conjugation flag, so no operand is copied.
+use crate::borrowed_sparse::{numeric, Raw};
 use crate::collections::{VectorData, VectorOwner};
 use crate::sparse::{SparseData, SparseOwner, Storage};
 use crate::typed::{MatrixData, TypedMatrix};
@@ -175,10 +176,23 @@ fn solve<S: Native, P: Native>(
     op: i32,
     stack: &mut MemStack,
 ) -> Result<usize, String> {
+    let (c, stored_transpose) = column_major(a);
+    solve_view(c, stored_transpose, x, lower, unit, op, stack)
+}
+/// `solve` on the column-major view `c` of the stored matrix
+/// (`stored_transpose`: `c` is the transpose of a CSR matrix).
+fn solve_view<S: Native, P: Native>(
+    c: SparseColMatRef<'_, usize, S>,
+    stored_transpose: bool,
+    x: MatMut<'_, P>,
+    lower: bool,
+    unit: bool,
+    op: i32,
+    stack: &mut MemStack,
+) -> Result<usize, String> {
     if !widens(S::TAG, P::TAG) {
         return Err("sparse triangular destination must hold the promoted scalar type".into());
     }
-    let (c, stored_transpose) = column_major(a);
     let n = c.nrows();
     if c.ncols() != n || x.nrows() != n {
         return Err("sparse triangular solve dimensions must match".into());
@@ -469,6 +483,295 @@ impl VectorOwner {
                     op,
                     scratch,
                 ),
+            }
+        })
+    }
+}
+
+/// A borrowed Julia CSC operand of scalar `tag` (raw parts, validated on use).
+#[derive(Clone, Copy)]
+struct BorrowedSource {
+    raw: Raw,
+    tag: i32,
+}
+macro_rules! with_borrowed {
+    ($src:expr, $c:ident => $body:expr) => {
+        // SAFETY: Julia roots the parent and the 0-based buffers for this call.
+        match $src.tag {
+            0 => {
+                let $c = unsafe { numeric::<f32>($src.raw)? };
+                $body
+            }
+            1 => {
+                let $c = unsafe { numeric::<f64>($src.raw)? };
+                $body
+            }
+            2 => {
+                let $c = unsafe { numeric::<faer::c32>($src.raw)? };
+                $body
+            }
+            3 => {
+                let $c = unsafe { numeric::<faer::c64>($src.raw)? };
+                $body
+            }
+            _ => Err("invalid sparse triangular scalar".into()),
+        }
+    };
+}
+fn query_view<S: Native, P: Native>(
+    c: SparseColMatRef<'_, usize, S>,
+    lower: bool,
+    unit: bool,
+    op: i32,
+) -> Result<StackReq, String> {
+    if !widens(S::TAG, P::TAG) {
+        return Err("sparse triangular destination must hold the promoted scalar type".into());
+    }
+    requirement::<P, S>(c, plan(false, lower, unit, op)?, S::TAG == P::TAG)
+}
+fn solve_borrowed<P: Native>(
+    src: BorrowedSource,
+    x: MatMut<'_, P>,
+    lower: bool,
+    unit: bool,
+    op: i32,
+    scratch: &mut OwnedScratch,
+) -> Result<usize, String> {
+    with_borrowed!(src, c => {
+        let stack = scratch.stack(query_view::<_, P>(c, lower, unit, op)?)?;
+        solve_view(c, false, x, lower, unit, op, stack)
+    })
+}
+fn borrowed_source(
+    m: usize,
+    n: usize,
+    ptr: *const usize,
+    idx: *const usize,
+    val: *const u8,
+    k: usize,
+    tag: i32,
+) -> BorrowedSource {
+    BorrowedSource {
+        raw: Raw {
+            m,
+            n,
+            ptr,
+            idx,
+            val,
+            k,
+        },
+        tag,
+    }
+}
+
+/// Borrowed Julia CSC counterpart of `sparse_triangular_requirements`.
+#[julia]
+#[allow(clippy::too_many_arguments)]
+pub fn borrowed_sparse_triangular_requirements(
+    m: usize,
+    n: usize,
+    ptr: *const usize,
+    idx: *const usize,
+    val: *const u8,
+    k: usize,
+    stag: i32,
+    lower: bool,
+    unit: bool,
+    op: i32,
+    tag: i32,
+    out: &mut [usize],
+) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
+    guarded(|| {
+        let src = borrowed_source(m, n, ptr, idx, val, k, stag);
+        let req: StackReq = with_borrowed!(src, c => match tag {
+            0 => query_view::<_, f32>(c, lower, unit, op),
+            1 => query_view::<_, f64>(c, lower, unit, op),
+            2 => query_view::<_, faer::c32>(c, lower, unit, op),
+            3 => query_view::<_, faer::c64>(c, lower, unit, op),
+            _ => Err("invalid sparse triangular scalar".into()),
+        })?;
+        unsafe {
+            out.write(req.size_bytes());
+            out.add(1).write(req.align_bytes());
+        }
+        Ok(())
+    })
+}
+/// One-based index of the first zero diagonal of a borrowed Julia CSC matrix, or 0.
+#[julia]
+pub fn borrowed_sparse_zero_diagonal(
+    m: usize,
+    n: usize,
+    ptr: *const usize,
+    idx: *const usize,
+    val: *const u8,
+    k: usize,
+    stag: i32,
+) -> Result<usize, String> {
+    guarded(|| {
+        let src = borrowed_source(m, n, ptr, idx, val, k, stag);
+        with_borrowed!(src, c => Ok(zero_diagonal(c)))
+    })
+}
+/// Solve with a borrowed Julia CSC matrix into a borrowed strided buffer.
+#[julia]
+#[allow(clippy::too_many_arguments)]
+pub fn borrowed_sparse_triangular_raw(
+    m: usize,
+    n: usize,
+    ptr: *const usize,
+    idx: *const usize,
+    val: *const u8,
+    k: usize,
+    stag: i32,
+    p: *mut u8,
+    xm: usize,
+    xn: usize,
+    rs: isize,
+    cs: isize,
+    tag: i32,
+    lower: bool,
+    unit: bool,
+    op: i32,
+    scratch: &mut OwnedScratch,
+) -> Result<usize, String> {
+    guarded(|| {
+        let src = borrowed_source(m, n, ptr, idx, val, k, stag);
+        // SAFETY: Julia roots the injective strided array for this call and
+        // checks that it does not alias the borrowed sparse arrays.
+        unsafe {
+            match tag {
+                0 => {
+                    solve_borrowed::<f32>(src, raw_mut(p, xm, xn, rs, cs), lower, unit, op, scratch)
+                }
+                1 => {
+                    solve_borrowed::<f64>(src, raw_mut(p, xm, xn, rs, cs), lower, unit, op, scratch)
+                }
+                2 => solve_borrowed::<faer::c32>(
+                    src,
+                    raw_mut(p, xm, xn, rs, cs),
+                    lower,
+                    unit,
+                    op,
+                    scratch,
+                ),
+                3 => solve_borrowed::<faer::c64>(
+                    src,
+                    raw_mut(p, xm, xn, rs, cs),
+                    lower,
+                    unit,
+                    op,
+                    scratch,
+                ),
+                _ => Err("invalid sparse triangular scalar".into()),
+            }
+        }
+    })
+}
+#[julia]
+impl OwnedMatrix {
+    /// Solve with a borrowed Julia CSC matrix into this native destination.
+    #[julia]
+    #[allow(clippy::too_many_arguments)]
+    pub fn borrowed_sparse_triangular_into(
+        &mut self,
+        desc: *const isize,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        val: *const u8,
+        k: usize,
+        stag: i32,
+        lower: bool,
+        unit: bool,
+        op: i32,
+        scratch: &mut OwnedScratch,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            let src = borrowed_source(m, n, ptr, idx, val, k, stag);
+            let x = view_mut(self.matrix.as_mut(), unsafe { Spec::read(desc)? })?;
+            solve_borrowed(src, x, lower, unit, op, scratch)
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    /// Solve with a borrowed Julia CSC matrix into this native destination.
+    #[julia]
+    #[allow(clippy::too_many_arguments)]
+    pub fn borrowed_sparse_triangular_into(
+        &mut self,
+        desc: *const isize,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        val: *const u8,
+        k: usize,
+        stag: i32,
+        lower: bool,
+        unit: bool,
+        op: i32,
+        scratch: &mut OwnedScratch,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            let src = borrowed_source(m, n, ptr, idx, val, k, stag);
+            let s = unsafe { Spec::read(desc)? };
+            match self.data.as_mut().ok_or("matrix is not initialized")? {
+                MatrixData::F32(a) => {
+                    solve_borrowed(src, view_mut(a.as_mut(), s)?, lower, unit, op, scratch)
+                }
+                MatrixData::F64(a) => {
+                    solve_borrowed(src, view_mut(a.as_mut(), s)?, lower, unit, op, scratch)
+                }
+                MatrixData::C32(a) => {
+                    solve_borrowed(src, view_mut(a.as_mut(), s)?, lower, unit, op, scratch)
+                }
+                MatrixData::C64(a) => {
+                    solve_borrowed(src, view_mut(a.as_mut(), s)?, lower, unit, op, scratch)
+                }
+            }
+        })
+    }
+}
+#[julia]
+impl VectorOwner {
+    /// Solve with a borrowed Julia CSC matrix into this native destination.
+    #[julia]
+    #[allow(clippy::too_many_arguments)]
+    pub fn borrowed_sparse_triangular_into(
+        &mut self,
+        desc: *const isize,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        val: *const u8,
+        k: usize,
+        stag: i32,
+        lower: bool,
+        unit: bool,
+        op: i32,
+        scratch: &mut OwnedScratch,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            let src = borrowed_source(m, n, ptr, idx, val, k, stag);
+            let s = unsafe { Spec::read(desc)? };
+            match self.data.as_mut().ok_or("collection is not initialized")? {
+                VectorData::F32(a) => {
+                    solve_borrowed(src, view_mut(a.as_mat_mut(), s)?, lower, unit, op, scratch)
+                }
+                VectorData::F64(a) => {
+                    solve_borrowed(src, view_mut(a.as_mat_mut(), s)?, lower, unit, op, scratch)
+                }
+                VectorData::C32(a) => {
+                    solve_borrowed(src, view_mut(a.as_mat_mut(), s)?, lower, unit, op, scratch)
+                }
+                VectorData::C64(a) => {
+                    solve_borrowed(src, view_mut(a.as_mat_mut(), s)?, lower, unit, op, scratch)
+                }
             }
         })
     }

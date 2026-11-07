@@ -2,6 +2,9 @@ const _SparseTriangularParent{T}=Union{
     FaerSparseMatrix{T},
     LinearAlgebra.Transpose{T,<:FaerSparseMatrix{T}},
     LinearAlgebra.Adjoint{T,<:FaerSparseMatrix{T}},
+    FaerBorrowedSparseMatrix{T},
+    LinearAlgebra.Transpose{T,<:FaerBorrowedSparseMatrix{T}},
+    LinearAlgebra.Adjoint{T,<:FaerBorrowedSparseMatrix{T}},
 }
 const _SparseTriangular=Union{
     LinearAlgebra.LowerTriangular{<:Any,<:_SparseTriangularParent},
@@ -12,6 +15,19 @@ const _SparseTriangular=Union{
 # The stored owner and the operation applied to it; Rust maps CSR storage and
 # transpose/adjoint onto faer's column-major kernels without copying the owner.
 _sparse_triangular_owner(p::FaerSparseMatrix) = (p, Int32(0))
+# A borrowed Julia CSC matrix is read through the per-call 0-based buffers.
+_sparse_triangular_owner(p::FaerBorrowedSparseMatrix) = (p, Int32(0))
+_sparse_triangular_open(source::FaerSparseMatrix) = _handle(source)
+_sparse_triangular_open(::FaerBorrowedSparseMatrix) = nothing
+# Rust reads the borrowed sparse arrays while solving in the destination.
+_sparse_triangular_alias(dest, ::FaerSparseMatrix) = nothing
+function _sparse_triangular_alias(dest, source::FaerBorrowedSparseMatrix)
+    y=dest isa FaerBorrowedArray ? parent(dest) : dest
+    y isa AbstractArray && Base.mightalias(y, source) && throw(
+        ArgumentError("sparse triangular destination must not alias the borrowed sparse matrix"),
+    )
+    return nothing
+end
 _sparse_triangular_owner(p::LinearAlgebra.Transpose) = (parent(p), Int32(1))
 _sparse_triangular_owner(p::LinearAlgebra.Adjoint) = (parent(p), Int32(2))
 # Destinations the native kernel writes into directly.
@@ -27,12 +43,32 @@ function _sparse_triangular_prepare(a, b, team)
     isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
     isnothing(team) || _handle(team)
     source, op=_sparse_triangular_owner(parent(a))
-    _handle(source)
+    _sparse_triangular_open(source)
     b isa Union{_SparseTriangularNative,FaerBorrowedArray} && _spectral_rhs_open(b)
     size(a, 1)==size(b, 1) ||
         throw(DimensionMismatch("sparse triangular solve dimensions must match"))
     P=promote_type(eltype(a), _sparse_input_type(eltype(b)))
     return source, op, P
+end
+function _sparse_triangular_query(
+    source::FaerBorrowedSparseMatrix,
+    a,
+    op,
+    ::Type{P},
+) where {P}
+    info=zeros(UInt, 2)
+    GC.@preserve info _with_borrowed_sparse(source) do raw...
+        _native_call(
+            RustCrate.borrowed_sparse_triangular_requirements,
+            raw...,
+            _islower(a),
+            _isunit(a),
+            op,
+            _tag(P),
+            info,
+        )
+    end
+    return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
 function _sparse_triangular_query(source, a, op, ::Type{P}) where {P}
     info=zeros(UInt, 2)
@@ -49,11 +85,55 @@ function _sparse_triangular_query(source, a, op, ::Type{P}) where {P}
 end
 function _sparse_triangular_check_singular(source, a)
     _isunit(a) && return nothing
-    i=Int(_native_call(RustCrate.sparse_zero_diagonal, source))
+    i=Int(
+        source isa FaerBorrowedSparseMatrix ?
+        _with_borrowed_sparse((raw...) -> _native_call(RustCrate.borrowed_sparse_zero_diagonal, raw...), source) :
+        _native_call(RustCrate.sparse_zero_diagonal, source),
+    )
     iszero(i) || throw(LinearAlgebra.SingularException(i))
     return nothing
 end
 # Solve in place in `x`, which already holds the RHS in scalar type P.
+function _sparse_triangular_native!(x, source::FaerBorrowedSparseMatrix, a, op, work)
+    lower, unit=_islower(a), _isunit(a)
+    code=_with_borrowed_sparse(source) do raw...
+        if x isa _SparseTriangularNative
+            p, d=_view_source(x)
+            GC.@preserve d _native_call(
+                RustCrate.borrowed_sparse_triangular_into,
+                p,
+                pointer(d),
+                raw...,
+                lower,
+                unit,
+                op,
+                work,
+            )
+        else
+            y=x isa FaerBorrowedArray ? parent(x) : x
+            m=size(y, 1)
+            n=ndims(y)==1 ? 1 : size(y, 2)
+            rs=stride(y, 1)
+            cs=ndims(y)==1 ? m*rs : stride(y, 2)
+            GC.@preserve y _native_call(
+                RustCrate.borrowed_sparse_triangular_raw,
+                raw...,
+                Ptr{UInt8}(pointer(y)),
+                UInt(m),
+                UInt(n),
+                rs,
+                cs,
+                _tag(eltype(y)),
+                lower,
+                unit,
+                op,
+                work,
+            )
+        end
+    end
+    iszero(code) || throw(LinearAlgebra.SingularException(Int(code)))
+    return x
+end
 function _sparse_triangular_native!(x, source, a, op, work)
     lower, unit=_islower(a), _isunit(a)
     code=if x isa _SparseTriangularNative
@@ -163,6 +243,7 @@ function _sparse_triangular_write!(dest, a, b; scratch = nothing, team = nothing
         dest isa Union{_SparseTriangularNative,FaerBorrowedArray} && _spectral_rhs_open(dest)
         size(dest)==size(b) ||
             throw(DimensionMismatch("triangular output size must match RHS"))
+        _sparse_triangular_alias(dest, source)
         direct=_sparse_triangular_direct(dest, P)
         direct && dest!==b && _sparse_triangular_check_singular(source, a)
         req=_sparse_triangular_query(source, a, op, P)
@@ -207,7 +288,10 @@ end
     ldiv!(Y, A::SparseTriangular, B; scratch=nothing, team=nothing)
 
 Solve with a lower/upper/unit triangular wrapper of a `FaerSparseMatrix` (CSC or
-CSR, optionally `transpose`/`adjoint`) in place. When the destination is a
+CSR, optionally `transpose`/`adjoint`) or of a borrowed Julia CSC matrix
+`faerview(S)` (optionally `transpose`/`adjoint`, read in place through the
+per-call 0-based index buffers) in place. A destination sharing memory with a
+borrowed `S` throws `ArgumentError`. When the destination is a
 `FaerMatrix`/`FaerVector`, a native view, a [`faerview`](@ref) borrow or an
 injective Julia strided array whose element type is
 `promote_type(eltype(A), eltype(B))`, faer's
