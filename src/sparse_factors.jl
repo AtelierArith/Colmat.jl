@@ -225,15 +225,15 @@ end
 function _sparse_supernodal_tuning!(h, o)
     isnan(o.ratio) && isnothing(o.relax_sizes) && return nothing
     custom=!isnothing(o.relax_sizes)
-    sizes=custom ? o.relax_sizes : UInt[]
-    fractions=custom ? o.relax_fractions : Float64[]
+    sizes=custom ? Vector{UInt}(o.relax_sizes) : UInt[]
+    fractions=custom ? Vector{Float64}(o.relax_fractions) : Float64[]
     GC.@preserve sizes fractions _native_call(
         RustCrate.sparse_symbolic_tuning,
         h,
         o.ratio,
         custom,
-        pointer(sizes),
-        pointer(fractions),
+        sizes,
+        fractions,
         UInt(length(sizes)),
     )
     return nothing

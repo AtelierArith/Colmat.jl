@@ -54,9 +54,9 @@ function balance(a::AbstractMatrix{<:Number})
             RustCrate.balance_data,
             Ptr{UInt8}(pointer(data)),
             UInt(n),
-            pointer(perm),
+            perm,
             Ptr{UInt8}(pointer(scale)),
-            pointer(active),
+            active,
             _tag(T),
         )
         return FaerBalance(
@@ -110,7 +110,7 @@ function balance_eigenvectors(f::FaerBalance, x::AbstractVecOrMat{<:Number})
             Ptr{UInt8}(pointer(data)),
             UInt(size(data, 1)),
             UInt(size(data, 2)),
-            pointer(perm),
+            perm,
             Ptr{UInt8}(pointer(scale)),
             _tag(T),
         )

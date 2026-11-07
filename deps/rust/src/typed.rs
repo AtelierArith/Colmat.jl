@@ -823,7 +823,8 @@ impl TypedFactor {
         })
     }
     #[julia]
-    pub fn permutation(&self, out: *mut usize, len: usize, column: bool) -> Result<(), String> {
+    pub fn permutation(&self, out: &mut [usize], len: usize, column: bool) -> Result<(), String> {
+        let out = crate::workspace::fixed_out(out, len)?;
         guarded(|| {
             let p = with_factor!(self.data()?,f=>match f{Factor::Lu(x)if !column=>x.P().arrays().0,Factor::FullLu(x)=>if column{x.Q().arrays().0}else{x.P().arrays().0},Factor::PivotQr(x)=>x.P().arrays().0,Factor::Lblt(x)=>x.P().arrays().0,_=>return Err("no permutation".into())});
             if len != p.len() {
