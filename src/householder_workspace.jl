@@ -65,7 +65,11 @@ function _householder_resource_apply!(h, a, right; scratch = nothing, team = not
         t, c=_householder_orientation(h)
         fs=_householder_workspace_functions(h)
         args=(result, h, work, _householder_workspace_metadata(h)..., right, t, c)
-        isnothing(team) ? _native_call(fs[2], args...) : _native_call(fs[3], args..., team)
+        if length(fs)==2
+            _native_call(fs[2], args..., team)
+        else
+            isnothing(team) ? _native_call(fs[2], args...) : _native_call(fs[3], args..., team)
+        end
         buffer=ndims(a)==1 ? vec(Matrix(result)) : Matrix(result)
         return copyto!(a, buffer)
     finally

@@ -181,13 +181,11 @@ end
             A=X+X'
             info=zeros(UInt, 2)
             GC.@preserve info begin
-                args=(UInt(5), Colmat._tag(T), UInt(0), pointer(info))
-                isnothing(resource) ?
-                Colmat._native_call(Colmat.RustCrate.tridiagonalize_requirements, args...) :
+                args=(UInt(5), Colmat._tag(T), UInt(0), UInt(0), pointer(info))
                 Colmat._native_call(
-                    Colmat.RustCrate.tridiagonalize_team_requirements,
-                    resource,
+                    Colmat.RustCrate.tridiagonalize_requirements,
                     args...,
+                    resource,
                 )
             end
             req=scratch_requirements(tridiagonalize, A; team = resource)
@@ -207,14 +205,10 @@ end
                         Ptr{UInt8}(pointer(e)),
                         Colmat._tag(T),
                         UInt(0),
+                        UInt(0),
                     )
-                    isnothing(resource) ?
                     Colmat._native_call(
                         Colmat.RustCrate.tridiagonalize_workspace,
-                        args...,
-                    ) :
-                    Colmat._native_call(
-                        Colmat.RustCrate.tridiagonalize_workspace_team,
                         args...,
                         resource,
                     )

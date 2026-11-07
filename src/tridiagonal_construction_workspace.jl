@@ -14,21 +14,13 @@ function _tridiagonalize_requirement(n, T, bs, team, policy; compact = false)
     info=zeros(UInt, 2)
     GC.@preserve info begin
         args=(UInt(n), _tag(T), UInt(bs), policy.value, pointer(info))
-        isnothing(team) ?
         _native_call(
             (
                 compact ? RustCrate.compact_tridiagonal_requirements :
-                RustCrate.tridiagonalize_tuned_requirements
+                RustCrate.tridiagonalize_requirements
             ),
             args...,
-        ) :
-        _native_call(
-            (
-                compact ? RustCrate.compact_tridiagonal_team_requirements :
-                RustCrate.tridiagonalize_tuned_team_requirements
-            ),
             team,
-            args...,
         )
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
