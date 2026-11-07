@@ -126,6 +126,13 @@ end
         y=S(A, uplo)*v
         @test y isa FaerVector{T}
         @test _sjp_close(y, sa*v, T)
+        for dest in (zeros(T, n), FaerVector(zeros(T, n))), x in (v, FaerVector(v))
+            @test mul!(dest, S(A, uplo), x, T(2), T(0)) === dest
+            @test _sjp_close(dest, 2*(sa*v), T)
+        end
+        w=FaerVector(zeros(T, n))
+        mul!(w, S(a, uplo), FaerVector(v))
+        @test _sjp_close(w, sa*v, T)
         c0=_sjp(T, n, n, 4)
         α, β=T(2), T(-1)
         for (x, y, rx, ry) in (
@@ -170,6 +177,10 @@ end
             y=A*M
             @test y isa FaerMatrix{T}
             @test _sjp_close(y, a*M, T)
+            v=FaerVector(dv)
+            z=M*v
+            @test z isa FaerVector{T}
+            @test _sjp_close(z, M*dv, T)
             C=zeros(T, n, n)
             @test mul!(C, M, A) === C
             @test isapprox(C, M*a; rtol = _sjp_tol(T))
@@ -215,6 +226,8 @@ end
     j=_sjp(Float64, n, n, 2)
     jv=j[:, 1]
     C=zeros(n, n)
+    y=zeros(n)
+    Y=FaerVector(zeros(n))
     bound=16*1024
     for f in (
         ()->UpperTriangular(A)*j,
@@ -240,6 +253,9 @@ end
         ()->mul!(C, A, Symmetric(j)),
         ()->mul!(C, Diagonal(jv), A),
         ()->mul!(C, A, Diagonal(jv)),
+        ()->mul!(y, UpperTriangular(A), jv),
+        ()->mul!(y, Symmetric(A), jv),
+        ()->mul!(Y, Hermitian(A), jv),
     )
         f()
         @test @allocated(f()) < bound
@@ -251,9 +267,11 @@ end
         ()->A*Tridiagonal(jv[2:end], jv, jv[2:end]),
         ()->SymTridiagonal(jv, jv[2:end])*A,
         ()->mul!(C, Bidiagonal(jv, jv[1:(end-1)], :U), A),
+        ()->Bidiagonal(jv, jv[1:(end-1)], :U)*Y,
     )
         f()
         @test @allocated(f()) < 4*n*n*sizeof(Float64)
     end
     close(A)
+    close(Y)
 end

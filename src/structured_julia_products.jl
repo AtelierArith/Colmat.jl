@@ -76,6 +76,26 @@ for D in (:_ProductDense, :_GemmJuliaDestination), (A, B) in _SelfAdjointPairs
     end
 end
 
+# Matrix-vector `mul!` with an expanded self-adjoint operand.
+for (D, A, B) in (
+    (:(Union{FaerVector,FaerVectorView,_GemmJuliaDestination}), :_NativeSelfAdjoint, :(Union{_GemmNativeVector,_GemmJuliaVector})),
+    (:(Union{FaerVector,FaerVectorView}), :_JuliaSelfAdjoint, :(Union{_GemmNativeVector,_GemmJuliaVector})),
+    (:_GemmJuliaDestination, :_JuliaSelfAdjoint, :_GemmNativeVector),
+)
+    @eval begin
+        LinearAlgebra.mul!(
+            c::$D,
+            a::$A,
+            b::$B,
+            alpha::Number,
+            beta::Number;
+            team = nothing,
+        ) = LinearAlgebra.mul!(c, _selfadjoint_full(a), b, alpha, beta; team)
+        LinearAlgebra.mul!(c::$D, a::$A, b::$B; team = nothing) =
+            LinearAlgebra.mul!(c, _selfadjoint_full(a), b; team)
+    end
+end
+
 # Banded wrappers: faer has no banded product kernel, and expanding the band
 # into a dense native owner would turn an O(n²) product into an O(n³) gemm.
 # The native operand is copied to Julia once (one native view copy),
@@ -124,4 +144,9 @@ for (A, B) in ((:_ProductBanded, :_BandedNative), (:_BandedNative, :_ProductBand
             LinearAlgebra.mul!(c::$D, a::$A, b::$B) = _banded_mul!(c, a, b, true, false)
         end
     end
+end
+function Base.:*(a::_ProductBanded, b::_BorrowVector)
+    promote_type(eltype(a), eltype(b))<:_NativeScalar ||
+        return invoke(*, Tuple{AbstractMatrix,AbstractVector}, a, b)
+    return FaerVector(a*Vector(b))
 end
