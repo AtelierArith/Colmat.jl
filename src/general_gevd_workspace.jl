@@ -47,6 +47,13 @@ function reserve!(s::FaerScratch, f::_EvdFunction, a::FaerMatrix, b::FaerMatrix;
     req=scratch_requirements(f, a, b; kwargs...)
     return reserve!(s, req.bytes; alignment = req.alignment)
 end
+# Quotient eigenvalues α/β. For a real pencil a real α (zero imaginary part)
+# divides as a real number, so β=0 gives Inf+0im where LAPACK's real
+# `alphar ./ beta` gives Inf (rather than Inf+NaN*im from 0/0 in the imaginary
+# part). Complex pencils keep Julia's complex quotient, NaN+NaN*im for β=0, as
+# `eigvals(A, B)` of LinearAlgebra returns.
+_gevd_quotient(α::Complex, β::Real) = iszero(imag(α)) ? complex(real(α)/β) : α/β
+_gevd_quotient(α, β) = α/β
 function _general_gevd_workspace_result(
     a::FaerMatrix,
     b::FaerMatrix;
@@ -106,13 +113,14 @@ function _general_gevd_workspace_result(
                     iszero(scale) || (v ./= scale)
                 end
             end
-            values=homogeneous && isnothing(sortby) ? nothing : alpha ./ beta
+            values=homogeneous && isnothing(sortby) ? nothing : _gevd_quotient.(alpha, beta)
             if !isnothing(sortby)
                 order=sortperm(values; by = sortby)
                 values=values[order]
                 alpha, beta=alpha[order], beta[order]
-                vectors && (eigenvectors=eigenvectors[:, order])
-                vectors && side===:both && (rightvectors=rightvectors[:, order])
+                # Columns are permuted in place (cycle swaps), not copied.
+                vectors && Base.permutecols!!(eigenvectors, copy(order))
+                vectors && side===:both && Base.permutecols!!(rightvectors, copy(order))
             end
             if vectors && side===:both
                 return homogeneous ?
