@@ -32,15 +32,7 @@ function scratch_requirements(
         size(p)==size(a) || throw(DimensionMismatch("plan and matrix shapes must match"))
         info=zeros(UInt, 2)
         GC.@preserve info begin
-            isnothing(team) ?
-            _native_call(RustCrate.sparse_factor_requirements, p, _tag(T), pointer(info)) :
-            _native_call(
-                RustCrate.sparse_factor_requirements_team,
-                p,
-                _tag(T),
-                pointer(info),
-                team,
-            )
+            _native_call(RustCrate.sparse_factor_requirements, p, _tag(T), pointer(info), team)
         end
         (bytes = Int(info[1]), alignment = Int(info[2]))
     end
@@ -84,8 +76,7 @@ function _sparse_factor_resource_workspace(h, p, a, scratch, team = nothing)
     s=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
     try
         return Int(
-            isnothing(team) ? _native_call(RustCrate.sparse_factor_workspace, h, p, a, s) :
-            _native_call(RustCrate.sparse_factor_workspace_team, h, p, a, s, team),
+            _native_call(RustCrate.sparse_factor_workspace, h, p, a, s, team),
         )
     finally
         isnothing(scratch) && close(s)

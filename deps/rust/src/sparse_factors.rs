@@ -1261,8 +1261,15 @@ impl TypedMatrix {
 #[julia]
 impl SparseSymbolic {
     #[julia]
-    pub fn sparse_qr_factor_requirements(&self, tag: i32, out: *mut usize) -> Result<(), String> {
-        guarded(|| construction_workspace::query(self, tag, out, Par::Seq))
+    pub fn sparse_qr_factor_requirements(
+        &self,
+        tag: i32,
+        out: *mut usize,
+        team: Option<&crate::teams::OwnedTeam>,
+    ) -> Result<(), String> {
+        guarded(|| {
+            crate::teams::with_team(team, |par| construction_workspace::query(self, tag, out, par))
+        })
     }
 }
 #[julia]
@@ -1273,8 +1280,13 @@ impl SparseFactor {
         analysis: &SparseSymbolic,
         matrix: &SparseOwner,
         scratch: &mut crate::workspace::OwnedScratch,
+        team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<usize, String> {
-        guarded(|| construction_workspace::run(self, analysis, matrix, scratch, Par::Seq))
+        guarded(|| {
+            crate::teams::with_team(team, |par| {
+                construction_workspace::run(self, analysis, matrix, scratch, par)
+            })
+        })
     }
 }
 pub(crate) enum QrComponents<'a> {

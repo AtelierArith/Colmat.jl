@@ -525,9 +525,6 @@ fn raw(m: usize, n: usize, ptr: *const usize, idx: *const usize, val: *const u8,
 
 #[julia]
 impl SparseProductPlan {
-    /// `C = alpha * A * B (+ beta * C)` into a borrowed Julia CSC destination
-    /// (`d*` parts, values written in place) from raw CSC operands (borrowed
-    /// Julia matrices or `sparse_csc_raw_parts` of CSC owners).
     #[julia]
     #[allow(clippy::too_many_arguments)]
     pub fn sparse_plan_mul_into_borrowed(
@@ -555,6 +552,7 @@ impl SparseProductPlan {
         beta: *const u8,
         accumulate: bool,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<usize, String> {
         guarded(|| unsafe {
             borrowed_into(
@@ -567,52 +565,7 @@ impl SparseProductPlan {
                 alpha,
                 beta,
                 accumulate,
-                None,
-                scratch,
-            )
-        })
-    }
-    #[julia]
-    #[allow(clippy::too_many_arguments)]
-    pub fn sparse_plan_mul_into_borrowed_team(
-        &self,
-        dm: usize,
-        dn: usize,
-        dptr: *const usize,
-        didx: *const usize,
-        dval: *mut u8,
-        dk: usize,
-        m: usize,
-        n: usize,
-        ptr: *const usize,
-        idx: *const usize,
-        val: *const u8,
-        k: usize,
-        m2: usize,
-        n2: usize,
-        ptr2: *const usize,
-        idx2: *const usize,
-        val2: *const u8,
-        k2: usize,
-        tag: i32,
-        alpha: *const u8,
-        beta: *const u8,
-        accumulate: bool,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<usize, String> {
-        guarded(|| unsafe {
-            borrowed_into(
-                self.plan()?,
-                raw(dm, dn, dptr, didx, dval.cast_const(), dk),
-                dval,
-                raw(m, n, ptr, idx, val, k),
-                raw(m2, n2, ptr2, idx2, val2, k2),
-                tag,
-                alpha,
-                beta,
-                accumulate,
-                Some(team),
+                team,
                 scratch,
             )
         })
@@ -772,8 +725,6 @@ impl SparseOwner {
             Ok(())
         })
     }
-    /// `self = alpha * lhs * rhs (+ beta * self)` through a plan; returns a
-    /// status code (0 on success) and writes nothing unless it is 0.
     #[julia]
     #[allow(clippy::too_many_arguments)]
     pub fn sparse_plan_mul(
@@ -785,6 +736,7 @@ impl SparseOwner {
         beta: *const u8,
         accumulate: bool,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<usize, String> {
         guarded(|| {
             owned_mul(
@@ -795,39 +747,12 @@ impl SparseOwner {
                 alpha,
                 beta,
                 accumulate,
-                None,
+                team,
                 scratch,
             )
         })
     }
-    #[julia]
-    #[allow(clippy::too_many_arguments)]
-    pub fn sparse_plan_mul_team(
-        &mut self,
-        plan: &SparseProductPlan,
-        lhs: &SparseOwner,
-        rhs: &SparseOwner,
-        alpha: *const u8,
-        beta: *const u8,
-        accumulate: bool,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<usize, String> {
-        guarded(|| {
-            owned_mul(
-                plan.plan()?,
-                self,
-                lhs,
-                rhs,
-                alpha,
-                beta,
-                accumulate,
-                Some(team),
-                scratch,
-            )
-        })
-    }
-    /// As `sparse_plan_mul`, reading two borrowed Julia CSC operands in place.
+
     #[julia]
     #[allow(clippy::too_many_arguments)]
     pub fn sparse_plan_mul_borrowed(
@@ -850,6 +775,7 @@ impl SparseOwner {
         beta: *const u8,
         accumulate: bool,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<usize, String> {
         guarded(|| unsafe {
             let a = Raw {
@@ -877,62 +803,7 @@ impl SparseOwner {
                 alpha,
                 beta,
                 accumulate,
-                None,
-                scratch,
-            )
-        })
-    }
-    #[julia]
-    #[allow(clippy::too_many_arguments)]
-    pub fn sparse_plan_mul_borrowed_team(
-        &mut self,
-        plan: &SparseProductPlan,
-        m: usize,
-        n: usize,
-        ptr: *const usize,
-        idx: *const usize,
-        val: *const u8,
-        k: usize,
-        m2: usize,
-        n2: usize,
-        ptr2: *const usize,
-        idx2: *const usize,
-        val2: *const u8,
-        k2: usize,
-        tag: i32,
-        alpha: *const u8,
-        beta: *const u8,
-        accumulate: bool,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<usize, String> {
-        guarded(|| unsafe {
-            let a = Raw {
-                m,
-                n,
-                ptr,
-                idx,
-                val,
-                k,
-            };
-            let b = Raw {
-                m: m2,
-                n: n2,
-                ptr: ptr2,
-                idx: idx2,
-                val: val2,
-                k: k2,
-            };
-            borrowed_mul(
-                plan.plan()?,
-                self,
-                a,
-                b,
-                tag,
-                alpha,
-                beta,
-                accumulate,
-                Some(team),
+                team,
                 scratch,
             )
         })
@@ -1012,7 +883,7 @@ mod tests {
                         (&alpha as *const c64).cast(),
                         (&beta as *const c64).cast(),
                         false,
-                        &mut s,
+                        &mut s,None
                     )
                     .unwrap();
             });
@@ -1029,7 +900,7 @@ mod tests {
                         (&alpha as *const c64).cast(),
                         (&beta as *const c64).cast(),
                         true,
-                        &mut s,
+                        &mut s,None
                     )
                     .unwrap();
             });
@@ -1052,7 +923,7 @@ mod tests {
         let one = c64::new(1.0, 0.0);
         let one = (&one as *const c64).cast();
         assert_eq!(
-            c.sparse_plan_mul(&p, &a, &b, one, one, false, &mut s)
+            c.sparse_plan_mul(&p, &a, &b, one, one, false, &mut s, None)
                 .unwrap(),
             OK
         );
@@ -1060,24 +931,24 @@ mod tests {
         let other = owner(storage(6, 5, 3, false));
         let wide = owner(storage(5, 7, 0, false));
         assert_eq!(
-            c.sparse_plan_mul(&p, &other, &b, one, one, false, &mut s)
+            c.sparse_plan_mul(&p, &other, &b, one, one, false, &mut s, None)
                 .unwrap(),
             LHS_PATTERN
         );
         assert_eq!(
-            c.sparse_plan_mul(&p, &a, &wide, one, one, false, &mut s)
+            c.sparse_plan_mul(&p, &a, &wide, one, one, false, &mut s, None)
                 .unwrap(),
             RHS_PATTERN
         );
         let csr = owner(storage(6, 5, 1, true));
         assert_eq!(
-            c.sparse_plan_mul(&p, &csr, &b, one, one, false, &mut s)
+            c.sparse_plan_mul(&p, &csr, &b, one, one, false, &mut s, None)
                 .unwrap(),
             FORMAT
         );
         let b_csr = owner(storage(5, 7, 2, true));
         assert_eq!(
-            c.sparse_plan_mul(&p, &a, &b_csr, one, one, false, &mut s)
+            c.sparse_plan_mul(&p, &a, &b_csr, one, one, false, &mut s, None)
                 .unwrap(),
             FORMAT
         );
@@ -1089,26 +960,26 @@ mod tests {
             .unwrap();
         short.scratch_reserve(req[0], req[1]).unwrap();
         assert_eq!(
-            c.sparse_plan_mul(&mixed, &a, &b, one, one, false, &mut s)
+            c.sparse_plan_mul(&mixed, &a, &b, one, one, false, &mut s, None)
                 .unwrap(),
             FORMAT
         );
         assert_eq!(
-            c.sparse_plan_mul(&mixed, &a, &b_csr, one, one, false, &mut short)
+            c.sparse_plan_mul(&mixed, &a, &b_csr, one, one, false, &mut short, None)
                 .unwrap(),
             SCRATCH
         );
         let mut wrong = owner(storage(6, 7, 0, false));
         assert_eq!(
             wrong
-                .sparse_plan_mul(&p, &a, &b, one, one, false, &mut s)
+                .sparse_plan_mul(&p, &a, &b, one, one, false, &mut s, None)
                 .unwrap(),
             DST_PATTERN
         );
         let mut small = OwnedScratch::new();
         small.scratch_reserve(0, 1).unwrap();
         assert_eq!(
-            c.sparse_plan_mul(&p, &a, &b, one, one, false, &mut small)
+            c.sparse_plan_mul(&p, &a, &b, one, one, false, &mut small, None)
                 .unwrap(),
             SCRATCH
         );
@@ -1134,7 +1005,7 @@ mod tests {
         let one = c64::new(1.0, 0.0);
         let one = (&one as *const c64).cast();
         assert_eq!(
-            c.sparse_plan_mul_team(&q, &a, &b, one, one, false, &mut s, &team)
+            c.sparse_plan_mul(&q, &a, &b, one, one, false, &mut s, Some(&team))
                 .unwrap(),
             OK
         );

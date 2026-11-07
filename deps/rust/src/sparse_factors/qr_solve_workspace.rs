@@ -2,6 +2,7 @@
 use super::{Factors, Numeric, SparseFactor};
 use crate::operators::NativeValue;
 use crate::pseudoinverse::ToleranceReal;
+use crate::teams::with_team;
 use crate::teams::OwnedTeam;
 use crate::typed::{finite, MatrixData, TypedMatrix};
 use crate::workspace::OwnedScratch;
@@ -345,222 +346,21 @@ impl SparseFactor {
         rtol: f64,
         fast: bool,
         out: *mut usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let p = Par::Seq;
-            validate(self, m, n, source, target, op, atol, rtol)?;
-            fast_validate(fast, source, target, op)?;
-            query(self, m, n, c, target, p.shape(), out, fast)
-        })
-    }
-}
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn sparse_qr_rank_workspace(
-        &mut self,
-        f: &SparseFactor,
-        b: &OwnedMatrix,
-        work: &mut OwnedScratch,
-        m: usize,
-        n: usize,
-        c: usize,
-        source: i32,
-        target: i32,
-        op: i32,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        fast: bool,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let p = Par::Seq;
-            validate(f, m, n, source, target, op, atol, rtol)?;
-            fast_validate(fast, source, target, op)?;
-            if target != 1 {
-                return Err("QR output scalar mismatch".into());
-            }
-            let result = match f.factors()? {
-                Factors::F32(x) => run(
-                    x,
-                    b.matrix.as_ref(),
-                    work,
-                    c,
-                    op,
-                    atol,
-                    rtol,
-                    relative_f32,
-                    p,
-                )?,
-                Factors::F64(x) => {
-                    if fast {
-                        fast_run(x, b.matrix.as_ref(), work, c, p)?
-                    } else {
-                        run(
-                            x,
-                            b.matrix.as_ref(),
-                            work,
-                            c,
-                            op,
-                            atol,
-                            rtol,
-                            relative_f32,
-                            p,
-                        )?
-                    }
-                }
-                _ => return Err("QR scalar mismatch".into()),
-            };
-            self.matrix = result;
-            Ok(())
-        })
-    }
-}
-#[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn sparse_qr_rank_workspace(
-        &mut self,
-        f: &SparseFactor,
-        b: &TypedMatrix,
-        work: &mut OwnedScratch,
-        m: usize,
-        n: usize,
-        c: usize,
-        source: i32,
-        target: i32,
-        op: i32,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        fast: bool,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let p = Par::Seq;
-            validate(f, m, n, source, target, op, atol, rtol)?;
-            fast_validate(fast, source, target, op)?;
-            let actual = match b.data()? {
-                MatrixData::F32(_) => 0,
-                MatrixData::F64(_) => 1,
-                MatrixData::C32(_) => 2,
-                MatrixData::C64(_) => 3,
-            };
-            if actual != target {
-                return Err("QR RHS scalar metadata mismatch".into());
-            }
-            let result = match (f.factors()?, b.data()?) {
-                (Factors::F32(x), MatrixData::F32(b)) => MatrixData::F32(if fast {
-                    fast_run(x, b.as_ref(), work, c, p)?
-                } else {
-                    run(x, b.as_ref(), work, c, op, atol, rtol, relative_f32, p)?
-                }),
-                (Factors::F32(x), MatrixData::F64(b)) => MatrixData::F64(run(
-                    x,
-                    b.as_ref(),
-                    work,
-                    c,
-                    op,
-                    atol,
-                    rtol,
-                    relative_f32,
-                    p,
-                )?),
-                (Factors::F32(x), MatrixData::C32(b)) => MatrixData::C32(run(
-                    x,
-                    b.as_ref(),
-                    work,
-                    c,
-                    op,
-                    atol,
-                    rtol,
-                    relative_f32,
-                    p,
-                )?),
-                (Factors::F32(x), MatrixData::C64(b)) => MatrixData::C64(run(
-                    x,
-                    b.as_ref(),
-                    work,
-                    c,
-                    op,
-                    atol,
-                    rtol,
-                    relative_f32,
-                    p,
-                )?),
-                (Factors::F64(x), MatrixData::F64(b)) => MatrixData::F64(if fast {
-                    fast_run(x, b.as_ref(), work, c, p)?
-                } else {
-                    run(x, b.as_ref(), work, c, op, atol, rtol, relative_f32, p)?
-                }),
-                (Factors::F64(x), MatrixData::C64(b)) => MatrixData::C64(run(
-                    x,
-                    b.as_ref(),
-                    work,
-                    c,
-                    op,
-                    atol,
-                    rtol,
-                    relative_f32,
-                    p,
-                )?),
-                (Factors::C32(x), MatrixData::C32(b)) => MatrixData::C32(if fast {
-                    fast_run(x, b.as_ref(), work, c, p)?
-                } else {
-                    run(x, b.as_ref(), work, c, op, atol, rtol, relative_f32, p)?
-                }),
-                (Factors::C32(x), MatrixData::C64(b)) => MatrixData::C64(run(
-                    x,
-                    b.as_ref(),
-                    work,
-                    c,
-                    op,
-                    atol,
-                    rtol,
-                    relative_f32,
-                    p,
-                )?),
-                (Factors::C64(x), MatrixData::C64(b)) => MatrixData::C64(if fast {
-                    fast_run(x, b.as_ref(), work, c, p)?
-                } else {
-                    run(x, b.as_ref(), work, c, op, atol, rtol, relative_f32, p)?
-                }),
-                _ => return Err("QR scalar mismatch".into()),
-            };
-            self.data = Some(result);
-            Ok(())
-        })
-    }
-}
-#[julia]
-impl SparseFactor {
-    #[julia]
-    pub fn sparse_qr_rank_requirements_team(
-        &self,
-        m: usize,
-        n: usize,
-        c: usize,
-        source: i32,
-        target: i32,
-        op: i32,
-        atol: f64,
-        rtol: f64,
-        fast: bool,
-        out: *mut usize,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|p| {
+            with_team(team, |p| {
                 validate(self, m, n, source, target, op, atol, rtol)?;
                 fast_validate(fast, source, target, op)?;
                 query(self, m, n, c, target, p.shape(), out, fast)
-            })?
+            })
         })
     }
 }
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn sparse_qr_rank_workspace_team(
+    pub fn sparse_qr_rank_workspace(
         &mut self,
         f: &SparseFactor,
         b: &OwnedMatrix,
@@ -575,10 +375,10 @@ impl OwnedMatrix {
         rtol: f64,
         relative_f32: bool,
         fast: bool,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            team.execute(|p| {
+            with_team(team, |p| {
                 validate(f, m, n, source, target, op, atol, rtol)?;
                 fast_validate(fast, source, target, op)?;
                 if target != 1 {
@@ -617,14 +417,14 @@ impl OwnedMatrix {
                 };
                 self.matrix = result;
                 Ok(())
-            })?
+            })
         })
     }
 }
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn sparse_qr_rank_workspace_team(
+    pub fn sparse_qr_rank_workspace(
         &mut self,
         f: &SparseFactor,
         b: &TypedMatrix,
@@ -639,10 +439,10 @@ impl TypedMatrix {
         rtol: f64,
         relative_f32: bool,
         fast: bool,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            team.execute(|p| {
+            with_team(team, |p| {
                 validate(f, m, n, source, target, op, atol, rtol)?;
                 fast_validate(fast, source, target, op)?;
                 let actual = match b.data()? {
@@ -734,10 +534,16 @@ impl TypedMatrix {
                 };
                 self.data = Some(result);
                 Ok(())
-            })?
+            })
         })
     }
 }
+#[julia]
+impl SparseFactor {}
+#[julia]
+impl OwnedMatrix {}
+#[julia]
+impl TypedMatrix {}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1122,17 +928,17 @@ mod borrowed_tests {
             data: Some(SparseData::F64(Storage::Csc(a.clone()))),
         };
         let mut query = [0usize; 2];
-        plan.sparse_qr_factor_requirements(1, query.as_mut_ptr())
+        plan.sparse_qr_factor_requirements(1, query.as_mut_ptr(), None)
             .unwrap();
         assert!(plan
-            .sparse_qr_factor_requirements(1, std::ptr::null_mut())
+            .sparse_qr_factor_requirements(1, std::ptr::null_mut(), None)
             .is_err());
         let mut work = OwnedScratch::new();
         work.scratch_reserve(query[0], query[1]).unwrap();
         let mut owner = SparseFactor::new();
         assert_eq!(
             owner
-                .sparse_qr_factor_workspace(&plan, &matrix, &mut work)
+                .sparse_qr_factor_workspace(&plan, &matrix, &mut work, None)
                 .unwrap(),
             0
         );
@@ -1145,7 +951,7 @@ mod borrowed_tests {
         let mut short = OwnedScratch::new();
         short.scratch_reserve(query[0] - 1, query[1]).unwrap();
         assert!(owner
-            .sparse_qr_factor_workspace(&plan, &matrix, &mut short)
+            .sparse_qr_factor_workspace(&plan, &matrix, &mut short, None)
             .is_err());
         let entries: Vec<_> = a
             .as_ref()
@@ -1163,7 +969,7 @@ mod borrowed_tests {
             ))),
         };
         assert!(owner
-            .sparse_qr_factor_workspace(&plan, &bad, &mut work)
+            .sparse_qr_factor_workspace(&plan, &bad, &mut work, None)
             .is_err());
         assert_eq!(owner.sparse_qr_needs_spectral_solve().unwrap(), hint);
         let mut after = Mat::zeros(4, 4);

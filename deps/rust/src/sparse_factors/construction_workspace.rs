@@ -5,6 +5,7 @@ use super::{
 };
 use crate::guarded;
 use crate::sparse::{SparseData, SparseOwner};
+use crate::teams::with_team;
 use crate::teams::OwnedTeam;
 use crate::workspace::OwnedScratch;
 use faer::dyn_stack::StackReq;
@@ -96,46 +97,17 @@ pub(super) fn run(
         Err(info) => Ok(info),
     }
 }
-#[julia]
-impl SparseSymbolic {
-    #[julia]
-    pub fn sparse_qr_factor_requirements_team(
-        &self,
-        tag: i32,
-        out: *mut usize,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| team.execute(|par| query(self, tag, out, par))?)
-    }
-}
-#[julia]
-impl SparseFactor {
-    #[julia]
-    pub fn sparse_qr_factor_workspace_team(
-        &mut self,
-        analysis: &SparseSymbolic,
-        matrix: &SparseOwner,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<usize, String> {
-        guarded(|| team.execute(|par| run(self, analysis, matrix, scratch, par))?)
-    }
-}
 
 #[julia]
 impl SparseSymbolic {
     #[julia]
-    pub fn sparse_factor_requirements(&self, tag: i32, out: *mut usize) -> Result<(), String> {
-        guarded(|| query(self, tag, out, Par::Seq))
-    }
-    #[julia]
-    pub fn sparse_factor_requirements_team(
+    pub fn sparse_factor_requirements(
         &self,
         tag: i32,
         out: *mut usize,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
-        guarded(|| team.execute(|par| query(self, tag, out, par))?)
+        guarded(|| with_team(team, |par| query(self, tag, out, par)))
     }
 }
 #[julia]
@@ -146,18 +118,9 @@ impl SparseFactor {
         analysis: &SparseSymbolic,
         matrix: &SparseOwner,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<usize, String> {
-        guarded(|| run(self, analysis, matrix, scratch, Par::Seq))
-    }
-    #[julia]
-    pub fn sparse_factor_workspace_team(
-        &mut self,
-        analysis: &SparseSymbolic,
-        matrix: &SparseOwner,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<usize, String> {
-        guarded(|| team.execute(|par| run(self, analysis, matrix, scratch, par))?)
+        guarded(|| with_team(team, |par| run(self, analysis, matrix, scratch, par)))
     }
 }
 
@@ -208,7 +171,7 @@ mod tests {
                     }),
                 };
                 let mut out = [0usize; 2];
-                plan.sparse_qr_factor_requirements_team(T::tag(), out.as_mut_ptr(), &team)
+                plan.sparse_qr_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
                     .unwrap();
                 let f = team
                     .execute(|par| {
@@ -233,7 +196,7 @@ mod tests {
                     }
                 }
                 assert!(plan
-                    .sparse_qr_factor_requirements_team(T::tag(), std::ptr::null_mut(), &team)
+                    .sparse_qr_factor_requirements(T::tag(), std::ptr::null_mut(), Some(&team))
                     .is_err());
             }
             team.team_close().unwrap();
@@ -283,7 +246,7 @@ mod tests {
                     }),
                 };
                 let mut out = [0usize; 2];
-                plan.sparse_qr_factor_requirements_team(T::tag(), out.as_mut_ptr(), &team)
+                plan.sparse_qr_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
                     .unwrap();
                 let req = crate::sparse_qr_components::Factors::<T>::scratch(&symbolic)
                     .or(rank_hint::scratch(n));
@@ -383,7 +346,7 @@ mod tests {
                             }),
                         };
                         let mut out = [0usize; 2];
-                        plan.sparse_factor_requirements_team(T::tag(), out.as_mut_ptr(), &team)
+                        plan.sparse_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
                             .unwrap();
                         let mut scratch = OwnedScratch::new();
                         scratch.scratch_reserve(out[0], out[1]).unwrap();
@@ -528,17 +491,17 @@ mod tests {
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut req = [0usize; 2];
-        plan.sparse_factor_requirements_team(1, req.as_mut_ptr(), &team)
+        plan.sparse_factor_requirements(1, req.as_mut_ptr(), Some(&team))
             .unwrap();
         assert!(plan
-            .sparse_factor_requirements_team(1, std::ptr::null_mut(), &team)
+            .sparse_factor_requirements(1, std::ptr::null_mut(), Some(&team))
             .is_err());
         let mut work = OwnedScratch::new();
         work.scratch_reserve(req[0], req[1]).unwrap();
         let mut owner = SparseFactor::new();
         assert_eq!(
             owner
-                .sparse_factor_workspace_team(&plan, &good, &mut work, &team)
+                .sparse_factor_workspace(&plan, &good, &mut work, Some(&team))
                 .unwrap(),
             0
         );
@@ -555,18 +518,18 @@ mod tests {
         };
         assert_eq!(
             owner
-                .sparse_factor_workspace_team(&plan, &bad, &mut work, &team)
+                .sparse_factor_workspace(&plan, &bad, &mut work, Some(&team))
                 .unwrap(),
             1
         );
         let mut short = OwnedScratch::new();
         short.scratch_reserve(req[0] - 1, req[1]).unwrap();
         assert!(owner
-            .sparse_factor_workspace_team(&plan, &good, &mut short, &team)
+            .sparse_factor_workspace(&plan, &good, &mut short, Some(&team))
             .is_err());
         team.team_close().unwrap();
         assert!(owner
-            .sparse_factor_workspace_team(&plan, &good, &mut work, &team)
+            .sparse_factor_workspace(&plan, &good, &mut work, Some(&team))
             .is_err());
         let after = match owner.factors.as_ref().unwrap() {
             Factors::F64(crate::sparse_factors::Numeric::Llt(x)) => &x.values,
@@ -652,7 +615,7 @@ mod tests {
                         }),
                     };
                     let mut out = [0usize; 2];
-                    plan.sparse_factor_requirements_team(T::tag(), out.as_mut_ptr(), &team)
+                    plan.sparse_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
                         .unwrap();
                     let mut scratch = OwnedScratch::new();
                     scratch.scratch_reserve(out[0], out[1]).unwrap();
@@ -699,7 +662,7 @@ mod tests {
                     }),
                 };
                 let mut out = [0usize; 2];
-                plan.sparse_factor_requirements_team(T::tag(), out.as_mut_ptr(), &team)
+                plan.sparse_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
                     .unwrap();
                 let req = crate::sparse_lu_components::SimplicialFactors::<T>::scratch(n);
                 assert_eq!(out, [req.size_bytes(), req.align_bytes()]);
@@ -780,17 +743,17 @@ mod tests {
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut req = [0usize; 2];
-        plan.sparse_factor_requirements_team(1, req.as_mut_ptr(), &team)
+        plan.sparse_factor_requirements(1, req.as_mut_ptr(), Some(&team))
             .unwrap();
         assert!(plan
-            .sparse_factor_requirements_team(1, std::ptr::null_mut(), &team)
+            .sparse_factor_requirements(1, std::ptr::null_mut(), Some(&team))
             .is_err());
         let mut work = OwnedScratch::new();
         work.scratch_reserve(req[0], req[1]).unwrap();
         let mut owner = SparseFactor::new();
         assert_eq!(
             owner
-                .sparse_factor_workspace_team(&plan, &good, &mut work, &team)
+                .sparse_factor_workspace(&plan, &good, &mut work, Some(&team))
                 .unwrap(),
             0
         );
@@ -813,14 +776,14 @@ mod tests {
         };
         assert_eq!(
             owner
-                .sparse_factor_workspace_team(&plan, &bad, &mut work, &team)
+                .sparse_factor_workspace(&plan, &bad, &mut work, Some(&team))
                 .unwrap(),
             1
         );
         let mut short = OwnedScratch::new();
         short.scratch_reserve(req[0] - 1, req[1]).unwrap();
         assert!(owner
-            .sparse_factor_workspace_team(&plan, &good, &mut short, &team)
+            .sparse_factor_workspace(&plan, &good, &mut short, Some(&team))
             .is_err());
         let diagonal: Vec<_> = entries
             .iter()
@@ -837,11 +800,11 @@ mod tests {
             ))),
         };
         assert!(owner
-            .sparse_factor_workspace_team(&plan, &mismatch, &mut work, &team)
+            .sparse_factor_workspace(&plan, &mismatch, &mut work, Some(&team))
             .is_err());
         team.team_close().unwrap();
         assert!(owner
-            .sparse_factor_workspace_team(&plan, &good, &mut work, &team)
+            .sparse_factor_workspace(&plan, &good, &mut work, Some(&team))
             .is_err());
         let after = match owner.factors.as_ref().unwrap() {
             Factors::F64(crate::sparse_factors::Numeric::Lu(x)) => x.as_ref().factors().unwrap(),

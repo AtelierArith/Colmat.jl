@@ -90,8 +90,7 @@ function _sparse_direct_native_query(f, columns, op; team = nothing)
         pointer(info),
     )
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.sparse_direct_requirements, args...) :
-        _native_call(RustCrate.sparse_direct_requirements_team, args..., team)
+        _native_call(RustCrate.sparse_direct_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
@@ -126,9 +125,8 @@ function _sparse_direct_native_result(f, rhs, op; scratch = nothing, team = noth
             _tag(eltype(f)),
             _sparse_direct_kind(f),
         )
-        fun=isnothing(team) ? RustCrate.sparse_direct_workspace :
-            RustCrate.sparse_direct_workspace_team
-        isnothing(team) || (args=(args..., team))
+        fun=RustCrate.sparse_direct_workspace
+        args=(args..., team)
         return eltype(f)===Float64 ? _matrix_result(fun, size(rhs), args...) :
                _typed_result(eltype(f), fun, size(rhs), args...)
     finally
