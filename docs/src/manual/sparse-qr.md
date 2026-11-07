@@ -409,6 +409,55 @@ close(F)
 @assert Q'*Q≈Matrix{ComplexF64}(I,4,4)
 ```
 
+## Lazy sparse QR Q operator
+
+`F.Qoperator` corresponds to SPQR's lazy `F.Q`. It returns an independent m×m
+`FaerLinearOperator` that applies the saved native Householder reflectors for
+every algorithm (auto, simplicial, supernodal and wide) and all four scalar
+types. Dense Q is never formed unless you explicitly call `Matrix(Qop)`, which
+matches `Matrix(F.Qfull)`. This differs from SPQR: there `Matrix(F.Q)` returns
+the thin m×min(m,n) basis, but `Matrix(F.Qoperator)` is square. Use `F.Qthin`
+when porting code that expects the thin basis. `Qop*B`, `Qop'*B`, `transpose(Qop)*B`, `conj(Qop)*B`
+and `mul!(X,Qop,B)` accept vectors, matrices, views and mixed-type right-hand
+sides. `mul!(X,Qop,B; scratch,team)` runs on caller-owned scratch and a team;
+use `scratch_requirements(mul!,X,Qop,B; team)` to query the size. With
+sufficient scratch, the native application does not allocate. Constructing the
+operator copies the saved reflectors, so the operator stays usable after
+`close(F)`.
+Colmat stores Q in the original row order, so `F.prow` is the identity
+permutation and `F.Q*F.R ≈ A[F.prow,F.pcol]` holds as in SPQR.
+`F.R` is assembled directly as a sorted CSC matrix from the saved factor. No
+triplet list or extra sort pass is used.
+
+The following faer sparse QR controls are not exposed yet:
+- an arbitrary `supernodal_flop_ratio_threshold` (only `algorithm=:auto`,
+  `:simplicial` and `:supernodal` are available);
+- the supernodal `relax` amalgamation thresholds;
+- the numeric `blocking_threshold` for dense front QR.
+
+faer's symbolic QR analysis takes neither a `Par` nor a caller stack. It always
+runs sequentially and allocates its own workspace.
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0=ComplexF64[2 0; im 3; 0 1; 0 0]
+F=qr(FaerSparseMatrix(sparse(A0)); algorithm=:supernodal)
+Qop=F.Qoperator
+@assert size(Qop)==(4,4)
+@assert Vector(F.prow)==1:4
+R=vcat(Matrix(F.R),zeros(ComplexF64,2,2))
+@assert Matrix(Qop*R)≈A0[Vector(F.prow),Vector(F.pcol)]
+b=ComplexF64[1,2,3,4]
+x=zeros(ComplexF64,4)
+work=FaerScratch(mul!,x,Qop',b)
+mul!(x,Qop',b;scratch=work)
+@assert x≈Matrix(F.Qfull)'*b
+close(F)
+@assert Vector(Qop*x)≈b
+close(work)
+close(Qop)
+```
+
 ## Rank and tolerance-aware solves from saved sparse QR
 
 `svdvals(F)`, `rank(F;atol,rtol)` and `pinv(F;atol,rtol)` use saved sparse QR

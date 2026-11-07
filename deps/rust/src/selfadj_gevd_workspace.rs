@@ -131,7 +131,15 @@ unsafe fn run<T: ComplexField>(
             &mut *stack,
             Default::default(),
         )
-        .map_err(|e| format!("generalized EVD B must be positive definite: {e:?}"))?;
+        .map_err(|e| match e {
+            // Stable token parsed by Julia into PosDefException(pivot).
+            llt::LltError::NonPositivePivot { index } => {
+                format!(
+                    "generalized EVD B is not positive definite at pivot {}",
+                    index + 1
+                )
+            }
+        })?;
         triangular::solve_lower_triangular_in_place(
             l.as_mat_ref(),
             canonical.as_mat_mut(),

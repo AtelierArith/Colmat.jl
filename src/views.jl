@@ -199,7 +199,8 @@ function _copy_view_matrix(v)
     end
 end
 Base.copy(v::FaerMatrixView) = _copy_view_matrix(v)
-function Base.copy(v::FaerVectorView)
+Base.copy(v::FaerVectorView) = _copy_view_vector(v)
+function _copy_view_vector(v)
     lock(_matrix_lock) do
         p, d=_view_source(v)
         GC.@preserve d return _collection_result(
@@ -241,7 +242,20 @@ function _copyto_faer_view!(v::FaerView, src::AbstractArray)
         # source shares its owner. This also gives ordered repeated-index writes.
         T=eltype(v)
         dims=v.dropped==1 ? (length(v), 1) : (length(v.rows), length(v.cols))
-        a=FaerMatrix{T}(reshape(Array(src), dims))
+        # Julia strided sources of the native scalar are read in place (they
+        # cannot alias Rust-owned storage); others are staged in Rust.
+        a=if src isa FaerBorrowedArray{T} ||
+             (src isa StridedArray{T} && _julia_borrowable(src))
+            src isa FaerBorrowedArray ? src : FaerBorrowedArray(src)
+        elseif src isa Union{FaerMatrix{T},FaerVector{T},FaerView{T}}
+            # Native sources of the same scalar type are read through their own
+            # descriptor; a source sharing the destination owner is first
+            # copied natively so Rust never sees an aliased mutable borrow.
+            owner=src isa FaerView ? _view_owner(src) : src
+            owner===p ? copy(src) : src
+        else
+            FaerMatrix{T}(reshape(Array(src), dims))
+        end
         q, sd=_view_source(a)
         GC.@preserve d sd _native_call(RustCrate.view_assign, p, pointer(d), q, pointer(sd))
     end
@@ -378,13 +392,14 @@ function _copyto_native_owner!(dest::Union{FaerMatrix,FaerRow}, src::AbstractArr
 end
 Base.copyto!(dest::Union{FaerMatrix,FaerRow}, src::AbstractArray) =
     _copyto_native_owner!(dest, src)
-function LinearAlgebra.mul!(
+LinearAlgebra.mul!(
     dest::FaerVector,
     a::_BorrowMatrix,
     b::_BorrowVector,
     alpha::Number,
     beta::Number,
-)
+) = _vector_mul!(dest, a, b, alpha, beta)
+function _vector_mul!(dest, a, b, alpha, beta)
     lock(_matrix_lock) do
         _handle(dest)
         size(a, 2)==length(b) && length(dest)==size(a, 1) ||

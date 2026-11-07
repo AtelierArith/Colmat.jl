@@ -356,3 +356,73 @@ end
     @test Matrix(good)≈[4.0 1; 1 3]
     close(good)
 end
+
+# Callback marshalling reuses owner buffers, so a stale result from a previous
+# application must never satisfy the overwrite check of a later one.
+@testset "reused callback buffers reject stale outputs and recursion" begin
+    calls=Ref(0)
+    lazy=FaerLinearOperator(
+        (y, x)->(calls[]+=1; calls[]==1 && copyto!(y, x)),
+        (y, x)->copyto!(y, x),
+        2,
+        2,
+    )
+    @test Matrix(lazy*ones(2, 1))==ones(2, 1)
+    out=fill(42.0, 2, 1)
+    @test_throws ArgumentError mul!(out, lazy, ones(2, 1))
+    @test out==fill(42.0, 2, 1)
+    close(lazy)
+    for T in (Float64, ComplexF64)
+        a=T[2 1; 0 3]
+        depth=Ref(0)
+        holder=Ref{Any}()
+        f=(y, x)->begin
+            depth[]+=1
+            if depth[]==1
+                inner=Matrix(holder[]*x)
+                mul!(y, a, inner)
+            else
+                mul!(y, a, x)
+            end
+            depth[]-=1
+            y
+        end
+        op=FaerLinearOperator(f, (y, x)->mul!(y, a', x), 2, 2; T)
+        holder[]=op
+        b=T[1 2; 3 4]
+        @test Matrix(op*b)≈a*a*b
+        @test Matrix(op*b)≈a*a*b
+        promoted=op*FaerLinearOperator(I, 2; T = ComplexF32)
+        @test Matrix(promoted*ComplexF32.(b))≈a*a*b rtol=1e-5
+        close(promoted)
+        close(op)
+    end
+end
+
+function jcb_bytes_per_application(n)
+    a=Matrix(Diagonal(collect(2.0:(n+1))))
+    count=Ref(0)
+    op=FaerLinearOperator(
+        (y, x)->(count[]+=1; mul!(y, a, x)),
+        (y, x)->(count[]+=1; mul!(y, a', x)),
+        n,
+        n,
+    )
+    b=a*ones(n)
+    run(maxiter)=cg(op, b; maxiter, check = false, rtol = 0, atol = 0)
+    run(5)
+    count[]=0
+    short=@allocated run(5)
+    c1=count[]
+    count[]=0
+    long=@allocated run(25)
+    c2=count[]
+    close(op)
+    return (long-short)/(c2-c1)
+end
+@testset "callback marshalling allocation does not scale with dimension" begin
+    small=jcb_bytes_per_application(16)
+    large=jcb_bytes_per_application(512)
+    @test large<1024
+    @test abs(large-small)<256
+end

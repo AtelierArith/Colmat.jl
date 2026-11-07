@@ -19,13 +19,56 @@ struct Layout {
     blocks: Vec<Block>,
     ranges: Vec<std::ops::Range<usize>>,
 }
+/// Saved numeric reflectors: faer's owned `QrRef` buffers, or the explicit
+/// simplicial kernel's independently owned unsorted CSC components.
+#[derive(Clone)]
+enum Source<T> {
+    Owned(Factors<T>),
+    Simplicial(Box<crate::sparse_qr_components::Factors<T>>),
+}
+impl<T: ComplexField> Source<T> {
+    fn dimensions(&self) -> (usize, usize) {
+        match self {
+            Self::Owned(f) => f.dimensions(),
+            Self::Simplicial(f) => (f.plan.symbolic.nrows(), f.plan.symbolic.ncols()),
+        }
+    }
+    fn simplicial(
+        &self,
+    ) -> Option<faer::sparse::linalg::qr::simplicial::SimplicialQrRef<'_, usize, T>> {
+        match self {
+            Self::Owned(f) => f.simplicial(),
+            Self::Simplicial(f) => Some(crate::sparse_qr_components::Factors::as_ref(f)),
+        }
+    }
+    fn supernodal(&self) -> Option<super::SuperParts<'_, T>> {
+        match self {
+            Self::Owned(f) => f.supernodal(),
+            Self::Simplicial(_) => None,
+        }
+    }
+    fn map_values<U: ComplexField>(&self, cast: impl Fn(&T) -> U) -> Source<U> {
+        match self {
+            Self::Owned(f) => Source::Owned(f.map_values(cast)),
+            Self::Simplicial(f) => Source::Simplicial(Box::new(f.map_values(cast))),
+        }
+    }
+}
 #[derive(Clone)]
 pub(crate) struct Projection<T> {
-    factors: Factors<T>,
+    factors: Source<T>,
     layout: Arc<Layout>,
 }
 impl<T: ComplexField> Projection<T> {
     pub(crate) fn new(factors: Factors<T>) -> Self {
+        Self::from_source(Source::Owned(factors))
+    }
+    /// Prepares the explicit `algorithm=:simplicial` reflectors, whose
+    /// Householder pivots follow the same faer numeric kernel layout.
+    pub(crate) fn from_simplicial(factors: crate::sparse_qr_components::Factors<T>) -> Self {
+        Self::from_source(Source::Simplicial(Box::new(factors)))
+    }
+    fn from_source(factors: Source<T>) -> Self {
         let (m, n) = factors.dimensions();
         let mut pivots = vec![None; n];
         let mut blocks = Vec::new();
