@@ -14,7 +14,7 @@ without an intermediate normalized buffer (contiguous byte vectors are read in
 place). view=true returns a read-only FaerNpyMatrix that owns aligned
 native-endian storage and uses as_aligned_ref, which requires such storage. The
 view's bytes are snapshotted; this is not a memory mapping or an alias of Julia
-input bytes. The normalized buffer is retained until close/GC. Copying a view
+input bytes (use [`npyborrow`](@ref) for those). The normalized buffer is retained until close/GC. Copying a view
 materializes an independent native matrix; deepcopy retains the read-only type
 and duplicates its aligned storage. See [`npyinfo`](@ref) for metadata.
 """
@@ -224,3 +224,104 @@ function Base.deepcopy_internal(a::FaerNpyMatrix{T}, d::IdDict) where {T}
         end
     end
 end
+
+"""
+    npyborrow(bytes::Vector{UInt8}; fallback=true)
+    npyborrow(path::AbstractString; fallback=true)
+
+Borrow an NPY payload without copying it. A byte vector is aliased in place; a
+path is memory-mapped read-only (`MAP_SHARED`, so later writes to the file by
+other handles are visible). The result is a read-only
+[`FaerBorrowedMatrix`](@ref) whose parent addresses the payload directly,
+C-order arrays through row strides `(n, 1)`; native consumers (`copy`,
+`FaerMatrix`, `+`/`-`/`*`, `mean`/`var`, `sum`, ...) read it in place like
+[`faerview`](@ref) borrows. Scalar/vector shapes map to 1×1 / n×1 as in
+[`loadnpy`](@ref), and the header, dtype, shape and exact payload length are
+validated first.
+
+Aliasing requires a native-endian payload whose data offset is a multiple of the
+element alignment and, for bytes, a `Vector{UInt8}` source. Otherwise, with
+`fallback=true`, the independent `FaerMatrix` from `loadnpy` is returned (big
+endian on a little-endian host, odd header padding, `SubArray` byte sources);
+`fallback=false` throws `ArgumentError` instead.
+
+The borrow is read-only: `setindex!`, broadcasts, `copyto!`, `fill!` and
+in-place products/solves into it throw `ArgumentError`, and native routines
+never write it. Views of it are ordinary Julia views. It keeps the byte vector
+or mapping alive; a mapping is unmapped by its finalizer once the borrow and its
+views are unreachable (closing or unlinking the file does not invalidate it).
+A source vector shrunk by `resize!` is detected before every access, but
+truncating a mapped file while it is mapped raises `SIGBUS` as for any `mmap`.
+Writable mappings are not provided yet: native writes into borrowed Julia
+memory need destination alias checks, and two mappings of one file alias
+without sharing addresses.
+"""
+function npyborrow end
+
+# The aliased payload of a validated NPY source: element (i, j) is at byte
+# `offset + ((i-1)*s1 + (j-1)*s2)*sizeof(T)` of `bytes`.
+struct _NpyBuffer{T} <: AbstractMatrix{T}
+    bytes::Vector{UInt8}
+    offset::Int
+    dims::Tuple{Int,Int}
+    fortran::Bool
+end
+Base.size(a::_NpyBuffer) = a.dims
+Base.parent(a::_NpyBuffer) = a.bytes
+Base.strides(a::_NpyBuffer) = a.fortran ? (1, a.dims[1]) : (a.dims[2], 1)
+Base.stride(a::_NpyBuffer, d::Integer) = d<=2 ? strides(a)[d] : length(a)
+Base.elsize(::Type{<:_NpyBuffer{T}}) where {T} = sizeof(T)
+Base.similar(::_NpyBuffer, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims)
+function _npy_live(a::_NpyBuffer{T}) where {T}
+    length(a.bytes)>=a.offset+prod(a.dims)*sizeof(T) ||
+        throw(ArgumentError("NPY borrow source bytes were resized below the payload"))
+    return a
+end
+Base.unsafe_convert(::Type{Ptr{T}}, a::_NpyBuffer{T}) where {T} =
+    Ptr{T}(pointer(_npy_live(a).bytes)+a.offset)
+Base.pointer(a::_NpyBuffer{T}) where {T} = Base.unsafe_convert(Ptr{T}, a)
+Base.@propagate_inbounds function Base.getindex(a::_NpyBuffer, i::Int, j::Int)
+    @boundscheck checkbounds(a, i, j)
+    s1, s2=strides(a)
+    return GC.@preserve a unsafe_load(pointer(a), 1+(i-1)*s1+(j-1)*s2)
+end
+Base.setindex!(::_NpyBuffer, x, ::Int...) =
+    throw(ArgumentError("NPY borrows are read-only; copy to FaerMatrix first"))
+_borrowed_writable(::FaerBorrowedArray{<:Any,<:Any,<:_NpyBuffer}) = false
+
+function _npy_borrow(bytes::Vector{UInt8}, fallback::Bool)
+    info=zeros(UInt, 8)
+    lock(_matrix_lock) do
+        try
+            GC.@preserve bytes info _native_call(
+                RustCrate.npy_source_info,
+                pointer(bytes),
+                UInt(length(bytes)),
+                pointer(info),
+            )
+        catch err
+            err isa RustCall.RustError && throw(ArgumentError(sprint(showerror, err)))
+            rethrow()
+        end
+    end
+    T=(Float32, Float64, ComplexF32, ComplexF64)[Int(info[1])+1]
+    m, n=Int(info[2]), Int(info[3])
+    native=info[8]==0 || info[8]==(Base.ENDIAN_BOM==0x04030201 ? 1 : 2)
+    buf=_NpyBuffer{T}(bytes, length(bytes)-m*n*sizeof(T), (m, n), info[5]!=0)
+    native && _aligned(buf) && return FaerBorrowedArray(buf)
+    fallback || throw(
+        ArgumentError(
+            "NPY payload is $(native ? "not element-aligned" : "foreign-endian"); " *
+            "it cannot be borrowed without copying",
+        ),
+    )
+    return loadnpy(bytes)
+end
+npyborrow(bytes::Vector{UInt8}; fallback::Bool = true) = _npy_borrow(bytes, fallback)
+function npyborrow(bytes::AbstractVector{UInt8}; fallback::Bool = true)
+    fallback ||
+        throw(ArgumentError("only a Vector{UInt8} NPY source can be borrowed in place"))
+    return loadnpy(bytes)
+end
+npyborrow(path::AbstractString; fallback::Bool = true) =
+    _npy_borrow(open(io->Mmap.mmap(io, Vector{UInt8}), path), fallback)

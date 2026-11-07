@@ -5,6 +5,7 @@ import LinearAlgebra
 import SparseArrays
 import Statistics
 import Random
+import Mmap
 using LinearAlgebra: SVD
 
 export FaerSpectralFactor,
@@ -22,6 +23,7 @@ export FaerSpectralFactor,
     FaerNpyMatrix,
     loadnpy,
     npyview,
+    npyborrow,
     npyinfo,
     FaerRNG,
     randunitary,

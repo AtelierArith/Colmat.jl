@@ -1,4 +1,4 @@
-using Test, Colmat, LinearAlgebra, SparseArrays
+using Test, Colmat, LinearAlgebra, SparseArrays, Statistics
 
 # An independent NPY fixture encoder: writes IEEE component bits explicitly.
 function _npy_bytes(
@@ -8,6 +8,7 @@ function _npy_bytes(
     big = false,
     version = 1,
     descr = nothing,
+    extra = 0,
 ) where {T}
     R=typeof(real(zero(T)))
     U=R===Float32 ? UInt32 : UInt64
@@ -17,7 +18,7 @@ function _npy_bytes(
            length(shape)==1 ? "($(shape[1]),)" : "("*join(shape, ", ")*")"
     header="{'descr': '$descr', 'fortran_order': $(fortran ? "True" : "False"), 'shape': $shaped, }"
     prefix=version==1 ? 10 : 12
-    header*=repeat(" ", mod(-prefix-ncodeunits(header)-1, 64))*"\n"
+    header*=repeat(" ", mod(-prefix-ncodeunits(header)-1, 64)+extra)*"\n"
     bytes=UInt8[0x93, 0x4e, 0x55, 0x4d, 0x50, 0x59, version, 0]
     append!(
         bytes,
@@ -196,4 +197,156 @@ _bits(A) = collect(reinterpret(UInt8, vec(A)))
             recursive = true,
         ),
     )
+end
+
+# Byte offset of element (i, j) inside an NPY payload of an m×n matrix.
+_npy_offset(T, m, n, i, j, fortran) =
+    (fortran ? (j-1)*m+(i-1) : (i-1)*n+(j-1))*sizeof(T)
+_poke!(bytes, at, x) = copyto!(bytes, at+1, reinterpret(UInt8, [x]), 1, sizeof(x))
+@testset "Zero-copy NPY borrows of mapped files and byte vectors" begin
+    nativebig=Base.ENDIAN_BOM!=0x04030201
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        fortran in (false, true),
+        version in (1, 2, 3)
+
+        m, n=3, 4
+        A=reshape(T.(1:(m*n)), m, n)
+        T<:Complex && (A .+= T(0.5im))
+        bytes=_npy_bytes(A; fortran, version, big = nativebig)
+        off=length(bytes)-sizeof(A)
+        # In-memory bytes are aliased, not copied.
+        B=npyborrow(bytes)
+        @test B isa FaerBorrowedMatrix{T}
+        @test size(B)==(m, n)
+        @test B==A
+        @test strides(B)==(fortran ? (1, m) : (n, 1))
+        @test pointer(B)==Ptr{T}(pointer(bytes, off+1))
+        _poke!(bytes, off+_npy_offset(T, m, n, 2, 3, fortran), T(42))
+        A[2, 3]=T(42)
+        @test B[2, 3]==T(42)
+        # Native consumers read the aliased payload in place.
+        C=copy(B)
+        @test C isa FaerMatrix{T}
+        @test Matrix(C)==A
+        @test Matrix(B*faerview(Matrix(A')))≈A*A'
+        @test Matrix(transpose(B)*C)≈transpose(A)*A
+        @test Matrix(B+C)==2A
+        @test sum(B)≈sum(A)
+        @test mean(B)≈mean(A)
+        @test Matrix(B*FaerVector(T.(1:n)))≈A*T.(1:n)
+        # Read-only: every mutation throws instead of writing the source.
+        @test_throws ArgumentError B[1, 1]=zero(T)
+        @test_throws ArgumentError B.=zero(T)
+        @test_throws ArgumentError copyto!(B, zeros(T, m, n))
+        @test_throws ArgumentError fill!(B, one(T))
+        @test_throws ArgumentError mul!(B, A, Matrix{T}(I, n, n))
+        U=UpperTriangular(FaerMatrix(Matrix{T}(I, m, m)+triu(ones(T, m, m))))
+        @test_throws ArgumentError ldiv!(U, B)
+        @test_throws ArgumentError ldiv!(B, U, FaerMatrix(A))
+        S=UpperTriangular(FaerSparseMatrix(sparse(Matrix{T}(2I, m, m))))
+        @test_throws ArgumentError ldiv!(S, B)
+        Z=FaerMatrix(zeros(T, m, n))
+        @test_throws ArgumentError copyto!(B, Z)
+        @test_throws ArgumentError copyto!(B, view(Z, :, :))
+        @test_throws ArgumentError B.=Z
+        @test_throws ArgumentError B.+=one(T)
+        @test_throws ArgumentError mul!(B, FaerMatrix(A), FaerMatrix(Matrix{T}(I, n, n)))
+        Un=UpperTriangular(FaerMatrix(Matrix{T}(I, n, n)+triu(ones(T, n, n))))
+        @test_throws ArgumentError rdiv!(B, Un)
+        F=lu(FaerMatrix(Matrix{T}(I, m, m)+triu(ones(T, m, m))))
+        @test_throws ArgumentError ldiv!(F, B)
+        @test_throws ArgumentError ldiv!(B, F, FaerMatrix(A))
+        @test B==A
+        # Mapped files alias the file pages.
+        mktemp() do path, io
+            write(io, bytes)
+            flush(io)
+            M=npyborrow(path)
+            @test M isa FaerBorrowedMatrix{T}
+            @test M==A
+            @test strides(M)==strides(B)
+            seek(io, off+_npy_offset(T, m, n, 1, 2, fortran))
+            write(io, T(7))
+            flush(io)
+            @test M[1, 2]==T(7)
+            A=copy(A)
+            A[1, 2]=T(7)
+            @test Matrix(copy(M))==A
+            @test sum(M)≈sum(A)
+            @test_throws ArgumentError M[1, 1]=zero(T)
+            @test_throws ArgumentError copyto!(M, zeros(T, m, n))
+            close(io)
+            # The mapping outlives the closed handle and the unlinked path.
+            rm(path)
+            GC.gc()
+            GC.gc()
+            @test M==A
+            @test Matrix(transpose(M)*copy(M))≈transpose(A)*A
+        end
+        # Foreign endian and misaligned payloads fall back to the copying loadnpy.
+        big=_npy_bytes(A; fortran, version, big = !nativebig)
+        @test npyborrow(big) isa FaerMatrix{T}
+        @test Matrix(npyborrow(big))==A
+        @test_throws ArgumentError npyborrow(big; fallback = false)
+        odd=_npy_bytes(A; fortran, version, big = nativebig, extra = 1)
+        @test (length(odd)-sizeof(A))%Base.datatype_alignment(T)!=0
+        @test npyborrow(odd) isa FaerMatrix{T}
+        @test Matrix(npyborrow(odd))==A
+        @test_throws ArgumentError npyborrow(odd; fallback = false)
+        mktemp() do path, io
+            write(io, odd)
+            close(io)
+            @test Matrix(npyborrow(path))==A
+            @test_throws ArgumentError npyborrow(path; fallback = false)
+        end
+        # Non-Vector byte sources cannot be aliased.
+        @test Matrix(npyborrow(view(bytes, 1:length(bytes))))==B
+        @test_throws ArgumentError npyborrow(view(bytes, 1:length(bytes)); fallback = false)
+    end
+    # Scalars, vectors and empty payloads.
+    for (shape, dims) in (((), (1, 1)), ((3,), (3, 1)), ((0, 3), (0, 3)), ((3, 0), (3, 0)))
+        A=reshape(collect(1.0:prod(dims)), dims)
+        B=npyborrow(_npy_bytes(A; shape, big = nativebig))
+        @test B isa FaerBorrowedMatrix{Float64}
+        @test size(B)==dims
+        @test B==A
+        @test Matrix(copy(B))==A
+    end
+    # A shrunk source vector is detected before any read.
+    bytes=_npy_bytes([1.0 2; 3 4]; big = nativebig)
+    B=npyborrow(bytes)
+    resize!(bytes, 16)
+    @test_throws ArgumentError B[1, 1]
+    @test_throws ArgumentError copy(B)
+    @test_throws ArgumentError sum(B)
+    # Derived wrappers keep the mapping alive after the path is unlinked.
+    mktemp() do path, io
+        write(io, _npy_bytes([1.0 2; 3 4]; big = nativebig))
+        close(io)
+        T2=(p->transpose(npyborrow(p)))(path)
+        rm(path)
+        GC.gc()
+        GC.gc()
+        @test T2==[1.0 3; 2 4]
+        @test Matrix(copy(parent(T2)))==[1.0 2; 3 4]
+    end
+    # The borrow keeps the source alive.
+    B=npyborrow(_npy_bytes([1.0 2; 3 4]; big = nativebig))
+    GC.gc()
+    GC.gc()
+    @test B==[1.0 2; 3 4]
+    for bad in (UInt8[], UInt8[1, 2, 3], _npy_bytes([1.0 2]; descr = "<i8"))
+        @test_throws ArgumentError npyborrow(bad)
+    end
+    mktemp() do path, io
+        close(io)
+        @test_throws ArgumentError npyborrow(path)
+    end
+    # Mapping and aliasing keep Julia-side allocations independent of payload size.
+    small=_npy_bytes(rand(8, 8); big = nativebig)
+    large=_npy_bytes(rand(512, 512); big = nativebig)
+    npyborrow(small)
+    npyborrow(large)
+    @test (@allocated npyborrow(large))<4096
+    @test (@allocated npyborrow(large))<=(@allocated npyborrow(small))+256
 end
