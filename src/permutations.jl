@@ -97,62 +97,166 @@ function _permute(a::FaerMatrix, p::FaerPermutation, columns)
                _typed_result(T, RustCrate.permute_from, size(a), a, p, columns)
     end
 end
+function _permute(a::FaerMatrixView, p::FaerPermutation, columns)
+    lock(_matrix_lock) do
+        o, d=_view_source(a)
+        _check_permutation(a, p, columns)
+        T=eltype(a)
+        GC.@preserve d return T===Float64 ?
+                              _matrix_result(
+            RustCrate.permute_from_view,
+            size(a),
+            o,
+            pointer(d),
+            p,
+            columns,
+        ) :
+                              _typed_result(
+            T,
+            RustCrate.permute_from_view,
+            size(a),
+            o,
+            pointer(d),
+            p,
+            columns,
+        )
+    end
+end
 """
     permute_rows(A, p)
     permute_cols(A, p)
 
 Return independent Rust-owned storage containing `A[p,:]` or `A[:,p]`.
 `p` may be a `FaerPermutation` or a Julia vector containing a permutation.
+A view source is borrowed directly; no intermediate copy is made.
 """
 permute_rows(a::_BorrowMatrix, p::AbstractVector{<:Integer}) =
     _permute(a, _as_permutation(p), false)
 permute_cols(a::_BorrowMatrix, p::AbstractVector{<:Integer}) =
     _permute(a, _as_permutation(p), true)
-_permute(a::FaerMatrixView, p::FaerPermutation, columns) = _permute(copy(a), p, columns)
 Base.getindex(a::FaerMatrix, p::FaerPermutation, ::Colon) = permute_rows(a, p)
 Base.getindex(a::FaerMatrix, ::Colon, p::FaerPermutation) = permute_cols(a, p)
 Base.getindex(a::FaerMatrix, p::FaerPermutation, q::FaerPermutation) =
     permute_cols(permute_rows(a, p), q)
-function _permute!(a::FaerMatrix, p::FaerPermutation, columns)
-    lock(_matrix_lock) do
-        _check_permutation(a, p, columns)
-        _native_call(RustCrate.permute_storage, a, p, columns)
-    end
-    return a
-end
-function _permute!(a::FaerMatrixView, p::FaerPermutation, columns)
-    lock(_matrix_lock) do
-        result=_permute(a, p, columns)
-        copyto!(a, result)
-    end
-    return a
-end
-"""
-    permute_rows!(A, p)
-    permute_cols!(A, p)
 
-Gather rows or columns into the same matrix. The native faer in-place routine
-uses scratch storage, preserving the matrix's shape, owner and existing views.
-A destination view uses an independent temporary result for alias safety.
-"""
-permute_rows!(a::_BorrowMatrix, p::AbstractVector{<:Integer}) =
-    _permute!(a, _as_permutation(p), false)
-permute_cols!(a::_BorrowMatrix, p::AbstractVector{<:Integer}) =
-    _permute!(a, _as_permutation(p), true)
-function _swap!(a::FaerMatrix, i::Integer, j::Integer, columns)
+# Dense owners and views accepted by the native in-place kernels. Vectors are
+# always permuted along their single axis (descriptors of row-vector views are
+# transposed to a column).
+const _DensePermutable=Union{FaerMatrix,FaerMatrixView,FaerRow,FaerVector,FaerVectorView}
+_permutation_dims(a) = ndims(a)==1 ? (length(a), 1) : size(a)
+# A zero step over more than one index would alias a mutable faer borrow.
+_injective(a) = true
+_injective(v::FaerView) =
+    (length(v.rows)<=1 || step(v.rows)!=0) && (length(v.cols)<=1 || step(v.cols)!=0)
+function _permutation_requirements(a, columns)
+    m, n=_permutation_dims(a)
+    info=zeros(UInt, 2)
+    GC.@preserve info _native_call(
+        RustCrate.permutation_requirements,
+        UInt(m),
+        UInt(n),
+        _tag(eltype(a)),
+        columns,
+        pointer(info),
+    )
+    return (bytes = Int(info[1]), alignment = Int(info[2]))
+end
+function _check_permutation_scratch(a, columns, scratch)
+    isnothing(scratch) && return nothing
+    scratch isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
+    req=_permutation_requirements(a, columns)
+    cap=scratch_capacity(scratch)
+    cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+        ArgumentError(
+            "permutation scratch capacity/alignment is insufficient; call reserve!(scratch, permute_rows!, A, p)",
+        ),
+    )
+    return nothing
+end
+# Stage a repeated-index view through an independent result and ordered writes.
+function _staged_permute!(a, p, columns, inverse)
+    q=inverse ? invperm(p) : p
+    if ndims(a)==1
+        copyto!(a, Vector(permute!(copy(a), q)))
+    else
+        copyto!(a, Matrix(_permute(copy(a), q, columns)))
+    end
+    return a
+end
+function _permute_dense!(a, p::FaerPermutation, columns, inverse, scratch)
     lock(_matrix_lock) do
-        _handle(a)
+        o, d=_view_source(a)
+        _check_permutation(a, p, columns)
+        _check_permutation_scratch(a, columns, scratch)
+        _injective(a) || return _staged_permute!(a, p, columns, inverse)
+        GC.@preserve d begin
+            isnothing(scratch) ?
+            _native_call(RustCrate.permute_view_storage, o, pointer(d), p, columns, inverse) :
+            _native_call(
+                RustCrate.permute_view_workspace,
+                o,
+                pointer(d),
+                p,
+                columns,
+                inverse,
+                scratch,
+            )
+        end
+    end
+    return a
+end
+"""
+    permute_rows!(A, p; scratch=nothing)
+    permute_cols!(A, p; scratch=nothing)
+
+Gather rows or columns into the same matrix with faer's in-place kernel,
+preserving the matrix's shape, owner and existing views. `A` may be a
+`FaerMatrix`, a `FaerRow` (columns only) or a strided/reversed view; a view is
+borrowed directly from its owner without an intermediate copy. The kernel
+copies the selection into its workspace: `scratch=FaerScratch(permute_rows!, A, p)`
+supplies that workspace from the caller, otherwise a call-local native buffer
+is allocated. Closed or invalidated arguments, a wrong permutation length and
+insufficient scratch fail before any write. A view repeating indices (zero step)
+is updated through an independent temporary result and ordered writes.
+faer's permutation kernels are sequential, so there is no `team=` option.
+"""
+permute_rows!(a::_BorrowMatrix, p::AbstractVector{<:Integer}; scratch = nothing) =
+    _permute_dense!(a, _as_permutation(p), false, false, scratch)
+permute_cols!(a::_BorrowMatrix, p::AbstractVector{<:Integer}; scratch = nothing) =
+    _permute_dense!(a, _as_permutation(p), true, false, scratch)
+permute_cols!(a::FaerRow, p::AbstractVector{<:Integer}; scratch = nothing) =
+    _permute_dense!(a, _as_permutation(p), true, false, scratch)
+"""
+    permute!(v::FaerVector, p; scratch=nothing)
+    invpermute!(v::FaerVector, p; scratch=nothing)
+
+Permute a native vector or vector view in place (`v[:] = v[p]` or
+`v[p] = v`). `invpermute!` applies faer's borrowed inverse of `p` without
+building a new permutation. `scratch` follows [`permute_rows!`](@ref).
+"""
+Base.permute!(v::_BorrowVector, p::AbstractVector{<:Integer}; scratch = nothing) =
+    _permute_dense!(v, _as_permutation(p), false, false, scratch)
+Base.invpermute!(v::_BorrowVector, p::AbstractVector{<:Integer}; scratch = nothing) =
+    _permute_dense!(v, _as_permutation(p), false, true, scratch)
+function _swap!(a, i::Integer, j::Integer, columns)
+    lock(_matrix_lock) do
+        o, d=_view_source(a)
         n=size(a, columns ? 2 : 1)
         1<=i<=n && 1<=j<=n || throw(BoundsError(a, (i, j)))
-        _native_call(RustCrate.swap_storage, a, UInt(i-1), UInt(j-1), columns)
-    end
-    return a
-end
-function _swap!(a::FaerMatrixView, i::Integer, j::Integer, columns)
-    lock(_matrix_lock) do
-        tmp=copy(a)
-        _swap!(tmp, i, j, columns)
-        copyto!(a, tmp)
+        if !_injective(a)
+            tmp=copy(a)
+            _swap!(tmp, i, j, columns)
+            copyto!(a, Matrix(tmp))
+            return
+        end
+        GC.@preserve d _native_call(
+            RustCrate.swap_view_storage,
+            o,
+            pointer(d),
+            UInt(i-1),
+            UInt(j-1),
+            columns,
+        )
     end
     return a
 end
@@ -161,37 +265,11 @@ end
     swap_cols!(A, i, j)
 
 Exchange two rows or columns using 1-based indices. The shape is unchanged,
-and existing borrowed views remain valid.
+and existing borrowed views remain valid. Views are swapped natively in place.
 """
 swap_rows!(a::_BorrowMatrix, i::Integer, j::Integer) = _swap!(a, i, j, false)
 swap_cols!(a::_BorrowMatrix, i::Integer, j::Integer) = _swap!(a, i, j, true)
-function Base.permute!(v::FaerVector, p::AbstractVector{<:Integer})
-    lock(_matrix_lock) do
-        pp=_as_permutation(p)
-        length(v)==length(pp) ||
-            throw(DimensionMismatch("vector and permutation lengths must match"))
-        _native_call(RustCrate.permute_storage, v, pp, false)
-    end
-    return v
-end
-Base.invpermute!(v::FaerVector, p::AbstractVector{<:Integer}) =
-    permute!(v, invperm(_as_permutation(p)))
-function permute_cols!(a::FaerRow, p::AbstractVector{<:Integer})
-    lock(_matrix_lock) do
-        pp=_as_permutation(p)
-        _check_permutation(a, pp, true)
-        _native_call(RustCrate.permute_storage, a, pp, true)
-    end
-    return a
-end
-function swap_cols!(a::FaerRow, i::Integer, j::Integer)
-    lock(_matrix_lock) do
-        _handle(a)
-        1<=i<=a.len && 1<=j<=a.len || throw(BoundsError(a, (i, j)))
-        _native_call(RustCrate.swap_storage, a, UInt(i-1), UInt(j-1), true)
-    end
-    return a
-end
+swap_cols!(a::FaerRow, i::Integer, j::Integer) = _swap!(a, i, j, true)
 FaerMatrix(p::FaerPermutation) =
     permute_rows(FaerMatrix{Float64}(LinearAlgebra.I, length(p), length(p)), p)
 Base.Matrix(p::FaerPermutation) = Matrix(FaerMatrix(p))
