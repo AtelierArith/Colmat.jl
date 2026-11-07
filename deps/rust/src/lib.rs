@@ -1148,6 +1148,8 @@ pub mod sparse_triangular;
 
 pub mod sparsity;
 
+pub mod borrowed_sparse;
+
 pub mod sparse_factors;
 
 pub mod ordering;

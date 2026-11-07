@@ -95,6 +95,7 @@ export FaerSpectralFactor,
     FaerBorrowedArray,
     FaerBorrowedMatrix,
     FaerBorrowedVector,
+    FaerBorrowedSparseMatrix,
     FaerVector,
     FaerRow,
     FaerDiagonal,
@@ -224,6 +225,7 @@ include("schur.jl")
 include("qz.jl")
 include("sparse.jl")
 include("sparsity.jl")
+include("borrowed_sparse.jl")
 include("sparse_compat.jl")
 include("sparse_triangular.jl")
 include("sparse_factors.jl")
