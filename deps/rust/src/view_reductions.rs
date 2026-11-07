@@ -383,15 +383,40 @@ fn dot<W: Native>(
             cb,
         ));
     }
-    if a.shape() != b.shape() {
-        return Err("dot product arguments must have the same shape".into());
+    if a.shape() == b.shape() {
+        return Ok((0..a.ncols()).fold(zero::<W>(), |s, j| {
+            add(
+                &s,
+                &faer::linalg::matmul::dot::inner_prod(a.col(j).transpose(), ca, b.col(j), cb),
+            )
+        }));
     }
-    Ok((0..a.ncols()).fold(zero::<W>(), |s, j| {
-        add(
-            &s,
-            &faer::linalg::matmul::dot::inner_prod(a.col(j).transpose(), ca, b.col(j), cb),
-        )
+    let (len, ma, mb) = (a.nrows() * a.ncols(), a.nrows(), b.nrows());
+    if len != b.nrows() * b.ncols() {
+        return Err("dot product arguments must have the same length".into());
+    }
+    // Equal lengths, different shapes: pair entries in column-major order.
+    if let (Some(x), Some(y)) = (flat(a), flat(b)) {
+        return Ok(faer::linalg::matmul::dot::inner_prod(
+            x.transpose(),
+            ca,
+            y,
+            cb,
+        ));
+    }
+    let entry = |x: &W, conj_x: bool| if conj_x { conj(x) } else { *x };
+    Ok((0..len).fold(zero::<W>(), |s, k| {
+        let x = entry(&a[(k % ma, k / ma)], conj_a);
+        let y = entry(&b[(k % mb, k / mb)], conj_b);
+        add(&s, &mul(&x, &y))
     }))
+}
+/// `a` in column-major order as one column, when its columns are adjacent
+/// (`col_stride == nrows * row_stride`, e.g. a contiguous owner).
+fn flat<W>(a: MatRef<'_, W>) -> Option<ColRef<'_, W>> {
+    let (m, n) = a.shape();
+    (m > 0 && n > 0 && a.col_stride() == m as isize * a.row_stride())
+        .then(|| unsafe { ColRef::from_raw_parts(a.as_ptr(), m * n, a.row_stride()) })
 }
 unsafe fn dot_into<W: Native>(
     a: Borrowed<'_>,
@@ -524,6 +549,39 @@ mod tests {
             x.as_ref(),
             true,
             Mat::<faer::c64>::zeros(2, 1).as_ref(),
+            false
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn dot_pairs_equal_length_shapes_in_column_major_order() {
+        let a = Mat::<faer::c64>::from_fn(2, 3, |i, j| faer::c64::new((i + 2 * j) as f64, 1.0));
+        let b = Mat::<faer::c64>::from_fn(3, 2, |i, j| faer::c64::new(1.0, (i + 3 * j) as f64));
+        let expected = (0..6).fold(faer::c64::new(0.0, 0.0), |s, k| {
+            s + faer::c64::new(k as f64, 1.0).conj() * faer::c64::new(1.0, k as f64)
+        });
+        // Contiguous operands as single columns, strided ones entry by entry.
+        assert_eq!(dot(a.as_ref(), true, b.as_ref(), false).unwrap(), expected);
+        let wide = Mat::<faer::c64>::from_fn(3, 4, |i, j| b[(i, j / 2)] * f64::from(j % 2 == 0));
+        let strided = wide.as_ref().subcols(0, 4);
+        let picked =
+            unsafe { MatRef::from_raw_parts(strided.as_ptr(), 3, 2, 1, 2 * strided.col_stride()) };
+        assert!(flat(picked).is_none());
+        let got = dot(a.as_ref(), true, picked, false).unwrap();
+        assert!((got - expected).norm() < 1e-12);
+        let data: Vec<f64> = (0..6).map(f64::from).collect();
+        let packed = MatRef::from_column_major_slice(&data, 2, 3);
+        assert!(flat(packed).is_some() && flat(packed.reverse_rows_and_cols()).is_some());
+        let r = a.as_ref().reverse_rows_and_cols();
+        let expected_r = (0..6).fold(faer::c64::new(0.0, 0.0), |s, k| {
+            s + faer::c64::new((5 - k) as f64, 1.0).conj() * faer::c64::new(1.0, k as f64)
+        });
+        assert_eq!(dot(r, true, b.as_ref(), false).unwrap(), expected_r);
+        assert!(dot(
+            a.as_ref(),
+            true,
+            Mat::<faer::c64>::zeros(5, 1).transpose(),
             false
         )
         .is_err());

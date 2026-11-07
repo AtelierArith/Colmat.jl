@@ -15,7 +15,7 @@ function Base.sum(a::FaerMatrix{Float64}; dims = :, kw...)
     return _native_sum(a, dims)
 end
 function LinearAlgebra.dot(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
-    size(a)==size(b) || throw(DimensionMismatch("inner product dimensions must match"))
+    size(a)==size(b) || return _native_dot(a, b)
     return _native_call(RustCrate.inner_product, a, b)
 end
 function LinearAlgebra.tr(a::FaerMatrix{Float64})

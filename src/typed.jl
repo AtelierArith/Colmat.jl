@@ -625,7 +625,7 @@ function _promoted_factor_matrix(
 end
 
 function LinearAlgebra.dot(a::FaerMatrix{T}, b::FaerMatrix{T}) where {T<:_ExtraScalar}
-    size(a)==size(b) || throw(DimensionMismatch("inner product dimensions must match"))
+    size(a)==size(b) || return _native_dot(a, b)
     value=Ref{T}()
     GC.@preserve value _native_call(
         RustCrate.dot_buffer,

@@ -164,6 +164,46 @@ end
         @test_throws ArgumentError norm(x, 0)
     end
 
+    @testset "dot of equal-length operands with different shapes" begin
+        rng=MersenneTwister(971)
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            J=randn(rng, T, 4, 6)
+            K=randn(rng, T, 6, 4)
+            a=FaerMatrix(J)
+            b=FaerMatrix(K)
+            try
+                tol=64eps(real(T))
+                @test _same(dot(a, b), dot(J, K), tol)
+                @test _same(dot(view(a, 4:-1:1, 1:2:6), view(b, 1:2:6, :)), dot(J[4:-1:1, 1:2:6], K[1:2:6, :]), tol)
+                L=randn(rng, T, 12, 4)
+                @test _same(dot(faerview(view(L, 1:2:12, :)), a), dot(L[1:2:12, :], J), tol)
+                C=randn(rng, ComplexF64, 3, 8)
+                c=FaerMatrix(C)
+                @test _same(dot(a, c), dot(J, C), tol)
+                close(c)
+                @test_throws DimensionMismatch dot(a, view(b, 1:5, :))
+            finally
+                close(a)
+                close(b)
+            end
+        end
+        J=randn(rng, 4, 6)
+        K=randn(rng, 6, 4)
+        a=FaerMatrix(J)
+        b=FaerMatrix(K)
+        try
+            dot(a, b)
+            @test @allocated(dot(a, b))<4096
+            v=view(b, 6:-1:1, :)
+            dot(a, v)
+            @test @allocated(dot(a, v))<4096
+            @test dot(a, v)≈dot(J, K[6:-1:1, :])
+        finally
+            close(a)
+            close(b)
+        end
+    end
+
     @testset "in-place reductions into native and Julia destinations" begin
         rng=MersenneTwister(970)
         for T in (Float32, Float64, ComplexF64)

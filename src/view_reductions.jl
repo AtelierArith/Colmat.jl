@@ -233,18 +233,12 @@ the Frobenius norm.
 """
 LinearAlgebra.norm(a::_ReductionView, p::Real = 2) = _native_norm(a, p)
 
-_dot_vectorlike(x) = ndims(x)==1 || size(x, 1)==1 || size(x, 2)==1
 function _native_dot(x, y)
     length(x)==length(y) || throw(
         DimensionMismatch(
             "dot product arguments have lengths $(length(x)) and $(length(y))",
         ),
     )
-    # Julia pairs entries in linear order; other equal-length shapes are rare
-    # and use the generic method on snapshots.
-    _dot_vectorlike(x) && _dot_vectorlike(y) ||
-        size(x)==size(y) ||
-        return LinearAlgebra.dot(_reduction_snapshot(x), _reduction_snapshot(y))
     P=promote_type(eltype(x), eltype(y))
     lock(_matrix_lock) do
         value=Ref{P}()
@@ -268,8 +262,8 @@ end
 For native vectors, rows, matrices, views and borrowed Julia arrays
 (`faerview`) in any combination, compute `sum(conj(x[i]) * y[i])` with faer's
 `inner_prod`, reading strided/reversed views in place. Vector-shaped operands
-pair entries in order; matrices must have equal sizes, and other equal-length
-shape pairs use Julia's generic method. Mixed scalar types promote; Rust stages
+pair entries in order, as do equal-length operands of different shapes (in
+column-major order, as Julia does; columns are read in place). Mixed scalar types promote; Rust stages
 one converted copy of each promoted operand.
 """
 LinearAlgebra.dot(x::_ReductionView, y::_ReductionArray) = _native_dot(x, y)
