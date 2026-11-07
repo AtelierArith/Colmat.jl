@@ -224,8 +224,12 @@ const _structured_destinations=(
     strict_lower = 6,
     strict_upper = 7,
 )
-function _structured_mul!(dest, a, b, alpha, beta, ds = Int32(0))
+# `team` lends a caller-owned `FaerTeam` to faer's `matmul::triangular` on the
+# native in-place path; diagonal scaling (elementwise) and promotion beyond the
+# destination type (computed, then converted) stay sequential.
+function _structured_mul!(dest, a, b, alpha, beta, ds = Int32(0); team = nothing)
     lock(_matrix_lock) do
+        isnothing(team) || _handle(team)
         size(a, 2)==size(b, 1) ||
             throw(DimensionMismatch("structured product inner dimensions must match"))
         size(dest, 1)==size(a, 1) && size(dest, 2)==size(b, 2) && ndims(dest)==ndims(b) ||
@@ -276,13 +280,14 @@ function _structured_mul!(dest, a, b, alpha, beta, ds = Int32(0))
             _product_structure(b),
             Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, α)),
             iszero(beta) ? Ptr{UInt8}(C_NULL) : Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, β)),
+            team,
         )
         return dest
     end
 end
 
 """
-    structured_mul!(C, A, B, α=true, β=false; dest=:full)
+    structured_mul!(C, A, B, α=true, β=false; dest=:full, team=nothing)
 
 Compute `C = α*A*B + β*C` with faer's structured `matmul::triangular`, where
 `A` and `B` may be dense native matrices or views, triangular wrappers or
@@ -290,7 +295,10 @@ diagonals, and `C` is a native matrix or range view. `dest` selects the block of
 `C` that is computed and written: `:full`, `:lower` / `:upper` (including the
 diagonal) or `:strict_lower` / `:strict_upper`; the rest of `C` is not touched.
 Operands sharing `C`'s storage are snapshotted first. A zero `β` does not read
-`C` and a zero `α` does not read the operands.
+`C` and a zero `α` does not read the operands. `team` lends a caller-owned
+`FaerTeam` to faer for this call; diagonal operands (elementwise scaling) and
+mixed scalar types that promote beyond `C`'s type run sequentially. The same
+`team` keyword is accepted by `mul!` with triangular and diagonal operands.
 """
 function structured_mul!(
     c,
@@ -299,22 +307,36 @@ function structured_mul!(
     alpha::Number = true,
     beta::Number = false;
     dest::Symbol = :full,
+    team = nothing,
 )
     haskey(_structured_destinations, dest) ||
         throw(ArgumentError("unknown structured destination $(repr(dest))"))
     c isa Union{FaerMatrix,FaerMatrixView} ||
         throw(ArgumentError("structured_mul! requires a native matrix destination"))
-    return _structured_mul!(c, a, b, alpha, beta, Int32(_structured_destinations[dest]))
+    return _structured_mul!(
+        c,
+        a,
+        b,
+        alpha,
+        beta,
+        Int32(_structured_destinations[dest]);
+        team,
+    )
 end
 LinearAlgebra.mul!(
     dest::FaerVector,
     a::_NativeProductTriangular,
     b::_BorrowVector,
     alpha::Number,
-    beta::Number,
-) = _structured_mul!(dest, a, b, alpha, beta)
-LinearAlgebra.mul!(dest::FaerVector, a::_NativeProductTriangular, b::_BorrowVector) =
-    _structured_mul!(dest, a, b, true, false)
+    beta::Number;
+    team = nothing,
+) = _structured_mul!(dest, a, b, alpha, beta; team)
+LinearAlgebra.mul!(
+    dest::FaerVector,
+    a::_NativeProductTriangular,
+    b::_BorrowVector;
+    team = nothing,
+) = _structured_mul!(dest, a, b, true, false; team)
 
 for (A, B) in (
     (:_ProductTriangular, :_ProductOperand),
@@ -324,10 +346,16 @@ for (A, B) in (
     (:_NativeProductTriangular, :_NativeProductTriangular),
 )
     @eval begin
-        LinearAlgebra.mul!(dest::_ProductDense, a::$A, b::$B, alpha::Number, beta::Number) =
-            _structured_mul!(dest, a, b, alpha, beta)
-        LinearAlgebra.mul!(dest::_ProductDense, a::$A, b::$B) =
-            _structured_mul!(dest, a, b, 1, 0)
+        LinearAlgebra.mul!(
+            dest::_ProductDense,
+            a::$A,
+            b::$B,
+            alpha::Number,
+            beta::Number;
+            team = nothing,
+        ) = _structured_mul!(dest, a, b, alpha, beta; team)
+        LinearAlgebra.mul!(dest::_ProductDense, a::$A, b::$B; team = nothing) =
+            _structured_mul!(dest, a, b, 1, 0; team)
     end
 end
 
@@ -345,10 +373,16 @@ for (A, B) in (
 )
     @eval begin
         Base.:*(a::$A, b::$B) = _structured_product(a, b)
-        LinearAlgebra.mul!(dest::_ProductDense, a::$A, b::$B, alpha::Number, beta::Number) =
-            _structured_mul!(dest, a, b, alpha, beta)
-        LinearAlgebra.mul!(dest::_ProductDense, a::$A, b::$B) =
-            _structured_mul!(dest, a, b, 1, 0)
+        LinearAlgebra.mul!(
+            dest::_ProductDense,
+            a::$A,
+            b::$B,
+            alpha::Number,
+            beta::Number;
+            team = nothing,
+        ) = _structured_mul!(dest, a, b, alpha, beta; team)
+        LinearAlgebra.mul!(dest::_ProductDense, a::$A, b::$B; team = nothing) =
+            _structured_mul!(dest, a, b, 1, 0; team)
     end
 end
 
