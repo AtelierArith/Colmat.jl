@@ -492,6 +492,39 @@ end
         @test_throws ArgumentError npyborrow(io; fallback = false)
         close(io)
     end
+    # Read-only first, then writable: the read-only borrow moves to the
+    # read-write mapping and keeps rejecting writes.
+    mktemp() do path, io
+        write(io, bytes)
+        close(io)
+        R=npyborrow(path)
+        W=npyborrow(path; writable = true)
+        @test pointer(R)==pointer(W)
+        mul!(W, R, R)
+        @test W==A*A
+        @test R==A*A
+        W[1, 1]=-7.0
+        @test R[1, 1]==-7.0
+        @test_throws ArgumentError R[1, 1]=0.0
+        @test_throws ArgumentError copyto!(R, FaerMatrix(A))
+        E=Matrix(W)
+        # Other writable destinations.
+        fill!(W, 3.0)
+        @test R==fill(3.0, 2, 2)
+        copyto!(W, FaerMatrix(A))
+        Un=UpperTriangular(FaerMatrix([2.0 1; 0 4]))
+        rdiv!(W, Un)
+        E=A/Matrix(Un)
+        @test W≈E
+        F=lu(FaerMatrix([4.0 1; 2 3]))
+        ldiv!(F, W)
+        E=[4.0 1; 2 3]\E
+        @test W≈E
+        W=R=nothing
+        GC.gc()
+        GC.gc()
+        @test loadnpy(path)≈E
+    end
     # A resized file is remapped and existing borrows of it move along.
     mktemp() do path, io
         write(io, bytes)
