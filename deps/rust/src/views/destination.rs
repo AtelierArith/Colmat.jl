@@ -13,10 +13,11 @@
 //! into an owned snapshot; disjoint inputs are read in place.
 use super::{source, span, Borrowed, Spec, RAW_KIND};
 use crate::collections::{VectorData, VectorOwner};
+use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, OwnedMatrix};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Accum, Conj, Mat, MatMut, MatRef, Par};
+use faer::{Accum, Conj, Mat, MatMut, MatRef};
 use rustcall_julia_macros::julia;
 
 /// `MatMut` over a Julia strided buffer of `T` (strides in elements).
@@ -256,7 +257,9 @@ fn conj_of(c: bool) -> Conj {
 }
 
 /// `C = alpha*A*B + beta*C`. `beta_zero` never reads C (NaN-safe) and
-/// `alpha_zero` never reads A or B.
+/// `alpha_zero` never reads A or B. The product runs on the borrowed team
+/// (faer's `gemm_team` falls back to one member when the cost model says a
+/// split does not pay), or sequentially without one.
 #[allow(clippy::too_many_arguments)]
 unsafe fn gemm<T: Arm>(
     dest: *mut u8,
@@ -269,6 +272,7 @@ unsafe fn gemm<T: Arm>(
     beta: *const u8,
     alpha_zero: bool,
     beta_zero: bool,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
     let dspan = destination_span(dest, ds)?;
     let x = operand::<T>(a, sa, dspan)?;
@@ -299,21 +303,24 @@ unsafe fn gemm<T: Arm>(
         }
         Accum::Add
     };
-    faer::linalg::matmul::matmul_with_conj(
-        c,
-        accum,
-        a,
-        conj_of(ca),
-        b,
-        conj_of(cb),
-        alpha,
-        Par::Seq,
-    );
-    Ok(())
+    with_team(team, |par| {
+        faer::linalg::matmul::matmul_with_conj(
+            c,
+            accum,
+            a,
+            conj_of(ca),
+            b,
+            conj_of(cb),
+            alpha,
+            par,
+        );
+        Ok(())
+    })
 }
 
 /// Native dense `mul!`: `dest = alpha*A*B + beta*dest` for view descriptors
-/// of one native scalar. `alpha`/`beta` point to that scalar.
+/// of one native scalar. `alpha`/`beta` point to that scalar. `team` lends a
+/// caller-owned team for this call only; `None` is sequential.
 ///
 /// # Safety
 /// Julia roots every owner, descriptor and coefficient for this call.
@@ -330,12 +337,15 @@ pub fn view_gemm(
     beta: *const u8,
     alpha_zero: bool,
     beta_zero: bool,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
     guarded(|| unsafe {
         let (ds, sa, sb) = (Spec::read(dd)?, Spec::read(ad)?, Spec::read(bd)?);
         macro_rules! go {
             ($t:ty) => {
-                gemm::<$t>(dest, ds, a, sa, b, sb, alpha, beta, alpha_zero, beta_zero)
+                gemm::<$t>(
+                    dest, ds, a, sa, b, sb, alpha, beta, alpha_zero, beta_zero, team,
+                )
             };
         }
         match source(dest, ds)? {
@@ -469,6 +479,7 @@ mod tests {
                 (&beta as *const f64).cast(),
                 false,
                 false,
+                None,
             )
             .unwrap();
         });
@@ -480,6 +491,54 @@ mod tests {
             // Padding rows are untouched.
             assert_eq!(julia[5 + 7 * j], 1.0);
         }
+    }
+
+    #[test]
+    fn gemm_borrows_a_caller_team_for_the_call() {
+        let (m, k, n) = (300, 200, 250);
+        let a = Mat::from_fn(m, k, |i, j| ((i * 7 + j * 3) % 11) as f64 - 5.0);
+        let b = Mat::from_fn(k, n, |i, j| ((i * 5 + j) % 13) as f64 * 0.5);
+        let (oa, ob) = (
+            OwnedMatrix { matrix: a.clone() },
+            OwnedMatrix { matrix: b.clone() },
+        );
+        let (ad, bd) = (owner(m, k, false, false), owner(k, n, false, false));
+        let dd = raw(m, n, 1, m as isize, false, 1);
+        let (alpha, beta) = (1.0f64, 0.0f64);
+        let mut team = OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        let mut julia = vec![f64::NAN; m * n];
+        view_gemm(
+            julia.as_mut_ptr().cast(),
+            dd.as_ptr(),
+            (&oa as *const OwnedMatrix).cast(),
+            ad.as_ptr(),
+            (&ob as *const OwnedMatrix).cast(),
+            bd.as_ptr(),
+            (&alpha as *const f64).cast(),
+            (&beta as *const f64).cast(),
+            false,
+            true,
+            Some(&team),
+        )
+        .unwrap();
+        let got = MatRef::from_column_major_slice(&julia, m, n);
+        assert!((got - reference(a.as_ref(), b.as_ref())).norm_max() < 1e-9);
+        team.team_close().unwrap();
+        let err = view_gemm(
+            julia.as_mut_ptr().cast(),
+            dd.as_ptr(),
+            (&oa as *const OwnedMatrix).cast(),
+            ad.as_ptr(),
+            (&ob as *const OwnedMatrix).cast(),
+            bd.as_ptr(),
+            (&alpha as *const f64).cast(),
+            (&beta as *const f64).cast(),
+            false,
+            true,
+            Some(&team),
+        );
+        assert!(err.is_err());
     }
 
     #[test]
@@ -512,6 +571,7 @@ mod tests {
             (&zero as *const f64).cast(),
             false,
             true,
+            None,
         )
         .unwrap();
         let expected = before.transpose() * &before;
@@ -541,6 +601,7 @@ mod tests {
             (&beta as *const f64).cast(),
             true,
             true,
+            None,
         )
         .unwrap();
         assert_eq!(c.matrix, Mat::<f64>::zeros(2, 2));
@@ -567,6 +628,7 @@ mod tests {
             (&one as *const f64).cast(),
             false,
             false,
+            None,
         );
         assert!(err.is_err());
         // Wrong scalar tag, repeated layout and conjugated destinations.

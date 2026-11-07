@@ -163,8 +163,9 @@ function _permutation(f::FaerFactorization{T,K}, column::Bool = false) where {T,
     GC.@preserve p _native_call(RustCrate.permutation, f, pointer(p), UInt(n), column)
     return Int.(p)
 end
-_factor_part(f::FaerFactorization{Float64}, code, dims) =
-    _matrix_result(RustCrate.factor_part, dims, f, Int32(code))
+# Reconstruction (code 0) and explicit Q (3, 6) borrow `team`; other parts copy.
+_factor_part(f::FaerFactorization{Float64}, code, dims; team = nothing) =
+    _matrix_result(RustCrate.factor_part, dims, f, Int32(code), team)
 function Base.getproperty(f::FaerFactorization{T,K}, name::Symbol) where {T,K}
     m, n = size(f)
     k = min(m, n)
@@ -215,10 +216,15 @@ function Base.propertynames(f::FaerFactorization{T,K}, private::Bool = false) wh
            (props..., :info, :uplo)
 end
 
-"""Reconstruct a new Rust-owned matrix from a reusable faer factorization."""
-FaerMatrix(f::FaerFactorization{Float64}) = _factor_part(f, 0, size(f))
-Base.Matrix(f::FaerFactorization) = Matrix(FaerMatrix(f))
-Base.Array(f::FaerFactorization) = Matrix(f)
+"""
+Reconstruct a new Rust-owned matrix from a reusable faer factorization.
+`team=` lends a caller-owned `FaerTeam` to faer's reconstruction kernel.
+"""
+FaerMatrix(f::FaerFactorization{Float64}; team = nothing) =
+    _factor_part(f, 0, size(f); team)
+Base.Matrix(f::FaerFactorization; team = nothing) =
+    _convert_dense_reconstruction(Matrix, f; team)
+Base.Array(f::FaerFactorization; team = nothing) = Matrix(f; team)
 function Base.copy(f::FaerFactorization{Float64,K}) where {K}
     lock(_matrix_lock) do
         h = RustCrate.OwnedFactor()

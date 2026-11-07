@@ -410,20 +410,21 @@ LinearAlgebra.mul!(
     a::_BorrowMatrix,
     b::_BorrowVector,
     alpha::Number,
-    beta::Number,
-) = _vector_mul!(dest, a, b, alpha, beta)
-function _vector_mul!(dest, a, b, alpha, beta)
+    beta::Number;
+    team = nothing,
+) = _vector_mul!(dest, a, b, alpha, beta; team)
+function _vector_mul!(dest, a, b, alpha, beta; team = nothing)
     lock(_matrix_lock) do
         _handle(dest)
         size(a, 2)==length(b) && length(dest)==size(a, 1) ||
             throw(DimensionMismatch("matrix/vector product dimensions must match"))
         # Written natively in place; operands aliasing dest are snapshot.
-        _dense_mul!(dest, a, b, alpha, beta)
+        _dense_mul!(dest, a, b, alpha, beta; team)
     end
     return dest
 end
-LinearAlgebra.mul!(dest::FaerVector, a::_BorrowMatrix, b::_BorrowVector) =
-    LinearAlgebra.mul!(dest, a, b, 1, 0)
+LinearAlgebra.mul!(dest::FaerVector, a::_BorrowMatrix, b::_BorrowVector; team = nothing) =
+    LinearAlgebra.mul!(dest, a, b, 1, 0; team)
 
 # Preserve Rust vector ownership through native matrix/factor solves.
 _native_vector_solve(a, b) = _vector_from_source(a\_copy_view_matrix(b))
