@@ -76,9 +76,11 @@ end
     a=FaerMatrix(rand(200, 200))
     I=collect(1:4:200)
     a[I, :]
-    # One native call writes the result owner: no per-element boxing.
-    @test @allocated(a[I, :]) < 8_000
-    @test @allocated(a[I, I]) < 8_000
+    # One native call writes the result owner: no per-element boxing (which
+    # would allocate about 160 KB for these 10_000 elements). The fixed part
+    # measured 8224 B on macOS x86_64, above the earlier 8 KB bound.
+    @test @allocated(a[I, :]) < 16_000
+    @test @allocated(a[I, I]) < 16_000
 end
 
 @testset "Native scatter A[I, J] = B" begin
