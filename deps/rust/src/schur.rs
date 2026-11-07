@@ -163,7 +163,7 @@ macro_rules! real_scalar {
                         n,
                         true,
                         par,
-                        Default::default(),
+                        crate::schur_tuning::schur_params::<Self>(),
                     ))
             }
             fn step_in(
@@ -186,7 +186,7 @@ macro_rules! real_scalar {
                     faer::ColMut::from_slice_mut(&mut wi),
                     par,
                     stack,
-                    Default::default(),
+                    crate::schur_tuning::schur_params::<Self>(),
                 )
                 .map_err(|e| format!("{e:?}"))?;
                 restore(h, scaling);
@@ -270,7 +270,7 @@ macro_rules! complex_scalar {
                     n,
                     true,
                     par,
-                    Default::default(),
+                    crate::schur_tuning::schur_params::<Self>(),
                 ))
             }
             fn step_in(
@@ -292,7 +292,7 @@ macro_rules! complex_scalar {
                     faer::ColMut::from_slice_mut(&mut w),
                     par,
                     stack,
-                    Default::default(),
+                    crate::schur_tuning::schur_params::<Self>(),
                 )
                 .map_err(|e| format!("{e:?}"))?;
                 restore(h, scaling);

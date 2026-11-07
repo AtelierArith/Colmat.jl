@@ -304,10 +304,6 @@ function Base.sum(a::FaerMatrix{T}; dims = :, kw...) where {T<:_ExtraScalar}
         return _typed_result(T, RustCrate.axis_sum_from, (size(a, 1), 1), a, Int32(2))
     return _native_sum(a, dims)
 end
-function LinearAlgebra.det(a::FaerMatrix{T}) where {T<:_ExtraScalar}
-    LinearAlgebra.checksquare(a)
-    return _typed_scalar(a, 1)
-end
 function LinearAlgebra.tr(a::FaerMatrix{T}) where {T<:_ExtraScalar}
     LinearAlgebra.checksquare(a)
     return _typed_scalar(a, 2)
@@ -731,16 +727,23 @@ LinearAlgebra.eigen(
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
+    permute::Bool = false,
+    scale::Bool = false,
 ) where {T<:_ExtraScalar} =
-    side===:right && isnothing(scratch) && isnothing(team) ? _typed_eigen(a; sortby) :
+    _balanced_check(permute, scale) ?
+    _balanced_eigen(a, true; side, sortby, scratch, team) :
+    side===:right && _evd_default_path(scratch, team) ? _typed_eigen(a; sortby) :
     _general_evd_workspace_result(a; sortby, scratch, team, side)
 LinearAlgebra.eigvals(
     a::FaerMatrix{T};
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
+    permute::Bool = false,
+    scale::Bool = false,
 ) where {T<:_ExtraScalar} =
-    isnothing(scratch) && isnothing(team) ? _typed_eigen(a; vectors = false, sortby) :
+    _balanced_check(permute, scale) ? _balanced_eigen(a, false; sortby, scratch, team) :
+    _evd_default_path(scratch, team) ? _typed_eigen(a; vectors = false, sortby) :
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_ExtraSelfAdjoint;
@@ -751,7 +754,7 @@ LinearAlgebra.eigen(
 ) =
     native ?
     _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
-    isnothing(scratch) && isnothing(team) ?
+    _evd_default_path(scratch, team) ?
     _typed_eigen(parent(a); hermitian = true, lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; sortby, scratch, team)
 LinearAlgebra.eigvals(
@@ -760,7 +763,7 @@ LinearAlgebra.eigvals(
     scratch = nothing,
     team = nothing,
 ) =
-    isnothing(scratch) && isnothing(team) ?
+    _evd_default_path(scratch, team) ?
     _typed_eigen(
         parent(a);
         vectors = false,
@@ -870,24 +873,6 @@ function _triangular_wrap(a, b)
         LinearAlgebra.UpperTriangular(b)
     )
 end
-function Base.:\(a::_ExtraTriangular, b::FaerMatrix)
-    size(a, 1)==size(b, 1) ||
-        throw(DimensionMismatch("triangular solve dimensions must match"))
-    P=promote_type(eltype(a), eltype(b))
-    P===eltype(a) || return _triangular_wrap(a, _coerce(parent(a), P))\_coerce(b, P)
-    return _typed_result(
-        P,
-        RustCrate.triangular_solve_typed,
-        size(b),
-        parent(a),
-        _coerce(b, P),
-        _islower(a),
-        _isunit(a),
-    )
-end
-Base.:\(a::_ExtraTriangular, b::StridedMatrix{<:Number}) = a\FaerMatrix(b)
-Base.:\(a::_ExtraTriangular, b::AbstractVector{<:Number}) =
-    vec(Matrix(a\FaerMatrix(reshape(b, :, 1))))
 Base.inv(a::_ExtraTriangular) = _typed_result(
     eltype(a),
     RustCrate.triangular_inverse_typed,
@@ -896,11 +881,6 @@ Base.inv(a::_ExtraTriangular) = _typed_result(
     _islower(a),
     _isunit(a),
 )
-LinearAlgebra.ldiv!(a::_ExtraTriangular, b::FaerMatrix) = copyto!(b, a\b)
-function LinearAlgebra.ldiv!(dest::FaerMatrix, a::_ExtraTriangular, b::FaerMatrix)
-    size(dest)==size(b) || throw(DimensionMismatch("output dimensions must match RHS"))
-    return copyto!(dest, a\b)
-end
 function LinearAlgebra.logabsdet(f::FaerFactorization{T}) where {T<:_ExtraScalar}
     R=_realtype(T)
     value=Ref{R}()

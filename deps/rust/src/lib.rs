@@ -1152,6 +1152,8 @@ pub mod qz;
 pub mod sparse;
 pub mod sparse_triangular;
 
+pub mod dense_triangular;
+
 pub mod sparsity;
 
 pub mod borrowed_sparse;
@@ -1191,6 +1193,8 @@ pub mod diagonal_products;
 pub mod pivoted_cholesky;
 
 pub mod lblt;
+
+pub mod direct_factors;
 
 mod sparse_lu_components;
 mod sparse_lu_owned;
@@ -1438,3 +1442,9 @@ mod storage_initializer;
 mod filled_construction;
 
 mod svd_tuning;
+mod schur_tuning;
+
+mod evd_tuning;
+mod pivoted_qr_rank;
+mod measures;
+mod diagonal_ops;

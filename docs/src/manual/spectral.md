@@ -38,6 +38,53 @@ SB = schur!(B)
 更新し、返す Schur 分解とストレージを共有します。並べ替えも成功後に更新する
 ため、失敗時は元の分解を保ちます。これらは内部の一時領域を割り当てます。
 
+### Tuning the multishift QR and QZ drivers
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([sin(i + j^2) for i in 1:80, j in 1:80])
+F = with_schur_tuning(; shift_count=8, deflation_window=10, blocking_threshold=20) do
+    schur(A)
+end
+@assert Matrix(F.Z) * Matrix(F.T) * Matrix(F.Z)' ≈ Matrix(A)
+close(A)
+```
+
+`with_schur_tuning(f; shift_count, deflation_window, blocking_threshold,
+nibble_threshold, shift_chase_cost)` applies faer's `SchurParams` and
+`GeneralizedSchurParams` controls to every Schur and QZ factorization, scratch
+query, `FaerScratch` and `reserve!` inside the scope, so query and execution
+agree. Zero keeps faer's default. Because faer takes the shift count,
+deflation window and shift-chase cost as `extern "C"` function pointers, the
+overrides are stored natively for the scope, which holds Colmat's native-call
+lock: other tasks wait, `f` must call Colmat on the current task, and the
+previous settings return even when `f` throws. The general EVD driver's
+internal Schur step keeps faer's defaults.
+
+### Tuning the EVD drivers
+
+```julia
+using Colmat, LinearAlgebra
+S = Hermitian(FaerMatrix([1.0 / (i + j) + (i == j) for i in 1:60, j in 1:60]))
+F = with_evd_tuning(; self_adjoint_recursion_threshold=8,
+                    tridiagonal_par_threshold=FaerParThreshold(:never)) do
+    eigen(S)
+end
+@assert Matrix(S) * F.vectors ≈ F.vectors * Diagonal(F.values)
+close(parent(S))
+```
+
+`with_evd_tuning(f; ...)` overrides the parameters inside faer's EVD drivers
+for every general and self-adjoint `eigen`/`eigvals` call, scratch query,
+`FaerScratch` and `reserve!` in the scope: the general driver's Hessenberg
+`hessenberg_par_threshold`/`hessenberg_blocking_threshold` and
+`evd_recursion_threshold` (eigenvectors from Schur), and the self-adjoint
+driver's `tridiagonal_par_threshold` and `self_adjoint_recursion_threshold`.
+`nothing` keeps faer's default. Inside the scope, calls without
+`scratch`/`team` use the parameterized workspace driver. The general driver's
+multishift QR step follows `with_schur_tuning`, and both scopes nest.
+Destructive `eigen!` writeback keeps faer's defaults.
+
 ## 一般化 Schur／QZ
 
 一般化 Schur／QZ は行列対に適用します。
@@ -131,6 +178,30 @@ a result sharing A as `B`. `balance_eigenvectors!` restores right eigenvector
 columns in place after staging the full result. Back-transforms do not normalize
 columns; invalid metadata, conversion failure or overflow leave the destination
 unchanged.
+
+The general EVD can balance in one call. faer's EVD driver itself does not
+balance, so `eigen`/`eigvals(A; permute=true, scale=true)` balances natively
+first, runs the EVD on `B` with the same `side`, `scratch` and `team`, maps the
+right (`P*S*v`) or left (`P*S⁻¹*w`) eigenvectors back and renormalizes each
+column to unit 2-norm:
+
+```julia
+using Colmat, LinearAlgebra
+a = [1.0 1e4 0; 1e-4 2 1e3; 0 1e-3 3]
+A = FaerMatrix(a)
+E = eigen(A; permute=true, scale=true)
+@assert norm(a * E.vectors - E.vectors * Diagonal(E.values)) < 1e-10
+L = eigen(A; side=:left, permute=true, scale=true)
+@assert norm(L.vectors' * a - Diagonal(L.values) * L.vectors') < 1e-10
+close(A)
+```
+
+faer's `balance_in_place` always permutes and scales together, so `permute`
+and `scale` must be equal (otherwise `ArgumentError`). Balancing is opt-in:
+the default `false` keeps the unbalanced native driver, unlike LinearAlgebra's
+LAPACK default. The Hessenberg, Schur and EVD-from-Schur parameters inside
+faer's EVD driver are tracked with the Hessenberg (#123) and Schur (#110)
+controls.
 
 ## Partial eigenvalues and singular values
 
@@ -297,6 +368,25 @@ solves a self-adjoint EVD, and back-transforms B-orthonormal eigenvectors.
 Unused triangles and imaginary diagonal parts are ignored independently.
 Output arrays, scalar promotion, sorting and staged bang writeback allocate
 separately. Nonpositive B or sorting failure preserves bang inputs.
+
+A B that is not positive definite throws `PosDefException(i)` whose `info` is
+the one-based failing pivot, matching `cholesky(Hermitian(B); check=false).info`.
+Non-finite values in a selected triangle throw `ArgumentError`. A diagonal B
+(`FaerDiagonal` or `Diagonal`) with positive entries uses the same native
+driver; a zero entry throws `ArgumentError`, and an indefinite diagonal falls
+back to LinearAlgebra's general path.
+
+```julia
+using Colmat, LinearAlgebra
+A = Hermitian(FaerMatrix([4.0 1; 1 3]))
+try
+    eigvals(A, Hermitian(FaerMatrix([1.0 0; 0 -1])))
+catch e
+    @assert e isa PosDefException && e.info == 2
+end
+@assert eigvals(A, FaerDiagonal([1.0, 2.0])) ≈ eigvals(Hermitian([4.0 1; 1 3]), Diagonal([1.0, 2.0]))
+close(parent(A))
+```
 
 ## Generalized EVD for general matrix pairs
 
