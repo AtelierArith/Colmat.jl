@@ -52,6 +52,9 @@ for every algorithm, with `F.L * F.U ≈ A[F.p,F.q]`. It also supports `Matrix(F
 row/column permutations. Sparse QR exposes independent thin `Q/Qthin`, square orthogonal/unitary `Qfull`,
 sparse `R`, `p/pcol` and dense
 reconstruction for all algorithms, using the current saved numeric buffers.
+`F.Qoperator` is the lazy m×m Q (SPQR's `F.Q`): an independent `FaerLinearOperator`
+applying saved Householder reflectors with optional caller scratch/team, and `F.prow`
+is the identity row permutation, since Q is stored in the original row order.
 It also exposes independent `F.p`, the actual `F.algorithm`
 and `F.factor_storage` (numeric scalar slots, including supernodal padding).
 `cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;
@@ -810,10 +813,13 @@ Base.propertynames(f::FaerSparseFactorization{T,:lu}, private::Bool = false) whe
     private ? (fieldnames(typeof(f))..., :L, :U, :p, :q) : (:dims, :info, :L, :U, :p, :q)
 
 function Base.getproperty(f::FaerSparseFactorization{T,:qr}, name::Symbol) where {T}
-    if name in (:Q, :Qthin, :Qfull, :R, :p, :pcol)
+    if name in (:Q, :Qthin, :Qfull, :Qoperator, :R, :p, :pcol, :prow)
         return lock(_matrix_lock) do
             _handle(f)
             LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+            name===:Qoperator && return _sparse_qr_q_operator(f)
+            # Q is stored in the original row order (SPQR's prow is identity here).
+            name===:prow && return FaerPermutation(1:size(f, 1))
             name in (:p, :pcol) &&
                 return _permutation_result(size(f, 2), RustCrate.sparse_qr_permutation, f)
             name===:R && return _sparse_result(
@@ -832,8 +838,16 @@ function Base.getproperty(f::FaerSparseFactorization{T,:qr}, name::Symbol) where
     return getfield(f, name)
 end
 Base.propertynames(f::FaerSparseFactorization{T,:qr}, private::Bool = false) where {T} =
-    private ? (fieldnames(typeof(f))..., :Q, :Qthin, :Qfull, :R, :p, :pcol) :
-    (:dims, :info, :Q, :Qthin, :Qfull, :R, :p, :pcol)
+    private ? (fieldnames(typeof(f))..., :Q, :Qthin, :Qfull, :Qoperator, :R, :p, :pcol, :prow) :
+    (:dims, :info, :Q, :Qthin, :Qfull, :Qoperator, :R, :p, :pcol, :prow)
+# Lazy m×m Q (SPQR's `F.Q`): an independent native snapshot of the saved
+# Householder reflectors; applications never form dense Q.
+function _sparse_qr_q_operator(f::FaerSparseFactorization{T,:qr}) where {T}
+    h=RustCrate.OwnedLinearOperator()
+    _native_call(RustCrate.operator_sparse_qr_q, h, f)
+    m=size(f, 1)
+    return FaerLinearOperator{T,typeof(h)}(h, (m, m), :factorization, false, false)
+end
 function reconstruct(f::FaerSparseFactorization{T,:qr}) where {T}
     lock(_matrix_lock) do
         _handle(f)
