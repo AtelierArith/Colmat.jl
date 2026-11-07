@@ -91,7 +91,7 @@ fn singleton<T: Native>(x: &T, mean: &T, corrected: bool) -> T::Real {
     T::real_from_f64(value / if corrected { 0.0 } else { 1.0 })
 }
 
-// faer bug (upstream issue not yet filed; see PR): the stats kernels reverse a negative output-axis stride on
+// faer bug (tensor4all/faer#317): the stats kernels reverse a negative output-axis stride on
 // the input only, so outputs land in reversed order. Flip input, output and
 // means together to hand faer a non-negative column stride.
 fn mean_into<T: ComplexField>(out: RowMut<'_, T>, a: MatRef<'_, T>, policy: NanHandling) {
