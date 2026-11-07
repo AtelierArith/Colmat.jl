@@ -58,12 +58,23 @@ mul!(B, L, B, 2.0, 0.0)
 ```
 
 Lower/upper and unit-triangular wrappers use faer's structured multiplication;
-`FaerDiagonal` and Julia `Diagonal` with native matrices use native diagonal
-products. These methods return a `FaerMatrix`, including triangular×triangular
+These methods return a `FaerMatrix`, including triangular×triangular
 products. Native destination `mul!` supports coefficients and aliasing. Operand
-snapshots and a temporary result are allocated; even diagonal operands are
-currently snapshotted through a dense representation. Unused triangles and
+snapshots and a temporary result are allocated. Unused triangles and
 implicit unit diagonals are ignored, including nonfinite values stored there.
+
+`FaerDiagonal` or Julia `Diagonal` times a `FaerMatrix`, a range view or a
+triangular wrapper of a `FaerMatrix` (on either side) scales rows or columns in
+Rust: the stored diagonal is borrowed as a column (a Julia `Diagonal` crosses
+as its contiguous buffer for one call) and never expanded to a dense matrix,
+and the dense operand is borrowed in place. `mul!(C, D, B, α, β)` with
+a `FaerMatrix` or view destination folds `α` into an O(n) copy of the diagonal,
+builds the result in one Rust buffer and writes it into `C`; `β == 0` never reads
+`C`, `α == 0` never reads the operands, and an operand sharing the destination's
+owner is first copied natively. Only the diagonal is promoted on this path; a
+dense operand of another scalar type, a triangular wrapper of a Julia matrix,
+or a destination narrower than the promoted type falls back to the dense
+snapshot path. `D * v::FaerVector` and `r::FaerRow * D` return native vectors.
 
 ## Pivoted Cholesky
 

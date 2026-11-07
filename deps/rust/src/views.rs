@@ -9,14 +9,14 @@ use rustcall_julia_macros::julia;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Spec {
-    kind: i32,
-    r: isize,
-    rs: isize,
-    m: usize,
-    c: isize,
-    cs: isize,
-    n: usize,
-    transpose: bool,
+    pub(crate) kind: i32,
+    pub(crate) r: isize,
+    pub(crate) rs: isize,
+    pub(crate) m: usize,
+    pub(crate) c: isize,
+    pub(crate) cs: isize,
+    pub(crate) n: usize,
+    pub(crate) transpose: bool,
     pub(crate) conjugate: bool,
 }
 impl Spec {
@@ -53,7 +53,7 @@ fn check_axis(first: isize, step: isize, len: usize, capacity: usize) -> Result<
     }
     Ok(())
 }
-fn borrowed<'a, T>(a: MatRef<'a, T>, s: Spec) -> Result<MatRef<'a, T>, String> {
+pub(crate) fn borrowed<'a, T>(a: MatRef<'a, T>, s: Spec) -> Result<MatRef<'a, T>, String> {
     s.check(a.nrows(), a.ncols())?;
     let rs = a
         .row_stride()
@@ -190,7 +190,7 @@ unsafe fn binary_data(
         _ => return Err("view scalar types must match".into()),
     })
 }
-fn write_view<T: ComplexField>(
+pub(crate) fn write_view<T: ComplexField>(
     mut a: MatMut<'_, T>,
     s: Spec,
     b: MatRef<'_, T>,
