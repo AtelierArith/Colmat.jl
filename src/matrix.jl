@@ -221,9 +221,6 @@ function Base.:*(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
     size(a, 2) == size(b, 1) || throw(DimensionMismatch("inner dimensions must match"))
     return _matrix_result(RustCrate.multiply_from, (size(a, 1), size(b, 2)), a, b)
 end
-function Base.:*(a::FaerMatrix{Float64}, b::AbstractVector{<:Real})
-    return vec(Matrix(a * FaerMatrix(reshape(b, :, 1))))
-end
 function Base.:\(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
     return LinearAlgebra.factorize(a) \ b
 end
