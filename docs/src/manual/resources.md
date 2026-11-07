@@ -27,6 +27,35 @@ by Colmat's owner lock, and faer may choose a narrower region for small work.
 The API controls worker reservations; it does not promise a speedup for every
 matrix size. Inputs needing conversion and destination writes use temporaries.
 
+Pool options are keywords of the constructor, and `team_diagnostics` reads the
+reservation and wait counters of the pool:
+
+```julia
+using Colmat
+
+FaerTeam(2; spin_polls=0, qos=:utility, pin=false, acquire_timeout=5) do team
+    A = FaerMatrix(rand(200, 200))
+    team_mul(team, A, A)
+    d = team_diagnostics(team)
+    @assert d.width <= 2 && d.spin_polls == 0 && !d.pin
+end
+```
+
+- `acquire_timeout` (seconds, default 30): how long reserving the workers may
+  wait for idle threads.
+- `spin_polls`: spin budget of a team wait (reserved members waiting for work,
+  joins and barriers) before yielding and sleeping; `0` sleeps after the yields.
+- `qos`: macOS worker class (`:default`, `:utility`, `:user_initiated`,
+  `:user_interactive`); the calling Julia thread is never changed.
+- `pin` (default `true`): place participants on distinct CPUs of the caller's
+  CPU set during team sections on Linux; pass `false` when the CPUs are shared
+  with other work.
+
+`copy(team)` reserves a new pool with the same options. A team cannot borrow an
+external (for example Julia's) thread pool: threadteam reserves its own worker
+threads, and faer's symbolic sparse analyses take no `Par`, so they stay
+sequential.
+
 ## Parallel-region thresholds
 
 `bidiagonalize[!]` and `tridiagonalize[!]` accept `par_threshold=FaerParThreshold()` and forward the
