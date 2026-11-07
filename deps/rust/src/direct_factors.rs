@@ -13,6 +13,7 @@
 //! holds the symmetric permutation (n) and uses the coefficient buffer as an
 //! n×1 column with the block diagonal's subdiagonal (lower storage) or its
 //! superdiagonal, the conjugate (upper storage).
+use crate::lu_qr_factors as lq;
 use crate::selfadjoint_tuning as tuning;
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
@@ -105,26 +106,40 @@ fn requirement<T: ComplexField>(
     };
     let solve = SOLVE..=ADJOINT;
     Ok(match (kind, op) {
-        (LU, FACTOR) => plu::factor::lu_in_place_scratch::<usize, T>(m, n, par, Default::default()),
+        (LU, FACTOR) => plu::factor::lu_in_place_scratch::<usize, T>(
+            m,
+            n,
+            par,
+            lq::partial_piv_lu_params::<T>().into(),
+        ),
         (LU, SOLVE) => plu::solve::solve_in_place_scratch::<usize, T>(n, k, par),
         (LU, TRANSPOSE | ADJOINT) => {
             plu::solve::solve_transpose_in_place_scratch::<usize, T>(n, k, par)
         }
-        (FULL_LU, FACTOR) => {
-            flu::factor::lu_in_place_scratch::<usize, T>(m, n, par, Default::default())
-        }
+        (FULL_LU, FACTOR) => flu::factor::lu_in_place_scratch::<usize, T>(
+            m,
+            n,
+            par,
+            lq::full_piv_lu_params::<T>().into(),
+        ),
         (FULL_LU, SOLVE) => flu::solve::solve_in_place_scratch::<usize, T>(n, k, par),
         (FULL_LU, TRANSPOSE | ADJOINT) => {
             flu::solve::solve_transpose_in_place_scratch::<usize, T>(n, k, par)
         }
-        (QR, FACTOR) => nqr::factor::qr_in_place_scratch::<T>(m, n, bs, par, Default::default()),
+        (QR, FACTOR) => {
+            nqr::factor::qr_in_place_scratch::<T>(m, n, bs, par, lq::qr_params::<T>().into())
+        }
         (QR, SOLVE) => nqr::solve::solve_lstsq_in_place_scratch::<T>(m, n, bs, k, par),
         (QR, TRANSPOSE | ADJOINT) => {
             nqr::solve::solve_transpose_in_place_scratch::<T>(n, bs, k, par)
         }
-        (PIVOTED_QR, FACTOR) => {
-            pqr::factor::qr_in_place_scratch::<usize, T>(m, n, bs, par, Default::default())
-        }
+        (PIVOTED_QR, FACTOR) => pqr::factor::qr_in_place_scratch::<usize, T>(
+            m,
+            n,
+            bs,
+            par,
+            lq::col_piv_qr_params::<T>().into(),
+        ),
         (PIVOTED_QR, SOLVE) => {
             pqr::solve::solve_lstsq_in_place_scratch::<usize, T>(m, n, bs, k, par)
         }
@@ -407,7 +422,14 @@ fn factor<T: ComplexField>(
     // partially factored, as Julia's LAPACK-backed `lu!`/`cholesky!` do.
     Ok(match kind {
         LU => {
-            plu::factor::lu_in_place(a.as_mut(), perm, perm_inv, par, stack, Default::default());
+            plu::factor::lu_in_place(
+                a.as_mut(),
+                perm,
+                perm_inv,
+                par,
+                stack,
+                lq::partial_piv_lu_params::<T>().into(),
+            );
             first_zero_pivot(a.as_ref())
         }
         FULL_LU => {
@@ -421,20 +443,28 @@ fn factor<T: ComplexField>(
                 col_inv,
                 par,
                 stack,
-                Default::default(),
+                lq::full_piv_lu_params::<T>().into(),
             );
             first_zero_pivot(a.as_ref())
         }
         QR => {
             // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
             let c = unsafe { coeff_mut::<T>(coeff, coeff_rows, m.min(n)) };
-            nqr::factor::qr_in_place(a, c, par, stack, Default::default());
+            nqr::factor::qr_in_place(a, c, par, stack, lq::qr_params::<T>().into());
             0
         }
         PIVOTED_QR => {
             // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
             let c = unsafe { coeff_mut::<T>(coeff, coeff_rows, m.min(n)) };
-            pqr::factor::qr_in_place(a, c, perm, perm_inv, par, stack, Default::default());
+            pqr::factor::qr_in_place(
+                a,
+                c,
+                perm,
+                perm_inv,
+                par,
+                stack,
+                lq::col_piv_qr_params::<T>().into(),
+            );
             0
         }
         LLT => {

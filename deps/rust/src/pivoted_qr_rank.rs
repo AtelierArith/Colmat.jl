@@ -3,6 +3,7 @@
 //! `QRPivoted` rule on the stored R diagonal: rank is the first index with
 //! `|R[i,i]| <= max(atol, rtol*|R[1,1]|)`. The truncated solve uses a complete
 //! orthogonal decomposition of the leading rank rows, like LAPACK `xgelsy`.
+use crate::lu_qr_factors::ColPivQr;
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{Factor, FactorData, MatrixData, TypedFactor, TypedMatrix};
 use crate::{guarded, DenseFactor, OwnedFactor, OwnedMatrix};
@@ -11,7 +12,6 @@ use faer::linalg::householder::{
     apply_block_householder_sequence_transpose_on_the_left_in_place_scratch,
     apply_block_householder_sequence_transpose_on_the_left_in_place_with_conj,
 };
-use faer::linalg::solvers::{ColPivQr, ShapeCore};
 use faer::linalg::triangular_solve::{
     solve_lower_triangular_in_place, solve_upper_triangular_in_place,
 };
@@ -225,7 +225,7 @@ mod tests {
                 _ => [3.0, 6.0, 1.0, 1.0][i],
             }
         });
-        let f = a.col_piv_qr(Par::Seq);
+        let f = ColPivQr::new(a.as_ref(), Par::Seq);
         assert_eq!(rank(&f, 0.0, 3.0 * f64::EPSILON), 2);
         assert_eq!(rank(&f, 1e3, 0.0), 0);
         let b = Mat::from_fn(4, 1, |i, _| (i + 1) as f64);

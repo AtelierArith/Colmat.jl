@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn workspace_and_team_rejection_preserve_previous_output() {
         let a = Mat::from_fn(2, 2, |i, j| if i == j { 4.0 } else { 1.0 });
-        let lu = a.as_ref().partial_piv_lu(Par::Seq);
+        let lu = crate::lu_qr_factors::PartialPivLu::new(a.as_ref(), Par::Seq);
         let op = OwnedLinearOperator {
             data: Some(Data::F64(Operator::new(Base::InverseFactors(Box::new(
                 InverseFactors::new(&lu).unwrap(),

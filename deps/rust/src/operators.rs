@@ -1983,7 +1983,7 @@ impl<T> std::fmt::Debug for InverseFactors<T> {
     }
 }
 impl<T: ComplexField> InverseFactors<T> {
-    fn full_lu(f: &faer::linalg::solvers::FullPivLu<T>) -> Result<Self, String> {
+    fn full_lu(f: &crate::lu_qr_factors::FullPivLu<T>) -> Result<Self, String> {
         let n = f.L().nrows();
         if n != f.U().ncols() {
             return Err("LU preconditioner must be square".into());
@@ -2027,7 +2027,7 @@ impl<T: ComplexField> InverseFactors<T> {
         })
     }
 
-    fn new(f: &faer::linalg::solvers::PartialPivLu<T>) -> Result<Self, String> {
+    fn new(f: &crate::lu_qr_factors::PartialPivLu<T>) -> Result<Self, String> {
         let n = f.L().nrows();
         if n != f.U().ncols() {
             return Err("LU preconditioner must be square".into());
@@ -2243,7 +2243,7 @@ impl OwnedLinearOperator {
         guarded(|| {
             use crate::typed::{Factor, FactorData};
             fn make<T: ComplexField>(
-                f: &faer::linalg::solvers::PartialPivLu<T>,
+                f: &crate::lu_qr_factors::PartialPivLu<T>,
             ) -> Result<Operator<T>, String> {
                 if f.L().nrows() != f.U().ncols() {
                     return Err("preconditioner requires square LU".into());

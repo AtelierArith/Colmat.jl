@@ -404,10 +404,9 @@ fn check_finite(a: MatRef<'_, f64>) -> Result<(), String> {
 }
 
 use cholesky_factors::{Ldlt, Llt};
-use faer::linalg::solvers::{
-    ColPivQr, DenseSolveCore, FullPivLu, PartialPivLu, Qr, ShapeCore, SolveLstsq, Svd,
-};
+use faer::linalg::solvers::{DenseSolveCore, ShapeCore, SolveLstsq, Svd};
 use lblt::Lblt;
+use lu_qr_factors::{ColPivQr, FullPivLu, PartialPivLu, Qr};
 
 #[derive(Clone)]
 enum DenseFactor {
@@ -1243,6 +1242,7 @@ pub mod pivoted_cholesky;
 pub mod lblt;
 
 pub mod cholesky_factors;
+pub mod lu_qr_factors;
 
 pub mod selfadjoint_tuning;
 
@@ -1323,10 +1323,10 @@ impl OwnedFactor {
         };
         self.info = 0;
         let factor = match kind {
-            0 => DenseFactor::Lu(a.partial_piv_lu(par)),
-            1 => DenseFactor::FullLu(a.full_piv_lu(par)),
-            2 => DenseFactor::Qr(a.qr(par)),
-            3 => DenseFactor::PivotQr(a.col_piv_qr(par)),
+            0 => DenseFactor::Lu(PartialPivLu::new(a.as_ref(), par)),
+            1 => DenseFactor::FullLu(FullPivLu::new(a.as_ref(), par)),
+            2 => DenseFactor::Qr(Qr::new(a.as_ref(), par)),
+            3 => DenseFactor::PivotQr(ColPivQr::new(a.as_ref(), par)),
             4 => match Llt::new(a, side, par) {
                 Ok(f) => DenseFactor::Llt(f),
                 Err(faer::linalg::solvers::LltError::NonPositivePivot { index }) => {
