@@ -921,7 +921,7 @@ mod borrowed_tests {
             tuning: Default::default(),
             plan: Some(Plan {
                 analysis: Analysis::Qr(symbolic),
-                pattern: a.symbolic().to_owned().unwrap(),
+                pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                 lower: true,
             }),
         };

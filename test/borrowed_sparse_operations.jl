@@ -142,3 +142,39 @@ end
     @test _flat(b -> ldiv!(LowerTriangular(b), y; scratch = b===small ? ss : sb), small, big)
 
 end
+
+@testset "Symbolic analysis reads borrowed and CSC owner patterns in place" begin
+    S=_sample(Float64, 12, 14)
+    H=S+S'
+    for (kind, A) in ((:lu, S), (:qr, S), (:cholesky, H))
+        for opts in (
+            (;),
+            (; ordering = :identity),
+            (; algorithm = :simplicial),
+            (; algorithm = :supernodal),
+            (; ordering = collect(12:-1:1)),
+        )
+            kind===:cholesky && haskey(opts, :ordering) && opts.ordering isa Vector && continue
+            want=FaerSparseSymbolic(FaerSparsity(FaerSparseMatrix(A)); kind, opts...)
+            for src in (faerview(A), FaerSparseMatrix(A), FaerSparseMatrix(A; format = :csr))
+                p=FaerSparseSymbolic(src; kind, opts...)
+                @test size(p)==size(want)
+                f=factorize(p, FaerSparseMatrix(A))
+                g=factorize(want, FaerSparseMatrix(A))
+                x=rand(MersenneTwister(15), 12)
+                @test f\x≈g\x
+                @test f\x≈Matrix(A)\x
+            end
+            s=FaerScratch(FaerSparseSymbolic, faerview(A); kind, opts...)
+            p=FaerSparseSymbolic(faerview(A); kind, scratch = s, opts...)
+            @test factorize(p, faerview(A))\ones(12)≈Matrix(A)\ones(12)
+        end
+    end
+    p=FaerSparseSymbolic(faerview(S); kind = :lu, algorithm = :simplicial, ordering = :colamd)
+    @test factorize(p, faerview(S))\ones(12)≈Matrix(S)\ones(12)
+    @test lu(faerview(S))\ones(12)≈Matrix(S)\ones(12)
+    @test cholesky(Hermitian(faerview(H), :L))\ones(12)≈Matrix(H)\ones(12)
+    @test_throws DimensionMismatch FaerSparseSymbolic(faerview(sparse(ones(2, 3))); kind = :lu)
+    bad=SparseMatrixCSC(2, 2, [1, 3, 3], [2, 1], [1.0, 1.0]) # unsorted rows
+    @test_throws ArgumentError FaerSparseSymbolic(faerview(bad))
+end

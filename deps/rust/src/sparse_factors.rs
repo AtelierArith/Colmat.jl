@@ -34,7 +34,9 @@ enum Analysis {
 #[derive(Clone)]
 struct Plan {
     analysis: Analysis,
-    pattern: SymbolicSparseColMat<usize>,
+    /// The analysed pattern, shared by every copy of the plan (each
+    /// factorization keeps a copy to validate refactorizations).
+    pattern: Arc<SymbolicSparseColMat<usize>>,
     lower: bool,
 }
 /// Supernodal controls consumed by the next analysis: faer's
@@ -141,6 +143,44 @@ impl SparseSymbolic {
         dense_row: f64,
         dense_col: f64,
     ) -> Result<(), String> {
+        let pattern = guarded(|| pattern.data()?.csc())?;
+        self.analyze(
+            pattern,
+            kind,
+            lower,
+            ordering,
+            permutation,
+            dense,
+            aggressive,
+            supernodal,
+            dense_row,
+            dense_col,
+            None,
+        )
+    }
+    /// `sparse_analyze` on raw 0-based CSC pattern parts (a borrowed Julia CSC
+    /// matrix or a CSC owner, read in place and validated): the plan's own
+    /// pattern is the only copy.
+    #[julia]
+    #[allow(clippy::too_many_arguments)]
+    pub fn sparse_analyze_raw(
+        &mut self,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        k: usize,
+        kind: i32,
+        lower: bool,
+        ordering: i32,
+        permutation: *const u8,
+        dense: f64,
+        aggressive: bool,
+        supernodal: i32,
+        dense_row: f64,
+        dense_col: f64,
+    ) -> Result<(), String> {
+        let pattern = guarded(|| raw_pattern(m, n, ptr, idx, k))?;
         self.analyze(
             pattern,
             kind,
@@ -160,7 +200,7 @@ impl SparseSymbolic {
     #[allow(clippy::too_many_arguments)]
     fn analyze(
         &mut self,
-        pattern: &SparsityOwner,
+        pattern: SymbolicSparseColMat<usize>,
         kind: i32,
         lower: bool,
         ordering: i32,
@@ -186,7 +226,6 @@ impl SparseSymbolic {
             if !dense_row.is_finite() || !dense_col.is_finite() {
                 return Err("COLAMD thresholds must be finite".into());
             }
-            let pattern = pattern.data()?.csc()?;
             let (m, n) = (pattern.nrows(), pattern.ncols());
             if kind != 1 && m != n {
                 return Err("sparse LU/Cholesky requires a square matrix".into());
@@ -394,7 +433,7 @@ impl SparseSymbolic {
             };
             self.plan = Some(Plan {
                 analysis,
-                pattern,
+                pattern: Arc::new(pattern),
                 lower,
             });
             Ok(())
@@ -407,6 +446,26 @@ impl SparseSymbolic {
             Ok(())
         })
     }
+}
+/// One owned copy of a validated raw CSC pattern.
+pub(crate) fn raw_pattern(
+    m: usize,
+    n: usize,
+    ptr: *const usize,
+    idx: *const usize,
+    k: usize,
+) -> Result<SymbolicSparseColMat<usize>, String> {
+    let raw = crate::borrowed_sparse::Raw {
+        m,
+        n,
+        ptr,
+        idx,
+        val: std::ptr::null(),
+        k,
+    };
+    // SAFETY: Julia roots `n + 1` pointers and `k` indices for this call.
+    let s = unsafe { crate::borrowed_sparse::symbolic(raw)? };
+    s.to_owned().map_err(|e| format!("{e:?}"))
 }
 #[derive(Clone)]
 struct SparseLlt<T> {

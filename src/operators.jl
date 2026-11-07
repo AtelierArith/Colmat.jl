@@ -4,7 +4,9 @@
     FaerLinearOperator(apply!, adjoint_apply!, m, n; T=Float64)
 
 Own an independent faer LinOp/BiLinOp snapshot of a dense matrix, native/Julia
-CSC or native CSR sparse matrix, or diagonal matrix. Identity and diagonal
+CSC or native CSR sparse matrix, borrowed `faerview(S)` (or its transpose/adjoint,
+stored as CSR; snapshotted once, later writes to `S` are not seen), or diagonal
+matrix. Identity and diagonal
 operators do not store a dense coefficient matrix. `*`, `mul!`, conjugation,
 transpose and adjoint call native operator traits; Matrix(op) explicitly forms
 its dense matrix. `.coefficients` returns an independent base representation,

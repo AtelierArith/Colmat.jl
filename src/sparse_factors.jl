@@ -96,7 +96,7 @@ function Base.close(f::_SparseNativeFactor)
 end
 LinearAlgebra.issuccess(f::FaerSparseFactorization) = iszero(f.info)
 function _sparse_symbolic_options(
-    p::FaerSparsity;
+    p::Union{FaerSparsity,FaerSparseMatrix,FaerBorrowedSparseMatrix};
     kind = :lu,
     uplo = :L,
     ordering = :default,
@@ -253,14 +253,65 @@ function _sparse_symbolic_requirements(p::FaerSparsity, o)
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
-function FaerSparseSymbolic(p::FaerSparsity; scratch = nothing, kwargs...)
+# Patterns analysed in place: a borrowed Julia CSC matrix (per-call 0-based
+# buffers) or a CSC owner. The plan keeps the only pattern copy.
+const _RawAnalysisSource=Union{FaerSparseMatrix,FaerBorrowedSparseMatrix}
+_analysis_open(p::Union{FaerSparsity,FaerSparseMatrix}) = _handle(p)
+_analysis_open(::FaerBorrowedSparseMatrix) = nothing
+_with_analysis_pattern(f, p::FaerBorrowedSparseMatrix) =
+    _with_borrowed_sparse((m, n, ptr, idx, _, k, _) -> f(m, n, ptr, idx, k), p)
+_with_analysis_pattern(f, p::FaerSparseMatrix) =
+    _with_raw_sparse((m, n, ptr, idx, _, k) -> f(m, n, ptr, idx, k), p)
+function _sparse_symbolic_requirements(p::_RawAnalysisSource, o)
+    info=zeros(UInt, 2)
+    GC.@preserve info _native_call(
+        RustCrate.sparse_analysis_requirements_shape,
+        UInt(size(p, 1)),
+        UInt(size(p, 2)),
+        UInt(SparseArrays.nnz(p)),
+        Int32(o.code),
+        Int32(o.ordercode),
+        Int32(o.algo),
+        pointer(info),
+    )
+    return (bytes = Int(info[1]), alignment = Int(info[2]))
+end
+function _sparse_analyze!(h, p::FaerSparsity, scratch, args...)
+    isnothing(scratch) && return _native_call(RustCrate.sparse_analyze, h, p, args...)
+    return _native_call(
+        RustCrate.sparse_analyze_workspace,
+        h,
+        p,
+        scratch,
+        UInt(size(p, 1)),
+        UInt(size(p, 2)),
+        args...,
+    )
+end
+function _sparse_analyze!(h, p::_RawAnalysisSource, scratch, args...)
+    _with_analysis_pattern(p) do pattern...
+        isnothing(scratch) ? _native_call(RustCrate.sparse_analyze_raw, h, pattern..., args...) :
+        _native_call(RustCrate.sparse_analyze_workspace_raw, h, pattern..., scratch, args...)
+    end
+end
+FaerSparseSymbolic(p::FaerSparsity; kwargs...) = _sparse_symbolic(p; kwargs...)
+function _sparse_symbolic(p; scratch = nothing, kwargs...)
     o=_sparse_symbolic_options(p; kwargs...)
+    # Explicit simplicial COLAMD orders a native pattern owner first.
+    if p isa _RawAnalysisSource && o.use_colamd
+        pattern=FaerSparsity(p)
+        try
+            return _sparse_symbolic(pattern; scratch, kwargs...)
+        finally
+            close(pattern)
+        end
+    end
     isnothing(scratch) ||
         scratch isa FaerScratch ||
         throw(ArgumentError("scratch must be a FaerScratch"))
     kind, uplo, row, col=o.kind, o.uplo, o.row, o.col
     lock(_matrix_lock) do
-        _handle(p)
+        _analysis_open(p)
         if !isnothing(scratch)
             req=_sparse_symbolic_requirements(p, o)
             cap=scratch_capacity(scratch)
@@ -277,50 +328,32 @@ function FaerSparseSymbolic(p::FaerSparsity; scratch = nothing, kwargs...)
             o.custom && _check_permutation(p, perm, true)
             h=RustCrate.SparseSymbolic()
             _sparse_supernodal_tuning!(h, o)
-            if isnothing(scratch) || o.use_colamd
-                _native_call(
-                    RustCrate.sparse_analyze,
-                    h,
-                    p,
-                    Int32(o.code),
-                    uplo===:L,
-                    Int32(o.ordercode),
-                    perm,
-                    o.threshold,
-                    o.aggressive,
-                    Int32(o.algo),
-                    row,
-                    col,
-                )
-            else
-                _native_call(
-                    RustCrate.sparse_analyze_workspace,
-                    h,
-                    p,
-                    scratch,
-                    UInt(size(p, 1)),
-                    UInt(size(p, 2)),
-                    Int32(o.code),
-                    uplo===:L,
-                    Int32(o.ordercode),
-                    perm,
-                    o.threshold,
-                    o.aggressive,
-                    Int32(o.algo),
-                    row,
-                    col,
-                )
-            end
+            _sparse_analyze!(
+                h,
+                p,
+                o.use_colamd ? nothing : scratch,
+                Int32(o.code),
+                uplo===:L,
+                Int32(o.ordercode),
+                perm,
+                o.threshold,
+                o.aggressive,
+                Int32(o.algo),
+                row,
+                col,
+            )
             return FaerSparseSymbolic{kind,typeof(h)}(h, size(p), uplo)
         finally
             o.use_colamd && close(perm)
         end
     end
 end
-# Borrowed Julia CSC inputs: FaerSparseMatrix(B)/FaerSparsity(B) make one owned copy.
+# Borrowed Julia CSC and CSC owner inputs are analysed in place; a CSR owner's
+# pattern is converted to CSC once (faer's symbolic analyses are CSC-only).
 const _SparseFactorInput{T}=Union{FaerSparseMatrix{T},FaerBorrowedSparseMatrix{T}}
 FaerSparseSymbolic(a::_SparseFactorInput; kwargs...) =
-    FaerSparseSymbolic(FaerSparsity(a); kwargs...)
+    a isa FaerSparseMatrix && a.format===:csr ?
+    FaerSparseSymbolic(FaerSparsity(a); kwargs...) : _sparse_symbolic(a; kwargs...)
 function Base.copy(p::FaerSparseSymbolic{K}) where {K}
     lock(_matrix_lock) do
         h=RustCrate.SparseSymbolic()

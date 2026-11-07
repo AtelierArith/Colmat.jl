@@ -20,7 +20,7 @@ fn requirement<T: ComplexField>(plan: &Plan, par: &Par<'_>) -> Result<StackReq, 
             .or(rank_hint::scratch(plan.symbolic.ncols())),
         Analysis::WideQr(plan) => crate::sparse_qr_wide::Factors::<T>::scratch(plan, par),
         Analysis::Llt(sym) => {
-            super::construction_temporaries::triangle_req::<T>(plan.pattern.as_ref(), plan.lower)
+            super::construction_temporaries::triangle_req::<T>((*plan.pattern).as_ref(), plan.lower)
                 .and(sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default()))
         }
         Analysis::Lu(sym) => sym.factorize_numeric_lu_scratch::<T>(par.shape(), Default::default()),
@@ -167,7 +167,7 @@ mod tests {
                     tuning: Default::default(),
                     plan: Some(Plan {
                         analysis: Analysis::Qr(symbolic.clone()),
-                        pattern: a.symbolic().to_owned().unwrap(),
+                        pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                         lower: true,
                     }),
                 };
@@ -242,7 +242,7 @@ mod tests {
                     tuning: Default::default(),
                     plan: Some(Plan {
                         analysis: Analysis::SimplicialQr(symbolic.clone()),
-                        pattern: a.symbolic().to_owned().unwrap(),
+                        pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                         lower: true,
                     }),
                 };
@@ -342,7 +342,7 @@ mod tests {
                             tuning: Default::default(),
                             plan: Some(Plan {
                                 analysis: Analysis::Llt(symbolic.clone()),
-                                pattern: a.symbolic().to_owned().unwrap(),
+                                pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                                 lower,
                             }),
                         };
@@ -482,7 +482,7 @@ mod tests {
             tuning: Default::default(),
             plan: Some(Plan {
                 analysis: Analysis::Llt(symbolic),
-                pattern: a.symbolic().to_owned().unwrap(),
+                pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                 lower: true,
             }),
         };
@@ -611,7 +611,7 @@ mod tests {
                         tuning: Default::default(),
                         plan: Some(Plan {
                             analysis: Analysis::Lu(symbolic.clone()),
-                            pattern: a.symbolic().to_owned().unwrap(),
+                            pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                             lower: true,
                         }),
                     };
@@ -658,7 +658,7 @@ mod tests {
                     tuning: Default::default(),
                     plan: Some(Plan {
                         analysis: Analysis::SimplicialLu(permutation),
-                        pattern: a.symbolic().to_owned().unwrap(),
+                        pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                         lower: true,
                     }),
                 };
@@ -734,7 +734,7 @@ mod tests {
             tuning: Default::default(),
             plan: Some(Plan {
                 analysis: Analysis::Lu(symbolic),
-                pattern: a.symbolic().to_owned().unwrap(),
+                pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                 lower: true,
             }),
         };

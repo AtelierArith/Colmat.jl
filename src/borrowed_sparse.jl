@@ -38,9 +38,15 @@ A borrowed Julia `SparseMatrixCSC{T,Ti}` created by `faerview(S)`. Indexing,
 `SparseColMatRef`: products with dense native, view, transposed and borrowed
 Julia operands (`*` and `mul!` into a `FaerMatrix`, both sides), `copy` /
 `FaerSparseMatrix` / `FaerSparsity` (one owned copy), and the sparse `lu`,
-`qr`, `cholesky`, `factorize(plan, B)`, `FaerSparseSymbolic(B)`, `B \\ x` and
-the `lu!`/`qr!`/`cholesky!` refactorizations. Factorizations still keep their
-own owned snapshot, so later writes to `S` do not change them.
+`qr`, `cholesky`, `factorize(plan, B)`, `FaerSparseSymbolic(B)` (analysed in
+place, without a temporary pattern copy), `B \\ x` and the
+`lu!`/`qr!`/`cholesky!` refactorizations. Factorizations still keep their own
+owned snapshot, so later writes to `S` do not change them. Sparse triangular
+solves (`LowerTriangular(B) \\ x`, `ldiv!`) and plan-less sparse `+`/`-`/`*`
+with borrowed or native sparse operands (returning a `FaerSparseMatrix`) read
+`B` in place; `FaerLinearOperator(B)` snapshots it once.
+`FaerSparseMatrix(transpose(B))` owns the CSR form of `Sᵀ` from the same arrays
+(one copy, no transposition pass).
 
 It is also a value destination with a fixed pattern (faer `SparseColMatMut`,
 writing `nonzeros(S)` in place): `add_assign!`/`sub_assign!`/`add_into!`/
