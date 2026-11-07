@@ -28,6 +28,7 @@ macro_rules! real_scalar {
     ($r:ty,$c:ty) => {
         impl General for $r {
             fn requirement(n: usize, values: bool, both: bool, par: ParShape) -> StackReq {
+                let params = crate::schur_tuning::gevd_params::<Self>();
                 StackReq::all_of(&[
                     faer::linalg::temp_mat_scratch::<Self>(n, n),
                     faer::linalg::temp_mat_scratch::<Self>(n, n),
@@ -36,13 +37,13 @@ macro_rules! real_scalar {
                     faer::linalg::temp_mat_scratch::<Self>(n, if values { 0 } else { n }),
                     faer::linalg::temp_mat_scratch::<Self>(n, if both && !values { n } else { 0 }),
                     StackReq::any_of(&[
-                        crate::qz::real_qz_scratch::<Self>(n, faer::auto!(Self), par),
-                        gevd::gevd_scratch::<Self>(
+                        crate::qz::real_qz_scratch::<Self>(n, params.schur, par),
+                        driver_requirement::<Self>(
                             n,
                             Vectors::No,
                             if values { Vectors::No } else { Vectors::Yes },
                             par,
-                            Default::default(),
+                            params,
                         ),
                     ]),
                 ])
@@ -75,6 +76,10 @@ macro_rules! real_scalar {
                 let (mut bc, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(n, n, stack);
                 ac.as_mat_mut().copy_from(a);
                 bc.as_mat_mut().copy_from(b);
+                let (ascl, bscl) = (
+                    crate::schur::scale_in(ac.as_mat_mut()),
+                    crate::schur::scale_in(bc.as_mat_mut()),
+                );
                 let (mut other, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(
                     n,
                     if both && !values { n } else { 0 },
@@ -99,9 +104,11 @@ macro_rules! real_scalar {
                     ur,
                     par,
                     stack,
-                    Default::default(),
+                    crate::schur_tuning::gevd_params::<Self>().into(),
                 )
                 .map_err(|e| format!("generalized EVD: {e:?}"))?;
+                unscale(vals.as_mat_mut(), ascl);
+                unscale(val_beta.as_mat_mut(), bscl);
                 for j in 0..n {
                     s.cast::<$c>().add(j).write(<$c>::new(
                         vals.as_mat_ref()[(j, 0)],
@@ -159,11 +166,12 @@ macro_rules! complex_scalar {
     ($c:ty) => {
         impl General for $c {
             fn requirement(n: usize, values: bool, both: bool, par: ParShape) -> StackReq {
+                let params = crate::schur_tuning::gevd_params::<Self>();
                 StackReq::all_of(&[
                     faer::linalg::temp_mat_scratch::<Self>(n, n),
                     faer::linalg::temp_mat_scratch::<Self>(n, n),
                     faer::linalg::temp_mat_scratch::<Self>(n, 1),
-                    gevd::gevd_scratch::<Self>(
+                    driver_requirement::<Self>(
                         n,
                         if both && !values {
                             Vectors::Yes
@@ -172,7 +180,7 @@ macro_rules! complex_scalar {
                         },
                         if values { Vectors::No } else { Vectors::Yes },
                         par,
-                        Default::default(),
+                        params,
                     ),
                 ])
             }
@@ -195,6 +203,10 @@ macro_rules! complex_scalar {
                 let (mut bc, stack) = faer::linalg::temp_mat_zeroed::<Self, _, _>(n, n, stack);
                 ac.as_mat_mut().copy_from(a);
                 bc.as_mat_mut().copy_from(b);
+                let (ascl, bscl) = (
+                    crate::schur::scale_in(ac.as_mat_mut()),
+                    crate::schur::scale_in(bc.as_mat_mut()),
+                );
                 let (mut val_beta, stack) =
                     faer::linalg::temp_mat_zeroed::<Self, _, _>(n, 1, stack);
                 let output = if values {
@@ -235,9 +247,14 @@ macro_rules! complex_scalar {
                     ur,
                     par,
                     stack,
-                    Default::default(),
+                    crate::schur_tuning::gevd_params::<Self>().into(),
                 )
                 .map_err(|e| format!("generalized EVD: {e:?}"))?;
+                unscale(
+                    MatMut::from_raw_parts_mut(s.cast::<Self>(), n, 1, 1, n as isize),
+                    ascl,
+                );
+                unscale(val_beta.as_mat_mut(), bscl);
                 for j in 0..n {
                     t.cast::<Self>().add(j).write(val_beta.as_mat_ref()[(j, 0)]);
                 }
@@ -245,6 +262,34 @@ macro_rules! complex_scalar {
             }
         }
     };
+}
+/// faer's `gevd_scratch` sizes the generalized Hessenberg step with `auto!`
+/// whatever `params.hessenberg` says, so a tuned block size above the default
+/// would undersize it (docs/reproducers/faer-gevd-hessenberg-scratch.md).
+fn driver_requirement<T: ComplexField>(
+    n: usize,
+    left: Vectors,
+    right: Vectors,
+    par: ParShape,
+    params: gevd::GevdParams,
+) -> StackReq {
+    StackReq::any_of(&[
+        gevd::gevd_scratch::<T>(n, left, right, par, params.into()),
+        gevd::gen_hessenberg::generalized_hessenberg_scratch::<T>(n, params.hessenberg),
+    ])
+}
+/// Undo `schur::scale_in` on α (with factor of A) or β (factor of B), as
+/// LAPACK `ggev` does. faer has no such range scaling and returns α=β=0 for
+/// regular pencils of tiny norm (docs/reproducers/faer-gevd-small-norm.md).
+fn unscale<T: ComplexField>(mut x: MatMut<'_, T>, factor: Option<T::Real>) {
+    if let Some(f) = factor {
+        let inv = faer::traits::math_utils::recip(&f);
+        for j in 0..x.ncols() {
+            for i in 0..x.nrows() {
+                x[(i, j)] = faer::traits::math_utils::mul_real(&x[(i, j)], &inv);
+            }
+        }
+    }
 }
 real_scalar!(f32, faer::c32);
 real_scalar!(f64, faer::c64);

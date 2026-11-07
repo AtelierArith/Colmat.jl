@@ -9,13 +9,14 @@
 //!
 //! The same scope also carries `GeneralizedHessenbergParams` for the
 //! generalized Hessenberg reduction that starts QZ construction, so its block
-//! size reaches both the construction query and the kernel. faer's own GEVD
-//! driver sizes that step with `auto!` (`gevd_scratch`), so these overrides are
-//! not passed to it.
+//! size reaches both the construction query and the kernel. The general GEVD
+//! driver receives the same overrides through `gevd_params`; its workspace
+//! query adds the tuned Hessenberg requirement that faer's `gevd_scratch`
+//! omits.
 use crate::guarded;
 use faer::linalg::evd::SchurParams;
 use faer::linalg::gevd::gen_hessenberg::GeneralizedHessenbergParams;
-use faer::linalg::gevd::GeneralizedSchurParams;
+use faer::linalg::gevd::{GeneralizedSchurParams, GevdParams};
 use faer::traits::ComplexField;
 use faer::Spec;
 use rustcall_julia_macros::julia;
@@ -102,6 +103,18 @@ pub(crate) fn generalized_hessenberg_params<T: ComplexField>() -> GeneralizedHes
     if t != 0 {
         p.blocking_threshold = t;
     }
+    p
+}
+
+/// faer's GEVD defaults with the scope's generalized Hessenberg and QZ
+/// overrides. `gevd_scratch` sizes the Hessenberg step with `auto!` whatever
+/// `hessenberg` says, so callers must also reserve
+/// `generalized_hessenberg_scratch(n, params.hessenberg)`
+/// (docs/reproducers/faer-gevd-hessenberg-scratch.md).
+pub(crate) fn gevd_params<T: ComplexField>() -> GevdParams {
+    let mut p: GevdParams = faer::auto!(T);
+    p.hessenberg = generalized_hessenberg_params::<T>();
+    p.schur = qz_params::<T>();
     p
 }
 

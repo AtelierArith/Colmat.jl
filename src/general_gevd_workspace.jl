@@ -54,6 +54,16 @@ end
 # `eigvals(A, B)` of LinearAlgebra returns.
 _gevd_quotient(α::Complex, β::Real) = iszero(imag(α)) ? complex(real(α)/β) : α/β
 _gevd_quotient(α, β) = α/β
+# Unit 2-norm columns (zero columns stay zero). A function barrier keeps the
+# loop type-stable, so it does not allocate per column.
+function _normalize_columns!(vectors::AbstractMatrix)
+    for j in axes(vectors, 2)
+        v=view(vectors, :, j)
+        scale=LinearAlgebra.norm(v)
+        iszero(scale) || (v ./= scale)
+    end
+    return vectors
+end
 function _general_gevd_workspace_result(
     a::FaerMatrix,
     b::FaerMatrix;
@@ -103,16 +113,8 @@ function _general_gevd_workspace_result(
                 )
                 _native_call(RustCrate.general_gevd_workspace, a, b, work, team, args...)
             end
-            if vectors
-                for matrix in
-                    (side===:both ? (eigenvectors, rightvectors) : (eigenvectors,)),
-                    j in axes(matrix, 2)
-
-                    v=view(matrix, :, j)
-                    scale=LinearAlgebra.norm(v)
-                    iszero(scale) || (v ./= scale)
-                end
-            end
+            vectors && _normalize_columns!(eigenvectors)
+            vectors && side===:both && _normalize_columns!(rightvectors)
             values=homogeneous && isnothing(sortby) ? nothing : _gevd_quotient.(alpha, beta)
             if !isnothing(sortby)
                 order=sortperm(values; by = sortby)

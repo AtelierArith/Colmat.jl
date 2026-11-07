@@ -61,8 +61,10 @@ construction workspace; the pinned faer does not read its
 `blocking_threshold`, which is forwarded as is. The general
 `eigen`/`eigvals`/`eigen!`/`eigvals!(A)` driver's multishift QR step also
 follows the scope, and calls without `scratch`/`team` then use the
-parameterized workspace driver; the generalized `eigen(A, B)` driver keeps
-faer's defaults (#109). Because faer takes the shift count, deflation window
+parameterized workspace driver; the generalized `eigen(A, B)` driver follows
+the generalized Hessenberg and QZ controls, and its query reserves the tuned
+Hessenberg step that faer's own `gevd_scratch` sizes with the default block
+size. Because faer takes the shift count, deflation window
 and shift-chase cost as `extern "C"` function pointers, the overrides are
 stored natively for the scope, which holds Colmat's native-call lock: other
 tasks wait, `f` must call Colmat on the current task, and the previous
@@ -479,14 +481,14 @@ end
 ```
 
 General `FaerMatrix` pairs support four types and scalar promotion, with complex
-values and normalized right eigenvectors. The workspace includes writable input
+values and unit 2-norm right eigenvectors. The workspace includes writable input
 copies and packed real outputs as needed. `scratch_requirements` and `reserve!`
 support eigen/eigvals and their bang aliases. Bang calls use the options for the
 eigen pass, then compute a separate sequential QZ for staged S/T writeback;
 that QZ workspace is outside this query. Sorting, output arrays and writeback
 allocate separately.
 
-Native output is returned without post-processing. The pinned faer revision
+Apart from the range scaling described in the conventions below, native output is returned without post-processing. The pinned faer revision
 returns finite vectors for repeated finite and infinite eigenvalues
 ([faer #217](https://github.com/tensor4all/faer/issues/217), fixed upstream), so
 Colmat no longer recomputes nullspaces. Regression tests cover identity pencils,
@@ -494,6 +496,33 @@ defective Jordan blocks (finite and infinite), singular pencils with
 indeterminate α=β=0 pairs and pencils scaled near the floating-point range
 limits. Defective pencils yield finite but linearly dependent vectors, as in
 LAPACK.
+
+### Conventions compared with LinearAlgebra and faer
+
+Checked against Julia 1.13 `eigen(A, B)`/`eigvals(A, B)`/`eigen!` (LAPACK
+`ggev3`) and the faer `d374ec0` API (`Mat::generalized_eigen`,
+`GeneralizedEigen::{U, S_a, S_b}`, `gevd_real`/`gevd_cplx`, `GevdParams`):
+
+| Item | LinearAlgebra / faer | Colmat |
+|---|---|---|
+| `sortby` | `eigsortby`: real λ, else `(real(λ), imag(λ))`; `nothing` keeps the driver order | same function and `sortperm`; homogeneous output defaults to `sortby=nothing` |
+| Eigenvector scaling | `ggev`: each column scaled so that its largest `abs(real)+abs(imag)` is 1 (left vectors too); faer returns unit 2-norm columns | unit 2-norm columns for every side and bang calls (documented difference); zero columns stay zero. Phases and signs are those of faer |
+| Value type | real pencil with all `alphai == 0` returns real `values`/`vectors`, otherwise complex | always complex for general pairs, like `eigen(A)` |
+| Infinite/indeterminate quotients | real, all-real spectrum: `alphar./beta` (`±Inf`, `NaN` for 0/0); real with complex pairs: `Complex/Real` gives `Inf+NaN*im`; complex: `α./β` with complex `β=0` gives `NaN+NaN*im` | element-wise: a real pencil's real α divides as a real number (`complex(±Inf)` for β=0), also when other eigenvalues form complex pairs (where Julia gives `Inf+NaN*im`); complex pencils give Julia's `NaN+NaN*im`. Use `homogeneous=true` to classify infinite (`β=0`, `α≠0`) and indeterminate (`α=β=0`) pairs |
+| Symmetric/Hermitian shortcut | `eigen!(A, B)` uses the definite self-adjoint driver when `A` is symmetric and `B` is positive definite (real values, B-normalized vectors) | plain `FaerMatrix` pairs always use the general driver; wrap them in `Hermitian`/`Symmetric` for the definite driver |
+| Balancing | `ggev` permutes only (`ggbal('P')`); Julia exposes no `permute`/`scale` for pencils; faer has no pencil balancing | no balancing keywords (`balance`, #160, is for single matrices). Instead Colmat scales A and B by powers of two into `[sqrt(safmin)/eps, eps/sqrt(safmin)]`, as `ggev` does, and scales α and β back; faer alone returns α=β=0 for tiny-norm regular pencils (executed reproducer: `docs/reproducers/faer-gevd-driver.md`) |
+| QZ controls (`GevdParams`) | `hessenberg`, `schur` (`GeneralizedSchurParams`); `evd_from_schur` has no public fields | `with_schur_tuning` reaches `hessenberg` and `schur`. Colmat's query also reserves the tuned Hessenberg step, which faer's `gevd_scratch` sizes with the default block size (executed reproducer: `docs/reproducers/faer-gevd-driver.md`) |
+| `eigen!`/`eigvals!(A, B)` | A and B are overwritten as unspecified workspace | same result types; A and B receive a staged generalized Schur form S/T from a separate sequential QZ (own workspace, also range scaled) |
+| `homogeneous=true`, `side=` | not in LinearAlgebra; faer returns α/β and optional left/right vectors | `(α, β, …)` named tuples and `side=:left/:right/:both` |
+| Owning API | `GeneralizedEigen::new` allocates, has no scratch argument and returns right vectors only | Colmat calls the low-level drivers for scratch, teams and left vectors |
+
+Allocation: with caller scratch, the Julia heap receives only the returned
+owners (α, β, the eigenvector matrices and, for quotient output, the values and
+sorted α/β copies) plus about 12 KB of per-call bookkeeping that does not grow with
+n; the A/B copies, packed real output and driver workspace live in the native
+`FaerScratch`. faer's drivers make no heap allocation on the queried
+buffer after the first call of a process
+(executed measurement: `docs/reproducers/faer-gevd-driver.md`).
 
 ## Homogeneous generalized eigenvalues
 
@@ -579,8 +608,7 @@ are supported. Both sets of columns are independently normalized and share the
 same eigenvalue order; biorthogonal scaling is not imposed. Queries and
 constructors must include `side=:both`: real input needs an extra packed matrix
 inside the caller workspace. `reserve!(workspace, eigen, A, B; side=:both, team=team)`
-can enlarge an existing buffer. Julia output arrays and exceptional repeated-value
-SVD recovery allocate separately. Inputs are preserved.
+can enlarge an existing buffer. Julia output arrays allocate separately. Inputs are preserved.
 
 ## Left and simultaneous eigenvectors of one matrix
 

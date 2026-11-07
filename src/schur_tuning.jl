@@ -22,8 +22,8 @@ keeps faer's default for that control.
   converge to skip a sweep.
 - `shift_chase_cost`: QZ only; relative cost of the near-diagonal shift chase
   to the sweep's matrix products.
-- `generalized_hessenberg_block_size`: QZ construction and `hessenberg(A, B)`
-  only; block size of the generalized Hessenberg reduction (faer's default is
+- `generalized_hessenberg_block_size`: QZ construction, `hessenberg(A, B)` and
+  the general `eigen`/`eigvals(A, B)` driver; block size of the generalized Hessenberg reduction (faer's default is
   32; one, or at least the order, selects the unblocked kernel). Its workspace
   grows with the block size.
 - `generalized_hessenberg_blocking_threshold`: the matching
@@ -32,8 +32,10 @@ keeps faer's default for that control.
 
 Inside the scope, general `eigen`/`eigvals`/`eigen!`/`eigvals!(A)` calls
 without `scratch`/`team` use the parameterized workspace driver, as in
-[`with_evd_tuning`](@ref). The generalized `eigen(A, B)` driver keeps faer's
-defaults (`GevdParams`, tracked by issue #109).
+[`with_evd_tuning`](@ref). The general generalized `eigen`/`eigvals(A, B)`
+driver receives the generalized Hessenberg and QZ controls through
+`GevdParams`; its query also reserves the tuned Hessenberg step, which faer's
+`gevd_scratch` sizes with the default block size.
 
 faer takes the shift count, deflation window and shift-chase cost as
 `extern "C"` function pointers, so overrides are stored natively for the

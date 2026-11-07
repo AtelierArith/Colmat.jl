@@ -153,8 +153,13 @@ Conventions compared with `LinearAlgebra.eigen(A, B)` (LAPACK `ggev`):
 - eigenvectors have unit 2-norm (LAPACK scales `max |re| + |im|` to one);
 - `sortby` defaults to the same `(real, imag)` order;
 - faer's generalized driver does not balance (LAPACK `ggev` permutes with
-  `ggbal`); its QZ and generalized Hessenberg controls are set with
-  [`with_schur_tuning`](@ref).
+  `ggbal`). Like `ggev`, Colmat scales A and B by powers of two into the safe
+  range before QZ and scales α and β back (faer alone returns α=β=0 for
+  regular pencils of tiny norm);
+- its QZ and generalized Hessenberg controls are set with
+  [`with_schur_tuning`](@ref); the workspace query also reserves the tuned
+  Hessenberg step, which faer's `gevd_scratch` sizes with the default block
+  size.
 """
 function LinearAlgebra.eigen(
     a::FaerMatrix{Float64},
