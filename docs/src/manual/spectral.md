@@ -379,8 +379,9 @@ Hermitian branch exactly when the matrix is Hermitian. If the stored triangle
 (diagonal included) is real, faer's self-adjoint EVD runs on it and returns real
 eigenvalues with orthonormal eigenvectors. Otherwise the matrix is complex
 symmetric but generally not normal: the triangle is expanded natively into a
-full owner and the general native EVD runs on it (`sortby`, `scratch`, `team`,
-`permute`/`scale` apply), returning complex eigenpairs. Julia's shortcut that
+full owner and the general native EVD runs on it (`sortby`, `team` and
+`permute`/`scale` apply; no `scratch` form, since the driver depends on the
+data), returning complex eigenpairs. Julia's shortcut that
 returns complex values for diagonal input is not mirrored, and `eigen!` on a
 complex `Symmetric` wrapper is not defined, as in Julia. This is the same rule
 as `cholesky` of a complex `Symmetric` wrapper.

@@ -522,6 +522,8 @@ C = FaerMatrix(ComplexF64[4 1+2im; 1+2im 3])
   それ以外の複素対称（非 Hermitian）行列は、`cholesky` では Julia と同じく `info == -1`、
   `ldlt`/`bunchkaufman` では `ArgumentError` です。t4a-faer の LDLᴴ/LBLᴴ は自己随伴専用で、
   LAPACK `zsytrf` 相当の転置対称分解を提供しないためです。
+  `eigen`/`eigvals` も同じ規則で、格納三角が実数なら自己随伴 EVD（実固有値）、それ以外は一般 native EVD
+  （複素固有値）に渡します（spectral マニュアルの self-adjoint EVD algorithms 節）。
 - `F.uplo` は Julia の `Char` ではなく `Symbol`（`:L`/`:U`）です。LDLT/Bunch–Kaufman は
   常に下三角向きの `F.L` を返し、Julia の `uplo='U'` における `F.U`（`A[p,p] = U D Uᴴ`）は
   提供しません。密な `ldlt(A)` は Julia 標準には無く（`SymTridiagonal`・疎のみ）、Colmat では
