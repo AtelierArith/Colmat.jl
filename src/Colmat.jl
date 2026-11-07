@@ -112,6 +112,7 @@ export FaerSpectralFactor,
     full_piv_lu!,
     pfaffian,
     faer_mul,
+    with_svd_tuning,
     faer_solve,
     faer_svd
 
@@ -299,5 +300,6 @@ include("storage_construction.jl")
 include("storage_initializer.jl")
 include("function_constructors.jl")
 include("filled_constructors.jl")
+include("svd_tuning.jl")
 
 end

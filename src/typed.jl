@@ -239,10 +239,13 @@ function LinearAlgebra.svd(
     native::Bool = false,
     scratch = nothing,
     team = nothing,
+    alg = nothing,
 ) where {T<:_ExtraScalar}
+    alg===nothing || return _svd_alg(alg) do
+        LinearAlgebra.svd(a; full, native, scratch, team)
+    end
     native && return _owned_spectral(a; full, scratch, team)
-    (!isnothing(scratch) || !isnothing(team)) &&
-        return _svd_workspace_result(a; full, scratch, team)
+    _svd_default_path(scratch, team) || return _svd_workspace_result(a; full, scratch, team)
     m, n=size(a)
     k=min(m, n)
     R=_realtype(T)
@@ -264,8 +267,10 @@ function LinearAlgebra.svdvals(
     a::FaerMatrix{T};
     scratch = nothing,
     team = nothing,
+    alg = nothing,
 ) where {T<:_ExtraScalar}
-    (!isnothing(scratch) || !isnothing(team)) &&
+    alg===nothing || return _svd_alg(()->LinearAlgebra.svdvals(a; scratch, team), alg)
+    _svd_default_path(scratch, team) ||
         return _svd_workspace_result(a; values_only = true, scratch, team)
     s=Vector{_realtype(T)}(undef, min(size(a)...))
     GC.@preserve s _native_call(
@@ -407,7 +412,8 @@ LinearAlgebra.cholesky(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing)
 function _require_hermitian(a::FaerMatrix)
     LinearAlgebra.ishermitian(a) && return nothing
     message="self-adjoint factorization requires Hermitian input"
-    eltype(a)<:Complex && LinearAlgebra.issymmetric(a) &&
+    eltype(a)<:Complex &&
+        LinearAlgebra.issymmetric(a) &&
         (message*="; complex symmetric (non-Hermitian) LDLᵀ is not provided by t4a-faer")
     throw(ArgumentError(message))
 end
