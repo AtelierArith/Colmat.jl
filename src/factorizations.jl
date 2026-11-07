@@ -160,7 +160,7 @@ LinearAlgebra.bunchkaufman(
 function _permutation(f::FaerFactorization{T,K}, column::Bool = false) where {T,K}
     n = size(f, column || K === :pivoted_qr ? 2 : 1)
     p = Vector{UInt}(undef, n)
-    GC.@preserve p _native_call(RustCrate.permutation, f, pointer(p), UInt(n), column)
+    GC.@preserve p _native_call(RustCrate.permutation, f, p, UInt(n), column)
     return Int.(p)
 end
 # Reconstruction (code 0) and explicit Q (3, 6) borrow `team`; other parts copy.

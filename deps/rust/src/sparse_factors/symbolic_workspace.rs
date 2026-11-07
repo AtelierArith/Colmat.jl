@@ -383,8 +383,8 @@ mod tests {
         s.sparse_symbolic_tuning(
             ratio,
             relax.is_some(),
-            sizes.as_ptr(),
-            fractions.as_ptr(),
+            &sizes,
+            &fractions,
             sizes.len(),
         )
         .unwrap();
@@ -474,14 +474,14 @@ mod tests {
             .sparse_analyze(&p, 1, true, 0, std::ptr::null(), 10.0, true, 0, 0.5, 0.5)
             .is_err());
         assert!(s
-            .sparse_symbolic_tuning(-1.0, false, std::ptr::null(), std::ptr::null(), 0)
+            .sparse_symbolic_tuning(-1.0, false, &[], &[], 0)
             .is_err());
         let (sizes, fractions) = ([4usize], [1.5f64]);
         assert!(s
-            .sparse_symbolic_tuning(f64::NAN, true, sizes.as_ptr(), fractions.as_ptr(), 1)
+            .sparse_symbolic_tuning(f64::NAN, true, &sizes, &fractions, 1)
             .is_err());
         assert!(s
-            .sparse_symbolic_tuning(f64::NAN, true, std::ptr::null(), std::ptr::null(), 1)
+            .sparse_symbolic_tuning(f64::NAN, true, &[], &[], 1)
             .is_err());
     }
 

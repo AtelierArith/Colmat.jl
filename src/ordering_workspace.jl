@@ -95,7 +95,7 @@ function _ordering_options(a, symmetric, row, col, aggressive, statistics, scrat
                     row,
                     col,
                     aggressive,
-                    pointer(stats),
+                    stats,
                 )
                 return statistics ?
                        (

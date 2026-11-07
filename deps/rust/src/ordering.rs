@@ -85,8 +85,9 @@ impl OwnedPermutation {
         dense_row: f64,
         dense_col: f64,
         aggressive: bool,
-        stats: *mut f64,
+        stats: &mut [f64],
     ) -> Result<(), String> {
+        let stats = crate::f64_out(stats, 3, 1)?;
         guarded(|| {
             if !dense_row.is_finite() || !dense_col.is_finite() {
                 return Err("ordering thresholds must be finite".into());
@@ -178,7 +179,7 @@ mod tests {
                 10.0,
                 0.5,
                 true,
-                stats.as_mut_ptr(),
+                &mut stats,
             )
             .unwrap();
             let saved = out.data().unwrap().as_ref().arrays().0.to_vec();
@@ -195,7 +196,7 @@ mod tests {
                         10.0,
                         0.5,
                         true,
-                        stats.as_mut_ptr()
+                        &mut stats
                     )
                     .is_err());
                 assert_eq!(out.data().unwrap().as_ref().arrays().0, saved);
@@ -215,7 +216,7 @@ mod tests {
                     10.0,
                     0.5,
                     true,
-                    stats.as_mut_ptr()
+                    &mut stats
                 )
                 .is_err());
             assert_eq!(out.data().unwrap().as_ref().arrays().0, saved);
@@ -233,7 +234,7 @@ mod tests {
                     10.0,
                     0.5,
                     true,
-                    std::ptr::null_mut()
+                    &mut []
                 )
                 .is_err());
         }

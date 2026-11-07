@@ -84,8 +84,8 @@ impl SparseSymbolic {
         &mut self,
         ratio: f64,
         custom_relax: bool,
-        sizes: *const usize,
-        fractions: *const f64,
+        sizes: &[usize],
+        fractions: &[f64],
         len: usize,
     ) -> Result<(), String> {
         guarded(|| {
@@ -93,20 +93,9 @@ impl SparseSymbolic {
                 return Err("supernodal threshold must be nonnegative".into());
             }
             let relax = if custom_relax {
-                if len > 0 && (sizes.is_null() || fractions.is_null()) {
+                if sizes.len() != len || fractions.len() != len {
                     return Err("relaxation pairs require sizes and fractions".into());
                 }
-                let (sizes, fractions): (&[usize], &[f64]) = if len == 0 {
-                    (&[], &[])
-                } else {
-                    // SAFETY: Julia preserves `len` sizes and fractions for this call.
-                    unsafe {
-                        (
-                            std::slice::from_raw_parts(sizes, len),
-                            std::slice::from_raw_parts(fractions, len),
-                        )
-                    }
-                };
                 if fractions.iter().any(|z| !(0.0..=1.0).contains(z)) {
                     return Err("relaxation zero fractions must lie in [0, 1]".into());
                 }

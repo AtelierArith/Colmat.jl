@@ -33,7 +33,7 @@ function FaerPermutation(indices::AbstractVector{<:Integer})
     GC.@preserve data return _permutation_result(
         length(data),
         RustCrate.permutation_load,
-        pointer(data),
+        data,
         UInt(length(data)),
     )
 end
@@ -51,7 +51,7 @@ function Base.Vector(p::FaerPermutation)
     GC.@preserve out _native_call(
         RustCrate.permutation_indices,
         p,
-        pointer(out),
+        out,
         UInt(length(p)),
         false,
     )

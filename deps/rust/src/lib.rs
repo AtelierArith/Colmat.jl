@@ -52,7 +52,7 @@ fn f64_in(data: &[f64], rows: usize, cols: usize) -> Result<*const f64, String> 
     }
     Ok(data.as_ptr())
 }
-fn f64_out(data: &mut [f64], rows: usize, cols: usize) -> Result<*mut f64, String> {
+pub(crate) fn f64_out(data: &mut [f64], rows: usize, cols: usize) -> Result<*mut f64, String> {
     let len = rows.checked_mul(cols).ok_or("matrix size overflow")?;
     if data.len() != len {
         return Err(format!("output must hold {len} entries, got {}", data.len()));
@@ -496,7 +496,8 @@ impl OwnedFactor {
     }
 
     #[julia]
-    pub fn permutation(&self, out: *mut usize, len: usize, column: bool) -> Result<(), String> {
+    pub fn permutation(&self, out: &mut [usize], len: usize, column: bool) -> Result<(), String> {
+        let out = crate::workspace::fixed_out(out, len)?;
         guarded(|| {
             let p = match self.get()? {
                 DenseFactor::Lu(f) if !column => f.P(),

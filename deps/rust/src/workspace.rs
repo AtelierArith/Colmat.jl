@@ -16,6 +16,12 @@ pub(crate) fn requirement_out(out: &mut [usize]) -> Result<*mut usize, String> {
 }
 /// A fixed-length `UInt` output from Julia (info records, counters), checked
 /// for exactly `n` entries, as the raw pointer the existing writers use.
+pub(crate) fn fixed_in(data: &[usize], n: usize) -> Result<*const usize, String> {
+    if data.len() != n {
+        return Err(format!("input must hold {n} entries, got {}", data.len()));
+    }
+    Ok(data.as_ptr())
+}
 pub(crate) fn fixed_out(out: &mut [usize], n: usize) -> Result<*mut usize, String> {
     if out.len() != n {
         return Err(format!("output must hold {n} entries, got {}", out.len()));

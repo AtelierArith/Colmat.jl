@@ -49,13 +49,11 @@ impl OwnedPermutation {
         Self { data: None }
     }
     #[julia]
-    pub fn permutation_load(&mut self, p: *const usize, n: usize) -> Result<(), String> {
+    pub fn permutation_load(&mut self, p: &[usize], n: usize) -> Result<(), String> {
         guarded(|| {
-            let p = if n == 0 {
-                &[]
-            } else {
-                unsafe { std::slice::from_raw_parts(p, n) }
-            };
+            if p.len() != n {
+                return Err("permutation length mismatch".into());
+            }
             let v = p
                 .iter()
                 .map(|&i| {
@@ -70,10 +68,11 @@ impl OwnedPermutation {
     #[julia]
     pub fn permutation_indices(
         &self,
-        out: *mut usize,
+        out: &mut [usize],
         n: usize,
         inverse: bool,
     ) -> Result<(), String> {
+        let out = crate::workspace::fixed_out(out, n)?;
         guarded(|| {
             let p = self.data()?;
             if p.len() != n {
