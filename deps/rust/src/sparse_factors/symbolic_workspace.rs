@@ -166,6 +166,19 @@ fn pattern_requirement(
         Pattern::Csc(a) => (a.nrows(), a.ncols(), a.compute_nnz()),
         Pattern::Csr(a) => (a.nrows(), a.ncols(), a.compute_nnz()),
     };
+    shape_requirement(rows, cols, nnz, m, n, kind, ordering, supernodal)
+}
+#[allow(clippy::too_many_arguments)]
+fn shape_requirement(
+    rows: usize,
+    cols: usize,
+    nnz: usize,
+    m: usize,
+    n: usize,
+    kind: i32,
+    ordering: i32,
+    supernodal: i32,
+) -> Result<StackReq, String> {
     if (rows, cols) != (m, n) {
         return Err("symbolic analysis native shape does not match requested metadata".into());
     }
@@ -228,6 +241,75 @@ impl SparseSymbolic {
     ) -> Result<(), String> {
         guarded(|| {
             let req = pattern_requirement(pattern, m, n, kind, ordering, supernodal)?;
+            let stack = scratch.stack(req)?;
+            self.analyze(
+                pattern.data()?.csc()?,
+                kind,
+                lower,
+                ordering,
+                permutation,
+                dense,
+                aggressive,
+                supernodal,
+                dense_row,
+                dense_col,
+                Some(stack),
+            )
+        })
+    }
+}
+
+/// `sparse_analysis_requirements` for a raw CSC pattern of `nnz` entries.
+#[julia]
+pub fn sparse_analysis_requirements_shape(
+    m: usize,
+    n: usize,
+    nnz: usize,
+    kind: i32,
+    ordering: i32,
+    supernodal: i32,
+    out: &mut [usize],
+) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
+    guarded(|| {
+        let req = shape_requirement(m, n, nnz, m, n, kind, ordering, supernodal)?;
+        if out.is_null() || (out as usize) % std::mem::align_of::<usize>() != 0 {
+            return Err("analysis requirements need an aligned output buffer".into());
+        }
+        // SAFETY: Julia preserves a writable two-entry UInt buffer; alignment is checked.
+        unsafe {
+            out.write(req.size_bytes());
+            out.add(1).write(req.align_bytes());
+        }
+        Ok(())
+    })
+}
+#[julia]
+impl SparseSymbolic {
+    /// `sparse_analyze_workspace` on raw 0-based CSC pattern parts.
+    #[julia]
+    #[allow(clippy::too_many_arguments)]
+    pub fn sparse_analyze_workspace_raw(
+        &mut self,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        k: usize,
+        scratch: &mut OwnedScratch,
+        kind: i32,
+        lower: bool,
+        ordering: i32,
+        permutation: *const u8,
+        dense: f64,
+        aggressive: bool,
+        supernodal: i32,
+        dense_row: f64,
+        dense_col: f64,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let pattern = super::raw_pattern(m, n, ptr, idx, k)?;
+            let req = shape_requirement(m, n, k, m, n, kind, ordering, supernodal)?;
             let stack = scratch.stack(req)?;
             self.analyze(
                 pattern,
@@ -521,6 +603,91 @@ mod tests {
             .is_err());
         assert!(q
             .sparse_analysis_requirements(3, 3, 2, 0, 0, &mut [])
+            .is_err());
+    }
+
+    #[test]
+    fn raw_patterns_analyse_in_place_and_plan_copies_share_the_pattern() {
+        let entries = laplacian(6);
+        let p = owner(36, &entries);
+        let csc = p.data().unwrap().csc().unwrap();
+        let (ptr, idx) = (csc.col_ptr().to_vec(), csc.row_idx().to_vec());
+        for alg in [0, 1, 2] {
+            let mut owned = SparseSymbolic::new();
+            analyze(&mut owned, &p, None, alg);
+            let mut raw = SparseSymbolic::new();
+            raw.sparse_analyze_raw(
+                36,
+                36,
+                ptr.as_ptr(),
+                idx.as_ptr(),
+                idx.len(),
+                2,
+                true,
+                0,
+                std::ptr::null(),
+                10.0,
+                true,
+                alg,
+                0.5,
+                0.5,
+            )
+            .unwrap();
+            let (a, b) = (llt(&owned), llt(&raw));
+            assert_eq!(a.len_val(), b.len_val());
+            assert_eq!(a.perm().unwrap().arrays().0, b.perm().unwrap().arrays().0);
+            let plan = raw.plan().unwrap();
+            assert_eq!(plan.pattern.row_idx(), &idx[..]);
+            // Cloning a plan (each factorization keeps one) shares the pattern.
+            let mut copy = SparseSymbolic::new();
+            copy.sparse_symbolic_clone(&raw).unwrap();
+            assert!(std::sync::Arc::ptr_eq(
+                &plan.pattern,
+                &copy.plan().unwrap().pattern
+            ));
+            let mut q = OwnedScratch::new();
+            q.scratch_reserve(1 << 20, 64).unwrap();
+            let mut ws = SparseSymbolic::new();
+            ws.sparse_analyze_workspace_raw(
+                36,
+                36,
+                ptr.as_ptr(),
+                idx.as_ptr(),
+                idx.len(),
+                &mut q,
+                2,
+                true,
+                1,
+                std::ptr::null(),
+                10.0,
+                true,
+                alg,
+                0.5,
+                0.5,
+            )
+            .unwrap();
+        }
+        // Unsorted rows are rejected before faer sees them.
+        let bad = [1usize, 0];
+        let bad_ptr = [0usize, 2, 2];
+        let mut s = SparseSymbolic::new();
+        assert!(s
+            .sparse_analyze_raw(
+                2,
+                2,
+                bad_ptr.as_ptr(),
+                bad.as_ptr(),
+                2,
+                2,
+                true,
+                0,
+                std::ptr::null(),
+                10.0,
+                true,
+                0,
+                0.5,
+                0.5,
+            )
             .is_err());
     }
 }

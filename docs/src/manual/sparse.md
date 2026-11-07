@@ -69,8 +69,36 @@ Rust に渡します（容量に達した後は割り当てなし）。何もキ
 配列・Julia 配列との積（`*`、`FaerMatrix` への5引数 `mul!`、左右両方）、
 `copy`/`FaerSparseMatrix`/`FaerSparsity`（1回の所有コピー）、`lu`・`qr`・
 `cholesky`・`factorize(plan,B)`・`FaerSparseSymbolic(B)`・`B \ x`・
-`lu!`/`qr!`/`cholesky!` です。分解は従来どおり所有 snapshot を保持するため、
-後で `S` を書き換えても分解済みの因子は変わりません。
+`lu!`/`qr!`/`cholesky!`、疎三角求解（`LowerTriangular(B) \ x`・`ldiv!` など）、
+plan を使わない疎×疎 `*`・疎加減算、`FaerLinearOperator(B)` です。分解は従来どおり
+所有 snapshot を保持するため、後で `S` を書き換えても分解済みの因子は変わりません。
+
+- `FaerSparseSymbolic(B)`（`lu(B)` などの内部も同じ）は、呼び出しごとの 0-based
+  バッファから直接 symbolic analysis を行い、一時的な `FaerSparsity` を作りません。
+  所有 CSC の `FaerSparseMatrix` も同様に直接解析します。plan が保持する pattern は
+  1 つで、分解ごとの plan のコピー（`copy(plan)`）はそれを共有します。したがって
+  `lu(B)` の pattern は plan 用と分解の snapshot 用の 2 つだけです。両者は寿命の異なる
+  所有物です: plan は `factorize(plan, B2)`・`lu!(F, B2)` で後の入力の pattern を検査する
+  （faer の数値分解は pattern 一致を前提とし検査しない）ために保持し、snapshot は分解の
+  値の出所です。faer の所有疎行列型は pattern を共有できないため、これ以上は減らせません。
+  CSR 所有と、明示 simplicial の `ordering=:colamd`（Colmat 側で COLAMD を先に実行）は
+  CSC の `FaerSparsity` を 1 回作ります。
+- 疎三角求解は借用配列を faer の三角 kernel にそのまま渡します（転置・随伴は列優先 kernel の
+  転置版・共役 flag に写像）。scratch・昇格・前提を満たさない layout の扱いは所有行列と同じです。
+  出力先が `S` の配列とメモリを共有する場合は書き込み前に `ArgumentError` です。
+- 疎×疎 `*`・`+`・`-` は、借用（転置・随伴を含む）同士、借用と `FaerSparseMatrix`
+  （転置・随伴を含む）の混在で、どの被演算子も所有コピーせずに読みます。結果は
+  `FaerSparseMatrix` で、形式は左被演算子 `op(A)` の向きに従います（`faerview(S)` は CSC、
+  その転置・随伴は CSR）。向きの異なる右被演算子は 1 回変換し、加減算で共役が必要な
+  被演算子は共役コピーを作ります。
+- `FaerLinearOperator(B)`（`transpose(B)`・`B'` も。`Hermitian(B)` は Julia CSC と同じく
+  Julia 側で三角部分を展開してから）は構築時に 1 回だけ snapshot を取ります。`cg`・
+  `bicgstab`・`lsmr` に `B` を渡した場合も同じ snapshot を使います。native の apply・合成・反復法は Rust の中で 1 回の呼び出しを越えて
+  operator を使うため、呼び出し中しか有効でない借用ポインタを保持できません。以後の `S` への
+  書き込みは operator に反映されません。
+- `FaerSparseMatrix(transpose(B))`・`copy(B')` は借用 CSR から所有 CSR を直接作ります
+  （CSC の配列は `Sᵀ` の CSR 配列そのものなので、転置の並べ替えなしに 1 回コピー）。
+  `format=:csc` を指定すると CSC に変換します。
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -104,9 +132,13 @@ lu!(F, B)                          # 現在の値で再分解
 - `rmul!(B, α)`・`lmul!(α, B)`・`fill!(B, x)`・`B .*= α` などの broadcast は
   親 `S` に転送します（Julia の `SparseMatrixCSC` と同じ意味論）。
 
-`u32` index での faer 呼び出しと非圧縮形式（faer の `col_nnz`）は未接続です。
-Julia の `SparseMatrixCSC` は常に圧縮形式なので、非圧縮形式は Julia 入力では
-生じません。
+`u32` index での faer 呼び出しは意図的に対応しません。Julia の index は 1-based なので、
+`Ti` の幅や符号（`Int32`・`UInt32` なども受け付けます）に関係なく呼び出しごとの
+0-based バッファが必要です。所有疎行列・
+pattern・すべての疎 kernel は `usize` に単相化しており、`u32` を加えると疎の全入口の
+単相化が倍になる一方、利点は index バッファの縮小だけです。非圧縮形式（faer の
+`col_nnz`）も未接続です。Julia の `SparseMatrixCSC` は常に圧縮形式なので、非圧縮形式は
+Julia 入力では生じません。
 
 ### 転置・随伴の疎行列積と疎×密の `mul!`
 
@@ -474,7 +506,22 @@ G = cholesky(Hermitian(A); algorithm=:supernodal, relax=Tuple{Int,Float64}[])
 ```
 
 疎 Cholesky の数値分解は、CSC 入力をコピーせずに借用します（CSR 入力は CSC への変換が
-1 回必要です）。入力が選択した三角部分だけを格納していれば、そのまま faer に渡します。
+1 回必要です。faer の疎 LU・QR・Cholesky の数値分解は `SparseColMatRef` しか受け取らず、
+symbolic analysis も A の CSC pattern に対して作るためです。CSR を Aᵀ として読むには別の
+解析と転置した因子の管理が必要で、複素 Hermitian の Cholesky では共役した値のコピーも
+必要になるため、変換 1 回を意図的に残しています）。
+
+faer の数値 `LltRegularization`（動的正則化）と `LltParams` は意図的に公開しません。
+この pin の `SymbolicCholesky::factorize_numeric_llt` は、kernel が返す正則化した pivot の
+個数（`LltInfo`）を捨てるため、正則化で摂動した分解と厳密な分解を区別できず、
+`check`・`PosDefException`・`issuccess` の規約（Julia の CHOLMOD と同じ）と両立しません。
+正定値でない行列には `A + δI` のような shift か疎 LU を使ってください。`LltParams`
+（supernode 内の密 block の再帰閾値と block 幅）は結果を変えない性能用の値で、他の密
+kernel と同様に faer の `Auto` 既定値を使います。
+
+faer の symbolic analysis（`factorize_symbolic_{cholesky,lu,qr}`）は caller の stack を
+受け取らず内部で割り当てます。`scratch` を渡すと Cholesky の AMD と wide QR の COLAMD は caller scratch 上で
+実行しますが、残りの内部割当は faer の API 上の制約です。入力が選択した三角部分だけを格納していれば、そのまま faer に渡します。
 両方の三角部分を格納している場合は、選択した三角部分を faer の数値分解用 workspace と
 同じ stack 上に組み直します。`scratch` を渡したときの割当は返却する数値バッファ 1 つだけで、
 `scratch_requirements(factorize, plan, A)` はこの組み直し分を含みます。
@@ -596,7 +643,12 @@ Construction temporaries:
 - For the auto and supernodal algorithms, `F.L`/`F.U` come from faer's public
   `LuRef::factors`, which still assembles through triplets internally. faer
   keeps the supernodal buffers private, so this cannot be removed on the
-  Colmat side.
+  Colmat side. The executed allocation probe is in
+  `docs/reproducers/faer-sparse-lu-factors-triplets.md` (upstream request not
+  filed yet).
+- CSR inputs are converted to CSC once on purpose: faer's numeric sparse
+  factorizations take `SparseColMatRef` only and the symbolic analysis is built
+  on the CSC pattern of `A`.
 
 Sparse LU is square-only by design. faer's symbolic and numeric sparse LU
 (`factorize_symbolic_lu*`, `factorize_simplicial_numeric_lu`) assert

@@ -30,10 +30,10 @@ and adjoint for square factors, tall QR least squares), `L/U/p/P/R/Q/Qthin/
 Qbasis/Qcoeff/packed`, `q` (full LU), `D` (LDLᴴ, Bunch–Kaufman),
 `regularization_count` (Cholesky, LDLᴴ), `rook` and
 `inertia` (Bunch–Kaufman), `reconstruct(F)`/`Matrix(F)`/`FaerMatrix(F)` and their
-typed forms, `inv`, and `det/logabsdet/logdet` (all but QR, natively) read A's
-storage. `copy(F)` copies A and F's buffers into a new direct
+typed forms, `inv`, `pinv` (QR), and `det/logabsdet/logdet` (all but QR,
+natively) read A's storage. `copy(F)` copies A and F's buffers into a new direct
 factor. Other retained-factor operations (`rdiv!`, linear-operator and
-preconditioner use, pseudoinverse, mixed-scalar promotion, rectangular-LU or
+preconditioner use, mixed-scalar promotion, rectangular-LU or
 wide-QR solves) require the default `lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
 """
 mutable struct FaerInPlaceFactorization{T,K,M<:FaerMatrix{T}} <:

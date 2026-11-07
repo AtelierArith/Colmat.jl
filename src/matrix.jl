@@ -66,6 +66,8 @@ const _raw_owner_arguments = (
     (RustCrate.sparse_kron, (2, 4)),
     (RustCrate.sparse_analyze, (6,)),
     (RustCrate.sparse_analyze_workspace, (9,)),
+    (RustCrate.sparse_analyze_raw, (10,)),
+    (RustCrate.sparse_analyze_workspace_raw, (11,)),
     (RustCrate.statistics_view_reduce, (1,)),
     (RustCrate.vector_binary_views, (2, 4)),
     (RustCrate.vector_from_view, (2,)),
@@ -132,7 +134,7 @@ function _matrix_from_dense(data::Matrix{Float64})
     return GC.@preserve data _matrix_result(
         RustCrate.load_buffer,
         size(data),
-        pointer(data),
+        vec(data),
         UInt(size(data, 1)),
         UInt(size(data, 2)),
     )
@@ -154,7 +156,7 @@ end
 
 function Base.Matrix(a::FaerMatrix{Float64})
     out = Matrix{Float64}(undef, size(a))
-    GC.@preserve out _native_call(RustCrate.copy_buffer, a, pointer(out), UInt(length(out)))
+    GC.@preserve out _native_call(RustCrate.copy_buffer, a, vec(out), UInt(length(out)))
     return out
 end
 Base.Array(a::FaerMatrix{Float64}) = Matrix(a)
@@ -280,7 +282,7 @@ function LinearAlgebra.svd(
     s = Vector{Float64}(undef, k)
     v = Matrix{Float64}(undef, n, full ? n : k)
     GC.@preserve u s v begin
-        _native_call(RustCrate.svd_buffers, a, pointer(u), pointer(s), pointer(v), full)
+        _native_call(RustCrate.svd_buffers, a, vec(u), s, vec(v), full)
     end
     return SVD(u, s, copy(transpose(v)))
 end
@@ -301,7 +303,7 @@ function LinearAlgebra.svdvals(
     _svd_default_path(scratch, team) ||
         return _svd_workspace_result(a; values_only = true, scratch, team)
     s = Vector{Float64}(undef, min(size(a)...))
-    GC.@preserve s _native_call(RustCrate.singular_values_buffer, a, pointer(s))
+    GC.@preserve s _native_call(RustCrate.singular_values_buffer, a, s)
     return s
 end
 
