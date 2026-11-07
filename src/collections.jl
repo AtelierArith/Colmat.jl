@@ -261,24 +261,27 @@ for C in (FaerVector, FaerRow, FaerDiagonal)
         Base.:+(x::$C, y::$C) = _collection_binary(x, y, 0)
         Base.:-(x::$C, y::$C) = _collection_binary(x, y, 1)
         Base.:+(x::$C) = copy(x)
-        Base.:-(x::$C) = -one(eltype(x))*x
+        Base.:-(x::$C) = -one(_realtype(eltype(x)))*x
     end
 end
 Base.:*(x::FaerDiagonal, y::FaerDiagonal) = _collection_binary(x, y, 2)
 function Base.:*(value::Number, x::_OwnedCollection)
     P=_native_promotion(typeof(value), eltype(x))
-    v=Ref{P}(value)
+    # Real factors scale complex entries componentwise, as in Julia.
+    R=value isa Real ? _realtype(P) : P
+    v=Ref{R}(value)
     GC.@preserve v return _collection_result(
         _collection_type(x),
         P,
         x.len,
-        RustCrate.collection_scale,
+        R===P ? RustCrate.collection_scale : RustCrate.collection_scale_real,
         _collection_coerce(x, P),
-        Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, v)),
+        Ptr{UInt8}(Base.unsafe_convert(Ptr{R}, v)),
     )
 end
 Base.:*(x::_OwnedCollection, value::Number) = value*x
 Base.:/(x::_OwnedCollection, value::Number) = (one(eltype(x))/value)*x
+Base.:/(x::_OwnedCollection, value::Real) = (one(_realtype(eltype(x)))/value)*x
 function _collection_transform(x::_OwnedCollection, C, conjugate = false)
     return _collection_result(
         C,

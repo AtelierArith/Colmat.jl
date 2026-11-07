@@ -159,22 +159,26 @@ function LinearAlgebra.kron(a::FaerMatrix{T}, b::FaerMatrix{S}) where {T,S}
     return LinearAlgebra.kron(_coerce(a, P), _coerce(b, P))
 end
 Base.:+(a::FaerMatrix{T}) where {T<:_ExtraScalar} = copy(a)
-Base.:-(a::FaerMatrix{T}) where {T<:_ExtraScalar} = (-one(T))*a
+Base.:-(a::FaerMatrix{T}) where {T<:_ExtraScalar} = (-one(_realtype(T)))*a
 function Base.:*(x::Number, a::FaerMatrix{T}) where {T}
     P=_native_promotion(typeof(x), T)
     converted=_coerce(a, P)
     P===Float64 && return Float64(x)*converted
-    factor=Ref{P}(x)
+    # Real factors scale complex entries componentwise, as Julia's Real*Complex
+    # does, so an infinite part never turns the other part into NaN.
+    R=x isa Real ? _realtype(P) : P
+    factor=Ref{R}(x)
     return GC.@preserve factor _typed_result(
         P,
-        RustCrate.scale_from,
+        R===P ? RustCrate.scale_from : RustCrate.scale_real_from,
         size(a),
         converted,
-        Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, factor)),
+        Ptr{UInt8}(Base.unsafe_convert(Ptr{R}, factor)),
     )
 end
 Base.:*(a::FaerMatrix{T}, x::Number) where {T} = x*a
 Base.:/(a::FaerMatrix{T}, x::Number) where {T<:_ExtraScalar} = (one(T)/x)*a
+Base.:/(a::FaerMatrix{T}, x::Real) where {T<:_ExtraScalar} = (one(_realtype(T))/x)*a
 Base.:/(a::FaerMatrix{Float64}, x::Complex) = (1.0/x)*a
 Base.:\(x::Number, a::FaerMatrix) = a/x
 Base.conj(a::FaerMatrix{T}) where {T<:_ExtraScalar} =
