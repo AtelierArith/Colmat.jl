@@ -55,15 +55,30 @@ D = FaerDiagonal([2.0, 3.0])
 @assert Matrix(D * B) == [2.0 4; 9 12]
 mul!(B, L, B, 2.0, 0.0)
 @assert Matrix(B) == 2Matrix(C)
+v = FaerVector([1.0, 1.0])
+@assert Vector(L * v) == [2.0, 7.0]           # a native FaerVector
+E = FaerMatrix(fill(-1.0, 2, 2))
+structured_mul!(E, L, FaerMatrix([1.0 0; 0 1]); dest=:strict_lower)
+@assert Matrix(E) == [-1.0 -1; 3 -1]      # only the strict lower block is written
 ```
 
-Lower/upper and unit-triangular wrappers use faer's structured multiplication;
-`FaerDiagonal` and Julia `Diagonal` with native matrices use native diagonal
-products. These methods return a `FaerMatrix`, including triangular×triangular
-products. Native destination `mul!` supports coefficients and aliasing. Operand
-snapshots and a temporary result are allocated; even diagonal operands are
-currently snapshotted through a dense representation. Unused triangles and
-implicit unit diagonals are ignored, including nonfinite values stored there.
+Lower/upper and unit-triangular wrappers use faer's `matmul::triangular`.
+`FaerDiagonal` and Julia `Diagonal` use native diagonal products. These
+methods return a `FaerMatrix`, including triangular×triangular products, and a
+triangular wrapper times a `FaerVector` returns a `FaerVector`. Operands are
+borrowed rather than snapshotted: native parents, ranges and their
+`transpose`/`adjoint` through view descriptors, and strided Julia parents of
+the product type directly from their buffers (other Julia inputs and scalar
+conversions are copied once). `mul!` into a native matrix, range view or
+`FaerVector` writes the destination in place with faer's accumulation, so no
+temporary result is allocated; an operand sharing the destination's storage is
+snapshotted first. A zero `β` does not read the destination and a zero `α`
+does not read the operands. When the promoted type is wider than the
+destination, the product is computed out of place and converted.
+`structured_mul!(C, A, B, α, β; dest)` additionally selects the destination
+block (`:full`, `:lower`, `:upper`, `:strict_lower`, `:strict_upper`) that is
+computed and written. Unused triangles and implicit unit diagonals are
+ignored, including nonfinite values stored there.
 
 ## Pivoted Cholesky
 

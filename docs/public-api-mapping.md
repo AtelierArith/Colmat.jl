@@ -6,7 +6,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 - 機能分類の調査日: 2026-11-04。依存と検証情報の更新: 2026-11-06
 - 現在のビルド対象 t4a-faer: `0.31.0`、コミット [`a055727febfde5dd6bb78ba37478b0303b97c807`](https://github.com/tensor4all/faer/tree/a055727febfde5dd6bb78ba37478b0303b97c807)、threadteam `0.4.0`。実際のビルド対象 `deps/t4a-faer` を検証。元の76行の分類は維持し、QZ #253/#254 の採用は全機能の照合完了を意味しない。
-- Colmat の判定基準: PR #142 までの main（`690ad81`）に `DiagRef` を借用する native の対角積・除算・和・in-place 更新を加えた版。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
+- Colmat の判定基準: PR #142 までの main（`690ad81`）に `DiagRef` を借用する native の対角積・除算・和・in-place 更新と、入力を借用し destination に直接書き込む三角構造積を加えた版。一般 Hessenberg の compact Q と保存 Schur、三重／二重対角化の compact native 基底と保存 EVD/SVD の implicit 変換を含む。個々の機能・制約・過去の検証は以下の76行と実装記録で追跡する。
 - PR #83 の検証記録: Julia 1.13.3 / RustCall.jl 0.9.2、faer 0.31.0 / `06d8e84c3e31e824dffe9fb1fc0945c7d90db1d0` で canonical `Pkg.test(; allow_reresolve=false,test_args=["--jobs=16"])` **608,722 assertions / 134 files / 16 workers**、native **161 tests**、README/マニュアル **115 blocks** が成功。faer #274 は fork [PR #275](https://github.com/tensor4all/faer/pull/275) で修正済みで、修正採用時の Rust-only MWE と複素ノルム境界値の記録は PR #82 に保持する。
 - マージ後の公式 build が faer [PR #282](https://github.com/tensor4all/faer/pull/282) を取得したため、上記の新しい revision を別途検証する。[独立 Rust control](reproducers/triangular-copy-validation/README.md) は4型・832 copy ケースと Seq/Team2 の Cholesky/LU を bit 比較する。数値回帰の結果は依存追随の PR と Issue #22 の進捗コメントに保存する。速度改善は主張せず、未統合の #267/#269/#272 等の候補も採用していない。全76行の完了は意味しない。
 - 一般 Hessenberg 制御の検証: RustCall 0.10 / macros 0.7 は同一のマージ済み Git commit `b53c9b963084231d784e68760001f15cc27d1ab1` に固定し、registry 公開はしていない。faer は上記 `2b87010` を維持。canonical `Pkg.test` **617,136 assertions / 135 files / 16 workers / 10m24.2s**、native **163 tests**、README/マニュアル **116 blocks**、新規集中 **8,414 assertions**、旧 native API **24 assertions** が成功。元の全76行は維持し、Schur/EVD driver 内の制御値や他の残項目の完了は意味しない。
@@ -55,7 +55,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 行列式 | `MatRef::determinant(par)` | `det`, 関連: `logdet/logabsdet` | R: `det`、分解を使う `logabsdet/logdet`、複素位相対応 | 高度な引数・エラー規約の網羅 |
 | トレース | diagonal ビュー＋集約で構成 | `tr(A)` | R: `tr(A)` | 全特殊構造の最適化 |
 | Kronecker 積 | `MatRef::kron`, `linalg::kron::kron` | `kron(A,B)` | R: 4 型・型 promotion の `kron(A,B)` | 疎行列・ビューの専用経路 |
-| 三角・構造指定の行列積 | `matmul::triangular` | 三角ラッパーとの積、BLAS の構造化積に相当 | R: 下/上/単位三角と native 密行列・三角ペア、4 型・promotion、3/5 引数 `mul!`、alias・無視要素の NaN | 入力 snapshot と出力一時領域を確保。全外部配列・vector 組合せと destination structure の低水準指定 |
+| 三角・構造指定の行列積 | `matmul::triangular` | 三角ラッパーとの積、BLAS の構造化積に相当 | R: 下/上/単位三角と native 密行列・範囲ビュー・`transpose`/`adjoint`・三角ペア・対角、4 型・promotion、3/5 引数 `mul!`、alias・無視要素の NaN。native 親は descriptor で、product 型の strided Julia 親は buffer を直接借用（入力 snapshot なし）。`mul!` は destination（行列・範囲ビュー・`FaerVector`）へ faer の `Accum` で直接書き込み出力一時領域なし。三角×`FaerVector` は `FaerVector`。`structured_mul!(C,A,B,α,β; dest)` で destination block（full/lower/upper/strict）を指定 | 非 strided の Julia 入力と型昇格は1回コピー。昇格型が destination より広い `mul!` は変換経路。team 指定は #124 |
 
 ## 3. 密行列の分解・固有値
 

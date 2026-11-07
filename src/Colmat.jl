@@ -106,6 +106,7 @@ export FaerSpectralFactor,
     full_piv_lu!,
     pfaffian,
     faer_mul,
+    structured_mul!,
     faer_solve,
     faer_svd
 
