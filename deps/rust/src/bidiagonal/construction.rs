@@ -124,9 +124,10 @@ pub fn bidiagonalize_requirements(
     tag: i32,
     full: bool,
     bs: usize,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| with_team(team, |par| query(m, n, tag, full, bs, par.shape(), out, 0)))
 }
 unsafe fn compute<T: ComplexField>(
@@ -367,9 +368,10 @@ pub fn bidiagonalize_tuned_requirements(
     full: bool,
     bs: usize,
     threshold: usize,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         with_team(team, |par| {
             query(m, n, tag, full, bs, par.shape(), out, threshold)

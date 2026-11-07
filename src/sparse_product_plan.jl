@@ -167,14 +167,14 @@ function _plan_requirements(p::FaerSparseProductPlan, ::Type{T}, team) where {T}
                 RustCrate.sparse_product_plan_requirements,
                 p,
                 _tag(T),
-                pointer(info),
+                info,
             ) :
             _native_call(
                 RustCrate.sparse_product_plan_team_requirements,
                 team,
                 p,
                 _tag(T),
-                pointer(info),
+                info,
             )
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))

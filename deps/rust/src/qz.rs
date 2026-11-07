@@ -685,7 +685,8 @@ fn reorder_requirement<T: QzReorderScalar>(n: usize) -> StackReq {
     ])
 }
 #[julia]
-pub fn qz_reorder_requirements(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
+pub fn qz_reorder_requirements(n: usize, tag: i32, out: &mut [usize]) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let req = match tag {
             0 => reorder_requirement::<f32>(n),

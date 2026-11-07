@@ -99,9 +99,10 @@ pub fn tridiagonal_evd_requirements(
     tag: i32,
     compute: bool,
     threshold: usize,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         with_team(team, |par| {
             query(n, tag, compute, threshold, par.shape(), out)

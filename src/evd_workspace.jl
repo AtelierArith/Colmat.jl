@@ -29,7 +29,7 @@ function scratch_requirements(f::_EvdFunction, a::_AnyFaerSelfAdjoint; team = no
             f in (LinearAlgebra.eigvals, LinearAlgebra.eigvals!),
         )
         GC.@preserve info begin
-            _native_call(RustCrate.evd_requirements, args..., pointer(info), team)
+            _native_call(RustCrate.evd_requirements, args..., info, team)
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end

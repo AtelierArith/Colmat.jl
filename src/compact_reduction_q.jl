@@ -171,7 +171,7 @@ function _compact_q_requirement(q::AbstractFaerCompactQ, T, extent, right; team 
         UInt(extent),
         right,
         q.transposed,
-        pointer(info),
+        info,
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

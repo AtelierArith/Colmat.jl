@@ -496,9 +496,10 @@ impl OwnedSpectral {
         cols: usize,
         tag: i32,
         eigen: bool,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             let req = with_team(team, |par| {
                 self.pinv_requirement(rows, cols, tag, eigen, par.shape())

@@ -165,9 +165,10 @@ pub fn compact_tridiagonal_requirements(
     tag: i32,
     bs: usize,
     threshold: usize,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| with_team(team, |par| query(n, tag, bs, par.shape(), threshold, out)))
 }
 unsafe fn build<T: ComplexField>(
@@ -374,8 +375,9 @@ impl OwnedCompactTridiagonal {
         extent: usize,
         right: bool,
         transpose: bool,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             self.validate(n, k, b, tag)?;
             buffer::<usize>(out.cast(), 2)?;

@@ -15,8 +15,8 @@ end
 function _bidiagonalize_requirement(m, n, T, full, bs, team, policy; compact = false)
     info=zeros(UInt, 2)
     GC.@preserve info begin
-        args=compact ? (UInt(m), UInt(n), _tag(T), UInt(bs), policy.value, pointer(info)) :
-             (UInt(m), UInt(n), _tag(T), full, UInt(bs), policy.value, pointer(info))
+        args=compact ? (UInt(m), UInt(n), _tag(T), UInt(bs), policy.value, info) :
+             (UInt(m), UInt(n), _tag(T), full, UInt(bs), policy.value, info)
         _native_call(
             (
                 compact ? RustCrate.compact_bidiagonal_requirements :

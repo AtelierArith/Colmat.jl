@@ -3075,9 +3075,10 @@ impl SparseFactor {
     #[julia]
     pub fn operator_sparse_qr_inverse_requirements(
         &self,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             let req = with_team(team, |p| sparse_qr_inverse_requirement(self, p.shape()))?;
             write_requirement(req, out);

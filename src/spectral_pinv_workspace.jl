@@ -17,7 +17,7 @@ function scratch_requirements(
             throw(ArgumentError("team must be a FaerTeam"))
         !isnothing(team) && _handle(team)
         info=zeros(UInt, 2)
-        args=(f, UInt(size(f, 1)), UInt(size(f, 2)), _tag(T), K===:eigen, pointer(info))
+        args=(f, UInt(size(f, 1)), UInt(size(f, 2)), _tag(T), K===:eigen, info)
         GC.@preserve info begin
             _native_call(RustCrate.spectral_pinv_requirements, args..., team)
         end

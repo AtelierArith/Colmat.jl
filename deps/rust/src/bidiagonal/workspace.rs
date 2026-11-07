@@ -79,9 +79,10 @@ pub fn bidiagonal_svd_requirements(
     n: usize,
     tag: i32,
     threshold: usize,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| with_team(team, |par| query(n, tag, threshold, par.shape(), out)))
 }
 unsafe fn compute<T: ComplexField>(

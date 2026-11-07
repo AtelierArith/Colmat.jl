@@ -64,9 +64,10 @@ pub fn qz_construction_requirements(
     n: usize,
     tag: i32,
     stage: i32,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| with_team(team, |par| query(n, tag, stage, par.shape(), out)))
 }
 
@@ -396,7 +397,7 @@ mod tests {
         assert_eq!(z.matrix[(0, 0)], 45.0);
         assert_eq!(alpha, [c64::new(41.0, 0.0); 2]);
         assert_eq!(beta, [40.0; 2]);
-        assert!(qz_construction_requirements(2, 1, 0, std::ptr::null_mut(), None).is_err());
+        assert!(qz_construction_requirements(2, 1, 0, &mut [], None).is_err());
     }
     fn qz_step_alloc<T: QzScalar>(mut par: Par)
     where

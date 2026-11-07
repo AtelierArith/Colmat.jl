@@ -23,7 +23,7 @@ function _householder_workspace_query(h, extent, right; team = nothing)
         UInt(extent),
         right,
         t,
-        pointer(info),
+        info,
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

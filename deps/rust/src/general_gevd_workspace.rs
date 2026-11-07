@@ -277,9 +277,10 @@ pub fn general_gevd_requirements(
     tag: i32,
     values: bool,
     both: bool,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         write_req(
             with_team(team, |par| dispatch(n, tag, values, both, par.shape()))?,

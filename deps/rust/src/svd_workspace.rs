@@ -56,8 +56,9 @@ impl OwnedTeam {
         tag: i32,
         full: bool,
         values: bool,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             let req = self.execute(|par| dispatch_req(m, n, tag, full, values, par.shape()))??;
             unsafe {
@@ -76,8 +77,9 @@ pub fn svd_requirements(
     full: bool,
     values: bool,
     width: usize,
-    out: *mut usize,
+    out: &mut [usize],
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let par = if width <= 1 {
             ParShape::Seq

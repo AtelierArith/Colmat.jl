@@ -14,7 +14,7 @@ function _bidiagonal_svd_plan(d, e, uplo, recursion_threshold)
 end
 function _bidiagonal_svd_requirement(n, T, threshold, team)
     info=zeros(UInt, 2)
-    args=(UInt(n), _tag(T), UInt(threshold), pointer(info))
+    args=(UInt(n), _tag(T), UInt(threshold), info)
     GC.@preserve info begin
         _native_call(RustCrate.bidiagonal_svd_requirements, args..., team)
     end

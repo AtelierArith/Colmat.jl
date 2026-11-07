@@ -57,7 +57,7 @@ function scratch_requirements(::typeof(pfaffian), a::FaerMatrix{T}) where {T}
             RustCrate.pfaffian_requirements,
             UInt(size(a, 1)),
             _tag(T),
-            pointer(info),
+            info,
         )
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end

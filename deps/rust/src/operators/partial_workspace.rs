@@ -474,9 +474,10 @@ impl OwnedLinearOperator {
         min: usize,
         max: usize,
         restarts: usize,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             with_team(team, |par| {
                 let req =
@@ -546,7 +547,7 @@ mod tests {
                 ))))),
             };
             let mut info = [0usize; 2];
-            op.partial_requirements(kind, 2, 4, 4, 1, 0, 0, 20, info.as_mut_ptr(), None)
+            op.partial_requirements(kind, 2, 4, 4, 1, 0, 0, 20, &mut info[..], None)
                 .unwrap();
             let mut scratch = OwnedScratch::new();
             scratch.scratch_reserve(info[0], info[1]).unwrap();
@@ -740,10 +741,10 @@ mod tests {
             ))))),
         };
         assert!(op
-            .partial_requirements(1, 2, 5, 5, 1, 0, 0, 20, std::ptr::null_mut(), None)
+            .partial_requirements(1, 2, 5, 5, 1, 0, 0, 20, &mut [], None)
             .is_err());
         let mut info = [0usize; 2];
-        op.partial_requirements(1, 2, 5, 5, 1, 0, 0, 20, info.as_mut_ptr(), None)
+        op.partial_requirements(1, 2, 5, 5, 1, 0, 0, 20, &mut info[..], None)
             .unwrap();
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0] - 1, info[1]).unwrap();

@@ -40,9 +40,10 @@ fn query(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
 pub fn schur_reorder_requirements(
     n: usize,
     tag: i32,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     // Selected faer reorder kernels accept, but currently ignore, the token.
     // Their declared requirement depends only on n and scalar, not team width.
     guarded(|| with_team(team, |_| query(n, tag, out)))
@@ -260,7 +261,7 @@ mod tests {
         assert_eq!(out.matrix, Mat::<f64>::full(2, 2, 42.0));
         assert_eq!(out_q.matrix, Mat::<f64>::full(2, 2, 43.0));
         assert_eq!(values, [c64::new(44.0, 0.0); 2]);
-        assert!(schur_reorder_requirements(2, 1, core::ptr::null_mut(), None).is_err());
+        assert!(schur_reorder_requirements(2, 1, &mut [], None).is_err());
     }
     fn allocations<T: SchurScalar>(mut par: Par) {
         let n = 6;

@@ -13,7 +13,7 @@ end
 function _tridiagonalize_requirement(n, T, bs, team, policy; compact = false)
     info=zeros(UInt, 2)
     GC.@preserve info begin
-        args=(UInt(n), _tag(T), UInt(bs), policy.value, pointer(info))
+        args=(UInt(n), _tag(T), UInt(bs), policy.value, info)
         _native_call(
             (
                 compact ? RustCrate.compact_tridiagonal_requirements :

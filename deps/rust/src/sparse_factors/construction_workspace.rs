@@ -104,9 +104,10 @@ impl SparseSymbolic {
     pub fn sparse_factor_requirements(
         &self,
         tag: i32,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| with_team(team, |par| query(self, tag, out, par)))
     }
 }
@@ -171,7 +172,7 @@ mod tests {
                     }),
                 };
                 let mut out = [0usize; 2];
-                plan.sparse_qr_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
+                plan.sparse_qr_factor_requirements(T::tag(), &mut out[..], Some(&team))
                     .unwrap();
                 let f = team
                     .execute(|par| {
@@ -196,7 +197,7 @@ mod tests {
                     }
                 }
                 assert!(plan
-                    .sparse_qr_factor_requirements(T::tag(), std::ptr::null_mut(), Some(&team))
+                    .sparse_qr_factor_requirements(T::tag(), &mut [], Some(&team))
                     .is_err());
             }
             team.team_close().unwrap();
@@ -246,7 +247,7 @@ mod tests {
                     }),
                 };
                 let mut out = [0usize; 2];
-                plan.sparse_qr_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
+                plan.sparse_qr_factor_requirements(T::tag(), &mut out[..], Some(&team))
                     .unwrap();
                 let req = crate::sparse_qr_components::Factors::<T>::scratch(&symbolic)
                     .or(rank_hint::scratch(n));
@@ -346,7 +347,7 @@ mod tests {
                             }),
                         };
                         let mut out = [0usize; 2];
-                        plan.sparse_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
+                        plan.sparse_factor_requirements(T::tag(), &mut out[..], Some(&team))
                             .unwrap();
                         let mut scratch = OwnedScratch::new();
                         scratch.scratch_reserve(out[0], out[1]).unwrap();
@@ -491,10 +492,10 @@ mod tests {
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut req = [0usize; 2];
-        plan.sparse_factor_requirements(1, req.as_mut_ptr(), Some(&team))
+        plan.sparse_factor_requirements(1, &mut req[..], Some(&team))
             .unwrap();
         assert!(plan
-            .sparse_factor_requirements(1, std::ptr::null_mut(), Some(&team))
+            .sparse_factor_requirements(1, &mut [], Some(&team))
             .is_err());
         let mut work = OwnedScratch::new();
         work.scratch_reserve(req[0], req[1]).unwrap();
@@ -615,7 +616,7 @@ mod tests {
                         }),
                     };
                     let mut out = [0usize; 2];
-                    plan.sparse_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
+                    plan.sparse_factor_requirements(T::tag(), &mut out[..], Some(&team))
                         .unwrap();
                     let mut scratch = OwnedScratch::new();
                     scratch.scratch_reserve(out[0], out[1]).unwrap();
@@ -662,7 +663,7 @@ mod tests {
                     }),
                 };
                 let mut out = [0usize; 2];
-                plan.sparse_factor_requirements(T::tag(), out.as_mut_ptr(), Some(&team))
+                plan.sparse_factor_requirements(T::tag(), &mut out[..], Some(&team))
                     .unwrap();
                 let req = crate::sparse_lu_components::SimplicialFactors::<T>::scratch(n);
                 assert_eq!(out, [req.size_bytes(), req.align_bytes()]);
@@ -743,10 +744,10 @@ mod tests {
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut req = [0usize; 2];
-        plan.sparse_factor_requirements(1, req.as_mut_ptr(), Some(&team))
+        plan.sparse_factor_requirements(1, &mut req[..], Some(&team))
             .unwrap();
         assert!(plan
-            .sparse_factor_requirements(1, std::ptr::null_mut(), Some(&team))
+            .sparse_factor_requirements(1, &mut [], Some(&team))
             .is_err());
         let mut work = OwnedScratch::new();
         work.scratch_reserve(req[0], req[1]).unwrap();

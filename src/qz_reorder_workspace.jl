@@ -15,7 +15,7 @@ function scratch_requirements(::_QzOrderFunction, f::_NativeQZ)
             RustCrate.qz_reorder_requirements,
             UInt(n),
             _tag(eltype(f)),
-            pointer(info),
+            info,
         )
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end

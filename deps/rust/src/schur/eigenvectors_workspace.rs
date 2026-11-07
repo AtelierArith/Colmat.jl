@@ -138,9 +138,10 @@ fn query(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
 pub fn schur_eigenvectors_requirements(
     n: usize,
     tag: i32,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| with_team(team, |_| query(n, tag, out)))
 }
 
@@ -253,7 +254,7 @@ mod tests {
             MatrixData::C64(m) => assert_eq!(m, &Mat::<c64>::full(2, 2, c64::new(42.0, 0.0))),
             _ => panic!("output scalar changed"),
         }
-        assert!(schur_eigenvectors_requirements(2, 1, core::ptr::null_mut(), None).is_err());
+        assert!(schur_eigenvectors_requirements(2, 1, &mut [], None).is_err());
     }
     fn allocation_probe<T: SavedEigen>(mut par: Par) {
         let n = 6;

@@ -193,8 +193,9 @@ pub fn dense_triangular_requirements(
     a: *const u8,
     ad: *const isize,
     tag: i32,
-    out: *mut usize,
+    out: &mut [usize],
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| unsafe {
         let b = source(a, Spec::read(ad)?)?;
         let (n, k) = shape_of(&b);
@@ -393,8 +394,9 @@ impl VectorOwner {
 pub fn dense_triangular_invert_requirements(
     n: usize,
     tag: i32,
-    out: *mut usize,
+    out: &mut [usize],
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| {
         let req = match tag {
             0 => temp_req::<f32>(n),
@@ -563,7 +565,7 @@ mod tests {
         let ap = (&a as *const OwnedMatrix).cast::<u8>();
         let ad = descriptor(n, n, false, true);
         let mut out = [0usize; 2];
-        dense_triangular_requirements(ap, ad.as_ptr(), 3, out.as_mut_ptr()).unwrap();
+        dense_triangular_requirements(ap, ad.as_ptr(), 3, &mut out[..]).unwrap();
         assert!(out[0] >= n * n * 16);
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(out[0], out[1]).unwrap();
@@ -596,7 +598,7 @@ mod tests {
         });
         assert!((&t * &x - &b).norm_max() < 1e-10);
         // Narrowing is rejected; a zero diagonal is reported before writing.
-        assert!(dense_triangular_requirements(ap, ad.as_ptr(), 0, out.as_mut_ptr()).is_err());
+        assert!(dense_triangular_requirements(ap, ad.as_ptr(), 0, &mut out[..]).is_err());
         let mut s = a.matrix.clone();
         s[(2, 2)] = 0.0;
         let z = OwnedMatrix { matrix: s };
@@ -645,7 +647,7 @@ mod tests {
     fn destructive_inverse_uses_only_caller_scratch() {
         for n in [5usize, 70] {
             let mut out = [0usize; 2];
-            dense_triangular_invert_requirements(n, 1, out.as_mut_ptr()).unwrap();
+            dense_triangular_invert_requirements(n, 1, &mut out[..]).unwrap();
             let mut scratch = OwnedScratch::new();
             scratch.scratch_reserve(out[0], out[1]).unwrap();
             for (lower, unit) in [(true, false), (true, true), (false, false), (false, true)] {

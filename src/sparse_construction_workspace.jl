@@ -32,7 +32,7 @@ function scratch_requirements(
         size(p)==size(a) || throw(DimensionMismatch("plan and matrix shapes must match"))
         info=zeros(UInt, 2)
         GC.@preserve info begin
-            _native_call(RustCrate.sparse_factor_requirements, p, _tag(T), pointer(info), team)
+            _native_call(RustCrate.sparse_factor_requirements, p, _tag(T), info, team)
         end
         (bytes = Int(info[1]), alignment = Int(info[2]))
     end

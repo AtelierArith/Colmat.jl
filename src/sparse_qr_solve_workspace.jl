@@ -67,7 +67,7 @@ function _sparse_qr_resource_native_query(
         at,
         rt,
         fast,
-        pointer(info),
+        info,
     )
     GC.@preserve info begin
         _native_call(RustCrate.sparse_qr_rank_requirements, args..., team)

@@ -1,7 +1,7 @@
 const _TridiagonalEigenFunction=Union{typeof(tridiagonal_eigen),typeof(tridiagonal_eigvals)}
 function _tridiagonal_evd_requirement(n, T, vectors, threshold, team)
     info=zeros(UInt, 2)
-    args=(UInt(n), _tag(T), vectors, UInt(threshold), pointer(info))
+    args=(UInt(n), _tag(T), vectors, UInt(threshold), info)
     GC.@preserve info begin
         _native_call(RustCrate.tridiagonal_evd_requirements, args..., team)
     end

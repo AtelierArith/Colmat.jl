@@ -34,7 +34,7 @@ function scratch_requirements(
             side===:both,
         )
         GC.@preserve info begin
-            _native_call(RustCrate.general_gevd_requirements, args..., pointer(info), team)
+            _native_call(RustCrate.general_gevd_requirements, args..., info, team)
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end

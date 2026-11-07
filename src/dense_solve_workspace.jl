@@ -50,7 +50,7 @@ function _dense_native_requirements(
         _tag(eltype(f)),
         _dense_kind(f),
         Float64(precision),
-        pointer(info),
+        info,
     )
     GC.@preserve info begin
         # `nothing` crosses as RustCall 0.10's checked optional owner.

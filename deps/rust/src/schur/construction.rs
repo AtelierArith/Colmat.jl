@@ -81,9 +81,10 @@ pub fn schur_construction_requirements(
     n: usize,
     tag: i32,
     stage: i32,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| with_team(team, |par| query(n, tag, stage, par.shape(), out)))
 }
 
@@ -283,7 +284,7 @@ mod tests {
         assert_eq!(out.matrix, Mat::<f64>::full(2, 2, 42.0));
         assert_eq!(q.matrix, Mat::<f64>::full(2, 2, 43.0));
         assert_eq!(values, [c64::new(44.0, 0.0); 2]);
-        assert!(schur_construction_requirements(2, 1, 0, core::ptr::null_mut(), None).is_err());
+        assert!(schur_construction_requirements(2, 1, 0, &mut [], None).is_err());
     }
     fn step_alloc<T: SchurScalar>(mut par: Par) {
         let n = 6;

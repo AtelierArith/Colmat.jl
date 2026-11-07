@@ -20,7 +20,7 @@ function _spectral_solve_workspace_query(
         Int32(op),
         right,
         UInt(extent),
-        pointer(info),
+        info,
     )
     GC.@preserve info begin
         _native_call(RustCrate.spectral_solve_requirements, args..., team)

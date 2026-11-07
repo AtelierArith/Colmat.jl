@@ -149,9 +149,10 @@ pub fn tridiagonalize_requirements(
     tag: i32,
     bs: usize,
     threshold: usize,
-    out: *mut usize,
+    out: &mut [usize],
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
+    let out = crate::workspace::requirement_out(out)?;
     guarded(|| with_team(team, |par| query(n, tag, bs, par.shape(), threshold, out)))
 }
 unsafe fn compute<T: ComplexField>(

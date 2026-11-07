@@ -188,8 +188,9 @@ impl SparsityOwner {
         kind: i32,
         ordering: i32,
         supernodal: i32,
-        out: *mut usize,
+        out: &mut [usize],
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             let req = pattern_requirement(self, m, n, kind, ordering, supernodal)?;
             if out.is_null() || (out as usize) % std::mem::align_of::<usize>() != 0 {
@@ -516,10 +517,10 @@ mod tests {
         assert_eq!(llt(&s).perm().unwrap().arrays().0, before);
         let mut out = [0usize; 2];
         assert!(q
-            .sparse_analysis_requirements(4, 4, 2, 0, 0, out.as_mut_ptr())
+            .sparse_analysis_requirements(4, 4, 2, 0, 0, &mut out[..])
             .is_err());
         assert!(q
-            .sparse_analysis_requirements(3, 3, 2, 0, 0, std::ptr::null_mut())
+            .sparse_analysis_requirements(3, 3, 2, 0, 0, &mut [])
             .is_err());
     }
 }

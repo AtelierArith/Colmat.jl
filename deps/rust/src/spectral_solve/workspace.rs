@@ -326,9 +326,10 @@ impl OwnedSpectral {
         op: i32,
         right: bool,
         extent: usize,
-        out: *mut usize,
+        out: &mut [usize],
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let out = crate::workspace::requirement_out(out)?;
         guarded(|| {
             with_team(team, |_| {
                 query(self, m, n, source, target, eigen, op, right, extent, out)
@@ -697,7 +698,7 @@ mod tests {
             matrix: Mat::identity(2, 2),
         };
         let mut info = [0; 2];
-        f.spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, info.as_mut_ptr(), None)
+        f.spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, &mut info[..], None)
             .unwrap();
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0], info[1]).unwrap();
@@ -738,7 +739,7 @@ mod tests {
                     op,
                     false,
                     2,
-                    info.as_mut_ptr(),
+                    &mut info[..],
                     None
                 )
                 .is_err());
@@ -765,7 +766,7 @@ mod tests {
             assert_eq!(out.matrix, saved);
         }
         assert!(f
-            .spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, std::ptr::null_mut(), None)
+            .spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, &mut [], None)
             .is_err());
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
@@ -780,7 +781,7 @@ mod tests {
                 0,
                 false,
                 2,
-                info.as_mut_ptr(),
+                &mut info[..],
                 Some(&team)
             )
             .is_err());
@@ -808,7 +809,7 @@ mod tests {
         assert_eq!(out.matrix, saved);
         f.spectral_close().unwrap();
         assert!(f
-            .spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, info.as_mut_ptr(), None)
+            .spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, &mut info[..], None)
             .is_err());
     }
 }

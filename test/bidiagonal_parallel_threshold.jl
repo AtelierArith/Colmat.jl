@@ -180,7 +180,7 @@ end
             T<:Complex && (A .+= T(0.2, -0.1))
             info=zeros(UInt, 2)
             GC.@preserve info begin
-                args=(UInt(5), UInt(3), Colmat._tag(T), false, UInt(0), pointer(info))
+                args=(UInt(5), UInt(3), Colmat._tag(T), false, UInt(0), info)
                 Colmat._native_call(
                     Colmat.RustCrate.bidiagonalize_requirements,
                     args...,
