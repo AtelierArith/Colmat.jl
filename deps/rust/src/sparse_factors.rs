@@ -822,6 +822,26 @@ impl OwnedPermutation {
 }
 #[julia]
 impl SparseSymbolic {
+    /// Selected sparse QR structure: 1 simplicial, 2 supernodal (wide QR
+    /// reports its square head analysis).
+    #[julia]
+    pub fn sparse_qr_algorithm(&self) -> Result<i32, String> {
+        guarded(|| {
+            let raw = |sym: &faer::sparse::linalg::qr::SymbolicQr<usize>| match sym.raw() {
+                faer::sparse::linalg::qr::SymbolicQrRaw::Simplicial(_) => 1,
+                faer::sparse::linalg::qr::SymbolicQrRaw::Supernodal(_) => 2,
+            };
+            Ok(match &self.plan()?.analysis {
+                Analysis::SimplicialQr(_) => 1,
+                Analysis::Qr(sym) => raw(sym),
+                Analysis::WideQr(plan) => raw(&plan.head()),
+                _ => return Err("algorithm query requires sparse QR".into()),
+            })
+        })
+    }
+}
+#[julia]
+impl SparseSymbolic {
     #[julia]
     pub fn sparse_cholesky_algorithm(&self) -> Result<i32, String> {
         guarded(|| {

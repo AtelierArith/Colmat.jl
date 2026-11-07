@@ -19,7 +19,7 @@ pub(crate) struct Plan {
     pub(crate) blocking: Option<usize>,
 }
 impl Plan {
-    #[cfg(test)]
+    /// Symbolic QR of the square leading-pivot head.
     pub(crate) fn head(&self) -> Arc<SymbolicQr<usize>> {
         self.head.clone()
     }
