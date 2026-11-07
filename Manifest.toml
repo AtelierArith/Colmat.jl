@@ -2,7 +2,7 @@
 
 julia_version = "1.13.3"
 manifest_format = "2.1"
-project_hash = "c9c0cfe253c08ab2ae5aa6e22a21e2336ad83402"
+project_hash = "f578fe0b14f903dc9f7cfed1eb79366179d3d128"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -17,7 +17,7 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 version = "1.11.0"
 
 [[deps.Colmat]]
-deps = ["LinearAlgebra", "Random", "RustCall", "SparseArrays", "Statistics"]
+deps = ["LinearAlgebra", "Mmap", "Random", "RustCall", "SparseArrays", "Statistics"]
 path = "."
 uuid = "dcd86e8a-e18c-4a45-9bc6-b65a8e7b2bd3"
 version = "0.1.0"
@@ -111,6 +111,10 @@ version = "1.5.0"
 [[deps.Markdown]]
 deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
+version = "1.11.0"
+
+[[deps.Mmap]]
+uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]

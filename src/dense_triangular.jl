@@ -29,7 +29,8 @@ const _DenseTriangularNative=Union{
     FaerView{<:Any,<:Any,<:Union{FaerMatrix,FaerVector}},
 }
 _dense_triangular_direct(x::_DenseTriangularNative, ::Type{P}) where {P} = eltype(x)===P
-_dense_triangular_direct(x::FaerBorrowedArray, ::Type{P}) where {P} = eltype(x)===P
+_dense_triangular_direct(x::FaerBorrowedArray, ::Type{P}) where {P} =
+    eltype(x)===P && _borrowed_writable(x)
 _dense_triangular_direct(x::StridedVecOrMat, ::Type{P}) where {P} =
     eltype(x)===P && _faerview_valid(x)
 _dense_triangular_direct(x, ::Type) = false

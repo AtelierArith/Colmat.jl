@@ -141,10 +141,47 @@ intermediate normalized buffer; contiguous byte vectors (including contiguous
 `npyview` (or `loadnpy(...; view=true)`) owns an aligned, native-endian snapshot
 of the bytes and uses faer's aligned-reference API for reads; that API requires
 a 64-byte aligned buffer in native byte order, so the view normalizes its
-snapshot. It does not alias the input bytes or memory-map a file (aliasing a
-borrowed buffer is tracked separately). Entries are read-only. `copy` materializes
+snapshot. It does not alias the input bytes or memory-map a file (use
+`npyborrow` for that). Entries are read-only. `copy` materializes
 a native matrix; `deepcopy` preserves the view type with independent storage.
 Closing a view invalidates its reads, while materialized/deep copies remain valid.
+
+### Zero-copy borrows: memory-mapped files and aliased bytes
+
+`npyborrow(path)` memory-maps the file read-only, and `npyborrow(bytes)` aliases
+a `Vector{UInt8}` in place. Both return a read-only `FaerBorrowedMatrix` whose
+parent addresses the payload directly. C-order arrays are exposed through row
+strides `(n, 1)`, so neither order is copied. Native consumers such as `copy`,
+`FaerMatrix`, `+`/`-`/`*` (including transposes and native operands), `sum`,
+`mean` and `var` read the mapped pages in place, as they do for `faerview`.
+
+```julia
+M = npyborrow(path)      # mmap, no payload copy
+@assert M == [1.0 2 3; 4 5 6]
+@assert strides(M) == (3, 1) # C order read through row strides
+C = copy(M)              # independent FaerMatrix
+```
+
+- **When aliasing applies:** the payload must be native-endian and its data
+  offset a multiple of the element alignment. NumPy pads headers to 64 bytes,
+  so its files qualify. Otherwise (foreign endian, odd header padding, or a
+  `SubArray` byte source) the copying `loadnpy` result is returned. Pass
+  `fallback=false` to get an `ArgumentError` instead.
+- **Read-only:** `setindex!`, broadcasts, `copyto!`, `fill!`, `mul!` and
+  `ldiv!` into the borrow throw `ArgumentError`. Native kernels never write it,
+  because a read-only mapping cannot be written. Views of it are plain Julia
+  views.
+- **Lifetime:** the borrow keeps the byte vector or mapping alive. Writes to the
+  file through other handles are visible (`MAP_SHARED`). Closing or unlinking
+  the file does not invalidate the mapping, which is unmapped by its finalizer
+  once the borrow and its views are unreachable; there is no explicit `close`.
+- **Changing the source:** shrinking the source vector with `resize!` is
+  detected before every access. Truncating a mapped file raises `SIGBUS`, as for
+  any `mmap`.
+- **No writable mappings yet:** native writes into borrowed Julia memory need
+  the destination alias checks of #92. Two mappings of one file also share
+  pages without sharing addresses, so an address-range check cannot detect
+  that alias.
 
 ## Real matrix extrema
 

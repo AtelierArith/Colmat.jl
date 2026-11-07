@@ -17,7 +17,8 @@ _sparse_triangular_owner(p::LinearAlgebra.Adjoint) = (parent(p), Int32(2))
 # Destinations the native kernel writes into directly.
 const _SparseTriangularNative=Union{FaerMatrix,FaerVector,FaerView}
 _sparse_triangular_direct(x::_SparseTriangularNative, ::Type{P}) where {P} = eltype(x)===P
-_sparse_triangular_direct(x::FaerBorrowedArray, ::Type{P}) where {P} = eltype(x)===P
+_sparse_triangular_direct(x::FaerBorrowedArray, ::Type{P}) where {P} =
+    eltype(x)===P && _borrowed_writable(x)
 _sparse_triangular_direct(x::StridedVecOrMat, ::Type{P}) where {P} =
     eltype(x)===P && _faerview_valid(x)
 _sparse_triangular_direct(x, ::Type) = false

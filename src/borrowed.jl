@@ -54,6 +54,10 @@ end
 const FaerBorrowedMatrix{T,A}=FaerBorrowedArray{T,2,A}
 const FaerBorrowedVector{T,A}=FaerBorrowedArray{T,1,A}
 faerview(b::FaerBorrowedArray) = b
+# Whether native kernels may write the borrowed memory in place. Read-only
+# parents (NPY borrows, possibly PROT_READ mappings) opt out; their writes go
+# through `setindex!`, which throws.
+_borrowed_writable(::FaerBorrowedArray) = true
 
 function _borrowable_memory(a)
     p=parent(a)
