@@ -146,6 +146,43 @@ a real factor solves a complex `B` (both forms) by parts. `X` may alias `B`, and
 validation errors, including a non-finite `B`, leave the destination unchanged.
 Without `atol`/`rtol` the ordinary dense solve runs. Tolerances are rejected
 with `scratch=` and on transposed or adjoint factors.
+
+## Pseudoinverses of saved QR factors
+
+```julia
+using Colmat, LinearAlgebra
+a = [1.0 2 3; 2 4 6; 1 0 1; 0 1 1]       # rank two
+F = qr(FaerMatrix(a), ColumnNorm())
+P = pinv(F; rtol=1e-10)
+@assert Matrix(P) ≈ pinv(a; rtol=1e-10)
+FaerTeam(2) do team
+    work = FaerScratch(pinv, F; team)    # SVD of saved R
+    Q = pinv(F; scratch=work, team)
+    @assert Matrix(Q) ≈ pinv(a)
+    close(Q)
+    close(work)
+end
+close(P)
+close(F)
+```
+
+`pinv(F; atol, rtol, team, scratch)` of a saved `qr(A)` or `qr(A, ColumnNorm())`
+returns an independent native `FaerMatrix` without refactorizing A. With
+`A·P = Q·R`, R has the singular values of A, so the cutoff
+`max(atol, rtol*maximum(svdvals(A)))` and the defaults (`rtol =
+min(m,n)*eps(real(T))` when `atol` is zero, otherwise zero) are those of
+`pinv(A; atol, rtol)`. Tall, wide, square and rank-deficient factors use the same
+path. The SVD of R runs in caller scratch (`scratch_requirements(pinv, F;
+team)`, `FaerScratch`, `reserve!`), and the retained singular columns are applied
+through the saved Householder reflectors, so no dense Q is formed. A direct
+`qr!(A; scratch)` factor (`FaerInPlaceFactorization`) uses the native SVD
+pseudoinverse of `F.R` and its thin Q on `team`, without a scratch form.
+
+Julia has no `pinv` for LU, Cholesky, LDLᵀ or Bunch–Kaufman factors. These
+factors are only useful for nonsingular input, where `inv(F)` is the
+pseudoinverse; for singular input they carry no rank-revealing information, so
+Colmat does not add them. Schur and Hessenberg factors would need the same SVD
+as `pinv(A)`.
 ## Determinant and trace
 
 ```julia
@@ -443,8 +480,8 @@ solve four times (t4a-faer `upstream-reports/gemm-001`). Allocations under a tea
 were not measured.
 
 The direct factor does not support `rdiv!`, operator or preconditioner use,
-pseudoinverse, mixed-scalar promotion of factors, rectangular LU or wide-QR
-solves. Those need the default result without `scratch=`. Pivoted Cholesky
+mixed-scalar promotion of factors, rectangular LU or wide-QR solves (`pinv(F;
+atol, rtol, team)` of a direct QR is supported, see below). Those need the default result without `scratch=`. Pivoted Cholesky
 and column-pivoted QR have no direct path yet. `cholesky!(A, RowMaximum();
 scratch)` keeps its existing meaning (caller scratch for the independent
 `CholeskyPivoted` factor), and faer's in-place pivoted kernel covers only the
@@ -504,6 +541,17 @@ At n = 300, faer's blocked kernel allocates matmul packing buffers: 12 per
 solve. The in-place inverse is allocation-free at n = 5, but faer's matrix
 products allocate at n = 70. See t4a-faer `upstream-reports/gemm-001`.
 Allocations under a team were not measured.
+
+`cond(A, 1)` and `cond(A, Inf)` of these wrappers are estimates, as Julia's
+LAPACK `trcon` path is for strided triangles. `opnorm(A, p)` is exact, and
+`‖A⁻¹‖ₚ` is the deterministic Higham–Tisseur block estimate (a lower bound,
+usually exact) from a few native solves with A and Aᴴ, so A⁻¹ is never formed.
+A zero diagonal gives `Inf`. `cond(A, 2)` uses the singular values. A native
+`Hermitian` (or real `Symmetric`) matrix computes `cond(A, 2)` as
+`maximum(abs.(λ))/minimum(abs.(λ))` from faer's self-adjoint eigenvalues instead
+of an SVD. At n = 1000 on aarch64 macOS, a triangular `cond(A, 1)` took 2.7 ms
+(1.0 s through the generic `inv`), and a Hermitian `cond(A)` took 94 ms (2.2 s
+through the generic SVD).
 
 ## Destructive indefinite and full-pivot LU decompositions
 
