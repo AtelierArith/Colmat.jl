@@ -249,8 +249,21 @@ function _copyto_faer_view!(v::FaerView, src::AbstractArray)
             src isa FaerBorrowedArray ? src : FaerBorrowedArray(src)
         elseif src isa Union{FaerMatrix{T},FaerVector{T},FaerView{T}}
             # Native sources of the same scalar type are read through their own
-            # descriptor; a source sharing the destination owner is first
-            # copied natively so Rust never sees an aliased mutable borrow.
+            # descriptor. An injective destination is written directly and Rust
+            # snapshots the source only if their bytes overlap; otherwise a
+            # source sharing the destination owner is first copied natively so
+            # Rust never sees an aliased mutable borrow.
+            if _injective_descriptor(d) && d[9]==0
+                q, sd=_view_source(src)
+                GC.@preserve d sd _native_call(
+                    RustCrate.view_assign_into,
+                    p,
+                    pointer(d),
+                    q,
+                    pointer(sd),
+                )
+                return
+            end
             owner=src isa FaerView ? _view_owner(src) : src
             owner===p ? copy(src) : src
         else
