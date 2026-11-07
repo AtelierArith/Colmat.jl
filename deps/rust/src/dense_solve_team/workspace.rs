@@ -1185,7 +1185,7 @@ mod tests {
             matrix: Mat::identity(4, 4),
         };
         let mut info = [0; 2];
-        f.factor_solve_requirements(4, 0, 4, 4, 1, 0, f64::EPSILON, info.as_mut_ptr())
+        f.factor_solve_requirements(4, 0, 4, 4, 1, 0, f64::EPSILON, info.as_mut_ptr(), None)
             .unwrap();
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0], info[1]).unwrap();
