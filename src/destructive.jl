@@ -74,7 +74,9 @@ function LinearAlgebra.cholesky!(
     check::Bool = true,
     team = nothing,
     scratch = nothing,
+    kwargs...,
 )
+    options=_cholesky_kw(size(a, 1); kwargs...)
     isnothing(scratch) || return _direct_cholesky!(
         a,
         true,
@@ -82,9 +84,10 @@ function LinearAlgebra.cholesky!(
         check,
         scratch,
         team,
+        options,
     )
     lock(_matrix_lock) do
-        return _factor_writeback!(a, LinearAlgebra.cholesky(a; check, team))
+        return _factor_writeback!(a, LinearAlgebra.cholesky(a; check, team, kwargs...))
     end
 end
 for W in (:Hermitian, :Symmetric)
@@ -94,13 +97,22 @@ for W in (:Hermitian, :Symmetric)
         check::Bool = true,
         team = nothing,
         scratch = nothing,
+        kwargs...,
     ) where {T<:$bound}
-        isnothing(scratch) ||
-            return _direct_cholesky!(parent(a), a.uplo=='L', true, check, scratch, team)
+        options=_cholesky_kw(size(a, 1); kwargs...)
+        isnothing(scratch) || return _direct_cholesky!(
+            parent(a),
+            a.uplo=='L',
+            true,
+            check,
+            scratch,
+            team,
+            options,
+        )
         lock(_matrix_lock) do
             return _factor_writeback!(
                 parent(a),
-                LinearAlgebra.cholesky(a; check, team);
+                LinearAlgebra.cholesky(a; check, team, kwargs...);
                 upper = a.uplo=='U',
             )
         end
@@ -154,14 +166,18 @@ for fn in (:ldlt, :bunchkaufman)
     # `bunchkaufman!(A, rook=false)` keeps Julia's positional rook argument.
     pivot=fn===:bunchkaufman ? (Expr(:kw, :(rook::Bool), false),) : ()
     forward=fn===:bunchkaufman ? (:rook,) : ()
-    direct=fn===:bunchkaufman ? :(rook) : false
+    # Regularization (`ldlt!`) or `pivoting` (`bunchkaufman!`) keywords.
+    options=fn===:bunchkaufman ? :(_lblt_kw(rook; kwargs...)) :
+            :((_ldlt_kw(size(a, 1); kwargs...), false))
     @eval function LinearAlgebra.$bang(
         a::FaerMatrix,
         $(pivot...);
         check::Bool = true,
         team = nothing,
         scratch = nothing,
+        kwargs...,
     )
+        options, direct_rook=$options
         if !isnothing(scratch)
             # Like the default path: plain input must be Hermitian (checked
             # before any write).
@@ -170,14 +186,18 @@ for fn in (:ldlt, :bunchkaufman)
                 a,
                 $(QuoteNode(fn)),
                 true,
-                $direct,
+                direct_rook,
                 check,
                 scratch,
                 team,
+                options,
             )
         end
         lock(_matrix_lock) do
-            return _factor_writeback!(a, LinearAlgebra.$fn(a, $(forward...); check, team))
+            return _factor_writeback!(
+                a,
+                LinearAlgebra.$fn(a, $(forward...); check, team, kwargs...),
+            )
         end
     end
     for W in (:Hermitian, :Symmetric)
@@ -188,20 +208,23 @@ for fn in (:ldlt, :bunchkaufman)
             check::Bool = true,
             team = nothing,
             scratch = nothing,
+            kwargs...,
         ) where {T<:$bound}
+            options, direct_rook=$options
             isnothing(scratch) || return _direct_self_adjoint!(
                 parent(a),
                 $(QuoteNode(fn)),
                 a.uplo=='L',
-                $direct,
+                direct_rook,
                 check,
                 scratch,
                 team,
+                options,
             )
             lock(_matrix_lock) do
                 return _factor_writeback!(
                     parent(a),
-                    LinearAlgebra.$fn(a, $(forward...); check, team);
+                    LinearAlgebra.$fn(a, $(forward...); check, team, kwargs...);
                     upper = a.uplo=='U',
                 )
             end

@@ -308,7 +308,7 @@ mod tests {
         assert!(Llt::new(a.as_ref(), Side::Lower, Par::Seq).is_err());
         tuning::set_selfadjoint_call_options(0, 1.0, 1e-8, &[], false).unwrap();
         let f = Llt::new(a.as_ref(), Side::Lower, Par::Seq).unwrap();
-        assert_eq!(tuning::selfadjoint_regularization_count(), 1);
+        assert_eq!(tuning::selfadjoint_regularization_count().unwrap(), 1);
         assert_eq!(f.L()[(1, 1)], 1.0);
         // faer's own regularized LLᴴ breaks here (blocked, negative first
         // pivot); the factor must equal A off the diagonal.
@@ -325,7 +325,7 @@ mod tests {
                 }
             });
             let f = Llt::new(a.as_ref(), Side::Lower, Par::Seq).unwrap();
-            assert_eq!(tuning::selfadjoint_regularization_count(), 1);
+            assert_eq!(tuning::selfadjoint_regularization_count().unwrap(), 1);
             assert_eq!(f.L()[(0, 0)], 1.0);
             let e = f.reconstruct(Par::Seq) - &a;
             for j in 0..n {
@@ -351,13 +351,13 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(f.D()[0], 1.0);
-        assert_eq!(tuning::selfadjoint_regularization_count(), 0);
+        assert_eq!(tuning::selfadjoint_regularization_count().unwrap(), 0);
         tuning::set_selfadjoint_call_options(0, 1.0, 1e-8, &[1, 255], true).unwrap();
         let f = Ldlt::new(a.as_ref(), Side::Lower, Par::Seq)
             .unwrap()
             .unwrap();
         assert_eq!(f.D()[0], 1.0);
-        assert_eq!(tuning::selfadjoint_regularization_count(), 1);
+        assert_eq!(tuning::selfadjoint_regularization_count().unwrap(), 1);
         tuning::set_selfadjoint_call_options(0, 1.0, 1e-8, &[1], true).unwrap();
         assert!(Ldlt::new(a.as_ref(), Side::Lower, Par::Seq).is_err());
     }

@@ -18,9 +18,13 @@ mutable struct FaerFactorization{T,K,H} <: LinearAlgebra.Factorization{T}
     info::Int
     uplo::Symbol
     rook::Bool
+    # faer's `dynamic_regularization_count` (LLᴴ/LDLᴴ with regularization).
+    regularization_count::Int
 end
 FaerFactorization{T,K,H}(handle, dims, info, uplo) where {T,K,H} =
-    FaerFactorization{T,K,H}(handle, dims, info, uplo, false)
+    FaerFactorization{T,K,H}(handle, dims, info, uplo, false, 0)
+FaerFactorization{T,K,H}(handle, dims, info, uplo, rook) where {T,K,H} =
+    FaerFactorization{T,K,H}(handle, dims, info, uplo, rook, 0)
 
 _native_argument(f::FaerFactorization) = _handle(f)
 _is_native_owner(::FaerFactorization) = true
@@ -57,6 +61,7 @@ function _factor(
     uplo = :L,
     team = nothing,
     rook::Bool = false,
+    options = _NoSelfAdjointOptions,
 ) where {K}
     if K in (:cholesky, :ldlt, :bunchkaufman)
         size(a, 1) == size(a, 2) ||
@@ -65,12 +70,15 @@ function _factor(
     lock(_matrix_lock) do
         h = RustCrate.OwnedFactor()
         code = _construction_code(K, code, rook)
-        info = Int(_initialize_dense_factor(h, a, code, uplo === :L, team))
+        info, count = _with_selfadjoint_options(options) do
+            info = Int(_initialize_dense_factor(h, a, code, uplo === :L, team))
+            return info, _regularization_count(K, info)
+        end
         if check && info != 0
             K === :cholesky && throw(LinearAlgebra.PosDefException(info))
             throw(LinearAlgebra.SingularException(info))
         end
-        return FaerFactorization{Float64,K,typeof(h)}(h, size(a), info, uplo, rook)
+        return FaerFactorization{Float64,K,typeof(h)}(h, size(a), info, uplo, rook, count)
     end
 end
 # Native construction code 8 selects faer's rook strategy for block LDLᴴ.
@@ -118,44 +126,158 @@ const _FaerSelfAdjoint = Union{
     LinearAlgebra.Hermitian{Float64,<:FaerMatrix{Float64}},
 }
 _uplo(a::_FaerSelfAdjoint) = a.uplo == 'L' ? :L : :U
-function LinearAlgebra.cholesky(a::FaerMatrix{Float64}; check::Bool = true, team = nothing)
+"""
+    cholesky(A::FaerMatrix; check=true, team=nothing,
+             regularization_delta=0, regularization_epsilon=0)
+
+Compute t4a-faer's LLᴴ of Hermitian `A` (or of the stored triangle of a
+Hermitian/real `Symmetric` wrapper). Non-Hermitian input gives `info == -1`
+with `check=false`, as in Julia.
+
+`regularization_delta > 0` and `regularization_epsilon > 0` (both, or
+neither) enable faer's dynamic regularization (`LltRegularization`): every
+pivot at or below `epsilon` is replaced by `delta`, so the factorization of
+finite input succeeds and `F.L*F.L'` equals `A` plus a nonnegative diagonal
+perturbation at the replaced pivots. This changes the factored matrix; use it
+only when that is intended (for example a preconditioner). `F.regularization_count`
+is faer's count of replaced pivots (zero without regularization). faer's own
+regularized LLᴴ stores a wrong diagonal for replaced pivots at the pinned
+revision, so Colmat runs it as faer's LDLᴴ kernel with every expected sign
+positive (the same replacement rule and count) and scales the unit factor by
+`sqrt(D)`. Blocking parameters are set by [`with_cholesky_tuning`](@ref).
+"""
+function LinearAlgebra.cholesky(
+    a::FaerMatrix{Float64};
+    check::Bool = true,
+    team = nothing,
+    regularization_delta::Real = 0,
+    regularization_epsilon::Real = 0,
+)
+    options=_cholesky_options(size(a, 1), regularization_delta, regularization_epsilon)
     LinearAlgebra.issymmetric(a) ||
         return _non_hermitian_cholesky(a, check, RustCrate.OwnedFactor)
-    return _factor(a, Val(:cholesky), 4; check, team)
+    return _factor(a, Val(:cholesky), 4; check, team, options)
 end
-LinearAlgebra.cholesky(a::_FaerSelfAdjoint; check::Bool = true, team = nothing) =
-    _factor(parent(a), Val(:cholesky), 4; check, team, uplo = _uplo(a))
-function LinearAlgebra.ldlt(a::FaerMatrix{Float64}; check::Bool = true, team = nothing)
-    LinearAlgebra.issymmetric(a) || throw(ArgumentError("LDLT requires self-adjoint input"))
-    return _factor(a, Val(:ldlt), 5; check, team)
-end
-LinearAlgebra.ldlt(a::_FaerSelfAdjoint; check::Bool = true, team = nothing) =
-    _factor(parent(a), Val(:ldlt), 5; check, team, uplo = _uplo(a))
+LinearAlgebra.cholesky(
+    a::_FaerSelfAdjoint;
+    check::Bool = true,
+    team = nothing,
+    regularization_delta::Real = 0,
+    regularization_epsilon::Real = 0,
+) = _factor(
+    parent(a),
+    Val(:cholesky),
+    4;
+    check,
+    team,
+    uplo = _uplo(a),
+    options = _cholesky_options(size(a, 1), regularization_delta, regularization_epsilon),
+)
 """
-    bunchkaufman(A::FaerMatrix, rook=false; check=true, team=nothing)
+    ldlt(A::FaerMatrix; check=true, team=nothing, regularization_delta=0,
+         regularization_epsilon=0, regularization_signs=nothing)
+
+Compute t4a-faer's unpivoted LDLᴴ of Hermitian `A` (or of the stored triangle
+of a Hermitian/real `Symmetric` wrapper). `check=false` returns a factor with
+`info > 0` at the first zero pivot.
+
+`regularization_delta > 0` and `regularization_epsilon > 0` (both, or
+neither) enable faer's dynamic regularization (`LdltRegularization`). With
+`regularization_signs` (a vector of -1, 0 or 1 per row), a pivot expected
+positive that is at or below `epsilon` becomes `delta`, one expected negative
+that is at or above `-epsilon` becomes `-delta`; any pivot (sign 0, or without
+signs) with magnitude at most `epsilon` becomes `±delta` with its own sign.
+`F.L*F.D*F.L'` then equals `A` plus a diagonal perturbation. This changes the
+factored matrix. `F.regularization_count` is faer's
+`dynamic_regularization_count`, which counts only the pivots replaced because
+their expected sign is `+1`: corrections towards `-1` and replacements without
+signs are not counted at the pinned revision. Blocking parameters are set by
+[`with_cholesky_tuning`](@ref).
+"""
+function LinearAlgebra.ldlt(
+    a::FaerMatrix{Float64};
+    check::Bool = true,
+    team = nothing,
+    regularization_delta::Real = 0,
+    regularization_epsilon::Real = 0,
+    regularization_signs = nothing,
+)
+    options=_ldlt_options(
+        size(a, 1),
+        regularization_delta,
+        regularization_epsilon,
+        regularization_signs,
+    )
+    LinearAlgebra.issymmetric(a) || throw(ArgumentError("LDLT requires self-adjoint input"))
+    return _factor(a, Val(:ldlt), 5; check, team, options)
+end
+LinearAlgebra.ldlt(
+    a::_FaerSelfAdjoint;
+    check::Bool = true,
+    team = nothing,
+    regularization_delta::Real = 0,
+    regularization_epsilon::Real = 0,
+    regularization_signs = nothing,
+) = _factor(
+    parent(a),
+    Val(:ldlt),
+    5;
+    check,
+    team,
+    uplo = _uplo(a),
+    options = _ldlt_options(
+        size(a, 1),
+        regularization_delta,
+        regularization_epsilon,
+        regularization_signs,
+    ),
+)
+"""
+    bunchkaufman(A::FaerMatrix, rook=false; check=true, team=nothing, pivoting=nothing)
 
 Compute t4a-faer's pivoted block LDLᴴ of Hermitian `A` (or a Hermitian/real
 Symmetric wrapper). `rook=true` selects faer's rook pivoting; `false` keeps
 faer's default partial-diagonal Bunch–Kaufman. `check=false` returns a factor
 with `info > 0` for a singular block diagonal. Properties: `L`, `D`, `p`, `P`,
 `packed`, `rook`, `uplo`; `inertia(F)` counts eigenvalue signs.
+
+`pivoting` selects any `LbltParams.pivoting` strategy of faer: `:partial`
+(searches the k-th column, the classic Bunch–Kaufman rule of LAPACK's
+`sytrf`; faer's pivot sequence still need not match LAPACK's),
+`:partial_diag` (faer's default, also searches the trailing diagonal),
+`:rook`, `:rook_diag` or `:full` (globally optimal pivots). `F.rook` is true
+for `:rook` and `:rook_diag`; `rook=true` with another strategy is an error.
+faer's deprecated `Diagonal` alias of `:partial` is not offered. The block size
+and the parallel floor of `:full` are set by [`with_cholesky_tuning`](@ref).
+
+The factor is lower-oriented, `A[p, p] = L*D*L'` (the stored triangle of an
+upper wrapper is read as its adjoint). Julia's `uplo='U'` `F.U` (with
+`A[p, p] = U*D*U'`) is not provided: `F.L'` would satisfy `U'*D*U` instead, and
+a reversal-relabelled upper factor would differ from LAPACK's `sytrf` and
+change the meaning of `F.D`/`F.p`.
 """
 function LinearAlgebra.bunchkaufman(
     a::FaerMatrix{Float64},
     rook::Bool = false;
     check::Bool = true,
     team = nothing,
+    pivoting = nothing,
 )
+    options, rook=_lblt_options(rook, pivoting)
     LinearAlgebra.issymmetric(a) ||
         throw(ArgumentError("block LDLT requires self-adjoint input"))
-    return _factor(a, Val(:bunchkaufman), 6; check, team, rook)
+    return _factor(a, Val(:bunchkaufman), 6; check, team, rook, options)
 end
-LinearAlgebra.bunchkaufman(
+function LinearAlgebra.bunchkaufman(
     a::_FaerSelfAdjoint,
     rook::Bool = false;
     check::Bool = true,
     team = nothing,
-) = _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook)
+    pivoting = nothing,
+)
+    options, rook=_lblt_options(rook, pivoting)
+    return _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook, options)
+end
 
 function _permutation(f::FaerFactorization{T,K}, column::Bool = false) where {T,K}
     n = size(f, column || K === :pivoted_qr ? 2 : 1)
@@ -227,7 +349,8 @@ function Base.propertynames(f::FaerFactorization{T,K}, private::Bool = false) wh
     K === :full_lu && (props = (props..., :q))
     K in (:pivoted_qr, :bunchkaufman) && (props = (props..., :p))
     K === :bunchkaufman && (props = (props..., :rook))
-    return private ? (props..., :handle, :dims, :info, :uplo, :rook) :
+    K in (:cholesky, :ldlt) && (props = (props..., :regularization_count))
+    return private ? (props..., :handle, :dims, :info, :uplo, :rook, :regularization_count) :
            (props..., :info, :uplo)
 end
 
@@ -244,7 +367,14 @@ function Base.copy(f::FaerFactorization{Float64,K}) where {K}
     lock(_matrix_lock) do
         h = RustCrate.OwnedFactor()
         _native_call(RustCrate.clone_factor, h, f)
-        return FaerFactorization{Float64,K,typeof(h)}(h, size(f), f.info, f.uplo, f.rook)
+        return FaerFactorization{Float64,K,typeof(h)}(
+            h,
+            size(f),
+            f.info,
+            f.uplo,
+            f.rook,
+            f.regularization_count,
+        )
     end
 end
 function Base.deepcopy_internal(f::FaerFactorization{Float64}, dict::IdDict)

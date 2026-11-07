@@ -356,8 +356,8 @@ pub fn set_selfadjoint_call_options(
 /// faer's regularization count of the latest LLᴴ/LDLᴴ construction (zero
 /// without regularization or after a failed factorization).
 #[julia]
-pub fn selfadjoint_regularization_count() -> usize {
-    state::count()
+pub fn selfadjoint_regularization_count() -> Result<usize, String> {
+    Ok(state::count())
 }
 
 #[cfg(test)]
