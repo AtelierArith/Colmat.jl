@@ -8,8 +8,8 @@ Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArray
 | 分野 | 主な型・関数 | 詳細 |
 | :--- | :--- | :--- |
 | 密配列 | `FaerMatrix`, `FaerVector`, `FaerRow`, `FaerDiagonal` | [配列](../manual/arrays.md) |
-| ビュー・容量 | `view`, `diagonalview`, `capacity`, `with_capacity`, `reserve!`, `resize!`, `resize_with!`, `truncate!`, `close`, `isopen` | [所有権](../manual/arrays.md) |
-| 置換 | `FaerPermutation`, `permute_rows!`, `permute_cols!`, `swap_rows!`, `swap_cols!` | [置換](../manual/arrays.md) |
+| ビュー・容量 | `view`, `diagonalview`, `faerview`, `FaerBorrowedMatrix`, `capacity`, `with_capacity`, `reserve!`, `resize!`, `resize_with!`, `truncate!`, `close`, `isopen` | [所有権](../manual/arrays.md) |
+| 置換 | `FaerPermutation`, `permute_rows!`, `permute_cols!`, `permute!`, `invpermute!`, `swap_rows!`, `swap_cols!`, `scratch_requirements(permute_rows!, A, p)` | [置換](../manual/arrays.md) |
 | 密分解 | `lu`, `full_piv_lu`, `qr`, `cholesky`, `ldlt`, `bunchkaufman`, `factorize` と対応する `!` 形式 | [密分解](../manual/dense.md) |
 | 求解・再構成 | `ldiv!`, `rdiv!`, `reconstruct`, `pinv`, `rank`, `cond`, `FaerSpectralFactor` | [求解](../manual/dense.md) |
 | SVD | `svd`, `svd!`, `svdvals`, `svdvals!` | [SVD](../manual/dense.md) |

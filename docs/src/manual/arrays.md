@@ -101,13 +101,38 @@ close(native_full)
 対応します。親の形状を変える `resize!` / `truncate!` は既存のビューを
 失効させます。親を閉じた場合もアクセスは例外になります。
 `copy(view(...))` は独立した Rust 所有行列・ベクトルを返します。
-ビューへの `copyto!` は入力を一時コピーし、代入先と重なる場合も値を保ちます。
+ビューへの `copyto!` は native 所有型・ビューの入力を一時コピーし、代入先と重なる
+場合も値を保ちます。同じ要素型の Julia strided 配列（`Matrix`、範囲・逆順の
+`view` など）は一時コピーせず、Julia のメモリを直接読みます（形状が一致する
+所有型への `copyto!` も同様）。
 `FaerMatrix` / `FaerRow` への Julia 配列・ビュー・疎行列などからの `copyto!` も同じ
 一括代入経路を使い、要素毎の `setindex!` は行いません。形状が異なっても要素数が
 収まれば Base と同じく線形順にコピーし、長すぎる入力は `BoundsError` です。ただし
 `FaerMatrix` 同士のネイティブコピーは従来どおり形状一致が必要で、`DimensionMismatch`
 になります。要素型の変換失敗・close 済みの代入先はいずれも書き込み前に例外となり、
 代入先は変わりません。
+
+`faerview(A)` は Julia の strided ベクトル・行列を借用する `FaerBorrowedMatrix` /
+`FaerBorrowedVector` を返します。`A` を保持し、各ネイティブ呼び出しの間だけ
+`pointer(A)`・`size(A)`・`strides(A)` から faer の `MatRef` を作るため、負や
+非単位の stride もコピーせずに読みます。ポインタ・形状は保存しないので、親の
+`Vector` を `resize!` しても次の呼び出しは現在の長さとアドレスを使います。
+要素型は Float32 / Float64 / ComplexF32 / ComplexF64、親は `Array` / `Memory` に
+限り、stride 0 や重なる stride は `ArgumentError` です。`copy` / `FaerMatrix`、
+`+` / `-` / `*`（転置・随伴、native 行列やビューとの混在、型昇格を含む）、
+`FaerVector` への `mul!`、`mean` / `var`、`copyto!` の入力が借用のまま動作し、
+`view` も借用を保ちます。添字・`strides`・`pointer` は親へ転送します。
+
+```julia
+J = rand(4, 3)
+B = faerview(J)                       # コピーしない
+P = B' * FaerMatrix(J)                # Julia のメモリを直接読む native 積
+J[1, 1] = 0                           # 以後の呼び出しに反映
+@assert copy(B)[1, 1] == 0
+copyto!(view(FaerMatrix{Float64}(undef, 4, 3), :, :), view(J, :, :))
+close(P)
+```
+
 `FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
 
 対角との積・除算・和は faer の `DiagRef` を借用して native に計算し、
@@ -207,7 +232,49 @@ P = pinv(B; rtol=1e-12)
 `permute_rows` / `permute_cols` は独立した行列を返し、`!` 付きの関数は
 入力を更新します。置換・交換は形状を変えないため、既存のビューも有効です。
 `p * q` の添字列は `Vector(p)[Vector(q)]` です。`permute!(v,p)` /
-`invpermute!(v,p)` で所有ベクトルにも適用できます。
+`invpermute!(v,p)` で所有ベクトルとベクトルビューにも適用できます。
+`invpermute!` は faer の借用逆置換を使い、新しい置換を作りません。
+
+ストライド付き・逆順のビューは所有者から直接 `MatMut` として借用され、
+`permute_rows!` / `permute_cols!` / `swap_rows!` / `swap_cols!` /
+`permute!` は一時結果を経由せずに faer の in-place 経路で更新します。
+`permute_rows(view, p)` もビューを直接読み、中間コピーを作りません。
+in-place 置換は対象を作業領域へコピーするため、呼び出し側の
+`FaerScratch` を `scratch=` で渡せます。
+
+```julia
+using Colmat
+
+A = FaerMatrix(reshape(collect(1.0:30.0), 5, 6))
+W = view(A, 5:-2:1, 2:2:6)
+p = FaerPermutation([3, 1, 2])
+expected = Matrix(W)[Vector(p), :]
+work = FaerScratch(permute_rows!, W, p)
+reserve!(work, permute_cols!, W, p)
+permute_rows!(W, p; scratch=work)
+@assert Matrix(W) == expected
+permute_cols!(W, p; scratch=work)
+@assert scratch_requirements(permute_rows!, W, p).bytes <= scratch_capacity(work).bytes
+```
+
+`scratch` を省略すると、呼び出しごとに同じ要件の native 領域を確保します。
+容量・アラインメント不足、閉じた引数、無効化されたビュー、長さ不一致は
+書き込み前に失敗します。添字が重複するビュー（step 0）は可変借用が別名になるため、
+独立した一時結果と順序付き書き込みで更新します。faer の置換カーネルは逐次処理で
+`Par` を取らないため `team=` はありません。
+
+faer `PermRef` の形式のうち、Julia から意味を持つものは上記で接続済みです。
+`Perm * Mat` / `Mat * Perm` / `Perm * Col` / `Row * Perm` はそれぞれ
+`permute_rows(A,p)`、`permute_cols(A,invperm(p))`、`permute!(copy(v),p)`、
+`permute_cols!(copy(r),invperm(p))` と同じ結果です。`FaerPermutation` は
+`AbstractVector{Int}` なので、`p * A` や `A * p` は Julia 標準のベクトル積
+（`A * Vector(p)` など）の意味を保ち、置換行列の作用には上書きしません。
+同じ理由で `transpose(p)` / `adjoint(p)` も逆置換にせず、`invperm(p)` を使います。
+添字型 `I` の選択（`u32` など）・`canonicalized`・`as_shape`/`bound_arrays` の
+次元トークン・`new_unchecked`・`Reborrow`/`IntoConst` は Rust の型・所有権の
+仕組みで、Julia では `Int` 添字の `FaerPermutation` に固定するため公開しません。
+別々の行列の行・列を入れ替える `swap_rows`/`swap_cols`（`RowMut`/`ColMut` 対）も、
+同一行列内の `swap_rows!`/`swap_cols!` 以外は公開していません。
 `pinv` は faer の SVD と疑似逆再構成を使い、Hermitian・実 Symmetric では
 自己随伴固有値分解を使います。`atol` / `rtol` は Julia と同じ判定式を使い、
 省略時の `rtol` は `min(size(A)...)*eps` です。`cond` は 1・2・Inf ノルムに対応します。
