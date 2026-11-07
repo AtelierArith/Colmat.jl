@@ -113,7 +113,7 @@ end
 const _SymbolicOrderingInput=Union{FaerSparsity,FaerSparseMatrix,FaerBorrowedSparseMatrix}
 _ordering_pattern(a::FaerBorrowedSparseMatrix) = FaerSparsity(a)
 """
-    scratch_requirements(FaerSparseSymbolic, A; kind=:lu, uplo=:L, ordering=:default, algorithm=:auto, dense=10.0, dense_row=0.5, dense_col=0.5, aggressive=true)
+    scratch_requirements(FaerSparseSymbolic, A; kind=:lu, uplo=:L, ordering=:default, algorithm=:auto, dense=10.0, dense_row=0.5, dense_col=0.5, aggressive=true, supernodal_threshold=nothing, relax=nothing)
 
 Return `(bytes, alignment)` for the fill-reducing ordering workspace used inside
 `FaerSparseSymbolic(A; scratch=s, kwargs...)`, with the same keywords. A is a

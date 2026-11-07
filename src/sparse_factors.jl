@@ -19,6 +19,10 @@ factors. Explicit simplicial LU/QR additionally accept `ordering=:colamd` with
 stored pattern and retained by symbolic reuse and numeric updates. AMD tuning
 remains Cholesky-only. Auto/supernodal LU/QR accepts default/COLAMD, identity or custom column ordering.
 COLAMD accepts `dense_row`, `dense_col`, `aggressive`. QR exposes `F.p/F.pcol`.
+Cholesky and auto/supernodal LU accept faer's supernodal controls:
+`supernodal_threshold` (`supernodal_flop_ratio_threshold`, nonnegative, `algorithm=:auto`
+only; default 1.0) and `relax=[(n, z), ...]` (`SymbolicSupernodalParams.relax`, `0 ≤ z ≤ 1`;
+omitted keeps faer's default, empty disables relaxation).
 
 `scratch=FaerScratch(FaerSparseSymbolic, P; kwargs...)` supplies the ordering
 kernel workspace for Cholesky AMD, wide QR COLAMD and explicit simplicial
@@ -52,6 +56,9 @@ for every algorithm, with `F.L * F.U ≈ A[F.p,F.q]`. It also supports `Matrix(F
 row/column permutations. Sparse QR exposes independent thin `Q/Qthin`, square orthogonal/unitary `Qfull`,
 sparse `R`, `p/pcol` and dense
 reconstruction for all algorithms, using the current saved numeric buffers.
+`F.Qoperator` is the lazy m×m Q (SPQR's `F.Q`): an independent `FaerLinearOperator`
+applying saved Householder reflectors with optional caller scratch/team, and `F.prow`
+is the identity row permutation, since Q is stored in the original row order.
 It also exposes independent `F.p`, the actual `F.algorithm`
 and `F.factor_storage` (numeric scalar slots, including supernodal padding).
 `cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;
@@ -98,6 +105,8 @@ function _sparse_symbolic_options(
     dense_col::Real = 0.5,
     aggressive::Bool = true,
     algorithm = :auto,
+    supernodal_threshold = nothing,
+    relax = nothing,
 )
     code=kind===:lu ? 0 :
          kind===:qr ? 1 :
@@ -143,6 +152,12 @@ function _sparse_symbolic_options(
                 "LU/QR ordering supports :default, :identity, :colamd or a permutation",
             ),
         )
+    ratio, relax_sizes, relax_fractions=_sparse_supernodal_tuning(
+        kind,
+        algo,
+        supernodal_threshold,
+        relax,
+    )
     custom=use_colamd || ordering isa AbstractVector{<:Integer}
     ordercode=custom ? 2 :
               (native_colamd || ordering in (:default, :amd)) ? 0 :
@@ -165,7 +180,63 @@ function _sparse_symbolic_options(
         use_colamd,
         custom,
         ordercode,
+        ratio,
+        relax_sizes,
+        relax_fractions,
     )
+end
+# faer's supernodal_flop_ratio_threshold (auto selection) and
+# SymbolicSupernodalParams.relax for sparse Cholesky and non-simplicial LU.
+function _sparse_supernodal_tuning(kind, algo, threshold, relax)
+    ratio=NaN
+    if !isnothing(threshold)
+        kind in (:cholesky, :lu) && algo==0 || throw(
+            ArgumentError(
+                "supernodal_threshold requires kind=:cholesky or :lu with algorithm=:auto",
+            ),
+        )
+        threshold isa Real ||
+            throw(ArgumentError("supernodal_threshold must be a nonnegative real"))
+        ratio=Float64(threshold)
+        !isnan(ratio) && ratio>=0 ||
+            throw(ArgumentError("supernodal_threshold must be a nonnegative real"))
+    end
+    isnothing(relax) && return ratio, nothing, nothing
+    kind in (:cholesky, :lu) && algo!=1 || throw(
+        ArgumentError(
+            "relax requires kind=:cholesky or :lu with algorithm=:auto or :supernodal",
+        ),
+    )
+    sizes=UInt[]
+    fractions=Float64[]
+    for item in relax
+        item isa Tuple{Integer,Real} || throw(
+            ArgumentError("relax must contain (column count, zero fraction) tuples"),
+        )
+        n, z=item
+        n>=0 || throw(ArgumentError("relax column counts must be nonnegative"))
+        zf=Float64(z)
+        0<=zf<=1 || throw(ArgumentError("relax zero fractions must lie in [0, 1]"))
+        push!(sizes, n>=typemax(UInt) ? typemax(UInt) : UInt(n))
+        push!(fractions, zf)
+    end
+    return ratio, sizes, fractions
+end
+function _sparse_supernodal_tuning!(h, o)
+    isnan(o.ratio) && isnothing(o.relax_sizes) && return nothing
+    custom=!isnothing(o.relax_sizes)
+    sizes=custom ? o.relax_sizes : UInt[]
+    fractions=custom ? o.relax_fractions : Float64[]
+    GC.@preserve sizes fractions _native_call(
+        RustCrate.sparse_symbolic_tuning,
+        h,
+        o.ratio,
+        custom,
+        pointer(sizes),
+        pointer(fractions),
+        UInt(length(sizes)),
+    )
+    return nothing
 end
 function _sparse_symbolic_requirements(p::FaerSparsity, o)
     o.use_colamd && return _ordering_requirements(p, size(p), false)
@@ -205,6 +276,7 @@ function FaerSparseSymbolic(p::FaerSparsity; scratch = nothing, kwargs...)
         try
             o.custom && _check_permutation(p, perm, true)
             h=RustCrate.SparseSymbolic()
+            _sparse_supernodal_tuning!(h, o)
             if isnothing(scratch) || o.use_colamd
                 _native_call(
                     RustCrate.sparse_analyze,
@@ -390,6 +462,8 @@ LinearAlgebra.lu(
     dense_row::Real = 0.5,
     dense_col::Real = 0.5,
     aggressive::Bool = true,
+    supernodal_threshold = nothing,
+    relax = nothing,
     scratch = nothing,
     team = nothing,
 ) = LinearAlgebra.factorize(
@@ -401,6 +475,8 @@ LinearAlgebra.lu(
         dense_row,
         dense_col,
         aggressive,
+        supernodal_threshold,
+        relax,
     ),
     a;
     check,
@@ -810,10 +886,13 @@ Base.propertynames(f::FaerSparseFactorization{T,:lu}, private::Bool = false) whe
     private ? (fieldnames(typeof(f))..., :L, :U, :p, :q) : (:dims, :info, :L, :U, :p, :q)
 
 function Base.getproperty(f::FaerSparseFactorization{T,:qr}, name::Symbol) where {T}
-    if name in (:Q, :Qthin, :Qfull, :R, :p, :pcol)
+    if name in (:Q, :Qthin, :Qfull, :Qoperator, :R, :p, :pcol, :prow)
         return lock(_matrix_lock) do
             _handle(f)
             LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
+            name===:Qoperator && return _sparse_qr_q_operator(f)
+            # Q is stored in the original row order (SPQR's prow is identity here).
+            name===:prow && return FaerPermutation(1:size(f, 1))
             name in (:p, :pcol) &&
                 return _permutation_result(size(f, 2), RustCrate.sparse_qr_permutation, f)
             name===:R && return _sparse_result(
@@ -832,8 +911,16 @@ function Base.getproperty(f::FaerSparseFactorization{T,:qr}, name::Symbol) where
     return getfield(f, name)
 end
 Base.propertynames(f::FaerSparseFactorization{T,:qr}, private::Bool = false) where {T} =
-    private ? (fieldnames(typeof(f))..., :Q, :Qthin, :Qfull, :R, :p, :pcol) :
-    (:dims, :info, :Q, :Qthin, :Qfull, :R, :p, :pcol)
+    private ? (fieldnames(typeof(f))..., :Q, :Qthin, :Qfull, :Qoperator, :R, :p, :pcol, :prow) :
+    (:dims, :info, :Q, :Qthin, :Qfull, :Qoperator, :R, :p, :pcol, :prow)
+# Lazy m×m Q (SPQR's `F.Q`): an independent native snapshot of the saved
+# Householder reflectors; applications never form dense Q.
+function _sparse_qr_q_operator(f::FaerSparseFactorization{T,:qr}) where {T}
+    h=RustCrate.OwnedLinearOperator()
+    _native_call(RustCrate.operator_sparse_qr_q, h, f)
+    m=size(f, 1)
+    return FaerLinearOperator{T,typeof(h)}(h, (m, m), :factorization, false, false)
+end
 function reconstruct(f::FaerSparseFactorization{T,:qr}) where {T}
     lock(_matrix_lock) do
         _handle(f)

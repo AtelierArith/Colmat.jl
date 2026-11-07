@@ -7,7 +7,10 @@ A sparse Julia matrix owning faer CSC or CSR storage. Four native scalar types
 are preserved; other real inputs convert to Float64 and other complex inputs to
 ComplexF64. An explicit unsupported `T` throws `ArgumentError`. Triplet duplicates are summed by faer. Construction retains stored zeros; `dropzeros!` removes them. Native
 addition, subtraction, products and scalar arithmetic preserve sparse storage; `Matrix(A)` and
-`FaerMatrix(A)` explicitly materialize a dense matrix.
+`FaerMatrix(A)` explicitly materialize a dense matrix. Broadcast, `map` and
+`map!` follow SparseArrays' sparse result and zero-dropping conventions;
+zero-preserving maps over one native operand and scalars map only the stored
+values, and native-scalar results are `FaerSparseMatrix`.
 
 `nonzeros(A)` is a live view in the owner's physical storage order. Structural
 changes invalidate earlier value views. `compressed_storage(A)` returns an

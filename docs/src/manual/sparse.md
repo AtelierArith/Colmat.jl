@@ -176,6 +176,48 @@ ldiv!(UpperTriangular(transpose(L)), B; scratch=work)   # Lᵀ x = B を B 上�
 
 疎行列の `lu`・`cholesky`・`qr` は再利用可能な `FaerSparseFactorization` を返します。
 
+### 疎行列全体の broadcast・`map`
+
+`FaerSparseMatrix` を含む broadcast と `map`／`map!` は、SparseArrays と同じ結果規約に従います。
+結果は疎行列で、`f` が生成したゼロは格納しません（入力の格納ゼロも同様です）。
+結果の数値型が4型のいずれかなら `FaerSparseMatrix` を返し、CSC／CSR 形式は最初の疎入力に合わせます。
+
+```julia
+S = FaerSparseMatrix(sparse([1.0 0 -2; 0 0 3]); format=:csr)
+A = abs.(S)                       # 値だけを変換。構造は S のコピー
+B = 2 .* S .^ 2                   # 融合した式も同じ経路
+C = map(x -> x / 4, S)
+v = nonzeros(S)
+S .*= 0.5                         # 構造が変わらなければ値を一括で書き戻す
+@assert isopen(v)                 # 既存の値ビューも有効なまま
+D = S .+ 1                        # f(0) ≠ 0。SparseArrays と同じく全要素を格納
+mask = S .> 0                     # Bool は native 型ではないため SparseMatrixCSC
+```
+
+次の条件をすべて満たす場合は、native の高速経路で計算します。
+
+- 疎入力が1つの `FaerSparseMatrix` だけ（同じ行列の複数回参照は可）
+- ほかの引数が `Number`／`Ref`／0次元配列のスカラー
+- `f(0, スカラー...)` がゼロ（`S .* Inf` は `0*Inf` が NaN になるため対象外）
+- 結果の数値型が native 型
+
+この経路では、格納値を Julia に1回だけ転送し、Julia 側で `f` を適用します。
+その値を元の疎構造のコピーに付けて新しい owner を作ります。
+出力先が入力自身の `S .= f.(S)`／`S .*= α` では値を一括で書き戻します。
+このとき nnz・格納順・値ビューは維持されます。
+ゼロが生じた場合は `dropzeros!` 相当の処理で構造を変え、以前の値ビューを失効させます。
+出力の型への変換に失敗した場合（実数行列に複素数を書く等）は、書き込み前に例外を投げます。
+400×400・密度 2% の `abs.(S)` では、Julia ヒープの割り当てが約 230 MB から約 33 KB になりました。
+
+上記以外（`f(0)≠0`、複数の疎入力、密配列・`SparseMatrixCSC` との混在）では、
+各 native 入力を `SparseMatrixCSC` に1回変換して SparseArrays の broadcast を使います。
+結果の数値型が native なら `FaerSparseMatrix` に戻し、それ以外（`Bool`・`BigFloat` 等）は `SparseMatrixCSC` のまま返します。
+`S .= x` のようなスカラー代入は Base の規約どおり `fill!` になります。
+`x == 0` では構造を保ち、非ゼロでは暗黙のゼロ位置を埋めることになるため `ArgumentError` です。
+密な出力先への `D .+= S` は、疎入力を変換してから Julia の broadcast で計算します。
+`map(f, A, B...)` は全引数が同じサイズである必要があり、異なると `DimensionMismatch` です。
+疎行列の転置／随伴ラッパーの broadcast は、この経路の対象外です。
+
 ## symbolic analysis と数値分解
 
 `A \ b` は正方行列なら LU、縦長なら QR による最小二乗求解を選びます。
@@ -320,6 +362,35 @@ G = factorize(plan, A)
 `:supernodal` です。`F.p`／`plan.p` は独立した置換、`.algorithm` は実際の分解方式、
 `.factor_storage` は確保する数値スロット数（supernodal の padding を含む）を返します。
 コピー・数値更新・混合精度の求解でも symbolic analysis の設定を引き継ぎます。
+
+faer の supernodal 制御も指定できます（疎 Cholesky と、明示 simplicial 以外の疎 LU）。
+
+- `supernodal_threshold=r`: faer の `supernodal_flop_ratio_threshold`。`algorithm=:auto`
+  でのみ有効な非負の実数で、既定は faer と同じ 1.0 です。`0` はほぼ常に supernodal、
+  `Inf` は常に simplicial を選びます。`FaerSparseSymbolic(A; scratch)` の AMD 経路でも
+  同じ選択になります。
+- `relax=[(n, z), ...]`: faer の `SymbolicSupernodalParams.relax`。隣接 supernode の
+  合計列数が `n` 以下で、併合後のゼロの割合が `z`（`0 ≤ z ≤ 1`）未満なら併合します。
+  省略時は faer の既定値です。空の配列を渡すと併合しません。`algorithm=:simplicial`
+  とは併用できません。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sparse([4.0 1 0; 1 4 1; 0 1 4]))
+F = cholesky(Hermitian(A); supernodal_threshold=0)
+@assert F.algorithm == :supernodal
+G = cholesky(Hermitian(A); algorithm=:supernodal, relax=Tuple{Int,Float64}[])
+@assert G.factor_storage <= F.factor_storage
+```
+
+疎 Cholesky の数値分解は、CSC 入力をコピーせずに借用します（CSR 入力は CSC への変換が
+1 回必要です）。入力が選択した三角部分だけを格納していれば、そのまま faer に渡します。
+両方の三角部分を格納している場合は、選択した三角部分を faer の数値分解用 workspace と
+同じ stack 上に組み直します。`scratch` を渡したときの割当は返却する数値バッファ 1 つだけで、
+`scratch_requirements(factorize, plan, A)` はこの組み直し分を含みます。
+`F.L`・`F.U` は triplet を経由せず、直接ソート済み CSC として組み立てます。
+
 LU／QR の ordering と数値分解の `scratch`・`team` については、このページおよび [疎 QR](sparse-qr.md) を参照してください。
 
 疎 Cholesky の `F.L`・`F.U` は独立した Rust 所有の CSC 行列です。
@@ -374,7 +445,7 @@ sub_into!(D, D, S)                # 入出力の共有にも対応
 入力は出力の数値型と CSC／CSR 形式にコピー・変換してから native カーネルで計算し、
 出力の型・構造・格納数を維持します。値ビューも失効しません。
 通常の Julia CSC と native の転置／随伴を入力に使えます。
-一般の `D .+= S` などの broadcast は、この専用 API と同一の実装ではありません。
+一般の broadcast（`D .+= S` 等）はこの専用 API とは別の実装で、SparseArrays と同じくゼロを除去し構造を変えることがあります。
 
 native 配列に対する `givens` は faer で係数を計算し、Julia 標準の
 
@@ -387,8 +458,8 @@ native 配列に対する `givens` は faer で係数を計算し、Julia 標準
 
 `rowvals`・`getcolptr` は CSC のみ対応し、返す添字配列は独立したコピーです。
 CSR の行ポインタ・列添字には `compressed_storage` を使ってください。
-疎分解の残りの機能・低水準制御は引き続き実装対象です。汎用 broadcast/map は
-専用の疎 native 経路ではなく、Julia の汎用処理や密配列の結果になる場合があります。
+疎分解の残りの機能・低水準制御は引き続き実装対象です。broadcast/`map` の結果規約は
+「疎行列全体の broadcast・`map`」を参照してください。
 
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の
 `eigen`／`eigvals`、三角行列の求解・逆行列、`det`／`logabsdet`／`logdet`、
@@ -419,6 +490,33 @@ The default `algorithm=:auto` uses faer's fill-reducing selection;
 and accept default/COLAMD ordering with `dense_row`, `dense_col`, `aggressive`.
 Every LU algorithm accepts `ordering=:identity` or a supplied column permutation.
 Sparse component extraction allocates independent CSC storage.
+
+The auto and supernodal LU paths also accept faer's supernodal controls, with
+the same meaning as for sparse Cholesky. `supernodal_threshold` applies only with
+`algorithm=:auto`, and `relax=[(n, z), ...]` sets the supernode relaxation.
+Neither applies to explicit `algorithm=:simplicial`, which is Colmat's own
+column-by-column kernel and has no supernodes.
+
+Construction temporaries:
+
+- Numeric construction borrows CSC inputs instead of copying them; CSR inputs
+  are converted once.
+- Explicit simplicial `F.L`/`F.U` are copied directly into sorted CSC. faer
+  leaves those columns unsorted, so each column is ordered while it is copied,
+  with no triplet buffer.
+- For the auto and supernodal algorithms, `F.L`/`F.U` come from faer's public
+  `LuRef::factors`, which still assembles through triplets internally. faer
+  keeps the supernodal buffers private, so this cannot be removed on the
+  Colmat side.
+
+Sparse LU is square-only by design. faer's symbolic and numeric sparse LU
+(`factorize_symbolic_lu*`, `factorize_simplicial_numeric_lu`) assert
+`nrows == ncols`. Use sparse QR (`qr`, or `A \ b`, which selects QR for tall
+matrices) for rectangular systems. Explicit `algorithm=:simplicial` keeps
+identity as its default column ordering, so it factors the matrix exactly as
+supplied, like faer's explicit simplicial kernel. Fill-reducing ordering is
+one keyword away (`ordering=:colamd`), and changing the default would silently
+change existing factors.
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays

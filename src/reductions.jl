@@ -18,10 +18,6 @@ function LinearAlgebra.dot(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
     size(a)==size(b) || throw(DimensionMismatch("inner product dimensions must match"))
     return _native_call(RustCrate.inner_product, a, b)
 end
-function LinearAlgebra.det(a::FaerMatrix{Float64})
-    LinearAlgebra.checksquare(a)
-    return _native_call(RustCrate.reduction, a, Int32(5))
-end
 function LinearAlgebra.tr(a::FaerMatrix{Float64})
     LinearAlgebra.checksquare(a)
     return _native_call(RustCrate.reduction, a, Int32(8))

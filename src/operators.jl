@@ -262,6 +262,12 @@ function _operator_copy_result!(dest, result)
     T=eltype(dest)
     T<:_NativeScalar ||
         throw(ArgumentError("operator destinations require native scalar types"))
+    # Native results are assigned natively; only Julia destinations stage.
+    if dest isa Union{_BorrowMatrix,_BorrowVector} &&
+       result isa Union{_BorrowMatrix,_BorrowVector} &&
+       eltype(result)===T
+        return copyto!(dest, result)
+    end
     buffer=ndims(dest)==1 ? Vector{T}(result) : Matrix{T}(result)
     copyto!(dest, buffer)
     return dest
@@ -433,13 +439,21 @@ Base.showerror(io::IO, e::FaerCgError) = print(
     ")",
 )
 LinearAlgebra.issuccess(result::FaerCgResult) = result.converged
+# Native inputs are copied once into the native solver operand and checked
+# natively; Julia arrays are checked in place. No Julia staging copy is made.
 function _cg_matrix(a, ::Type{T}) where {T}
     _dense_rhs_validate(a)
     a isa _RotationArray && _rotation_open(a)
-    buffer = a isa AbstractVector ? Vector(a) : Matrix(a)
-    all(isfinite, buffer) ||
+    native=a isa Union{_BorrowMatrix,_BorrowVector}
+    native ||
+        all(isfinite, a) ||
         throw(ArgumentError("iterative solver RHS/initial guess must be finite"))
-    return _householder_matrix_source(a, T)
+    m=_householder_matrix_source(a, T)
+    if native && !all(isfinite, m)
+        close(m)
+        throw(ArgumentError("iterative solver RHS/initial guess must be finite"))
+    end
+    return m
 end
 """
     cg(A, b; M=nothing, x0=nothing, atol=0, rtol=nothing,
@@ -464,7 +478,11 @@ These diagnostics do not certify that A or M is positive definite.
 `scratch` reuses caller-owned native iteration and final residual workspace;
 `team` supplies the scoped native parallel team. Query with
 `scratch_requirements(cg, A, b; M, x0, team)` and grow with `reserve!`.
-Result staging, promotion and Julia callback/history buffers allocate separately.
+Native RHS, initial guesses and in-place destinations are not staged in Julia:
+they are copied once into the native solver operands and checked natively, and
+`cg!` writes native destinations natively. Julia RHS are copied straight into
+native storage; a Julia vector RHS returns a Julia vector. Scalar promotion and
+Julia callback/history buffers allocate separately.
 Queries do not apply operators or invoke callbacks. BiCGSTAB and LSMR follow
 the same resource contract.
 

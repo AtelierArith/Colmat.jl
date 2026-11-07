@@ -103,6 +103,7 @@ export FaerSpectralFactor,
     filldiagonal!,
     FaerMatrix,
     FaerFactorization,
+    FaerInPlaceFactorization,
     reserve!,
     capacity,
     with_capacity,
@@ -113,6 +114,7 @@ export FaerSpectralFactor,
     pfaffian,
     faer_mul,
     with_schur_tuning,
+    structured_mul!,
     faer_solve,
     faer_svd
 
@@ -234,6 +236,8 @@ include("sparse_factors.jl")
 include("sparse_qr_spectral.jl")
 include("ordering.jl")
 include("sparse_updates.jl")
+include("sparse_broadcast.jl")
+include("dense_broadcast.jl")
 include("rotations.jl")
 include("householder.jl")
 include("householder_sequence.jl")
@@ -244,6 +248,7 @@ include("partial_spectra.jl")
 include("structured_products.jl")
 include("pivoted_cholesky.jl")
 include("destructive.jl")
+include("hermitian_factor_conventions.jl")
 include("teams.jl")
 include("parallel_threshold.jl")
 include("workspace.jl")
@@ -288,8 +293,10 @@ include("sparse_construction_workspace.jl")
 include("spectral_solve.jl")
 include("dense_solve_team.jl")
 include("dense_solve_workspace.jl")
+include("direct_factorizations.jl")
 include("sparse_direct_workspace.jl")
 include("sparse_triangular_workspace.jl")
+include("dense_triangular.jl")
 include("sparse_product_plan.jl")
 include("sparse_qr_solve_workspace.jl")
 include("spectral_solve_workspace.jl")
@@ -300,5 +307,9 @@ include("storage_initializer.jl")
 include("function_constructors.jl")
 include("filled_constructors.jl")
 include("schur_tuning.jl")
+include("balanced_eigen.jl")
+include("pivoted_qr_rank.jl")
+include("measures.jl")
+include("diagonal_ops.jl")
 
 end

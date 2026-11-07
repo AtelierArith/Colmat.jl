@@ -369,9 +369,9 @@ fn check_finite(a: MatRef<'_, f64>) -> Result<(), String> {
 }
 
 use faer::linalg::solvers::{
-    ColPivQr, DenseSolveCore, FullPivLu, Lblt, Ldlt, Llt, PartialPivLu, Qr, ShapeCore, SolveLstsq,
-    Svd,
+    ColPivQr, DenseSolveCore, FullPivLu, Ldlt, Llt, PartialPivLu, Qr, ShapeCore, SolveLstsq, Svd,
 };
+use lblt::Lblt;
 
 #[derive(Clone)]
 enum DenseFactor {
@@ -1152,6 +1152,8 @@ pub mod qz;
 pub mod sparse;
 pub mod sparse_triangular;
 
+pub mod dense_triangular;
+
 pub mod sparsity;
 
 pub mod borrowed_sparse;
@@ -1189,6 +1191,10 @@ pub mod structured_products;
 pub mod diagonal_products;
 
 pub mod pivoted_cholesky;
+
+pub mod lblt;
+
+pub mod direct_factors;
 
 mod sparse_lu_components;
 mod sparse_lu_owned;
@@ -1232,7 +1238,7 @@ impl OwnedFactor {
                 "factor input native scalar type/dimensions do not match requested metadata".into(),
             );
         }
-        if (4..=6).contains(&kind) {
+        if (4..=6).contains(&kind) || kind == 8 {
             if a.nrows() != a.ncols() {
                 return Err("factorization requires square input".into());
             }
@@ -1273,7 +1279,7 @@ impl OwnedFactor {
                     return Ok(self.info);
                 }
             },
-            6 => DenseFactor::Lblt(a.lblt(side, par)),
+            6 | 8 => DenseFactor::Lblt(Lblt::new(a, side, par, kind == 8)),
             7 => DenseFactor::Svd(a.thin_svd(par).map_err(|e| format!("{e:?}"))?),
             _ => return Err("unknown factorization kind".into()),
         };
@@ -1436,3 +1442,6 @@ mod storage_initializer;
 mod filled_construction;
 
 mod schur_tuning;
+mod pivoted_qr_rank;
+mod measures;
+mod diagonal_ops;

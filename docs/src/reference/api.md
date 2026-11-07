@@ -25,7 +25,9 @@ Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArray
 | リソース | `FaerScratch`, `scratch_requirements`, `scratch_capacity`, `FaerTeam`, `team_mul`, `FaerParThreshold` | [作業領域](../manual/resources.md) |
 | 統計・乱数 | `mean`, `var`, `std`, `FaerRNG`, `randunitary`, `rand!(rng, A, X)` | [統計・乱数](../manual/utilities.md) |
 | NPY | `FaerNpyMatrix`, `loadnpy`, `npyview`, `npyinfo` | [NPY](../manual/utilities.md) |
+| 構造化積 | `structured_mul!`, 三角ラッパー・`Diagonal` との `*`/`mul!` | [密分解](../manual/dense.md) |
 | 互換 API | `faer_mul`, `faer_solve`, `faer_svd` | [互換 API](../manual/arrays.md) |
 
 `FaerFactorization` と `FaerSparseFactorization` はネイティブ因子を保持します。
+`lu!/qr!/cholesky!(A; scratch)` が返す `FaerInPlaceFactorization` は入力 `A` の native 格納を packed 因子として参照します。
 通常の Julia 配列を返す分解と Rust 所有因子を再利用する経路は、各ページの戻り値の説明で区別してください。
