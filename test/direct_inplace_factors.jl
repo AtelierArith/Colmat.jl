@@ -137,6 +137,47 @@ _tol(T) = sqrt(eps(real(T)))
         end
     end
 
+    @testset "team construction $T" for T in (Float64, ComplexF32)
+        team = FaerTeam(2)
+        X = _sample(T, 70, 70)
+        S = X * X' + 70 * Matrix{T}(I, 70, 70)
+        A, B = FaerMatrix(X), FaerMatrix(X)
+        F = lu!(A; scratch = FaerScratch(lu!, A))
+        G = lu!(B; scratch = FaerScratch(lu!, B; team), team)
+        @test G.p == F.p
+        @test Matrix(B) ≈ Matrix(A) rtol = _tol(T)
+        A, B = FaerMatrix(X[:, 1:40]), FaerMatrix(X[:, 1:40])
+        qr!(A; scratch = FaerScratch(qr!, A))
+        work = FaerScratch(0)
+        reserve!(work, qr!, B; team)
+        qr!(B; scratch = work, team)
+        @test Matrix(B) ≈ Matrix(A) rtol = _tol(T)
+        for uplo in (:L, :U)
+            A, B = FaerMatrix(S), FaerMatrix(S)
+            cholesky!(Hermitian(A, uplo); scratch = FaerScratch(cholesky!, A))
+            H = cholesky!(
+                Hermitian(B, uplo);
+                scratch = FaerScratch(cholesky!, Hermitian(B, uplo); team),
+                team,
+            )
+            @test Matrix(B) ≈ Matrix(A) rtol = _tol(T)
+            @test Matrix(H) ≈ S rtol = _tol(T)
+        end
+        close(team)
+        @test_throws ArgumentError lu!(FaerMatrix(X); scratch = FaerScratch(lu!, A), team)
+    end
+
+    @testset "complex right-hand sides of a real factor" begin
+        X = _sample(Float64, 4, 4)
+        F = lu!(FaerMatrix(X); scratch = FaerScratch(lu!, FaerMatrix(X)))
+        b = ComplexF64[1 + 2im, 3, -1im, 4]
+        B = ComplexF64.(reshape(1:8, 4, 2)) .* (1 + 1im)
+        @test F \ b ≈ X \ b
+        @test Matrix(F \ B) ≈ X \ B
+        @test transpose(F) \ b ≈ transpose(X) \ b
+        @test F' \ b ≈ X' \ b
+    end
+
     @testset "aliasing, failures and validation" begin
         X = _sample(Float64, 4, 4)
         A = FaerMatrix(X)

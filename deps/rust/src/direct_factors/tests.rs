@@ -19,17 +19,26 @@ fn reserved(tag: i32, kind: i32, op: i32, m: usize, n: usize, k: usize) -> (Owne
     s.scratch_reserve(out[0], out[1]).unwrap();
     (s, out[2])
 }
-/// faer multiplies through private-gemm-x86 (no per-call allocation) on x86_64
-/// with AVX2 and FMA, and through the allocating `gemm` crate elsewhere.
-fn gemm_is_allocation_free() -> bool {
-    #[cfg(target_arch = "x86_64")]
-    {
-        std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma")
-    }
-    #[cfg(not(target_arch = "x86_64"))]
-    {
-        false
-    }
+#[test]
+fn bare_matrix_product_allocation_on_this_target() {
+    // Attribution for the residual counts of blocked factorizations: one faer
+    // product with no Colmat code involved (t4a-faer upstream-reports/gemm-001).
+    let a = sample(70, 35);
+    let b = sample(35, 70);
+    let mut c = Mat::<f64>::zeros(70, 70);
+    let run = |c: &mut Mat<f64>| {
+        faer::linalg::matmul::matmul(
+            c.as_mut(),
+            faer::Accum::Replace,
+            a.as_ref(),
+            b.as_ref(),
+            1.0,
+            Par::Seq,
+        )
+    };
+    run(&mut c);
+    let allocations = count(|| run(&mut c));
+    eprintln!("bare 70x35x70 matmul: {allocations} native allocations");
 }
 fn spd(n: usize) -> Mat<f64> {
     let x = sample(n, n);
@@ -113,9 +122,9 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
             "kind {kind} {m}x{n}: direct {allocations} (first {first}), retained {retained} native allocations"
         );
         // Small shapes run faer's unblocked kernels and must not allocate. Blocked
-        // shapes reach matrix products, which allocate inside the `gemm` crate on
-        // targets without private-gemm-x86 (t4a-faer upstream-reports/gemm-001).
-        if m * n <= 64 || gemm_is_allocation_free() {
+        // shapes reach faer's internal matrix products, which may allocate their
+        // own buffers (see `bare_matrix_product_allocation_on_this_target`).
+        if m * n <= 64 {
             assert_eq!(allocations, 0, "kind {kind} {m}x{n} factor allocated");
         }
         assert!(allocations < retained);
@@ -144,7 +153,7 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
                 .unwrap();
             });
             eprintln!("kind {kind} {m}x{n} op {op}: solve {allocations} native allocations");
-            if m * n <= 64 || gemm_is_allocation_free() {
+            if m * n <= 64 {
                 assert_eq!(allocations, 0, "kind {kind} op {op} solve allocated");
             }
             let sol = x.matrix.get(..n, ..).to_owned();

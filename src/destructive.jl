@@ -21,9 +21,9 @@ With `scratch=work::FaerScratch` (sized by `scratch_requirements(lu!, A)`,
 unpivoted QR and Cholesky instead run faer's `lu_in_place`, `qr_in_place` or
 `cholesky_in_place` directly on A's native storage and return a
 [`FaerInPlaceFactorization`](@ref) that aliases A (`F.factors === A`), as
-Julia's `lu!` does. The factorization itself makes no native allocation beyond
-faer's internal matrix products; only the LU permutation and QR coefficient
-buffers of F are allocated (in Julia). Shape, scalar, scratch, team and
+Julia's `lu!` does. Colmat itself allocates no native memory there (only faer's
+internal matrix products of blocked shapes may); the LU permutation and QR
+coefficient buffers of F are allocated in Julia. Shape, scalar, scratch, team and
 finiteness checks precede any write, but after a numerical failure (singular
 `check=true` LU, non-positive-definite Cholesky) A holds partially factored
 data, as with LAPACK. Column-pivoted `qr!` has no direct path.

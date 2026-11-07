@@ -220,9 +220,11 @@ the least-squares solution into `B[1:n, :]`. `\`, the factor properties,
 `Matrix(F)`, `inv`, and `det`/`logabsdet` (LU and Cholesky) are also available.
 
 With caller scratch, Colmat allocates no native memory for the factorization
-or the solve. On x86_64 without AVX2/FMA and on other architectures, the
-products inside faer's blocked kernels still allocate inside the `gemm` crate
-(t4a-faer `upstream-reports/gemm-001`).
+or the solve. Small shapes and all solves make no native allocation at all.
+Blocked shapes still allocate inside faer's matrix products. On aarch64 with
+`Par::Seq`, a 70×70 LU made 9 such allocations, against 14 for the default
+path, and a lone faer product also allocates. See t4a-faer
+`upstream-reports/gemm-001`. Allocations under a team were not measured.
 
 The direct factor does not support `rdiv!`, operator or preconditioner use,
 pseudoinverse, mixed-scalar promotion of factors, rectangular LU or wide-QR
