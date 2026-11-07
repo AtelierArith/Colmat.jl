@@ -113,7 +113,7 @@ end
 const _SymbolicOrderingInput=Union{FaerSparsity,FaerSparseMatrix,FaerBorrowedSparseMatrix}
 _ordering_pattern(a::FaerBorrowedSparseMatrix) = FaerSparsity(a)
 """
-    scratch_requirements(FaerSparseSymbolic, A; kind=:lu, uplo=:L, ordering=:default, algorithm=:auto, dense=10.0, dense_row=0.5, dense_col=0.5, aggressive=true, supernodal_threshold=nothing, relax=nothing)
+    scratch_requirements(FaerSparseSymbolic, A; kind=:lu, uplo=:L, ordering=:default, algorithm=:auto, dense=10.0, dense_row=0.5, dense_col=0.5, aggressive=true, supernodal_threshold=nothing, relax=nothing, blocking_threshold=nothing)
 
 Return `(bytes, alignment)` for the fill-reducing ordering workspace used inside
 `FaerSparseSymbolic(A; scratch=s, kwargs...)`, with the same keywords. A is a
@@ -124,7 +124,9 @@ symbolic analysis) in the caller buffer, plus exact factor column counts for
 `algorithm=:auto` so the simplicial/supernodal choice matches the no-scratch
 path. That extra column-count pass makes `:auto` with scratch slower (about
 15-30% in measured cases); an explicit `:simplicial`/`:supernodal` skips it. Wide QR default COLAMD and explicit simplicial LU/QR `ordering=:colamd`
-use the COLAMD kernel requirement. Identity/custom orderings and square/tall
+use the COLAMD kernel requirement. Square/tall explicit simplicial QR adds faer's
+public symbolic kernels (etree, postorder, column counts, transposed pattern),
+sharing the buffer with COLAMD. Other identity/custom orderings and square/tall
 auto/supernodal LU/QR return zero bytes: the latter's COLAMD runs inside faer's
 allocating symbolic API, which accepts no caller stack. The kernels are
 sequential. Pattern conversion to CSC, faer's post-ordering symbolic buffer,

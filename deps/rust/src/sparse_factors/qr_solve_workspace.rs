@@ -923,6 +923,7 @@ mod borrowed_tests {
                 analysis: Analysis::Qr(symbolic),
                 pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                 lower: true,
+                qr_blocking: None,
             }),
         };
         let matrix = SparseOwner {

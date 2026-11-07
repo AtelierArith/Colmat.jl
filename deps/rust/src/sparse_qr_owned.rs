@@ -8,6 +8,18 @@ use faer::traits::{math_utils::zero, ComplexField};
 use faer::{Conj, Mat, MatRef, Par};
 use std::sync::Arc;
 
+/// Dense QR parameters for sparse numeric QR, with an optional
+/// `blocking_threshold` override.
+pub(crate) fn qr_params<T: ComplexField>(
+    blocking: Option<usize>,
+) -> faer::Spec<faer::linalg::qr::no_pivoting::factor::QrParams, T> {
+    use faer::linalg::qr::no_pivoting::factor::QrParams;
+    let mut p = <QrParams as faer::Auto<T>>::auto();
+    if let Some(b) = blocking {
+        p.blocking_threshold = b;
+    }
+    p.into()
+}
 #[derive(Clone)]
 pub(crate) struct Factors<T> {
     symbolic: Arc<SymbolicQr<usize>>,
@@ -50,9 +62,35 @@ impl<T: ComplexField> Factors<T> {
         stack: &mut MemStack,
         par: Par<'_>,
     ) -> Result<Self, String> {
+        Self::new_tuned(symbolic, a, stack, par, None)
+    }
+    /// Numeric scratch for `new_tuned` with the same `blocking` override.
+    pub(crate) fn numeric_scratch(
+        symbolic: &SymbolicQr<usize>,
+        par: faer::ParShape,
+        blocking: Option<usize>,
+    ) -> faer::dyn_stack::StackReq {
+        symbolic.factorize_numeric_qr_scratch::<T>(par, qr_params::<T>(blocking))
+    }
+    /// `blocking` overrides the dense `QrParams.blocking_threshold` used on
+    /// supernodal fronts (`None` keeps faer's default 48²).
+    pub(crate) fn new_tuned(
+        symbolic: Arc<SymbolicQr<usize>>,
+        a: SparseColMatRef<'_, usize, T>,
+        stack: &mut MemStack,
+        par: Par<'_>,
+        blocking: Option<usize>,
+    ) -> Result<Self, String> {
         let mut indices = vec![0; symbolic.len_idx()];
         let mut values = vec![zero::<T>(); symbolic.len_val()];
-        symbolic.factorize_numeric_qr(&mut indices, &mut values, a, par, stack, Default::default());
+        symbolic.factorize_numeric_qr(
+            &mut indices,
+            &mut values,
+            a,
+            par,
+            stack,
+            qr_params::<T>(blocking),
+        );
         Ok(Self {
             symbolic,
             indices,
@@ -309,13 +347,17 @@ impl<T: ComplexField> Factors<T> {
             return Err("full Q adjoint RHS row mismatch".into());
         }
         let mut out = Mat::zeros(b.nrows(), b.ncols());
-        let mut memory = MemBuffer::try_new(Self::full_q_adjoint_scratch(&self.symbolic, b.ncols()))
-            .map_err(|e| format!("{e:?}"))?;
+        let mut memory =
+            MemBuffer::try_new(Self::full_q_adjoint_scratch(&self.symbolic, b.ncols()))
+                .map_err(|e| format!("{e:?}"))?;
         self.apply_full_q_adjoint_in(out.as_mut(), b, Par::Seq, MemStack::new(&mut memory));
         Ok(out)
     }
     #[cfg(test)]
-    pub(crate) fn apply_full_q_adjoint_reference(&self, b: MatRef<'_, T>) -> Result<Mat<T>, String> {
+    pub(crate) fn apply_full_q_adjoint_reference(
+        &self,
+        b: MatRef<'_, T>,
+    ) -> Result<Mat<T>, String> {
         use faer::traits::math_utils::{add, conj, copy, mul, mul_real, real, recip, sub, zero};
         let (m, n) = (self.symbolic.nrows(), self.symbolic.ncols());
         if b.nrows() != m {

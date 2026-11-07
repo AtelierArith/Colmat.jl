@@ -141,7 +141,13 @@ end
                 dense_col = 0.6,
                 aggressive,
             )
-            @test req==(internal ? (bytes = 0, alignment = 1) : colamd_req)
+            if kind===:qr && algorithm===:simplicial && m>=n
+                # COLAMD, then the simplicial symbolic kernels, share the buffer.
+                @test req.bytes>=colamd_req.bytes && req.bytes>0
+                @test req.alignment>=colamd_req.alignment
+            else
+                @test req==(internal ? (bytes = 0, alignment = 1) : colamd_req)
+            end
             s=FaerScratch(FaerSparseSymbolic, input; opts...)
             plan=FaerSparseSymbolic(input; scratch = s, opts...)
             ref=FaerSparseSymbolic(input; opts...)
@@ -166,6 +172,31 @@ end
         end
         close(source)
         close(pattern)
+    end
+end
+
+@testset "Explicit simplicial QR symbolic analysis in caller scratch" begin
+    rng=MersenneTwister(1160)
+    for (m, n) in ((40, 20), (25, 25), (1, 1)), format in (:csc, :csr)
+        a=sprand(rng, m, n, 0.2)+sparse(1:n, 1:n, 2.0, m, n)
+        source=FaerSparseMatrix(a; format)
+        b=collect(1.0:m)
+        for ordering in (:default, :identity, reverse(collect(1:n)), :colamd)
+            opts=(; kind = :qr, algorithm = :simplicial, ordering)
+            req=scratch_requirements(FaerSparseSymbolic, source; opts...)
+            @test req.bytes>0
+            s=FaerScratch(FaerSparseSymbolic, source; opts...)
+            plan=FaerSparseSymbolic(source; scratch = s, opts...)
+            ref=FaerSparseSymbolic(source; opts...)
+            F, G=factorize(plan, source), factorize(ref, source)
+            @test Vector(F.p)==Vector(G.p)
+            @test Matrix(F.R)==Matrix(G.R)
+            @test F\b==G\b
+            small=FaerScratch(req.bytes-1; alignment = req.alignment)
+            @test_throws ArgumentError FaerSparseSymbolic(source; scratch = small, opts...)
+            foreach(close, (small, s, plan, ref, F, G))
+        end
+        close(source)
     end
 end
 

@@ -62,3 +62,8 @@ pub(crate) fn largest(f: impl FnOnce()) -> usize {
     count(f);
     LARGEST.with(Cell::get)
 }
+/// `(count, largest bytes)` of the allocations made by `f` on the calling thread.
+pub(crate) fn measure(f: impl FnOnce()) -> (usize, usize) {
+    let n = count(f);
+    (n, LARGEST.with(Cell::get))
+}

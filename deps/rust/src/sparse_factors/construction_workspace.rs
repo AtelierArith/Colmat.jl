@@ -15,7 +15,7 @@ use rustcall_julia_macros::julia;
 
 fn requirement<T: ComplexField>(plan: &Plan, par: &Par<'_>) -> Result<StackReq, String> {
     Ok(match &plan.analysis {
-        Analysis::Qr(sym) => qr_construction_req::<T>(sym, par),
+        Analysis::Qr(sym) => qr_construction_req::<T>(sym, plan.qr_blocking, par),
         Analysis::SimplicialQr(plan) => crate::sparse_qr_components::Factors::<T>::scratch(plan)
             .or(rank_hint::scratch(plan.symbolic.ncols())),
         Analysis::WideQr(plan) => crate::sparse_qr_wide::Factors::<T>::scratch(plan, par),
@@ -169,6 +169,7 @@ mod tests {
                         analysis: Analysis::Qr(symbolic.clone()),
                         pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                         lower: true,
+                        qr_blocking: None,
                     }),
                 };
                 let mut out = [0usize; 2];
@@ -176,7 +177,7 @@ mod tests {
                     .unwrap();
                 let f = team
                     .execute(|par| {
-                        let req = qr_construction_req::<T>(&symbolic, &par);
+                        let req = qr_construction_req::<T>(&symbolic, None, &par);
                         assert_eq!(out, [req.size_bytes(), req.align_bytes()]);
                         let mut mem = MemBuffer::new(req);
                         crate::sparse_qr_owned::Factors::new_in_parallel(
@@ -244,6 +245,7 @@ mod tests {
                         analysis: Analysis::SimplicialQr(symbolic.clone()),
                         pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                         lower: true,
+                        qr_blocking: None,
                     }),
                 };
                 let mut out = [0usize; 2];
@@ -344,6 +346,7 @@ mod tests {
                                 analysis: Analysis::Llt(symbolic.clone()),
                                 pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                                 lower,
+                                qr_blocking: None,
                             }),
                         };
                         let mut out = [0usize; 2];
@@ -484,6 +487,7 @@ mod tests {
                 analysis: Analysis::Llt(symbolic),
                 pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                 lower: true,
+                qr_blocking: None,
             }),
         };
         let good = SparseOwner {
@@ -613,6 +617,7 @@ mod tests {
                             analysis: Analysis::Lu(symbolic.clone()),
                             pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                             lower: true,
+                            qr_blocking: None,
                         }),
                     };
                     let mut out = [0usize; 2];
@@ -660,6 +665,7 @@ mod tests {
                         analysis: Analysis::SimplicialLu(permutation),
                         pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                         lower: true,
+                        qr_blocking: None,
                     }),
                 };
                 let mut out = [0usize; 2];
@@ -736,6 +742,7 @@ mod tests {
                 analysis: Analysis::Lu(symbolic),
                 pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                 lower: true,
+                qr_blocking: None,
             }),
         };
         let good = SparseOwner {
