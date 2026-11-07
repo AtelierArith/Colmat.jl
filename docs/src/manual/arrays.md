@@ -124,6 +124,17 @@ close(native_full)
 `all(isfinite,·)` / `any(isnan,·)`、`copyto!` の入力が借用のまま動作し、
 `view` も借用を保ちます。添字・`strides`・`pointer` は親へ転送します。
 
+借用配列と、要素型が同じで要素の重複しない Julia strided 配列は native の
+書き込み先にもなります。`mul!(C, A, B[, α, β])`（A/B の少なくとも一方が native か
+借用、転置・随伴を含む）、native 入力からの `copyto!`、単一 Householder 反射の
+`lmul!` / `rmul!` は、呼び出し中だけ `pointer`/`strides` から faer の `MatMut` を
+作って結果を直接書き込み、一時結果や Julia への書き戻しを作りません。入力と
+書き込み先のアドレス範囲が重なる場合（`mul!(C, C', C)`、同じ配列のビューなど）は
+その入力だけを Rust 側で snapshot してから書き込みます。`β == 0` では C を読まず、
+`α == 0` では A/B を読みません。要素型が異なる場合は入力を昇格し、C が昇格型を
+表せない場合は結果を全て計算・変換してから書き込みます（`InexactError` なら C は
+変わりません）。stride 0 のビューなど要素が重複する書き込み先は Julia の経路です。
+
 ```julia
 J = rand(4, 3)
 B = faerview(J)                       # コピーしない
@@ -131,6 +142,9 @@ P = B' * FaerMatrix(J)                # Julia のメモリを直接読む native
 J[1, 1] = 0                           # 以後の呼び出しに反映
 @assert copy(B)[1, 1] == 0
 copyto!(view(FaerMatrix{Float64}(undef, 4, 3), :, :), view(J, :, :))
+C = zeros(3, 3)
+mul!(C, B', FaerMatrix(J), 2.0, 0.0)  # C に直接書き込む
+copyto!(J, FaerMatrix(ones(4, 3)))    # Julia のメモリへ1回で代入
 close(P)
 ```
 

@@ -262,10 +262,13 @@ function _operator_copy_result!(dest, result)
     T=eltype(dest)
     T<:_NativeScalar ||
         throw(ArgumentError("operator destinations require native scalar types"))
-    # Native results are assigned natively; only Julia destinations stage.
-    if dest isa Union{_BorrowMatrix,_BorrowVector} &&
-       result isa Union{_BorrowMatrix,_BorrowVector} &&
-       eltype(result)===T
+    # Native results are assigned natively, also straight into Julia memory.
+    if result isa Union{_BorrowMatrix,_BorrowVector} &&
+       eltype(result)===T &&
+       (
+           dest isa Union{_BorrowMatrix,_BorrowVector} ||
+           dest isa Union{FaerBorrowedArray,StridedArray} && size(result)==size(dest)
+       )
         return copyto!(dest, result)
     end
     buffer=ndims(dest)==1 ? Vector{T}(result) : Matrix{T}(result)

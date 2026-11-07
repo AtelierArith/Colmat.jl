@@ -7,6 +7,9 @@ use faer::traits::{math_utils::*, ComplexField};
 use faer::{Accum, Col, Conj, Mat, MatMut, MatRef, Par};
 use rustcall_julia_macros::julia;
 
+mod destination;
+pub(crate) use destination::{destination, raw_mut, view_mut, BorrowedMut};
+
 #[derive(Clone, Copy)]
 pub(crate) struct Spec {
     pub(crate) kind: i32,
@@ -31,7 +34,6 @@ struct RawLayout {
     cs: isize,
     tag: i32,
 }
-// Kind 3 is the contiguous Julia diagonal of diagonal_products.rs (nine words).
 const RAW_KIND: i32 = 4;
 impl Spec {
     // SAFETY: the Julia layer preserves a nine-word descriptor for this call,

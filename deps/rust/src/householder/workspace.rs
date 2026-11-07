@@ -1,11 +1,16 @@
 //! External native scratch and scoped teams for compact reflector application.
 use super::{apply_in, requirement, OwnedHouseholder, Reflection, ReflectionData};
+use crate::views::{destination, BorrowedMut, Spec};
 use crate::{
     guarded,
     typed::{MatrixData, TypedMatrix},
     OwnedMatrix,
 };
-use crate::{teams::OwnedTeam, workspace::OwnedScratch};
+use crate::{
+    teams::{with_team, OwnedTeam},
+    workspace::OwnedScratch,
+};
+use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{MatMut, Par};
 use rustcall_julia_macros::julia;
@@ -236,6 +241,52 @@ impl TypedMatrix {
     }
 }
 
+/// Apply the reflection in place to any view destination (native owner,
+/// native view or borrowed Julia strided memory), with optional caller
+/// scratch and team. No input/output staging: the destination is the
+/// faer `MatMut` itself.
+///
+/// # Safety
+/// Julia roots the destination owner (or Julia array) and descriptor.
+#[julia]
+pub fn householder_apply_into(
+    dest: *mut u8,
+    dd: *const isize,
+    source: &OwnedHouseholder,
+    right: bool,
+    work: Option<&mut OwnedScratch>,
+    team: Option<&OwnedTeam>,
+) -> Result<(), String> {
+    fn go<T: ComplexField>(
+        s: &Reflection<T>,
+        a: MatMut<'_, T>,
+        right: bool,
+        work: Option<&mut OwnedScratch>,
+        par: Par,
+    ) -> Result<(), String> {
+        match work {
+            Some(work) => run(s, a, work, right, false, false, par),
+            None => {
+                let extent = if right { a.nrows() } else { a.ncols() };
+                let req = requirement(s, extent, right, false);
+                let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+                apply_in(s, a, right, par, MemStack::new(&mut mem))
+            }
+        }
+    }
+    guarded(|| {
+        let spec = unsafe { Spec::read(dd)? };
+        with_team(team, |par| {
+            match (source.data()?, unsafe { destination(dest, spec)? }) {
+                (ReflectionData::F32(s), BorrowedMut::F32(a)) => go(s, a, right, work, par),
+                (ReflectionData::F64(s), BorrowedMut::F64(a)) => go(s, a, right, work, par),
+                (ReflectionData::C32(s), BorrowedMut::C32(a)) => go(s, a, right, work, par),
+                (ReflectionData::C64(s), BorrowedMut::C64(a)) => go(s, a, right, work, par),
+                _ => Err("Householder scalar types must match".into()),
+            }
+        })
+    })
+}
 #[cfg(test)]
 mod tests {
     use super::super::make;

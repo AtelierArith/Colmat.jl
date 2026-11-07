@@ -11,7 +11,7 @@
 use crate::collections::{VectorData, VectorOwner};
 use crate::sparse::{SparseData, SparseOwner, Storage};
 use crate::typed::{MatrixData, TypedMatrix};
-use crate::views::Spec;
+use crate::views::{raw_mut, view_mut, Spec};
 use crate::workspace::OwnedScratch;
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::{MemStack, StackReq};
@@ -287,47 +287,6 @@ fn solve_any<P: Native>(
     })
 }
 
-/// Bounds-checked mutable borrow of a view descriptor over `base`.
-pub(crate) fn view_mut<'a, T>(base: MatMut<'a, T>, s: Spec) -> Result<MatMut<'a, T>, String> {
-    if s.conjugate {
-        return Err("triangular solve destination cannot be conjugated".into());
-    }
-    let axis = |first: isize, step: isize, len: usize, cap: usize| -> Result<(), String> {
-        if len == 0 {
-            return Ok(());
-        }
-        let last = isize::try_from(len - 1)
-            .ok()
-            .and_then(|l| step.checked_mul(l))
-            .and_then(|x| first.checked_add(x))
-            .ok_or("view index overflow")?;
-        if first < 0 || last < 0 || first as usize >= cap || last as usize >= cap {
-            return Err("view is out of bounds".into());
-        }
-        Ok(())
-    };
-    axis(s.r, s.rs, s.m, base.nrows())?;
-    axis(s.c, s.cs, s.n, base.ncols())?;
-    if (s.rs == 0 && s.m > 1) || (s.cs == 0 && s.n > 1) {
-        return Err("triangular solve destination must not repeat elements".into());
-    }
-    let (rs, cs) = (base.row_stride(), base.col_stride());
-    let offset = if s.m == 0 || s.n == 0 {
-        0
-    } else {
-        rs.checked_mul(s.r)
-            .and_then(|x| cs.checked_mul(s.c).and_then(|y| x.checked_add(y)))
-            .ok_or("view offset overflow")?
-    };
-    let srs = rs.checked_mul(s.rs).ok_or("view stride overflow")?;
-    let scs = cs.checked_mul(s.cs).ok_or("view stride overflow")?;
-    // SAFETY: every selected index is inside the owner and the map is
-    // injective, so this is a genuine exclusive borrow of `base`.
-    let v =
-        unsafe { MatMut::from_raw_parts_mut(base.as_ptr_mut().offset(offset), s.m, s.n, srs, scs) };
-    Ok(if s.transpose { v.transpose_mut() } else { v })
-}
-
 #[julia]
 impl SparseOwner {
     /// Write `(bytes, alignment)` of the scratch a solve with destination
@@ -386,31 +345,27 @@ impl SparseOwner {
         scratch: &mut OwnedScratch,
     ) -> Result<usize, String> {
         guarded(|| {
-            unsafe fn raw<'a, T>(
-                p: *mut u8,
-                m: usize,
-                n: usize,
-                rs: isize,
-                cs: isize,
-            ) -> MatMut<'a, T> {
-                let ptr = if m == 0 || n == 0 {
-                    std::ptr::NonNull::<T>::dangling().as_ptr()
-                } else {
-                    p.cast::<T>()
-                };
-                MatMut::from_raw_parts_mut(ptr, m, n, rs, cs)
-            }
             // SAFETY: Julia roots the injective strided array for this call.
             unsafe {
                 match tag {
-                    0 => solve_any::<f32>(self, raw(p, m, n, rs, cs), lower, unit, op, scratch),
-                    1 => solve_any::<f64>(self, raw(p, m, n, rs, cs), lower, unit, op, scratch),
-                    2 => {
-                        solve_any::<faer::c32>(self, raw(p, m, n, rs, cs), lower, unit, op, scratch)
-                    }
-                    3 => {
-                        solve_any::<faer::c64>(self, raw(p, m, n, rs, cs), lower, unit, op, scratch)
-                    }
+                    0 => solve_any::<f32>(self, raw_mut(p, m, n, rs, cs), lower, unit, op, scratch),
+                    1 => solve_any::<f64>(self, raw_mut(p, m, n, rs, cs), lower, unit, op, scratch),
+                    2 => solve_any::<faer::c32>(
+                        self,
+                        raw_mut(p, m, n, rs, cs),
+                        lower,
+                        unit,
+                        op,
+                        scratch,
+                    ),
+                    3 => solve_any::<faer::c64>(
+                        self,
+                        raw_mut(p, m, n, rs, cs),
+                        lower,
+                        unit,
+                        op,
+                        scratch,
+                    ),
                     _ => Err("invalid sparse triangular scalar".into()),
                 }
             }

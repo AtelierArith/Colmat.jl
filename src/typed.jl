@@ -206,31 +206,6 @@ Base.:*(a::_AnyFaerTransposed, b::_AnyFaerTransposed) = copy(a)*copy(b)
 function Base.:*(a::FaerMatrix{T}, b::AbstractVector{S}) where {T<:_ExtraScalar,S<:Number}
     return vec(Matrix(a*FaerMatrix(reshape(b, :, 1))))
 end
-function LinearAlgebra.mul!(
-    c::FaerMatrix,
-    a::FaerMatrix,
-    b::FaerMatrix,
-    alpha::Number,
-    beta::Number,
-)
-    size(a, 2)==size(b, 1) || throw(DimensionMismatch("inner dimensions must match"))
-    size(c)==(size(a, 1), size(b, 2)) ||
-        throw(DimensionMismatch("output dimensions must match"))
-    lock(_matrix_lock) do
-        _handle(a)
-        _handle(b)
-        _handle(c)
-        result=if iszero(alpha)
-            iszero(beta) ? zero(c) : beta*c
-        else
-            product=alpha*(a*b)
-            iszero(beta) ? product : product+beta*c
-        end
-        return copyto!(c, result)
-    end
-end
-LinearAlgebra.mul!(c::FaerMatrix, a::FaerMatrix, b::FaerMatrix) =
-    LinearAlgebra.mul!(c, a, b, 1, 0)
 function LinearAlgebra.svd(
     a::FaerMatrix{T};
     full::Bool = false,

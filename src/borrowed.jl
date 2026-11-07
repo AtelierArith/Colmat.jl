@@ -44,6 +44,12 @@ it as a faer `MatRef`: `copy`/`FaerMatrix`/`FaerVector`, `+`/`-`/`*` (including
 transposes and mixed native operands), matrix-vector `mul!` into a
 `FaerVector`, `mean`/`var`, and the source of `copyto!` into native owners and
 views. Views of it remain borrowed.
+
+It is also a native destination: dense `mul!(B, X, Y[, alpha, beta])`,
+`copyto!(B, native)` and single-reflection Householder `lmul!`/`rmul!` write
+through a faer `MatMut` built from the parent's pointer and strides for the
+call (plain injective Julia strided arrays of the same scalar take the same
+path). Inputs whose memory overlaps the destination are snapshot natively.
 """
 struct FaerBorrowedArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
     parent::A
@@ -100,7 +106,7 @@ function Base.view(b::FaerBorrowedArray, I::Vararg{Any})
     return _faerview_valid(v) ? FaerBorrowedArray(v) : v
 end
 
-# Descriptor kind 4 (kind 3 is the contiguous diagonal of structured_products.jl):
+# Descriptor kind 4 (kind 3 is unused; Julia diagonals also use kind 4):
 # the nine view words select the whole borrowed array, then rows, cols, row
 # stride, col stride (elements) and the scalar tag follow.
 # `_native_argument` keeps `b` itself in `_native_call_plain`'s preserved tuple,

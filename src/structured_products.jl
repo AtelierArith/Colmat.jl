@@ -22,16 +22,15 @@ _product_parent(a::_ProductTriangular) = parent(a)
 # Diagonal scaling borrows the stored diagonal and the dense or native
 # triangular operand in Rust; neither is expanded into a dense snapshot.
 const _DiagonalScaled=Union{_ProductDense,_NativeProductTriangular}
-const _julia_diagonal_kind=3
 _diagonal_scaling(a::_ProductDiagonal, b::_DiagonalScaled, ::Type{P}) where {P} =
     eltype(_product_parent(b))===P && promote_type(eltype(a), P)===P
 _diagonal_scaling(a::_DiagonalScaled, b::_ProductDiagonal, ::Type{P}) where {P} =
     _diagonal_scaling(b, a, P)
 _diagonal_scaling(a, b, ::Type) = false
-# A contiguous Julia buffer crosses for one call; it is not validated, so
-# LinearAlgebra.Diagonal operands may hold non-finite values as before.
-_diagonal_buffer(v::Vector) =
-    (Ptr{UInt8}(pointer(v)), Int[_julia_diagonal_kind, 0, 1, length(v), 0, 1, 1, 0, 0], v)
+# A Julia buffer crosses as a borrowed array (owner kind 4) for one call; it
+# is not validated, so LinearAlgebra.Diagonal operands may hold non-finite
+# values as before.
+_diagonal_buffer(v::Vector) = (_view_source(FaerBorrowedArray(v))..., v)
 function _diagonal_source(d::FaerDiagonal, ::Type{P}) where {P}
     _handle(d)
     eltype(d)===P || return _diagonal_buffer(Vector{P}(Vector(d)))
