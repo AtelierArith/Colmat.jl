@@ -42,6 +42,29 @@ close(A)
 @assert F \ [1.0, 2.0] ≈ a \ [1.0, 2.0]
 ```
 
+## Determinant and trace
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1 2; 1 3 0; 2 0 5])
+@assert det(A) ≈ 43
+@assert det(view(A, 3:-1:1, :)) ≈ -43        # borrowed view, no copy
+team = FaerTeam(2)
+@assert det(A'; team) ≈ 43
+close(team)
+@assert det(LowerTriangular(A)) == 60       # product of the stored diagonal
+@assert logabsdet(FaerDiagonal([2.0, -3.0])) == (log(6.0), -1.0)
+@assert tr(view(A, 1:2, 1:2)) == 7
+```
+
+`det` of a native matrix, range view, `transpose` or `adjoint` calls faer's
+`determinant` on the borrowed view; `team=` runs it on a caller-owned
+`FaerTeam`. Triangular wrappers and `FaerDiagonal` use only the stored
+diagonal for `det`, `tr` and `logabsdet` (a zero entry gives `(-Inf, 0)`).
+Non-square operands throw `DimensionMismatch`, empty operands give a
+determinant of one, and a real negative determinant makes `logdet` throw
+`DomainError`.
+
 ## Structured products
 
 ```julia

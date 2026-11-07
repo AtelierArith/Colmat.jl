@@ -299,10 +299,6 @@ function Base.sum(a::FaerMatrix{T}; dims = :, kw...) where {T<:_ExtraScalar}
         return _typed_result(T, RustCrate.axis_sum_from, (size(a, 1), 1), a, Int32(2))
     return _native_sum(a, dims)
 end
-function LinearAlgebra.det(a::FaerMatrix{T}) where {T<:_ExtraScalar}
-    LinearAlgebra.checksquare(a)
-    return _typed_scalar(a, 1)
-end
 function LinearAlgebra.tr(a::FaerMatrix{T}) where {T<:_ExtraScalar}
     LinearAlgebra.checksquare(a)
     return _typed_scalar(a, 2)
