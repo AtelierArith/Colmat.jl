@@ -240,17 +240,9 @@ pub fn sequence_mul_into(
         let req = requirement(s, if right { rows } else { cols }, right, transpose);
         let (alpha, beta, alpha_zero, beta_zero) = coefficients;
         scratch_or_temporary(work, req, |work| {
-            action_into::<T>(
-                dest,
-                ds,
-                src,
-                ss,
-                alpha,
-                beta,
-                alpha_zero,
-                beta_zero,
-                |c| apply_in(s, c, right, transpose, conjugate, par, work.stack(req)?),
-            )
+            action_into::<T>(dest, ds, src, ss, alpha, beta, alpha_zero, beta_zero, |c| {
+                apply_in(s, c, right, transpose, conjugate, par, work.stack(req)?)
+            })
         })
     }
     guarded(|| unsafe {

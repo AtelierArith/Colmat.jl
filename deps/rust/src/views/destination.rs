@@ -16,8 +16,8 @@ use crate::collections::{VectorData, VectorOwner};
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, OwnedMatrix};
-use faer::traits::{math_utils::*, ComplexField};
 use faer::prelude::ReborrowMut;
+use faer::traits::{math_utils::*, ComplexField};
 use faer::{Accum, Conj, Mat, MatMut, MatRef};
 use rustcall_julia_macros::julia;
 

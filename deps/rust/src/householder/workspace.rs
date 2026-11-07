@@ -1,8 +1,6 @@
 //! External native scratch and scoped teams for compact reflector application.
 use super::{apply_in, requirement, OwnedHouseholder, Reflection, ReflectionData};
-use crate::views::{
-    action_into, source as source_view, spec_shape, Arm, Borrowed, Spec,
-};
+use crate::views::{action_into, source as source_view, spec_shape, Arm, Borrowed, Spec};
 use crate::workspace::scratch_or_temporary;
 use crate::{
     guarded,
@@ -224,17 +222,9 @@ pub fn householder_mul_into(
         let req = requirement(s, if right { rows } else { cols }, right, false);
         let (alpha, beta, alpha_zero, beta_zero) = coefficients;
         scratch_or_temporary(work, req, |work| {
-            action_into::<T>(
-                dest,
-                ds,
-                src,
-                ss,
-                alpha,
-                beta,
-                alpha_zero,
-                beta_zero,
-                |c| apply_in(s, c, right, par, work.stack(req)?),
-            )
+            action_into::<T>(dest, ds, src, ss, alpha, beta, alpha_zero, beta_zero, |c| {
+                apply_in(s, c, right, par, work.stack(req)?)
+            })
         })
     }
     guarded(|| unsafe {
@@ -373,7 +363,9 @@ mod tests {
     }
     // Column-major Julia buffer descriptor (owner kind 4), f64.
     fn raw(m: usize, n: usize, ld: isize) -> Vec<isize> {
-        vec![4, 0, 1, m as isize, 0, 1, n as isize, 0, 0, m as isize, n as isize, 1, ld, 1]
+        vec![
+            4, 0, 1, m as isize, 0, 1, n as isize, 0, 0, m as isize, n as isize, 1, ld, 1,
+        ]
     }
     #[test]
     fn mul_into_writes_julia_memory_with_caller_scratch_without_allocating() {

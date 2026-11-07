@@ -3,8 +3,7 @@ use super::construction::{block_size, params};
 use super::workspace::buffer;
 use crate::teams::with_team;
 use crate::views::{
-    destination, destination_span, operand, source as source_view, spec_shape, Arm, Borrowed,
-    Spec,
+    destination, destination_span, operand, source as source_view, spec_shape, Arm, Borrowed, Spec,
 };
 use crate::{guarded, householder_sequence, teams::OwnedTeam, workspace::OwnedScratch};
 use faer::dyn_stack::{MemStack, StackReq};
@@ -599,8 +598,16 @@ unsafe fn mul_into<T: Arm>(
     let dim = s.dim(u);
     let idim = if right == t { cols } else { dim };
     let odim = if right == t { dim } else { cols };
-    let (ir, ic) = if right { (extent, idim) } else { (idim, extent) };
-    let (or, oc) = if right { (extent, odim) } else { (odim, extent) };
+    let (ir, ic) = if right {
+        (extent, idim)
+    } else {
+        (idim, extent)
+    };
+    let (or, oc) = if right {
+        (extent, odim)
+    } else {
+        (odim, extent)
+    };
     if spec_shape(ss) != (ir, ic) || spec_shape(ds) != (or, oc) {
         return Err("compact bidiagonal action dimensions must match".into());
     }
@@ -613,9 +620,14 @@ unsafe fn mul_into<T: Arm>(
     let (alpha, beta, alpha_zero, beta_zero) = coefficients;
     let alpha = copy(&*alpha.cast::<T>());
     let beta = copy(&*beta.cast::<T>());
-    let mut out = T::pick_mut(destination(dest, ds)?).ok_or("destination scalar types must match")?;
+    let mut out =
+        T::pick_mut(destination(dest, ds)?).ok_or("destination scalar types must match")?;
     let combine = |p: Option<&T>, y: &T| {
-        let scaled = if beta_zero { zero::<T>() } else { mul(&beta, y) };
+        let scaled = if beta_zero {
+            zero::<T>()
+        } else {
+            mul(&beta, y)
+        };
         match p {
             Some(p) if !alpha_zero => add(&mul(&alpha, p), &scaled),
             _ => scaled,
@@ -696,7 +708,9 @@ impl OwnedCompactBidiagonal {
     ) -> Result<(), String> {
         guarded(|| unsafe {
             let [m, n, b, cols, extent] = metadata else {
-                return Err("compact basis metadata must hold (m, n, blocksize, cols, extent)".into());
+                return Err(
+                    "compact basis metadata must hold (m, n, blocksize, cols, extent)".into(),
+                );
             };
             self.validate(*m, *n, *b, tag)?;
             let (ds, ss) = (Spec::read(dd)?, Spec::read(sd)?);

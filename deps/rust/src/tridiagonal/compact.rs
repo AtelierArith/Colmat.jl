@@ -623,17 +623,9 @@ pub fn compact_tridiagonal_mul_into(
         let req = s.requirement(if right { rows } else { cols }, right, transpose);
         let (alpha, beta, alpha_zero, beta_zero) = coefficients;
         scratch_or_temporary(work, req, |work| {
-            action_into::<T>(
-                dest,
-                ds,
-                src,
-                ss,
-                alpha,
-                beta,
-                alpha_zero,
-                beta_zero,
-                |c| s.apply(c, work, right, transpose, conjugated, par),
-            )
+            action_into::<T>(dest, ds, src, ss, alpha, beta, alpha_zero, beta_zero, |c| {
+                s.apply(c, work, right, transpose, conjugated, par)
+            })
         })
     }
     guarded(|| unsafe {

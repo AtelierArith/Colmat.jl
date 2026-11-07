@@ -2,17 +2,16 @@
 use super::{Data, Operator, OwnedLinearOperator};
 use crate::teams::with_team;
 use crate::typed::{MatrixData, TypedMatrix};
+use crate::views::{
+    destination, destination_span, operand, source as source_view, spec_shape, Arm, Borrowed, Spec,
+};
+use crate::workspace::scratch_or_temporary;
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::StackReq;
 use faer::matrix_free::LinOp;
-use faer::traits::ComplexField;
-use crate::views::{
-    destination, destination_span, operand, source as source_view, spec_shape, Arm, Borrowed,
-    Spec,
-};
-use crate::workspace::scratch_or_temporary;
 use faer::prelude::ReborrowMut;
 use faer::traits::math_utils;
+use faer::traits::ComplexField;
 use faer::{Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 
@@ -326,12 +325,14 @@ pub fn operator_mul_into(
         let (ds, ss) = (Spec::read(dd)?, Spec::read(sd)?);
         let k = (alpha, beta, alpha_zero, beta_zero);
         let t = transpose;
-        with_team(team, |par| match (operator.data()?, source_view(dest, ds)?) {
-            (Data::F32(a), Borrowed::F32(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
-            (Data::F64(a), Borrowed::F64(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
-            (Data::C32(a), Borrowed::C32(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
-            (Data::C64(a), Borrowed::C64(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
-            _ => Err("operator and destination scalar types must match".into()),
+        with_team(team, |par| {
+            match (operator.data()?, source_view(dest, ds)?) {
+                (Data::F32(a), Borrowed::F32(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
+                (Data::F64(a), Borrowed::F64(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
+                (Data::C32(a), Borrowed::C32(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
+                (Data::C64(a), Borrowed::C64(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
+                _ => Err("operator and destination scalar types must match".into()),
+            }
         })
     })
 }
@@ -345,15 +346,9 @@ mod tests {
         let op = OwnedLinearOperator {
             data: Some(Data::F64(Operator::new(Base::Dense(Mat::identity(2, 2))))),
         };
-        assert!(op
-            .operator_requirements(1, 2, 2, 0, &mut [], None)
-            .is_err());
-        assert!(op
-            .operator_requirements(1, 3, 2, 1, &mut [], None)
-            .is_err());
-        assert!(op
-            .operator_requirements(1, 2, 2, 1, &mut [], None)
-            .is_err());
+        assert!(op.operator_requirements(1, 2, 2, 0, &mut [], None).is_err());
+        assert!(op.operator_requirements(1, 3, 2, 1, &mut [], None).is_err());
+        assert!(op.operator_requirements(1, 2, 2, 1, &mut [], None).is_err());
         // Slices carry their alignment; a short output is rejected by length.
         assert!(op
             .operator_requirements(1, 2, 2, 1, &mut [0usize; 1], None)
