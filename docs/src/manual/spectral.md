@@ -38,6 +38,29 @@ SB = schur!(B)
 更新し、返す Schur 分解とストレージを共有します。並べ替えも成功後に更新する
 ため、失敗時は元の分解を保ちます。これらは内部の一時領域を割り当てます。
 
+### Tuning the multishift QR and QZ drivers
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([sin(i + j^2) for i in 1:80, j in 1:80])
+F = with_schur_tuning(; shift_count=8, deflation_window=10, blocking_threshold=20) do
+    schur(A)
+end
+@assert Matrix(F.Z) * Matrix(F.T) * Matrix(F.Z)' ≈ Matrix(A)
+close(A)
+```
+
+`with_schur_tuning(f; shift_count, deflation_window, blocking_threshold,
+nibble_threshold, shift_chase_cost)` applies faer's `SchurParams` and
+`GeneralizedSchurParams` controls to every Schur and QZ factorization, scratch
+query, `FaerScratch` and `reserve!` inside the scope, so query and execution
+agree. Zero keeps faer's default. Because faer takes the shift count,
+deflation window and shift-chase cost as `extern "C"` function pointers, the
+overrides are stored natively for the scope, which holds Colmat's native-call
+lock: other tasks wait, `f` must call Colmat on the current task, and the
+previous settings return even when `f` throws. The general EVD driver's
+internal Schur step keeps faer's defaults.
+
 ## 一般化 Schur／QZ
 
 一般化 Schur／QZ は行列対に適用します。

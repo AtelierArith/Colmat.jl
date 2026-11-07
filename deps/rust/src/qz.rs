@@ -207,7 +207,7 @@ macro_rules! real_qz {
                 }
                 StackReq::all_of(&[StackReq::new::<Self>(n); 3]).and(real_qz_scratch::<Self>(
                     n,
-                    faer::auto!(Self),
+                    crate::schur_tuning::qz_params::<Self>(),
                     par,
                 ))
             }
@@ -225,7 +225,7 @@ macro_rules! real_qz {
                 let (mut ar, stack) = stack.make_with::<Self>(n, |_| Self::NAN);
                 let (mut ai, stack) = stack.make_with::<Self>(n, |_| Self::NAN);
                 let (mut be, stack) = stack.make_with::<Self>(n, |_| Self::NAN);
-                let params: gevd::GeneralizedSchurParams = faer::auto!(Self);
+                let params: gevd::GeneralizedSchurParams = crate::schur_tuning::qz_params::<Self>();
                 gevd::qz_real::hessenberg_to_qz(
                     p.s.as_mut(),
                     p.t.as_mut(),
@@ -282,7 +282,11 @@ macro_rules! complex_qz {
                     return StackReq::EMPTY;
                 }
                 StackReq::all_of(&[StackReq::new::<Self>(n); 2]).and(
-                    gevd::qz_cplx::hessenberg_to_qz_scratch::<Self>(n, par, faer::auto!(Self)),
+                    gevd::qz_cplx::hessenberg_to_qz_scratch::<Self>(
+                        n,
+                        par,
+                        crate::schur_tuning::qz_params::<Self>(),
+                    ),
                 )
             }
             unsafe fn qz(
@@ -300,7 +304,7 @@ macro_rules! complex_qz {
                     .make_with::<Self>(n, |_| Self::new(<Self as ComplexField>::Real::NAN, 0.0));
                 let (mut b, stack) = stack
                     .make_with::<Self>(n, |_| Self::new(<Self as ComplexField>::Real::NAN, 0.0));
-                let params: gevd::GeneralizedSchurParams = faer::auto!(Self);
+                let params: gevd::GeneralizedSchurParams = crate::schur_tuning::qz_params::<Self>();
                 gevd::qz_cplx::hessenberg_to_qz(
                     p.s.as_mut(),
                     p.t.as_mut(),
