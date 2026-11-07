@@ -52,9 +52,14 @@ function LinearAlgebra.ldlt(a::_ComplexSymmetric; check::Bool = true, team = not
     _complex_symmetric_unsupported(a)
     return LinearAlgebra.ldlt(_hermitian_wrapper(a); check, team)
 end
-function LinearAlgebra.ldlt!(a::_ComplexSymmetric; check::Bool = true, team = nothing)
+function LinearAlgebra.ldlt!(
+    a::_ComplexSymmetric;
+    check::Bool = true,
+    team = nothing,
+    scratch = nothing,
+)
     _complex_symmetric_unsupported(a)
-    return LinearAlgebra.ldlt!(_hermitian_wrapper(a); check, team)
+    return LinearAlgebra.ldlt!(_hermitian_wrapper(a); check, team, scratch)
 end
 function LinearAlgebra.bunchkaufman(
     a::_ComplexSymmetric,
@@ -70,9 +75,10 @@ function LinearAlgebra.bunchkaufman!(
     rook::Bool = false;
     check::Bool = true,
     team = nothing,
+    scratch = nothing,
 )
     _complex_symmetric_unsupported(a)
-    return LinearAlgebra.bunchkaufman!(_hermitian_wrapper(a), rook; check, team)
+    return LinearAlgebra.bunchkaufman!(_hermitian_wrapper(a), rook; check, team, scratch)
 end
 
 """
@@ -84,11 +90,13 @@ block bounds as `LinearAlgebra.inertia(::BunchKaufman)`. Without tolerances,
 `rtol = n*eps(real(T))`. Results near the threshold depend on the pivot
 sequence; rook pivoting (`bunchkaufman(A, true)`) is recommended.
 """
-function LinearAlgebra.inertia(
+LinearAlgebra.inertia(
     F::FaerFactorization{T,:bunchkaufman};
     atol::Real = 0,
     rtol::Real = 0,
-) where {T}
+) where {T} = _bunchkaufman_inertia(F, T, atol, rtol)
+# Shared by retained and direct in-place Bunch–Kaufman factors (reads `F.D`).
+function _bunchkaufman_inertia(F, ::Type{T}, atol::Real, rtol::Real) where {T}
     R=real(T)
     atol=R(atol)
     rtol=R(rtol)

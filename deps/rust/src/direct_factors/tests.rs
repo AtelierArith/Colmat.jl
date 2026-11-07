@@ -44,6 +44,27 @@ fn spd(n: usize) -> Mat<f64> {
     let x = sample(n, n);
     &x * x.transpose() + Mat::<f64>::identity(n, n)
 }
+/// Symmetric indefinite with a tiny leading pivot, so Bunch–Kaufman takes
+/// 2×2 blocks.
+fn indefinite(n: usize) -> Mat<f64> {
+    let x = sample(n, n);
+    Mat::from_fn(n, n, |i, j| {
+        let s = (x[(i, j)] + x[(j, i)]) / 8.0;
+        if i == j {
+            [1e-8, -3.0, 2.0, 0.0, -1.0, 4.0][i % 6]
+        } else {
+            s
+        }
+    })
+}
+fn perm_len(kind: i32, m: usize, n: usize) -> usize {
+    match kind {
+        LU => m,
+        FULL_LU => m + n,
+        LBLT | LBLT_ROOK => n,
+        _ => 0,
+    }
+}
 
 #[test]
 fn direct_kernels_match_retained_factors_without_native_allocation() {
@@ -56,14 +77,31 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
         (QR, 80, 64),
         (LLT, 6, 6),
         (LLT, 70, 70),
+        (FULL_LU, 6, 6),
+        (FULL_LU, 9, 5),
+        (FULL_LU, 4, 7),
+        (FULL_LU, 70, 70),
+        (LDLT, 6, 6),
+        (LDLT, 70, 70),
+        (LDLT, 140, 140),
+        (LBLT, 6, 6),
+        (LBLT_ROOK, 6, 6),
+        (LBLT, 70, 70),
+        (LBLT_ROOK, 70, 70),
+        (LBLT, 140, 140),
     ] {
-        let src = if kind == LLT { spd(n) } else { sample(m, n) };
+        let src = match kind {
+            LLT | LDLT => spd(n),
+            LBLT | LBLT_ROOK => indefinite(n),
+            _ => sample(m, n),
+        };
         let mut a = OwnedMatrix {
             matrix: src.clone(),
         };
-        let mut perm = vec![0usize; if kind == LU { m } else { 0 }];
+        let mut perm = vec![0usize; perm_len(kind, m, n)];
         let mut perm_inv = perm.clone();
         let (mut work, bs) = reserved(1, kind, FACTOR, m, n, 0);
+        let bs = if is_lblt(kind) { n } else { bs };
         let mut coeff = vec![0.0f64; bs.max(1) * m.min(n).max(1)];
         let p = coeff.as_mut_ptr().cast::<u8>();
         // Warm up faer's per-thread matmul packing storage on a throwaway copy,
@@ -136,7 +174,15 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
             .direct_part(&a, kind, 0, true, m, n, 1, &perm, &perm_inv, p, bs)
             .unwrap();
         assert!((&rebuilt.matrix - &src).norm_max() < 1e-9);
-        if kind == QR && m < n {
+        if kind == LDLT || is_lblt(kind) {
+            let mut d = OwnedMatrix::new();
+            d.direct_part(&a, kind, 5, true, m, n, 1, &perm, &perm_inv, p, bs)
+                .unwrap();
+            let mut expected = OwnedMatrix::new();
+            expected.factor_part(&old, 5).unwrap();
+            assert_eq!(d.matrix, expected.matrix, "kind {kind} {m}x{n} D");
+        }
+        if (kind == QR && m < n) || (kind != QR && m != n) {
             continue;
         }
         for op in [SOLVE, TRANSPOSE, ADJOINT] {
@@ -163,7 +209,11 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
                 } else {
                     src.transpose().to_owned()
                 };
-                assert!((&lhs * &sol - &b).norm_max() < 1e-8);
+                // Relative backward error: the indefinite samples are not
+                // well conditioned.
+                let residual = (&lhs * &sol - &b).norm_max();
+                let scale = lhs.norm_max() * sol.norm_max() * n as f64;
+                assert!(residual <= 1e-12 * scale, "kind {kind} op {op}: {residual}");
             } else {
                 // Least squares: the residual is orthogonal to range(A).
                 assert!((src.transpose() * (&src * &sol - &b)).norm_max() < 1e-8);
@@ -184,6 +234,138 @@ fn retained_construction_allocation_baseline() {
         });
         eprintln!("retained kind {kind} {n}x{n}: {allocations} native allocations");
         assert!(allocations > 0);
+    }
+}
+
+#[test]
+fn bare_triangular_solve_allocation_on_this_target() {
+    // Attribution for blocked-size solve counts: faer's triangular solve alone
+    // (its recursive blocks call the matrix product of gemm-001).
+    let l = sample(140, 140);
+    let mut x = Mat::<f64>::from_fn(140, 3, |i, j| (i + j) as f64);
+    let mut run = || {
+        faer::linalg::triangular_solve::solve_unit_lower_triangular_in_place(
+            l.as_ref(),
+            x.as_mut(),
+            Par::Seq,
+        )
+    };
+    run();
+    let allocations = count(run);
+    eprintln!("bare 140x140 unit-lower solve, 3 RHS: {allocations} native allocations");
+}
+
+/// Complex Hermitian LDLᴴ and Bunch–Kaufman in both storage triangles: the
+/// stored factor reconstructs A and solves A, Aᵀ and Aᴴ; D matches.
+#[test]
+fn complex_self_adjoint_kinds_in_both_triangles() {
+    use faer::c64;
+    let n = 7;
+    let x = Mat::<c64>::from_fn(n, n, |i, j| {
+        c64::new((i + 2 * j) as f64 % 5.0, i as f64 - j as f64)
+    });
+    let spd = &x * x.adjoint() + Mat::<c64>::identity(n, n);
+    let indefinite = Mat::<c64>::from_fn(n, n, |i, j| {
+        if i == j {
+            c64::new([1e-9, -2.0, 3.0, 0.0, -1.0, 2.0, 0.5][i], 0.0)
+        } else if i > j {
+            c64::new(0.3 * (i + j) as f64, 0.2 * (i as f64 - j as f64))
+        } else {
+            c64::new(0.3 * (i + j) as f64, -0.2 * (j as f64 - i as f64))
+        }
+    });
+    for (kind, h) in [(LDLT, &spd), (LBLT, &indefinite), (LBLT_ROOK, &indefinite)] {
+        let mut reference = None;
+        for lower in [true, false] {
+            // Garbage in the unread triangle must be ignored.
+            let mut a = Mat::from_fn(n, n, |i, j| {
+                if (lower && i < j) || (!lower && i > j) {
+                    c64::new(f64::NAN, 9.0)
+                } else {
+                    h[(i, j)]
+                }
+            });
+            let (mut perm, mut inv) = (
+                vec![0usize; perm_len(kind, n, n)],
+                vec![0usize; perm_len(kind, n, n)],
+            );
+            let mut off = vec![c64::new(7.0, 7.0); n];
+            let (mut work, _) = reserved(3, kind, FACTOR, n, n, 0);
+            let info = factor(
+                a.as_mut(),
+                kind,
+                lower,
+                &mut perm,
+                &mut inv,
+                off.as_mut_ptr().cast(),
+                if is_lblt(kind) { n } else { 0 },
+                &mut work,
+                Par::Seq,
+            )
+            .unwrap();
+            assert_eq!(info, 0);
+            let rows = if is_lblt(kind) { n } else { 0 };
+            let get = |code| {
+                part(
+                    a.as_ref(),
+                    kind,
+                    code,
+                    lower,
+                    &perm,
+                    &inv,
+                    off.as_ptr().cast(),
+                    rows,
+                )
+                .unwrap()
+            };
+            assert!((get(0) - h).norm_max() < 1e-10, "kind {kind} lower {lower}");
+            let d = get(5);
+            match &reference {
+                None => reference = Some((get(7), d)),
+                Some((packed, d0)) => {
+                    assert!((&get(7) - packed).norm_max() < 1e-12);
+                    assert!((&d - d0).norm_max() < 1e-12);
+                }
+            }
+            let other = if lower {
+                a.as_ref().get(0..1, 1..).norm_max()
+            } else {
+                a.as_ref().get(1.., 0..1).norm_max()
+            };
+            assert_eq!(other, 0.0);
+            let b = Mat::<c64>::from_fn(n, 2, |i, j| c64::new(i as f64 - 1.0, j as f64 + 0.5));
+            for op in [SOLVE, TRANSPOSE, ADJOINT] {
+                let lhs = match op {
+                    SOLVE | ADJOINT => h.clone(),
+                    _ => h.transpose().to_owned(),
+                };
+                let mut rhs = b.clone();
+                let (mut sw, _) = reserved(3, kind, op, n, n, 2);
+                solve(
+                    a.as_ref(),
+                    rhs.as_mut(),
+                    kind,
+                    op,
+                    lower,
+                    &perm,
+                    &inv,
+                    off.as_ptr().cast(),
+                    rows,
+                    &mut sw,
+                    Par::Seq,
+                )
+                .unwrap();
+                assert!(
+                    (&lhs * &rhs - &b).norm_max() < 1e-8,
+                    "kind {kind} op {op} lower {lower}"
+                );
+            }
+            // det through the stored factor matches faer's dense determinant.
+            let ld = get(12);
+            let det = h.as_ref().determinant(Par::Seq);
+            assert!((ld[(0, 0)].re - det.norm().ln()).abs() < 1e-9);
+            assert!((ld[(1, 0)] * c64::new(det.norm(), 0.0) - det).norm() < 1e-8 * det.norm());
+        }
     }
 }
 
@@ -210,7 +392,7 @@ fn upper_complex_cholesky_mirrors_the_factor() {
         )
         .unwrap();
         assert_eq!(info, 0);
-        let l = cholesky_lower(a.as_ref(), lower);
+        let l = packed_lower(a.as_ref(), lower);
         assert!((&l * l.adjoint() - &h).norm_max() < 1e-10);
         let other = if lower {
             a.as_ref().get(0..1, 1..).norm_max()
@@ -232,12 +414,20 @@ fn validation_failures_do_not_write_the_matrix() {
     let mut perm = vec![0usize; 40];
     let mut inv = vec![0usize; 40];
     let mut coeff = vec![0.0f64; 40 * 40];
-    for kind in [LU, QR, LLT] {
-        let rows = block_size::<f64>(kind, 40, 40);
+    for kind in [LU, FULL_LU, QR, LLT, LDLT, LBLT, LBLT_ROOK] {
+        let rows = if is_lblt(kind) {
+            40
+        } else {
+            block_size::<f64>(kind, 40, 40)
+        };
         let needs = requirement::<f64>(kind, FACTOR, 40, 40, 0, Par::Seq.shape()).unwrap();
         if needs.size_bytes() == 0 {
             continue;
         }
+        let len = perm_len(kind, 40, 40);
+        let (mut perm, mut inv) = (vec![0usize; len], vec![0usize; len]);
+        // Only the scratch capacity is insufficient here.
+        assert!(check_aux::<f64>(kind, 40, 40, len, len, coeff.as_ptr().cast(), rows).is_ok());
         assert!(a
             .direct_factor(
                 kind,

@@ -1,34 +1,54 @@
-//! Direct in-place dense LU, QR and Cholesky over a caller-owned native matrix.
+//! Direct in-place dense factorizations over a caller-owned native matrix.
 //!
-//! `lu!`, `qr!` and `cholesky!` with caller scratch run faer's low-level
-//! `*_in_place` kernels on the input matrix's own storage, which then holds the
-//! packed factor (Julia `F.factors === A`). The LU row permutation and the QR
-//! block Householder coefficients live in Julia-owned buffers passed on every
+//! `lu!`, `full_piv_lu!`, `qr!`, `cholesky!`, `ldlt!` and `bunchkaufman!` with
+//! caller scratch run faer's low-level `*_in_place` kernels on the input
+//! matrix's own storage, which then holds the packed factor (Julia
+//! `F.factors === A`). Permutations, the QR block Householder coefficients and
+//! the Bunch–Kaufman off-diagonal live in Julia-owned buffers passed on every
 //! call; nothing here retains a pointer across calls. Every validation that does
 //! not need the numerical result happens before the first write to the matrix.
+//!
+//! Auxiliary buffers by kind: LU `perm`/`perm_inv` hold the row permutation
+//! (length m); full-pivot LU holds `[row (m); column (n)]` in each; Bunch–Kaufman
+//! holds the symmetric permutation (n) and uses the coefficient buffer as an
+//! n×1 column with the block diagonal's subdiagonal (lower storage) or its
+//! superdiagonal, the conjugate (upper storage).
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::workspace::OwnedScratch;
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
-use faer::linalg::cholesky::llt;
+use faer::linalg::cholesky::{lblt, ldlt, llt};
 use faer::linalg::householder;
+use faer::linalg::lu::full_pivoting as flu;
 use faer::linalg::lu::partial_pivoting as plu;
 use faer::linalg::qr::no_pivoting as nqr;
 use faer::perm::PermRef;
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Conj, Mat, MatMut, MatRef, Par, ParShape};
+use faer::{Col, ColMut, ColRef, Conj, Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 
+// Kind codes match the retained-factor construction codes.
 const LU: i32 = 0;
+const FULL_LU: i32 = 1;
 const QR: i32 = 2;
 const LLT: i32 = 4;
+const LDLT: i32 = 5;
+const LBLT: i32 = 6;
+const LBLT_ROOK: i32 = 8;
 
 /// Operation codes shared with Julia.
 const FACTOR: i32 = 0;
 const SOLVE: i32 = 1;
 const TRANSPOSE: i32 = 2;
 const ADJOINT: i32 = 3;
+
+fn self_adjoint(kind: i32) -> bool {
+    matches!(kind, LLT | LDLT | LBLT | LBLT_ROOK)
+}
+fn is_lblt(kind: i32) -> bool {
+    kind == LBLT || kind == LBLT_ROOK
+}
 
 fn block_size<T: ComplexField>(kind: i32, m: usize, n: usize) -> usize {
     if kind == QR {
@@ -47,11 +67,19 @@ fn requirement<T: ComplexField>(
     par: ParShape,
 ) -> Result<StackReq, String> {
     let bs = block_size::<T>(kind, m, n);
+    let solve = SOLVE..=ADJOINT;
     Ok(match (kind, op) {
         (LU, FACTOR) => plu::factor::lu_in_place_scratch::<usize, T>(m, n, par, Default::default()),
         (LU, SOLVE) => plu::solve::solve_in_place_scratch::<usize, T>(n, k, par),
         (LU, TRANSPOSE | ADJOINT) => {
             plu::solve::solve_transpose_in_place_scratch::<usize, T>(n, k, par)
+        }
+        (FULL_LU, FACTOR) => {
+            flu::factor::lu_in_place_scratch::<usize, T>(m, n, par, Default::default())
+        }
+        (FULL_LU, SOLVE) => flu::solve::solve_in_place_scratch::<usize, T>(n, k, par),
+        (FULL_LU, TRANSPOSE | ADJOINT) => {
+            flu::solve::solve_transpose_in_place_scratch::<usize, T>(n, k, par)
         }
         (QR, FACTOR) => nqr::factor::qr_in_place_scratch::<T>(m, n, bs, par, Default::default()),
         (QR, SOLVE) => nqr::solve::solve_lstsq_in_place_scratch::<T>(m, n, bs, k, par),
@@ -59,7 +87,19 @@ fn requirement<T: ComplexField>(
             nqr::solve::solve_transpose_in_place_scratch::<T>(n, bs, k, par)
         }
         (LLT, FACTOR) => llt::factor::cholesky_in_place_scratch::<T>(n, par, Default::default()),
-        (LLT, SOLVE | TRANSPOSE | ADJOINT) => llt::solve::solve_in_place_scratch::<T>(n, k, par),
+        (LLT, op) if solve.contains(&op) => llt::solve::solve_in_place_scratch::<T>(n, k, par),
+        (LDLT, FACTOR) => ldlt::factor::cholesky_in_place_scratch::<T>(n, par, Default::default()),
+        (LDLT, op) if solve.contains(&op) => ldlt::solve::solve_in_place_scratch::<T>(n, k, par),
+        // The same parameters as the factorization itself: the blocked
+        // variant's workspace depends on the block size.
+        (LBLT | LBLT_ROOK, FACTOR) => lblt::factor::cholesky_in_place_scratch::<usize, T>(
+            n,
+            par,
+            crate::lblt::params::<T>(kind == LBLT_ROOK).into(),
+        ),
+        (LBLT | LBLT_ROOK, op) if solve.contains(&op) => {
+            lblt::solve::solve_in_place_scratch::<usize, T>(n, k, par)
+        }
         _ => return Err("unknown direct factorization kind or operation".into()),
     })
 }
@@ -130,6 +170,22 @@ unsafe fn coeff_mut<'a, T: ComplexField>(p: *mut u8, rows: usize, cols: usize) -
 unsafe fn coeff_ref<'a, T: ComplexField>(p: *const u8, rows: usize, cols: usize) -> MatRef<'a, T> {
     MatRef::from_raw_parts(p.cast::<T>(), rows, cols, 1, rows as isize)
 }
+/// Borrow the Julia-owned Bunch–Kaufman off-diagonal column (length `n`).
+/// Safety: as for [`coeff_mut`]; a null pointer is accepted only when `n == 0`.
+unsafe fn column_mut<'a, T: ComplexField>(p: *mut u8, n: usize) -> ColMut<'a, T> {
+    if n == 0 {
+        ColMut::from_slice_mut(&mut [])
+    } else {
+        ColMut::from_slice_mut(std::slice::from_raw_parts_mut(p.cast::<T>(), n))
+    }
+}
+unsafe fn column_ref<'a, T: ComplexField>(p: *const u8, n: usize) -> ColRef<'a, T> {
+    if n == 0 {
+        ColRef::from_slice(&[])
+    } else {
+        ColRef::from_slice(std::slice::from_raw_parts(p.cast::<T>(), n))
+    }
+}
 
 fn check_aux<T: ComplexField>(
     kind: i32,
@@ -140,13 +196,24 @@ fn check_aux<T: ComplexField>(
     coeff: *const u8,
     coeff_rows: usize,
 ) -> Result<(), String> {
+    if self_adjoint(kind) && m != n {
+        return Err("self-adjoint factorizations require a square matrix".into());
+    }
     match kind {
         LU if perm != m || perm_inv != m => Err("LU permutation length mismatch".into()),
+        FULL_LU if perm != m + n || perm_inv != m + n => {
+            Err("full-pivot LU permutation length mismatch".into())
+        }
         QR if coeff_rows != block_size::<T>(QR, m, n) || coeff.is_null() => {
             Err("QR coefficient buffer shape mismatch".into())
         }
-        LLT if m != n => Err("Cholesky requires a square matrix".into()),
-        LU | QR | LLT => Ok(()),
+        LBLT | LBLT_ROOK if perm != n || perm_inv != n => {
+            Err("Bunch-Kaufman permutation length mismatch".into())
+        }
+        LBLT | LBLT_ROOK if coeff_rows != n || (n > 0 && coeff.is_null()) => {
+            Err("Bunch-Kaufman off-diagonal buffer shape mismatch".into())
+        }
+        LU | FULL_LU | QR | LLT | LDLT | LBLT | LBLT_ROOK => Ok(()),
         _ => Err("unknown direct factorization kind".into()),
     }
 }
@@ -156,6 +223,74 @@ fn triangle_finite<T: ComplexField>(a: MatRef<'_, T>, lower: bool) -> bool {
         let (start, end) = if lower { (j, a.nrows()) } else { (0, j + 1) };
         (start..end).all(|i| is_finite(&a[(i, j)]))
     })
+}
+
+fn first_zero_pivot<T: ComplexField>(a: MatRef<'_, T>) -> usize {
+    (0..a.nrows().min(a.ncols()))
+        .find(|&i| a[(i, i)] == zero::<T>())
+        .map_or(0, |i| i + 1)
+}
+
+/// Reproduce the input faer's self-adjoint solvers see: the selected triangle
+/// with a real diagonal, mirrored into the lower triangle, strict upper zero.
+fn lower_hermitian_in_place<T: ComplexField>(mut a: MatMut<'_, T>, lower: bool) {
+    let n = a.nrows();
+    for j in 0..n {
+        a[(j, j)] = from_real::<T>(&real(&a[(j, j)]));
+        for i in j + 1..n {
+            if !lower {
+                a[(i, j)] = conj(&a[(j, i)]);
+            }
+            a[(j, i)] = zero();
+        }
+    }
+}
+/// The kernels may touch the strict upper triangle; zero it as the retained
+/// factors do, or move the lower factor to the upper triangle as its adjoint.
+fn store_factor_triangle<T: ComplexField>(mut a: MatMut<'_, T>, lower: bool) {
+    let n = a.nrows();
+    for j in 0..n {
+        for i in j + 1..n {
+            a[(j, i)] = if lower { zero() } else { conj(&a[(i, j)]) };
+            if !lower {
+                a[(i, j)] = zero();
+            }
+        }
+    }
+}
+
+/// Visit each diagonal block of B (diagonal `diag`, subdiagonal `off`) with its
+/// start and determinant until `f` returns false. Does not allocate.
+fn for_each_block<T: ComplexField>(
+    diag: ColRef<'_, T>,
+    off: ColRef<'_, T>,
+    mut f: impl FnMut(usize, T) -> bool,
+) {
+    let n = diag.nrows();
+    let mut i = 0;
+    while i < n {
+        let block = i + 1 < n && off[i] != zero::<T>();
+        let determinant = if block {
+            sub(&mul(&diag[i], &diag[i + 1]), &mul(&off[i], &conj(&off[i])))
+        } else {
+            copy(&diag[i])
+        };
+        if !f(i, determinant) {
+            return;
+        }
+        i += if block { 2 } else { 1 };
+    }
+}
+/// Julia `info` of a block diagonal: one plus the first singular block's start.
+fn singular_block<T: ComplexField>(diag: ColRef<'_, T>, off: ColRef<'_, T>) -> usize {
+    let mut info = 0;
+    for_each_block(diag, off, |i, det| {
+        if det == zero::<T>() {
+            info = i + 1;
+        }
+        info == 0
+    });
+    info
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -172,7 +307,7 @@ fn factor<T: ComplexField>(
 ) -> Result<usize, String> {
     let (m, n) = a.shape();
     check_aux::<T>(kind, m, n, perm.len(), perm_inv.len(), coeff, coeff_rows)?;
-    let finite = if kind == LLT {
+    let finite = if self_adjoint(kind) {
         triangle_finite(a.as_ref(), lower)
     } else {
         a.as_ref().is_all_finite()
@@ -187,9 +322,22 @@ fn factor<T: ComplexField>(
     Ok(match kind {
         LU => {
             plu::factor::lu_in_place(a.as_mut(), perm, perm_inv, par, stack, Default::default());
-            (0..m.min(n))
-                .find(|&i| a[(i, i)] == zero::<T>())
-                .map_or(0, |i| i + 1)
+            first_zero_pivot(a.as_ref())
+        }
+        FULL_LU => {
+            let (row, col) = perm.split_at_mut(m);
+            let (row_inv, col_inv) = perm_inv.split_at_mut(m);
+            flu::factor::lu_in_place(
+                a.as_mut(),
+                row,
+                row_inv,
+                col,
+                col_inv,
+                par,
+                stack,
+                Default::default(),
+            );
+            first_zero_pivot(a.as_ref())
         }
         QR => {
             // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
@@ -197,18 +345,8 @@ fn factor<T: ComplexField>(
             nqr::factor::qr_in_place(a, c, par, stack, Default::default());
             0
         }
-        _ => {
-            // Reproduce the input `Llt::new` sees: the selected triangle with a
-            // real diagonal, mirrored into the lower triangle, strict upper zero.
-            for j in 0..n {
-                a[(j, j)] = from_real::<T>(&real(&a[(j, j)]));
-                for i in j + 1..n {
-                    if !lower {
-                        a[(i, j)] = conj(&a[(j, i)]);
-                    }
-                    a[(j, i)] = zero();
-                }
-            }
+        LLT => {
+            lower_hermitian_in_place(a.as_mut(), lower);
             match llt::factor::cholesky_in_place(
                 a.as_mut(),
                 Default::default(),
@@ -217,26 +355,60 @@ fn factor<T: ComplexField>(
                 Default::default(),
             ) {
                 Ok(_) => {
-                    // The kernel may touch the strict upper triangle; `Llt::new`
-                    // zeroes it after factoring as well.
-                    for j in 0..n {
-                        for i in j + 1..n {
-                            a[(j, i)] = if lower { zero() } else { conj(&a[(i, j)]) };
-                            if !lower {
-                                a[(i, j)] = zero();
-                            }
-                        }
-                    }
+                    store_factor_triangle(a, lower);
                     0
                 }
                 Err(llt::factor::LltError::NonPositivePivot { index }) => index + 1,
             }
         }
+        LDLT => {
+            lower_hermitian_in_place(a.as_mut(), lower);
+            // faer stores D on the diagonal and the unit-lower L below it.
+            match ldlt::factor::cholesky_in_place(
+                a.as_mut(),
+                Default::default(),
+                par,
+                stack,
+                Default::default(),
+            ) {
+                Ok(_) => {
+                    store_factor_triangle(a, lower);
+                    0
+                }
+                Err(ldlt::factor::LdltError::ZeroPivot { index }) => index + 1,
+            }
+        }
+        _ => {
+            lower_hermitian_in_place(a.as_mut(), lower);
+            // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+            let mut sub = unsafe { column_mut::<T>(coeff, n) };
+            // 1×1 pivots leave their subdiagonal entries untouched.
+            sub.fill(zero());
+            lblt::factor::cholesky_in_place(
+                a.as_mut(),
+                sub.as_mut().as_diagonal_mut(),
+                perm,
+                perm_inv,
+                par,
+                stack,
+                crate::lblt::params::<T>(kind == LBLT_ROOK).into(),
+            );
+            let info = singular_block(a.as_ref().diagonal().column_vector(), sub.as_ref());
+            store_factor_triangle(a, lower);
+            if !lower {
+                // Upper storage keeps Bᴴ's view: the superdiagonal of B.
+                for i in 0..n {
+                    sub[i] = conj(&sub[i]);
+                }
+            }
+            info
+        }
     })
 }
 
-/// The lower-oriented Cholesky factor stored in `a` (lower: as is; upper: `Uᴴ`).
-fn cholesky_lower<T: ComplexField>(a: MatRef<'_, T>, lower: bool) -> Mat<T> {
+/// The lower-oriented packed factor stored in `a` (lower: as is; upper: its
+/// adjoint). Its diagonal holds L (Cholesky), D (LDLᴴ) or B's diagonal (LBLᴴ).
+fn packed_lower<T: ComplexField>(a: MatRef<'_, T>, lower: bool) -> Mat<T> {
     let n = a.nrows();
     Mat::from_fn(n, n, |i, j| {
         if i < j {
@@ -245,6 +417,27 @@ fn cholesky_lower<T: ComplexField>(a: MatRef<'_, T>, lower: bool) -> Mat<T> {
             copy(&a[(i, j)])
         } else {
             conj(&a[(j, i)])
+        }
+    })
+}
+fn unit_lower<T: ComplexField>(a: MatRef<'_, T>, rows: usize, cols: usize) -> Mat<T> {
+    Mat::from_fn(rows, cols, |i, j| {
+        if i == j {
+            one()
+        } else if i > j {
+            copy(&a[(i, j)])
+        } else {
+            zero()
+        }
+    })
+}
+/// B's subdiagonal from the stored off-diagonal column (see the module docs).
+fn lblt_subdiag<T: ComplexField>(stored: ColRef<'_, T>, lower: bool) -> Col<T> {
+    Col::from_fn(stored.nrows(), |i| {
+        if lower {
+            copy(&stored[i])
+        } else {
+            conj(&stored[i])
         }
     })
 }
@@ -282,6 +475,14 @@ fn solve<T: ComplexField>(
     let req = requirement::<T>(kind, op, m, n, k, par.shape())?;
     let stack = scratch.stack(req)?;
     let conj_op = if op == ADJOINT { Conj::Yes } else { Conj::No };
+    // A self-adjoint A has Aᵀ = conj(A): solve with the conjugated factor.
+    let conj_sa = if op == TRANSPOSE { Conj::Yes } else { Conj::No };
+    // Upper storage holds Lᴴ, so `a.transpose()` is conj(L).
+    let (l, conj_l) = if lower {
+        (a, conj_sa)
+    } else {
+        (a.transpose(), conj_sa.compose(Conj::Yes))
+    };
     match kind {
         LU => {
             let p = PermRef::new_checked(perm, perm_inv, n);
@@ -289,6 +490,17 @@ fn solve<T: ComplexField>(
                 plu::solve::solve_in_place_with_conj(a, a, p, Conj::No, rhs, par, stack);
             } else {
                 plu::solve::solve_transpose_in_place_with_conj(a, a, p, conj_op, rhs, par, stack);
+            }
+        }
+        FULL_LU => {
+            let row = PermRef::new_checked(&perm[..n], &perm_inv[..n], n);
+            let col = PermRef::new_checked(&perm[n..], &perm_inv[n..], n);
+            if op == SOLVE {
+                flu::solve::solve_in_place_with_conj(a, a, row, col, Conj::No, rhs, par, stack);
+            } else {
+                flu::solve::solve_transpose_in_place_with_conj(
+                    a, a, row, col, conj_op, rhs, par, stack,
+                );
             }
         }
         QR => {
@@ -300,27 +512,30 @@ fn solve<T: ComplexField>(
                 nqr::solve::solve_transpose_in_place_with_conj(a, c, a, conj_op, rhs, par, stack);
             }
         }
+        LLT => llt::solve::solve_in_place_with_conj(l, conj_l, rhs, par, stack),
+        LDLT => ldlt::solve::solve_in_place_with_conj(l, a.diagonal(), conj_l, rhs, par, stack),
         _ => {
-            // A = L Lᴴ is self-adjoint; Aᵀ = conj(A) solves with conjugated L.
-            let conj_l = if op == TRANSPOSE { Conj::Yes } else { Conj::No };
-            if lower {
-                llt::solve::solve_in_place_with_conj(a, conj_l, rhs, par, stack);
-            } else {
-                // Upper storage holds U = Lᴴ, so L = Uᴴ = conj(Uᵀ).
-                llt::solve::solve_in_place_with_conj(
-                    a.transpose(),
-                    conj_l.compose(Conj::Yes),
-                    rhs,
-                    par,
-                    stack,
-                );
-            }
+            // Upper storage keeps conj(subdiag), matching conj(L) and conj(B):
+            // solving conj(conj(A)) with them is solving A.
+            // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+            let sub = unsafe { column_ref::<T>(coeff, n) };
+            let p = PermRef::new_checked(perm, perm_inv, n);
+            lblt::solve::solve_in_place_with_conj(
+                l,
+                a.diagonal(),
+                sub.as_diagonal(),
+                conj_l,
+                p,
+                rhs,
+                par,
+                stack,
+            );
         }
     }
     Ok(())
 }
 
-/// faer's Cholesky reconstruct/inverse fill the lower triangle only.
+/// faer's self-adjoint reconstruct/inverse fill the lower triangle only.
 fn self_adjoint_from_lower<T: ComplexField>(mut a: MatMut<'_, T>) {
     for j in 0..a.ncols() {
         a[(j, j)] = from_real::<T>(&real(&a[(j, j)]));
@@ -334,11 +549,64 @@ fn identity<T: ComplexField>(m: usize, n: usize) -> Mat<T> {
     Mat::from_fn(m, n, |i, j| if i == j { one() } else { zero() })
 }
 
+/// `[log|det|, phase]` through the native diagonal measure (#148) applied to
+/// one pivot per factor of det(A), times the permutation signs.
+fn logabsdet<T: ComplexField<Real: crate::measures::Ln>>(
+    a: MatRef<'_, T>,
+    kind: i32,
+    lower: bool,
+    perm: &[usize],
+    coeff: *const u8,
+) -> Result<Mat<T>, String> {
+    let (m, n) = a.shape();
+    if m != n {
+        return Err("determinant requires a square factor".into());
+    }
+    let d = |i: usize| copy(&a[(i, i)]);
+    let (pivots, sign) = match kind {
+        LU => (
+            Mat::from_fn(n, 1, |i, _| d(i)),
+            crate::permutation_sign(perm),
+        ),
+        FULL_LU => (
+            Mat::from_fn(n, 1, |i, _| d(i)),
+            crate::permutation_sign(&perm[..n]) * crate::permutation_sign(&perm[n..]),
+        ),
+        // det(L Lᴴ) = Π lᵢᵢ², without forming squares that could overflow.
+        LLT => (Mat::from_fn(2 * n, 1, |i, _| d(i % n.max(1))), 1.0),
+        LDLT => (Mat::from_fn(n, 1, |i, _| d(i)), 1.0),
+        LBLT | LBLT_ROOK => {
+            // det(P L B Lᴴ Pᵀ) = det(B): one entry per diagonal block.
+            // SAFETY: shape checked by the caller's `check_aux`.
+            let off = lblt_subdiag(unsafe { column_ref::<T>(coeff, n) }, lower);
+            let mut blocks = Vec::with_capacity(n);
+            for_each_block(a.diagonal().column_vector(), off.as_ref(), |_, det| {
+                blocks.push(det);
+                true
+            });
+            (Mat::from_fn(blocks.len(), 1, |i, _| copy(&blocks[i])), 1.0)
+        }
+        _ => return Err("direct factorization has no determinant".into()),
+    };
+    let mut out = Mat::<T>::zeros(2, 1);
+    crate::measures::measure(
+        pivots.as_ref(),
+        false,
+        5,
+        2,
+        Par::Seq,
+        out.as_ptr_mut().cast(),
+    )?;
+    out[(1, 0)] = mul(&out[(1, 0)], &from_f64::<T>(sign));
+    Ok(out)
+}
+
 /// Part codes follow the retained-factor convention: 0 reconstruct, 1 L,
-/// 2 U, 3 Q, 4 R, 6 thin Q, 8 Householder basis, 9 QR coefficients,
-/// 10 inverse, 11 diagonal.
+/// 2 U, 3 Q, 4 R, 5 D, 6 thin Q, 7 lower-oriented packed (self-adjoint kinds),
+/// 8 Householder basis, 9 QR coefficients, 10 inverse, 11 diagonal,
+/// 12 `[log|det|, phase]`.
 #[allow(clippy::too_many_arguments)]
-fn part<T: ComplexField>(
+fn part<T: ComplexField<Real: crate::measures::Ln>>(
     a: MatRef<'_, T>,
     kind: i32,
     code: i32,
@@ -353,24 +621,18 @@ fn part<T: ComplexField>(
     check_aux::<T>(kind, m, n, perm.len(), perm_inv.len(), coeff, coeff_rows)?;
     let par = Par::Seq;
     let buffer = |req: StackReq| MemBuffer::try_new(req).map_err(|e| format!("{e:?}"));
+    let lu_kind = kind == LU || kind == FULL_LU;
     Ok(match (kind, code) {
-        (LU, 1) => Mat::from_fn(m, size, |i, j| {
-            if i == j {
-                one()
-            } else if i > j {
-                copy(&a[(i, j)])
-            } else {
-                zero()
-            }
-        }),
-        (LU, 2) => Mat::from_fn(
+        (_, 12) => logabsdet(a, kind, lower, perm, coeff)?,
+        (LU | FULL_LU, 1) => unit_lower(a, m, size),
+        (LU | FULL_LU, 2) => Mat::from_fn(
             size,
             n,
             |i, j| if i <= j { copy(&a[(i, j)]) } else { zero() },
         ),
         (LU, 0) => {
             let p = PermRef::new_checked(perm, perm_inv, m);
-            let l = part::<T>(a, kind, 1, lower, perm, perm_inv, coeff, coeff_rows)?;
+            let l = unit_lower(a, m, size);
             let u = part::<T>(a, kind, 2, lower, perm, perm_inv, coeff, coeff_rows)?;
             let mut out = Mat::zeros(m, n);
             let mut mem = buffer(plu::reconstruct::reconstruct_scratch::<usize, T>(
@@ -388,6 +650,28 @@ fn part<T: ComplexField>(
             );
             out
         }
+        (FULL_LU, 0) => {
+            let row = PermRef::new_checked(&perm[..m], &perm_inv[..m], m);
+            let col = PermRef::new_checked(&perm[m..], &perm_inv[m..], n);
+            let l = unit_lower(a, m, size);
+            let u = part::<T>(a, kind, 2, lower, perm, perm_inv, coeff, coeff_rows)?;
+            let mut out = Mat::zeros(m, n);
+            let mut mem = buffer(flu::reconstruct::reconstruct_scratch::<usize, T>(
+                m,
+                n,
+                par.shape(),
+            ))?;
+            flu::reconstruct::reconstruct(
+                out.as_mut(),
+                l.as_ref(),
+                u.as_ref(),
+                row,
+                col,
+                par,
+                MemStack::new(&mut mem),
+            );
+            out
+        }
         (LU, 10) if m == n => {
             let p = PermRef::new_checked(perm, perm_inv, n);
             let mut out = Mat::zeros(n, n);
@@ -395,20 +679,20 @@ fn part<T: ComplexField>(
             plu::inverse::inverse(out.as_mut(), a, a, p, par, MemStack::new(&mut mem));
             out
         }
+        (FULL_LU, 10) if m == n => {
+            let row = PermRef::new_checked(&perm[..n], &perm_inv[..n], n);
+            let col = PermRef::new_checked(&perm[n..], &perm_inv[n..], n);
+            let mut out = Mat::zeros(n, n);
+            let mut mem = buffer(flu::inverse::inverse_scratch::<usize, T>(n, par.shape()))?;
+            flu::inverse::inverse(out.as_mut(), a, a, row, col, par, MemStack::new(&mut mem));
+            out
+        }
         (QR, 4) => Mat::from_fn(
             size,
             n,
             |i, j| if i <= j { copy(&a[(i, j)]) } else { zero() },
         ),
-        (QR, 8) => Mat::from_fn(m, size, |i, j| {
-            if i == j {
-                one()
-            } else if i > j {
-                copy(&a[(i, j)])
-            } else {
-                zero()
-            }
-        }),
+        (QR, 8) => unit_lower(a, m, size),
         (QR, 3 | 6 | 0) => {
             // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
             let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, size) };
@@ -454,22 +738,63 @@ fn part<T: ComplexField>(
             nqr::inverse::inverse(out.as_mut(), a, c, a, par, MemStack::new(&mut mem));
             out
         }
-        (LU | QR | LLT, 11) => Mat::from_fn(size, 1, |i, _| copy(&a[(i, i)])),
-        (LLT, 1) => cholesky_lower(a, lower),
-        (LLT, 2) => cholesky_lower(a, lower).adjoint().to_owned(),
-        (LLT, 0) => {
-            let l = cholesky_lower(a, lower);
-            let mut out = Mat::zeros(n, n);
-            let mut mem = buffer(llt::reconstruct::reconstruct_scratch::<T>(n, par.shape()))?;
-            llt::reconstruct::reconstruct(out.as_mut(), l.as_ref(), par, MemStack::new(&mut mem));
-            self_adjoint_from_lower(out.as_mut());
-            out
+        (_, 11) if lu_kind || kind == QR || self_adjoint(kind) => {
+            Mat::from_fn(size, 1, |i, _| copy(&a[(i, i)]))
         }
-        (LLT, 10) => {
-            let l = cholesky_lower(a, lower);
+        (LLT, 1) | (LLT | LDLT | LBLT | LBLT_ROOK, 7) => packed_lower(a, lower),
+        (LLT, 2) => packed_lower(a, lower).adjoint().to_owned(),
+        (LDLT | LBLT | LBLT_ROOK, 1) => unit_lower(packed_lower(a, lower).as_ref(), n, n),
+        (LDLT, 5) => Mat::from_fn(n, n, |i, j| if i == j { copy(&a[(i, i)]) } else { zero() }),
+        (LBLT | LBLT_ROOK, 5) => {
+            // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+            let sub = lblt_subdiag(unsafe { column_ref::<T>(coeff, n) }, lower);
+            Mat::from_fn(n, n, |i, j| {
+                if i == j {
+                    copy(&a[(i, i)])
+                } else if i == j + 1 {
+                    copy(&sub[j])
+                } else if j == i + 1 {
+                    conj(&sub[i])
+                } else {
+                    zero()
+                }
+            })
+        }
+        (LLT | LDLT | LBLT | LBLT_ROOK, 0 | 10) => {
+            let l = packed_lower(a, lower);
             let mut out = Mat::zeros(n, n);
-            let mut mem = buffer(llt::inverse::inverse_scratch::<T>(n, par.shape()))?;
-            llt::inverse::inverse(out.as_mut(), l.as_ref(), par, MemStack::new(&mut mem));
+            let sub = if is_lblt(kind) {
+                // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+                lblt_subdiag(unsafe { column_ref::<T>(coeff, n) }, lower)
+            } else {
+                Col::zeros(0)
+            };
+            let req = match (kind, code) {
+                (LLT, 0) => llt::reconstruct::reconstruct_scratch::<T>(n, par.shape()),
+                (LLT, _) => llt::inverse::inverse_scratch::<T>(n, par.shape()),
+                (LDLT, 0) => ldlt::reconstruct::reconstruct_scratch::<T>(n, par.shape()),
+                (LDLT, _) => ldlt::inverse::inverse_scratch::<T>(n, par.shape()),
+                (_, 0) => lblt::reconstruct::reconstruct_scratch::<usize, T>(n, par.shape()),
+                _ => lblt::inverse::inverse_scratch::<usize, T>(n, par.shape()),
+            };
+            let mut mem = buffer(req)?;
+            let stack = MemStack::new(&mut mem);
+            let (o, lr, d) = (out.as_mut(), l.as_ref(), l.diagonal());
+            match (kind, code) {
+                (LLT, 0) => llt::reconstruct::reconstruct(o, lr, par, stack),
+                (LLT, _) => llt::inverse::inverse(o, lr, par, stack),
+                (LDLT, 0) => ldlt::reconstruct::reconstruct(o, lr, d, par, stack),
+                (LDLT, _) => ldlt::inverse::inverse(o, lr, d, par, stack),
+                (_, c) => {
+                    let p = PermRef::new_checked(perm, perm_inv, n);
+                    let s = sub.as_ref().as_diagonal();
+                    if c == 0 {
+                        lblt::reconstruct::reconstruct(o, lr, d, s, p, par, stack);
+                    } else {
+                        lblt::inverse::inverse(o, lr, d, s, p, par, stack);
+                    }
+                }
+            }
             self_adjoint_from_lower(out.as_mut());
             out
         }

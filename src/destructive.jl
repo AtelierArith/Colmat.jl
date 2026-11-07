@@ -127,12 +127,24 @@ for W in (:Hermitian, :Symmetric)
 end
 
 """
-    full_piv_lu!(A::FaerMatrix; check=true, team=nothing)
+    full_piv_lu!(A::FaerMatrix; check=true, team=nothing, scratch=nothing)
+    ldlt!(A; check=true, team=nothing, scratch=nothing)
+    bunchkaufman!(A, rook=false; check=true, team=nothing, scratch=nothing)
 
-Compute native full-pivot LU, then replace A by packed L/U storage. F.p/F.q
-retain the row/column permutations. Returned factors are independent of A.
+Without `scratch`, compute native full-pivot LU, LDLᴴ or Bunch–Kaufman, then
+replace A by packed storage (lower-oriented, or its adjoint for an upper
+wrapper). F.p/F.q retain the permutations. Returned factors are independent
+of A.
+
+With `scratch=work::FaerScratch` (sized by `scratch_requirements(full_piv_lu!, A)`,
+`scratch_requirements(ldlt!, A)` or `scratch_requirements(bunchkaufman!, A[, rook])`),
+faer's `lu::full_pivoting::factor::lu_in_place`, `cholesky::ldlt::factor::cholesky_in_place`
+or `cholesky::lblt::factor::cholesky_in_place` (with the rook or default
+partial-diagonal pivoting `LbltParams`) runs directly on A's native storage
+and returns a [`FaerInPlaceFactorization`](@ref) aliasing A, as for `lu!`.
 """
-function full_piv_lu!(a::FaerMatrix; check::Bool = true, team = nothing)
+function full_piv_lu!(a::FaerMatrix; check::Bool = true, team = nothing, scratch = nothing)
+    isnothing(scratch) || return _direct_full_piv_lu!(a, check, scratch, team)
     lock(_matrix_lock) do
         return _factor_writeback!(a, full_piv_lu(a; check, team))
     end
@@ -142,12 +154,20 @@ for fn in (:ldlt, :bunchkaufman)
     # `bunchkaufman!(A, rook=false)` keeps Julia's positional rook argument.
     pivot=fn===:bunchkaufman ? (Expr(:kw, :(rook::Bool), false),) : ()
     forward=fn===:bunchkaufman ? (:rook,) : ()
+    direct=fn===:bunchkaufman ? :(rook) : false
     @eval function LinearAlgebra.$bang(
         a::FaerMatrix,
         $(pivot...);
         check::Bool = true,
         team = nothing,
+        scratch = nothing,
     )
+        if !isnothing(scratch)
+            # Like the default path: plain input must be Hermitian (checked
+            # before any write).
+            _require_hermitian(a)
+            return _direct_self_adjoint!(a, $(QuoteNode(fn)), true, $direct, check, scratch, team)
+        end
         lock(_matrix_lock) do
             return _factor_writeback!(a, LinearAlgebra.$fn(a, $(forward...); check, team))
         end
@@ -159,7 +179,17 @@ for fn in (:ldlt, :bunchkaufman)
             $(pivot...);
             check::Bool = true,
             team = nothing,
+            scratch = nothing,
         ) where {T<:$bound}
+            isnothing(scratch) || return _direct_self_adjoint!(
+                parent(a),
+                $(QuoteNode(fn)),
+                a.uplo=='L',
+                $direct,
+                check,
+                scratch,
+                team,
+            )
             lock(_matrix_lock) do
                 return _factor_writeback!(
                     parent(a),

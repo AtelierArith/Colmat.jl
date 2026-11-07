@@ -999,7 +999,7 @@ fn check_triangular(a: MatRef<'_, f64>, lower: bool, unit: bool) -> Result<(), S
     Ok(())
 }
 
-fn permutation_sign(p: &[usize]) -> f64 {
+pub(crate) fn permutation_sign(p: &[usize]) -> f64 {
     let mut seen = vec![false; p.len()];
     let mut sign = 1.0;
     for start in 0..p.len() {
@@ -1454,5 +1454,5 @@ mod schur_tuning;
 
 mod evd_tuning;
 mod pivoted_qr_rank;
-mod measures;
+pub(crate) mod measures;
 mod diagonal_ops;
