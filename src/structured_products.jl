@@ -19,6 +19,9 @@ _product_structure(a::_ProductTriangular) =
 _product_parent(a) = a
 _product_parent(a::_ProductTriangular) = parent(a)
 function _structured_product(a, b)
+    # Diagonal-dense products borrow the stored diagonal and dense operand.
+    a isa _ProductDiagonal && b isa _ProductDense && return _diagonal_matrix(a, b, 0)
+    a isa _ProductDense && b isa _ProductDiagonal && return _diagonal_matrix(b, a, 1)
     lock(_matrix_lock) do
         size(a, 2)==size(b, 1) ||
             throw(DimensionMismatch("structured product inner dimensions must match"))

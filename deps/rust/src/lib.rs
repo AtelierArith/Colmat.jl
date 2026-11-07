@@ -1419,3 +1419,5 @@ mod storage_capacity;
 mod storage_initializer;
 
 mod filled_construction;
+
+mod diagonal_ops;

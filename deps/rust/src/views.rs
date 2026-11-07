@@ -9,7 +9,7 @@ use rustcall_julia_macros::julia;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Spec {
-    kind: i32,
+    pub(crate) kind: i32,
     r: isize,
     rs: isize,
     m: usize,

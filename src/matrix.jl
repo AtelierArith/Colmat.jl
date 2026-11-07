@@ -39,6 +39,11 @@ _is_native_owner(::FaerMatrix) = true
 # pointers. Typed Rust references go through RustCall's checked handle borrowing.
 _raw_owner_argument(x, owner) = _is_native_owner(owner) ? Ptr{UInt8}(x.ptr) : x
 const _raw_owner_arguments = (
+    (RustCrate.diagonal_matrix, (3,)),
+    (RustCrate.diagonal_matrix_values, (4,)),
+    (RustCrate.diagonal_of_view, (2,)),
+    (RustCrate.diagonal_vector, (3,)),
+    (RustCrate.diagonal_vector_values, (4,)),
     (RustCrate.operator_bicgstab, (3, 4)),
     (RustCrate.operator_cg, (3,)),
     (RustCrate.operator_load, (2,)),
