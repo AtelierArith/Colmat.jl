@@ -38,7 +38,9 @@ using Test, LinearAlgebra, Random, Colmat
     @test !issymmetric(A)
     @test_throws DimensionMismatch det(FaerMatrix(ones(2, 3)))
     @test_throws DimensionMismatch tr(FaerMatrix(ones(2, 3)))
-    @test_throws DimensionMismatch dot(FaerMatrix(ones(2, 3)), FaerMatrix(ones(3, 2)))
+    # Julia pairs equal-length arrays in column-major order.
+    @test dot(FaerMatrix(ones(2, 3)), FaerMatrix(ones(3, 2)))==6.0
+    @test_throws DimensionMismatch dot(FaerMatrix(ones(2, 3)), FaerMatrix(ones(3, 3)))
     @test_throws ArgumentError minimum(FaerMatrix(zeros(0, 2)))
     @test_throws ArgumentError maximum(FaerMatrix(zeros(2, 0)))
 end

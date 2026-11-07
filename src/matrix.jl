@@ -90,6 +90,7 @@ const _raw_owner_arguments = (
     (RustCrate.view_kron_into, (3, 5)),
     (RustCrate.view_gemm, (1, 3, 5)),
     (RustCrate.view_predicate, (1,)),
+    (RustCrate.view_structure, (1,)),
     (RustCrate.view_reduce, (1,)),
 )
 function _raw_owner_positions(f)

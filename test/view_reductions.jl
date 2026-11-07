@@ -164,6 +164,63 @@ end
         @test_throws ArgumentError norm(x, 0)
     end
 
+    @testset "structure predicates on views and borrowed matrices" begin
+        rng=MersenneTwister(972)
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            S=randn(rng, T, 5, 5)
+            H=S+S'
+            Y=S+transpose(S)
+            E=Matrix{T}(I, 5, 5)
+            E[2, 1]=-zero(T)
+            Nn=copy(Y)
+            Nn[3, 3]=T(NaN)
+            Rd=copy(H)
+            T<:Complex && (Rd[2, 2]+=im)
+            mats=(H, Y, E, triu(S), tril(S, 1), triu(S, -1), Diagonal(diag(S))*one(T), Nn, Rd, randn(rng, T, 3, 5), randn(rng, T, 5, 3), zeros(T, 0, 0), triu(randn(rng, T, 3, 6)))
+            for M in mats
+                M=Matrix{T}(M)
+                native=FaerMatrix(M)
+                m, n=size(M)
+                try
+                    cases=Any[
+                        (native, M),
+                        (view(native, 1:m, 1:n), M),
+                        (view(native, m:-1:1, n:-1:1), M[m:-1:1, n:-1:1]),
+                        (faerview(M), M),
+                        (faerview(view(M, :, n:-1:1)), M[:, n:-1:1]),
+                    ]
+                    m>=3 && n>=3 && push!(cases, (view(native, 1:2:m, 1:2:n), M[1:2:m, 1:2:n]))
+                    for (a, J) in cases
+                        @test isone(a)===isone(J)
+                        @test issymmetric(a)===issymmetric(J)
+                        @test ishermitian(a)===ishermitian(J)
+                        @test isdiag(a)===isdiag(J)
+                        for k in (-7, -2, -1, 0, 1, 2, 7)
+                            @test istriu(a, k)===istriu(J, k)
+                            @test istril(a, k)===istril(J, k)
+                        end
+                        @test istriu(a)===istriu(J) && istril(a)===istril(J)
+                    end
+                finally
+                    close(native)
+                end
+            end
+        end
+        n=300
+        J=Matrix(1.0I, n, n)
+        native=FaerMatrix(J)
+        try
+            V=view(native, 1:n, 1:n)
+            B=faerview(J)
+            for f in (()->isone(V), ()->issymmetric(V), ()->ishermitian(B), ()->isdiag(native), ()->istriu(V, 1), ()->istril(B))
+                f()
+                @test @allocated(f())<4096
+            end
+        finally
+            close(native)
+        end
+    end
+
     @testset "dot of equal-length operands with different shapes" begin
         rng=MersenneTwister(971)
         for T in (Float32, Float64, ComplexF32, ComplexF64)

@@ -26,10 +26,10 @@ Base.all(::typeof(isfinite), a::FaerMatrix{Float64}) =
     _native_call(RustCrate.predicate, a, Int32(0))
 Base.any(::typeof(isnan), a::FaerMatrix{Float64}) =
     _native_call(RustCrate.predicate, a, Int32(1))
-Base.isone(a::FaerMatrix{Float64}) = _native_call(RustCrate.predicate, a, Int32(2))
-LinearAlgebra.issymmetric(a::FaerMatrix{Float64}) =
-    _native_call(RustCrate.predicate, a, Int32(3))
-LinearAlgebra.ishermitian(a::FaerMatrix{Float64}) = LinearAlgebra.issymmetric(a)
+# Julia's `==` semantics (NaN breaks symmetry), see `_native_structure`.
+Base.isone(a::FaerMatrix{Float64}) = _native_structure(a, 0)
+LinearAlgebra.issymmetric(a::FaerMatrix{Float64}) = _native_structure(a, 1)
+LinearAlgebra.ishermitian(a::FaerMatrix{Float64}) = _native_structure(a, 1)
 function LinearAlgebra.opnorm(a::FaerMatrix{Float64}, p::Real = 2)
     p == 1 && return _native_call(RustCrate.reduction, a, Int32(9))
     p == Inf && return _native_call(RustCrate.reduction, a, Int32(10))

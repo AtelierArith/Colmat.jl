@@ -233,6 +233,42 @@ the Frobenius norm.
 """
 LinearAlgebra.norm(a::_ReductionView, p::Real = 2) = _native_norm(a, p)
 
+# Structure predicates read matrix views and borrowed matrices (and native
+# owners for the triangular/diagonal tests) in place with early exit, instead
+# of Julia's generic per-entry `getindex`.
+const _StructureView=Union{FaerMatrixView,FaerBorrowedMatrix}
+const _StructureMatrix=Union{FaerMatrix,FaerRow,_StructureView}
+function _native_structure(a, code, k::Integer = 0)
+    # Offsets past the extents behave alike; clamping keeps `k` in Int64.
+    band=Int64(clamp(k, -(Int64(1)<<40), Int64(1)<<40))
+    lock(_matrix_lock) do
+        owner, d=_view_source(a)
+        GC.@preserve d return _native_call(
+            RustCrate.view_structure,
+            owner,
+            pointer(d),
+            Int32(code),
+            band,
+        )
+    end
+end
+"""
+    isone(A), issymmetric(A), ishermitian(A)    # native matrix views, faerview matrices
+    istriu(A, k=0), istril(A, k=0), isdiag(A)   # also FaerMatrix and FaerRow
+
+Structure tests read native matrices, strided/reversed views and borrowed Julia
+matrices in place and stop at the first violating entry. Entries compare with
+`==` as in LinearAlgebra: `-0.0` counts as zero, NaN fails symmetry and
+`ishermitian` requires a real diagonal; non-square matrices are neither `isone`
+nor symmetric.
+"""
+Base.isone(a::_StructureView) = _native_structure(a, 0)
+LinearAlgebra.issymmetric(a::_StructureView) = _native_structure(a, 1)
+LinearAlgebra.ishermitian(a::_StructureView) = _native_structure(a, 2)
+LinearAlgebra.istriu(a::_StructureMatrix, k::Integer = 0) = _native_structure(a, 3, k)
+LinearAlgebra.istril(a::_StructureMatrix, k::Integer = 0) = _native_structure(a, 4, k)
+LinearAlgebra.isdiag(a::_StructureMatrix) = _native_structure(a, 5)
+
 function _native_dot(x, y)
     length(x)==length(y) || throw(
         DimensionMismatch(
