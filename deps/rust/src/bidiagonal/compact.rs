@@ -1,6 +1,7 @@
 //! Shared owned bidiagonal reflectors, including rectangular basis actions.
 use super::construction::{block_size, params};
 use super::workspace::buffer;
+use crate::teams::with_team;
 use crate::{guarded, householder_sequence, teams::OwnedTeam, workspace::OwnedScratch};
 use faer::dyn_stack::{MemStack, StackReq};
 use faer::linalg::{self, svd};
@@ -334,25 +335,13 @@ pub fn compact_bidiagonal_requirements(
     bs: usize,
     threshold: usize,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| construction_query(m, n, tag, bs, threshold, ParShape::Seq, out))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn compact_bidiagonal_team_requirements(
-        &self,
-        m: usize,
-        n: usize,
-        tag: i32,
-        bs: usize,
-        threshold: usize,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| {
-            self.execute(|par| construction_query(m, n, tag, bs, threshold, par.shape(), out))?
+    guarded(|| {
+        with_team(team, |par| {
+            construction_query(m, n, tag, bs, threshold, par.shape(), out)
         })
-    }
+    })
 }
 #[julia]
 impl OwnedCompactBidiagonal {
@@ -367,34 +356,17 @@ impl OwnedCompactBidiagonal {
         tag: i32,
         bs: usize,
         threshold: usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<Self, String> {
         guarded(|| {
-            Ok(Self {
-                data: build_data(scratch, input, m, n, d, e, tag, bs, Par::Seq, threshold)?,
-            })
-        })
-    }
-    #[julia]
-    pub fn reduce_team(
-        scratch: &mut OwnedScratch,
-        input: *const u8,
-        m: usize,
-        n: usize,
-        d: *mut u8,
-        e: *mut u8,
-        tag: i32,
-        bs: usize,
-        threshold: usize,
-        team: &OwnedTeam,
-    ) -> Result<Self, String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 Ok(Self {
                     data: build_data(scratch, input, m, n, d, e, tag, bs, par, threshold)?,
                 })
-            })?
+            })
         })
     }
+
     #[julia]
     pub fn duplicate(source: &Self) -> Result<Self, String> {
         guarded(|| {
@@ -586,51 +558,14 @@ impl OwnedCompactBidiagonal {
         c: bool,
         input: *const u8,
         out: *mut u8,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            apply_data(
-                self,
-                scratch,
-                m,
-                n,
-                b,
-                tag,
-                u,
-                cols,
-                extent,
-                right,
-                t,
-                c,
-                input,
-                out,
-                Par::Seq,
-            )
-        })
-    }
-    #[julia]
-    pub fn compact_bidiagonal_apply_team(
-        &self,
-        scratch: &mut OwnedScratch,
-        m: usize,
-        n: usize,
-        b: usize,
-        tag: i32,
-        u: bool,
-        cols: usize,
-        extent: usize,
-        right: bool,
-        t: bool,
-        c: bool,
-        input: *const u8,
-        out: *mut u8,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 apply_data(
                     self, scratch, m, n, b, tag, u, cols, extent, right, t, c, input, out, par,
                 )
-            })?
+            })
         })
     }
 }

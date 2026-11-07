@@ -1,4 +1,5 @@
 //! Self-adjoint EVD with explicit scratch and ephemeral team authority.
+use crate::teams::with_team;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::StackReq;
@@ -35,28 +36,18 @@ fn write_req(req: StackReq, out: *mut usize) {
     }
 }
 #[julia]
-pub fn evd_requirements(n: usize, tag: i32, values: bool, out: *mut usize) -> Result<(), String> {
+pub fn evd_requirements(
+    n: usize,
+    tag: i32,
+    values: bool,
+    out: *mut usize,
+    team: Option<&OwnedTeam>,
+) -> Result<(), String> {
     guarded(|| {
-        write_req(dispatch(n, tag, values, ParShape::Seq)?, out);
+        let req = with_team(team, |par| dispatch(n, tag, values, par.shape()))?;
+        write_req(req, out);
         Ok(())
     })
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn evd_team_requirements(
-        &self,
-        n: usize,
-        tag: i32,
-        values: bool,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let req = self.execute(|par| dispatch(n, tag, values, par.shape()))??;
-            write_req(req, out);
-            Ok(())
-        })
-    }
 }
 unsafe fn run<T: ComplexField>(
     a: MatRef<'_, T>,
@@ -130,6 +121,7 @@ impl OwnedMatrix {
     pub fn evd_workspace(
         &self,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
         u: *mut u8,
         s: *mut u8,
         values: bool,
@@ -141,34 +133,7 @@ impl OwnedMatrix {
             run(
                 self.matrix.as_ref(),
                 scratch,
-                None,
-                u,
-                s,
-                values,
-                lower,
-                n,
-                tag,
-                1,
-            )
-        })
-    }
-    #[julia]
-    pub fn evd_workspace_team(
-        &self,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-        u: *mut u8,
-        s: *mut u8,
-        values: bool,
-        lower: bool,
-        n: usize,
-        tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| unsafe {
-            run(
-                self.matrix.as_ref(),
-                scratch,
-                Some(team),
+                team,
                 u,
                 s,
                 values,
@@ -206,6 +171,7 @@ impl TypedMatrix {
     pub fn evd_workspace(
         &self,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
         u: *mut u8,
         s: *mut u8,
         values: bool,
@@ -213,20 +179,6 @@ impl TypedMatrix {
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
-        guarded(|| unsafe { self.workspace_evd(scratch, None, u, s, values, lower, n, tag) })
-    }
-    #[julia]
-    pub fn evd_workspace_team(
-        &self,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-        u: *mut u8,
-        s: *mut u8,
-        values: bool,
-        lower: bool,
-        n: usize,
-        tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| unsafe { self.workspace_evd(scratch, Some(team), u, s, values, lower, n, tag) })
+        guarded(|| unsafe { self.workspace_evd(scratch, team, u, s, values, lower, n, tag) })
     }
 }

@@ -29,9 +29,7 @@ function scratch_requirements(f::_EvdFunction, a::_AnyFaerSelfAdjoint; team = no
             f in (LinearAlgebra.eigvals, LinearAlgebra.eigvals!),
         )
         GC.@preserve info begin
-            isnothing(team) ?
-            _native_call(RustCrate.evd_requirements, args..., pointer(info)) :
-            _native_call(RustCrate.evd_team_requirements, team, args..., pointer(info))
+            _native_call(RustCrate.evd_requirements, args..., pointer(info), team)
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end
@@ -79,9 +77,7 @@ function _evd_workspace_result(
                     UInt(n),
                     _tag(T),
                 )
-                isnothing(team) ?
-                _native_call(RustCrate.evd_workspace, source, work, args...) :
-                _native_call(RustCrate.evd_workspace_team, source, work, team, args...)
+                _native_call(RustCrate.evd_workspace, source, work, team, args...)
             end
             if !isnothing(sortby)
                 order=sortperm(values; by = sortby)

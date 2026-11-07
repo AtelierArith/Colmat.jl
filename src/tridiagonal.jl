@@ -210,9 +210,7 @@ function _tridiagonal_evd(
                     vectors,
                     UInt(threshold),
                 )
-                isnothing(team) ?
-                _native_call(RustCrate.tridiagonal_evd_workspace, args...) :
-                _native_call(RustCrate.tridiagonal_evd_workspace_team, args..., team)
+                _native_call(RustCrate.tridiagonal_evd_workspace, args..., team)
             end
             all(isfinite, values)&&all(isfinite, q) || throw(
                 ArgumentError("tridiagonal eigendecomposition overflowed the working type"),

@@ -1,5 +1,6 @@
 //! Bidiagonal reduction and explicit bases with caller workspace.
 use super::workspace::buffer;
+use crate::teams::with_team;
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch};
 use faer::dyn_stack::StackReq;
 use faer::linalg::{self, householder as hh, svd};
@@ -124,23 +125,9 @@ pub fn bidiagonalize_requirements(
     full: bool,
     bs: usize,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| query(m, n, tag, full, bs, ParShape::Seq, out, 0))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn bidiagonalize_team_requirements(
-        &self,
-        m: usize,
-        n: usize,
-        tag: i32,
-        full: bool,
-        bs: usize,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(m, n, tag, full, bs, par.shape(), out, 0))?)
-    }
+    guarded(|| with_team(team, |par| query(m, n, tag, full, bs, par.shape(), out, 0)))
 }
 unsafe fn compute<T: ComplexField>(
     scratch: &mut OwnedScratch,
@@ -331,26 +318,15 @@ pub fn bidiagonalize_workspace(
     tag: i32,
     full: bool,
     bs: usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| run(scratch, input, m, n, u, v, d, e, tag, full, bs, Par::Seq, 0))
+    guarded(|| {
+        with_team(team, |par| {
+            run(scratch, input, m, n, u, v, d, e, tag, full, bs, par, 0)
+        })
+    })
 }
-#[julia]
-pub fn bidiagonalize_workspace_team(
-    scratch: &mut OwnedScratch,
-    input: *const u8,
-    m: usize,
-    n: usize,
-    u: *mut u8,
-    v: *mut u8,
-    d: *mut u8,
-    e: *mut u8,
-    tag: i32,
-    full: bool,
-    bs: usize,
-    team: &OwnedTeam,
-) -> Result<(), String> {
-    guarded(|| team.execute(|par| run(scratch, input, m, n, u, v, d, e, tag, full, bs, par, 0))?)
-}
+
 pub(super) fn allocate(
     input: *const u8,
     m: usize,
@@ -392,24 +368,13 @@ pub fn bidiagonalize_tuned_requirements(
     bs: usize,
     threshold: usize,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| query(m, n, tag, full, bs, ParShape::Seq, out, threshold))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn bidiagonalize_tuned_team_requirements(
-        &self,
-        m: usize,
-        n: usize,
-        tag: i32,
-        full: bool,
-        bs: usize,
-        threshold: usize,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(m, n, tag, full, bs, par.shape(), out, threshold))?)
-    }
+    guarded(|| {
+        with_team(team, |par| {
+            query(m, n, tag, full, bs, par.shape(), out, threshold)
+        })
+    })
 }
 #[julia]
 pub fn bidiagonalize_tuned_workspace(
@@ -425,47 +390,14 @@ pub fn bidiagonalize_tuned_workspace(
     full: bool,
     bs: usize,
     threshold: usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
     guarded(|| {
-        run(
-            scratch,
-            input,
-            m,
-            n,
-            u,
-            v,
-            d,
-            e,
-            tag,
-            full,
-            bs,
-            Par::Seq,
-            threshold,
-        )
-    })
-}
-#[julia]
-pub fn bidiagonalize_tuned_workspace_team(
-    scratch: &mut OwnedScratch,
-    input: *const u8,
-    m: usize,
-    n: usize,
-    u: *mut u8,
-    v: *mut u8,
-    d: *mut u8,
-    e: *mut u8,
-    tag: i32,
-    full: bool,
-    bs: usize,
-    threshold: usize,
-    team: &OwnedTeam,
-) -> Result<(), String> {
-    guarded(|| {
-        team.execute(|par| {
+        with_team(team, |par| {
             run(
                 scratch, input, m, n, u, v, d, e, tag, full, bs, par, threshold,
             )
-        })?
+        })
     })
 }
 

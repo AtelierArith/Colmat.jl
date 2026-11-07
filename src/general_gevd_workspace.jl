@@ -34,14 +34,7 @@ function scratch_requirements(
             side===:both,
         )
         GC.@preserve info begin
-            isnothing(team) ?
-            _native_call(RustCrate.general_gevd_requirements, args..., pointer(info)) :
-            _native_call(
-                RustCrate.general_gevd_team_requirements,
-                team,
-                args...,
-                pointer(info),
-            )
+            _native_call(RustCrate.general_gevd_requirements, args..., pointer(info), team)
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end
@@ -101,16 +94,7 @@ function _general_gevd_workspace_result(
                     UInt(n),
                     _tag(T),
                 )
-                isnothing(team) ?
-                _native_call(RustCrate.general_gevd_workspace, a, b, work, args...) :
-                _native_call(
-                    RustCrate.general_gevd_workspace_team,
-                    a,
-                    b,
-                    work,
-                    team,
-                    args...,
-                )
+                _native_call(RustCrate.general_gevd_workspace, a, b, work, team, args...)
             end
             if vectors
                 for matrix in

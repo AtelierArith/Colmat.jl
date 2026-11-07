@@ -1,4 +1,5 @@
 //! Square bidiagonal SVD with caller scratch and scoped team authority.
+use crate::teams::with_team;
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch};
 use faer::dyn_stack::StackReq;
 use faer::linalg::svd;
@@ -79,21 +80,9 @@ pub fn bidiagonal_svd_requirements(
     tag: i32,
     threshold: usize,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| query(n, tag, threshold, ParShape::Seq, out))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn bidiagonal_svd_team_requirements(
-        &self,
-        n: usize,
-        tag: i32,
-        threshold: usize,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(n, tag, threshold, par.shape(), out))?)
-    }
+    guarded(|| with_team(team, |par| query(n, tag, threshold, par.shape(), out)))
 }
 unsafe fn compute<T: ComplexField>(
     scratch: &mut OwnedScratch,
@@ -198,41 +187,15 @@ pub fn bidiagonal_svd_workspace(
     tag: i32,
     upper: bool,
     threshold: usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
     guarded(|| {
-        run(
-            scratch,
-            d,
-            e,
-            n,
-            values,
-            u,
-            v,
-            tag,
-            upper,
-            threshold,
-            Par::Seq,
-        )
+        with_team(team, |par| {
+            run(scratch, d, e, n, values, u, v, tag, upper, threshold, par)
+        })
     })
 }
-#[julia]
-pub fn bidiagonal_svd_workspace_team(
-    scratch: &mut OwnedScratch,
-    d: *const u8,
-    e: *const u8,
-    n: usize,
-    values: *mut u8,
-    u: *mut u8,
-    v: *mut u8,
-    tag: i32,
-    upper: bool,
-    threshold: usize,
-    team: &OwnedTeam,
-) -> Result<(), String> {
-    guarded(|| {
-        team.execute(|par| run(scratch, d, e, n, values, u, v, tag, upper, threshold, par))?
-    })
-}
+
 pub(super) fn allocate(
     d: *const u8,
     e: *const u8,

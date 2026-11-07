@@ -129,8 +129,6 @@ function bidiagonalize(
                         UInt(bs),
                         policy.value,
                     )
-                    isnothing(team) ?
-                    _native_call(RustCrate.OwnedCompactBidiagonal, args...) :
                     _native_call(RustCrate.OwnedCompactBidiagonal, args..., team)
                 end
                 return FaerBidiagonalization(
@@ -158,9 +156,7 @@ function bidiagonalize(
                     UInt(bs),
                     policy.value,
                 )
-                isnothing(team) ?
-                _native_call(RustCrate.bidiagonalize_tuned_workspace, args...) :
-                _native_call(RustCrate.bidiagonalize_tuned_workspace_team, args..., team)
+                _native_call(RustCrate.bidiagonalize_tuned_workspace, args..., team)
             end
             all(isfinite, U)&&all(isfinite, V)&&all(isfinite, d)&&all(isfinite, e) ||
                 throw(ArgumentError("bidiagonalization overflowed the working type"))
@@ -252,9 +248,7 @@ function bidiagonal_svd(
                     uplo in (:U, 'U'),
                     UInt(threshold),
                 )
-                isnothing(team) ?
-                _native_call(RustCrate.bidiagonal_svd_workspace, args...) :
-                _native_call(RustCrate.bidiagonal_svd_workspace_team, args..., team)
+                _native_call(RustCrate.bidiagonal_svd_workspace, args..., team)
             end
             all(isfinite, U)&&all(isfinite, V)&&all(isfinite, values) ||
                 throw(ArgumentError("bidiagonal SVD overflowed the working type"))
