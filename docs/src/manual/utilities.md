@@ -163,7 +163,7 @@ C = copy(M)              # independent FaerMatrix
 ```
 
 - **When aliasing applies:** the payload must be native-endian and its data
-  offset a multiple of the element alignment. NumPy pads headers to 64 bytes,
+  offset a multiple of the element alignment. NumPy pads headers to 16 or 64 bytes,
   so its files qualify. Otherwise (foreign endian, odd header padding, or a
   `SubArray` byte source) the copying `loadnpy` result is returned. Pass
   `fallback=false` to get an `ArgumentError` instead.

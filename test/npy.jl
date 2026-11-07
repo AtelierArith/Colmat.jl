@@ -245,6 +245,17 @@ _poke!(bytes, at, x) = copyto!(bytes, at+1, reinterpret(UInt8, [x]), 1, sizeof(x
         @test_throws ArgumentError ldiv!(B, U, FaerMatrix(A))
         S=UpperTriangular(FaerSparseMatrix(sparse(Matrix{T}(2I, m, m))))
         @test_throws ArgumentError ldiv!(S, B)
+        Z=FaerMatrix(zeros(T, m, n))
+        @test_throws ArgumentError copyto!(B, Z)
+        @test_throws ArgumentError copyto!(B, view(Z, :, :))
+        @test_throws ArgumentError B.=Z
+        @test_throws ArgumentError B.+=one(T)
+        @test_throws ArgumentError mul!(B, FaerMatrix(A), FaerMatrix(Matrix{T}(I, n, n)))
+        Un=UpperTriangular(FaerMatrix(Matrix{T}(I, n, n)+triu(ones(T, n, n))))
+        @test_throws ArgumentError rdiv!(B, Un)
+        F=lu(FaerMatrix(Matrix{T}(I, m, m)+triu(ones(T, m, m))))
+        @test_throws ArgumentError ldiv!(F, B)
+        @test_throws ArgumentError ldiv!(B, F, FaerMatrix(A))
         @test B==A
         # Mapped files alias the file pages.
         mktemp() do path, io
@@ -308,6 +319,17 @@ _poke!(bytes, at, x) = copyto!(bytes, at+1, reinterpret(UInt8, [x]), 1, sizeof(x
     @test_throws ArgumentError B[1, 1]
     @test_throws ArgumentError copy(B)
     @test_throws ArgumentError sum(B)
+    # Derived wrappers keep the mapping alive after the path is unlinked.
+    mktemp() do path, io
+        write(io, _npy_bytes([1.0 2; 3 4]; big = nativebig))
+        close(io)
+        T2=(p->transpose(npyborrow(p)))(path)
+        rm(path)
+        GC.gc()
+        GC.gc()
+        @test T2==[1.0 3; 2 4]
+        @test Matrix(copy(parent(T2)))==[1.0 2; 3 4]
+    end
     # The borrow keeps the source alive.
     B=npyborrow(_npy_bytes([1.0 2; 3 4]; big = nativebig))
     GC.gc()
