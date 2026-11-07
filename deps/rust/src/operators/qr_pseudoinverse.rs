@@ -730,6 +730,14 @@ mod tests {
                 } else {
                     (qr.Q_basis(), qr.Q_coeff(), qr.R(), None)
                 };
+                // Attribution: faer's SVD kernel alone, with every output and
+                // its workspace preallocated. Above small sizes its only
+                // allocations are matrix-product packing buffers
+                // (t4a-faer upstream-reports/gemm-001); at 7x3/3x7 it is 0.
+                let kernel = svd_kernel_allocations(r);
+                if m.max(n) < 8 {
+                    assert_eq!(kernel, 0);
+                }
                 let req = QrPseudoInverse::<T>::construction_scratch(m, n, ParShape::Seq);
                 let mut memory = faer::dyn_stack::MemBuffer::new(req);
                 let mut saved = None;
@@ -751,14 +759,6 @@ mod tests {
                         .unwrap(),
                     )
                 });
-                // Attribution: faer's SVD kernel alone, with every output and
-                // its workspace preallocated. Above small sizes its only
-                // allocations are matrix-product packing buffers
-                // (t4a-faer upstream-reports/gemm-001); at 7x3/3x7 it is 0.
-                let kernel = svd_kernel_allocations(r);
-                if m.max(n) < 8 {
-                    assert_eq!(kernel, 0);
-                }
                 assert!(
                     count <= RETAINED_BUFFERS + kernel,
                     "QR pseudoinverse construction allocated {count} buffers for {m}x{n} \
