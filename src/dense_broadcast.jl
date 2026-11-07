@@ -14,8 +14,14 @@
 
 Broadcast style of the native dense arrays [`FaerMatrix`](@ref),
 [`FaerVector`](@ref), [`FaerRow`](@ref), native views and their adjoints and
-transposes. It wins over Julia's dense, structured and sparse styles; the
-native sparse style wins over it.
+transposes, and of [`FaerDiagonal`](@ref). It wins over Julia's dense,
+structured and sparse styles; the native sparse style wins over it.
+
+A `FaerDiagonal` operand is read as a `Diagonal` of its stored entries, so a
+result that Julia keeps diagonal (`D .* 2`, `abs.(D)`, `D .* D`) is a
+`FaerDiagonal` and other results (`D .+ 1`, `D .+ A`) are dense. `D .= ...`
+computes into a `Diagonal` buffer (nonzero off-diagonal results throw before
+anything is written) and writes the stored entries in one bulk transfer.
 
 `f.(args...)` snapshots each native operand once in bulk, runs Julia's
 broadcast on the snapshots (so shapes, dimension expansion and result eltypes
@@ -51,6 +57,9 @@ Broadcast.BroadcastStyle(::Type{<:LinearAlgebra.Adjoint{<:Any,<:_DenseNativeArra
     FaerArrayStyle{2}()
 Broadcast.BroadcastStyle(::Type{<:LinearAlgebra.Transpose{<:Any,<:_DenseNativeArray}}) =
     FaerArrayStyle{2}()
+# A FaerDiagonal operand is read as a `Diagonal` of its stored entries, so
+# Julia's structured rules decide whether the result stays diagonal.
+Broadcast.BroadcastStyle(::Type{<:FaerDiagonal}) = FaerArrayStyle{2}()
 for S in (
     LinearAlgebra.StructuredMatrixStyle,
     SparseArrays.HigherOrderFns.SparseMatStyle,
@@ -74,17 +83,30 @@ _dense_snapshot(a::LinearAlgebra.Transpose) = transpose(_dense_snapshot(parent(a
 
 # Replaces native leaves (deduplicated by identity) with Julia snapshots and
 # borrowed arrays with their parents. `rows[]` stays true while every native
-# array leaf is a FaerRow.
+# array leaf is a FaerRow; `sparse[]` records a native sparse leaf (only
+# concatenation and `map` see those, sparse broadcast has its own style).
 mutable struct _DenseSnapshots
     cache::IdDict{Any,Any}
     rows::Bool
     native::Bool
+    sparse::Bool
 end
-_DenseSnapshots() = _DenseSnapshots(IdDict{Any,Any}(), true, false)
+_DenseSnapshots() = _DenseSnapshots(IdDict{Any,Any}(), true, false, false)
 function _julia_leaf(s::_DenseSnapshots, a::_DenseNativeLeaf)
     s.native=true
     a isa FaerRow || (s.rows=false)
     return get!(() -> _dense_snapshot(a), s.cache, a)
+end
+function _julia_leaf(s::_DenseSnapshots, a::FaerDiagonal)
+    s.native=true
+    s.rows=false
+    return get!(() -> LinearAlgebra.Diagonal(Vector(a)), s.cache, a)
+end
+function _julia_leaf(s::_DenseSnapshots, a::FaerSparseMatrix)
+    s.native=true
+    s.sparse=true
+    s.rows=false
+    return get!(() -> SparseArrays.SparseMatrixCSC(a), s.cache, a)
 end
 _julia_leaf(::_DenseSnapshots, a::FaerBorrowedArray) = parent(a)
 _julia_leaf(::_DenseSnapshots, a) = a
@@ -98,6 +120,8 @@ end
 _sparse_dense_leaf(a) = lock(() -> _dense_snapshot(a), _matrix_lock)
 _julia_sparse_broadcasted(a::Union{FaerVector,FaerRow,FaerView,_DenseNativeWrapped}) =
     _sparse_dense_leaf(a)
+_julia_sparse_broadcasted(a::FaerDiagonal) =
+    lock(() -> LinearAlgebra.Diagonal(Vector(a)), _matrix_lock)
 
 # Julia-to-native result transfers. Broadcast results (`A ./ 0`, `log.(A)`)
 # may hold Inf/NaN, which owners store like Julia arrays; results are written
@@ -113,10 +137,16 @@ function _native_array_result(r::Matrix{T}, rows::Bool) where {T<:_NativeScalar}
     rows && size(r, 1)==1 && return _native_owner_from(FaerRow{T}(undef, size(r, 2)), r)
     return _native_owner_from(FaerMatrix{T}(undef, size(r)...), r)
 end
+_native_array_result(r::LinearAlgebra.Diagonal{T,Vector{T}}, ::Bool) where {T<:_NativeScalar} =
+    FaerDiagonal{T}(r.diag)
 function _native_dense_result(s::_DenseSnapshots, r)
     s.native || return r
     return _native_array_result(r, s.rows)
 end
+# A sparse result is native only when a native sparse operand took part, as
+# SparseArrays makes any concatenation with a sparse operand sparse.
+_native_dense_result(s::_DenseSnapshots, r::SparseArrays.SparseMatrixCSC{<:_NativeScalar,Int}) =
+    s.sparse ? FaerSparseMatrix(r) : r
 
 # `A .± B` (equal shapes and scalar types) and `α .* A` reuse the native
 # whole-matrix kernels, which avoid the snapshots entirely.
@@ -178,6 +208,16 @@ function Base.copyto!(dest::_DenseNativeDest, bc::Broadcast.Broadcasted{FaerArra
     Broadcast.materialize!(buf, Broadcast.broadcasted(bc.f, args...))
     return copyto!(dest, buf)
 end
+# `D .= D .* 2`: a Julia `Diagonal` buffer (Julia rejects nonzero off-diagonal
+# results before anything is written), then one bulk write of the entries.
+function Base.copyto!(dest::FaerDiagonal, bc::Broadcast.Broadcasted{FaerArrayStyle{N}}) where {N}
+    s=_DenseSnapshots()
+    args=_julia_leaves(s, bc.args)
+    buf=LinearAlgebra.Diagonal(Vector{eltype(dest)}(undef, size(dest, 1)))
+    Broadcast.materialize!(buf, Broadcast.broadcasted(bc.f, args...))
+    copyto!(diagonalview(dest), buf.diag)
+    return dest
+end
 function Base.copyto!(dest::AbstractArray, bc::Broadcast.Broadcasted{FaerArrayStyle{N}}) where {N}
     s=_DenseSnapshots()
     args=_julia_leaves(s, bc.args)
@@ -197,8 +237,10 @@ native view), every native argument is snapshotted once in bulk and Julia's
 native-scalar results are returned as native owners as for broadcast (see
 [`FaerArrayStyle`](@ref)). `map!` into a native destination computes into a
 Julia buffer and writes it in one bulk transfer, leaving the destination
-unchanged on failure. Calls whose first array is a Julia array keep Julia's
-element-wise path.
+unchanged on failure. When the first native argument follows Julia arrays
+(`map(f, J, A)`), or the destination is a Julia array (`map!(f, J, A)`), the
+same transfer applies (the leading Julia arrays accepted by concatenation,
+up to three of them before the native argument).
 """
 function Base.map(f, a::_DenseNativeArray, rest::AbstractArray...)
     s=_DenseSnapshots()
@@ -212,39 +254,3 @@ function Base.map!(f, dest::_DenseNativeDest, a::AbstractArray, rest::AbstractAr
     map!(f, buf, args...)
     return copyto!(dest, buf)
 end
-
-# Concatenation (row 76's `concat!`): the first argument must be native so that
-# Julia-first calls keep Base's and SparseArrays' methods.
-const _DenseConcatFirst=Union{
-    FaerMatrix{<:Number},
-    FaerVector{<:Number},
-    FaerRow{<:Number},
-    FaerView{<:Number,1},
-    FaerView{<:Number,2},
-}
-const _DenseConcatRest=Union{Number,AbstractVecOrMat{<:Number}}
-function _native_concat(f, args)
-    s=_DenseSnapshots()
-    julia=_julia_leaves(s, args)
-    return _native_dense_result(s, f(julia...))
-end
-"""
-    hcat(A, Bs...)
-    vcat(A, Bs...)
-    hvcat(rows, A, Bs...)
-    cat(A, Bs...; dims)
-
-Concatenation whose first argument is a native dense array snapshots every
-native argument once in bulk, concatenates with Julia's algorithm and returns a
-native owner for dense native-scalar results (a `FaerVector` from `vcat` of
-vectors, a `FaerRow` when every native argument is a `FaerRow` and the result
-has one row, otherwise a `FaerMatrix`). Array literals lower to these
-functions, so `[A B; C D]` with a native `A` is native. Results with more than
-two dimensions or a non-native scalar stay Julia arrays.
-"""
-Base.hcat(a::_DenseConcatFirst, rest::_DenseConcatRest...) = _native_concat(hcat, (a, rest...))
-Base.vcat(a::_DenseConcatFirst, rest::_DenseConcatRest...) = _native_concat(vcat, (a, rest...))
-Base.hvcat(rows::Tuple{Vararg{Int}}, a::_DenseConcatFirst, rest::_DenseConcatRest...) =
-    _native_concat((xs...) -> hvcat(rows, xs...), (a, rest...))
-Base.cat(a::_DenseConcatFirst, rest::_DenseConcatRest...; dims) =
-    _native_concat((xs...) -> cat(xs...; dims), (a, rest...))
