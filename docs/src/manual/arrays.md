@@ -101,13 +101,38 @@ close(native_full)
 対応します。親の形状を変える `resize!` / `truncate!` は既存のビューを
 失効させます。親を閉じた場合もアクセスは例外になります。
 `copy(view(...))` は独立した Rust 所有行列・ベクトルを返します。
-ビューへの `copyto!` は入力を一時コピーし、代入先と重なる場合も値を保ちます。
+ビューへの `copyto!` は native 所有型・ビューの入力を一時コピーし、代入先と重なる
+場合も値を保ちます。同じ要素型の Julia strided 配列（`Matrix`、範囲・逆順の
+`view` など）は一時コピーせず、Julia のメモリを直接読みます（形状が一致する
+所有型への `copyto!` も同様）。
 `FaerMatrix` / `FaerRow` への Julia 配列・ビュー・疎行列などからの `copyto!` も同じ
 一括代入経路を使い、要素毎の `setindex!` は行いません。形状が異なっても要素数が
 収まれば Base と同じく線形順にコピーし、長すぎる入力は `BoundsError` です。ただし
 `FaerMatrix` 同士のネイティブコピーは従来どおり形状一致が必要で、`DimensionMismatch`
 になります。要素型の変換失敗・close 済みの代入先はいずれも書き込み前に例外となり、
 代入先は変わりません。
+
+`faerview(A)` は Julia の strided ベクトル・行列を借用する `FaerBorrowedMatrix` /
+`FaerBorrowedVector` を返します。`A` を保持し、各ネイティブ呼び出しの間だけ
+`pointer(A)`・`size(A)`・`strides(A)` から faer の `MatRef` を作るため、負や
+非単位の stride もコピーせずに読みます。ポインタ・形状は保存しないので、親の
+`Vector` を `resize!` しても次の呼び出しは現在の長さとアドレスを使います。
+要素型は Float32 / Float64 / ComplexF32 / ComplexF64、親は `Array` / `Memory` に
+限り、stride 0 や重なる stride は `ArgumentError` です。`copy` / `FaerMatrix`、
+`+` / `-` / `*`（転置・随伴、native 行列やビューとの混在、型昇格を含む）、
+`FaerVector` への `mul!`、`mean` / `var`、`copyto!` の入力が借用のまま動作し、
+`view` も借用を保ちます。添字・`strides`・`pointer` は親へ転送します。
+
+```julia
+J = rand(4, 3)
+B = faerview(J)                       # コピーしない
+P = B' * FaerMatrix(J)                # Julia のメモリを直接読む native 積
+J[1, 1] = 0                           # 以後の呼び出しに反映
+@assert copy(B)[1, 1] == 0
+copyto!(view(FaerMatrix{Float64}(undef, 4, 3), :, :), view(J, :, :))
+close(P)
+```
+
 `FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
 
 `FaerMatrix{T}(m,n; fill=value)` と `FaerVector{T}(n; fill=value)` /

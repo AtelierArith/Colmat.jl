@@ -171,7 +171,7 @@ impl Operands {
                 }
             }
         }
-        write_view(dest, s, r.as_ref())
+        write_view(dest, s, r.as_ref(), s.conjugate)
     }
 }
 #[julia]

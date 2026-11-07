@@ -91,6 +91,10 @@ export FaerSpectralFactor,
     FaerMatrixView,
     FaerVectorView,
     diagonalview,
+    faerview,
+    FaerBorrowedArray,
+    FaerBorrowedMatrix,
+    FaerBorrowedVector,
     FaerVector,
     FaerRow,
     FaerDiagonal,
@@ -213,6 +217,7 @@ include("typed.jl")
 include("storage.jl")
 include("collections.jl")
 include("views.jl")
+include("borrowed.jl")
 include("permutations.jl")
 include("pseudoinverse.jl")
 include("schur.jl")
