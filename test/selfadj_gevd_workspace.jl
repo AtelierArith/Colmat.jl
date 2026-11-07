@@ -50,7 +50,7 @@ end
     @test Matrix(b)==[2 0; 0 1]
     @test_throws ArgumentError eigen!(H, H; scratch = s)
     b[1, 1]=-1
-    @test_throws Colmat.RustCall.RustError eigen!(H, K; scratch = s)
+    @test_throws PosDefException eigen!(H, K; scratch = s)
     @test Matrix(a)==[4 1; 1 3]
     @test Matrix(b)==[-1 0; 0 1]
     close(s)

@@ -25,7 +25,7 @@ fn req<T: ComplexField>(m: usize, n: usize, full: bool, values: bool, par: ParSh
             mode(full, values),
             mode(full, values),
             par,
-            Default::default(),
+            crate::svd_tuning::svd_params::<T>(),
         ),
     ])
 }
@@ -144,7 +144,7 @@ unsafe fn run<T: ComplexField>(
             v,
             par,
             stack,
-            Default::default(),
+            crate::svd_tuning::svd_params::<T>(),
         )
         .map_err(|e| format!("SVD: {e:?}"))?;
         for i in 0..k {

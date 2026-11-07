@@ -159,22 +159,26 @@ function LinearAlgebra.kron(a::FaerMatrix{T}, b::FaerMatrix{S}) where {T,S}
     return LinearAlgebra.kron(_coerce(a, P), _coerce(b, P))
 end
 Base.:+(a::FaerMatrix{T}) where {T<:_ExtraScalar} = copy(a)
-Base.:-(a::FaerMatrix{T}) where {T<:_ExtraScalar} = (-one(T))*a
+Base.:-(a::FaerMatrix{T}) where {T<:_ExtraScalar} = (-one(_realtype(T)))*a
 function Base.:*(x::Number, a::FaerMatrix{T}) where {T}
     P=_native_promotion(typeof(x), T)
     converted=_coerce(a, P)
     P===Float64 && return Float64(x)*converted
-    factor=Ref{P}(x)
+    # Real factors scale complex entries componentwise, as Julia's Real*Complex
+    # does, so an infinite part never turns the other part into NaN.
+    R=x isa Real ? _realtype(P) : P
+    factor=Ref{R}(x)
     return GC.@preserve factor _typed_result(
         P,
-        RustCrate.scale_from,
+        R===P ? RustCrate.scale_from : RustCrate.scale_real_from,
         size(a),
         converted,
-        Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, factor)),
+        Ptr{UInt8}(Base.unsafe_convert(Ptr{R}, factor)),
     )
 end
 Base.:*(a::FaerMatrix{T}, x::Number) where {T} = x*a
 Base.:/(a::FaerMatrix{T}, x::Number) where {T<:_ExtraScalar} = (one(T)/x)*a
+Base.:/(a::FaerMatrix{T}, x::Real) where {T<:_ExtraScalar} = (one(_realtype(T))/x)*a
 Base.:/(a::FaerMatrix{Float64}, x::Complex) = (1.0/x)*a
 Base.:\(x::Number, a::FaerMatrix) = a/x
 Base.conj(a::FaerMatrix{T}) where {T<:_ExtraScalar} =
@@ -239,10 +243,13 @@ function LinearAlgebra.svd(
     native::Bool = false,
     scratch = nothing,
     team = nothing,
+    alg = nothing,
 ) where {T<:_ExtraScalar}
+    alg===nothing || return _svd_alg(alg) do
+        LinearAlgebra.svd(a; full, native, scratch, team)
+    end
     native && return _owned_spectral(a; full, scratch, team)
-    (!isnothing(scratch) || !isnothing(team)) &&
-        return _svd_workspace_result(a; full, scratch, team)
+    _svd_default_path(scratch, team) || return _svd_workspace_result(a; full, scratch, team)
     m, n=size(a)
     k=min(m, n)
     R=_realtype(T)
@@ -264,8 +271,10 @@ function LinearAlgebra.svdvals(
     a::FaerMatrix{T};
     scratch = nothing,
     team = nothing,
+    alg = nothing,
 ) where {T<:_ExtraScalar}
-    (!isnothing(scratch) || !isnothing(team)) &&
+    alg===nothing || return _svd_alg(()->LinearAlgebra.svdvals(a; scratch, team), alg)
+    _svd_default_path(scratch, team) ||
         return _svd_workspace_result(a; values_only = true, scratch, team)
     s=Vector{_realtype(T)}(undef, min(size(a)...))
     GC.@preserve s _native_call(
@@ -298,10 +307,6 @@ function Base.sum(a::FaerMatrix{T}; dims = :, kw...) where {T<:_ExtraScalar}
     dims==2 &&
         return _typed_result(T, RustCrate.axis_sum_from, (size(a, 1), 1), a, Int32(2))
     return _native_sum(a, dims)
-end
-function LinearAlgebra.det(a::FaerMatrix{T}) where {T<:_ExtraScalar}
-    LinearAlgebra.checksquare(a)
-    return _typed_scalar(a, 1)
 end
 function LinearAlgebra.tr(a::FaerMatrix{T}) where {T<:_ExtraScalar}
     LinearAlgebra.checksquare(a)
@@ -407,7 +412,8 @@ LinearAlgebra.cholesky(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing)
 function _require_hermitian(a::FaerMatrix)
     LinearAlgebra.ishermitian(a) && return nothing
     message="self-adjoint factorization requires Hermitian input"
-    eltype(a)<:Complex && LinearAlgebra.issymmetric(a) &&
+    eltype(a)<:Complex &&
+        LinearAlgebra.issymmetric(a) &&
         (message*="; complex symmetric (non-Hermitian) LDLᵀ is not provided by t4a-faer")
     throw(ArgumentError(message))
 end
@@ -725,16 +731,23 @@ LinearAlgebra.eigen(
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
+    permute::Bool = false,
+    scale::Bool = false,
 ) where {T<:_ExtraScalar} =
-    side===:right && isnothing(scratch) && isnothing(team) ? _typed_eigen(a; sortby) :
+    _balanced_check(permute, scale) ?
+    _balanced_eigen(a, true; side, sortby, scratch, team) :
+    side===:right && _evd_default_path(scratch, team) ? _typed_eigen(a; sortby) :
     _general_evd_workspace_result(a; sortby, scratch, team, side)
 LinearAlgebra.eigvals(
     a::FaerMatrix{T};
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
+    permute::Bool = false,
+    scale::Bool = false,
 ) where {T<:_ExtraScalar} =
-    isnothing(scratch) && isnothing(team) ? _typed_eigen(a; vectors = false, sortby) :
+    _balanced_check(permute, scale) ? _balanced_eigen(a, false; sortby, scratch, team) :
+    _evd_default_path(scratch, team) ? _typed_eigen(a; vectors = false, sortby) :
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_ExtraSelfAdjoint;
@@ -745,7 +758,7 @@ LinearAlgebra.eigen(
 ) =
     native ?
     _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
-    isnothing(scratch) && isnothing(team) ?
+    _evd_default_path(scratch, team) ?
     _typed_eigen(parent(a); hermitian = true, lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; sortby, scratch, team)
 LinearAlgebra.eigvals(
@@ -754,7 +767,7 @@ LinearAlgebra.eigvals(
     scratch = nothing,
     team = nothing,
 ) =
-    isnothing(scratch) && isnothing(team) ?
+    _evd_default_path(scratch, team) ?
     _typed_eigen(
         parent(a);
         vectors = false,
@@ -864,24 +877,6 @@ function _triangular_wrap(a, b)
         LinearAlgebra.UpperTriangular(b)
     )
 end
-function Base.:\(a::_ExtraTriangular, b::FaerMatrix)
-    size(a, 1)==size(b, 1) ||
-        throw(DimensionMismatch("triangular solve dimensions must match"))
-    P=promote_type(eltype(a), eltype(b))
-    P===eltype(a) || return _triangular_wrap(a, _coerce(parent(a), P))\_coerce(b, P)
-    return _typed_result(
-        P,
-        RustCrate.triangular_solve_typed,
-        size(b),
-        parent(a),
-        _coerce(b, P),
-        _islower(a),
-        _isunit(a),
-    )
-end
-Base.:\(a::_ExtraTriangular, b::StridedMatrix{<:Number}) = a\FaerMatrix(b)
-Base.:\(a::_ExtraTriangular, b::AbstractVector{<:Number}) =
-    vec(Matrix(a\FaerMatrix(reshape(b, :, 1))))
 Base.inv(a::_ExtraTriangular) = _typed_result(
     eltype(a),
     RustCrate.triangular_inverse_typed,
@@ -890,11 +885,6 @@ Base.inv(a::_ExtraTriangular) = _typed_result(
     _islower(a),
     _isunit(a),
 )
-LinearAlgebra.ldiv!(a::_ExtraTriangular, b::FaerMatrix) = copyto!(b, a\b)
-function LinearAlgebra.ldiv!(dest::FaerMatrix, a::_ExtraTriangular, b::FaerMatrix)
-    size(dest)==size(b) || throw(DimensionMismatch("output dimensions must match RHS"))
-    return copyto!(dest, a\b)
-end
 function LinearAlgebra.logabsdet(f::FaerFactorization{T}) where {T<:_ExtraScalar}
     R=_realtype(T)
     value=Ref{R}()

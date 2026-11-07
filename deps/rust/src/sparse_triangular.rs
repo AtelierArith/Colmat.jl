@@ -59,7 +59,7 @@ complex_native!(faer::c32, f32, 2);
 complex_native!(faer::c64, f64, 3);
 
 /// Lossless promotion pairs, as produced by Julia's `promote_type`.
-fn widens(from: i32, to: i32) -> bool {
+pub(crate) fn widens(from: i32, to: i32) -> bool {
     from == to || matches!((from, to), (0, 1) | (0, 2) | (0, 3) | (1, 3) | (2, 3))
 }
 
@@ -288,9 +288,9 @@ fn solve_any<P: Native>(
 }
 
 /// Bounds-checked mutable borrow of a view descriptor over `base`.
-fn view_mut<'a, T>(base: MatMut<'a, T>, s: Spec) -> Result<MatMut<'a, T>, String> {
+pub(crate) fn view_mut<'a, T>(base: MatMut<'a, T>, s: Spec) -> Result<MatMut<'a, T>, String> {
     if s.conjugate {
-        return Err("sparse triangular destination cannot be conjugated".into());
+        return Err("triangular solve destination cannot be conjugated".into());
     }
     let axis = |first: isize, step: isize, len: usize, cap: usize| -> Result<(), String> {
         if len == 0 {
@@ -309,7 +309,7 @@ fn view_mut<'a, T>(base: MatMut<'a, T>, s: Spec) -> Result<MatMut<'a, T>, String
     axis(s.r, s.rs, s.m, base.nrows())?;
     axis(s.c, s.cs, s.n, base.ncols())?;
     if (s.rs == 0 && s.m > 1) || (s.cs == 0 && s.n > 1) {
-        return Err("sparse triangular destination must not repeat elements".into());
+        return Err("triangular solve destination must not repeat elements".into());
     }
     let (rs, cs) = (base.row_stride(), base.col_stride());
     let offset = if s.m == 0 || s.n == 0 {

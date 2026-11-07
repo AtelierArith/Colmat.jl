@@ -50,11 +50,55 @@ function _operator_callback_dispatch(
     end
 end
 
+# Julia-owned marshalling buffers for one (scalar, orientation) pair. They are
+# reused across applications so steady-state callbacks do not allocate; a
+# buffer that is already lent to an active (recursive) callback is never shared.
+mutable struct _OperatorCallbackBuffers{T}
+    adjoint::Bool
+    busy::Bool
+    input::Matrix{T}
+    output::Matrix{T}
+end
+# Copies, transforms and compositions share one owner, and therefore its buffers.
+mutable struct _OperatorCallbackOwner{F,A}
+    forward::F
+    adjoint::A
+    buffers::Vector{Any}
+end
+_OperatorCallbackOwner(forward, adjoint) = _OperatorCallbackOwner(forward, adjoint, Any[])
+function _operator_callback_buffers(
+    ::Type{T},
+    owner::_OperatorCallbackOwner,
+    adjoint::Bool,
+    inputs::Int,
+    rows::Int,
+    cols::Int,
+) where {T}
+    for entry in owner.buffers
+        entry isa _OperatorCallbackBuffers{T} || continue
+        entry.adjoint==adjoint || continue
+        # Same-task recursion through the same operator gets independent arrays.
+        entry.busy && return nothing
+        size(entry.input)==(inputs, cols) ||
+            (entry.input=Matrix{T}(undef, inputs, cols))
+        size(entry.output)==(rows, cols) || (entry.output=Matrix{T}(undef, rows, cols))
+        return entry
+    end
+    entry=_OperatorCallbackBuffers{T}(
+        adjoint,
+        false,
+        Matrix{T}(undef, inputs, cols),
+        Matrix{T}(undef, rows, cols),
+    )
+    push!(owner.buffers, entry)
+    return entry
+end
+
 # Specialize once per scalar/callable pair; buffer loops contain no runtime
 # scalar-tag dispatch and execute before/after the single user action call.
 function _operator_callback_apply!(
     ::Type{T},
-    owner,
+    owner::_OperatorCallbackOwner,
     adj,
     m,
     n,
@@ -67,24 +111,36 @@ function _operator_callback_apply!(
     yc,
 ) where {T}
     rows, inputs, cols=Int(m), Int(n), Int(k)
-    input=Matrix{T}(undef, inputs, cols)
-    # Native passes valid MatRef/MatMut spans and signed element strides.
-    # Copy every input before calling user code; escaped callback arrays
-    # own Julia storage and never alias the borrowed native buffers.
-    source=Ptr{T}(x)
-    for j = 1:cols, i = 1:inputs
-        input[i, j]=unsafe_load(source, 1+(i-1)*rs+(j-1)*cs)
+    entry=_operator_callback_buffers(T, owner, adj!=0, inputs, rows, cols)
+    if isnothing(entry)
+        input=Matrix{T}(undef, inputs, cols)
+        output=Matrix{T}(undef, rows, cols)
+    else
+        input, output=entry.input, entry.output
+        entry.busy=true
     end
-    output=fill(T(NaN), rows, cols)
-    (adj==0 ? owner.forward : owner.adjoint)(output, input)
-    all(isfinite, output) || throw(
-        ArgumentError(
-            "operator callback must overwrite every output entry with finite values",
-        ),
-    )
-    destination=Ptr{T}(y)
-    for j = 1:cols, i = 1:rows
-        unsafe_store!(destination, output[i, j], 1+(i-1)*ys+(j-1)*yc)
+    try
+        # Native passes valid MatRef/MatMut spans and signed element strides.
+        # Copy every input before calling user code; callback arrays are Julia
+        # storage and never alias the borrowed native buffers.
+        source=Ptr{T}(x)
+        for j = 1:cols, i = 1:inputs
+            input[i, j]=unsafe_load(source, 1+(i-1)*rs+(j-1)*cs)
+        end
+        # Reset on every application so a stale previous result cannot pass.
+        fill!(output, T(NaN))
+        (adj==0 ? owner.forward : owner.adjoint)(output, input)
+        all(isfinite, output) || throw(
+            ArgumentError(
+                "operator callback must overwrite every output entry with finite values",
+            ),
+        )
+        destination=Ptr{T}(y)
+        for j = 1:cols, i = 1:rows
+            unsafe_store!(destination, output[i, j], 1+(i-1)*ys+(j-1)*yc)
+        end
+    finally
+        isnothing(entry) || (entry.busy=false)
     end
     return nothing
 end
@@ -146,16 +202,21 @@ end
     FaerLinearOperator(apply!, adjoint_apply!, m, n; T=Float64)
 
 Create an m-by-n native LinOp/BiLinOp backed by Julia functions. Each function
-receives independent Julia matrices `(Y,X)` and must overwrite every entry of
-`Y` with the forward or adjoint product, respectively. Multiple RHS columns and
-promoted native scalar types may be supplied. Functions and captured state are
-retained by reference; operator copies, transforms and compositions share that
-state. User exceptions are rethrown after the native call returns and outputs
-are staged before writeback. Escaped callback arrays remain valid Julia arrays.
+receives Julia matrices `(Y,X)`, independent of native memory, and must
+overwrite every entry of `Y` with the forward or adjoint product, respectively.
+Multiple RHS columns and promoted native scalar types may be supplied.
+Functions and captured state are retained by reference; operator copies,
+transforms and compositions share that state. User exceptions are rethrown
+after the native call returns and outputs are staged before writeback.
 
 The native solver still runs in Rust and invokes callbacks synchronously on the
-calling Julia thread. Callback marshaling allocates owned Julia arrays outside
-native scratch; this is not an allocation-free interface. The calling task is
+calling Julia thread. Inputs are copied into, and results staged from,
+Julia-owned buffers that the operator reuses per scalar type and orientation,
+so repeated applications with the same shape (as in `cg`, `bicgstab`, `lsmr`
+and the partial spectra) do not allocate for marshalling. Callbacks must not
+retain `Y` or `X`: escaped arrays stay valid Julia arrays, but later
+applications overwrite them. A recursive application of the same operator from
+inside its own callback receives fresh arrays. The calling task is
 pinned during the native call and its prior scheduling state is restored afterward.
 Same-task recursive Colmat calls are supported; other tasks serialize on the
 owner lock until the callback returns. Functions must define
@@ -187,7 +248,7 @@ function FaerLinearOperator(
             UInt(dims[2]),
             _tag(T),
         )
-        owners=Dict{UInt,Any}(id=>(forward = apply!, adjoint = adjoint_apply!))
+        owners=Dict{UInt,Any}(id=>_OperatorCallbackOwner(apply!, adjoint_apply!))
         return FaerLinearOperator{T,typeof(h)}(h, dims, :callback, false, false, owners)
     end
 end

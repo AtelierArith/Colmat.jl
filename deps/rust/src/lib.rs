@@ -16,17 +16,23 @@ fn guarded<T>(f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
 
 // Safety: callers supply contiguous column-major buffers with the declared
 // dimensions. Julia owns and GC-preserves them; Rust never retains pointers.
-unsafe fn input(ptr: *const f64, rows: usize, cols: usize) -> Result<Mat<f64>, String> {
+// Storage loads keep Inf/NaN like Julia arrays; numeric kernels check
+// finiteness at their own entry points.
+unsafe fn load_input(ptr: *const f64, rows: usize, cols: usize) -> Result<Mat<f64>, String> {
     let len = rows.checked_mul(cols).ok_or("matrix size overflow")?;
     let values = if len == 0 {
         &[]
     } else {
         std::slice::from_raw_parts(ptr, len)
     };
-    if values.iter().any(|x| !x.is_finite()) {
-        return Err("input must be finite".into());
-    }
     Ok(Mat::from_fn(rows, cols, |i, j| values[i + j * rows]))
+}
+
+// The PoC free functions keep their finite-only contract.
+unsafe fn input(ptr: *const f64, rows: usize, cols: usize) -> Result<Mat<f64>, String> {
+    let a = load_input(ptr, rows, cols)?;
+    check_finite(a.as_ref())?;
+    Ok(a)
 }
 
 unsafe fn output(value: MatRef<'_, f64>, ptr: *mut f64) {
@@ -131,7 +137,7 @@ impl OwnedMatrix {
         cols: usize,
     ) -> Result<(), String> {
         guarded(|| {
-            self.matrix = unsafe { input(data, rows, cols)? };
+            self.matrix = unsafe { load_input(data, rows, cols)? };
             Ok(())
         })
     }
@@ -1152,6 +1158,8 @@ pub mod qz;
 pub mod sparse;
 pub mod sparse_triangular;
 
+pub mod dense_triangular;
+
 pub mod sparsity;
 
 pub mod borrowed_sparse;
@@ -1438,3 +1446,11 @@ mod storage_capacity;
 mod storage_initializer;
 
 mod filled_construction;
+
+mod svd_tuning;
+mod schur_tuning;
+
+mod evd_tuning;
+mod pivoted_qr_rank;
+mod measures;
+mod diagonal_ops;

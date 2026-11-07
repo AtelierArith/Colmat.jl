@@ -64,9 +64,8 @@ unsafe fn read_matrix<T: ComplexField + Copy>(
     } else {
         std::slice::from_raw_parts(p.cast::<T>(), len)
     };
-    let a = Mat::from_fn(m, n, |i, j| data[i + j * m]);
-    finite(a.as_ref())?;
-    Ok(a)
+    // Stored values keep Inf/NaN; numeric kernels check finiteness themselves.
+    Ok(Mat::from_fn(m, n, |i, j| data[i + j * m]))
 }
 pub(crate) unsafe fn write_matrix<T: ComplexField>(a: MatRef<'_, T>, p: *mut u8) {
     for j in 0..a.ncols() {
@@ -116,6 +115,12 @@ pub(crate) fn arithmetic<T: ComplexField>(
 unsafe fn scale<T: ComplexField>(a: MatRef<'_, T>, factor: *const u8) -> Mat<T> {
     let x = &*factor.cast::<T>();
     Mat::from_fn(a.nrows(), a.ncols(), |i, j| mul(x, &a[(i, j)]))
+}
+// Real factors scale complex entries componentwise, like Julia's `Real*Complex`,
+// so Inf/NaN parts do not leak into the other component.
+unsafe fn scale_real<T: ComplexField>(a: MatRef<'_, T>, factor: *const u8) -> Mat<T> {
+    let x = &*factor.cast::<T::Real>();
+    Mat::from_fn(a.nrows(), a.ncols(), |i, j| mul_real(&a[(i, j)], x))
 }
 unsafe fn scalar_output<T: ComplexField>(
     a: MatRef<'_, T>,
@@ -344,6 +349,18 @@ impl TypedMatrix {
         guarded(|| {
             let a = source.data()?;
             self.data = Some(mapped!(a,x=>unsafe{scale(x.as_ref(),factor)}));
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn scale_real_from(
+        &mut self,
+        source: &TypedMatrix,
+        factor: *const u8,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = source.data()?;
+            self.data = Some(mapped!(a,x=>unsafe{scale_real(x.as_ref(),factor)}));
             Ok(())
         })
     }

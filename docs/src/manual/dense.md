@@ -42,6 +42,77 @@ close(A)
 @assert F \ [1.0, 2.0] ≈ a \ [1.0, 2.0]
 ```
 
+## SVD algorithms and tuning
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([sin(i + 3j) for i in 1:40, j in 1:30])
+F = svd(A; alg=LinearAlgebra.QRIteration())
+@assert F.U * Diagonal(F.S) * F.Vt ≈ Matrix(A)
+@assert svdvals(A; alg=LinearAlgebra.DivideAndConquer()) ≈ F.S
+G = with_svd_tuning(; recursion_threshold=8, qr_ratio_threshold=1.5) do
+    svd(A)
+end
+@assert G.S ≈ F.S
+close(A)
+```
+
+`alg=DivideAndConquer()` (the default) uses faer's driver, which runs the
+bidiagonal implicit QR algorithm below `recursion_threshold` (128) and divide
+and conquer above it; `alg=QRIteration()` uses the implicit QR algorithm at
+every size. `with_svd_tuning(f; recursion_threshold, qr_ratio_threshold,
+bidiag_par_threshold)` overrides faer's `SvdParams` for every SVD, scratch query,
+`FaerScratch` and `reserve!` in the scope (unspecified values keep the enclosing
+scope's), and calls without `scratch`/`team` then use the parameterized
+workspace driver. The scope holds Colmat's native-call lock.
+## Column-pivoted QR rank and truncated solves
+
+```julia
+using Colmat, LinearAlgebra
+a = [1.0 2 3; 2 4 6; 1 0 1; 0 1 1]
+a[:, 2] = 2a[:, 1]                       # rank two
+F = qr(FaerMatrix(a), ColumnNorm())
+@assert rank(F) == 2
+@assert rank(F; atol=1e3) == 0
+B = reshape([1.0, 2, 3, 4], 4, 1)
+B, r = ldiv!(F, B, 1e-10)               # minimum-norm, rank-truncated
+@assert r == 2
+@assert B[1:3, :] ≈ pinv(a) * [1.0, 2, 3, 4]
+close(F)
+```
+
+`rank(F; atol, rtol)` follows `rank(::QRPivoted)`: the first stored
+`|R[i,i]| <= max(atol, rtol*|R[1,1]|)`, with the same default `rtol`. It reads
+the native R diagonal without reconstruction. `ldiv!(F, B, rcond; team)`
+matches `ldiv!(::QRPivoted, B, rcond)`. `B` needs at least `max(m,n)` rows,
+its first `n` rows receive the minimum-norm solution, and the rank is
+returned. The rank is decided with `rtol=rcond`, whereas LAPACK `xgelsy`
+estimates it incrementally, so the two can differ for pivots near the
+threshold. The leading rank rows of R are completed orthogonally on the
+native side. faer's `ColPivQr` has no rank or tolerance API of its own.
+## Determinant and trace
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1 2; 1 3 0; 2 0 5])
+@assert det(A) ≈ 43
+@assert det(view(A, 3:-1:1, :)) ≈ -43        # borrowed view, no copy
+team = FaerTeam(2)
+@assert det(A'; team) ≈ 43
+close(team)
+@assert det(LowerTriangular(A)) == 60       # product of the stored diagonal
+@assert logabsdet(FaerDiagonal([2.0, -3.0])) == (log(6.0), -1.0)
+@assert tr(view(A, 1:2, 1:2)) == 7
+```
+
+`det` of a native matrix, range view, `transpose` or `adjoint` calls faer's
+`determinant` on the borrowed view; `team=` runs it on a caller-owned
+`FaerTeam`. Triangular wrappers and `FaerDiagonal` use only the stored
+diagonal for `det`, `tr` and `logabsdet` (a zero entry gives `(-Inf, 0)`).
+Non-square operands throw `DimensionMismatch`, empty operands give a
+determinant of one, and a real negative determinant makes `logdet` throw
+`DomainError`.
+
 ## Structured products
 
 ```julia
@@ -55,13 +126,30 @@ D = FaerDiagonal([2.0, 3.0])
 @assert Matrix(D * B) == [2.0 4; 9 12]
 mul!(B, L, B, 2.0, 0.0)
 @assert Matrix(B) == 2Matrix(C)
+v = FaerVector([1.0, 1.0])
+@assert Vector(L * v) == [2.0, 7.0]           # a native FaerVector
+E = FaerMatrix(fill(-1.0, 2, 2))
+structured_mul!(E, L, FaerMatrix([1.0 0; 0 1]); dest=:strict_lower)
+@assert Matrix(E) == [-1.0 -1; 3 -1]      # only the strict lower block is written
 ```
 
-Lower/upper and unit-triangular wrappers use faer's structured multiplication;
-These methods return a `FaerMatrix`, including triangular×triangular
-products. Native destination `mul!` supports coefficients and aliasing. Operand
-snapshots and a temporary result are allocated. Unused triangles and
-implicit unit diagonals are ignored, including nonfinite values stored there.
+Lower/upper and unit-triangular wrappers use faer's `matmul::triangular`.
+`FaerDiagonal` and Julia `Diagonal` use native diagonal products. These
+methods return a `FaerMatrix`, including triangular×triangular products, and a
+triangular wrapper times a `FaerVector` returns a `FaerVector`. Operands are
+borrowed rather than snapshotted: native parents, ranges and their
+`transpose`/`adjoint` through view descriptors, and strided Julia parents of
+the product type directly from their buffers (other Julia inputs and scalar
+conversions are copied once). `mul!` into a native matrix, range view or
+`FaerVector` writes the destination in place with faer's accumulation, so no
+temporary result is allocated; an operand sharing the destination's storage is
+snapshotted first. A zero `β` does not read the destination and a zero `α`
+does not read the operands. When the promoted type is wider than the
+destination, the product is computed out of place and converted.
+`structured_mul!(C, A, B, α, β; dest)` additionally selects the destination
+block (`:full`, `:lower`, `:upper`, `:strict_lower`, `:strict_upper`) that is
+computed and written. Unused triangles and implicit unit diagonals are
+ignored, including nonfinite values stored there.
 
 `FaerDiagonal` or Julia `Diagonal` times a `FaerMatrix`, a range view or a
 triangular wrapper of a `FaerMatrix` (on either side) scales rows or columns in
@@ -232,6 +320,61 @@ solves. Those need the default result without `scratch=`. Full-pivot LU,
 LDLT, Bunch–Kaufman, pivoted Cholesky and column-pivoted QR have no direct
 path yet.
 
+## Direct triangular solves and destructive triangular inverses
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([2.0 0; 1 4])
+B = FaerMatrix([2.0 4; 9 8])
+ldiv!(LowerTriangular(A), B)            # solved in B's own storage
+@assert Matrix(B) ≈ LowerTriangular([2.0 0; 1 4]) \ [2.0 4; 9 8]
+X = [1.0 2; 3 4]
+rdiv!(X, UpperTriangular(transpose(A))) # X / transpose(L), in place in X
+Z = FaerMatrix(ComplexF64[1 2; 3 4])
+work = FaerScratch(ldiv!, LowerTriangular(A), Z) # promoted triangle copy
+ldiv!(LowerTriangular(A), Z; scratch = work)
+T = UpperTriangular(FaerMatrix([2.0 1; 0 4]))
+LinearAlgebra.inv!(T; scratch = FaerScratch(LinearAlgebra.inv!, T))
+```
+
+Lower/upper/unit triangular wrappers of a `FaerMatrix`, a native matrix view or
+the `transpose`/`adjoint` (or elementwise conjugate) of either solve with faer's
+`solve_{unit_}{lower,upper}_triangular_in_place_with_conj`. The triangle is
+borrowed through its view descriptor, so transposed, adjoint and strided parents
+are never copied. `ldiv!(A, B)`, `ldiv!(Y, A, B)` and `rdiv!(B, A)` run the
+kernel directly on the destination when it is a `FaerMatrix`/`FaerVector`, a
+native view, a `faerview` borrow or an injective Julia strided array holding
+`promote_type(eltype(A), eltype(B))`. `rdiv!` solves `transpose(op(A)) *
+transpose(X) = transpose(B)` on the same memory. Narrower or non-strided
+destinations stage one promoted copy. A destination that shares the triangle's
+owner solves from a snapshot of the triangle. `A \ B` and `B / A` return a
+`FaerMatrix` (a vector RHS returns a vector, and a row vector stays a row
+vector).
+
+faer's dense triangular kernels need no workspace. `scratch` holds only the
+promoted copy of a triangle whose scalar is narrower than the promoted type
+(for example, a real triangle with a complex RHS), so
+`scratch_requirements(ldiv!, A, B)` is zero without promotion. It is also
+defined for `\`, `rdiv!` and `ldiv!(Y, A, B)`, with `FaerScratch` and
+`reserve!` for each. `team=` runs the kernel on a caller-owned `FaerTeam`.
+Zero diagonals throw `SingularException(i)`. Closed owners, closed teams and
+undersized scratch throw before any write.
+
+`LinearAlgebra.inv!(A; scratch, team)` overwrites the selected triangle of the
+parent (a `FaerMatrix`, a native view or a `transpose` of either) with the
+inverse triangle and returns `A`, as Julia's `inv!` does for strided triangles.
+The opposite strict triangle is untouched, and so is the diagonal of a unit
+wrapper. faer's `triangular_inverse::invert_*` kernels write into a separate
+destination, so the source triangle is first copied into scratch, sized by
+`scratch_requirements(inv!, A)`. Adjoint parents keep using `inv(A)`.
+
+With caller scratch, Colmat allocates no native memory on these paths. The
+direct solve made no native allocation through n = 70 (aarch64, `Par::Seq`).
+At n = 300, faer's blocked kernel allocates matmul packing buffers: 12 per
+solve. The in-place inverse is allocation-free at n = 5, but faer's matrix
+products allocate at n = 70. See t4a-faer `upstream-reports/gemm-001`.
+Allocations under a team were not measured.
+
 ## Destructive indefinite and full-pivot LU decompositions
 
 ```julia
@@ -362,7 +505,10 @@ never copies the retained input snapshot. Its default output is CSC. All sparse 
 algorithms reconstruct a dense native matrix from their saved Q/R factors.
 
 `Matrix{T}(F)` and `FaerMatrix{T}(F)` also support the dense owned decompositions
-above; sparse LU adds these conversions and typed sparse CSC output.
+above; sparse LU adds these conversions and typed sparse CSC output. The in-place
+`lu!/qr!/cholesky!(A; scratch)` results (`FaerInPlaceFactorization`) also support
+`reconstruct(F)` and the typed conversions; they read A's packed storage and
+throw `ArgumentError` once F is closed or A is closed, resized or truncated.
 Numeric conversion follows Julia rules, including errors for nonrepresentable
 complex-to-real values. Conversion temporaries are closed on errors. Reconstructed
 owners remain valid after the original factors are updated or closed.

@@ -529,6 +529,29 @@ close(F)
 @assert Matrix(L * U) ≈ A0[p, q]
 ```
 
+## Estimated condition numbers
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A0 = spdiagm(0 => [4.0, 5, 6, 7], 1 => [1.0, 1, 1], -1 => [-1.0, -1, -1])
+A = FaerSparseMatrix(A0)
+@assert opnorm(A, 1) == opnorm(A0, 1)
+κ = cond(A, 1)
+@assert κ <= cond(Matrix(A0), 1) * (1 + sqrt(eps()))
+@assert cond(A, Inf) > 0
+```
+
+As for `SparseMatrixCSC`, `cond(A, 1)` and `cond(A, Inf)` of a square
+`FaerSparseMatrix` multiply the exact `opnorm(A, p)` by a Higham–Tisseur block
+estimate of `‖A⁻¹‖ₚ`, a lower bound that is usually exact. The estimate uses a few
+normal and adjoint solves with one native sparse LU of A, so A⁻¹ is never formed
+and the cost is a sparse factorization plus O(nnz) work per iteration. The starting
+blocks come from a fixed-seed generator, so repeated calls give the same value and
+the global RNG is untouched. Empty input returns zero and a singular LU returns
+`Inf`, matching dense `cond(::FaerMatrix, p)`. `opnorm(A, 1/Inf)` reads one snapshot
+of the stored entries in CSC or CSR format. The 2-norm (`cond(A)`, `opnorm(A, 2)`)
+throws `ArgumentError` as SparseArrays does; use `cond(FaerMatrix(A), 2)`.
+
 ## COLAMD ordering in sparse LU/QR
 
 ```julia

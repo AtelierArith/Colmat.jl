@@ -152,9 +152,7 @@ unsafe fn load<T: ComplexField + Copy>(
     } else {
         std::slice::from_raw_parts(p.cast::<T>(), n)
     };
-    if v.iter().any(|x| !is_finite(x)) {
-        return Err("input must be finite".into());
-    }
+    // Stored values keep Inf/NaN like Julia vectors.
     VectorStore::new(kind, n, |i| v[i])
 }
 fn arithmetic<T: ComplexField>(
@@ -178,6 +176,13 @@ unsafe fn scaled<T: ComplexField>(
 ) -> Result<VectorStore<T>, String> {
     let value = &*value.cast::<T>();
     VectorStore::new(a.kind(), a.len(), |i| mul(value, &a.get(i)))
+}
+unsafe fn scaled_real<T: ComplexField>(
+    a: &VectorStore<T>,
+    value: *const u8,
+) -> Result<VectorStore<T>, String> {
+    let value = &*value.cast::<T::Real>();
+    VectorStore::new(a.kind(), a.len(), |i| mul_real(&a.get(i), value))
 }
 unsafe fn element<T: ComplexField>(a: &VectorStore<T>, i: usize, p: *mut u8) {
     p.cast::<T>().write(a.get(i));
@@ -353,6 +358,18 @@ impl VectorOwner {
         guarded(|| {
             let a = source.data()?;
             self.data = Some(mapped!(a,x=>unsafe{scaled(x,value)?}));
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn collection_scale_real(
+        &mut self,
+        source: &VectorOwner,
+        value: *const u8,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let a = source.data()?;
+            self.data = Some(mapped!(a,x=>unsafe{scaled_real(x,value)?}));
             Ok(())
         })
     }

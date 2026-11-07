@@ -53,8 +53,8 @@ function _dense_native_requirements(
         pointer(info),
     )
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.factor_solve_requirements, args...) :
-        _native_call(RustCrate.factor_solve_requirements_team, args..., team)
+        # `nothing` crosses as RustCall 0.10's checked optional owner.
+        _native_call(RustCrate.factor_solve_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
