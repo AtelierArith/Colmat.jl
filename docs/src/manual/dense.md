@@ -543,7 +543,9 @@ not allocate either.
 
 `ldiv!(F, b)` of a square direct factor also overwrites Julia strided arrays
 and `FaerVector`s, and a real factor solves a complex `b` as two real solves.
-The direct factor does not support operator or preconditioner use,
+`FaerLinearOperator(F)` (and `M = F` in `cg`/`bicgstab`/`lsmr`) is an
+inverse-action operator over an independent copy of the direct factor.
+The direct factor does not support
 promotion of the factor to another scalar type, rectangular LU or wide-QR solves (`pinv(F;
 atol, rtol, team)` of a direct QR is supported, see below). Those need the
 default result without `scratch=`. Pivoted Cholesky
