@@ -56,6 +56,11 @@ V = view(A, 2:-1:1, :)           # 逆順・間引きの範囲を扱える
 @assert Matrix(V' * V) ≈ Matrix(V)' * Matrix(V)
 copyto!(view(A, :, 1), v)         # 重複する領域からのコピーにも対応
 fill!(diagonalview(D), 5)         # 対角の格納領域を借用
+@assert Matrix(A[[2, 1, 2], :]) == Matrix(A)[[2, 1, 2], :]  # native gather
+A[[2, 1], [true, false]] = [7.0, 8.0]                         # native scatter
+top, bottom = split_at_row(A, 1)  # faer の split_at_row に対応する native ビュー
+@assert Matrix(bottom) == Matrix(A)[2:2, :]
+@assert strides(A)[1] == 1 && stride(A, 2) >= size(A, 1)  # padding を含む列 stride
 reserve!(A, 8, 8)                # 容量確保後も V は有効
 @assert all(capacity(A) .>= (8, 8)) # alignment padding を含む native 容量
 reserve!(v, 8)
@@ -111,6 +116,28 @@ close(native_full)
 `FaerMatrix` 同士のネイティブコピーは従来どおり形状一致が必要で、`DimensionMismatch`
 になります。要素型の変換失敗・close 済みの代入先はいずれも書き込み前に例外となり、
 代入先は変わりません。
+native 型の入力をビューへ代入する `copyto!(view, native)` は、代入先が重複しない
+ビューなら入力を一時コピーせず直接読みます（同じ所有者で重なる場合のみ Rust が
+snapshot します）。
+
+`FaerMatrix`・`FaerRow`・`FaerVector` とそのビューの `A[I, J]` / `A[I, J] = B` は、
+整数ベクトル・範囲・`:`・Bool マスク（重複添字を含む）を Rust の1回の
+gather / scatter で処理します。結果の型は Base と同じ規則（行列結果は native
+所有型、行列から取り出したベクトルは Julia `Vector`）です。代入は Base と同じ形状
+検査を行い、入力は書き込み前に要素型へ変換し、代入先と重なる native 入力
+（`A[:, p] = A` など）は先に snapshot します。重複添字への代入は列優先で後の値が
+残ります。行列の線形添字（`A[mask]`、`A[[1, 5]]`）は1回の一括読み出し後に Julia
+で添字付けします。整数ベクトル・マスクの `view(A, I, J)` は Julia の `SubArray`
+のままですが、`copy`・`Array`・`copyto!`・`S .= B`・`fill!` は同じ native
+gather / scatter を使います。
+
+`split_at_row(A, k)`・`split_at_col(A, k)`・`split_at(A, i, j)` は faer の同名 API
+に対応し、`k` 行（列）目までと残りの native ビューを返します（`0 <= k <= size`）。
+ベクトルは `split_at_row(v, k)` で分割します。`strides(A)` / `stride(A, d)` は
+faer が報告する実際の stride を返します。所有型は列優先で、列 stride は
+alignment padding を含む行容量です（`reserve!` で変わります）。ビューは間引き・
+逆順・行ビューの stride を反映します。native 記憶域は Julia から直接アドレス
+指定できないため、`pointer` と `Base.elsize` は定義しません。
 
 `faerview(A)` は Julia の strided ベクトル・行列を借用する `FaerBorrowedMatrix` /
 `FaerBorrowedVector` を返します。`A` を保持し、各ネイティブ呼び出しの間だけ
