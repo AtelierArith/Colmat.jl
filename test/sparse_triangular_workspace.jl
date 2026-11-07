@@ -229,7 +229,9 @@ end
         # queries, FFI argument boxing): no RHS, result or sparse operand copy,
         # so the cost does not grow with n beyond boxing integers above 512.
         @test all(large .<= small .+ 512)
-        @test all(<(8192), large)
+        # A fixed ceiling for the bookkeeping; its exact size varies by platform
+        # (8448 bytes for the Julia vector on macOS x86_64).
+        @test all(<(16384), large)
         @test all(<(4000*8), large)
     end
 end
