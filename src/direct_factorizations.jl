@@ -422,6 +422,13 @@ function Base.getproperty(f::FaerInPlaceFactorization{T,K}, name::Symbol) where 
     end
     return getfield(f, name)
 end
+qr_q(f::FaerInPlaceFactorization{T,:qr}; thin::Bool = false, team = nothing) where {T} =
+    _direct_part(
+        f,
+        thin ? 6 : 3,
+        (size(f, 1), thin ? minimum(size(f)) : size(f, 1));
+        team,
+    )
 function Base.propertynames(f::FaerInPlaceFactorization{T,K}, private::Bool = false) where {T,K}
     props =
         K===:lu ? (:L, :U, :p, :P) :
@@ -447,7 +454,8 @@ Base.Matrix(f::FaerInPlaceFactorization; team = nothing) =
 Base.Matrix{T}(f::FaerInPlaceFactorization; team = nothing) where {T} =
     _convert_dense_reconstruction(Matrix{T}, f; team)
 Base.Array(f::FaerInPlaceFactorization; team = nothing) = Matrix(f; team)
-function Base.inv(f::FaerInPlaceFactorization{T,K}) where {T,K}
+function Base.inv(f::FaerInPlaceFactorization{T,K}; team = nothing) where {T,K}
+    isnothing(team) || _handle(team)
     size(f, 1)==size(f, 2) || throw(DimensionMismatch("inverse requires a square factor"))
     LinearAlgebra.issuccess(f) || throw(_cholesky_failure(f))
     if K===:qr
@@ -455,7 +463,7 @@ function Base.inv(f::FaerInPlaceFactorization{T,K}) where {T,K}
         i=findfirst(iszero, d)
         isnothing(i) || throw(LinearAlgebra.SingularException(i[1]))
     end
-    return _direct_part(f, 10, size(f))
+    return _direct_part(f, 10, size(f); team)
 end
 # Natively: the diagonal log-measure of #148 over one pivot per factor of
 # det(A) (U's diagonal, L's twice, D, or B's block determinants) times the

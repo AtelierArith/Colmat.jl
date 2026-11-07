@@ -38,9 +38,16 @@ operand must be native or `faerview`) without a temporary result; only mixed sca
 `gemm_team` cost model decides whether a product is large enough to split, so
 Colmat adds no threshold. Dense LU/QR/Cholesky/LDLT/Bunch–Kaufman factors,
 retained or computed in place, accept `team` in `reconstruct`, `FaerMatrix(F)`
-and `Matrix(F)`. Operators such as `A * B` and `F \ B`, and property access
-such as `F.Q`, cannot take keywords and stay sequential; use `mul!`, `ldiv!` or
-`team_mul` instead. Component copies (`F.L`, `F.U`, `F.R`, ...), `kron`,
+and `Matrix(F)`, and `inv(F; team)` (also `inv(A; team)` for a dense matrix).
+`qr_q(F; thin=false, team)` forms the explicit `F.Q` (or `F.Qthin` with
+`thin=true`) on the team, and dense `pinv(A; team)` (including Hermitian and
+Symmetric inputs) runs the SVD/EVD and the reconstruction on it. Triangular
+structured `mul!(C, A, B[, α, β]; team)` and `structured_mul!(C, A, B; dest, team)`
+write `C` in place through faer's `matmul::triangular`; diagonal operands
+(elementwise scaling) and promotion beyond `C`'s type stay sequential.
+Operators such as `A * B`, `F \ B` and `B / F`, and property access such as
+`F.Q`, cannot take keywords and stay sequential by design; use `mul!`, `ldiv!`,
+`rdiv!`, `qr_q` or `team_mul` instead. Sparse × dense products are tracked in #114. Component copies (`F.L`, `F.U`, `F.R`, ...), `kron`,
 permutations, statistics, elementwise operations and sparse symbolic analysis
 are sequential because faer exposes no parallel form for them.
 

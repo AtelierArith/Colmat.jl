@@ -610,7 +610,11 @@ impl OwnedMatrix {
     }
 
     #[julia]
-    pub fn factor_inverse(&mut self, source: &OwnedFactor) -> Result<(), String> {
+    pub fn factor_inverse(
+        &mut self,
+        source: &OwnedFactor,
+        team: Option<&crate::teams::OwnedTeam>,
+    ) -> Result<(), String> {
         guarded(|| {
             let owner = source;
             if owner.info != 0 {
@@ -628,7 +632,9 @@ impl OwnedMatrix {
             if singular {
                 return Err("singular factorization".into());
             }
-            self.matrix = dispatch_factor!(f, x => x.inverse(Par::Seq));
+            self.matrix = crate::teams::with_team(team, |par| {
+                Ok(dispatch_factor!(f, x => x.inverse(par)))
+            })?;
             Ok(())
         })
     }

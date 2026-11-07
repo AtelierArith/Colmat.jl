@@ -5,7 +5,7 @@ function _spectral_tolerances(atol, rtol)
         throw(ArgumentError("atol and rtol must be nonnegative and not NaN"))
     return Float64(atol), Float64(rtol)
 end
-function _pinv(a::FaerMatrix, mode, atol, rtol)
+function _pinv(a::FaerMatrix, mode, atol, rtol, team)
     at, rt=_spectral_tolerances(atol, rtol)
     lock(_matrix_lock) do
         T=eltype(a)
@@ -19,6 +19,7 @@ function _pinv(a::FaerMatrix, mode, atol, rtol)
             at,
             rt,
             promote_type(typeof(rtol), _realtype(T))===Float32,
+            team,
         ) :
                _typed_result(
             T,
@@ -29,29 +30,34 @@ function _pinv(a::FaerMatrix, mode, atol, rtol)
             at,
             rt,
             promote_type(typeof(rtol), _realtype(T))===Float32,
+            team,
         )
     end
 end
 """
-    pinv(A::FaerMatrix; atol=0, rtol=min(size(A)...)*eps(real(eltype(A))))
+    pinv(A::FaerMatrix; atol=0, rtol=min(size(A)...)*eps(real(eltype(A))), team=nothing)
 
 Compute a Rust-owned Moore–Penrose pseudoinverse using faer's SVD and native
 pseudoinverse reconstruction. Singular values at or below
 `max(atol, rtol*maximum(svdvals(A)))` are discarded. Specifying nonzero `atol`
 defaults `rtol` to zero. Hermitian inputs (and real Symmetric inputs) use faer's
-self-adjoint eigendecomposition and honor the selected triangle.
+self-adjoint eigendecomposition and honor the selected triangle. `team` lends a
+caller-owned `FaerTeam` to the SVD/EVD and the reconstruction for this call; the
+decomposition owns its factors, so no caller `scratch` form is provided.
 """
 LinearAlgebra.pinv(
     a::FaerMatrix;
     atol::Real = 0,
     rtol::Real = _default_spectral_rtol(a, atol),
-) = _pinv(a, 0, atol, rtol)
+    team = nothing,
+) = _pinv(a, 0, atol, rtol, team)
 const _PinvSelfAdjoint=Union{_FaerSelfAdjoint,_ExtraSelfAdjoint}
 LinearAlgebra.pinv(
     a::_PinvSelfAdjoint;
     atol::Real = 0,
     rtol::Real = _default_spectral_rtol(a, atol),
-) = _pinv(parent(a), a.uplo=='L' ? 1 : 2, atol, rtol)
+    team = nothing,
+) = _pinv(parent(a), a.uplo=='L' ? 1 : 2, atol, rtol, team)
 LinearAlgebra.pinv(a::FaerMatrixView; kwargs...) = LinearAlgebra.pinv(copy(a); kwargs...)
 function _spectral_rank(a, values, atol, rtol)
     _spectral_tolerances(atol, rtol)

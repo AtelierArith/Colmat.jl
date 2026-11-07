@@ -38,6 +38,7 @@ fn pseudoinverse<T: ComplexField>(
     atol: f64,
     rtol: f64,
     relative_f32: bool,
+    mut par: Par<'_>,
 ) -> Result<Mat<T>, String>
 where
     T::Real: ToleranceReal,
@@ -52,9 +53,9 @@ where
         if m == 0 || n == 0 {
             return Ok(out);
         }
-        let f = a.thin_svd(Par::Seq).map_err(|e| format!("{e:?}"))?;
+        let f = a.thin_svd(par.reborrow()).map_err(|e| format!("{e:?}"))?;
         let mut memory = faer::dyn_stack::MemBuffer::new(
-            faer::linalg::svd::pseudoinverse_from_svd_scratch::<T>(m, n, Par::Seq.shape()),
+            faer::linalg::svd::pseudoinverse_from_svd_scratch::<T>(m, n, par.shape()),
         );
         faer::linalg::svd::pseudoinverse_from_svd_with_tolerance(
             out.as_mut(),
@@ -66,7 +67,7 @@ where
                 .norm_max()
                 .cutoff(atol, rtol, relative_f32),
             zero::<T::Real>(),
-            Par::Seq,
+            par.reborrow(),
             faer::dyn_stack::MemStack::new(&mut memory),
         );
     } else if mode == 1 || mode == 2 {
@@ -75,13 +76,10 @@ where
             return Ok(out);
         }
         let f = a
-            .self_adjoint_eigen(Side::Lower, Par::Seq)
+            .self_adjoint_eigen(Side::Lower, par.reborrow())
             .map_err(|e| format!("{e:?}"))?;
         let mut memory = faer::dyn_stack::MemBuffer::new(
-            faer::linalg::evd::pseudoinverse_from_self_adjoint_evd_scratch::<T>(
-                n,
-                Par::Seq.shape(),
-            ),
+            faer::linalg::evd::pseudoinverse_from_self_adjoint_evd_scratch::<T>(n, par.shape()),
         );
         faer::linalg::evd::pseudoinverse_from_self_adjoint_evd_with_tolerance(
             out.as_mut(),
@@ -92,7 +90,7 @@ where
                 .norm_max()
                 .cutoff(atol, rtol, relative_f32),
             zero::<T::Real>(),
-            Par::Seq,
+            par.reborrow(),
             faer::dyn_stack::MemStack::new(&mut memory),
         );
     } else {
@@ -129,10 +127,13 @@ impl OwnedMatrix {
         atol: f64,
         rtol: f64,
         relative_f32: bool,
+        team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             let a = source;
-            self.matrix = pseudoinverse(a.matrix.as_ref(), mode, atol, rtol, relative_f32)?;
+            self.matrix = crate::teams::with_team(team, |par| {
+                pseudoinverse(a.matrix.as_ref(), mode, atol, rtol, relative_f32, par)
+            })?;
             Ok(())
         })
     }
@@ -147,23 +148,46 @@ impl TypedMatrix {
         atol: f64,
         rtol: f64,
         relative_f32: bool,
+        team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             let a = source.data()?;
-            self.data = Some(match a {
-                MatrixData::F32(x) => {
-                    MatrixData::F32(pseudoinverse(x.as_ref(), mode, atol, rtol, relative_f32)?)
-                }
-                MatrixData::F64(x) => {
-                    MatrixData::F64(pseudoinverse(x.as_ref(), mode, atol, rtol, relative_f32)?)
-                }
-                MatrixData::C32(x) => {
-                    MatrixData::C32(pseudoinverse(x.as_ref(), mode, atol, rtol, relative_f32)?)
-                }
-                MatrixData::C64(x) => {
-                    MatrixData::C64(pseudoinverse(x.as_ref(), mode, atol, rtol, relative_f32)?)
-                }
-            });
+            self.data = Some(crate::teams::with_team(team, |par| {
+                Ok(match a {
+                    MatrixData::F32(x) => MatrixData::F32(pseudoinverse(
+                        x.as_ref(),
+                        mode,
+                        atol,
+                        rtol,
+                        relative_f32,
+                        par,
+                    )?),
+                    MatrixData::F64(x) => MatrixData::F64(pseudoinverse(
+                        x.as_ref(),
+                        mode,
+                        atol,
+                        rtol,
+                        relative_f32,
+                        par,
+                    )?),
+                    MatrixData::C32(x) => MatrixData::C32(pseudoinverse(
+                        x.as_ref(),
+                        mode,
+                        atol,
+                        rtol,
+                        relative_f32,
+                        par,
+                    )?),
+                    MatrixData::C64(x) => MatrixData::C64(pseudoinverse(
+                        x.as_ref(),
+                        mode,
+                        atol,
+                        rtol,
+                        relative_f32,
+                        par,
+                    )?),
+                })
+            })?);
             Ok(())
         })
     }

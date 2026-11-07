@@ -2,6 +2,7 @@
 //! from native owners, ranges or preserved Julia buffers via view descriptors;
 //! `*_into` writes the destination owner's range directly. Nothing is retained.
 use crate::collections::{VectorData, VectorOwner, VectorStore};
+use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::views::{borrowed_mut, source, Borrowed, Spec};
 use crate::{guarded, OwnedMatrix};
@@ -80,6 +81,7 @@ fn product_into<T: ComplexField>(
     (b, cb, sb): (MatRef<'_, T>, bool, i32),
     alpha: T,
     beta: Option<T>,
+    par: Par<'_>,
 ) -> Result<(), String> {
     let dstructure = structure(ds)?;
     let ((m, k), (k2, n)) = (shape(a, sa), shape(b, sb));
@@ -158,7 +160,7 @@ fn product_into<T: ComplexField>(
         structure(sb)?,
         conj_of(cb),
         alpha,
-        Par::Seq,
+        par,
     );
     Ok(())
 }
@@ -232,6 +234,7 @@ fn fresh<T: ComplexField>(
         (b, o.qd.conjugate, o.sb),
         one::<T>(),
         None,
+        Par::Seq,
     )?;
     Ok(out)
 }
@@ -271,6 +274,7 @@ unsafe fn into<T: ComplexField>(
     o: &Operands,
     alpha: *const u8,
     beta: *const u8,
+    par: Par<'_>,
 ) -> Result<(), String> {
     let dst = borrowed_mut(dst, dd)?;
     let beta = if beta.is_null() {
@@ -285,16 +289,17 @@ unsafe fn into<T: ComplexField>(
         (b, o.qd.conjugate, o.sb),
         scalar::<T>(alpha),
         beta,
+        par,
     )
 }
 macro_rules! into_owner {
-    ($dst:expr, $dd:expr, $ds:expr, $o:expr, $alpha:expr, $beta:expr) => {
+    ($dst:expr, $dd:expr, $ds:expr, $o:expr, $alpha:expr, $beta:expr, $par:expr) => {
         with_operands!($o, a, b, T => {
             let d: MatMut<'_, T> = match $dst.pick_mut() {
                 Some(d) => d,
                 None => return Err("destination and operand scalar types must match".into()),
             };
-            into(d, $dd, $ds, a, b, &$o, $alpha, $beta)
+            into(d, $dd, $ds, a, b, &$o, $alpha, $beta, $par)
         })
     };
 }
@@ -368,11 +373,14 @@ impl OwnedMatrix {
         sb: i32,
         alpha: *const u8,
         beta: *const u8,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| unsafe {
             let o = Operands::read(p, pd, sa, q, qd, sb)?;
             let dd = Spec::read(dd)?;
-            into_owner!(self.matrix, dd, ds, o, alpha, beta)
+            with_team(team, |par| {
+                into_owner!(self.matrix, dd, ds, o, alpha, beta, par)
+            })
         })
     }
 }
@@ -406,12 +414,13 @@ impl TypedMatrix {
         sb: i32,
         alpha: *const u8,
         beta: *const u8,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| unsafe {
             let o = Operands::read(p, pd, sa, q, qd, sb)?;
             let dd = Spec::read(dd)?;
             let data = self.data.as_mut().ok_or("matrix is not initialized")?;
-            into_owner!(data, dd, ds, o, alpha, beta)
+            with_team(team, |par| into_owner!(data, dd, ds, o, alpha, beta, par))
         })
     }
 }
@@ -454,12 +463,13 @@ impl VectorOwner {
         sb: i32,
         alpha: *const u8,
         beta: *const u8,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| unsafe {
             let o = Operands::read(p, pd, sa, q, qd, sb)?;
             let dd = Spec::read(dd)?;
             let data = self.data.as_mut().ok_or("collection is not initialized")?;
-            into_owner!(data, dd, ds, o, alpha, beta)
+            with_team(team, |par| into_owner!(data, dd, ds, o, alpha, beta, par))
         })
     }
 }
@@ -558,6 +568,7 @@ mod tests {
             0,
             (&alpha as *const f64).cast(),
             (&beta as *const f64).cast(),
+            None,
         )
         .unwrap();
         assert_eq!(c.matrix[(1, 0)], 2.0 * (2.0 * 1.0 + 4.0 * 2.0));
@@ -574,6 +585,7 @@ mod tests {
             0,
             (&zero as *const f64).cast(),
             std::ptr::null(),
+            None,
         )
         .unwrap();
         assert_eq!(c.matrix, Mat::<f64>::zeros(2, 2));
@@ -592,6 +604,7 @@ mod tests {
                 0,
                 (&alpha as *const f64).cast(),
                 std::ptr::null(),
+                None,
             )
             .is_err());
         let transposed = [0isize, 0, 1, 2, 0, 1, 2, 1, 0];
@@ -607,6 +620,7 @@ mod tests {
                 0,
                 (&alpha as *const f64).cast(),
                 std::ptr::null(),
+                None,
             )
             .is_err());
     }
