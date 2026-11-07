@@ -258,7 +258,8 @@ accumulation, rescaling by the extreme magnitude; integer `p` by repeated
 multiplication, as fast as or faster than Julia's `norm` of a dense array).
 Use `opnorm` for operator norms. Summation order is faer's, so sums may differ from Julia's by rounding.
 Equal-length `dot` operands of different shapes pair entries in column-major
-order, as in Julia.
+order, as in Julia. `x' * y` and `transpose(x) * y` of native vectors, vector views
+and borrowed vectors run the same native inner product.
 
 `sum!`, `minimum!`, `maximum!` and `extrema!(r, A; init = true)` reduce a
 native or borrowed `A` along the dimensions where `r` has extent 1 and write

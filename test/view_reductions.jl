@@ -221,6 +221,37 @@ end
         end
     end
 
+    @testset "x'*y and transpose(x)*y of vector views and borrowed vectors" begin
+        rng=MersenneTwister(973)
+        for (S, U) in ((ComplexF64, ComplexF64), (Float32, ComplexF64), (ComplexF32, Float64), (Float64, Float64))
+            z=randn(rng, S, 7)
+            w=randn(rng, U, 7)
+            x=FaerVector(z)
+            y=FaerVector(w)
+            try
+                for (a, A) in ((x, z), (view(x, 7:-1:1), reverse(z)), (faerview(z), z)),
+                    (b, B) in ((y, w), (view(y, 1:7), w), (faerview(w), w))
+                    @test transpose(a)*b≈transpose(A)*B
+                    @test a'*b≈A'*B
+                end
+            finally
+                close(x)
+                close(y)
+            end
+        end
+        n=10_000
+        x=FaerVector(randn(ComplexF64, n))
+        w=randn(ComplexF64, n)
+        try
+            v=view(x, n:-1:1)
+            b=faerview(w)
+            transpose(v)*b
+            @test @allocated(transpose(v)*b)<4096
+        finally
+            close(x)
+        end
+    end
+
     @testset "dot of equal-length operands with different shapes" begin
         rng=MersenneTwister(971)
         for T in (Float32, Float64, ComplexF32, ComplexF64)

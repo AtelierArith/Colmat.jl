@@ -302,3 +302,20 @@ one converted copy of each promoted operand.
 LinearAlgebra.dot(x::_ReductionView, y::_ReductionArray) = _native_dot(x, y)
 LinearAlgebra.dot(x::_ReductionOwner, y::_ReductionView) = _native_dot(x, y)
 LinearAlgebra.dot(x::_ReductionOwner, y::_ReductionOwner) = _native_dot(x, y)
+
+# `transpose(x) * y` of complex vector views and borrowed vectors: the
+# conjugation flag of `adjoint(x)`'s descriptor cancels `dot`'s conjugation of
+# `x`. Real `x` need no conjugation (`x' * y` and real `transpose(x) * y`
+# already reach `dot`; `FaerVector` pairs are in collections.jl).
+const _DotVectorView=Union{FaerVectorView,FaerBorrowedVector}
+const _DotVector=Union{_DotVectorView,FaerVector}
+_transpose_dot(x, y) = _native_dot(adjoint(parent(x)), y)
+Base.:*(x::LinearAlgebra.Transpose{<:Complex,<:_DotVectorView}, y::_DotVector) = _transpose_dot(x, y)
+Base.:*(x::LinearAlgebra.Transpose{<:Complex,<:FaerVector}, y::_DotVectorView) = _transpose_dot(x, y)
+const _ComplexDotView=Union{FaerVectorView{<:Complex},FaerBorrowedVector{<:Complex}}
+Base.:*(
+    x::LinearAlgebra.Transpose{<:Real,<:_DotVectorView},
+    y::Union{_ComplexDotView,FaerVector{<:Complex}},
+) = LinearAlgebra.dot(parent(x), y)
+Base.:*(x::LinearAlgebra.Transpose{<:Real,<:FaerVector}, y::_ComplexDotView) =
+    LinearAlgebra.dot(parent(x), y)
