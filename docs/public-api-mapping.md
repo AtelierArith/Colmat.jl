@@ -82,9 +82,9 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 正方連立方程式 | `Solve::solve/solve_in_place` | `A\B`, `ldiv!` | R: `A\B`、再利用可能な `F\B`、保存済み native SVD/EVD の混合型・許容誤差付き求解、alias-safe `ldiv!`。dense 保存因子の `ldiv!/rdiv!`、公開 native SVD/EVD の左右求解/逆行列に scratch/team・必要量照会/reserve | 真の無割当 in-place 求解・全引数形式 |
+| 正方連立方程式 | `Solve::solve/solve_in_place` | `A\B`, `ldiv!` | R: `A\B`、再利用可能な `F\B`、保存済み native SVD/EVD の混合型・許容誤差付き求解、alias-safe `ldiv!`。dense 保存因子の `ldiv!/rdiv!`、公開 native SVD/EVD の左右求解/逆行列に scratch/team・必要量照会/reserve | 保存 dense 因子の `ldiv!`/`rdiv!` は RHS を native へ1回コピーし（Julia strided 配列は借用経由、右求解は descriptor で転置）、native destination へは native に代入（Julia staging なし、rdiv! の要素ごと汎用コピーを解消）。真の無割当 in-place（因子種別ごとの native solve_in_place）は未接続 |
 | 共役・転置・随伴の求解 | `solve_conjugate/solve_transpose/solve_adjoint` と in-place 版 | `conj(A)\B`, `transpose(A)\B`, `A'\B` | R: 転置・随伴分解の求解、行列ラッパーの求解 | 行列ラッパーはコピー経由。全共役 in-place 形式 |
-| 右側からの求解 | `rsolve_*_in_place` | `B/A`, `rdiv!` | R: `B/A`、`B/F`、保存済み native SVD/EVD の転置/随伴・混合型を含む右求解、`rdiv!`。dense 保存因子と公開 native SVD/EVD の caller-owned scratch/team | 全型・全入力組合せの専用最適化 |
+| 右側からの求解 | `rsolve_*_in_place` | `B/A`, `rdiv!` | R: `B/A`、`B/F`、保存済み native SVD/EVD の転置/随伴・混合型を含む右求解、`rdiv!`。dense 保存因子と公開 native SVD/EVD の caller-owned scratch/team | native/Julia の RHS・destination・転置/随伴因子の組合せは同じ native 経路。型昇格を伴う求解は従来の再構成・再分解方針 |
 | 最小二乗 | `SolveLstsq::{solve_lstsq,solve_lstsq_in_place,...}`（QR/SVD 等） | 長方形 `A\b`, `ldiv!` | R: 長方形の求解、QR と広幅・ランク不足時の SVD 経路、保存済み native SVD の `F\B`/3 引数 `ldiv!`（`atol/rtol/team`）。dense 保存 QR の矩形/ランク落ち、矩形 LU/full LU の再構成/SVD 求解 scratch/team、昇格後も元精度のランク判定 | 全アルゴリズム選択・許容誤差設定 |
 | 三角連立方程式 | `solve_{unit_}{lower,upper}_triangular_in_place`, `linalg::triangular_solve` | `LowerTriangular/UpperTriangular/UnitLowerTriangular/UnitUpperTriangular` の `\` | R: lower/upper/unit の三角ラッパーの求解 | 全 mixed-operand と低水準 scratch 公開 |
 | 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`（保存済み native SVD/EVD・転置/随伴を含む。数値的特異性を検査、scratch/team 照会/reserve）、三角 inverse | 破壊的 inverse・全オプション |
