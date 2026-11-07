@@ -355,6 +355,29 @@ function Base.copyto!(dest::FaerVector, src::AbstractVector)
     copyto!(view(dest, :), src)
     return dest
 end
+# Owner destinations keep Base's linear-order copyto! semantics for non-owner
+# sources (differently shaped sources and shorter prefixes are accepted), but
+# stage the whole result in Julia and write it with one native view assignment.
+# Staging snapshots sources aliasing dest and converts elements before writing.
+# FaerMatrix sources keep the shape-strict native assignment methods.
+function _copyto_native_owner!(dest::Union{FaerMatrix,FaerRow}, src::AbstractArray)
+    lock(_matrix_lock) do
+        _handle(dest)
+        isempty(src) && return
+        length(src)<=length(dest) || throw(BoundsError(dest, LinearIndices(src)))
+        staged=if size(src)==size(dest)
+            src
+        elseif length(src)==length(dest)
+            reshape(Array(src), size(dest))
+        else
+            copyto!(Array(dest), src)
+        end
+        _copyto_faer_view!(view(dest, axes(dest)...), staged)
+    end
+    return dest
+end
+Base.copyto!(dest::Union{FaerMatrix,FaerRow}, src::AbstractArray) =
+    _copyto_native_owner!(dest, src)
 function LinearAlgebra.mul!(
     dest::FaerVector,
     a::_BorrowMatrix,

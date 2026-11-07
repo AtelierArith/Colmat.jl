@@ -102,6 +102,12 @@ close(native_full)
 失効させます。親を閉じた場合もアクセスは例外になります。
 `copy(view(...))` は独立した Rust 所有行列・ベクトルを返します。
 ビューへの `copyto!` は入力を一時コピーし、代入先と重なる場合も値を保ちます。
+`FaerMatrix` / `FaerRow` への Julia 配列・ビュー・疎行列などからの `copyto!` も同じ
+一括代入経路を使い、要素毎の `setindex!` は行いません。形状が異なっても要素数が
+収まれば Base と同じく線形順にコピーし、長すぎる入力は `BoundsError` です。ただし
+`FaerMatrix` 同士のネイティブコピーは従来どおり形状一致が必要で、`DimensionMismatch`
+になります。要素型の変換失敗・close 済みの代入先はいずれも書き込み前に例外となり、
+代入先は変わりません。
 `FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
 
 `FaerMatrix{T}(m,n; fill=value)` と `FaerVector{T}(n; fill=value)` /
