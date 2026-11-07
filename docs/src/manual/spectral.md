@@ -360,7 +360,7 @@ Self-adjoint `eigen`, `eigvals`, `eigen!` and `eigvals!` accept LinearAlgebra's
 `alg`. `DivideAndConquer()` is faer's default driver (divide and conquer above
 `self_adjoint_recursion_threshold`, implicit QR below). `QRIteration()` raises
 that threshold for the call so the tridiagonal implicit QR algorithm runs at
-every size; other settings of an enclosing [`with_evd_tuning`](@ref) scope are
+every size; other settings of an enclosing `with_evd_tuning` scope are
 kept. faer has no MRRR driver, so `RobustRepresentations()`, Julia's default
 spelling, also selects the default divide and conquer. `native=true` builds
 faer's owned decomposition with default parameters and rejects `QRIteration()`.
