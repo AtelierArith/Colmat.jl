@@ -382,7 +382,6 @@ end
                 ()->sum(V),
                 ()->sum(V; dims = 1),
                 ()->minimum(V),
-                ()->extrema(native; dims = 2),
                 ()->all(isfinite, V),
                 ()->any(isnan, B),
             )
@@ -390,7 +389,13 @@ end
                 f()
                 # Descriptors, scalar Refs and the reduced output only.
                 @test @allocated(f())<16*n+4096
-            end
+            end            # extrema with dims stages the native minima and maxima (8n bytes
+            # each) before building its n tuples (16n): 32n plus the fixed part.
+            # macOS x86_64 measured 7328 B at n=200, above the shared 16n+4096.
+            f=()->extrema(native; dims = 2)
+            f()
+            @test @allocated(f())<32*n+4096
+
             # In-place forms also stage the O(length(r)) result once (n*n*8
             # bytes for a copy of the source).
             for f in (
