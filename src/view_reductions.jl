@@ -195,14 +195,11 @@ Base.any(::typeof(isnan), a::_ReductionView; dims = :) =
     dims isa Colon ? _native_predicate(a, Int32(1)) :
     any(isnan, _reduction_snapshot(a); dims)
 
-# Every real `p` but NaN runs natively for native owners and views: 1/2/Inf with
-# faer's reductions, 0 and -Inf directly, other p as LinearAlgebra.generic_normp
-# (Float64 accumulation, rescaling by the extreme magnitude).
+# Every real `p` but NaN runs natively: 1/2/Inf with faer's reductions, 0 and
+# -Inf directly, other p as LinearAlgebra.generic_normp (Float64 accumulation,
+# rescaling by the extreme magnitude; integer p by repeated multiplication).
 function _native_norm(a, p::Real)
     isnan(p) && return LinearAlgebra.norm(_reduction_snapshot(a), p)
-    # Julia's own generic_normp over the parent is the same algorithm with a
-    # faster `^`; faer's kernels serve p = 1, 2, Inf.
-    a isa FaerBorrowedArray && !(p in (1, 2, Inf)) && return LinearAlgebra.norm(parent(a), p)
     R=_realtype(eltype(a))
     lock(_matrix_lock) do
         value=Ref{R}()
@@ -222,12 +219,12 @@ end
 
 Entrywise `p`-norm (as `LinearAlgebra.norm`, treating `A` as a vector) read in
 place from a native view or borrowed Julia array. faer's `norm_l2`/`norm_l1`/
-`norm_max` serve 2/1/Inf (NaN propagates as in Julia). For native owners and
-views every other real `p` except NaN is native too: nonzero counting for 0,
-NaN-propagating minimum magnitude for -Inf, and Julia's `generic_normp`
-algorithm otherwise (Float64 accumulation for Float32 data, rescaling by the
-largest/smallest magnitude). Borrowed arrays use Julia's own `norm` of the
-parent for those `p` (the same algorithm, zero-copy). Complex magnitudes use
+`norm_max` serve 2/1/Inf (NaN propagates as in Julia). Every other real `p`
+except NaN is native too: nonzero counting for 0, NaN-propagating minimum
+magnitude for -Inf, and Julia's `generic_normp` algorithm otherwise (Float64
+accumulation for Float32 data, rescaling by the largest/smallest magnitude).
+Integer `p` use repeated multiplication (`powi`), so results can differ from
+Julia's compensated integer power by about an ulp. Complex magnitudes use
 Julia's `abs`. Empty inputs give zero. This is not `opnorm`: `norm(A, 2)` is
 the Frobenius norm.
 """

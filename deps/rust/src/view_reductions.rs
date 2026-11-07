@@ -151,6 +151,41 @@ unsafe fn extrema<R: Ordered>(
     Ok(())
 }
 
+/// Visit the entries of `a` in column order, through contiguous slices when
+/// possible (monomorphized: the closure inlines into the loop).
+fn each<T, F: FnMut(&T)>(a: MatRef<'_, T>, mut f: F) {
+    let a = if a.row_stride() < 0 {
+        a.reverse_rows()
+    } else {
+        a
+    };
+    for j in 0..a.ncols() {
+        let c = a.col(j);
+        match c.try_as_col_major() {
+            Some(c) => c.as_slice().iter().for_each(&mut f),
+            None => c.iter().for_each(&mut f),
+        }
+    }
+}
+/// Fold the magnitudes of `a` (as Float64) with `g`.
+fn fold_abs<T: Native, G: FnMut(f64, f64) -> f64>(a: MatRef<'_, T>, init: f64, mut g: G) -> f64 {
+    let mut acc = init;
+    each(a, |x| acc = g(acc, T::real_to_f64(&abs(x))));
+    acc
+}
+/// `sum(pre(|x|)^p)`. Integer exponents (Julia's `x^y` takes its integer power
+/// path for integer-valued `y`) use repeated multiplication via `powi`, several
+/// times faster than `powf`; results can differ from Julia's compensated
+/// integer power by an ulp or so.
+fn power_sum<T: Native>(a: MatRef<'_, T>, p: f64, pre: impl Fn(f64) -> f64) -> f64 {
+    if p.fract() == 0.0 && p.abs() <= 64.0 {
+        let q = p as i32;
+        fold_abs(a, 0.0, |s, x| s + pre(x).powi(q))
+    } else {
+        fold_abs(a, 0.0, |s, x| s + pre(x).powf(p))
+    }
+}
+
 /// `LinearAlgebra.norm(A, p)` for every `p` but NaN, as Julia computes it:
 /// p = 0 counts nonzeros, ±Inf propagate NaN, other p follow `generic_normp`
 /// (accumulation in Float64, rescaling by the extreme magnitude).
@@ -170,26 +205,6 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
         return norm_output(a, out, code);
     }
     let len = (a.nrows() * a.ncols()) as f64;
-    // Entries in column order, through contiguous slices when possible.
-    let each = |f: &mut dyn FnMut(&T)| {
-        let a = if a.row_stride() < 0 {
-            a.reverse_rows()
-        } else {
-            a
-        };
-        for j in 0..a.ncols() {
-            let c = a.col(j);
-            match c.try_as_col_major() {
-                Some(c) => c.as_slice().iter().for_each(&mut *f),
-                None => c.iter().for_each(&mut *f),
-            }
-        }
-    };
-    let fold = |init: f64, g: &dyn Fn(f64, f64) -> f64| {
-        let mut acc = init;
-        each(&mut |x| acc = g(acc, T::real_to_f64(&abs(x))));
-        acc
-    };
     // mapreduce(norm, min/max): NaN propagates from any position.
     let extreme = |largest: bool| {
         let init = if largest {
@@ -197,7 +212,7 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
         } else {
             f64::INFINITY
         };
-        fold(init, &|v, x| {
+        fold_abs(a, init, |v, x| {
             if v.is_nan() || x.is_nan() {
                 f64::NAN
             } else if largest {
@@ -209,7 +224,7 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
     };
     let value = if p == 0.0 {
         let mut count = 0usize;
-        each(&mut |x| count += usize::from(x.parts() != (0.0, 0.0)));
+        each(a, |x| count += usize::from(x.parts() != (0.0, 0.0)));
         count as f64
     } else if p == f64::NEG_INFINITY {
         extreme(false)
@@ -224,12 +239,10 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
         }
         let scaled = maxabs.powf(p);
         if (-1.0..=1.0).contains(&p) || ((len * scaled).is_finite() && scaled != 0.0) {
-            fold(0.0, &|s, x| s + x.powf(p)).powf(1.0 / p)
+            power_sum(a, p, |x| x).powf(1.0 / p)
         } else {
             // norm(v)/maxabs is computed in the data's real type.
-            let sum = fold(0.0, &|s, x| {
-                s + T::real_to_f64(&T::real_from_f64(x / maxabs)).powf(p)
-            });
+            let sum = power_sum(a, p, |x| T::real_to_f64(&T::real_from_f64(x / maxabs)));
             maxabs * sum.powf(1.0 / p)
         }
     };
