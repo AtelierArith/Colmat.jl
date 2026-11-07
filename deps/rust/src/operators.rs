@@ -15,6 +15,7 @@ use rustcall_julia_macros::julia;
 mod julia_callback;
 mod qr_actions;
 mod qr_pseudoinverse;
+mod sparse_qr_q;
 mod iterative_workspace;
 mod partial_workspace;
 use qr_actions::{OwnedQrInverse, WideQrInverse};
@@ -35,6 +36,7 @@ enum Base<T> {
     InverseSparseQr(Box<crate::sparse_qr_components::Factors<T>>),
     InverseOwnedSparseQr(Box<OwnedQrInverse<T>>),
     InverseWideSparseQr(Box<WideQrInverse<T>>),
+    SparseQrQ(Box<sparse_qr_q::SparseQrQ<T>>),
 }
 #[derive(Clone)]
 struct Operator<T> {
@@ -60,6 +62,10 @@ macro_rules! dispatch {
                 $expr
             }
             Base::InverseOwnedSparseQr($a) => {
+                let $a = $a.as_ref();
+                $expr
+            }
+            Base::SparseQrQ($a) => {
                 let $a = $a.as_ref();
                 $expr
             }
@@ -1786,6 +1792,7 @@ fn convert_operator<S: NativeValue, T: NativeValue>(
         }),
         Base::InverseWideSparseQr(f) => Base::InverseWideSparseQr(Box::new(f.map_values(cast)?)),
         Base::InverseOwnedSparseQr(f) => Base::InverseOwnedSparseQr(Box::new(f.map_values(cast)?)),
+        Base::SparseQrQ(f) => Base::SparseQrQ(Box::new(f.map_values(cast))),
         Base::InverseSparseQr(f) => {
             // Preserve native Householder pivot ordering; do not sort triplets.
             let convert=|a:&faer::sparse::SparseColMat<usize,S>|->Result<faer::sparse::SparseColMat<usize,T>,String> {

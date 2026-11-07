@@ -117,6 +117,30 @@ impl<T: ComplexField> Factors<T> {
             tau,
         })
     }
+    /// Converts values while preserving faer's unsorted numeric CSC layout
+    /// (leading Householder pivot, diagonal-last R).
+    pub(crate) fn map_values<U: ComplexField>(&self, cast: impl Fn(&T) -> U) -> Factors<U> {
+        let map = |a: &SparseColMat<usize, T>| {
+            let s = a.symbolic();
+            // SAFETY: copies an existing valid (unsorted) faer CSC structure.
+            let symbolic = unsafe {
+                SymbolicSparseColMat::new_unchecked(
+                    s.nrows(),
+                    s.ncols(),
+                    s.col_ptr().to_vec(),
+                    None,
+                    s.row_idx().to_vec(),
+                )
+            };
+            SparseColMat::new(symbolic, a.val().iter().map(&cast).collect())
+        };
+        Factors {
+            plan: self.plan.clone(),
+            r: map(&self.r),
+            h: map(&self.h),
+            tau: self.tau.iter().map(&cast).collect(),
+        }
+    }
     pub(crate) fn as_ref(&self) -> simplicial::SimplicialQrRef<'_, usize, T> {
         simplicial::SimplicialQrRef::new(
             &self.plan.symbolic,

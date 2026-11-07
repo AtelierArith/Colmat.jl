@@ -931,23 +931,9 @@ impl SparseOwner {
             fn export<T: ComplexField>(
                 f: &crate::sparse_qr_components::Factors<T>,
             ) -> Result<Storage<T>, String> {
-                let entries: Vec<_> =
-                    f.r.as_ref()
-                        .triplet_iter()
-                        .map(|e| faer::sparse::Triplet {
-                            row: e.row,
-                            col: e.col,
-                            val: copy(e.val),
-                        })
-                        .collect();
-                Ok(Storage::Csc(
-                    faer::sparse::SparseColMat::try_new_from_triplets(
-                        f.r.nrows(),
-                        f.r.ncols(),
-                        &entries,
-                    )
-                    .map_err(|e| format!("{e:?}"))?,
-                ))
+                Ok(Storage::Csc(crate::sparse_qr_owned::sorted_simplicial_r(
+                    f.r.as_ref(),
+                )))
             }
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => SparseData::F32(export(f)?),
