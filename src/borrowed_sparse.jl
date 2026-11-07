@@ -178,6 +178,41 @@ const _BorrowedSparseTranspose=Union{
     LinearAlgebra.Transpose{<:Any,<:FaerBorrowedSparseMatrix},
     LinearAlgebra.Adjoint{<:Any,<:FaerBorrowedSparseMatrix},
 }
+# The CSC arrays of S are the CSR arrays of Sᵀ: own them as CSR with one copy
+# (conjugated values for the adjoint), as `copy(transpose(::FaerSparseMatrix))`
+# turns a CSC owner into CSR.
+function FaerSparseMatrix(w::_BorrowedSparseTranspose; format = :csr)
+    _sparse_format(format)
+    b=parent(w)
+    owned=_with_borrowed_sparse(b) do raw...
+        _sparse_result(
+            eltype(b),
+            reverse(size(b)),
+            :csr,
+            RustCrate.sparse_from_borrowed_transpose,
+            raw...,
+            w isa LinearAlgebra.Adjoint,
+        )
+    end
+    format===:csr && return owned
+    converted=copy(owned; format)
+    close(owned)
+    return converted
+end
+function FaerSparseMatrix{T}(w::_BorrowedSparseTranspose; kwargs...) where {T<:_NativeScalar}
+    eltype(w)===T && return FaerSparseMatrix(w; kwargs...)
+    owned=FaerSparseMatrix(w; kwargs...)
+    converted=FaerSparseMatrix{T}(owned)
+    close(owned)
+    return converted
+end
+Base.copy(w::_BorrowedSparseTranspose) = FaerSparseMatrix(w)
+SparseArrays.SparseMatrixCSC(w::LinearAlgebra.Transpose{<:Any,<:FaerBorrowedSparseMatrix}) =
+    SparseArrays.SparseMatrixCSC(transpose(parent(w).parent))
+SparseArrays.SparseMatrixCSC(w::LinearAlgebra.Adjoint{<:Any,<:FaerBorrowedSparseMatrix}) =
+    SparseArrays.SparseMatrixCSC(adjoint(parent(w).parent))
+SparseArrays.sparse(w::_BorrowedSparseTranspose) = SparseArrays.SparseMatrixCSC(w)
+
 # A borrowed CSC matrix or its transpose/adjoint (read as faer `SparseRowMatRef`).
 const _BorrowedSparseOperand=Union{FaerBorrowedSparseMatrix,_BorrowedSparseTranspose}
 _sparse_orientation(::FaerBorrowedSparseMatrix) = Int32(0)
@@ -239,8 +274,6 @@ function Base.:*(a::_BorrowedSparseOperand, b::StridedVector{<:Number})
     x=_borrowed_dense_operand(b, promote_type(eltype(a), eltype(b)))
     return vec(Matrix(_borrowed_sparse_product(a, x, true)))
 end
-Base.:*(a::FaerBorrowedSparseMatrix, b::FaerSparseMatrix) = FaerSparseMatrix(a)*b
-Base.:*(a::FaerSparseMatrix, b::FaerBorrowedSparseMatrix) = a*FaerSparseMatrix(b)
 
 function _borrowed_sparse_mul!(c::FaerMatrix, a, b, alpha, beta, left::Bool)
     lock(_matrix_lock) do

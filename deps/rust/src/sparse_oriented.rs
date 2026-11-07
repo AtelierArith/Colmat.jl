@@ -15,7 +15,8 @@
 //!   operand. Mixed orientations convert the right operand once to the
 //!   orientation of the left one.
 use crate::borrowed_sparse::{
-    dense, new_product, product, scalars, ADJOINT, CONJUGATE, MISMATCH, PLAIN, TRANSPOSE,
+    dense, new_product, numeric, owned, product, scalars, Raw, ADJOINT, CONJUGATE, MISMATCH, PLAIN,
+    TRANSPOSE,
 };
 use crate::sparse::{SparseData, SparseOwner, Storage};
 use crate::typed::{MatrixData, TypedMatrix};
@@ -52,6 +53,15 @@ fn column_major<T>(a: &Storage<T>) -> (SparseColMatRef<'_, usize, T>, bool) {
 }
 fn oriented<T>(a: &Storage<T>, op: i32) -> Result<Oriented<'_, T>, String> {
     let (view, csr) = column_major(a);
+    oriented_view(view, csr, op)
+}
+/// `op(A)` for the column-major view of a stored matrix (`csr`: the view is
+/// the transpose of a CSR matrix).
+fn oriented_view<T>(
+    view: SparseColMatRef<'_, usize, T>,
+    csr: bool,
+    op: i32,
+) -> Result<Oriented<'_, T>, String> {
     let (col_major, conj) = match op {
         PLAIN => (!csr, false),
         TRANSPOSE => (csr, false),
@@ -114,7 +124,12 @@ fn oriented_product<T: ComplexField>(
     b: &Storage<T>,
     bop: i32,
 ) -> Result<Storage<T>, String> {
-    let (a, b) = (oriented(a, aop)?, oriented(b, bop)?);
+    product_of(oriented(a, aop)?, oriented(b, bop)?)
+}
+fn product_of<T: ComplexField>(
+    a: Oriented<'_, T>,
+    b: Oriented<'_, T>,
+) -> Result<Storage<T>, String> {
     if a.shape().1 != b.shape().0 {
         return Err("sparse operation dimensions must match".into());
     }
@@ -134,8 +149,119 @@ fn oriented_product<T: ComplexField>(
     })
 }
 
+/// `op(A) ± op(B)` in the orientation of `op(A)`. Same-orientation,
+/// unconjugated operands are added in place; an operand in the other
+/// orientation is converted once and a conjugated one is copied conjugated.
+fn sum_of<T: ComplexField>(
+    a: Oriented<'_, T>,
+    b: Oriented<'_, T>,
+    subtract: bool,
+) -> Result<Storage<T>, String> {
+    if a.shape() != b.shape() {
+        return Err("sparse operation dimensions must match".into());
+    }
+    let target = a.col_major;
+    let plain = |x: &Oriented<'_, T>| -> Result<Option<SparseColMat<usize, T>>, String> {
+        Ok(if x.col_major != target {
+            Some(transposed(x)?)
+        } else if x.conj {
+            let mut c = owned(x.view);
+            for v in c.val_mut() {
+                *v = conj(v);
+            }
+            Some(c)
+        } else {
+            None
+        })
+    };
+    let (ca, cb) = (plain(&a)?, plain(&b)?);
+    let av = ca.as_ref().map_or(a.view, |c| c.as_ref());
+    let bv = cb.as_ref().map_or(b.view, |c| c.as_ref());
+    let c = if subtract {
+        faer::sparse::ops::sub(av, bv)
+    } else {
+        faer::sparse::ops::add(av, bv)
+    }
+    .map_err(|e| format!("{e:?}"))?;
+    Ok(if target {
+        Storage::Csc(c)
+    } else {
+        Storage::Csr(c.into_transpose())
+    })
+}
+/// Words `[m, n, col_ptr, row_idx, values, nnz, csr]`: the column-major
+/// view of a borrowed Julia CSC matrix (`csr == 0`) or of a native owner
+/// (`sparse_csc_raw_parts`, `csr` set for a CSR owner).
+unsafe fn operand<'a, T>(
+    words: *const usize,
+) -> Result<(SparseColMatRef<'a, usize, T>, bool), String> {
+    if words.is_null() {
+        return Err("missing sparse operand".into());
+    }
+    let w = std::slice::from_raw_parts(words, 7);
+    let raw = Raw {
+        m: w[0],
+        n: w[1],
+        ptr: w[2] as *const usize,
+        idx: w[3] as *const usize,
+        val: w[4] as *const u8,
+        k: w[5],
+    };
+    Ok((numeric(raw)?, w[6] != 0))
+}
+/// `op(A) + op(B)` (`kind` 0), `-` (1) or `*` (2) of raw operands.
+unsafe fn raw_oriented<T: ComplexField>(
+    lhs: *const usize,
+    lop: i32,
+    rhs: *const usize,
+    rop: i32,
+    kind: i32,
+) -> Result<Storage<T>, String> {
+    let (lv, lc) = operand::<T>(lhs)?;
+    let (rv, rc) = operand::<T>(rhs)?;
+    let (a, b) = (oriented_view(lv, lc, lop)?, oriented_view(rv, rc, rop)?);
+    match kind {
+        0 | 1 => sum_of(a, b, kind == 1),
+        2 => product_of(a, b),
+        _ => Err("unknown sparse operation".into()),
+    }
+}
+
 #[julia]
 impl SparseOwner {
+    /// `self = op(lhs) ∘ op(rhs)` (`kind`: 0 `+`, 1 `-`, 2 `*`) of scalar `tag`
+    /// for operand words read in place (see `operand`), so borrowed Julia
+    /// CSC matrices and native owners mix without an owned copy. Returns
+    /// whether the result is CSR (it follows the orientation of `op(lhs)`).
+    #[julia]
+    pub fn sparse_raw_oriented(
+        &mut self,
+        lhs: *const usize,
+        lop: i32,
+        rhs: *const usize,
+        rop: i32,
+        tag: i32,
+        kind: i32,
+    ) -> Result<bool, String> {
+        guarded(|| unsafe {
+            let data = match tag {
+                0 => SparseData::F32(raw_oriented(lhs, lop, rhs, rop, kind)?),
+                1 => SparseData::F64(raw_oriented(lhs, lop, rhs, rop, kind)?),
+                2 => SparseData::C32(raw_oriented(lhs, lop, rhs, rop, kind)?),
+                3 => SparseData::C64(raw_oriented(lhs, lop, rhs, rop, kind)?),
+                _ => return Err("unsupported sparse scalar".into()),
+            };
+            let csr = matches!(
+                &data,
+                SparseData::F32(Storage::Csr(_))
+                    | SparseData::F64(Storage::Csr(_))
+                    | SparseData::C32(Storage::Csr(_))
+                    | SparseData::C64(Storage::Csr(_))
+            );
+            self.data = Some(data);
+            Ok(csr)
+        })
+    }
     /// `self = op(lhs) * op(rhs)` with each operand read in place; returns
     /// whether the result is CSR.
     #[julia]

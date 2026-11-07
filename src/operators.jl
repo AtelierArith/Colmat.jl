@@ -73,6 +73,26 @@ function FaerLinearOperator(a::FaerDiagonal)
 end
 FaerLinearOperator(a::SparseArrays.AbstractSparseMatrixCSC) =
     FaerLinearOperator(FaerSparseMatrix(a))
+# A borrowed Julia CSC matrix (or its transpose/adjoint, stored as CSR) is
+# snapshotted once at construction: native applies, compositions and iterative
+# solvers run inside Rust and may outlive one call, so they never read the
+# parent's arrays. Later writes to the parent do not change the operator.
+function FaerLinearOperator(a::_BorrowedSparseOperand)
+    lock(_matrix_lock) do
+        b=_sparse_stored(a)
+        s=b.parent
+        all(isfinite, view(SparseArrays.nonzeros(s), 1:SparseArrays.nnz(s))) ||
+            throw(ArgumentError("operator stored coefficients must be finite"))
+        T=eltype(b)
+        h=RustCrate.OwnedLinearOperator()
+        trans=_sparse_orientation(a)
+        _with_borrowed_sparse(b) do raw...
+            _native_call(RustCrate.operator_load_borrowed, h, raw..., trans)
+        end
+        storage=iszero(trans) ? :csc : :csr
+        return FaerLinearOperator{T,typeof(h)}(h, size(a), storage, false, false)
+    end
+end
 FaerLinearOperator(a::LinearAlgebra.Diagonal) =
     FaerLinearOperator(FaerDiagonal{_reflector_type(eltype(a))}(a.diag))
 function FaerLinearOperator(a::Union{LinearAlgebra.Hermitian,LinearAlgebra.Symmetric})
@@ -87,6 +107,12 @@ function FaerLinearOperator(a::Union{LinearAlgebra.Hermitian,LinearAlgebra.Symme
         )
     elseif source isa SparseArrays.AbstractSparseMatrixCSC
         return FaerLinearOperator(SparseArrays.sparse(a))
+    elseif source isa FaerBorrowedSparseMatrix
+        uplo=a.uplo=='L' ? :L : :U
+        p=source.parent
+        wrapped=a isa LinearAlgebra.Hermitian ? LinearAlgebra.Hermitian(p, uplo) :
+                LinearAlgebra.Symmetric(p, uplo)
+        return FaerLinearOperator(SparseArrays.sparse(wrapped))
     end
     return FaerLinearOperator(FaerMatrix(a))
 end
