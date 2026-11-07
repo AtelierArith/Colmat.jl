@@ -255,7 +255,7 @@ function Base.getindex(q::FaerHouseholderSequence{T}, i::Int, j::Int) where {T}
         return (q*unit)[i]
     end
 end
-function _householder_coerce(q::FaerHouseholderSequence{T}, ::Type{T}) where {T}
+function _householder_coerce(q::FaerHouseholderSequence{T}, ::Type{T}) where {T<:_NativeScalar}
     _handle(q)
     return q
 end
@@ -338,4 +338,37 @@ function reblock!(q::FaerHouseholderSequence, b::Integer; kwargs...)
         q.blocksize=replacement.blocksize
         return q
     end
+end
+# Native destination action; see `_householder_into!`.
+function _householder_into_native!(
+    h::FaerHouseholderSequence,
+    p,
+    d,
+    q,
+    e,
+    right,
+    al,
+    be,
+    az,
+    bz;
+    scratch,
+    team,
+)
+    _native_call(
+        RustCrate.sequence_mul_into,
+        p,
+        d,
+        q,
+        e,
+        h,
+        right,
+        h.transposed,
+        h.conjugated,
+        al,
+        be,
+        az,
+        bz,
+        scratch,
+        team,
+    )
 end

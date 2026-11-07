@@ -226,6 +226,27 @@ impl OwnedScratch {
     }
 }
 
+/// Run `f` on the caller's scratch, or on a temporary one reserved for
+/// `req` when there is none. Capacity is checked before `f` runs, so a
+/// short scratch fails before any destination write.
+pub(crate) fn scratch_or_temporary<R>(
+    work: Option<&mut OwnedScratch>,
+    req: StackReq,
+    f: impl FnOnce(&mut OwnedScratch) -> Result<R, String>,
+) -> Result<R, String> {
+    let mut owned;
+    let work = match work {
+        Some(w) => w,
+        None => {
+            owned = OwnedScratch::new();
+            owned.scratch_reserve(req.size_bytes(), req.align_bytes())?;
+            &mut owned
+        }
+    };
+    work.stack(req)?;
+    f(work)
+}
+
 #[cfg(test)]
 mod spectral_workspace_tests {
     use super::*;

@@ -43,29 +43,12 @@ function _householder_resource_check(h, a, P, right; scratch = nothing, team = n
     end
     return req
 end
+# Caller scratch/team are lent to faer's in-place application in the native
+# owner itself (no result staging); without them the owner's kernel runs.
 function _householder_resource_apply!(h, a, right; scratch = nothing, team = nothing)
-    if h isa FaerHouseholder && !(isnothing(scratch) && isnothing(team))
-        _householder_apply_into!(h, a, right; scratch, team)
-        return a
-    end
-    req=_householder_resource_check(h, a, eltype(a), right; scratch, team)
-    if isnothing(scratch) && isnothing(team)
-        return _householder_native_apply!(h, a, right)
-    end
-    temporary=isnothing(scratch)
-    work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
-    try
-        # Result staging and Julia/native conversion are outside the kernel query.
-        result=_householder_matrix_source(a, eltype(a))
-        t, c=_householder_orientation(h)
-        fs=_householder_workspace_functions(h)
-        args=(result, h, work, _householder_workspace_metadata(h)..., right, t, c)
-        _native_call(fs[2], args..., team)
-        buffer=ndims(a)==1 ? vec(Matrix(result)) : Matrix(result)
-        return copyto!(a, buffer)
-    finally
-        temporary && close(work)
-    end
+    isnothing(scratch) && isnothing(team) && return _householder_native_apply!(h, a, right)
+    _householder_apply_into!(h, a, right; scratch, team)
+    return a
 end
 """
     scratch_requirements(lmul!, H, A; team=nothing)
@@ -77,8 +60,10 @@ Right products use `(X,A,H)`. `ldiv!`/`rdiv!` query the adjoint action.
 `FaerScratch(fun,args...;team)` and `reserve!(work,fun,args...;team)` use these
 queries. Applying functions accept `scratch=` and `team=`; insufficient or closed
 resources fail before destination writes. Arrays, views, aliasing, scalar
-promotion and transformed sequences keep their existing contracts. Result
-staging, coefficient promotion and Julia conversions allocate outside this query;
+promotion and transformed sequences keep their existing contracts. Same-scalar
+products write the destination directly; `β ≠ 0` adds one native product
+buffer, and mixed-scalar staging, coefficient promotion and Julia conversions
+allocate outside this query;
 native application borrows the team and does not retain its token.
 """
 function scratch_requirements(
@@ -109,16 +94,7 @@ function _householder_mul_requirements(dest, h, a, alpha, beta, right; team = no
         _householder_check(h, dest, right)
         size(dest)==size(a) ||
             throw(DimensionMismatch("Householder destination shape mismatch"))
-        eltype(dest)<:_NativeScalar ||
-            throw(ArgumentError("Householder destination requires native scalar"))
-        P=promote_type(
-            eltype(h),
-            _reflector_type(eltype(a)),
-            eltype(dest),
-            typeof(alpha),
-            typeof(beta),
-        )
-        P<:_NativeScalar || throw(ArgumentError("unsupported Householder product scalar"))
+        P=_householder_mul_scalar(dest, h, a, alpha, beta)
         return _householder_resource_check(h, a, P, right; team)
     end
 end

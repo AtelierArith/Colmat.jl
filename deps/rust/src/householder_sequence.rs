@@ -91,7 +91,7 @@ impl OwnedHouseholderSequence {
     fn data(&self) -> Result<&Data, String> {
         self.data
             .as_ref()
-            .ok_or("Householder sequence is not initialized".into())
+            .ok_or_else(|| "Householder sequence is not initialized".into())
     }
 }
 #[julia]

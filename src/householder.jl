@@ -14,18 +14,23 @@ Four native scalars are preserved; other real/complex inputs convert to
 Float64/ComplexF64. Inputs must be finite. Construction copies the input and
 scales it before calling faer. Empty input produces a 0-by-0 identity.
 Native and Julia strided arrays support `*`, `lmul!`, `rmul!` and left solve.
-Three/five-argument `mul!` stages the result, supports aliases and alpha/beta,
-and completes scalar conversion before writing the destination.
 In-place Julia arrays must use one of the four native scalar types.
 Application to arrays does not form H as a dense matrix; `Matrix(H)` explicitly
 does. Composing two reflections returns a dense native product.
-`lmul!`/`rmul!` apply the reflection directly in native views, borrowed
-arrays (`faerview`) and injective Julia strided arrays of the reflection's
-converted scalar; repeated-index views stage a native result instead. In-place calls
+`lmul!`/`rmul!` and three/five-argument `mul!(C, H, B[, α, β])` write native
+owners and views, borrowed arrays (`faerview`) and injective Julia strided
+arrays of the working scalar directly through faer (no staged result): a `B`
+overlapping `C` is snapshot natively, `β == 0` copies `B` into `C` and reflects
+there without reading `C`, `α == 0` never reads `B`, and `β ≠ 0` uses one
+native product buffer. Coefficients convert to the operands' scalar (Float32
+data with Float64 literals stays native). Mixed scalar types and repeated-index
+destinations stage a result and complete conversion before writing. The same
+rules hold for `FaerHouseholderSequence` and compact Hessenberg/tridiagonal Q.
+Read-only borrowed destinations are rejected before any write. In-place calls
 convert the reflection's stored coefficients/metadata to the destination type
 before mutation. Adjoint/copy/conjugate/transpose return independent owners.
 `lmul!/rmul!/mul!/ldiv!/rdiv!` accept caller-owned `scratch=` and `team=`;
-see `scratch_requirements`. Result staging and conversions allocate separately.
+see `scratch_requirements`. Staged (mixed-scalar) results and conversions allocate separately.
 """
 mutable struct FaerHouseholder{T,H} <: AbstractFaerHouseholder{T}
     handle::Union{Nothing,H}
@@ -122,7 +127,7 @@ LinearAlgebra.ishermitian(h::FaerHouseholder) = lock(_matrix_lock) do
     _handle(h)
     return true
 end
-function _householder_coerce(h::FaerHouseholder{T}, ::Type{T}) where {T}
+function _householder_coerce(h::FaerHouseholder{T}, ::Type{T}) where {T<:_NativeScalar}
     _handle(h)
     return h
 end
@@ -139,8 +144,8 @@ function _householder_coerce(h::FaerHouseholder, ::Type{T}) where {T<:_NativeSca
         _tag(T),
     )
 end
-const _HouseholderMatrix=Union{_RotationMatrix,StridedMatrix{<:Number}}
-const _HouseholderVector=Union{_BorrowVector,StridedVector{<:Number}}
+const _HouseholderMatrix=Union{_RotationMatrix,StridedMatrix{<:Number},FaerBorrowedMatrix}
+const _HouseholderVector=Union{_BorrowVector,StridedVector{<:Number},FaerBorrowedVector}
 const _HouseholderArray=Union{_HouseholderMatrix,_HouseholderVector}
 function _householder_check(h, a, right)
     _handle(h)
@@ -166,20 +171,44 @@ function _householder_apply!(
         return a
     end
 end
-# A single reflection is applied by faer directly in any destination it can
-# borrow mutably (native views, borrowed and Julia strided arrays).
-function _householder_apply_into!(h::FaerHouseholder, dest, right; scratch, team)
-    req=_householder_resource_check(h, dest, eltype(dest), right; scratch, team)
+# Native destination actions `dest = alpha*H*src + beta*dest` (`right`:
+# `alpha*src*H + beta*dest`) for `H` already of `eltype(dest)`. `dest` is a
+# mutable view destination (`_gemm_destination`), `src` a readable view input
+# of the same scalar (`_gemm_input`) or `nothing` for in-place application.
+# faer writes the destination's `MatMut` directly (Rust
+# `views::action_into`): `beta == 0` copies `src` into `dest` and applies
+# there (no temporary; `dest` is not read), `alpha == 0` never reads `src`, and
+# otherwise one native product buffer precedes the axpby. A source overlapping
+# `dest` is snapshot natively.
+function _householder_into_native!(h::FaerHouseholder, p, d, q, e, right, al, be, az, bz; scratch, team)
+    _native_call(RustCrate.householder_mul_into, p, d, q, e, h, right, al, be, az, bz, scratch, team)
+end
+function _householder_into!(h, dest, src, alpha, beta, right; scratch, team)
+    T=eltype(dest)
     p, d=_view_source(dest)
-    GC.@preserve d _native_call(
-        RustCrate.householder_apply_into,
+    q, e=isnothing(src) ? (Ptr{UInt8}(C_NULL), Int[]) : _view_source(src)
+    al, be=Ref{T}(alpha), Ref{T}(beta)
+    GC.@preserve d e al be _householder_into_native!(
+        h,
         p,
         pointer(d),
-        h,
+        q,
+        isnothing(src) ? Ptr{Int}(C_NULL) : pointer(e),
         right,
+        Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, al)),
+        Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, be)),
+        iszero(alpha),
+        iszero(beta);
         scratch,
         team,
     )
+    return dest
+end
+# Every reflector family is applied by faer directly in any destination it can
+# borrow mutably (native owners and views, borrowed and Julia strided arrays).
+function _householder_apply_into!(h, dest, right; scratch, team)
+    req=_householder_resource_check(h, dest, eltype(dest), right; scratch, team)
+    _householder_into!(h, dest, nothing, true, false, right; scratch, team)
     return req
 end
 function _householder_apply!(
@@ -192,7 +221,7 @@ function _householder_apply!(
     lock(_matrix_lock) do
         _householder_check(h, a, right)
         reflected=_householder_coerce(h, eltype(a))
-        if reflected isa FaerHouseholder && !isnothing(_gemm_destination(a))
+        if !isnothing(_gemm_destination(a))
             _householder_apply_into!(reflected, a, right; scratch, team)
             return a
         end
@@ -218,7 +247,7 @@ function _householder_apply!(
         )
         reflected=_householder_coerce(h, eltype(a))
         dest=_gemm_destination(a)
-        if reflected isa FaerHouseholder && !isnothing(dest)
+        if !isnothing(dest)
             _householder_apply_into!(reflected, dest, right; scratch, team)
             return a
         end
@@ -237,18 +266,6 @@ LinearAlgebra.lmul!(
 ) = _householder_apply!(h, a, false; scratch, team)
 LinearAlgebra.rmul!(
     a::_HouseholderMatrix,
-    h::AbstractFaerHouseholder;
-    scratch = nothing,
-    team = nothing,
-) = _householder_apply!(h, a, true; scratch, team)
-LinearAlgebra.lmul!(
-    h::AbstractFaerHouseholder,
-    a::FaerBorrowedArray;
-    scratch = nothing,
-    team = nothing,
-) = _householder_apply!(h, a, false; scratch, team)
-LinearAlgebra.rmul!(
-    a::FaerBorrowedMatrix,
     h::AbstractFaerHouseholder;
     scratch = nothing,
     team = nothing,
@@ -295,6 +312,19 @@ function _householder_matrix_source(a, ::Type{T}) where {T}
         return _copy_view_matrix(FaerBorrowedArray(a))
     return a isa AbstractVector ? FaerMatrix{T}(reshape(a, :, 1)) : FaerMatrix{T}(a)
 end
+# Working scalar of a Householder product: operands and destination only.
+# Coefficients convert to it (as dense `mul!`), so Float32 data with Float64
+# literals stays Float32 and native.
+function _householder_mul_scalar(dest, h, a, alpha, beta)
+    T=eltype(dest)
+    T<:_NativeScalar || throw(
+        ArgumentError("Householder mul! destinations require a native scalar type"),
+    )
+    P=promote_type(eltype(h), _reflector_type(eltype(a)), T)
+    P<:_NativeScalar && promote_type(P, typeof(alpha), typeof(beta))<:_NativeScalar ||
+        throw(ArgumentError("unsupported Householder product scalar type"))
+    return P
+end
 function _householder_mul!(
     dest,
     h,
@@ -306,6 +336,7 @@ function _householder_mul!(
     team = nothing,
 )
     lock(_matrix_lock) do
+        _check_writable(dest)
         _householder_check(h, a, right)
         _householder_check(h, dest, right)
         size(dest)==size(a) || throw(
@@ -314,31 +345,30 @@ function _householder_mul!(
             ),
         )
         T=eltype(dest)
-        T<:_NativeScalar || throw(
-            ArgumentError("Householder mul! destinations require a native scalar type"),
-        )
-        P=promote_type(
-            eltype(h),
-            _reflector_type(eltype(a)),
-            T,
-            typeof(alpha),
-            typeof(beta),
-        )
-        P<:_NativeScalar ||
-            throw(ArgumentError("unsupported Householder product scalar type"))
+        P=_householder_mul_scalar(dest, h, a, alpha, beta)
+        al, be=P(alpha), P(beta)
         _householder_resource_check(h, a, P, right; scratch, team)
+        target=P===T ? _gemm_destination(dest) : nothing
+        src=eltype(a)===P ? _gemm_input(a) : nothing
+        if !isnothing(target) && !isnothing(src)
+            _dense_rhs_validate(a)
+            _dense_rhs_validate(dest)
+            reflected=_householder_coerce(h, P)
+            _householder_into!(reflected, target, src, al, be, right; scratch, team)
+            return dest
+        end
         dims=ndims(a)==1 ? (length(a), 1) : size(a)
-        result=if iszero(alpha)
+        result=if iszero(al)
             _zeros(P, dims)
         else
             work=_householder_matrix_source(a, P)
-            alpha*_householder_apply!(_householder_coerce(h, P), work, right; scratch, team)
+            al*_householder_apply!(_householder_coerce(h, P), work, right; scratch, team)
         end
-        !iszero(beta) && (result=result+beta*_householder_matrix_source(dest, P))
+        !iszero(be) && (result=result+be*_householder_matrix_source(dest, P))
         # Convert the complete result before any destination writes, including
         # real destinations that cannot represent a complex product.
         buffer=ndims(dest)==1 ? vec(Matrix{T}(result)) : Matrix{T}(result)
-        copyto!(dest, buffer)
+        copyto!(dest isa FaerBorrowedArray ? parent(dest) : dest, buffer)
         return dest
     end
 end

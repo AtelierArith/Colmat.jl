@@ -186,8 +186,9 @@ alignment padding を含む行容量です（`reserve!` で変わります）。
 
 借用配列と、要素型が同じで要素の重複しない Julia strided 配列は native の
 書き込み先にもなります。`mul!(C, A, B[, α, β])`（A/B の少なくとも一方が native か
-借用、転置・随伴を含む）、native 入力からの `copyto!`、単一 Householder 反射の
-`lmul!` / `rmul!` は、呼び出し中だけ `pointer`/`strides` から faer の `MatMut` を
+借用、転置・随伴を含む）、native 入力からの `copyto!`、Householder 反射・列・compact な
+Hessenberg／三重対角／二重対角基底の `lmul!` / `rmul!` / `mul!`、`FaerLinearOperator` の
+`mul!(Y, op, X[, α, β])` は、呼び出し中だけ `pointer`/`strides` から faer の `MatMut` を
 作って結果を直接書き込み、一時結果や Julia への書き戻しを作りません。入力と
 書き込み先のアドレス範囲が重なる場合（`mul!(C, C', C)`、同じ配列のビューなど）は
 その入力だけを Rust 側で snapshot してから書き込みます。`β == 0` では C を読まず、

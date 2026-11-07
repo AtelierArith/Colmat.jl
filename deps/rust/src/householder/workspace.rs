@@ -1,6 +1,7 @@
 //! External native scratch and scoped teams for compact reflector application.
 use super::{apply_in, requirement, OwnedHouseholder, Reflection, ReflectionData};
-use crate::views::{destination, BorrowedMut, Spec};
+use crate::views::{action_into, source as source_view, spec_shape, Arm, Borrowed, Spec};
+use crate::workspace::scratch_or_temporary;
 use crate::{
     guarded,
     typed::{MatrixData, TypedMatrix},
@@ -10,7 +11,6 @@ use crate::{
     teams::{with_team, OwnedTeam},
     workspace::OwnedScratch,
 };
-use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{MatMut, Par};
 use rustcall_julia_macros::julia;
@@ -178,49 +178,77 @@ impl TypedMatrix {
 #[julia]
 impl TypedMatrix {}
 
-/// Apply the reflection in place to any view destination (native owner,
-/// native view or borrowed Julia strided memory), with optional caller
-/// scratch and team. No input/output staging: the destination is the
-/// faer `MatMut` itself.
+/// `dest = alpha*H*src + beta*dest` (`right`: `alpha*src*H + beta*dest`)
+/// written by faer directly in any view destination; a null `src` applies
+/// the reflection in place. See [`crate::views::action_into`] for the
+/// coefficient and overlap rules. `work` is the caller's scratch (a
+/// temporary one is reserved without it); its capacity is checked before
+/// the destination is written.
 ///
 /// # Safety
-/// Julia roots the destination owner (or Julia array) and descriptor.
+/// Julia roots the destination, source, descriptors and coefficients.
+#[allow(clippy::too_many_arguments)]
 #[julia]
-pub fn householder_apply_into(
+pub fn householder_mul_into(
     dest: *mut u8,
     dd: *const isize,
+    src: *const u8,
+    sd: *const isize,
     source: &OwnedHouseholder,
     right: bool,
+    alpha: *const u8,
+    beta: *const u8,
+    alpha_zero: bool,
+    beta_zero: bool,
     work: Option<&mut OwnedScratch>,
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    fn go<T: ComplexField>(
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn go<T: Arm>(
         s: &Reflection<T>,
-        a: MatMut<'_, T>,
+        dest: *mut u8,
+        ds: Spec,
+        src: *const u8,
+        ss: Option<Spec>,
+        coefficients: (*const u8, *const u8, bool, bool),
         right: bool,
         work: Option<&mut OwnedScratch>,
         par: Par,
     ) -> Result<(), String> {
-        match work {
-            Some(work) => run(s, a, work, right, false, false, par),
-            None => {
-                let extent = if right { a.nrows() } else { a.ncols() };
-                let req = requirement(s, extent, right, false);
-                let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
-                apply_in(s, a, right, par, MemStack::new(&mut mem))
-            }
+        let (rows, cols) = spec_shape(ds);
+        if (if right { cols } else { rows }) != s.basis.nrows() {
+            return Err("Householder application dimensions must match".into());
         }
+        let req = requirement(s, if right { rows } else { cols }, right, false);
+        let (alpha, beta, alpha_zero, beta_zero) = coefficients;
+        scratch_or_temporary(work, req, |work| {
+            action_into::<T>(dest, ds, src, ss, alpha, beta, alpha_zero, beta_zero, |c| {
+                apply_in(s, c, right, par, work.stack(req)?)
+            })
+        })
     }
-    guarded(|| {
-        let spec = unsafe { Spec::read(dd)? };
-        with_team(team, |par| {
-            match (source.data()?, unsafe { destination(dest, spec)? }) {
-                (ReflectionData::F32(s), BorrowedMut::F32(a)) => go(s, a, right, work, par),
-                (ReflectionData::F64(s), BorrowedMut::F64(a)) => go(s, a, right, work, par),
-                (ReflectionData::C32(s), BorrowedMut::C32(a)) => go(s, a, right, work, par),
-                (ReflectionData::C64(s), BorrowedMut::C64(a)) => go(s, a, right, work, par),
-                _ => Err("Householder scalar types must match".into()),
+    guarded(|| unsafe {
+        let ds = Spec::read(dd)?;
+        let ss = if src.is_null() {
+            None
+        } else {
+            Some(Spec::read(sd)?)
+        };
+        let k = (alpha, beta, alpha_zero, beta_zero);
+        with_team(team, |par| match (source.data()?, source_view(dest, ds)?) {
+            (ReflectionData::F32(s), Borrowed::F32(_)) => {
+                go(s, dest, ds, src, ss, k, right, work, par)
             }
+            (ReflectionData::F64(s), Borrowed::F64(_)) => {
+                go(s, dest, ds, src, ss, k, right, work, par)
+            }
+            (ReflectionData::C32(s), Borrowed::C32(_)) => {
+                go(s, dest, ds, src, ss, k, right, work, par)
+            }
+            (ReflectionData::C64(s), Borrowed::C64(_)) => {
+                go(s, dest, ds, src, ss, k, right, work, par)
+            }
+            _ => Err("Householder scalar types must match".into()),
         })
     })
 }
@@ -228,6 +256,7 @@ pub fn householder_apply_into(
 mod tests {
     use super::super::make;
     use super::*;
+    use crate::allocation_probe;
     use faer::{c32, c64, Mat};
     fn exercise<T: ComplexField + super::super::RealDivide>() {
         let input = (0..7)
@@ -331,6 +360,133 @@ mod tests {
             }
         }
         team.team_close().unwrap();
+    }
+    // Column-major Julia buffer descriptor (owner kind 4), f64.
+    fn raw(m: usize, n: usize, ld: isize) -> Vec<isize> {
+        vec![
+            4, 0, 1, m as isize, 0, 1, n as isize, 0, 0, m as isize, n as isize, 1, ld, 1,
+        ]
+    }
+    #[test]
+    fn mul_into_writes_julia_memory_with_caller_scratch_without_allocating() {
+        let input = (0..5).map(|i| (i + 1) as f64).collect::<Vec<_>>();
+        let owner = OwnedHouseholder {
+            data: Some(ReflectionData::F64(make(&input))),
+        };
+        let s = match owner.data().unwrap() {
+            ReflectionData::F64(s) => s.clone(),
+            _ => unreachable!(),
+        };
+        let h = Mat::from_fn(5, 5, |i, j| {
+            (if i == j { 1.0 } else { 0.0 }) - s.basis[(i, 0)] * s.basis[(j, 0)] / s.tau
+        });
+        let b = Mat::from_fn(5, 3, |i, j| (1 + i + 2 * j) as f64);
+        let bd = raw(5, 3, b.col_stride());
+        let mut julia = vec![f64::NAN; 7 * 3];
+        let dd = raw(5, 3, 7);
+        let req = requirement(&s, 3, false, false);
+        let mut scratch = OwnedScratch::new();
+        scratch
+            .scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        let (alpha, beta) = (2.0f64, 0.5f64);
+        let src = b.as_ptr().cast::<u8>();
+        let call = |julia: &mut Vec<f64>, beta_zero: bool, scratch: &mut OwnedScratch| {
+            householder_mul_into(
+                julia.as_mut_ptr().cast(),
+                dd.as_ptr(),
+                src,
+                bd.as_ptr(),
+                &owner,
+                false,
+                (&alpha as *const f64).cast(),
+                (&beta as *const f64).cast(),
+                false,
+                beta_zero,
+                Some(scratch),
+                None,
+            )
+            .unwrap()
+        };
+        // The bare kernel on caller scratch: faer's block application may
+        // allocate inside its matrix product (gemm-001); Colmat adds nothing.
+        // Probed on the same padded Julia layout as the destination.
+        let kernel = {
+            let mut probe = vec![1.0f64; 7 * 3];
+            let view = faer::MatMut::from_column_major_slice_with_stride_mut(&mut probe, 5, 3, 7);
+            allocation_probe::count(|| {
+                apply_in(&s, view, false, Par::Seq, scratch.stack(req).unwrap()).unwrap()
+            })
+        };
+        // beta == 0: B is copied into C and reflected there; C (NaN) is not read.
+        let count = allocation_probe::count(|| call(&mut julia, true, &mut scratch));
+        assert_eq!(count, kernel);
+        let expected = &h * &b * alpha;
+        for j in 0..3 {
+            for i in 0..5 {
+                assert!((julia[i + 7 * j] - expected[(i, j)]).abs() < 1e-12);
+            }
+            assert!(julia[5 + 7 * j].is_nan() && julia[6 + 7 * j].is_nan());
+        }
+        // beta != 0: exactly one native product buffer.
+        let before = Mat::from_fn(5, 3, |i, j| julia[i + 7 * j]);
+        let count = allocation_probe::count(|| call(&mut julia, false, &mut scratch));
+        assert_eq!(count, kernel + 1);
+        let expected = &h * &b * alpha + &before * beta;
+        for j in 0..3 {
+            for i in 0..5 {
+                assert!((julia[i + 7 * j] - expected[(i, j)]).abs() < 1e-10);
+            }
+        }
+        // In place (null source) also runs on the caller scratch only.
+        let mut c = b.clone();
+        let cd = raw(5, 3, c.col_stride());
+        let count = allocation_probe::count(|| {
+            householder_mul_into(
+                c.as_ptr_mut().cast(),
+                cd.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                &owner,
+                false,
+                std::ptr::null(),
+                std::ptr::null(),
+                false,
+                true,
+                Some(&mut scratch),
+                None,
+            )
+            .unwrap()
+        });
+        assert_eq!(count, kernel);
+        assert!((&c - &h * &b).norm_max() < 1e-12);
+        // A short scratch fails before the destination is written.
+        if req.size_bytes() > 0 {
+            let mut short = OwnedScratch::new();
+            short
+                .scratch_reserve(req.size_bytes() - 1, req.align_bytes())
+                .unwrap();
+            let saved = julia.clone();
+            assert!(householder_mul_into(
+                julia.as_mut_ptr().cast(),
+                dd.as_ptr(),
+                src,
+                bd.as_ptr(),
+                &owner,
+                false,
+                (&alpha as *const f64).cast(),
+                (&beta as *const f64).cast(),
+                false,
+                true,
+                Some(&mut short),
+                None,
+            )
+            .is_err());
+            assert!(julia
+                .iter()
+                .zip(&saved)
+                .all(|(x, y)| x.to_bits() == y.to_bits()));
+        }
     }
     #[test]
     fn external_scratch_f32() {

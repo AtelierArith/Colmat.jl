@@ -249,8 +249,70 @@ function Base.getindex(q::FaerBidiagonalBasis{T}, i::Int, j::Int) where {T}
     x[j]=one(T)
     return (q*x)[i]
 end
+# `dest = alpha*Q*a + beta*dest` read from and written to view descriptors by
+# one native call (Rust `compact_bidiagonal_mul_into`) when `a` and `dest`
+# share the working scalar. The embedding/projection work matrix is the
+# declared scratch; the source is snapshot when it overlaps `dest`; inputs and
+# the combined result are checked finite before the first write.
+function _basis_mul_native!(dest, q, a, alpha, beta, right; scratch, team)
+    P=promote_type(eltype(q), eltype(a), eltype(dest))
+    eltype(dest)===eltype(a)===P &&
+        promote_type(P, typeof(alpha), typeof(beta))<:_NativeScalar ||
+        return nothing
+    target=_gemm_destination(dest)
+    src=_gemm_input(a)
+    (isnothing(target) || isnothing(src)) && return nothing
+    _iterative_resource_check(scratch, team)
+    extent=right ? size(a, 1) : ndims(a)==1 ? 1 : size(a, 2)
+    req=_basis_requirement(q, P, extent, right; team)
+    work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+    try
+        cap=scratch_capacity(work)
+        cap.bytes>=req.bytes&&cap.alignment>=req.alignment||throw(
+            ArgumentError(
+                "compact basis scratch capacity/alignment is insufficient; call reserve!",
+            ),
+        )
+        h=_basis_coerce(q, P)
+        al, be=Ref{P}(P(alpha)), Ref{P}(P(beta))
+        p, d=_view_source(target)
+        r, e=_view_source(src)
+        GC.@preserve d e al be _native_call(
+            RustCrate.compact_bidiagonal_mul_into,
+            h,
+            work,
+            UInt[h.m, h.n, h.blocksize, h.cols, extent],
+            _tag(P),
+            h.left,
+            right,
+            h.transposed,
+            h.conjugated,
+            p,
+            pointer(d),
+            r,
+            pointer(e),
+            Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, al)),
+            Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, be)),
+            iszero(al[]),
+            iszero(be[]),
+            team,
+        )
+    finally
+        isnothing(scratch)&&close(work)
+    end
+    return dest
+end
+# Working scalar of a basis product: operands and destination only; the
+# coefficients convert to it.
+function _basis_mul_scalar(dest, q, a, alpha, beta)
+    P=promote_type(eltype(q), _reflector_type(eltype(a)), eltype(dest))
+    P<:_NativeScalar && promote_type(P, typeof(alpha), typeof(beta))<:_NativeScalar ||
+        throw(ArgumentError("unsupported compact basis product scalar"))
+    return P
+end
 function _basis_mul!(dest, q, a, alpha, beta, right; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
+        _check_writable(dest)
         _basis_check(q, a, right)
         _dense_rhs_validate(dest)
         expected=right ? (size(a, 1), size(q, 2)) :
@@ -258,13 +320,9 @@ function _basis_mul!(dest, q, a, alpha, beta, right; scratch = nothing, team = n
         size(dest)==expected||throw(
             DimensionMismatch("compact basis destination shape mismatch"),
         )
-        P=promote_type(
-            eltype(q),
-            _reflector_type(eltype(a)),
-            eltype(dest),
-            typeof(alpha),
-            typeof(beta),
-        )
+        native=_basis_mul_native!(dest, q, a, alpha, beta, right; scratch, team)
+        isnothing(native)||return dest
+        P=_basis_mul_scalar(dest, q, a, alpha, beta)
         out=_basis_apply(q, a, right; T = P, scratch, team)
         result=dest isa AbstractVector ? vec(out) : out
         combined=iszero(beta) ? alpha .* result : alpha .* result .+ beta .* Array(dest)
@@ -273,7 +331,7 @@ function _basis_mul!(dest, q, a, alpha, beta, right; scratch = nothing, team = n
         all(isfinite, buffer)||throw(
             ArgumentError("compact basis product overflowed the destination scalar"),
         )
-        copyto!(dest, buffer)
+        copyto!(dest isa FaerBorrowedArray ? parent(dest) : dest, buffer)
         return dest
     end
 end
@@ -400,13 +458,7 @@ function _basis_mul_requirement(dest, q, a, alpha, beta, right; team = nothing)
         size(dest)==expected||throw(
             DimensionMismatch("compact basis destination shape mismatch"),
         )
-        P=promote_type(
-            eltype(q),
-            _reflector_type(eltype(a)),
-            eltype(dest),
-            typeof(alpha),
-            typeof(beta),
-        )
+        P=_basis_mul_scalar(dest, q, a, alpha, beta)
         P<:_NativeScalar||throw(ArgumentError("unsupported compact basis product scalar"))
         return _basis_requirement(
             q,

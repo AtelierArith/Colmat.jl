@@ -97,6 +97,13 @@ result = lsmr(A, b; atol=1.0, rtol=0, maxiter=0)
 application, including conjugate/transpose/adjoint and right-operator products.
 Query the exact working scalar and orientation with `scratch_requirements`;
 alpha/beta and output type participate in a `mul!` query.
+When `X` and `B` share the operator's working scalar, the native operator
+writes `X` directly, whether `X` is a native matrix/view, a `faerview` or a
+plain Julia strided array: right products run as the transposed action on
+transposed descriptors, a `B` overlapping `X` is snapshot first, `alpha == 0`
+does not read `B` or run the operator, and `beta != 0` uses one native
+product buffer of `X`'s shape (LinOp has no accumulate mode). Square
+operators' `lmul!`/`rmul!` on views and Julia arrays use the same path.
 
 ```julia
 using Colmat, LinearAlgebra
