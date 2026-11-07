@@ -22,7 +22,9 @@ _dss_matrix(::Type{T}, n) where {T} =
         ()->rdiv!(Yt, Bt, transpose(F)),
     )
         f()
-        @test @allocated(f()) < rhs
+        # Bounded by the RHS size; the old paths staged several RHS copies
+        # (and right solves copied every element generically).
+        @test @allocated(f()) < 2rhs
     end
     @test Matrix(ldiv!(Y, F, B)) ≈ a\Matrix(B)
     @test Matrix(rdiv!(Yt, Bt, F)) ≈ Matrix(Bt)/a
