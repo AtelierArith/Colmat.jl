@@ -438,4 +438,46 @@ mod tests {
             assert_same_sorted(get_c64(&out), &via_triplets(source));
         }
     }
+    // Records the remaining upstream cost: faer's public `LuRef::factors`
+    // assembles both factors through triplets for auto/supernodal LU.
+    #[test]
+    fn native_lu_components_report_faer_triplet_assembly() {
+        use faer::sparse::linalg::lu;
+        let a = full::<f64>(30);
+        for t in [
+            SupernodalThreshold::FORCE_SIMPLICIAL,
+            SupernodalThreshold::FORCE_SUPERNODAL,
+        ] {
+            let symbolic = Arc::new(
+                lu::factorize_symbolic_lu(
+                    a.symbolic(),
+                    lu::LuSymbolicParams {
+                        supernodal_flop_ratio_threshold: t,
+                        ..Default::default()
+                    },
+                )
+                .unwrap(),
+            );
+            let f = crate::sparse_lu_owned::Factors::new(symbolic, a.as_ref(), Par::Seq).unwrap();
+            let factor = SparseFactor {
+                factors: Some(Factors::F64(crate::sparse_factors::Numeric::Lu(f))),
+                qr_rank_hint: None,
+            };
+            for upper in [false, true] {
+                let mut out = SparseOwner { data: None };
+                let count = crate::allocation_probe::count(|| {
+                    out.sparse_lu_component(&factor, upper).unwrap();
+                });
+                let largest = crate::allocation_probe::largest(|| {
+                    out.sparse_lu_component(&factor, upper).unwrap();
+                });
+                let nnz = get_f64(&out).compute_nnz();
+                eprintln!(
+                    "native LU t={} upper={upper}: {count} allocations, largest {largest} bytes, nnz {nnz}",
+                    t.0
+                );
+                assert!(count > 0);
+            }
+        }
+    }
 }
