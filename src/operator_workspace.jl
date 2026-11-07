@@ -13,8 +13,7 @@ function _operator_workspace_query(op::FaerLinearOperator, columns; team = nothi
         pointer(info),
     )
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.operator_requirements, args...) :
-        _native_call(RustCrate.operator_requirements_team, args..., team)
+        _native_call(RustCrate.operator_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
@@ -185,8 +184,8 @@ function _operator_workspace_result(op, rhs; scratch = nothing, team = nothing)
             UInt(size(rhs, 2)),
             _tag(T),
         )
-        f=isnothing(team) ? RustCrate.operator_workspace : RustCrate.operator_workspace_team
-        isnothing(team) || (args=(args..., team))
+        f=RustCrate.operator_workspace
+        args=(args..., team)
         return T===Float64 ? _matrix_result(f, dims, args...) :
                _typed_result(T, f, dims, args...)
     end

@@ -1179,13 +1179,8 @@ function FaerLinearOperator(
         relative=isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol
         T=eltype(f)
         h=RustCrate.OwnedLinearOperator()
-        fun=if T===Float64
-            isnothing(team) ? RustCrate.operator_qr_pseudoinverse :
-            RustCrate.operator_qr_pseudoinverse_team
-        else
-            isnothing(team) ? RustCrate.operator_qr_pseudoinverse_typed :
-            RustCrate.operator_qr_pseudoinverse_typed_team
-        end
+        fun=T===Float64 ? RustCrate.operator_qr_pseudoinverse :
+            RustCrate.operator_qr_pseudoinverse_typed
         req=_qr_pseudoinverse_requirement(f, team)
         _with_construction_scratch(req, scratch) do work
             _native_call(
@@ -1199,7 +1194,7 @@ function FaerLinearOperator(
                 UInt(size(f, 1)),
                 UInt(size(f, 2)),
                 _tag(T),
-                (isnothing(team) ? () : (team,))...,
+                team,
             )
         end
         return FaerLinearOperator{T,typeof(h)}(
@@ -1250,9 +1245,7 @@ function FaerLinearOperator(
             h=RustCrate.OwnedLinearOperator()
             req=_sparse_qr_inverse_requirement(f, team)
             _with_construction_scratch(req, scratch) do work
-                isnothing(team) ?
-                _native_call(RustCrate.operator_sparse_qr_inverse, h, f, work) :
-                _native_call(RustCrate.operator_sparse_qr_inverse_team, h, f, work, team)
+                _native_call(RustCrate.operator_sparse_qr_inverse, h, f, work, team)
             end
             return FaerLinearOperator{T,typeof(h)}(
                 h,

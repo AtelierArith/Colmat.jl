@@ -6,6 +6,7 @@
 //! workspace is part of the `*_scratch` requirement. Results are written directly
 //! into the caller's span-checked buffers without Rust-side staging.
 use super::{Data, Operator, OwnedLinearOperator};
+use crate::teams::with_team;
 use crate::views::{source, Borrowed, Spec};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch};
 use faer::dyn_stack::{MemStack, StackReq};
@@ -474,20 +475,22 @@ impl OwnedLinearOperator {
         max: usize,
         restarts: usize,
         out: *mut usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            let req =
-                checked_requirement(self, kind, k, m, n, tag, min, max, restarts, par.shape())?;
-            span::<usize>(out.cast(), 2)?;
-            if out.is_null() {
-                return Err("null partial query output".into());
-            }
-            unsafe {
-                out.write(req.size_bytes());
-                out.add(1).write(req.align_bytes());
-            }
-            Ok(())
+            with_team(team, |par| {
+                let req =
+                    checked_requirement(self, kind, k, m, n, tag, min, max, restarts, par.shape())?;
+                span::<usize>(out.cast(), 2)?;
+                if out.is_null() {
+                    return Err("null partial query output".into());
+                }
+                unsafe {
+                    out.write(req.size_bytes());
+                    out.add(1).write(req.align_bytes());
+                }
+                Ok(())
+            })
         })
     }
     #[julia]
@@ -509,73 +512,15 @@ impl OwnedLinearOperator {
         right: *mut u8,
         residuals: *mut u8,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<usize, String> {
         guarded(|| {
-            let par = Par::Seq;
-            execute(
-                self, kind, k, m, n, tag, start, start_desc, tolerance, min, max, restarts,
-                vectors, values, right, residuals, scratch, par,
-            )
-        })
-    }
-    #[julia]
-    pub fn partial_requirements_team(
-        &self,
-        kind: i32,
-        k: usize,
-        m: usize,
-        n: usize,
-        tag: i32,
-        min: usize,
-        max: usize,
-        restarts: usize,
-        out: *mut usize,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
-                let req =
-                    checked_requirement(self, kind, k, m, n, tag, min, max, restarts, par.shape())?;
-                span::<usize>(out.cast(), 2)?;
-                if out.is_null() {
-                    return Err("null partial query output".into());
-                }
-                unsafe {
-                    out.write(req.size_bytes());
-                    out.add(1).write(req.align_bytes());
-                }
-                Ok(())
-            })?
-        })
-    }
-    #[julia]
-    pub fn partial_workspace_team(
-        &self,
-        kind: i32,
-        k: usize,
-        m: usize,
-        n: usize,
-        tag: i32,
-        start: *const u8,
-        start_desc: *const isize,
-        tolerance: f64,
-        min: usize,
-        max: usize,
-        restarts: usize,
-        vectors: *mut u8,
-        values: *mut u8,
-        right: *mut u8,
-        residuals: *mut u8,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<usize, String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 execute(
                     self, kind, k, m, n, tag, start, start_desc, tolerance, min, max, restarts,
                     vectors, values, right, residuals, scratch, par,
                 )
-            })?
+            })
         })
     }
 }
@@ -601,7 +546,7 @@ mod tests {
                 ))))),
             };
             let mut info = [0usize; 2];
-            op.partial_requirements(kind, 2, 4, 4, 1, 0, 0, 20, info.as_mut_ptr())
+            op.partial_requirements(kind, 2, 4, 4, 1, 0, 0, 20, info.as_mut_ptr(), None)
                 .unwrap();
             let mut scratch = OwnedScratch::new();
             scratch.scratch_reserve(info[0], info[1]).unwrap();
@@ -627,7 +572,7 @@ mod tests {
                     values.as_mut_ptr().cast(),
                     right.as_mut_ptr().cast(),
                     residuals.as_mut_ptr().cast(),
-                    &mut scratch,
+                    &mut scratch,None
                 )
                 .unwrap();
             assert_eq!(count, 0);
@@ -795,10 +740,10 @@ mod tests {
             ))))),
         };
         assert!(op
-            .partial_requirements(1, 2, 5, 5, 1, 0, 0, 20, std::ptr::null_mut())
+            .partial_requirements(1, 2, 5, 5, 1, 0, 0, 20, std::ptr::null_mut(), None)
             .is_err());
         let mut info = [0usize; 2];
-        op.partial_requirements(1, 2, 5, 5, 1, 0, 0, 20, info.as_mut_ptr())
+        op.partial_requirements(1, 2, 5, 5, 1, 0, 0, 20, info.as_mut_ptr(), None)
             .unwrap();
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0] - 1, info[1]).unwrap();
@@ -824,7 +769,7 @@ mod tests {
                 values.as_mut_ptr().cast(),
                 right.as_mut_ptr().cast(),
                 residuals.as_mut_ptr().cast(),
-                &mut scratch
+                &mut scratch, None
             )
             .is_err());
         assert_eq!(vectors, [19.0; 10]);
@@ -835,7 +780,7 @@ mod tests {
         team.team_initialize(2).unwrap();
         team.team_close().unwrap();
         assert!(op
-            .partial_workspace_team(
+            .partial_workspace(
                 1,
                 2,
                 5,
@@ -851,8 +796,7 @@ mod tests {
                 values.as_mut_ptr().cast(),
                 right.as_mut_ptr().cast(),
                 residuals.as_mut_ptr().cast(),
-                &mut scratch,
-                &team
+                &mut scratch, Some(&team)
             )
             .is_err());
         assert_eq!(vectors, [19.0; 10]);
@@ -875,7 +819,7 @@ mod tests {
                 values.as_mut_ptr().cast(),
                 right.as_mut_ptr().cast(),
                 residuals.as_mut_ptr().cast(),
-                &mut scratch
+                &mut scratch, None
             )
             .is_err());
         assert_eq!(vectors, [19.0; 10]);

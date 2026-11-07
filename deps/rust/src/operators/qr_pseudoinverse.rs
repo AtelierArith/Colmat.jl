@@ -1,6 +1,7 @@
 //! Rectangular/truncated QR actions from saved reflectors and the SVD of R.
 use super::{Base, Data, InverseSpectral, Operator, OwnedLinearOperator};
 use crate::pseudoinverse::ToleranceReal;
+use crate::teams::with_team;
 use crate::typed::{Factor, FactorData, TypedFactor};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedFactor};
 use faer::dyn_stack::{MemStack, StackReq};
@@ -313,33 +314,21 @@ fn write_requirement(req: StackReq, out: *mut usize) {
         out.add(1).write(req.align_bytes());
     }
 }
-/// Query construction scratch for the saved-QR pseudoinverse action.
 #[julia]
 pub fn operator_qr_pseudoinverse_requirements(
     m: usize,
     n: usize,
     tag: i32,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
     guarded(|| {
-        write_requirement(construction_requirement(m, n, tag, ParShape::Seq)?, out);
-        Ok(())
-    })
-}
-#[julia]
-pub fn operator_qr_pseudoinverse_requirements_team(
-    m: usize,
-    n: usize,
-    tag: i32,
-    out: *mut usize,
-    team: &OwnedTeam,
-) -> Result<(), String> {
-    guarded(|| {
-        let req = team.execute(|p| construction_requirement(m, n, tag, p.shape()))??;
+        let req = with_team(team, |p| construction_requirement(m, n, tag, p.shape()))?;
         write_requirement(req, out);
         Ok(())
     })
 }
+
 #[allow(clippy::too_many_arguments)]
 fn build<T: ComplexField>(
     b: MatRef<'_, T>,
@@ -432,7 +421,6 @@ fn build_typed(
 }
 #[julia]
 impl OwnedLinearOperator {
-    /// Build the saved-QR pseudoinverse action using caller construction scratch.
     #[julia]
     pub fn operator_qr_pseudoinverse(
         &mut self,
@@ -444,33 +432,17 @@ impl OwnedLinearOperator {
         m: usize,
         n: usize,
         tag: i32,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let data = build_f64(f, scratch, atol, rtol, relative_f32, m, n, tag, Par::Seq)?;
+            let data = with_team(team, |p| {
+                build_f64(f, scratch, atol, rtol, relative_f32, m, n, tag, p)
+            })?;
             self.data = Some(data);
             Ok(())
         })
     }
-    #[julia]
-    pub fn operator_qr_pseudoinverse_team(
-        &mut self,
-        f: &OwnedFactor,
-        scratch: &mut OwnedScratch,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        m: usize,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let data =
-                team.execute(|p| build_f64(f, scratch, atol, rtol, relative_f32, m, n, tag, p))??;
-            self.data = Some(data);
-            Ok(())
-        })
-    }
+
     #[julia]
     pub fn operator_qr_pseudoinverse_typed(
         &mut self,
@@ -482,29 +454,12 @@ impl OwnedLinearOperator {
         m: usize,
         n: usize,
         tag: i32,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let data = build_typed(f, scratch, atol, rtol, relative_f32, m, n, tag, Par::Seq)?;
-            self.data = Some(data);
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn operator_qr_pseudoinverse_typed_team(
-        &mut self,
-        f: &TypedFactor,
-        scratch: &mut OwnedScratch,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        m: usize,
-        n: usize,
-        tag: i32,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let data =
-                team.execute(|p| build_typed(f, scratch, atol, rtol, relative_f32, m, n, tag, p))??;
+            let data = with_team(team, |p| {
+                build_typed(f, scratch, atol, rtol, relative_f32, m, n, tag, p)
+            })?;
             self.data = Some(data);
             Ok(())
         })
@@ -828,27 +783,27 @@ mod tests {
         f.initialize(&a, 2, true, 4, 3, 1, None).unwrap();
         let mut out = OwnedLinearOperator::new();
         let mut info = [0usize; 2];
-        operator_qr_pseudoinverse_requirements(4, 3, 1, info.as_mut_ptr()).unwrap();
+        operator_qr_pseudoinverse_requirements(4, 3, 1, info.as_mut_ptr(), None).unwrap();
         assert!(info[0] > 0);
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0] - 1, info[1]).unwrap();
         assert!(out
-            .operator_qr_pseudoinverse(&f, &mut scratch, 0.0, 1e-12, false, 4, 3, 1)
+            .operator_qr_pseudoinverse(&f, &mut scratch, 0.0, 1e-12, false, 4, 3, 1, None)
             .is_err());
         assert!(out.data().is_err());
         scratch.scratch_reserve(info[0], info[1]).unwrap();
         assert!(out
-            .operator_qr_pseudoinverse(&f, &mut scratch, 0.0, 1e-12, false, 4, 3, 0)
+            .operator_qr_pseudoinverse(&f, &mut scratch, 0.0, 1e-12, false, 4, 3, 0, None)
             .is_err());
         assert!(out.data().is_err());
         assert!(out
-            .operator_qr_pseudoinverse(&f, &mut scratch, 0.0, 1e-12, false, 5, 3, 1)
+            .operator_qr_pseudoinverse(&f, &mut scratch, 0.0, 1e-12, false, 5, 3, 1, None)
             .is_err());
         assert!(out.data().is_err());
-        out.operator_qr_pseudoinverse(&f, &mut scratch, 0.0, 1e-12, false, 4, 3, 1)
+        out.operator_qr_pseudoinverse(&f, &mut scratch, 0.0, 1e-12, false, 4, 3, 1, None)
             .unwrap();
         assert!(out
-            .operator_qr_pseudoinverse(&f, &mut scratch, -1.0, 1e-12, false, 4, 3, 1)
+            .operator_qr_pseudoinverse(&f, &mut scratch, -1.0, 1e-12, false, 4, 3, 1, None)
             .is_err());
         match out.data().unwrap() {
             Data::F64(a) => assert_eq!(a.shape(), (3, 4)),

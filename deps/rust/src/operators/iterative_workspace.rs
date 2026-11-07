@@ -3,6 +3,7 @@ use super::{
     solve_bicg_resources, solve_lsmr_resources, solve_resources, Data, Operator,
     OwnedLinearOperator,
 };
+use crate::teams::with_team;
 use crate::teams::OwnedTeam;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::workspace::OwnedScratch;
@@ -155,24 +156,12 @@ impl OwnedLinearOperator {
         cols: usize,
         tag: i32,
         out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| query(self, m, n, kind, k, rows, cols, tag, ParShape::Seq, out))
-    }
-    #[julia]
-    pub fn iterative_requirements_team(
-        &self,
-        m: &OwnedLinearOperator,
-        n: &OwnedLinearOperator,
-        kind: i32,
-        k: usize,
-        rows: usize,
-        cols: usize,
-        tag: i32,
-        out: *mut usize,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            team.execute(|par| query(self, m, n, kind, k, rows, cols, tag, par.shape(), out))?
+            with_team(team, |par| {
+                query(self, m, n, kind, k, rows, cols, tag, par.shape(), out)
+            })
         })
     }
 }
@@ -278,54 +267,10 @@ impl OwnedMatrix {
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            let (Data::F64(a), Data::F64(m), Data::F64(n)) = (a.data()?, m.data()?, n.data()?)
-            else {
-                return Err("iterative scalar types must match".into());
-            };
-            self.matrix = run(
-                a,
-                m,
-                n,
-                kind,
-                rhs.matrix.as_ref(),
-                initial.matrix.as_ref(),
-                atol,
-                rtol,
-                maxiter,
-                stats,
-                iterations,
-                observing,
-                observer,
-                scratch,
-                par,
-            )?;
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn iterative_workspace_team(
-        &mut self,
-        a: &OwnedLinearOperator,
-        m: &OwnedLinearOperator,
-        n: &OwnedLinearOperator,
-        kind: i32,
-        rhs: &OwnedMatrix,
-        initial: &OwnedMatrix,
-        atol: f64,
-        rtol: f64,
-        maxiter: usize,
-        stats: *mut u8,
-        iterations: *mut usize,
-        observing: bool,
-        observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 let (Data::F64(a), Data::F64(m), Data::F64(n)) = (a.data()?, m.data()?, n.data()?)
                 else {
                     return Err("iterative scalar types must match".into());
@@ -348,7 +293,7 @@ impl OwnedMatrix {
                     par,
                 )?;
                 Ok(())
-            })?
+            })
         })
     }
 }
@@ -371,113 +316,10 @@ impl TypedMatrix {
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            self.data = Some(
-                match (
-                    a.data()?,
-                    m.data()?,
-                    n.data()?,
-                    rhs.data()?,
-                    initial.data()?,
-                ) {
-                    (
-                        Data::F32(a),
-                        Data::F32(m),
-                        Data::F32(n),
-                        MatrixData::F32(b),
-                        MatrixData::F32(x),
-                    ) => MatrixData::F32(run(
-                        a,
-                        m,
-                        n,
-                        kind,
-                        b.as_ref(),
-                        x.as_ref(),
-                        atol,
-                        rtol,
-                        maxiter,
-                        stats,
-                        iterations,
-                        observing,
-                        observer,
-                        scratch,
-                        par,
-                    )?),
-                    (
-                        Data::C32(a),
-                        Data::C32(m),
-                        Data::C32(n),
-                        MatrixData::C32(b),
-                        MatrixData::C32(x),
-                    ) => MatrixData::C32(run(
-                        a,
-                        m,
-                        n,
-                        kind,
-                        b.as_ref(),
-                        x.as_ref(),
-                        atol,
-                        rtol,
-                        maxiter,
-                        stats,
-                        iterations,
-                        observing,
-                        observer,
-                        scratch,
-                        par,
-                    )?),
-                    (
-                        Data::C64(a),
-                        Data::C64(m),
-                        Data::C64(n),
-                        MatrixData::C64(b),
-                        MatrixData::C64(x),
-                    ) => MatrixData::C64(run(
-                        a,
-                        m,
-                        n,
-                        kind,
-                        b.as_ref(),
-                        x.as_ref(),
-                        atol,
-                        rtol,
-                        maxiter,
-                        stats,
-                        iterations,
-                        observing,
-                        observer,
-                        scratch,
-                        par,
-                    )?),
-                    _ => return Err("iterative scalar types must match".into()),
-                },
-            );
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn iterative_workspace_team(
-        &mut self,
-        a: &OwnedLinearOperator,
-        m: &OwnedLinearOperator,
-        n: &OwnedLinearOperator,
-        kind: i32,
-        rhs: &TypedMatrix,
-        initial: &TypedMatrix,
-        atol: f64,
-        rtol: f64,
-        maxiter: usize,
-        stats: *mut u8,
-        iterations: *mut usize,
-        observing: bool,
-        observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 self.data = Some(
                     match (
                         a.data()?,
@@ -559,7 +401,7 @@ impl TypedMatrix {
                     },
                 );
                 Ok(())
-            })?
+            })
         })
     }
 }
@@ -666,7 +508,7 @@ mod tests {
                         data: Some(T::data(n.clone())),
                     };
                     let mut info = [0usize; 2];
-                    ao.iterative_requirements_team(
+                    ao.iterative_requirements(
                         &mo,
                         &no,
                         kind,
@@ -674,8 +516,7 @@ mod tests {
                         rows,
                         cols,
                         T::tag(),
-                        info.as_mut_ptr(),
-                        &team,
+                        info.as_mut_ptr(), Some(&team),
                     )
                     .unwrap();
                     let mut work = OwnedScratch::new();
@@ -814,16 +655,16 @@ mod tests {
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut req = [0usize; 2];
-        a.iterative_requirements_team(&m, &n, 0, 1, 4, 4, 1, req.as_mut_ptr(), &team)
+        a.iterative_requirements(&m, &n, 0, 1, 4, 4, 1, req.as_mut_ptr(), Some(&team))
             .unwrap();
         assert!(a
-            .iterative_requirements_team(&m, &n, 0, 1, 4, 4, 1, std::ptr::null_mut(), &team)
+            .iterative_requirements(&m, &n, 0, 1, 4, 4, 1, std::ptr::null_mut(), Some(&team))
             .is_err());
         assert!(a
-            .iterative_requirements_team(&m, &n, 0, 1, 3, 4, 1, req.as_mut_ptr(), &team)
+            .iterative_requirements(&m, &n, 0, 1, 3, 4, 1, req.as_mut_ptr(), Some(&team))
             .is_err());
         assert!(a
-            .iterative_requirements_team(&m, &n, 0, 1, 4, 4, 0, req.as_mut_ptr(), &team)
+            .iterative_requirements(&m, &n, 0, 1, 4, 4, 0, req.as_mut_ptr(), Some(&team))
             .is_err());
         let mut work = OwnedScratch::new();
         work.scratch_reserve(req[0] - 1, req[1]).unwrap();
@@ -836,7 +677,7 @@ mod tests {
         let mut stats = [23.0f64; 5];
         let mut count = 99usize;
         assert!(out
-            .iterative_workspace_team(
+            .iterative_workspace(
                 &a,
                 &m,
                 &n,
@@ -850,8 +691,7 @@ mod tests {
                 &mut count,
                 false,
                 keep,
-                &mut work,
-                &team
+                &mut work, Some(&team)
             )
             .is_err());
         assert_eq!(stats, [23.0; 5]);
@@ -860,7 +700,7 @@ mod tests {
         work.scratch_reserve(req[0], req[1]).unwrap();
         team.team_close().unwrap();
         assert!(out
-            .iterative_workspace_team(
+            .iterative_workspace(
                 &a,
                 &m,
                 &n,
@@ -874,8 +714,7 @@ mod tests {
                 &mut count,
                 false,
                 keep,
-                &mut work,
-                &team
+                &mut work, Some(&team)
             )
             .is_err());
         assert_eq!(stats, [23.0; 5]);

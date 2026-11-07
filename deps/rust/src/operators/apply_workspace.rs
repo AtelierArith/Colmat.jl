@@ -1,5 +1,6 @@
 //! Caller-owned workspaces and scoped teams for native operator application.
 use super::{Data, Operator, OwnedLinearOperator};
+use crate::teams::with_team;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::StackReq;
@@ -82,20 +83,9 @@ impl OwnedLinearOperator {
         n: usize,
         tag: i32,
         out: *mut usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
-        guarded(|| query(self, columns, m, n, tag, ParShape::Seq, out))
-    }
-    #[julia]
-    pub fn operator_requirements_team(
-        &self,
-        columns: usize,
-        m: usize,
-        n: usize,
-        tag: i32,
-        out: *mut usize,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| team.execute(|p| query(self, columns, m, n, tag, p.shape(), out))?)
+        guarded(|| with_team(team, |p| query(self, columns, m, n, tag, p.shape(), out)))
     }
 }
 fn run<T: ComplexField>(
@@ -130,27 +120,12 @@ impl OwnedMatrix {
         n: usize,
         columns: usize,
         tag: i32,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            self.operator_workspace_impl(operator, rhs, scratch, m, n, columns, tag, Par::Seq)
-        })
-    }
-    #[julia]
-    pub fn operator_workspace_team(
-        &mut self,
-        operator: &OwnedLinearOperator,
-        rhs: &OwnedMatrix,
-        scratch: &mut OwnedScratch,
-        m: usize,
-        n: usize,
-        columns: usize,
-        tag: i32,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 self.operator_workspace_impl(operator, rhs, scratch, m, n, columns, tag, par)
-            })?
+            })
         })
     }
 }
@@ -188,27 +163,12 @@ impl TypedMatrix {
         n: usize,
         columns: usize,
         tag: i32,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            self.operator_workspace_impl(operator, rhs, scratch, m, n, columns, tag, Par::Seq)
-        })
-    }
-    #[julia]
-    pub fn operator_workspace_team(
-        &mut self,
-        operator: &OwnedLinearOperator,
-        rhs: &TypedMatrix,
-        scratch: &mut OwnedScratch,
-        m: usize,
-        n: usize,
-        columns: usize,
-        tag: i32,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 self.operator_workspace_impl(operator, rhs, scratch, m, n, columns, tag, par)
-            })?
+            })
         })
     }
 }
@@ -253,19 +213,19 @@ mod tests {
             data: Some(Data::F64(Operator::new(Base::Dense(Mat::identity(2, 2))))),
         };
         assert!(op
-            .operator_requirements(1, 2, 2, 0, std::ptr::null_mut())
+            .operator_requirements(1, 2, 2, 0, std::ptr::null_mut(), None)
             .is_err());
         assert!(op
-            .operator_requirements(1, 3, 2, 1, std::ptr::null_mut())
+            .operator_requirements(1, 3, 2, 1, std::ptr::null_mut(), None)
             .is_err());
         assert!(op
-            .operator_requirements(1, 2, 2, 1, std::ptr::null_mut())
+            .operator_requirements(1, 2, 2, 1, std::ptr::null_mut(), None)
             .is_err());
         assert!(op
-            .operator_requirements(1, 2, 2, 1, 1usize as *mut usize)
+            .operator_requirements(1, 2, 2, 1, 1usize as *mut usize, None)
             .is_err());
         assert!(op
-            .operator_requirements(1, 2, 2, 1, (usize::MAX - 7) as *mut usize)
+            .operator_requirements(1, 2, 2, 1, (usize::MAX - 7) as *mut usize, None)
             .is_err());
     }
     #[test]
@@ -286,27 +246,27 @@ mod tests {
         let mut info = [0usize; 2];
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
-        op.operator_requirements_team(2, 2, 2, 1, info.as_mut_ptr(), &team)
+        op.operator_requirements(2, 2, 2, 1, info.as_mut_ptr(), Some(&team))
             .unwrap();
         assert!(info[0] > 0);
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0] - 1, info[1]).unwrap();
         assert!(out
-            .operator_workspace_team(&op, &rhs, &mut scratch, 2, 2, 2, 1, &team)
+            .operator_workspace(&op, &rhs, &mut scratch, 2, 2, 2, 1, Some(&team))
             .is_err());
         assert_eq!(out.matrix[(0, 0)], 42.0);
         scratch.scratch_reserve(info[0], info[1]).unwrap();
         assert!(out
-            .operator_workspace_team(&op, &rhs, &mut scratch, 2, 2, 3, 1, &team)
+            .operator_workspace(&op, &rhs, &mut scratch, 2, 2, 3, 1, Some(&team))
             .is_err());
         assert_eq!(out.matrix[(0, 0)], 42.0);
-        out.operator_workspace_team(&op, &rhs, &mut scratch, 2, 2, 2, 1, &team)
+        out.operator_workspace(&op, &rhs, &mut scratch, 2, 2, 2, 1, Some(&team))
             .unwrap();
         assert!((&a * &out.matrix - &rhs.matrix).norm_max() < 1e-12);
         let saved = out.matrix.clone();
         team.team_close().unwrap();
         assert!(out
-            .operator_workspace_team(&op, &rhs, &mut scratch, 2, 2, 2, 1, &team)
+            .operator_workspace(&op, &rhs, &mut scratch, 2, 2, 2, 1, Some(&team))
             .is_err());
         assert_eq!(out.matrix[(0, 0)], saved[(0, 0)]);
     }
