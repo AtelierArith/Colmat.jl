@@ -8,9 +8,12 @@ Scalar/vector shapes map to 1×1 / n×1 matrices; ranks above two are rejected.
 Header, dtype, dimensions and exact payload length are validated before native
 access. Values, including NaN/Inf, are preserved.
 
-Default output is an independent FaerMatrix. view=true returns a read-only
-FaerNpyMatrix that owns aligned native-endian storage and uses as_aligned_ref.
-The byte input is snapshotted; this is not a memory mapping or an alias of Julia
+Default output is an independent FaerMatrix copied directly from the source
+bytes by faer's `Npy::to_mat`, which reads unaligned and foreign-endian payloads
+without an intermediate normalized buffer (contiguous byte vectors are read in
+place). view=true returns a read-only FaerNpyMatrix that owns aligned
+native-endian storage and uses as_aligned_ref, which requires such storage. The
+view's bytes are snapshotted; this is not a memory mapping or an alias of Julia
 input bytes. The normalized buffer is retained until close/GC. Copying a view
 materializes an independent native matrix; deepcopy retains the read-only type
 and duplicates its aligned storage. See [`npyinfo`](@ref) for metadata.
@@ -72,10 +75,43 @@ function _npy_view(input::AbstractVector{UInt8})
         )
     end
 end
-function loadnpy(data::AbstractVector{UInt8}; view::Bool = false)
-    a=_npy_view(data)
-    return view ? a : copy(a)
+# Contiguous byte sources are passed in place; faer's to_mat reads unaligned
+# and foreign-endian payloads directly (tensor4all/faer#215).
+_npy_source(data::DenseVector{UInt8}) = data
+_npy_source(data::Base.FastContiguousSubArray{UInt8,1,<:DenseVector{UInt8}}) = data
+_npy_source(data::AbstractVector{UInt8}) = Vector{UInt8}(data)
+function _npy_matrix(input::AbstractVector{UInt8})
+    data=_npy_source(input)
+    lock(_matrix_lock) do
+        info=zeros(UInt, 8)
+        try
+            GC.@preserve data info begin
+                p=pointer(data)
+                len=UInt(length(data))
+                _native_call(RustCrate.npy_source_info, p, len, pointer(info))
+                T=(Float32, Float64, ComplexF32, ComplexF64)[Int(info[1])+1]
+                m, n=Int(info[2]), Int(info[3])
+                return T===Float64 ?
+                       _matrix_result(RustCrate.npy_load_direct, (m, n), p, len, UInt(m), UInt(n)) :
+                       _typed_result(
+                    T,
+                    RustCrate.npy_load_direct,
+                    (m, n),
+                    p,
+                    len,
+                    _tag(T),
+                    UInt(m),
+                    UInt(n),
+                )
+            end
+        catch err
+            err isa RustCall.RustError && throw(ArgumentError(sprint(showerror, err)))
+            rethrow()
+        end
+    end
 end
+loadnpy(data::AbstractVector{UInt8}; view::Bool = false) =
+    view ? _npy_view(data) : _npy_matrix(data)
 loadnpy(path::AbstractString; kwargs...) = loadnpy(read(path); kwargs...)
 loadnpy(io::IO; kwargs...) = loadnpy(read(io); kwargs...)
 """Read an NPY source into an owned read-only aligned matrix view; see [`loadnpy`](@ref)."""

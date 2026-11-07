@@ -86,9 +86,16 @@ NaN payloads and signed zero are preserved. Higher ranks and other dtypes are
 rejected, as are inconsistent lengths and trailing bytes. IO inputs are read
 from their current position to EOF as one array.
 
+The default `loadnpy` copies the payload directly from the source bytes through
+faer's `Npy::to_mat`, which reads unaligned and foreign-endian inputs without an
+intermediate normalized buffer; contiguous byte vectors (including contiguous
+`view`s) are read in place without a Julia-side snapshot.
+
 `npyview` (or `loadnpy(...; view=true)`) owns an aligned, native-endian snapshot
-of the bytes and uses faer's aligned-reference API for reads. It does not alias
-the input bytes or memory-map a file. Entries are read-only. `copy` materializes
+of the bytes and uses faer's aligned-reference API for reads; that API requires
+a 64-byte aligned buffer in native byte order, so the view normalizes its
+snapshot. It does not alias the input bytes or memory-map a file (aliasing a
+borrowed buffer is tracked separately). Entries are read-only. `copy` materializes
 a native matrix; `deepcopy` preserves the view type with independent storage.
 Closing a view invalidates its reads, while materialized/deep copies remain valid.
 

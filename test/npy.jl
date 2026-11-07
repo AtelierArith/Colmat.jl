@@ -82,6 +82,24 @@ _bits(A) = collect(reinterpret(UInt8, vec(A)))
             @test_throws ArgumentError npyinfo(V)
             @test Matrix(copied)==A
         end
+        # faer's to_mat reads unaligned and foreign-endian sources in place
+        # (tensor4all/faer#210/#211 fixed by tensor4all/faer#215).
+        A=reshape(T.(1:6), 2, 3)
+        T<:Complex && (A .-= T(0.5im))
+        for fortran in (false, true), big in (false, true), version in (1, 2, 3)
+            bytes=_npy_bytes(A; fortran, big, version)
+            for offset = 1:9
+                padded=vcat(zeros(UInt8, offset), bytes, UInt8[0x7f])
+                source=view(padded, (offset+1):(offset+length(bytes)))
+                loaded=loadnpy(source)
+                @test loaded isa FaerMatrix{T}
+                @test _bits(Matrix(loaded))==_bits(A)
+                fill!(padded, 0x00)
+                @test _bits(Matrix(loaded))==_bits(A)
+            end
+            strided=view(repeat(bytes; inner = 2), 1:2:(2*length(bytes)))
+            @test _bits(Matrix(loadnpy(strided)))==_bits(A)
+        end
         for shape in ((), (0,), (3,))
             A=reshape(T.(1:(isempty(shape) ? 1 : only(shape))), :, 1)
             bytes=_npy_bytes(A; shape, big = true, version = 3)
