@@ -75,6 +75,59 @@ CSR の借用（`transpose(S)` 由来）、借用を代入先にする `SparseCo
 Julia の `SparseMatrixCSC` は常に圧縮形式なので、非圧縮形式は Julia 入力では
 生じません。
 
+### 疎×疎積の計画再利用 (`FaerSparseProductPlan`)
+
+`A * B` は呼び出しごとに faer の symbolic 段（結果の疎構造と作業分割）と
+numeric 段を実行し、結果の疎行列を新しく割り当てます。疎構造が固定で値だけが
+変わる反復では、`FaerSparseProductPlan(A, B)` で
+`sparse_sparse_matmul_symbolic` を1回だけ実行し、
+`mul!(C, plan, A, B, α=1, β=0; scratch, team)` で
+`sparse_sparse_matmul_numeric` だけを繰り返せます。
+
+- plan は `A`・`B` の格納パターン（格納ゼロを含む）の独立コピーを持ちます。
+  毎回の `mul!` は、`A`・`B` のパターンと格納形式、および `C` のパターンが
+  plan と完全に一致するかを割り当てなしで検査します。不一致なら `C` に
+  書き込む前に `ArgumentError` を投げます。`C` のパターンが結果パターンより
+  小さいと faer の作業列が汚れるため、`C` は結果パターンと完全一致が必要です。
+- `C` には `FaerSparseMatrix{T}(plan)`（ゼロ値）か `A * B` を使います。
+  `mul!` は `C` のパターン・nnz・`epoch`・`nonzeros(C)` の live view を維持します。
+  `β == 0` は上書き、それ以外は `C` を `β` 倍して加算します。
+- `A`・`B`・`C` は同じ CSC か CSR です（CSR は `Cᵀ = Bᵀ Aᵀ` の列優先 plan）。
+  `faerview(S)` の借用 Julia CSC 同士なら値も index 変換バッファ経由でコピーせずに
+  読みます。借用と native CSC の混在では借用側を1回コピーします。
+- `eltype(C)` は `promote_type(eltype(A), eltype(B))` を保持できる型です。
+  型の異なる入力は `eltype(C)` へ変換したコピー（同じパターン）を作ります。
+  `C === A`／`C === B` は `ArgumentError` です。
+- numeric 段の作業領域はスレッドごとに `eltype(C)` の密な1列です。
+  `scratch_requirements(mul!, C, plan, A, B; team)`、
+  `FaerScratch(mul!, C, plan, A, B; team)`、
+  `reserve!(work, mul!, C, plan, A, B; team)` で用意します。`scratch` を省略すると
+  一時領域を割り当てて解放します。`FaerTeam` を渡すと faer の費用モデルに従って
+  並列実行します（小さな積は逐次のままです）。容量不足も書き込み前に検出します。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sprand(200, 200, 0.02))
+B = FaerSparseMatrix(sprand(200, 200, 0.02))
+plan = FaerSparseProductPlan(A, B)       # symbolic 段は1回だけ
+C = FaerSparseMatrix{Float64}(plan)      # 結果パターンのゼロ行列
+work = FaerScratch(mul!, C, plan, A, B)
+for k in 1:3
+    fill!(nonzeros(A), k)                # 値だけを変更
+    mul!(C, plan, A, B; scratch=work)    # numeric 段だけを実行
+end
+@assert Matrix(C) ≈ Matrix(A) * Matrix(B)
+```
+
+同型の入力と caller の `scratch` を使う場合、Rust 側の numeric 呼び出しは
+割り当てを行いません（Rust の allocation probe で検証）。Julia 側には FFI 呼び出し
+1回分の固定 bookkeeping だけが残ります。400×400・密度 2% の測定では、
+Julia ヒープ上の割り当ては従来の `mul!(C, A, B)` の 7712 バイト（これに加えて
+native 側で symbolic 構造・結果値・新しい owner を毎回割り当て）に対し、
+plan 経由は 1648 バイトで native 側の割り当てはありません。
+借用 Julia CSC の plan 経由では 0-based index バッファの検査・変換が加わります。
+
 疎三角ラッパーの `\` と2引数・3引数の `ldiv!` は native の疎求解を使います。
 通常・単位・下三角・上三角、転置／随伴、型の promotion に対応します。
 単位三角では未格納の対角を 1 として扱い、通常の三角行列で対角がゼロなら
