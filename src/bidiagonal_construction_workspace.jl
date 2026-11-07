@@ -17,21 +17,13 @@ function _bidiagonalize_requirement(m, n, T, full, bs, team, policy; compact = f
     GC.@preserve info begin
         args=compact ? (UInt(m), UInt(n), _tag(T), UInt(bs), policy.value, pointer(info)) :
              (UInt(m), UInt(n), _tag(T), full, UInt(bs), policy.value, pointer(info))
-        isnothing(team) ?
         _native_call(
             (
                 compact ? RustCrate.compact_bidiagonal_requirements :
                 RustCrate.bidiagonalize_tuned_requirements
             ),
             args...,
-        ) :
-        _native_call(
-            (
-                compact ? RustCrate.compact_bidiagonal_team_requirements :
-                RustCrate.bidiagonalize_tuned_team_requirements
-            ),
             team,
-            args...,
         )
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))

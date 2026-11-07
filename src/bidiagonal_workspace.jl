@@ -16,8 +16,7 @@ function _bidiagonal_svd_requirement(n, T, threshold, team)
     info=zeros(UInt, 2)
     args=(UInt(n), _tag(T), UInt(threshold), pointer(info))
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.bidiagonal_svd_requirements, args...) :
-        _native_call(RustCrate.bidiagonal_svd_team_requirements, team, args...)
+        _native_call(RustCrate.bidiagonal_svd_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

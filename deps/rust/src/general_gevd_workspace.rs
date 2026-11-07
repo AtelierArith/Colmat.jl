@@ -1,4 +1,5 @@
 //! Generalized EVD workspace, including real conjugate-pair conversion.
+use crate::teams::with_team;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::StackReq;
@@ -277,31 +278,15 @@ pub fn general_gevd_requirements(
     values: bool,
     both: bool,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
     guarded(|| {
-        write_req(dispatch(n, tag, values, both, ParShape::Seq)?, out);
+        write_req(
+            with_team(team, |par| dispatch(n, tag, values, both, par.shape()))?,
+            out,
+        );
         Ok(())
     })
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn general_gevd_team_requirements(
-        &self,
-        n: usize,
-        tag: i32,
-        values: bool,
-        both: bool,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| {
-            write_req(
-                self.execute(|par| dispatch(n, tag, values, both, par.shape()))??,
-                out,
-            );
-            Ok(())
-        })
-    }
 }
 unsafe fn run<T: General>(
     a: MatRef<'_, T>,
@@ -339,6 +324,7 @@ impl OwnedMatrix {
         &self,
         b: &OwnedMatrix,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
         u: *mut u8,
         v: *mut u8,
         s: *mut u8,
@@ -354,42 +340,7 @@ impl OwnedMatrix {
                 self.matrix.as_ref(),
                 b.matrix.as_ref(),
                 scratch,
-                None,
-                u,
-                v,
-                s,
-                t,
-                values,
-                left,
-                both,
-                n,
-                tag,
-                1,
-            )
-        })
-    }
-    #[julia]
-    pub fn general_gevd_workspace_team(
-        &self,
-        b: &OwnedMatrix,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-        u: *mut u8,
-        v: *mut u8,
-        s: *mut u8,
-        t: *mut u8,
-        values: bool,
-        left: bool,
-        both: bool,
-        n: usize,
-        tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| unsafe {
-            run(
-                self.matrix.as_ref(),
-                b.matrix.as_ref(),
-                scratch,
-                Some(team),
+                team,
                 u,
                 v,
                 s,
@@ -496,6 +447,7 @@ impl TypedMatrix {
         &self,
         b: &TypedMatrix,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
         u: *mut u8,
         v: *mut u8,
         s: *mut u8,
@@ -507,40 +459,7 @@ impl TypedMatrix {
         tag: i32,
     ) -> Result<(), String> {
         guarded(|| unsafe {
-            self.workspace_generalized(b, scratch, None, u, v, s, t, values, left, both, n, tag)
-        })
-    }
-    #[julia]
-    pub fn general_gevd_workspace_team(
-        &self,
-        b: &TypedMatrix,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-        u: *mut u8,
-        v: *mut u8,
-        s: *mut u8,
-        t: *mut u8,
-        values: bool,
-        left: bool,
-        both: bool,
-        n: usize,
-        tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| unsafe {
-            self.workspace_generalized(
-                b,
-                scratch,
-                Some(team),
-                u,
-                v,
-                s,
-                t,
-                values,
-                left,
-                both,
-                n,
-                tag,
-            )
+            self.workspace_generalized(b, scratch, team, u, v, s, t, values, left, both, n, tag)
         })
     }
 }

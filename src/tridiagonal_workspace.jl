@@ -3,8 +3,7 @@ function _tridiagonal_evd_requirement(n, T, vectors, threshold, team)
     info=zeros(UInt, 2)
     args=(UInt(n), _tag(T), vectors, UInt(threshold), pointer(info))
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.tridiagonal_evd_requirements, args...) :
-        _native_call(RustCrate.tridiagonal_evd_team_requirements, team, args...)
+        _native_call(RustCrate.tridiagonal_evd_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

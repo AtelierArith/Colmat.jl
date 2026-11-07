@@ -1,4 +1,5 @@
 //! Dedicated tridiagonal EVD: caller scratch and ephemeral team authority.
+use crate::teams::with_team;
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch};
 use faer::dyn_stack::StackReq;
 use faer::linalg::{self, evd};
@@ -99,22 +100,13 @@ pub fn tridiagonal_evd_requirements(
     compute: bool,
     threshold: usize,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| query(n, tag, compute, threshold, ParShape::Seq, out))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn tridiagonal_evd_team_requirements(
-        &self,
-        n: usize,
-        tag: i32,
-        compute: bool,
-        threshold: usize,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(n, tag, compute, threshold, par.shape(), out))?)
-    }
+    guarded(|| {
+        with_team(team, |par| {
+            query(n, tag, compute, threshold, par.shape(), out)
+        })
+    })
 }
 unsafe fn compute<T: ComplexField>(
     scratch: &mut OwnedScratch,
@@ -276,37 +268,10 @@ pub fn tridiagonal_evd_workspace(
     tag: i32,
     want_vectors: bool,
     threshold: usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
     guarded(|| {
-        run(
-            scratch,
-            d,
-            e,
-            n,
-            values,
-            vectors,
-            tag,
-            want_vectors,
-            threshold,
-            Par::Seq,
-        )
-    })
-}
-#[julia]
-pub fn tridiagonal_evd_workspace_team(
-    scratch: &mut OwnedScratch,
-    d: *const u8,
-    e: *const u8,
-    n: usize,
-    values: *mut u8,
-    vectors: *mut u8,
-    tag: i32,
-    want_vectors: bool,
-    threshold: usize,
-    team: &OwnedTeam,
-) -> Result<(), String> {
-    guarded(|| {
-        team.execute(|par| {
+        with_team(team, |par| {
             run(
                 scratch,
                 d,
@@ -319,9 +284,10 @@ pub fn tridiagonal_evd_workspace_team(
                 threshold,
                 par,
             )
-        })?
+        })
     })
 }
+
 pub(super) fn allocate(
     d: *const u8,
     e: *const u8,

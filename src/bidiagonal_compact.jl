@@ -213,8 +213,7 @@ function _basis_apply(
             Ptr{UInt8}(pointer(out)),
         )
         GC.@preserve data out begin
-            isnothing(team) ? _native_call(RustCrate.compact_bidiagonal_apply, args...) :
-            _native_call(RustCrate.compact_bidiagonal_apply_team, args..., team)
+            _native_call(RustCrate.compact_bidiagonal_apply, args..., team)
         end
         return out
     finally

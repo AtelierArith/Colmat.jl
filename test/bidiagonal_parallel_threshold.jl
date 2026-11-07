@@ -181,12 +181,10 @@ end
             info=zeros(UInt, 2)
             GC.@preserve info begin
                 args=(UInt(5), UInt(3), Colmat._tag(T), false, UInt(0), pointer(info))
-                isnothing(resource) ?
-                Colmat._native_call(Colmat.RustCrate.bidiagonalize_requirements, args...) :
                 Colmat._native_call(
-                    Colmat.RustCrate.bidiagonalize_team_requirements,
-                    resource,
+                    Colmat.RustCrate.bidiagonalize_requirements,
                     args...,
+                    resource,
                 )
             end
             req=scratch_requirements(bidiagonalize, A; team = resource)
@@ -211,10 +209,8 @@ end
                         false,
                         UInt(0),
                     )
-                    isnothing(resource) ?
-                    Colmat._native_call(Colmat.RustCrate.bidiagonalize_workspace, args...) :
                     Colmat._native_call(
-                        Colmat.RustCrate.bidiagonalize_workspace_team,
+                        Colmat.RustCrate.bidiagonalize_workspace,
                         args...,
                         resource,
                     )

@@ -30,14 +30,7 @@ function scratch_requirements(
             Int32(side===:right ? 0 : side===:left ? 1 : 2),
         )
         GC.@preserve info begin
-            isnothing(team) ?
-            _native_call(RustCrate.general_evd_requirements, args..., pointer(info)) :
-            _native_call(
-                RustCrate.general_evd_team_requirements,
-                team,
-                args...,
-                pointer(info),
-            )
+            _native_call(RustCrate.general_evd_requirements, args..., pointer(info), team)
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end
@@ -87,9 +80,7 @@ function _general_evd_workspace_result(
                     UInt(n),
                     _tag(T),
                 )
-                isnothing(team) ?
-                _native_call(RustCrate.general_evd_workspace, a, work, args...) :
-                _native_call(RustCrate.general_evd_workspace_team, a, work, team, args...)
+                _native_call(RustCrate.general_evd_workspace, a, work, team, args...)
             end
             if vectors
                 for matrix in
