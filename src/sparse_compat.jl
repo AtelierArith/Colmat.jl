@@ -21,3 +21,11 @@ Base.copyto!(
     v::FaerMatrixView{T},
     src::SparseArrays.CHOLMOD.Dense{T},
 ) where {T<:_NativeScalar} = _copyto_faer_view!(v, src)
+Base.copyto!(dest::Union{FaerMatrix,FaerRow}, src::SparseArrays.AbstractSparseMatrixCSC) =
+    _copyto_native_owner!(dest, src)
+Base.copyto!(dest::Union{FaerMatrix,FaerRow}, src::SparseArrays.CHOLMOD.Dense) =
+    _copyto_native_owner!(dest, src)
+Base.copyto!(
+    dest::Union{FaerMatrix{T},FaerRow{T}},
+    src::SparseArrays.CHOLMOD.Dense{T},
+) where {T<:_NativeScalar} = _copyto_native_owner!(dest, src)
