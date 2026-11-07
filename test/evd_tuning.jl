@@ -90,3 +90,66 @@ end
     @test norm(Matrix(A)*E.vectors-E.vectors*Diagonal(E.values)) < 1e-10*norm(Matrix(A))
     foreach(close, (A, parent(S)))
 end
+
+@testset "Destructive eigen! and eigvals! follow with_evd_tuning" begin
+    general=(
+        hessenberg_par_threshold = FaerParThreshold(:never),
+        hessenberg_blocking_threshold = 16,
+        evd_recursion_threshold = 4,
+    )
+    team=FaerTeam(2)
+    for T in EVD_TUNING_TYPES, n in (0, 7, 70)
+        a=_evd_sample(T, n)
+        A=FaerMatrix(a)
+        for kw in ((;), (; team))
+            with_evd_tuning(; general...) do
+                # Returned pairs are those of the tuned driver.
+                R=eigen(A; kw...)
+                B=copy(A)
+                E=eigen!(B; kw...)
+                @test E.values == R.values && E.vectors == R.vectors
+                C=copy(A)
+                @test eigvals!(C; kw...) == eigvals(A; kw...)
+                # The written Schur form uses the scope's Hessenberg settings.
+                h=hessenberg(A; par_threshold = FaerParThreshold(:never), blocking_threshold = 16)
+                S=schur(h)
+                @test Matrix(B) == Matrix(S.T) == Matrix(C)
+                foreach(close, (B, C, h, S))
+            end
+        end
+        @test Matrix(A) == a
+        close(A)
+    end
+    # Only the Hessenberg overrides that are set change the written form.
+    A=FaerMatrix(_evd_sample(Float64, 70))
+    B=copy(A)
+    with_evd_tuning(()->eigvals!(B); evd_recursion_threshold = 4)
+    S=schur(A)
+    @test Matrix(B) == Matrix(S.T)
+    foreach(close, (A, B, S))
+    close(team)
+end
+
+@testset "Self-adjoint eigen! writeback follows with_evd_tuning" begin
+    selfadj=(self_adjoint_recursion_threshold = 4,)
+    for T in EVD_TUNING_TYPES, n in (0, 7, 120)
+        a=_evd_sample(T, n)
+        h=a+a'
+        H=Hermitian(FaerMatrix(h))
+        untuned=eigen(H)
+        with_evd_tuning(; selfadj...) do
+            R=eigen(H)
+            X=Hermitian(copy(parent(H)))
+            E=eigen!(X)
+            @test E.values == R.values && E.vectors == R.vectors
+            @test Matrix(parent(X)) == R.vectors
+            Y=Hermitian(copy(parent(H)))
+            @test eigvals!(Y) == eigvals(H)
+            # Divide and conquer below faer's default recursion threshold
+            # (128) is not the untuned QR path.
+            n == 120 && @test R.vectors != untuned.vectors
+            foreach(close, (parent(X), parent(Y)))
+        end
+        close(parent(H))
+    end
+end

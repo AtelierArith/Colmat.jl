@@ -3,6 +3,9 @@ const _evd_tuning_depth=Ref(0)
 # `with_evd_tuning` scope they use the parameterized workspace driver.
 _evd_default_path(scratch, team) =
     isnothing(scratch) && isnothing(team) && iszero(_evd_tuning_depth[])
+# The general driver's multishift QR step also follows `with_schur_tuning`.
+_general_evd_default_path(scratch, team) =
+    _evd_default_path(scratch, team) && iszero(_schur_tuning_depth[])
 
 _evd_tuning_value(x::Nothing) = (UInt(0), UInt8(0))
 _evd_tuning_value(x::FaerParThreshold) = (x.value, UInt8(1))
@@ -25,15 +28,17 @@ scratch queries, `FaerScratch` and `reserve!`. `nothing` keeps faer's default.
 - General EVD (`EvdParams`): `hessenberg_par_threshold::FaerParThreshold`,
   `hessenberg_blocking_threshold`, and `evd_recursion_threshold` for the
   eigenvectors-from-Schur step; its multishift QR step follows
-  [`with_schur_tuning`](@ref).
+  [`with_schur_tuning`](@ref), which also selects the workspace driver below.
 - Self-adjoint EVD (`SelfAdjointEvdParams`): `tridiagonal_par_threshold::FaerParThreshold`
   and `self_adjoint_recursion_threshold` for divide and conquer.
 
 Inside the scope, calls without `scratch`/`team` run on the parameterized
 workspace driver instead of the high-level one. Like `with_schur_tuning`, the
 scope holds Colmat's native-call lock, `f` must call Colmat on the current
-task, and previous settings return even if `f` throws. Destructive `eigen!`
-writeback keeps faer's defaults.
+task, and previous settings return even if `f` throws. Destructive
+`eigen!`/`eigvals!` return the same tuned results; the general form's
+written-back Schur form is computed separately with the scope's Hessenberg
+settings (`evd_recursion_threshold` affects only returned eigenvectors).
 """
 function with_evd_tuning(
     f;

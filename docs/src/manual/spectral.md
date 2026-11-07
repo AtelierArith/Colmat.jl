@@ -51,15 +51,23 @@ close(A)
 ```
 
 `with_schur_tuning(f; shift_count, deflation_window, blocking_threshold,
-nibble_threshold, shift_chase_cost)` applies faer's `SchurParams` and
-`GeneralizedSchurParams` controls to every Schur and QZ factorization, scratch
-query, `FaerScratch` and `reserve!` inside the scope, so query and execution
-agree. Zero keeps faer's default. Because faer takes the shift count,
-deflation window and shift-chase cost as `extern "C"` function pointers, the
-overrides are stored natively for the scope, which holds Colmat's native-call
-lock: other tasks wait, `f` must call Colmat on the current task, and the
-previous settings return even when `f` throws. The general EVD driver's
-internal Schur step keeps faer's defaults.
+nibble_threshold, shift_chase_cost, generalized_hessenberg_block_size,
+generalized_hessenberg_blocking_threshold)` applies faer's `SchurParams`,
+`GeneralizedSchurParams` and `GeneralizedHessenbergParams` controls to every
+Schur and QZ factorization, `hessenberg(A, B)`, scratch query, `FaerScratch`
+and `reserve!` inside the scope, so query and execution agree. Zero keeps
+faer's default. The generalized Hessenberg block size changes the QZ
+construction workspace; the pinned faer does not read its
+`blocking_threshold`, which is forwarded as is. The general
+`eigen`/`eigvals`/`eigen!`/`eigvals!(A)` driver's multishift QR step also
+follows the scope, and calls without `scratch`/`team` then use the
+parameterized workspace driver; the generalized `eigen(A, B)` driver keeps
+faer's defaults (#109). Because faer takes the shift count, deflation window
+and shift-chase cost as `extern "C"` function pointers, the overrides are
+stored natively for the scope, which holds Colmat's native-call lock: other
+tasks wait, `f` must call Colmat on the current task, and the previous
+settings return even when `f` throws. faer's Schur reordering kernels accept
+a parallel token but run sequentially; Colmat forwards the team unchanged.
 
 ### Tuning the EVD drivers
 
@@ -83,7 +91,10 @@ driver's `tridiagonal_par_threshold` and `self_adjoint_recursion_threshold`.
 `nothing` keeps faer's default. Inside the scope, calls without
 `scratch`/`team` use the parameterized workspace driver. The general driver's
 multishift QR step follows `with_schur_tuning`, and both scopes nest.
-Destructive `eigen!` writeback keeps faer's defaults.
+Destructive `eigen!`/`eigvals!` return the tuned driver's results; the general
+form additionally writes back a Schur form computed with the scope's
+Hessenberg settings (`evd_recursion_threshold` only affects the returned
+eigenvectors).
 
 ## 一般化 Schur／QZ
 

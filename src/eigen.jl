@@ -75,7 +75,7 @@ LinearAlgebra.eigen(
 ) =
     _balanced_check(permute, scale) ?
     _balanced_eigen(a, true; side, sortby, scratch, team) :
-    side===:right && _evd_default_path(scratch, team) ? _eigen(a, 0; sortby) :
+    side===:right && _general_evd_default_path(scratch, team) ? _eigen(a, 0; sortby) :
     _general_evd_workspace_result(a; sortby, scratch, team, side)
 LinearAlgebra.eigvals(
     a::FaerMatrix{Float64};
@@ -86,7 +86,7 @@ LinearAlgebra.eigvals(
     scale::Bool = false,
 ) =
     _balanced_check(permute, scale) ? _balanced_eigen(a, false; sortby, scratch, team) :
-    _evd_default_path(scratch, team) ? _eigen(a, 0; vectors = false, sortby) :
+    _general_evd_default_path(scratch, team) ? _eigen(a, 0; vectors = false, sortby) :
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_FaerSelfAdjoint;

@@ -6,8 +6,15 @@
 //! functions. The Julia layer sets them only while holding its native-call
 //! lock for a whole `with_schur_tuning` scope and always restores the defaults,
 //! so no other call observes them. Zero means "keep faer's default".
+//!
+//! The same scope also carries `GeneralizedHessenbergParams` for the
+//! generalized Hessenberg reduction that starts QZ construction, so its block
+//! size reaches both the construction query and the kernel. faer's own GEVD
+//! driver sizes that step with `auto!` (`gevd_scratch`), so these overrides are
+//! not passed to it.
 use crate::guarded;
 use faer::linalg::evd::SchurParams;
+use faer::linalg::gevd::gen_hessenberg::GeneralizedHessenbergParams;
 use faer::linalg::gevd::GeneralizedSchurParams;
 use faer::traits::ComplexField;
 use faer::Spec;
@@ -19,6 +26,17 @@ static WINDOW: AtomicUsize = AtomicUsize::new(0);
 static BLOCKING: AtomicUsize = AtomicUsize::new(0);
 static NIBBLE: AtomicUsize = AtomicUsize::new(0);
 static COST: AtomicUsize = AtomicUsize::new(0);
+static GEN_HESSENBERG_BLOCK: AtomicUsize = AtomicUsize::new(0);
+static GEN_HESSENBERG_BLOCKING: AtomicUsize = AtomicUsize::new(0);
+const ALL: [&AtomicUsize; 7] = [
+    &SHIFTS,
+    &WINDOW,
+    &BLOCKING,
+    &NIBBLE,
+    &COST,
+    &GEN_HESSENBERG_BLOCK,
+    &GEN_HESSENBERG_BLOCKING,
+];
 
 extern "C" fn fixed_shifts(_n: usize, nh: usize) -> usize {
     // Keep the count even and inside the active block, as faer's default does.
@@ -72,6 +90,20 @@ pub(crate) fn qz_params<T: ComplexField>() -> GeneralizedSchurParams {
     }
     p
 }
+/// faer's generalized Hessenberg defaults with the active overrides applied.
+/// A block size of one (or at least the order) selects the unblocked kernel.
+pub(crate) fn generalized_hessenberg_params<T: ComplexField>() -> GeneralizedHessenbergParams {
+    let mut p: GeneralizedHessenbergParams = faer::auto!(T);
+    let b = GEN_HESSENBERG_BLOCK.load(Relaxed);
+    if b != 0 {
+        p.block_size = b;
+    }
+    let t = GEN_HESSENBERG_BLOCKING.load(Relaxed);
+    if t != 0 {
+        p.blocking_threshold = t;
+    }
+    p
+}
 
 /// Install overrides (zero keeps the default); `nibble` is a percentage.
 #[julia]
@@ -81,6 +113,8 @@ pub fn set_schur_tuning(
     blocking: usize,
     nibble: usize,
     cost: usize,
+    gen_hessenberg_block: usize,
+    gen_hessenberg_blocking: usize,
 ) -> Result<(), String> {
     guarded(|| {
         if shifts == 1 {
@@ -92,25 +126,29 @@ pub fn set_schur_tuning(
         if nibble > 100 {
             return Err("nibble threshold is a percentage between 0 and 100".into());
         }
-        SHIFTS.store(shifts, Relaxed);
-        WINDOW.store(window, Relaxed);
-        BLOCKING.store(blocking, Relaxed);
-        NIBBLE.store(nibble, Relaxed);
-        COST.store(cost, Relaxed);
+        let values = [
+            shifts,
+            window,
+            blocking,
+            nibble,
+            cost,
+            gen_hessenberg_block,
+            gen_hessenberg_blocking,
+        ];
+        for (a, v) in ALL.iter().zip(values) {
+            a.store(v, Relaxed);
+        }
         Ok(())
     })
 }
-/// Current overrides as `[shifts, window, blocking, nibble, cost]`.
+/// Current overrides in `set_schur_tuning` order.
 #[julia]
 pub fn schur_tuning_state(out: &mut [usize]) -> Result<(), String> {
     guarded(|| {
-        if out.len() != 5 {
-            return Err("tuning state needs five entries".into());
+        if out.len() != ALL.len() {
+            return Err("tuning state needs seven entries".into());
         }
-        for (o, v) in out
-            .iter_mut()
-            .zip([&SHIFTS, &WINDOW, &BLOCKING, &NIBBLE, &COST])
-        {
+        for (o, v) in out.iter_mut().zip(ALL) {
             *o = v.load(Relaxed);
         }
         Ok(())
@@ -124,7 +162,9 @@ mod tests {
     use faer::{Mat, Par};
     #[test]
     fn overrides_apply_and_reset() {
-        set_schur_tuning(4, 6, 10, 30, 0).unwrap();
+        set_schur_tuning(4, 6, 10, 30, 0, 5, 7).unwrap();
+        let g = generalized_hessenberg_params::<f64>();
+        assert_eq!((g.block_size, g.blocking_threshold), (5, 7));
         let p = schur_params::<f64>();
         assert_eq!(
             ((p.recommended_shift_count)(100, 100), p.blocking_threshold),
@@ -165,11 +205,13 @@ mod tests {
         .unwrap();
         let back = &z * &h * z.transpose();
         assert!((&back - &h0).norm_max() < 1e-9 * h0.norm_max());
-        assert!(set_schur_tuning(1, 0, 0, 0, 0).is_err());
-        assert!(set_schur_tuning(0, 0, 0, 101, 0).is_err());
-        set_schur_tuning(0, 0, 0, 0, 0).unwrap();
-        let mut s = [9usize; 5];
+        assert!(set_schur_tuning(1, 0, 0, 0, 0, 0, 0).is_err());
+        assert!(set_schur_tuning(0, 0, 0, 101, 0, 0, 0).is_err());
+        set_schur_tuning(0, 0, 0, 0, 0, 0, 0).unwrap();
+        let mut s = [9usize; 7];
         schur_tuning_state(&mut s).unwrap();
-        assert_eq!(s, [0; 5]);
+        assert_eq!(s, [0; 7]);
+        let g = generalized_hessenberg_params::<f64>();
+        assert_eq!((g.block_size, g.blocking_threshold), (32, 256 * 256));
     }
 }
