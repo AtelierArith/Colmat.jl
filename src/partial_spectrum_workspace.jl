@@ -47,15 +47,28 @@ function _partial_validate(
     effective_min<=effective_max ||
         throw(ArgumentError("min_dim exceeds the effective maximum projection dimension"))
     isnothing(v0)||_dense_rhs_validate(v0)
-    start=isnothing(v0) ? T[1+i/max(n, 1) for i = 1:n] : Vector{T}(v0)
-    length(start)==n ||
-        throw(DimensionMismatch("v0 length must equal operator column count"))
-    all(isfinite, start) || throw(ArgumentError("v0 must be finite"))
-    n>0 &&
-        !(0<LinearAlgebra.norm(start)<Inf) &&
-        throw(ArgumentError("v0 must have finite nonzero norm"))
-    n>0 && (start ./= LinearAlgebra.norm(start))
+    start=_partial_start(T, v0)
+    if !isnothing(start)
+        length(start)==n ||
+            throw(DimensionMismatch("v0 length must equal operator column count"))
+        # A nonfinite entry makes the norm nonfinite; Rust normalizes the start.
+        startnorm=n>0 ? LinearAlgebra.norm(start) : zero(_realtype(T))
+        isfinite(startnorm) ||
+            throw(ArgumentError("v0 must be finite with a finite norm"))
+        n>0 && iszero(startnorm) && throw(ArgumentError("v0 must have finite nonzero norm"))
+    end
     return m, n, k, tolerance, start
+end
+# Native vectors and views, faerview borrows and same-scalar strided Julia
+# vectors are read in place by Rust; other start vectors are converted once.
+_partial_start(::Type, ::Nothing) = nothing
+function _partial_start(::Type{T}, v0) where {T}
+    if eltype(v0)===T
+        v0 isa Union{FaerVector,FaerBorrowedVector} && return v0
+        v0 isa FaerView && ndims(v0)==1 && return v0
+        v0 isa StridedVector && _julia_borrowable(v0) && return FaerBorrowedArray(v0)
+    end
+    return FaerBorrowedArray(Vector{T}(v0))
 end
 function _partial_workspace_query(op, kind, k; min_dim, max_dim, max_restarts, team)
     _iterative_resource_check(nothing, team)
@@ -76,29 +89,18 @@ function _partial_workspace_query(op, kind, k; min_dim, max_dim, max_restarts, t
         isnothing(team) ? _native_call(RustCrate.partial_requirements, args...) :
         _native_call(RustCrate.partial_requirements_team, args..., team)
     end
-    req=(bytes = Int(info[1]), alignment = Int(info[2]))
-    if k>0 && max_restarts>0
-        # General eigenvectors are complex even for a real source operator.
-        E=kind==0 ? Complex{_realtype(eltype(op))} : eltype(op)
-        residualop=_operator_coerce(op, E)
-        forward=_operator_workspace_query(residualop, 1; team)
-        backward=kind==2 ? _operator_workspace_query(adjoint(residualop), 1; team) :
-                 (bytes = 0, alignment = 1)
-        req=(
-            bytes = max(req.bytes, forward.bytes, backward.bytes),
-            alignment = max(req.alignment, forward.alignment, backward.alignment),
-        )
-    end
-    return req
+    # The native requirement includes the independent residual applications.
+    return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
 """
     scratch_requirements(partial_eigen|partial_self_adjoint_eigen|partial_svd, op, k; min_dim=0, max_dim=0, max_restarts=1000, team=nothing)
 
 Query faer's native partial kernel, including its full-subspace operator
-materialization and dense EVD/SVD branch, and independently recomputed residual
-applications. Queries do
-not apply operators. Result staging, source promotion and Julia callback buffers
-allocate separately. Use identical projection options and team for execution.
+materialization and dense EVD/SVD branch, and the native independently
+recomputed residual applications. Queries do not apply operators. Only the
+returned Julia arrays (and the one-time conversion of a `v0` that cannot be read
+in place) allocate in Julia. Use identical projection options and team for
+execution.
 """
 function scratch_requirements(
     fun::_PartialSpectrumFunction,
@@ -135,10 +137,6 @@ function reserve!(
 )
     req=scratch_requirements(fun, op, k; kwargs...)
     reserve!(scratch, req.bytes; alignment = req.alignment)
-end
-function _partial_apply(op, x, work, team)
-    out=zeros(promote_type(eltype(op), eltype(x)), size(op, 1))
-    mul!(out, op, x; scratch = work, team)
 end
 function _partial_native(op, args, work, team)
     task=current_task()
