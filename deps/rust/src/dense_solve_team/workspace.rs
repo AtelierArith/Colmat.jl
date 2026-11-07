@@ -2,7 +2,10 @@
 use super::{validate_owned, validate_typed};
 use crate::typed::{Factor, FactorData, MatrixData, TypedFactor, TypedMatrix};
 use crate::{guarded, DenseFactor, OwnedFactor, OwnedMatrix};
-use crate::{teams::OwnedTeam, workspace::OwnedScratch};
+use crate::{
+    teams::{with_team, OwnedTeam},
+    workspace::OwnedScratch,
+};
 use faer::dyn_stack::{MemStack, StackReq};
 use faer::linalg::{
     self, householder as hh,
@@ -702,6 +705,8 @@ fn write_req(req: StackReq, out: *mut usize) -> Result<(), String> {
     }
     Ok(())
 }
+// RustCall 0.10 checked optional owners: `team` is a FaerTeam handle or Julia
+// `nothing`, so one entry point serves sequential and team execution.
 #[julia]
 impl OwnedFactor {
     #[julia]
@@ -715,42 +720,17 @@ impl OwnedFactor {
         kind: i32,
         precision: f64,
         out: *mut usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            validate_owned(self, m, n, tag, kind)?;
-            let f = owned(self)?;
-            write_req(
-                requirement_precision(&f, columns, op, par.shape(), precision)?,
-                out,
-            )
-        })
-    }
-}
-#[julia]
-impl OwnedFactor {
-    #[julia]
-    pub fn factor_solve_requirements_team(
-        &self,
-        columns: usize,
-        op: i32,
-        m: usize,
-        n: usize,
-        tag: i32,
-        kind: i32,
-        precision: f64,
-        out: *mut usize,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 validate_owned(self, m, n, tag, kind)?;
                 let f = owned(self)?;
                 write_req(
                     requirement_precision(&f, columns, op, par.shape(), precision)?,
                     out,
                 )
-            })?
+            })
         })
     }
 }
@@ -767,46 +747,10 @@ impl TypedFactor {
         kind: i32,
         precision: f64,
         out: *mut usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            validate_typed(self, m, n, tag, kind)?;
-            self.solve_ready()?;
-            let req = match self.data()? {
-                FactorData::F32(f) => {
-                    requirement_precision(&Saved::from(f), columns, op, par.shape(), precision)?
-                }
-                FactorData::F64(f) => {
-                    requirement_precision(&Saved::from(f), columns, op, par.shape(), precision)?
-                }
-                FactorData::C32(f) => {
-                    requirement_precision(&Saved::from(f), columns, op, par.shape(), precision)?
-                }
-                FactorData::C64(f) => {
-                    requirement_precision(&Saved::from(f), columns, op, par.shape(), precision)?
-                }
-            };
-            write_req(req, out)
-        })
-    }
-}
-#[julia]
-impl TypedFactor {
-    #[julia]
-    pub fn factor_solve_requirements_team(
-        &self,
-        columns: usize,
-        op: i32,
-        m: usize,
-        n: usize,
-        tag: i32,
-        kind: i32,
-        precision: f64,
-        out: *mut usize,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 validate_typed(self, m, n, tag, kind)?;
                 self.solve_ready()?;
                 let req = match self.data()? {
@@ -824,7 +768,7 @@ impl TypedFactor {
                     }
                 };
                 write_req(req, out)
-            })?
+            })
         })
     }
 }
