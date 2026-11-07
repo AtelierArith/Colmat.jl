@@ -809,6 +809,7 @@ fn logabsdet<T: ComplexField<Real: crate::measures::Ln>>(
     lower: bool,
     perm: &[usize],
     coeff: *const u8,
+    coeff_rows: usize,
 ) -> Result<Mat<T>, String> {
     let (m, n) = a.shape();
     if m != n {
@@ -837,6 +838,32 @@ fn logabsdet<T: ComplexField<Real: crate::measures::Ln>>(
                 true
             });
             (Mat::from_fn(blocks.len(), 1, |i, _| copy(&blocks[i])), 1.0)
+        }
+        // det(Q R) = det(Q) Π rᵢᵢ. Each faer reflector I - v vᴴ/τ with a
+        // finite τ = ‖v‖²/2 is a reflection (det -1); τ = ∞ marks an identity.
+        // The τ of column j is entry (j mod b, j) of the b-row block factor.
+        QR | PIVOTED_QR => {
+            if coeff_rows == 0 && n > 0 {
+                return Err("QR determinant needs the Householder factor".into());
+            }
+            // SAFETY: the caller's `check_aux` validated the coefficient span.
+            let c = unsafe {
+                faer::MatRef::<T>::from_raw_parts(
+                    coeff.cast::<T>(),
+                    coeff_rows,
+                    n,
+                    1,
+                    coeff_rows as isize,
+                )
+            };
+            let reflections = (0..n)
+                .filter(|&j| is_finite(&real(&c[(j % coeff_rows, j)])))
+                .count();
+            let mut sign = if reflections % 2 == 0 { 1.0 } else { -1.0 };
+            if kind == PIVOTED_QR {
+                sign *= crate::permutation_sign(perm);
+            }
+            (Mat::from_fn(n, 1, |i, _| d(i)), sign)
         }
         _ => return Err("direct factorization has no determinant".into()),
     };
@@ -875,7 +902,7 @@ fn part<T: ComplexField<Real: crate::measures::Ln>>(
     let buffer = |req: StackReq| MemBuffer::try_new(req).map_err(|e| format!("{e:?}"));
     let lu_kind = kind == LU || kind == FULL_LU;
     Ok(match (kind, code) {
-        (_, 12) => logabsdet(a, kind, lower, perm, coeff)?,
+        (_, 12) => logabsdet(a, kind, lower, perm, coeff, coeff_rows)?,
         (LU | FULL_LU, 1) => unit_lower(a, m, size),
         (LU | FULL_LU, 2) => Mat::from_fn(
             size,
