@@ -52,8 +52,8 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 要素ごとの map / zip | `map/for_each`, `zip!/unzip!/Zip!` | `map`, `map!`, broadcast `f.(A)` | J: broadcast 動作確認 | Rust バルク処理の専用接続。要素単位 FFI、Julia Matrix の出力になる場合がある |
 | ノルム | `norm_l2/squared_norm_l2/norm_l1/norm_max` | `norm(A)`, `sum(abs2,A)`, `norm(A,1/Inf)` | R: 4 型の `norm(A,1/2/Inf)`。複素数は Julia の絶対値規約 | その他の p の専用経路。Frobenius norm と `opnorm(A,2)` は別 |
 | 和・最大・最小・検査 | `sum/max/min/is_all_finite/has_nan/is_identity` | `sum/maximum/minimum`, `all(isfinite,A)`, `any(isnan,A)`, `isone` 相当 | R: 4 型の和・軸別和と finite/NaN/identity/symmetry 検査、Float32/Float64 の native minimum/maximum/extrema（NaN・符号付きゼロ・current metadata 検証） | extrema の dims/map/keyword と借用ビューの専用経路、その他の全オプションは要個別照合 |
-| 行列式 | `MatRef::determinant(par)` | `det`, 関連: `logdet/logabsdet` | R: `det`、分解を使う `logabsdet/logdet`、複素位相対応 | 高度な引数・エラー規約の網羅 |
-| トレース | diagonal ビュー＋集約で構成 | `tr(A)` | R: `tr(A)` | 全特殊構造の最適化 |
+| 行列式 | `MatRef::determinant(par)` | `det`, 関連: `logdet/logabsdet` | R: `det`、分解を使う `logabsdet/logdet`、複素位相対応。範囲ビュー・`transpose`/`adjoint` は借用ビューへの `determinant`、`det(A; team)` で caller team の `Par`。三角ラッパー・`FaerDiagonal` は格納対角の積と native `logabsdet`（ゼロは `(-Inf,0)`）。非正方は `DimensionMismatch`、空は 1、実数の負の行列式の `logdet` は `DomainError` | Hermitian/Symmetric ラッパーは LinearAlgebra の分解経路。ビューの dense `logabsdet` は native copy＋LU |
+| トレース | diagonal ビュー＋集約で構成 | `tr(A)` | R: `tr(A)`、範囲ビュー・随伴の借用対角和、`FaerDiagonal` の格納和、三角ラッパーは親の trace／単位は n | 疎行列の trace は疎の課題で扱う |
 | Kronecker 積 | `MatRef::kron`, `linalg::kron::kron` | `kron(A,B)` | R: 4 型・型 promotion の `kron(A,B)` | 疎行列・ビューの専用経路 |
 | 三角・構造指定の行列積 | `matmul::triangular` | 三角ラッパーとの積、BLAS の構造化積に相当 | R: 下/上/単位三角と native 密行列・三角ペア、4 型・promotion、3/5 引数 `mul!`、alias・無視要素の NaN | 入力 snapshot と出力一時領域を確保。全外部配列・vector 組合せと destination structure の低水準指定 |
 

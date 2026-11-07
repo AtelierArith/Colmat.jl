@@ -17,18 +17,11 @@ function LinearAlgebra.dot(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
     size(a)==size(b) || throw(DimensionMismatch("inner product dimensions must match"))
     return _native_call(RustCrate.inner_product, a, b)
 end
-function LinearAlgebra.det(a::FaerMatrix{Float64})
-    LinearAlgebra.checksquare(a)
-    return _native_call(RustCrate.reduction, a, Int32(5))
-end
 function LinearAlgebra.tr(a::FaerMatrix{Float64})
     LinearAlgebra.checksquare(a)
     return _native_call(RustCrate.reduction, a, Int32(8))
 end
-function _real_extremum(
-    a::FaerMatrix{T},
-    minimum::Bool,
-) where {T <: Union{Float32, Float64}}
+function _real_extremum(a::FaerMatrix{T}, minimum::Bool) where {T<:Union{Float32,Float64}}
     lock(_matrix_lock) do
         _dense_rhs_validate(a)
         isempty(a) && throw(ArgumentError("empty matrix has no extrema"))
@@ -36,12 +29,9 @@ function _real_extremum(
         return _native_call(RustCrate.reduction, a, Int32(minimum ? 6 : 7))
     end
 end
-Base.minimum(a::FaerMatrix{T}) where {T <: Union{Float32, Float64}} =
-    _real_extremum(a, true)
-Base.maximum(a::FaerMatrix{T}) where {T <: Union{Float32, Float64}} =
-    _real_extremum(a, false)
-Base.extrema(a::FaerMatrix{T}) where {T <: Union{Float32, Float64}} =
-    (minimum(a), maximum(a))
+Base.minimum(a::FaerMatrix{T}) where {T<:Union{Float32,Float64}} = _real_extremum(a, true)
+Base.maximum(a::FaerMatrix{T}) where {T<:Union{Float32,Float64}} = _real_extremum(a, false)
+Base.extrema(a::FaerMatrix{T}) where {T<:Union{Float32,Float64}} = (minimum(a), maximum(a))
 Base.all(::typeof(isfinite), a::FaerMatrix{Float64}) =
     _native_call(RustCrate.predicate, a, Int32(0))
 Base.any(::typeof(isnan), a::FaerMatrix{Float64}) =

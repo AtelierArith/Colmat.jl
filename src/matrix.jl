@@ -49,6 +49,7 @@ const _raw_owner_arguments = (
     (RustCrate.vector_binary_views, (2, 4)),
     (RustCrate.vector_from_view, (2,)),
     (RustCrate.view_assign, (3,)),
+    (RustCrate.view_measure, (1,)),
     (RustCrate.view_binary, (2, 4)),
     (RustCrate.view_copy, (2,)),
 )
