@@ -171,7 +171,9 @@ end
     a=FaerMatrix(rand(200, 200))
     s=view(a, collect(1:4:200), :)
     copy(s)
-    @test @allocated(copy(s)) < 8_000
+    # One bulk native copy: the fixed part measured 8224 B on macOS x86_64;
+    # per-element copies would allocate about 160 KB.
+    @test @allocated(copy(s)) < 16_000
 end
 
 @testset "Native assignment from another native owner" begin
