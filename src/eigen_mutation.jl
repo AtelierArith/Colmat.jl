@@ -1,3 +1,21 @@
+# Inside `with_evd_tuning`, the Schur form written back follows the scope's
+# Hessenberg settings, like the driver's own reduction; the multishift QR step
+# follows `with_schur_tuning` in either case.
+function _writeback_schur(a)
+    iszero(_evd_tuning_depth[]) && return LinearAlgebra.schur(a)
+    values=zeros(UInt, 5)
+    flags=zeros(UInt8, 5)
+    _native_call(RustCrate.evd_tuning_state, values, flags)
+    par=iszero(flags[1]) || iszero(values[1]) ? FaerParThreshold() :
+        values[1]==typemax(UInt) ? FaerParThreshold(:never) : FaerParThreshold(values[1])
+    blocking=iszero(flags[2]) ? 256*256 : values[2]
+    h=LinearAlgebra.hessenberg(a; par_threshold = par, blocking_threshold = blocking)
+    try
+        return LinearAlgebra.schur(h)
+    finally
+        close(h)
+    end
+end
 function _general_eigen_writeback!(
     a::FaerMatrix,
     vectors::Bool,
@@ -8,10 +26,10 @@ function _general_eigen_writeback!(
     lock(_matrix_lock) do
         _handle(a)
         LinearAlgebra.checksquare(a)
-        if !isnothing(scratch) || !isnothing(team)
+        if !_general_evd_default_path(scratch, team)
             result=vectors ? LinearAlgebra.eigen(a; sortby, scratch, team) :
                    LinearAlgebra.eigvals(a; sortby, scratch, team)
-            form=LinearAlgebra.schur(a)
+            form=_writeback_schur(a)
             try
                 copyto!(a, form.T)
                 return result
@@ -58,6 +76,13 @@ end
 Compute native eigenpairs/values, then overwrite A by its real quasi-triangular
 or complex triangular Schur form. General eigenpairs use complex Julia arrays;
 right eigenvectors are normalized. Returned outputs remain independent of A.
+With `scratch`/`team`, or inside [`with_evd_tuning`](@ref) or
+[`with_schur_tuning`](@ref), the outputs come from the same workspace driver as
+`eigen(A; ...)` and the written Schur form is computed separately (sequential,
+internal workspace) with the scope's Hessenberg and multishift QR settings;
+`evd_recursion_threshold` only affects the returned eigenvectors. Self-adjoint
+`eigen!`/`eigvals!` return what `eigen`/`eigvals` of the wrapper return in the
+same scope, so `with_evd_tuning` applies to them as well.
 Sort/convergence errors before writeback preserve A. Factorization and writeback
 allocate; this is not a zero-allocation LAPACK work-buffer interface.
 

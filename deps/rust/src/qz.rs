@@ -68,7 +68,7 @@ fn prepare<T: ComplexField>(
             );
             s.copy_from(projection.as_mat_ref());
         }
-        let params: gevd::gen_hessenberg::GeneralizedHessenbergParams = faer::auto!(T);
+        let params = crate::schur_tuning::generalized_hessenberg_params::<T>();
         gevd::gen_hessenberg::generalized_hessenberg(
             s.as_mut(),
             t.as_mut(),

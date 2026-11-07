@@ -34,7 +34,7 @@ pub(super) fn requirement<T: QzScalar>(
             .or(faer::linalg::temp_mat_scratch::<T>(n, n))
             .or(gevd::gen_hessenberg::generalized_hessenberg_scratch::<T>(
                 n,
-                faer::auto!(T),
+                crate::schur_tuning::generalized_hessenberg_params::<T>(),
             ))
     };
     Ok(if stage == 1 {
