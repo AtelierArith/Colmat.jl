@@ -391,7 +391,8 @@ fn owned_mul(
     }
 }
 
-/// Borrowed Julia CSC operands of scalar `tag` into a CSC owner.
+/// Raw column-major operands of scalar `tag` (borrowed Julia CSC matrices or
+/// raw parts of owners) into an owner of the plan's format.
 #[allow(clippy::too_many_arguments)]
 unsafe fn borrowed_mul(
     plan: &Plan,
@@ -415,7 +416,7 @@ unsafe fn borrowed_mul(
         scratch: &mut OwnedScratch,
     ) -> Result<usize, String> {
         let (d, csr) = column_major_mut(d);
-        if csr || plan.csr || plan.b_csr {
+        if csr != plan.csr {
             return Ok(FORMAT);
         }
         let (a, b) = (borrowed_numeric::<T>(a)?, borrowed_numeric::<T>(b)?);
@@ -493,7 +494,7 @@ unsafe fn borrowed_into(
         team: Option<&OwnedTeam>,
         scratch: &mut OwnedScratch,
     ) -> Result<usize, String> {
-        if plan.csr || plan.b_csr {
+        if plan.csr {
             return Ok(FORMAT);
         }
         let d = borrowed_numeric_mut::<T>(dst, dval)?;
@@ -638,7 +639,9 @@ impl SparseProductPlan {
             Ok(())
         })
     }
-    /// Symbolic phase of `A * B` for two borrowed Julia CSC matrices.
+    /// Symbolic phase of `A * B` from raw column-major patterns (borrowed
+    /// Julia CSC matrices or `sparse_csc_raw_parts` of owners); `acsr`/`bcsr`
+    /// say whether each operand is a CSR owner read as its transpose.
     #[julia]
     #[allow(clippy::too_many_arguments)]
     pub fn sparse_product_plan_build_borrowed(
@@ -653,6 +656,8 @@ impl SparseProductPlan {
         ptr2: *const usize,
         idx2: *const usize,
         k2: usize,
+        acsr: bool,
+        bcsr: bool,
     ) -> Result<(), String> {
         guarded(|| unsafe {
             let raw = |m, n, ptr, idx, k| Raw {
@@ -665,7 +670,7 @@ impl SparseProductPlan {
             };
             let a = borrowed_symbolic(raw(m, n, ptr, idx, k))?;
             let b = borrowed_symbolic(raw(m2, n2, ptr2, idx2, k2))?;
-            self.plan = Some(Plan::build(a, b, false, false)?);
+            self.plan = Some(Plan::build(a, b, acsr, bcsr)?);
             Ok(())
         })
     }
@@ -681,7 +686,7 @@ impl SparseProductPlan {
             Ok(())
         })
     }
-    /// Write `[rows, cols, nnz, csr]` of the planned product.
+    /// Write `[rows, cols, nnz, csr, b_csr]` of the planned product.
     #[julia]
     pub fn sparse_product_plan_info(&self, out: *mut usize) -> Result<(), String> {
         guarded(|| {
@@ -692,6 +697,7 @@ impl SparseProductPlan {
                 out.add(1).write(n);
                 out.add(2).write(p.result.row_idx().len());
                 out.add(3).write(p.csr as usize);
+                out.add(4).write(p.b_csr as usize);
             }
             Ok(())
         })

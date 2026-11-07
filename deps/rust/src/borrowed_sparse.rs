@@ -287,41 +287,39 @@ impl SparseOwner {
             Ok(())
         })
     }
-    /// Write `[m, n, col_ptr, row_idx, values, nnz]` of a CSC owner into `out`
+    /// Write `[m, n, col_ptr, row_idx, values, nnz]` of the owner's
+    /// column-major view (the owner for CSC, its transpose for CSR) into `out`
     /// (six words) so it can be read as a `Raw` operand next to borrowed
-    /// operands. The addresses stay valid while the owner is rooted and not
-    /// mutated; Julia uses them only inside one call under its matrix lock.
+    /// operands; returns whether the owner is CSR. The addresses stay valid
+    /// while the owner is rooted and not mutated; Julia uses them only inside
+    /// one call under its matrix lock.
     #[julia]
     pub fn sparse_csc_raw_parts(&self, out: *mut usize) -> Result<bool, String> {
         guarded(|| {
-            fn parts<T>(a: &Storage<T>) -> Option<[usize; 6]> {
-                match a {
-                    Storage::Csc(a) => {
-                        let s = a.symbolic();
-                        Some([
-                            s.nrows(),
-                            s.ncols(),
-                            s.col_ptr().as_ptr() as usize,
-                            s.row_idx().as_ptr() as usize,
-                            a.val().as_ptr() as usize,
-                            a.val().len(),
-                        ])
-                    }
-                    Storage::Csr(_) => None,
-                }
+            fn parts<T>(a: &Storage<T>) -> ([usize; 6], bool) {
+                let (s, val, csr) = match a {
+                    Storage::Csc(a) => (a.symbolic(), a.val(), false),
+                    Storage::Csr(a) => (a.symbolic().transpose(), a.val(), true),
+                };
+                let words = [
+                    s.nrows(),
+                    s.ncols(),
+                    s.col_ptr().as_ptr() as usize,
+                    s.row_idx().as_ptr() as usize,
+                    val.as_ptr() as usize,
+                    val.len(),
+                ];
+                (words, csr)
             }
-            let words = match self.data()? {
+            let (words, csr) = match self.data()? {
                 SparseData::F32(a) => parts(a),
                 SparseData::F64(a) => parts(a),
                 SparseData::C32(a) => parts(a),
                 SparseData::C64(a) => parts(a),
             };
-            let Some(words) = words else {
-                return Ok(false);
-            };
             // SAFETY: Julia passes a buffer of six words.
             unsafe { std::ptr::copy_nonoverlapping(words.as_ptr(), out, 6) };
-            Ok(true)
+            Ok(csr)
         })
     }
     /// Fixed-pattern update of a borrowed Julia CSC destination of scalar

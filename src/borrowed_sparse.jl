@@ -304,15 +304,15 @@ LinearAlgebra.mul!(c::FaerMatrix, a::_BorrowedSparseDense, b::_BorrowedSparseOpe
     _borrowed_sparse_mul!(c, a, b, true, false, false)
 
 # Run `f(m, n, colptr, rowval, nzval, nnz)` with raw 0-based CSC parts: the
-# validated per-call buffers of a borrowed matrix, or the native arrays of a CSC
-# owner (rooted and not mutated during the call). Must run under `_matrix_lock`.
+# validated per-call buffers of a borrowed matrix, or the native arrays of an
+# owner (rooted and not mutated during the call); a CSR owner yields the CSC
+# parts of its transpose. Must run under `_matrix_lock`.
 _with_raw_sparse(f, b::FaerBorrowedSparseMatrix) =
     _with_borrowed_sparse((m, n, p, i, v, k, _) -> f(m, n, p, i, v, k), b)
 function _with_raw_sparse(f, a::FaerSparseMatrix)
     _handle(a)
     parts=Vector{UInt}(undef, 6)
-    csc=GC.@preserve parts _native_call(RustCrate.sparse_csc_raw_parts, a, pointer(parts))
-    csc || throw(ArgumentError("raw sparse parts require a CSC owner"))
+    GC.@preserve parts _native_call(RustCrate.sparse_csc_raw_parts, a, pointer(parts))
     GC.@preserve a parts return f(
         parts[1],
         parts[2],

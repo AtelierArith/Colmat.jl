@@ -107,8 +107,6 @@ end
     @test mixed.format===:csc
     @test_throws ArgumentError mul!(C, mixed, A, B)
     @test Matrix(C)==snapshot
-    # Native CSR operands still cannot join borrowed ones.
-    @test_throws ArgumentError FaerSparseProductPlan(faerview(a), FaerSparseMatrix(b; format = :csr))
     @test_throws DimensionMismatch FaerSparseProductPlan(B, B)
     # The destination scalar must hold the promoted operand scalar.
     @test_throws ArgumentError mul!(FaerSparseMatrix{Float32}(plan), plan, A, B)
@@ -158,6 +156,31 @@ end
         a2[1, 1]=iszero(a2[1, 1]) ? one(T) : zero(T)
         dropzeros!(a2)
         nnz(a2)==nnz(a) || @test_throws ArgumentError mul!(C, plan, faerview(a2), faerview(b))
+        # Native CSR operands mix with borrowed ones; the plan follows A.
+        ar, br=FaerSparseMatrix(a; format = :csr), FaerSparseMatrix(b; format = :csr)
+        p1=FaerSparseProductPlan(faerview(a), br)
+        @test p1.format===:csc
+        C1=FaerSparseMatrix{T}(p1)
+        mul!(C1, p1, faerview(a), br)
+        @test Matrix(C1) ≈ Matrix(a)*Matrix(b)
+        # A borrowed destination needs a CSC plan, which this one is.
+        J=SparseMatrixCSC{T,Ti}(SparseMatrixCSC(C1))
+        mul!(faerview(J), p1, faerview(a), br, 2, 0)
+        @test Matrix(J) ≈ 2Matrix(a)*Matrix(b)
+        p2=FaerSparseProductPlan(ar, faerview(b))
+        @test p2.format===:csr
+        C2=FaerSparseMatrix{T}(p2)
+        @test C2.format===:csr
+        work2=FaerScratch(mul!, C2, p2, ar, faerview(b))
+        mul!(C2, p2, ar, faerview(b); scratch = work2)
+        @test Matrix(C2) ≈ Matrix(a)*Matrix(b)
+        # Operands of another format than planned are rejected before writing.
+        snap=Matrix(C2)
+        @test_throws ArgumentError mul!(C2, p2, faerview(a), faerview(b))
+        @test_throws ArgumentError mul!(C2, p2, ar, FaerSparseMatrix(b; format = :csr))
+        @test_throws ArgumentError mul!(C1, p1, faerview(a), FaerSparseMatrix(b))
+        @test_throws ArgumentError mul!(faerview(copy(J)), p2, ar, faerview(b))
+        @test Matrix(C2)==snap
     end
 end
 

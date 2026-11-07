@@ -12,9 +12,8 @@ the column-major plan of `Bᵀ Aᵀ`), or borrowed Julia CSC matrices `faerview(
 format. A native `B` of the other format is transposed once at planning time:
 the plan keeps that transposed pattern and a value permutation, and each
 numeric call gathers `B`'s values through it into the caller scratch (no
-conversion per call). A borrowed operand may be paired with a native CSC
-operand; both are read in place (a native CSR operand cannot be paired with a
-borrowed one).
+conversion per call). Borrowed and native operands may be mixed; both are read
+in place (a native CSR operand through its column-major transpose).
 
 `FaerSparseMatrix{T}(plan)` allocates a zero-valued destination with the
 planned pattern and format; `A * B` has the same pattern. A borrowed Julia CSC
@@ -29,8 +28,9 @@ mutable struct FaerSparseProductPlan{H}
     dims::Tuple{Int,Int}
     stored::Int
     format::Symbol
-    FaerSparseProductPlan{H}(handle::H, dims, stored, format) where {H} =
-        new{H}(handle, dims, stored, format)
+    bformat::Symbol
+    FaerSparseProductPlan{H}(handle::H, dims, stored, format, bformat) where {H} =
+        new{H}(handle, dims, stored, format, bformat)
 end
 function _handle(p::FaerSparseProductPlan)
     h=p.handle
@@ -46,14 +46,14 @@ function _sparse_plan_result(f, args...)
     lock(_matrix_lock) do
         h=RustCrate.SparseProductPlan()
         _native_call(f, h, args...)
-        info=zeros(UInt, 4)
+        info=zeros(UInt, 5)
         GC.@preserve info _native_call(RustCrate.sparse_product_plan_info, h, pointer(info))
-        format=info[4]==0 ? :csc : :csr
         return FaerSparseProductPlan{typeof(h)}(
             h,
             (Int(info[1]), Int(info[2])),
             Int(info[3]),
-            format,
+            info[4]==0 ? :csc : :csr,
+            info[5]==0 ? :csc : :csr,
         )
     end
 end
@@ -69,14 +69,12 @@ function FaerSparseProductPlan(a::FaerSparseMatrix, b::FaerSparseMatrix)
         return _sparse_plan_result(RustCrate.sparse_product_plan_build, a, b)
     end
 end
+_raw_format(x::FaerSparseMatrix) = x.format
+_raw_format(::FaerBorrowedSparseMatrix) = :csc
 function _raw_sparse_plan(a, b)
     lock(_matrix_lock) do
         for x in (a, b)
-            x isa FaerSparseMatrix || continue
-            _handle(x)
-            x.format===:csc || throw(
-                ArgumentError("sparse product plan operands must share a storage format"),
-            )
+            x isa FaerSparseMatrix && _handle(x)
         end
         _sparse_plan_dims(a, b)
         _with_raw_sparse(a) do m, n, p, i, _, k
@@ -93,6 +91,8 @@ function _raw_sparse_plan(a, b)
                     p2,
                     i2,
                     k2,
+                    _raw_format(a)===:csr,
+                    _raw_format(b)===:csr,
                 )
             end
         end
@@ -249,10 +249,11 @@ function _plan_mul!(c::_PlanOperand, p, a, b, alpha, beta, scratch, team)
         )
         alias=ArgumentError("the destination of a planned sparse product must not alias an operand")
         (c===a || c===b) && throw(alias)
-        # Any borrowed matrix reads every matrix through raw CSC parts in place;
-        # native CSR owners cannot join such a call.
+        # Any borrowed matrix reads every matrix through raw column-major parts
+        # in place. Those carry no format, so formats are checked here.
         raw=any(x -> x isa FaerBorrowedSparseMatrix, (c, a, b))
-        raw && any(x -> x isa FaerSparseMatrix && x.format!==:csc, (c, a, b)) &&
+        raw &&
+            (_raw_format(a)!==p.format || _raw_format(b)!==p.bformat) &&
             throw(ArgumentError(_PLAN_ERRORS[4]))
         aa=_plan_operand(a, T)
         bb=_plan_operand(b, T)
@@ -347,7 +348,7 @@ calls. `C`'s pattern, nnz, `epoch` and live `nonzeros(C)` views are retained;
 `C` is a `FaerSparseMatrix` or a borrowed Julia CSC destination `faerview(S)`:
 then `nonzeros(S)` is written in place (same vector, same pattern) and `S` must
 not share stored values with a borrowed operand (`ArgumentError`). `A`/`B` may
-mix borrowed and native CSC operands; all of them are read in place.
+mix borrowed and native operands; all of them are read in place.
 
 `eltype(C)` must hold `promote_type(eltype(A), eltype(B))`; an operand of
 another scalar type is converted to `eltype(C)` (allocating a copy with the same

@@ -76,6 +76,26 @@ end
             ss,
             FaerMatrix{T}(undef, 3, 2),
         )
+        # Vectors (same and promoted scalar types) and borrowed Julia arrays.
+        for f in (transpose, adjoint)
+            op=f(s)
+            x=randn(rng, T, 6)
+            @test Vector(f(ss)*FaerVector(x))≈op*x rtol=tol atol=tol
+            @test f(ss)*x≈op*x rtol=tol atol=tol
+            x64=randn(rng, ComplexF64, 6)
+            @test Vector(f(ss)*FaerVector(x64))≈op*x64 rtol=tol atol=tol
+            y=randn(rng, T, 6, 2)
+            @test Matrix(f(ss)*faerview(y))≈op*y rtol=tol atol=tol
+            @test Matrix(f(ss)*y)≈op*y rtol=tol atol=tol
+            c=FaerMatrix{T}(undef, 4, 2)
+            mul!(c, f(ss), faerview(y), T(2), T(0))
+            @test Matrix(c)≈2op*y rtol=tol atol=tol
+            z=randn(rng, T, 2, 4)
+            d=FaerMatrix{T}(undef, 2, 6)
+            mul!(d, faerview(z), f(ss), T(1), T(0))
+            @test Matrix(d)≈z*op rtol=tol atol=tol
+            @test Matrix(faerview(z)*f(ss))≈z*op rtol=tol atol=tol
+        end
     end
     # A dense operand viewing the destination is staged before writing.
     s=sprand(rng, 4, 4, 0.6)
