@@ -8,21 +8,6 @@ _islower(::Union{LinearAlgebra.LowerTriangular,LinearAlgebra.UnitLowerTriangular
 _islower(::Union{LinearAlgebra.UpperTriangular,LinearAlgebra.UnitUpperTriangular}) = false
 _isunit(::Union{LinearAlgebra.UnitLowerTriangular,LinearAlgebra.UnitUpperTriangular}) = true
 _isunit(::Union{LinearAlgebra.LowerTriangular,LinearAlgebra.UpperTriangular}) = false
-function Base.:\(a::_FaerTriangular, b::FaerMatrix{Float64})
-    size(a, 1)==size(b, 1) ||
-        throw(DimensionMismatch("triangular solve dimensions must match"))
-    return _matrix_result(
-        RustCrate.triangular_solve_from,
-        size(b),
-        parent(a),
-        b,
-        _islower(a),
-        _isunit(a),
-    )
-end
-Base.:\(a::_FaerTriangular, b::StridedMatrix{<:Real}) = a\FaerMatrix(b)
-Base.:\(a::_FaerTriangular, b::AbstractVector{<:Real}) =
-    vec(Matrix(a\FaerMatrix(reshape(b, :, 1))))
 Base.inv(a::_FaerTriangular) = _matrix_result(
     RustCrate.triangular_inverse_from,
     size(a),
@@ -30,17 +15,6 @@ Base.inv(a::_FaerTriangular) = _matrix_result(
     _islower(a),
     _isunit(a),
 )
-function LinearAlgebra.ldiv!(a::_FaerTriangular, b::FaerMatrix{Float64})
-    return copyto!(b, a\b)
-end
-function LinearAlgebra.ldiv!(
-    dest::FaerMatrix{Float64},
-    a::_FaerTriangular,
-    b::FaerMatrix{Float64},
-)
-    size(dest)==size(b) || throw(DimensionMismatch("triangular output size must match RHS"))
-    return copyto!(dest, a\b)
-end
 
 const _FaerTransposedMatrix=Union{
     LinearAlgebra.Transpose{Float64,<:FaerMatrix{Float64}},

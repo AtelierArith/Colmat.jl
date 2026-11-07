@@ -1152,6 +1152,8 @@ pub mod qz;
 pub mod sparse;
 pub mod sparse_triangular;
 
+pub mod dense_triangular;
+
 pub mod sparsity;
 
 pub mod borrowed_sparse;

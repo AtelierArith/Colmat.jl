@@ -864,24 +864,6 @@ function _triangular_wrap(a, b)
         LinearAlgebra.UpperTriangular(b)
     )
 end
-function Base.:\(a::_ExtraTriangular, b::FaerMatrix)
-    size(a, 1)==size(b, 1) ||
-        throw(DimensionMismatch("triangular solve dimensions must match"))
-    P=promote_type(eltype(a), eltype(b))
-    P===eltype(a) || return _triangular_wrap(a, _coerce(parent(a), P))\_coerce(b, P)
-    return _typed_result(
-        P,
-        RustCrate.triangular_solve_typed,
-        size(b),
-        parent(a),
-        _coerce(b, P),
-        _islower(a),
-        _isunit(a),
-    )
-end
-Base.:\(a::_ExtraTriangular, b::StridedMatrix{<:Number}) = a\FaerMatrix(b)
-Base.:\(a::_ExtraTriangular, b::AbstractVector{<:Number}) =
-    vec(Matrix(a\FaerMatrix(reshape(b, :, 1))))
 Base.inv(a::_ExtraTriangular) = _typed_result(
     eltype(a),
     RustCrate.triangular_inverse_typed,
@@ -890,11 +872,6 @@ Base.inv(a::_ExtraTriangular) = _typed_result(
     _islower(a),
     _isunit(a),
 )
-LinearAlgebra.ldiv!(a::_ExtraTriangular, b::FaerMatrix) = copyto!(b, a\b)
-function LinearAlgebra.ldiv!(dest::FaerMatrix, a::_ExtraTriangular, b::FaerMatrix)
-    size(dest)==size(b) || throw(DimensionMismatch("output dimensions must match RHS"))
-    return copyto!(dest, a\b)
-end
 function LinearAlgebra.logabsdet(f::FaerFactorization{T}) where {T<:_ExtraScalar}
     R=_realtype(T)
     value=Ref{R}()
