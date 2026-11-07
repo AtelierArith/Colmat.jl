@@ -292,7 +292,7 @@ with the strict lower Householder basis; its block coefficients are exposed as
 LAPACK's tau layout. `F.packed` returns an independent copy, with lower storage
 for Cholesky. Upper-triangle Cholesky wrappers receive U in the input instead.
 
-## Direct in-place LU, QR and Cholesky
+## Direct in-place LU, QR, Cholesky, LDLᴴ and Bunch–Kaufman
 
 ```julia
 using Colmat, LinearAlgebra
@@ -318,23 +318,58 @@ scratch, team, finiteness and Hermitian checks all run before the first write.
 A numerical failure (a singular LU with `check=true`, or a non-positive-definite
 Cholesky) leaves A partially factored, as LAPACK does.
 
+The same `scratch=` keyword selects the direct path for `full_piv_lu!(A)`
+(faer `lu::full_pivoting::factor::lu_in_place`; `F.p` and `F.q` hold both
+permutations), `ldlt!(A)` (`cholesky::ldlt::factor::cholesky_in_place`; L below
+the diagonal and D on it) and `bunchkaufman!(A, rook)`
+(`cholesky::lblt::factor::cholesky_in_place` with the same `LbltParams` as the
+retained factor: `Rook` for `rook=true`, faer's default `PartialDiag`
+otherwise). LDLᴴ and Bunch–Kaufman take a Hermitian `FaerMatrix` or a
+`Hermitian`/`Symmetric` wrapper and, for an upper wrapper, store the adjoint
+factor in the upper triangle. Bunch–Kaufman keeps the block diagonal's
+off-diagonal and the symmetric permutation in Julia-owned buffers of F and
+provides `F.D`, `F.p`, `F.P`, `F.rook` and `inertia(F)`. Size the workspace with
+`scratch_requirements(full_piv_lu!, A)`, `scratch_requirements(ldlt!, A)` or
+`scratch_requirements(bunchkaufman!, A[, rook])`.
+
+```julia
+H = FaerMatrix([1e-8 2 0; 2 -3 1; 0 1 4])
+K = bunchkaufman!(Hermitian(H, :U), true; scratch = FaerScratch(bunchkaufman!, H, true))
+K \ [1.0, 2.0, 3.0]
+```
+
 `ldiv!(F, B; scratch, team)` solves in place on a `FaerMatrix` B of the same
 scalar type, including through `transpose(F)` and `adjoint(F)`. Tall QR writes
 the least-squares solution into `B[1:n, :]`. `\`, the factor properties,
-`Matrix(F)`, `inv`, and `det`/`logabsdet` (LU and Cholesky) are also available.
+`Matrix(F)`, `inv`, and `det`/`logabsdet`/`logdet` (all but QR; computed
+natively from the stored pivots with the diagonal log-measure) are also
+available.
 
 With caller scratch, Colmat allocates no native memory for the factorization
-or the solve. Small shapes and all solves make no native allocation at all.
-Blocked shapes still allocate inside faer's matrix products. On aarch64 with
-`Par::Seq`, a 70×70 LU made 9 such allocations, against 14 for the default
-path, and a lone faer product also allocates. See t4a-faer
-`upstream-reports/gemm-001`. Allocations under a team were not measured.
+or the solve. Small shapes make no native allocation at all. Blocked shapes
+still allocate inside faer's matrix products (also inside its blocked
+triangular solves). On aarch64 with `Par::Seq`:
+
+| case | direct | default path |
+| :--- | ---: | ---: |
+| LU 70×70 | 9 | 14 |
+| full-pivot LU 70×70 | 0 | 7 |
+| LDLᴴ 70×70 / 140×140 | 1 / 18 | 4 / 21 |
+| Bunch–Kaufman 70×70 / 140×140 | 0 / 22 | 6 / 28 |
+| solves up to 70×70 | 0 | — |
+| LDLᴴ/Bunch–Kaufman solve 140×140, 3 RHS | 8 | — |
+
+A lone faer 70×35×70 product allocates twice and a lone 140×140 unit-triangular
+solve four times (t4a-faer `upstream-reports/gemm-001`). Allocations under a team
+were not measured.
 
 The direct factor does not support `rdiv!`, operator or preconditioner use,
 pseudoinverse, mixed-scalar promotion of factors, rectangular LU or wide-QR
-solves. Those need the default result without `scratch=`. Full-pivot LU,
-LDLT, Bunch–Kaufman, pivoted Cholesky and column-pivoted QR have no direct
-path yet.
+solves. Those need the default result without `scratch=`. Pivoted Cholesky
+and column-pivoted QR have no direct path yet. `cholesky!(A, RowMaximum();
+scratch)` keeps its existing meaning (caller scratch for the independent
+`CholeskyPivoted` factor), and faer's in-place pivoted kernel covers only the
+negative-tolerance path.
 
 ## Direct triangular solves and destructive triangular inverses
 

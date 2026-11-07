@@ -25,6 +25,16 @@ pub struct Lblt<T> {
     rook: bool,
 }
 
+/// faer's automatic block LDLᴴ parameters with the pivoting strategy Julia's
+/// `bunchkaufman(A, rook)` selects: `Rook`, or faer's default `PartialDiag`.
+pub(crate) fn params<T: ComplexField>(rook: bool) -> LbltParams {
+    let mut params = <LbltParams as Auto<T>>::auto();
+    if rook {
+        params.pivoting = PivotingStrategy::Rook;
+    }
+    params
+}
+
 impl<T: ComplexField> Lblt<T> {
     /// Factor the `side` triangle of self-adjoint `a`; `rook` selects faer's
     /// rook strategy, otherwise faer's default partial-diagonal strategy.
@@ -36,10 +46,7 @@ impl<T: ComplexField> Lblt<T> {
             Side::Lower => l.copy_from_triangular_lower(a),
             Side::Upper => l.copy_from_triangular_lower(a.adjoint()),
         }
-        let mut params = <LbltParams as Auto<T>>::auto();
-        if rook {
-            params.pivoting = PivotingStrategy::Rook;
-        }
+        let params = params::<T>(rook);
         let mut diag = Diag::zeros(n);
         let mut subdiag = Diag::zeros(n);
         let mut fwd = vec![0usize; n];

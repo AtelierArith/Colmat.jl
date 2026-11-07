@@ -25,7 +25,7 @@ impl Ln for f64 {
 /// Structures: 0 dense, 1 lower, 2 upper, 3 unit lower, 4 unit upper,
 /// 5 a diagonal stored as an n×1 column. Codes: 0 det, 1 trace, 2 log|det|
 /// written as `[log, phase]` (phase is the product of entry signs).
-fn measure<T: ComplexField<Real: Ln>>(
+pub(crate) fn measure<T: ComplexField<Real: Ln>>(
     a: MatRef<'_, T>,
     conjugate: bool,
     structure: i32,

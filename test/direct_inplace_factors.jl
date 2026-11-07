@@ -9,6 +9,23 @@ _sample(T, m, n) = begin
     X
 end
 _tol(T) = sqrt(eps(real(T)))
+_hermitian(T, n) = begin
+    X = _sample(T, n, n)
+    X * X' + n * Matrix{T}(I, n, n)
+end
+# Hermitian indefinite with a tiny leading pivot (Bunch–Kaufman 2×2 blocks).
+_indefinite(T, n) = begin
+    H = (_sample(T, n, n) + _sample(T, n, n)') / 8
+    for i = 1:n
+        H[i, i] = T((1e-6, -3, 2, 0, -1, 4)[mod1(i, 6)])
+    end
+    H
+end
+# The selected triangle of S with NaN garbage in the other (S itself for :plain).
+_stored(S, uplo) =
+    uplo === :plain ? copy(S) :
+    uplo === :L ? tril(S) + triu(fill(eltype(S)(NaN), size(S)), 1) :
+    triu(S) + tril(fill(eltype(S)(NaN), size(S)), -1)
 
 @testset "Direct in-place dense factorizations" begin
     @testset "LU $T $dims" for T in (Float32, Float64, ComplexF32, ComplexF64),
@@ -163,6 +180,30 @@ _tol(T) = sqrt(eps(real(T)))
             @test Matrix(B) ≈ Matrix(A) rtol = _tol(T)
             @test Matrix(H) ≈ S rtol = _tol(T)
         end
+        I70 = _indefinite(T, 70)
+        for (f, M, args, input) in (
+            (full_piv_lu!, X, (), identity),
+            (ldlt!, S, (), M -> Hermitian(M, :U)),
+            (bunchkaufman!, I70, (true,), M -> Hermitian(M, :L)),
+        )
+            A, B = FaerMatrix(M), FaerMatrix(M)
+            F = f(input(A), args...; scratch = FaerScratch(f, input(A), args...))
+            work = FaerScratch(0)
+            reserve!(work, f, input(B), args...; team)
+            G = f(input(B), args...; scratch = work, team)
+            @test Matrix(B) ≈ Matrix(A) rtol = _tol(T)
+            f === ldlt! || @test G.p == F.p
+            f === full_piv_lu! && @test G.q == F.q
+            @test Matrix(G) ≈ M rtol = _tol(T) atol = _tol(T)
+            seq = scratch_requirements(f, input(B), args...)
+            par = scratch_requirements(f, input(B), args...; team)
+            if par.bytes > seq.bytes
+                C = FaerMatrix(M)
+                small = FaerScratch(f, input(C), args...)
+                @test_throws ArgumentError f(input(C), args...; scratch = small, team)
+                @test Matrix(C) == M
+            end
+        end
         close(team)
         @test_throws ArgumentError lu!(FaerMatrix(X); scratch = FaerScratch(lu!, A), team)
     end
@@ -248,6 +289,168 @@ _tol(T) = sqrt(eps(real(T)))
         close(A)
         @test Matrix(R) ≈ X
         @test qr!(FaerMatrix(X), ColumnNorm()) isa FaerFactorization
+    end
+
+    @testset "full-pivot LU $T $dims" for T in (Float32, Float64, ComplexF32, ComplexF64),
+        dims in ((0, 0), (1, 1), (5, 5), (6, 3), (3, 5))
+
+        m, n = dims
+        X = _sample(T, m, n)
+        A = FaerMatrix(X)
+        work = FaerScratch(full_piv_lu!, A)
+        F = full_piv_lu!(A; scratch = work)
+        @test F isa FaerInPlaceFactorization{T,:full_lu}
+        @test F.factors === A
+        @test issuccess(F)
+        old = full_piv_lu(FaerMatrix(X))
+        @test Matrix(A) ≈ Matrix(old.packed) rtol = _tol(T)
+        @test F.p == old.p
+        @test F.q == old.q
+        @test Matrix(F.P) == Matrix(old.P)
+        @test Matrix(F.L) ≈ Matrix(old.L) rtol = _tol(T)
+        @test Matrix(F.U) ≈ Matrix(old.U) rtol = _tol(T)
+        @test Matrix(F) ≈ X rtol = _tol(T) atol = _tol(T)
+        @test X[F.p, F.q] ≈ Matrix(F.L) * Matrix(F.U) rtol = _tol(T) atol = _tol(T)
+        @test :q in propertynames(F)
+        if m == n
+            b = T.(collect(1:n))
+            @test F \ b ≈ X \ b rtol = _tol(T)
+            @test transpose(F) \ b ≈ transpose(X) \ b rtol = _tol(T)
+            @test F' \ b ≈ X' \ b rtol = _tol(T)
+            if n > 0
+                @test det(F) ≈ det(X) rtol = _tol(T)
+                @test all(logabsdet(F) .≈ logabsdet(X))
+            end
+            @test Matrix(inv(F)) ≈ inv(X) rtol = _tol(T) atol = _tol(T)
+            R = FaerMatrix(T.(reshape(1:(2n), n, 2)))
+            team = FaerTeam(2)
+            sw = FaerScratch(ldiv!, F', R; team)
+            @test ldiv!(F', R; scratch = sw, team) === R
+            @test Matrix(R) ≈ X' \ T.(reshape(1:(2n), n, 2)) rtol = _tol(T)
+            close(team)
+        end
+        @test Matrix(copy(F)) ≈ X rtol = _tol(T) atol = _tol(T)
+    end
+
+    @testset "LDLᴴ $T n=$n $uplo" for T in (Float32, Float64, ComplexF32, ComplexF64),
+        n in (0, 1, 6),
+        uplo in (:L, :U, :plain)
+
+        S = _hermitian(T, n)
+        # Garbage in the unread triangle must be ignored by the wrappers.
+        A = FaerMatrix(_stored(S, uplo))
+        input = uplo === :plain ? A : Hermitian(A, uplo)
+        work = FaerScratch(ldlt!, input)
+        @test scratch_requirements(ldlt!, input) == scratch_requirements(ldlt!, A)
+        F = ldlt!(input; scratch = work)
+        @test F isa FaerInPlaceFactorization{T,:ldlt}
+        @test F.factors === A
+        ref = ldlt(Hermitian(FaerMatrix(S), uplo === :U ? :U : :L))
+        @test Matrix(F.L) ≈ Matrix(ref.L) rtol = _tol(T)
+        @test Matrix(F.D) ≈ Matrix(ref.D) rtol = _tol(T)
+        @test Matrix(F.packed) ≈ Matrix(ref.packed) rtol = _tol(T)
+        packed = Matrix(ref.packed)
+        @test Matrix(A) ≈ (uplo === :U ? copy(packed') : packed) rtol = _tol(T)
+        @test Matrix(F) ≈ S rtol = _tol(T) atol = _tol(T)
+        b = T.(collect(1:n))
+        @test F \ b ≈ S \ b rtol = _tol(T)
+        @test transpose(F) \ b ≈ transpose(S) \ b rtol = _tol(T)
+        @test F' \ b ≈ S \ b rtol = _tol(T)
+        n > 0 && @test logdet(F) ≈ logdet(S) rtol = _tol(T)
+        n > 0 && @test det(F) ≈ det(S) rtol = _tol(T)
+        @test Matrix(inv(F)) ≈ inv(S) rtol = _tol(T) atol = _tol(T)
+    end
+
+    @testset "Bunch–Kaufman $T rook=$rook $uplo" for T in (
+            Float32,
+            Float64,
+            ComplexF32,
+            ComplexF64,
+        ),
+        rook in (false, true),
+        uplo in (:L, :U, :plain)
+
+        n = 7
+        S = _indefinite(T, n)
+        A = FaerMatrix(_stored(S, uplo))
+        input = uplo === :plain ? A : Hermitian(A, uplo)
+        work =
+            rook ? FaerScratch(bunchkaufman!, input, true) :
+            FaerScratch(bunchkaufman!, input)
+        F = bunchkaufman!(input, rook; scratch = work)
+        @test F isa FaerInPlaceFactorization{T,:bunchkaufman}
+        @test F.factors === A
+        @test F.rook == rook
+        ref = bunchkaufman(Hermitian(FaerMatrix(S), uplo === :U ? :U : :L), rook)
+        @test F.p == ref.p
+        @test Matrix(F.P) == Matrix(ref.P)
+        @test Matrix(F.L) ≈ Matrix(ref.L) rtol = _tol(T)
+        @test Matrix(F.D) ≈ Matrix(ref.D) rtol = _tol(T) atol = _tol(T)
+        @test Matrix(F.packed) ≈ Matrix(ref.packed) rtol = _tol(T)
+        @test Matrix(F) ≈ S rtol = _tol(T) atol = _tol(T)
+        @test inertia(F) == inertia(ref)
+        b = T.(collect(1:n))
+        @test F \ b ≈ S \ b rtol = _tol(T)
+        @test transpose(F) \ b ≈ transpose(S) \ b rtol = _tol(T)
+        @test F' \ b ≈ S \ b rtol = _tol(T)
+        R = FaerMatrix(T.(reshape(1:(2n), n, 2)))
+        @test ldiv!(F, R; scratch = FaerScratch(ldiv!, F, R)) === R
+        @test Matrix(R) ≈ S \ T.(reshape(1:(2n), n, 2)) rtol = _tol(T)
+        @test det(F) ≈ det(S) rtol = _tol(T)
+        @test all(logabsdet(F) .≈ logabsdet(S))
+        @test Matrix(inv(F)) ≈ inv(S) rtol = _tol(T) atol = _tol(T)
+        G = copy(F)
+        @test G.rook == rook
+        @test Matrix(G) ≈ S rtol = _tol(T) atol = _tol(T)
+    end
+
+    @testset "self-adjoint direct failures and validation" begin
+        # Non-Hermitian plain input is rejected before any write.
+        N = [1.0 2; 3 4]
+        A = FaerMatrix(N)
+        @test_throws ArgumentError ldlt!(A; scratch = FaerScratch(ldlt!, A))
+        @test_throws ArgumentError bunchkaufman!(A; scratch = FaerScratch(bunchkaufman!, A))
+        @test Matrix(A) == N
+        # Insufficient scratch leaves A untouched.
+        S = _hermitian(Float64, 6)
+        A = FaerMatrix(S)
+        for (f, input) in ((ldlt!, A), (bunchkaufman!, A), (full_piv_lu!, A))
+            scratch_requirements(f, input).bytes > 0 || continue
+            @test_throws ArgumentError f(input; scratch = FaerScratch(0))
+            @test Matrix(A) == S
+        end
+        @test_throws DimensionMismatch ldlt!(Hermitian(FaerMatrix(ones(2, 3)));
+            scratch = FaerScratch(0))
+        # Singular inputs follow the default paths' `check`.
+        Z = [1.0 2; 2 4]
+        @test_throws SingularException full_piv_lu!(FaerMatrix(Z);
+            scratch = FaerScratch(full_piv_lu!, FaerMatrix(Z)))
+        zw = FaerScratch(full_piv_lu!, FaerMatrix(Z))
+        G = full_piv_lu!(FaerMatrix(Z); check = false, scratch = zw)
+        @test !issuccess(G)
+        @test logabsdet(G) == (-Inf, 0.0)
+        Zb = zeros(3, 3)
+        @test_throws SingularException bunchkaufman!(FaerMatrix(Zb);
+            scratch = FaerScratch(bunchkaufman!, FaerMatrix(Zb)))
+        H = bunchkaufman!(FaerMatrix(Zb); check = false,
+            scratch = FaerScratch(bunchkaufman!, FaerMatrix(Zb)))
+        @test H.info == bunchkaufman(FaerMatrix(Zb); check = false).info > 0
+        @test det(H) == 0
+        lw = FaerScratch(ldlt!, FaerMatrix(Zb))
+        @test_throws SingularException ldlt!(FaerMatrix(Zb); scratch = lw)
+        L = ldlt!(FaerMatrix(Zb); check = false, scratch = lw)
+        @test L.info == ldlt(FaerMatrix(Zb); check = false).info > 0
+        @test_throws SingularException det(L)
+        # Complex Symmetric with a real stored triangle is Hermitian; otherwise rejected.
+        C = FaerMatrix(ComplexF64[4 1; 1 -3])
+        K = bunchkaufman!(Symmetric(C); scratch = FaerScratch(bunchkaufman!, C))
+        @test Matrix(K) ≈ ComplexF64[4 1; 1 -3]
+        Cn = FaerMatrix(ComplexF64[4 1im; 1im 3])
+        @test_throws ArgumentError ldlt!(Symmetric(Cn); scratch = FaerScratch(ldlt!, Cn))
+        # Without scratch the retained path is unchanged.
+        @test ldlt!(FaerMatrix(S)) isa FaerFactorization
+        @test bunchkaufman!(FaerMatrix(S), true) isa FaerFactorization
+        @test full_piv_lu!(FaerMatrix(S)) isa FaerFactorization
     end
 
     @test isempty(
