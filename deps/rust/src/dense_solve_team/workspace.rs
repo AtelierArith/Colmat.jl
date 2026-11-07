@@ -1247,8 +1247,15 @@ mod tests {
                     1 => Factor::FullLu(src.full_piv_lu(Par::Seq)),
                     2 => Factor::Qr(src.qr(Par::Seq)),
                     3 => Factor::PivotQr(src.col_piv_qr(Par::Seq)),
-                    4 => Factor::Llt(src.llt(Side::Lower, Par::Seq).unwrap()),
-                    5 => Factor::Ldlt(src.ldlt(Side::Lower, Par::Seq).unwrap()),
+                    4 => Factor::Llt(
+                        crate::cholesky_factors::Llt::new(src.as_ref(), Side::Lower, Par::Seq)
+                            .unwrap(),
+                    ),
+                    5 => Factor::Ldlt(
+                        crate::cholesky_factors::Ldlt::new(src.as_ref(), Side::Lower, Par::Seq)
+                            .unwrap()
+                            .unwrap(),
+                    ),
                     6 => Factor::Lblt(crate::lblt::Lblt::new(
                         src.as_ref(),
                         Side::Lower,
