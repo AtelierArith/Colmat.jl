@@ -39,12 +39,23 @@ _is_native_owner(::FaerMatrix) = true
 # pointers. Typed Rust references go through RustCall's checked handle borrowing.
 _raw_owner_argument(x, owner) = _is_native_owner(owner) ? Ptr{UInt8}(x.ptr) : x
 const _raw_owner_arguments = (
+    (RustCrate.borrowed_sparse_mul, (9,)),
+    (RustCrate.borrowed_sparse_product, (9,)),
+    (RustCrate.dense_triangular_into, (3,)),
+    (RustCrate.dense_triangular_raw, (1,)),
+    (RustCrate.dense_triangular_requirements, (1,)),
+    (RustCrate.dense_triangular_zero_diagonal, (1,)),
+    (RustCrate.diagonal_scale_into, (3, 5)),
+    (RustCrate.diagonal_scaled, (2, 4)),
+    (RustCrate.diagonal_scaled_vector, (2, 4)),
     (RustCrate.operator_bicgstab, (3, 4)),
     (RustCrate.operator_cg, (3,)),
     (RustCrate.operator_load, (2,)),
     (RustCrate.operator_lsmr, (3,)),
+    (RustCrate.permute_from_view, (2,)),
     (RustCrate.qz_from, (10, 11)),
     (RustCrate.sparse_analyze, (6,)),
+    (RustCrate.sparse_analyze_workspace, (9,)),
     (RustCrate.statistics_view_reduce, (1,)),
     (RustCrate.vector_binary_views, (2, 4)),
     (RustCrate.vector_from_view, (2,)),
@@ -52,6 +63,9 @@ const _raw_owner_arguments = (
     (RustCrate.view_measure, (1,)),
     (RustCrate.view_binary, (2, 4)),
     (RustCrate.view_copy, (2,)),
+    (RustCrate.view_dot, (1, 3)),
+    (RustCrate.view_predicate, (1,)),
+    (RustCrate.view_reduce, (1,)),
 )
 function _raw_owner_positions(f)
     for (member, positions) in _raw_owner_arguments

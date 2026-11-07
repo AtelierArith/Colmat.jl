@@ -177,17 +177,12 @@ for (fn, normal) in ((:rand, false), (:randn, true))
             Random.$fn(Random.default_rng(), FaerRow{Float64}, n)
     end
 end
-# Whole-array views take the bulk native assignment path for owner targets.
-function _random_assign!(a, staged)
-    copyto!(a isa FaerView ? a : view(a, axes(a)...), staged)
-    return a
-end
 function _native_random!(rng, a, normal)
     lock(_matrix_lock) do
         _rotation_open(a)
         kind=a isa AbstractVector ? 1 : a isa FaerRow ? 2 : 0
         result=_native_random(rng, eltype(a), size(a, 1), size(a, 2), kind, normal)
-        return _random_assign!(a, result)
+        return copyto!(a, result)
     end
 end
 """Fill a native array/view from faer's uniform distribution, staging output before mutation."""
@@ -197,7 +192,7 @@ function _julia_sampler!(rng, a, X)
     lock(_matrix_lock) do
         _rotation_open(a)
         staged=Random.rand!(rng, Array{eltype(a)}(undef, size(a)), X)
-        return _random_assign!(a, staged)
+        return copyto!(a, staged)
     end
 end
 """

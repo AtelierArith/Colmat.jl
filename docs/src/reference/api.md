@@ -8,14 +8,14 @@ Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArray
 | 分野 | 主な型・関数 | 詳細 |
 | :--- | :--- | :--- |
 | 密配列 | `FaerMatrix`, `FaerVector`, `FaerRow`, `FaerDiagonal` | [配列](../manual/arrays.md) |
-| ビュー・容量 | `view`, `diagonalview`, `capacity`, `with_capacity`, `reserve!`, `resize!`, `resize_with!`, `truncate!`, `close`, `isopen` | [所有権](../manual/arrays.md) |
-| 置換 | `FaerPermutation`, `permute_rows!`, `permute_cols!`, `swap_rows!`, `swap_cols!` | [置換](../manual/arrays.md) |
+| ビュー・容量 | `view`, `diagonalview`, `faerview`, `FaerBorrowedMatrix`, `FaerBorrowedSparseMatrix`, `capacity`, `with_capacity`, `reserve!`, `resize!`, `resize_with!`, `truncate!`, `close`, `isopen` | [所有権](../manual/arrays.md) |
+| 置換 | `FaerPermutation`, `permute_rows!`, `permute_cols!`, `permute!`, `invpermute!`, `swap_rows!`, `swap_cols!`, `scratch_requirements(permute_rows!, A, p)` | [置換](../manual/arrays.md) |
 | 密分解 | `lu`, `full_piv_lu`, `qr`, `cholesky`, `ldlt`, `bunchkaufman`, `factorize` と対応する `!` 形式 | [密分解](../manual/dense.md) |
 | 求解・再構成 | `ldiv!`, `rdiv!`, `reconstruct`, `pinv`, `rank`, `cond`, `FaerSpectralFactor` | [求解](../manual/dense.md) |
 | SVD | `svd`, `svd!`, `svdvals`, `svdvals!` | [SVD](../manual/dense.md) |
 | 固有値問題 | `eigen`, `eigvals`, `eigvecs`, `hessenberg`, `schur`, `ordschur`, `balance` | [スペクトル](../manual/spectral.md) |
 | 部分スペクトル | `partial_eigen`, `partial_self_adjoint_eigen`, `partial_svd` | [部分スペクトル](../manual/spectral.md) |
-| 疎配列・構造 | `FaerSparseMatrix`, `FaerSparsity`, `compressed_storage`, `pattern_union`, `nonzeros` | [疎行列](../manual/sparse.md) |
+| 疎配列・構造 | `FaerSparseMatrix`, `FaerSparsity`, `compressed_storage`, `pattern_union`, `nonzeros`, `FaerSparseProductPlan` | [疎行列](../manual/sparse.md) |
 | 疎分解・ordering | `FaerSparseSymbolic`, `FaerSparseFactorization`, `amd`, `colamd`, `factorize` | [疎直接法](../manual/sparse.md) |
 | 疎 QR | `qr`, `qr!`, `ldiv!`, `rdiv!`, `svdvals`, `rank`, `pinv` | [疎 QR](../manual/sparse-qr.md) |
 | 反復法 | `cg`, `bicgstab`, `lsmr` と対応する `!` 形式 | [反復法](../manual/operators.md) |
@@ -28,4 +28,5 @@ Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArray
 | 互換 API | `faer_mul`, `faer_solve`, `faer_svd` | [互換 API](../manual/arrays.md) |
 
 `FaerFactorization` と `FaerSparseFactorization` はネイティブ因子を保持します。
+`lu!/qr!/cholesky!(A; scratch)` が返す `FaerInPlaceFactorization` は入力 `A` の native 格納を packed 因子として参照します。
 通常の Julia 配列を返す分解と Rust 所有因子を再利用する経路は、各ページの戻り値の説明で区別してください。

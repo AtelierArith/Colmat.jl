@@ -13,6 +13,24 @@ julia --project -e 'using Pkg; Pkg.test(; test_args=["--list"])'
 
 ParallelTestRunner.jl がテストファイルを自動検出し、独立したプロセスで並列実行します。
 
+## RustCall 0.10 の利用方針
+
+RustCall.jl は General registry の `0.10` 系（compat `"0.10"`）を使います。
+Rust 側の `rustcall_julia_macros` は crates.io の `0.7` 系です。どちらも Git commit に
+固定しません。0.9 系は対象外です。`#[julia]` 境界を新しく書くときは、
+0.10 の検査付き機能を使います。
+
+- 省略可能な所有者は `Option<&Owner>` / `Option<&mut Owner>` で受け取ります。Julia からは
+  handle か `nothing` を渡します。例えば `team: Option<&OwnedTeam>` と
+  `teams::with_team(team, |par| ...)` を使い、逐次版と `_team` 版の entry point を
+  別々に作りません（例: `factor_solve_requirements`）。
+- 連続な primitive の Julia 配列を入力や出力にするときは、`*const u8` と長さの代わりに、
+  検査付きの `&[T]` / `&mut [T]` を使います。0.10 では span・alignment・重なりを
+  呼び出しの間だけ検査します。所有者の種類を実行時に切り替える view descriptor
+  （`_raw_owner_arguments` に登録する `*const u8`）や、型タグで解釈する buffer は、
+  この方針の対象外です。
+- 既存の `_team` 版の重複と生ポインタ引数は、段階的にこの形へ移行します。
+
 ## ドキュメントのビルド
 
 [Documenter.jl](https://documenter.juliadocs.org/) と

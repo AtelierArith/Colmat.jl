@@ -9,22 +9,51 @@ use rustcall_julia_macros::julia;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Spec {
-    kind: i32,
-    r: isize,
-    rs: isize,
-    m: usize,
-    c: isize,
-    cs: isize,
-    n: usize,
-    transpose: bool,
+    pub(crate) kind: i32,
+    pub(crate) r: isize,
+    pub(crate) rs: isize,
+    pub(crate) m: usize,
+    pub(crate) c: isize,
+    pub(crate) cs: isize,
+    pub(crate) n: usize,
+    pub(crate) transpose: bool,
     pub(crate) conjugate: bool,
+    raw: Option<RawLayout>,
 }
+/// Layout of a borrowed Julia strided buffer (owner kind 4). The owner pointer
+/// is the address of its first element; strides are in elements and may be
+/// negative. Julia roots the parent array for the duration of the call.
+#[derive(Clone, Copy)]
+struct RawLayout {
+    m: usize,
+    n: usize,
+    rs: isize,
+    cs: isize,
+    tag: i32,
+}
+// Kind 3 is the contiguous Julia diagonal of diagonal_products.rs (nine words).
+const RAW_KIND: i32 = 4;
 impl Spec {
-    // SAFETY: the Julia layer preserves a nine-word descriptor for this call.
+    // SAFETY: the Julia layer preserves a nine-word descriptor for this call,
+    // followed by five raw-layout words for owner kind 4.
     pub(crate) unsafe fn read(p: *const isize) -> Result<Self, String> {
         let a = std::slice::from_raw_parts(p, 9);
+        let kind = i32::try_from(a[0]).map_err(|_| "invalid owner kind")?;
+        let raw = if kind == RAW_KIND {
+            let b = std::slice::from_raw_parts(p.add(9), 5);
+            Some(RawLayout {
+                m: usize::try_from(b[0]).map_err(|_| "negative borrowed row count")?,
+                n: usize::try_from(b[1]).map_err(|_| "negative borrowed column count")?,
+                rs: b[2],
+                cs: b[3],
+                tag: i32::try_from(b[4]).map_err(|_| "invalid borrowed scalar tag")?,
+            })
+        } else {
+            None
+        };
         Ok(Self {
-            kind: i32::try_from(a[0]).map_err(|_| "invalid owner kind")?,
+            raw,
+            kind,
             r: a[1],
             rs: a[2],
             m: usize::try_from(a[3]).map_err(|_| "negative row count")?,
@@ -53,7 +82,7 @@ fn check_axis(first: isize, step: isize, len: usize, capacity: usize) -> Result<
     }
     Ok(())
 }
-fn borrowed<'a, T>(a: MatRef<'a, T>, s: Spec) -> Result<MatRef<'a, T>, String> {
+pub(crate) fn borrowed<'a, T>(a: MatRef<'a, T>, s: Spec) -> Result<MatRef<'a, T>, String> {
     s.check(a.nrows(), a.ncols())?;
     let rs = a
         .row_stride()
@@ -86,7 +115,29 @@ pub(crate) enum Borrowed<'a> {
     C32(MatRef<'a, faer::c32>),
     C64(MatRef<'a, faer::c64>),
 }
+// SAFETY: `p` addresses the first element of a live Julia strided array with
+// the declared layout and scalar; Julia keeps the parent rooted for the call.
+unsafe fn raw_base<'a, T>(p: *const u8, raw: RawLayout) -> MatRef<'a, T> {
+    let ptr = if raw.m == 0 || raw.n == 0 {
+        std::ptr::NonNull::<T>::dangling().as_ptr().cast_const()
+    } else {
+        p.cast::<T>()
+    };
+    MatRef::from_raw_parts(ptr, raw.m, raw.n, raw.rs, raw.cs)
+}
+fn raw_layout(s: &Spec) -> Option<RawLayout> {
+    s.raw.filter(|_| s.kind == RAW_KIND)
+}
 pub(crate) unsafe fn source<'a>(p: *const u8, s: Spec) -> Result<Borrowed<'a>, String> {
+    if let Some(raw) = raw_layout(&s) {
+        return Ok(match raw.tag {
+            0 => Borrowed::F32(borrowed(raw_base(p, raw), s)?),
+            1 => Borrowed::F64(borrowed(raw_base(p, raw), s)?),
+            2 => Borrowed::C32(borrowed(raw_base(p, raw), s)?),
+            3 => Borrowed::C64(borrowed(raw_base(p, raw), s)?),
+            _ => return Err("unknown borrowed scalar".into()),
+        });
+    }
     Ok(match s.kind {
         0 => Borrowed::F64(borrowed((&*p.cast::<OwnedMatrix>()).matrix.as_ref(), s)?),
         1 => match (&*p.cast::<TypedMatrix>()).data()? {
@@ -190,10 +241,73 @@ unsafe fn binary_data(
         _ => return Err("view scalar types must match".into()),
     })
 }
-fn write_view<T: ComplexField>(
+/// Assignment input: Julia strided buffers are read in place; native owners,
+/// which may be the destination itself, are snapshot first.
+enum Input<'a, T> {
+    Direct(MatRef<'a, T>, bool),
+    Owned(Mat<T>),
+}
+/// The four native scalar arms of an assignment input.
+enum AnyInput<'a> {
+    F32(Input<'a, f32>),
+    F64(Input<'a, f64>),
+    C32(Input<'a, faer::c32>),
+    C64(Input<'a, faer::c64>),
+}
+fn wrap_input<T: ComplexField>(b: MatRef<'_, T>, raw: bool, conjugate: bool) -> Input<'_, T> {
+    if raw {
+        Input::Direct(b, conjugate)
+    } else {
+        Input::Owned(copied(b, conjugate))
+    }
+}
+// Called before the destination is borrowed mutably, so an owner source that
+// is the destination itself is fully copied before any write.
+unsafe fn any_input<'a>(p: *const u8, source_desc: *const isize) -> Result<AnyInput<'a>, String> {
+    let s = Spec::read(source_desc)?;
+    let raw = raw_layout(&s).is_some();
+    Ok(match source(p, s)? {
+        Borrowed::F32(b) => AnyInput::F32(wrap_input(b, raw, s.conjugate)),
+        Borrowed::F64(b) => AnyInput::F64(wrap_input(b, raw, s.conjugate)),
+        Borrowed::C32(b) => AnyInput::C32(wrap_input(b, raw, s.conjugate)),
+        Borrowed::C64(b) => AnyInput::C64(wrap_input(b, raw, s.conjugate)),
+    })
+}
+/// Byte range `[lo, hi)` touched by a matrix ref; `None` when empty.
+fn span<T>(a: MatRef<'_, T>) -> Option<(usize, usize)> {
+    if a.nrows() == 0 || a.ncols() == 0 {
+        return None;
+    }
+    let size = std::mem::size_of::<T>() as isize;
+    let (r, c) = (
+        a.row_stride() * (a.nrows() as isize - 1),
+        a.col_stride() * (a.ncols() as isize - 1),
+    );
+    let lo = r.min(0) + c.min(0);
+    let hi = r.max(0) + c.max(0) + 1;
+    let base = a.as_ptr() as isize;
+    Some(((base + lo * size) as usize, (base + hi * size) as usize))
+}
+fn disjoint<T>(a: MatRef<'_, T>, b: MatRef<'_, T>) -> bool {
+    match (span(a), span(b)) {
+        (Some((a0, a1)), Some((b0, b1))) => a1 <= b0 || b1 <= a0,
+        _ => true,
+    }
+}
+fn assign<T: ComplexField>(a: MatMut<'_, T>, s: Spec, b: Input<'_, T>) -> Result<(), String> {
+    match b {
+        // Julia memory never holds Rust-owned storage today; the range check
+        // keeps a future aliasing borrow (for example mmap) on the copy path.
+        Input::Direct(b, c) if disjoint(a.as_ref(), b) => write_view(a, s, b, s.conjugate != c),
+        Input::Direct(b, c) => write_view(a, s, copied(b, c).as_ref(), s.conjugate),
+        Input::Owned(b) => write_view(a, s, b.as_ref(), s.conjugate),
+    }
+}
+pub(crate) fn write_view<T: ComplexField>(
     mut a: MatMut<'_, T>,
     s: Spec,
     b: MatRef<'_, T>,
+    conjugate: bool,
 ) -> Result<(), String> {
     s.check(a.nrows(), a.ncols())?;
     let expected = if s.transpose { (s.n, s.m) } else { (s.m, s.n) };
@@ -228,7 +342,7 @@ fn write_view<T: ComplexField>(
         if s.transpose {
             v = v.transpose_mut();
         }
-        if s.conjugate {
+        if conjugate {
             for j in 0..b.ncols() {
                 for i in 0..b.nrows() {
                     v[(i, j)] = conj(&b[(i, j)]);
@@ -241,7 +355,7 @@ fn write_view<T: ComplexField>(
         for j in 0..b.ncols() {
             for i in 0..b.nrows() {
                 let (r, c) = if s.transpose { (j, i) } else { (i, j) };
-                let value = if s.conjugate {
+                let value = if conjugate {
                     conj(&b[(i, j)])
                 } else {
                     copy(&b[(i, j)])
@@ -330,13 +444,9 @@ impl OwnedMatrix {
         source_desc: *const isize,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { snapshot(p, Spec::read(source_desc)?)? };
+            let b = unsafe { any_input(p, source_desc)? };
             match b {
-                MatrixData::F64(b) => write_view(
-                    self.matrix.as_mut(),
-                    unsafe { Spec::read(desc)? },
-                    b.as_ref(),
-                ),
+                AnyInput::F64(b) => assign(self.matrix.as_mut(), unsafe { Spec::read(desc)? }, b),
                 _ => Err("assignment scalar types must match".into()),
             }
         })
@@ -378,13 +488,13 @@ impl TypedMatrix {
         source_desc: *const isize,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { snapshot(p, Spec::read(source_desc)?)? };
+            let b = unsafe { any_input(p, source_desc)? };
             let s = unsafe { Spec::read(desc)? };
             match (self.data.as_mut().ok_or("matrix is not initialized")?, b) {
-                (MatrixData::F32(a), MatrixData::F32(b)) => write_view(a.as_mut(), s, b.as_ref()),
-                (MatrixData::F64(a), MatrixData::F64(b)) => write_view(a.as_mut(), s, b.as_ref()),
-                (MatrixData::C32(a), MatrixData::C32(b)) => write_view(a.as_mut(), s, b.as_ref()),
-                (MatrixData::C64(a), MatrixData::C64(b)) => write_view(a.as_mut(), s, b.as_ref()),
+                (MatrixData::F32(a), AnyInput::F32(b)) => assign(a.as_mut(), s, b),
+                (MatrixData::F64(a), AnyInput::F64(b)) => assign(a.as_mut(), s, b),
+                (MatrixData::C32(a), AnyInput::C32(b)) => assign(a.as_mut(), s, b),
+                (MatrixData::C64(a), AnyInput::C64(b)) => assign(a.as_mut(), s, b),
                 _ => Err("assignment scalar types must match".into()),
             }
         })
@@ -467,26 +577,91 @@ impl VectorOwner {
         source_desc: *const isize,
     ) -> Result<(), String> {
         guarded(|| {
-            let b = unsafe { snapshot(p, Spec::read(source_desc)?)? };
+            let b = unsafe { any_input(p, source_desc)? };
             let s = unsafe { Spec::read(desc)? };
             match (
                 self.data.as_mut().ok_or("collection is not initialized")?,
                 b,
             ) {
-                (VectorData::F32(a), MatrixData::F32(b)) => {
-                    write_view(a.as_mat_mut(), s, b.as_ref())
-                }
-                (VectorData::F64(a), MatrixData::F64(b)) => {
-                    write_view(a.as_mat_mut(), s, b.as_ref())
-                }
-                (VectorData::C32(a), MatrixData::C32(b)) => {
-                    write_view(a.as_mat_mut(), s, b.as_ref())
-                }
-                (VectorData::C64(a), MatrixData::C64(b)) => {
-                    write_view(a.as_mat_mut(), s, b.as_ref())
-                }
+                (VectorData::F32(a), AnyInput::F32(b)) => assign(a.as_mat_mut(), s, b),
+                (VectorData::F64(a), AnyInput::F64(b)) => assign(a.as_mat_mut(), s, b),
+                (VectorData::C32(a), AnyInput::C32(b)) => assign(a.as_mat_mut(), s, b),
+                (VectorData::C64(a), AnyInput::C64(b)) => assign(a.as_mat_mut(), s, b),
                 _ => Err("assignment scalar types must match".into()),
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn raw_desc(m: usize, n: usize, rs: isize, cs: isize, transpose: bool) -> Vec<isize> {
+        vec![
+            RAW_KIND as isize,
+            0,
+            1,
+            m as isize,
+            0,
+            1,
+            n as isize,
+            transpose as isize,
+            0,
+            m as isize,
+            n as isize,
+            rs,
+            cs,
+            1,
+        ]
+    }
+
+    #[test]
+    fn raw_julia_buffers_are_read_in_place_with_negative_strides() {
+        // A 3 x 2 column-major buffer read with reversed rows.
+        let data = [1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let desc = raw_desc(3, 2, -1, 3, false);
+        let first = unsafe { data.as_ptr().add(2) }.cast::<u8>();
+        let s = unsafe { Spec::read(desc.as_ptr()) }.unwrap();
+        let Borrowed::F64(a) = (unsafe { source(first, s) }.unwrap()) else {
+            panic!("expected f64");
+        };
+        assert_eq!(a.shape(), (3, 2));
+        assert_eq!((a[(0, 0)], a[(2, 0)], a[(0, 1)]), (3.0, 1.0, 6.0));
+        assert_eq!(a.as_ptr(), first.cast::<f64>());
+
+        // Assign its transpose into a 2 x 3 owner without a snapshot.
+        let mut out = Mat::<f64>::zeros(2, 3);
+        let target = [0isize, 0, 1, 2, 0, 1, 3, 0, 0];
+        let ts = unsafe { Spec::read(target.as_ptr()) }.unwrap();
+        let t = raw_desc(3, 2, -1, 3, true);
+        let AnyInput::F64(input) = (unsafe { any_input(first, t.as_ptr()) }.unwrap()) else {
+            panic!("expected f64");
+        };
+        assert!(matches!(input, Input::Direct(..)));
+        assign(out.as_mut(), ts, input).unwrap();
+        assert_eq!(out[(0, 0)], 3.0);
+        assert_eq!(out[(1, 2)], 4.0);
+    }
+
+    #[test]
+    fn empty_raw_buffers_never_dereference_the_pointer() {
+        let desc = raw_desc(0, 4, 1, 0, false);
+        let s = unsafe { Spec::read(desc.as_ptr()) }.unwrap();
+        let Borrowed::F64(a) = (unsafe { source(std::ptr::null(), s) }.unwrap()) else {
+            panic!("expected f64");
+        };
+        assert_eq!(a.shape(), (0, 4));
+    }
+
+    #[test]
+    fn overlapping_spans_are_detected() {
+        let data = [0.0f64; 12];
+        let whole = MatRef::from_column_major_slice(&data, 3, 4);
+        let tail = MatRef::from_column_major_slice(&data[9..], 3, 1);
+        let head = MatRef::from_column_major_slice(&data[..9], 3, 3);
+        assert!(!disjoint(whole, tail));
+        assert!(disjoint(head, tail));
+        assert!(disjoint(whole.subrows(0, 0), whole));
     }
 }

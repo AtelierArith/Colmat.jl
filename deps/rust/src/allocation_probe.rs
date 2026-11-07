@@ -4,12 +4,14 @@ use std::cell::Cell;
 thread_local! {
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
     static COUNT: Cell<usize> = const { Cell::new(0) };
+    static LARGEST: Cell<usize> = const { Cell::new(0) };
 }
 struct Probe;
-fn record() {
+fn record(bytes: usize) {
     let _ = ACTIVE.try_with(|a| {
         if a.get() {
             let _ = COUNT.try_with(|n| n.set(n.get() + 1));
+            let _ = LARGEST.try_with(|n| n.set(n.get().max(bytes)));
         }
     });
 }
@@ -17,17 +19,17 @@ fn record() {
 // the thread-local counters do not allocate or retain those pointers.
 unsafe impl GlobalAlloc for Probe {
     unsafe fn alloc(&self, l: Layout) -> *mut u8 {
-        record();
+        record(l.size());
         // SAFETY: GlobalAlloc supplies a valid layout; forwarding it unchanged.
         unsafe { System.alloc(l) }
     }
     unsafe fn alloc_zeroed(&self, l: Layout) -> *mut u8 {
-        record();
+        record(l.size());
         // SAFETY: GlobalAlloc supplies a valid layout; forwarding it unchanged.
         unsafe { System.alloc_zeroed(l) }
     }
     unsafe fn realloc(&self, p: *mut u8, l: Layout, n: usize) -> *mut u8 {
-        record();
+        record(n);
         // SAFETY: GlobalAlloc supplies the live pointer/layout and valid new size.
         unsafe { System.realloc(p, l, n) }
     }
@@ -46,6 +48,7 @@ pub(crate) fn count(f: impl FnOnce()) -> usize {
         }
     }
     COUNT.with(|n| n.set(0));
+    LARGEST.with(|n| n.set(0));
     ACTIVE.with(|a| {
         assert!(!a.replace(true));
     });
@@ -53,4 +56,9 @@ pub(crate) fn count(f: impl FnOnce()) -> usize {
     f();
     drop(guard);
     COUNT.with(Cell::get)
+}
+/// Largest single allocation (bytes) made by `f` on the calling thread.
+pub(crate) fn largest(f: impl FnOnce()) -> usize {
+    count(f);
+    LARGEST.with(Cell::get)
 }

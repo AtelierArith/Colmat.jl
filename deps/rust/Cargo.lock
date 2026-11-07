@@ -833,7 +833,8 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 [[package]]
 name = "rustcall_julia_core"
 version = "0.7.0"
-source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=5a86679af9f8189d1bab4e010debc72f0b94cfb3#5a86679af9f8189d1bab4e010debc72f0b94cfb3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b617c361b25a456be2518f2b54df1760bf8611d0717b7e3926d9527ee4163910"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -847,7 +848,8 @@ dependencies = [
 [[package]]
 name = "rustcall_julia_macros"
 version = "0.7.0"
-source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=5a86679af9f8189d1bab4e010debc72f0b94cfb3#5a86679af9f8189d1bab4e010debc72f0b94cfb3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50dc0e26b0aacbd223fa9679faa83d29a9a889372659c4b448c831d98cfb8f42"
 dependencies = [
  "rustcall_julia_macros_impl",
 ]
@@ -855,7 +857,8 @@ dependencies = [
 [[package]]
 name = "rustcall_julia_macros_impl"
 version = "0.7.0"
-source = "git+https://github.com/AtelierArith/RustCall.jl.git?rev=5a86679af9f8189d1bab4e010debc72f0b94cfb3#5a86679af9f8189d1bab4e010debc72f0b94cfb3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a698dfa330e8f167d9371893098c741a62b564c41c2a8be1f55fa09b8a50507"
 dependencies = [
  "proc-macro2",
  "quote",

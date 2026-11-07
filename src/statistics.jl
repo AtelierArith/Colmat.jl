@@ -1,5 +1,8 @@
 # Native mean/variance accept NaNs, unlike constructors used for factorizations.
 # The kernels borrow the owner storage (or view) directly; no Julia snapshot.
+# Julia arrays borrowed with faerview are read in place through the same kernels.
+const _StatisticsArray=Union{_RotationArray,FaerBorrowedArray}
+_statistics_open(a) = a isa FaerBorrowedArray ? nothing : _rotation_open(a)
 # Reduction axes of the borrowed m x n matrix (vectors borrow as n x 1).
 const _STATS_NONE=Int32(0)
 const _STATS_ROWS=Int32(1)
@@ -52,7 +55,7 @@ function _statistics_native(a, ::Type{W}, axis, len, ignore, corrected, means) w
 end
 _statistics_output(result, shape, scalar) = scalar ? only(result) : reshape(result, shape)
 """
-    mean(A::Union{FaerMatrix,FaerVector,FaerRow,FaerView}; dims=:, nan=:propagate)
+    mean(A::Union{FaerMatrix,FaerVector,FaerRow,FaerView,FaerBorrowedArray}; dims=:, nan=:propagate)
 
 Compute native faer row/column means. `dims` and return shapes follow Statistics;
 complex inputs retain their scalar type. `nan=:ignore` excludes entries with a
@@ -62,10 +65,10 @@ strided/reversed views in place (a full reduction of a view whose entries are
 not one strided column stages one contiguous column in Rust); outputs are
 ordinary Julia arrays or a scalar.
 """
-function Statistics.mean(a::_RotationArray; dims = :, nan::Symbol = :propagate)
+function Statistics.mean(a::_StatisticsArray; dims = :, nan::Symbol = :propagate)
     lock(_matrix_lock) do
         ignore=_statistics_policy(nan)
-        _rotation_open(a)
+        _statistics_open(a)
         axis, len, shape, scalar=_statistics_layout(a, dims)
         T=eltype(a)
         result=_statistics_native(a, T, axis, len, ignore, nothing, nothing)
@@ -79,7 +82,7 @@ end
 function _statistics_variance(a, m, dims, corrected, nan)
     lock(_matrix_lock) do
         ignore=_statistics_policy(nan)
-        _rotation_open(a)
+        _statistics_open(a)
         m isa _RotationArray && _rotation_open(m)
         axis, len, shape, scalar=_statistics_layout(a, dims)
         S=eltype(a)
@@ -107,7 +110,7 @@ function _statistics_variance(a, m, dims, corrected, nan)
     end
 end
 """
-    var(A::Union{FaerMatrix,FaerVector,FaerRow,FaerView}; dims=:,
+    var(A::Union{FaerMatrix,FaerVector,FaerRow,FaerView,FaerBorrowedArray}; dims=:,
         corrected=true, mean=nothing, nan=:propagate)
 
 Native faer variance with Julia's sample/population correction and real output
@@ -124,7 +127,7 @@ promoted type must be one of the four native scalars, otherwise an
 `ArgumentError` is thrown (e.g. `BigFloat` means).
 """
 Statistics.var(
-    a::_RotationArray;
+    a::_StatisticsArray;
     dims = :,
     corrected::Bool = true,
     mean = nothing,
@@ -132,7 +135,7 @@ Statistics.var(
 ) = _statistics_variance(a, mean, dims, corrected, nan)
 """Native faer variance about a supplied mean; see [`Statistics.var`](@ref)."""
 Statistics.varm(
-    a::_RotationArray,
+    a::_StatisticsArray,
     m::Number;
     dims = :,
     corrected::Bool = true,
@@ -140,7 +143,7 @@ Statistics.varm(
 ) = _statistics_variance(a, m, dims, corrected, nan)
 
 Statistics.varm(
-    a::_RotationArray,
+    a::_StatisticsArray,
     m::AbstractArray;
     dims = :,
     corrected::Bool = true,

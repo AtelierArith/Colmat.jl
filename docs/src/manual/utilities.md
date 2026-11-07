@@ -149,9 +149,14 @@ Closing a view invalidates its reads, while materialized/deep copies remain vali
 ## Real matrix extrema
 
 `minimum`, `maximum` and `extrema` use native storage directly for Float32 and
-Float64 matrices and return the input scalar type. NaNs propagate; negative zero
-sorts below positive zero. Empty matrices throw `ArgumentError`. Complex matrices
-retain Julia's generic ordering contract.
+Float64 matrices, vectors, rows and views and return the input scalar type
+(`faerview` arrays keep Julia's vectorized reductions over the parent, without a
+copy). NaNs propagate; negative zero sorts below positive zero. `dims`
+follows Base (an integer or tuple; dimensions past `ndims(A)` reduce nothing),
+and reducing an empty dimension throws `ArgumentError`. `init` and function-first
+forms other than `identity` run Julia's generic implementation on one snapshot
+(the parent array of a `faerview`). Complex inputs retain Julia's generic ordering
+contract.
 
 ```julia
 using Colmat
@@ -165,5 +170,36 @@ A[2, 1] = 0f0
 A[2, 2] = 0f0
 @assert signbit(minimum(A))
 @assert !signbit(maximum(A))
+@assert extrema(A; dims = 1) == [(0f0, 0f0) (0f0, 0f0)]
 close(A)
+```
+
+## Reductions of views and borrowed arrays
+
+`dot`, `norm`, `sum`, `minimum`/`maximum`/`extrema`, `all(isfinite, A)` and
+`any(isnan, A)` read native views (strided and reversed ranges) in place, without
+a Julia or Rust copy; `dot`, `sum`, the predicates and `norm(A, 1/2/Inf)` do the
+same for `faerview` arrays. `dot` conjugates its first argument
+with faer's `inner_prod` for any pair of native vectors, rows, matrices, views and
+borrowed arrays; vector-shaped operands pair entries in order, and mixed scalar
+types promote (Rust stages one converted copy of a promoted operand).
+`norm(A, p)` is the entrywise norm for every real `p` except NaN: 2/1/Inf use
+faer's reductions, 0 counts nonzeros, -Inf is the NaN-propagating smallest
+magnitude, and other `p` follow `LinearAlgebra.generic_normp` (Float64
+accumulation, rescaling by the extreme magnitude); for `faerview` arrays those
+`p` use Julia's own `norm` of the parent. Use `opnorm` for operator norms. Summation order is faer's, so sums may differ from Julia's by rounding.
+
+```julia
+using Colmat, LinearAlgebra
+J = [3.0 -4.0; 0.0 1.0]
+B = faerview(J)
+x = FaerVector([1.0, 2.0, 3.0])
+@assert dot(view(x, 3:-1:1), faerview([1.0, 0.0, 1.0])) == 4.0
+@assert norm(B, 0) == 3.0
+@assert norm(B, 3) ≈ norm(J, 3)
+@assert norm(B, -Inf) == 0.0
+@assert sum(view(x, 1:2:3)) == 4.0
+@assert minimum(B; dims = 2) == [-4.0; 0.0;;]
+@assert all(isfinite, B) && !any(isnan, view(x, :))
+close(x)
 ```

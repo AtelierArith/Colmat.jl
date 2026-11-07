@@ -27,6 +27,9 @@ end
 
 A square diagonal Julia matrix owning a Rust `faer::diag::Diag<T>`. Off-diagonal
 entries are implicit zeros; assigning a nonzero off the diagonal is an error.
+Products with a `FaerMatrix`, its range views or native triangular wrappers
+(either side, `*` and `mul!`), `D * v::FaerVector` and `r::FaerRow * D` scale in
+Rust from the stored diagonal without forming a dense matrix.
 """
 mutable struct FaerDiagonal{T,H} <: AbstractMatrix{T}
     handle::Union{Nothing,H}
@@ -288,8 +291,8 @@ function _collection_transform(x::_OwnedCollection, C, conjugate = false)
     )
 end
 Base.conj(x::_OwnedCollection) = _collection_transform(x, _collection_type(x), true)
-function Base.sum(x::_OwnedCollection; dims = :)
-    dims isa Colon || return sum(Array(x); dims)
+function Base.sum(x::_OwnedCollection; dims = :, kw...)
+    dims isa Colon && isempty(kw) || return sum(Array(x); dims, kw...)
     T=eltype(x)
     v=Ref{T}()
     GC.@preserve v _native_call(
@@ -300,7 +303,8 @@ function Base.sum(x::_OwnedCollection; dims = :)
     return v[]
 end
 function LinearAlgebra.norm(x::_OwnedCollection, p::Real = 2)
-    p in (1, 2, Inf) || return LinearAlgebra.norm(Vector(x), p)
+    p in (1, 2, Inf) ||
+        return x isa FaerDiagonal ? LinearAlgebra.norm(Vector(x), p) : _native_norm(x, p)
     T=_realtype(eltype(x))
     v=Ref{T}()
     code=p==2 ? 0 : p==1 ? 1 : 2

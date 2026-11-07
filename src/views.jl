@@ -199,7 +199,8 @@ function _copy_view_matrix(v)
     end
 end
 Base.copy(v::FaerMatrixView) = _copy_view_matrix(v)
-function Base.copy(v::FaerVectorView)
+Base.copy(v::FaerVectorView) = _copy_view_vector(v)
+function _copy_view_vector(v)
     lock(_matrix_lock) do
         p, d=_view_source(v)
         GC.@preserve d return _collection_result(
@@ -241,7 +242,13 @@ function _copyto_faer_view!(v::FaerView, src::AbstractArray)
         # source shares its owner. This also gives ordered repeated-index writes.
         T=eltype(v)
         dims=v.dropped==1 ? (length(v), 1) : (length(v.rows), length(v.cols))
-        a=FaerMatrix{T}(reshape(Array(src), dims))
+        # Julia strided sources of the native scalar are read in place (they
+        # cannot alias Rust-owned storage); others are staged in Rust.
+        a=if src isa FaerBorrowedArray{T} || (src isa StridedArray{T} && _julia_borrowable(src))
+            src isa FaerBorrowedArray ? src : FaerBorrowedArray(src)
+        else
+            FaerMatrix{T}(reshape(Array(src), dims))
+        end
         q, sd=_view_source(a)
         GC.@preserve d sd _native_call(RustCrate.view_assign, p, pointer(d), q, pointer(sd))
     end
@@ -355,13 +362,37 @@ function Base.copyto!(dest::FaerVector, src::AbstractVector)
     copyto!(view(dest, :), src)
     return dest
 end
-function LinearAlgebra.mul!(
+# Owner destinations keep Base's linear-order copyto! semantics for non-owner
+# sources (differently shaped sources and shorter prefixes are accepted), but
+# stage the whole result in Julia and write it with one native view assignment.
+# Staging snapshots sources aliasing dest and converts elements before writing.
+# FaerMatrix sources keep the shape-strict native assignment methods.
+function _copyto_native_owner!(dest::Union{FaerMatrix,FaerRow}, src::AbstractArray)
+    lock(_matrix_lock) do
+        _handle(dest)
+        isempty(src) && return
+        length(src)<=length(dest) || throw(BoundsError(dest, LinearIndices(src)))
+        staged=if size(src)==size(dest)
+            src
+        elseif length(src)==length(dest)
+            reshape(Array(src), size(dest))
+        else
+            copyto!(Array(dest), src)
+        end
+        _copyto_faer_view!(view(dest, axes(dest)...), staged)
+    end
+    return dest
+end
+Base.copyto!(dest::Union{FaerMatrix,FaerRow}, src::AbstractArray) =
+    _copyto_native_owner!(dest, src)
+LinearAlgebra.mul!(
     dest::FaerVector,
     a::_BorrowMatrix,
     b::_BorrowVector,
     alpha::Number,
     beta::Number,
-)
+) = _vector_mul!(dest, a, b, alpha, beta)
+function _vector_mul!(dest, a, b, alpha, beta)
     lock(_matrix_lock) do
         _handle(dest)
         size(a, 2)==length(b) && length(dest)==size(a, 1) ||
