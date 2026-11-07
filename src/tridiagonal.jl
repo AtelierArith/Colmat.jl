@@ -96,8 +96,6 @@ function tridiagonalize(
                         UInt(bs),
                         policy.value,
                     )
-                    isnothing(team) ?
-                    _native_call(RustCrate.OwnedCompactTridiagonal, args...) :
                     _native_call(RustCrate.OwnedCompactTridiagonal, args..., team)
                 end
                 return FaerTridiagonalization(
@@ -120,9 +118,7 @@ function tridiagonalize(
                     UInt(bs),
                     policy.value,
                 )
-                isnothing(team) ?
-                _native_call(RustCrate.tridiagonalize_tuned_workspace, args...) :
-                _native_call(RustCrate.tridiagonalize_tuned_workspace_team, args..., team)
+                _native_call(RustCrate.tridiagonalize_workspace, args..., team)
             end
             all(isfinite, q)&&all(isfinite, diag)&&all(isfinite, off) ||
                 throw(ArgumentError("tridiagonalization overflowed the working type"))

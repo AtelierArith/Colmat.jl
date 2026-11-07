@@ -6,9 +6,10 @@ use super::construction::{
 };
 use super::workspace::buffer;
 use crate::collections::{VectorData, VectorOwner};
+use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::OwnedMatrix;
-use crate::{guarded, householder_sequence, teams::OwnedTeam, workspace::OwnedScratch};
+use crate::{guarded, householder_sequence, workspace::OwnedScratch};
 use faer::dyn_stack::StackReq;
 use faer::linalg::evd;
 use faer::prelude::ReborrowMut;
@@ -165,22 +166,9 @@ pub fn compact_tridiagonal_requirements(
     bs: usize,
     threshold: usize,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| query(n, tag, bs, ParShape::Seq, threshold, out))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn compact_tridiagonal_team_requirements(
-        &self,
-        n: usize,
-        tag: i32,
-        bs: usize,
-        threshold: usize,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(n, tag, bs, par.shape(), threshold, out))?)
-    }
+    guarded(|| with_team(team, |par| query(n, tag, bs, par.shape(), threshold, out)))
 }
 unsafe fn build<T: ComplexField>(
     work: &mut OwnedScratch,
@@ -329,33 +317,17 @@ impl OwnedCompactTridiagonal {
         tag: i32,
         bs: usize,
         threshold: usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<Self, String> {
         guarded(|| {
-            Ok(Self {
-                data: build_data(work, input, n, d, e, tag, bs, Par::Seq, threshold)?,
-            })
-        })
-    }
-    #[julia]
-    pub fn reduce_team(
-        work: &mut OwnedScratch,
-        input: *const u8,
-        n: usize,
-        d: *mut u8,
-        e: *mut u8,
-        tag: i32,
-        bs: usize,
-        threshold: usize,
-        team: &OwnedTeam,
-    ) -> Result<Self, String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 Ok(Self {
                     data: build_data(work, input, n, d, e, tag, bs, par, threshold)?,
                 })
-            })?
+            })
         })
     }
+
     #[julia]
     pub fn duplicate(source: &Self) -> Result<Self, String> {
         guarded(|| {
@@ -528,43 +500,10 @@ impl OwnedMatrix {
         right: bool,
         transpose: bool,
         conjugated: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            source.validate(n, k, b, tag)?;
-            match &source.data {
-                Data::F64(s) => s.apply(
-                    self.matrix.as_mut(),
-                    work,
-                    right,
-                    transpose,
-                    conjugated,
-                    par,
-                ),
-                _ => Err("compact tridiagonal scalar types must match".into()),
-            }
-        })
-    }
-}
-
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn compact_tridiagonal_workspace_team(
-        &mut self,
-        source: &OwnedCompactTridiagonal,
-        work: &mut OwnedScratch,
-        n: usize,
-        k: usize,
-        b: usize,
-        tag: i32,
-        right: bool,
-        transpose: bool,
-        conjugated: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 source.validate(n, k, b, tag)?;
                 match &source.data {
                     Data::F64(s) => s.apply(
@@ -577,10 +516,13 @@ impl OwnedMatrix {
                     ),
                     _ => Err("compact tridiagonal scalar types must match".into()),
                 }
-            })?
+            })
         })
     }
 }
+
+#[julia]
+impl OwnedMatrix {}
 
 #[julia]
 impl TypedMatrix {
@@ -596,50 +538,10 @@ impl TypedMatrix {
         right: bool,
         transpose: bool,
         conjugated: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            source.validate(n, k, b, tag)?;
-            match (
-                &source.data,
-                self.data.as_mut().ok_or("matrix is not initialized")?,
-            ) {
-                (Data::F32(s), MatrixData::F32(a)) => {
-                    s.apply(a.as_mut(), work, right, transpose, conjugated, par)
-                }
-                (Data::F64(s), MatrixData::F64(a)) => {
-                    s.apply(a.as_mut(), work, right, transpose, conjugated, par)
-                }
-                (Data::C32(s), MatrixData::C32(a)) => {
-                    s.apply(a.as_mut(), work, right, transpose, conjugated, par)
-                }
-                (Data::C64(s), MatrixData::C64(a)) => {
-                    s.apply(a.as_mut(), work, right, transpose, conjugated, par)
-                }
-                _ => Err("compact tridiagonal scalar types must match".into()),
-            }
-        })
-    }
-}
-
-#[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn compact_tridiagonal_workspace_team(
-        &mut self,
-        source: &OwnedCompactTridiagonal,
-        work: &mut OwnedScratch,
-        n: usize,
-        k: usize,
-        b: usize,
-        tag: i32,
-        right: bool,
-        transpose: bool,
-        conjugated: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 source.validate(n, k, b, tag)?;
                 match (
                     &source.data,
@@ -659,10 +561,13 @@ impl TypedMatrix {
                     }
                     _ => Err("compact tridiagonal scalar types must match".into()),
                 }
-            })?
+            })
         })
     }
 }
+
+#[julia]
+impl TypedMatrix {}
 
 // Promote only Q's meaningful data. Packed H coefficients can overflow in a
 // narrower scalar even when the unitary Q is perfectly representable.
@@ -1277,50 +1182,10 @@ impl VectorOwner {
         right: bool,
         transpose: bool,
         conjugated: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            source.validate(n, k, b, tag)?;
-            match (
-                &source.data,
-                self.data.as_mut().ok_or("matrix is not initialized")?,
-            ) {
-                (Data::F32(s), VectorData::F32(a)) => {
-                    s.apply(a.as_mat_mut(), work, right, transpose, conjugated, par)
-                }
-                (Data::F64(s), VectorData::F64(a)) => {
-                    s.apply(a.as_mat_mut(), work, right, transpose, conjugated, par)
-                }
-                (Data::C32(s), VectorData::C32(a)) => {
-                    s.apply(a.as_mat_mut(), work, right, transpose, conjugated, par)
-                }
-                (Data::C64(s), VectorData::C64(a)) => {
-                    s.apply(a.as_mat_mut(), work, right, transpose, conjugated, par)
-                }
-                _ => Err("compact tridiagonal scalar types must match".into()),
-            }
-        })
-    }
-}
-
-#[julia]
-impl VectorOwner {
-    #[julia]
-    pub fn compact_tridiagonal_workspace_team(
-        &mut self,
-        source: &OwnedCompactTridiagonal,
-        work: &mut OwnedScratch,
-        n: usize,
-        k: usize,
-        b: usize,
-        tag: i32,
-        right: bool,
-        transpose: bool,
-        conjugated: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 source.validate(n, k, b, tag)?;
                 match (
                     &source.data,
@@ -1340,11 +1205,16 @@ impl VectorOwner {
                     }
                     _ => Err("compact tridiagonal scalar types must match".into()),
                 }
-            })?
+            })
         })
     }
 }
 
+#[julia]
+impl VectorOwner {}
+
+// Only the unit tests build the untuned compact Hessenberg directly.
+#[cfg(test)]
 fn hessenberg_req<T: ComplexField>(n: usize, par: ParShape) -> Result<StackReq, String> {
     hessenberg_req_tuned::<T>(n, par, crate::schur::hessenberg_tuning::Policy::default())
 }
@@ -1369,38 +1239,8 @@ fn hessenberg_req_tuned<T: ComplexField>(
         policy.params::<T>(),
     ))
 }
-fn hessenberg_query(n: usize, tag: i32, par: ParShape, out: *mut usize) -> Result<(), String> {
-    buffer::<usize>(out.cast(), 2)?;
-    let req = match tag {
-        0 => hessenberg_req::<f32>(n, par)?,
-        1 => hessenberg_req::<f64>(n, par)?,
-        2 => hessenberg_req::<c32>(n, par)?,
-        3 => hessenberg_req::<c64>(n, par)?,
-        _ => return Err("unsupported Hessenberg scalar".into()),
-    };
-    // SAFETY: caller preserves a writable two-entry UInt buffer after span checks.
-    unsafe {
-        out.write(req.size_bytes());
-        out.add(1).write(req.align_bytes());
-    }
-    Ok(())
-}
-#[julia]
-pub fn compact_hessenberg_requirements(n: usize, tag: i32, out: *mut usize) -> Result<(), String> {
-    guarded(|| hessenberg_query(n, tag, ParShape::Seq, out))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn compact_hessenberg_team_requirements(
-        &self,
-        n: usize,
-        tag: i32,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| self.execute(|par| hessenberg_query(n, tag, par.shape(), out))?)
-    }
-}
+// Only the unit tests build the untuned compact Hessenberg directly.
+#[cfg(test)]
 unsafe fn build_hessenberg<T: ComplexField>(
     scratch: &mut OwnedScratch,
     input: *const u8,
@@ -1417,6 +1257,8 @@ unsafe fn build_hessenberg<T: ComplexField>(
         crate::schur::hessenberg_tuning::Policy::default(),
     )
 }
+// Only the unit tests build the untuned compact Hessenberg directly.
+#[cfg(test)]
 unsafe fn build_hessenberg_tuned<T: ComplexField>(
     scratch: &mut OwnedScratch,
     input: *const u8,
@@ -1513,60 +1355,6 @@ fn reduce_hessenberg<T: ComplexField>(
     }
     let h = Mat::from_fn(n, n, value);
     Ok((core, h))
-}
-
-fn hessenberg_data(
-    scratch: &mut OwnedScratch,
-    input: *const u8,
-    n: usize,
-    output: *mut u8,
-    tag: i32,
-    par: Par,
-) -> Result<Data, String> {
-    // SAFETY: each scalar branch checks numeric spans before accessing buffers.
-    unsafe {
-        Ok(match tag {
-            0 => Data::F32(build_hessenberg(scratch, input, n, output, par)?),
-            1 => Data::F64(build_hessenberg(scratch, input, n, output, par)?),
-            2 => Data::C32(build_hessenberg(scratch, input, n, output, par)?),
-            3 => Data::C64(build_hessenberg(scratch, input, n, output, par)?),
-            _ => return Err("unsupported Hessenberg scalar".into()),
-        })
-    }
-}
-#[julia]
-impl OwnedCompactTridiagonal {
-    #[julia]
-    pub fn from_hessenberg(
-        scratch: &mut OwnedScratch,
-        input: *const u8,
-        n: usize,
-        output: *mut u8,
-        tag: i32,
-    ) -> Result<Self, String> {
-        guarded(|| {
-            Ok(Self {
-                data: hessenberg_data(scratch, input, n, output, tag, Par::Seq)?,
-            })
-        })
-    }
-    #[julia]
-    pub fn from_hessenberg_team(
-        scratch: &mut OwnedScratch,
-        input: *const u8,
-        n: usize,
-        output: *mut u8,
-        tag: i32,
-        team: &OwnedTeam,
-    ) -> Result<Self, String> {
-        guarded(|| {
-            team.execute(|par| {
-                Ok(Self {
-                    data: hessenberg_data(scratch, input, n, output, tag, par)?,
-                })
-            })?
-        })
-    }
 }
 
 #[julia]

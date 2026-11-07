@@ -127,11 +127,9 @@ function _householder_coerce(q::AbstractFaerCompactQ, ::Type{T}) where {T<:_Nati
         )
     end
 end
-_householder_workspace_functions(::AbstractFaerCompactQ) = (
-    RustCrate.compact_tridiagonal_apply_requirements,
-    RustCrate.compact_tridiagonal_workspace,
-    RustCrate.compact_tridiagonal_workspace_team,
-)
+# Two entries: the apply function takes the optional team as its last argument.
+_householder_workspace_functions(::AbstractFaerCompactQ) =
+    (RustCrate.compact_tridiagonal_apply_requirements, RustCrate.compact_tridiagonal_workspace)
 _householder_workspace_metadata(q::AbstractFaerCompactQ) =
     (UInt(q.n), UInt(q.k), UInt(q.blocksize), _tag(eltype(q)))
 _householder_orientation(q::AbstractFaerCompactQ) = (q.transposed, q.conjugated)
@@ -152,6 +150,7 @@ function _householder_native_apply!(q::AbstractFaerCompactQ, a, right)
             right,
             q.transposed,
             q.conjugated,
+            nothing,
         )
         return a
     finally
