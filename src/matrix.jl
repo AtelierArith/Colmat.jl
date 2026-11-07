@@ -73,6 +73,7 @@ const _raw_owner_arguments = (
     (RustCrate.structured_vector, (2, 5)),
     (RustCrate.vector_view_kron, (2, 4)),
     (RustCrate.view_assign, (3,)),
+    (RustCrate.view_convert, (2,)),
     (RustCrate.view_assign_into, (1, 3)),
     (RustCrate.view_gather_into, (1, 3)),
     (RustCrate.view_scatter_into, (1, 5)),

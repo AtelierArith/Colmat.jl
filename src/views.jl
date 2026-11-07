@@ -285,10 +285,8 @@ const _BorrowVector=Union{FaerVector,FaerVectorView}
 function _view_binary(a, b, op; vector = false)
     lock(_matrix_lock) do
         P=promote_type(eltype(a), eltype(b))
-        aa=eltype(a)===P ? a :
-           ndims(a)==1 ? FaerVector{P}(Vector(a)) : FaerMatrix{P}(Matrix(a))
-        bb=eltype(b)===P ? b :
-           ndims(b)==1 ? FaerVector{P}(Vector(b)) : FaerMatrix{P}(Matrix(b))
+        aa=_promote_operand(a, P)
+        bb=_promote_operand(b, P)
         p, d=_view_source(aa)
         q, e=_view_source(bb)
         dims=op==2 ? (size(a, 1), size(b, 2)) : size(a)
