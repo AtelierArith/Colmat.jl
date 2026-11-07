@@ -88,7 +88,7 @@ pub(crate) unsafe fn numeric_mut<'a, T>(
     Ok(SparseColMatMut::new(s, val))
 }
 
-fn owned<T: Clone>(a: SparseColMatRef<'_, usize, T>) -> SparseColMat<usize, T> {
+pub(crate) fn owned<T: Clone>(a: SparseColMatRef<'_, usize, T>) -> SparseColMat<usize, T> {
     let s = a.symbolic();
     // SAFETY: copied from a validated symbolic view.
     let symbolic = unsafe {
@@ -101,6 +101,27 @@ fn owned<T: Clone>(a: SparseColMatRef<'_, usize, T>) -> SparseColMat<usize, T> {
         )
     };
     SparseColMat::new(symbolic, a.val().to_vec())
+}
+
+/// An owned copy of `op(A)` for a validated CSC view `A`: `A` itself as CSC,
+/// or `Aᵀ`/`Aᴴ` as CSR over the same index arrays (the CSC arrays of `A` are
+/// the CSR arrays of `Aᵀ`), so no transposition pass is needed.
+pub(crate) fn snapshot<T: ComplexField>(
+    a: SparseColMatRef<'_, usize, T>,
+    trans: i32,
+) -> Result<Storage<T>, String> {
+    let mut a = owned(a);
+    Ok(match trans {
+        PLAIN => Storage::Csc(a),
+        TRANSPOSE => Storage::Csr(a.into_transpose()),
+        ADJOINT => {
+            for v in a.val_mut() {
+                *v = conj(v);
+            }
+            Storage::Csr(a.into_transpose())
+        }
+        _ => return Err("unknown sparse operand orientation".into()),
+    })
 }
 
 /// Stored operand orientation: the CSC matrix itself, its transpose (the same
@@ -282,6 +303,41 @@ impl SparseOwner {
                 1 => SparseData::F64(Storage::Csc(owned(numeric(raw)?))),
                 2 => SparseData::C32(Storage::Csc(owned(numeric(raw)?))),
                 3 => SparseData::C64(Storage::Csc(owned(numeric(raw)?))),
+                _ => return Err("unsupported sparse scalar".into()),
+            });
+            Ok(())
+        })
+    }
+    /// Own `Aᵀ` (or `Aᴴ` when `conjugate`) of a borrowed Julia CSC matrix `A`
+    /// as CSR: the CSC arrays of `A` are the CSR arrays of `Aᵀ`, so the
+    /// pattern is copied once without a transposition pass.
+    #[julia]
+    pub fn sparse_from_borrowed_transpose(
+        &mut self,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        val: *const u8,
+        k: usize,
+        tag: i32,
+        conjugate: bool,
+    ) -> Result<(), String> {
+        let trans = if conjugate { ADJOINT } else { TRANSPOSE };
+        guarded(|| unsafe {
+            let raw = Raw {
+                m,
+                n,
+                ptr,
+                idx,
+                val,
+                k,
+            };
+            self.data = Some(match tag {
+                0 => SparseData::F32(snapshot(numeric(raw)?, trans)?),
+                1 => SparseData::F64(snapshot(numeric(raw)?, trans)?),
+                2 => SparseData::C32(snapshot(numeric(raw)?, trans)?),
+                3 => SparseData::C64(snapshot(numeric(raw)?, trans)?),
                 _ => return Err("unsupported sparse scalar".into()),
             });
             Ok(())

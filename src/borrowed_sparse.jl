@@ -38,9 +38,15 @@ A borrowed Julia `SparseMatrixCSC{T,Ti}` created by `faerview(S)`. Indexing,
 `SparseColMatRef`: products with dense native, view, transposed and borrowed
 Julia operands (`*` and `mul!` into a `FaerMatrix`, both sides), `copy` /
 `FaerSparseMatrix` / `FaerSparsity` (one owned copy), and the sparse `lu`,
-`qr`, `cholesky`, `factorize(plan, B)`, `FaerSparseSymbolic(B)`, `B \\ x` and
-the `lu!`/`qr!`/`cholesky!` refactorizations. Factorizations still keep their
-own owned snapshot, so later writes to `S` do not change them.
+`qr`, `cholesky`, `factorize(plan, B)`, `FaerSparseSymbolic(B)` (analysed in
+place, without a temporary pattern copy), `B \\ x` and the
+`lu!`/`qr!`/`cholesky!` refactorizations. Factorizations still keep their own
+owned snapshot, so later writes to `S` do not change them. Sparse triangular
+solves (`LowerTriangular(B) \\ x`, `ldiv!`) and plan-less sparse `+`/`-`/`*`
+with borrowed or native sparse operands (returning a `FaerSparseMatrix`) read
+`B` in place; `FaerLinearOperator(B)` snapshots it once.
+`FaerSparseMatrix(transpose(B))` owns the CSR form of `Sᵀ` from the same arrays
+(one copy, no transposition pass).
 
 It is also a value destination with a fixed pattern (faer `SparseColMatMut`,
 writing `nonzeros(S)` in place): `add_assign!`/`sub_assign!`/`add_into!`/
@@ -178,6 +184,41 @@ const _BorrowedSparseTranspose=Union{
     LinearAlgebra.Transpose{<:Any,<:FaerBorrowedSparseMatrix},
     LinearAlgebra.Adjoint{<:Any,<:FaerBorrowedSparseMatrix},
 }
+# The CSC arrays of S are the CSR arrays of Sᵀ: own them as CSR with one copy
+# (conjugated values for the adjoint), as `copy(transpose(::FaerSparseMatrix))`
+# turns a CSC owner into CSR.
+function FaerSparseMatrix(w::_BorrowedSparseTranspose; format = :csr)
+    _sparse_format(format)
+    b=parent(w)
+    owned=_with_borrowed_sparse(b) do raw...
+        _sparse_result(
+            eltype(b),
+            reverse(size(b)),
+            :csr,
+            RustCrate.sparse_from_borrowed_transpose,
+            raw...,
+            w isa LinearAlgebra.Adjoint,
+        )
+    end
+    format===:csr && return owned
+    converted=copy(owned; format)
+    close(owned)
+    return converted
+end
+function FaerSparseMatrix{T}(w::_BorrowedSparseTranspose; kwargs...) where {T<:_NativeScalar}
+    eltype(w)===T && return FaerSparseMatrix(w; kwargs...)
+    owned=FaerSparseMatrix(w; kwargs...)
+    converted=FaerSparseMatrix{T}(owned)
+    close(owned)
+    return converted
+end
+Base.copy(w::_BorrowedSparseTranspose) = FaerSparseMatrix(w)
+SparseArrays.SparseMatrixCSC(w::LinearAlgebra.Transpose{<:Any,<:FaerBorrowedSparseMatrix}) =
+    SparseArrays.SparseMatrixCSC(transpose(parent(w).parent))
+SparseArrays.SparseMatrixCSC(w::LinearAlgebra.Adjoint{<:Any,<:FaerBorrowedSparseMatrix}) =
+    SparseArrays.SparseMatrixCSC(adjoint(parent(w).parent))
+SparseArrays.sparse(w::_BorrowedSparseTranspose) = SparseArrays.SparseMatrixCSC(w)
+
 # A borrowed CSC matrix or its transpose/adjoint (read as faer `SparseRowMatRef`).
 const _BorrowedSparseOperand=Union{FaerBorrowedSparseMatrix,_BorrowedSparseTranspose}
 _sparse_orientation(::FaerBorrowedSparseMatrix) = Int32(0)
@@ -239,8 +280,6 @@ function Base.:*(a::_BorrowedSparseOperand, b::StridedVector{<:Number})
     x=_borrowed_dense_operand(b, promote_type(eltype(a), eltype(b)))
     return vec(Matrix(_borrowed_sparse_product(a, x, true)))
 end
-Base.:*(a::FaerBorrowedSparseMatrix, b::FaerSparseMatrix) = FaerSparseMatrix(a)*b
-Base.:*(a::FaerSparseMatrix, b::FaerBorrowedSparseMatrix) = a*FaerSparseMatrix(b)
 
 function _borrowed_sparse_mul!(c::FaerMatrix, a, b, alpha, beta, left::Bool)
     lock(_matrix_lock) do

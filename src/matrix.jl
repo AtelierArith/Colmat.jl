@@ -66,6 +66,8 @@ const _raw_owner_arguments = (
     (RustCrate.sparse_kron, (2, 4)),
     (RustCrate.sparse_analyze, (6,)),
     (RustCrate.sparse_analyze_workspace, (9,)),
+    (RustCrate.sparse_analyze_raw, (10,)),
+    (RustCrate.sparse_analyze_workspace_raw, (11,)),
     (RustCrate.statistics_view_reduce, (1,)),
     (RustCrate.vector_binary_views, (2, 4)),
     (RustCrate.vector_from_view, (2,)),
