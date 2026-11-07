@@ -173,7 +173,9 @@ function FaerSparseSymbolic(
         end
     end
 end
-FaerSparseSymbolic(a::FaerSparseMatrix; kwargs...) =
+# Borrowed Julia CSC inputs: FaerSparseMatrix(B)/FaerSparsity(B) make one owned copy.
+const _SparseFactorInput{T}=Union{FaerSparseMatrix{T},FaerBorrowedSparseMatrix{T}}
+FaerSparseSymbolic(a::_SparseFactorInput; kwargs...) =
     FaerSparseSymbolic(FaerSparsity(a); kwargs...)
 function Base.copy(p::FaerSparseSymbolic{K}) where {K}
     lock(_matrix_lock) do
@@ -223,19 +225,57 @@ function LinearAlgebra.factorize(
         _sparse_factor_inputs(p, a)
         (isnothing(scratch) && isnothing(team)) ||
             _sparse_factor_resource_validate(p, a, scratch, team)
-        snapshot=copy(a)
-        finite = if K===:cholesky
-            rows, cols, values=SparseArrays.findnz(snapshot)
-            all(
-                i ->
-                    (p.uplo===:L ? rows[i]<cols[i] : rows[i]>cols[i]) ||
-                    isfinite(values[i]),
-                eachindex(values),
-            )
-        else
-            all(isfinite, Vector(SparseArrays.nonzeros(snapshot)))
-        end
-        finite || throw(
+        return _factorize_snapshot(p, copy(a); check, scratch, team)
+    end
+end
+# A borrowed Julia matrix is copied once into the owned snapshot the factors keep.
+function LinearAlgebra.factorize(
+    p::FaerSparseSymbolic,
+    a::FaerBorrowedSparseMatrix;
+    check::Bool = true,
+    scratch = nothing,
+    team = nothing,
+)
+    size(p)==size(a) ||
+        throw(DimensionMismatch("symbolic analysis and numeric matrix shapes must match"))
+    lock(_matrix_lock) do
+        _handle(p)
+        snapshot=FaerSparseMatrix(a)
+        _sparse_factor_inputs(p, snapshot)
+        (isnothing(scratch) && isnothing(team)) ||
+            _sparse_factor_resource_validate(p, snapshot, scratch, team)
+        return _factorize_snapshot(p, snapshot, a; check, scratch, team)
+    end
+end
+function _sparse_values_finite(p::FaerSparseSymbolic{K}, a::FaerSparseMatrix) where {K}
+    K===:cholesky || return all(isfinite, Vector(SparseArrays.nonzeros(a)))
+    rows, cols, values=SparseArrays.findnz(a)
+    return all(
+        i -> (p.uplo===:L ? rows[i]<cols[i] : rows[i]>cols[i]) || isfinite(values[i]),
+        eachindex(values),
+    )
+end
+# Reads the borrowed parent in place (no value snapshot); same accessed entries.
+function _sparse_values_finite(p::FaerSparseSymbolic{K}, a::FaerBorrowedSparseMatrix) where {K}
+    s=parent(a)
+    rows, values=SparseArrays.rowvals(s), SparseArrays.nonzeros(s)
+    for j in 1:size(s, 2), q in SparseArrays.nzrange(s, j)
+        K===:cholesky && (p.uplo===:L ? rows[q]<j : rows[q]>j) && continue
+        isfinite(values[q]) || return false
+    end
+    return true
+end
+# `source` is the matrix the snapshot was copied from, checked for finiteness.
+function _factorize_snapshot(
+    p::FaerSparseSymbolic{K},
+    snapshot::FaerSparseMatrix{T},
+    source = snapshot;
+    check,
+    scratch,
+    team,
+) where {K,T}
+    lock(_matrix_lock) do
+        _sparse_values_finite(p, source) || throw(
             ArgumentError(
                 "sparse factorization requires finite values in the accessed entries",
             ),
@@ -263,7 +303,7 @@ function LinearAlgebra.factorize(
         end
         return FaerSparseFactorization{T,K,typeof(h),typeof(plan),typeof(snapshot)}(
             h,
-            size(a),
+            size(snapshot),
             info,
             plan,
             snapshot,
@@ -271,7 +311,7 @@ function LinearAlgebra.factorize(
     end
 end
 LinearAlgebra.lu(
-    a::FaerSparseMatrix;
+    a::_SparseFactorInput;
     check::Bool = true,
     algorithm = :auto,
     ordering = :default,
@@ -295,10 +335,10 @@ LinearAlgebra.lu(
     scratch,
     team,
 )
-LinearAlgebra.lu(a::FaerSparseMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
+LinearAlgebra.lu(a::_SparseFactorInput, ::LinearAlgebra.RowMaximum; kwargs...) =
     LinearAlgebra.lu(a; kwargs...)
 LinearAlgebra.qr(
-    a::FaerSparseMatrix;
+    a::_SparseFactorInput;
     algorithm = :auto,
     ordering = :default,
     dense_row::Real = 0.5,
@@ -321,8 +361,8 @@ LinearAlgebra.qr(
     team,
 )
 const _SparseSelfAdjoint=Union{
-    LinearAlgebra.Hermitian{<:Any,<:FaerSparseMatrix},
-    LinearAlgebra.Symmetric{<:Real,<:FaerSparseMatrix},
+    LinearAlgebra.Hermitian{<:Any,<:_SparseFactorInput},
+    LinearAlgebra.Symmetric{<:Real,<:_SparseFactorInput},
 }
 function LinearAlgebra.cholesky(
     a::_SparseSelfAdjoint;
@@ -352,7 +392,7 @@ function LinearAlgebra.cholesky(
         team,
     )
 end
-function LinearAlgebra.cholesky(a::FaerSparseMatrix; check::Bool = true, kwargs...)
+function LinearAlgebra.cholesky(a::_SparseFactorInput; check::Bool = true, kwargs...)
     LinearAlgebra.ishermitian(a) || throw(
         ArgumentError(
             "Cholesky requires Hermitian input; use Hermitian(A,:L) or Hermitian(A,:U) to select a stored triangle",
@@ -360,9 +400,9 @@ function LinearAlgebra.cholesky(a::FaerSparseMatrix; check::Bool = true, kwargs.
     )
     return LinearAlgebra.cholesky(LinearAlgebra.Hermitian(a, :L); check, kwargs...)
 end
-LinearAlgebra.factorize(a::FaerSparseMatrix) =
+LinearAlgebra.factorize(a::_SparseFactorInput) =
     size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a) : LinearAlgebra.qr(a)
-Base.:\(a::FaerSparseMatrix, b::Union{AbstractVector{<:Number},AbstractMatrix{<:Number}}) =
+Base.:\(a::_SparseFactorInput, b::Union{AbstractVector{<:Number},AbstractMatrix{<:Number}}) =
     LinearAlgebra.factorize(a)\b
 function Base.copy(f::FaerSparseFactorization{T,K}) where {T,K}
     lock(_matrix_lock) do
@@ -511,7 +551,7 @@ Base.:\(
 ) where {T<:Union{Float32,Float64}} = vec(Matrix(_sparse_solve(f, reshape(b, :, 1))))
 function _refactor_sparse!(
     f::FaerSparseFactorization{T},
-    a::FaerSparseMatrix{T};
+    a::_SparseFactorInput{T};
     check = true,
     scratch = nothing,
     team = nothing,
@@ -533,7 +573,7 @@ function _refactor_sparse!(
 end
 LinearAlgebra.lu!(
     f::FaerSparseFactorization{T,:lu},
-    a::FaerSparseMatrix{T};
+    a::_SparseFactorInput{T};
     check::Bool = true,
     scratch = nothing,
     team = nothing,
@@ -549,13 +589,13 @@ separate; the update stages a new factor before replacing F's numeric revision.
 """
 LinearAlgebra.qr!(
     f::FaerSparseFactorization{T,:qr},
-    a::FaerSparseMatrix{T};
+    a::_SparseFactorInput{T};
     scratch = nothing,
     team = nothing,
 ) where {T} = _refactor_sparse!(f, a; scratch, team)
 LinearAlgebra.cholesky!(
     f::FaerSparseFactorization{T,:cholesky},
-    a::FaerSparseMatrix{T};
+    a::_SparseFactorInput{T};
     check::Bool = true,
     scratch = nothing,
     team = nothing,
