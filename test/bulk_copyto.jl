@@ -82,3 +82,21 @@ _bulk_copyto_bytes(dest, src) = @allocated copyto!(dest, src)
         Test.detect_ambiguities(Colmat, Base, LinearAlgebra, SparseArrays; recursive = true),
     )
 end
+
+# Test workers are reused across files, so the bound above only sees a cold
+# process when this file runs first. A fresh process checks it every time: the
+# second call re-resolves its RustCall target (the first call's own symbol
+# memoization invalidates it) and must not JIT-compile the memo's hit path (#186).
+@testset "Second bulk copyto! in a fresh process stays compile-free" begin
+    script = """
+    using Colmat
+    f(d, s) = @allocated copyto!(d, s)
+    d = FaerMatrix{Float32}(undef, 100, 100)
+    s = rand(Float32, 100, 100)
+    f(d, s)
+    print(f(d, s))
+    """
+    cmd = `$(Base.julia_cmd()) --startup-file=no --project=$(Base.active_project()) -e $script`
+    second = parse(Int, readchomp(cmd))
+    @test second < 4 * 100 * 100 * sizeof(Float32)
+end
