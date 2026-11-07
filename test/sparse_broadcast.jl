@@ -75,6 +75,7 @@ end
             (ref2 .- a, ref2 .- ref),
             (a .* FaerMatrix(dense), ref .* dense),
             (map(+, a, b), map(+, ref, ref2)),
+            (a .* SparseVector(ref2[:, 1]), ref .* SparseVector(ref2[:, 1])),
         )
         for (got, want) in cases
             @test got isa FaerSparseMatrix
@@ -89,6 +90,16 @@ end
         @test eltype(wide)==eltype(ref .* big(2))
         @test wide==ref .* big(2)
         @test_throws DimensionMismatch map(+, a, FaerSparseMatrix(sprand(rng, T, 4, 4, 0.5)))
+        sq=FaerSparseMatrix(ref[1:4, 1:4]; format = fmt)
+        csq=sparse(ref2[1:4, 1:4])
+        @test _same_sparse(transpose(csq) .+ sq, transpose(csq) .+ ref[1:4, 1:4], fmt)
+        @test _same_sparse(sq .* Diagonal(T.(1:4)), ref[1:4, 1:4] .* Diagonal(T.(1:4)), fmt)
+        dest=copy(ref2)
+        dest .= a .* 2
+        @test dest isa SparseMatrixCSC && dest==ref .* 2
+        F=FaerMatrix(zeros(T, 5, 4))
+        F .= a .* 2
+        @test Matrix(F)==Matrix(ref .* 2)
     end
 end
 

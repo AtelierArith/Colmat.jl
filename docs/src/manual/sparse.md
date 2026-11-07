@@ -187,8 +187,9 @@ S = FaerSparseMatrix(sparse([1.0 0 -2; 0 0 3]); format=:csr)
 A = abs.(S)                       # 値だけを変換。構造は S のコピー
 B = 2 .* S .^ 2                   # 融合した式も同じ経路
 C = map(x -> x / 4, S)
+v = nonzeros(S)
 S .*= 0.5                         # 構造が変わらなければ値を一括で書き戻す
-@assert isopen(nonzeros(S))       # 既存の値ビューも有効なまま
+@assert isopen(v)                 # 既存の値ビューも有効なまま
 D = S .+ 1                        # f(0) ≠ 0。SparseArrays と同じく全要素を格納
 mask = S .> 0                     # Bool は native 型ではないため SparseMatrixCSC
 ```
