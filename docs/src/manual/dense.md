@@ -456,6 +456,29 @@ K = bunchkaufman!(Hermitian(H, :U), true; scratch = FaerScratch(bunchkaufman!, H
 K \ [1.0, 2.0, 3.0]
 ```
 
+`qr!(A, ColumnNorm(); scratch, team)` runs faer's column-pivoted
+`qr::col_pivoting::factor::qr_in_place` on A and returns a
+`FaerInPlaceFactorization{T,:pivoted_qr}`. A holds the packed QR of `A*P`, and
+the column permutation (`F.p`, and `F.P` with `A*P == Q*R`) and the block
+coefficients live in Julia-owned buffers of F. The packed factor, `F.p` and
+`F.Qcoeff` are bit-identical to those of `qr(A, ColumnNorm())`. Besides the
+solves, right solves, `inv`/`inv!` and parts above, `rank(F; atol, rtol)`,
+`ldiv!(F, B, rcond)` and `ldiv!(X, F, B; atol, rtol)` use the retained factor's
+rank rule and rank-truncated minimum-norm kernel (see the column-pivoted QR
+section), and `pinv(F; atol, rtol)` is available. The plain `F \ b` and
+`ldiv!(F, B)` run faer's least-squares solve without a rank test, so use a
+tolerance form for rank-deficient factors.
+
+```julia
+X = [1.0 2 3; 2 4 6; 1 2 1; 0 0 1]                  # rank two
+P = FaerMatrix(X)
+F = qr!(P, ColumnNorm(); scratch = FaerScratch(qr!, P, ColumnNorm()))
+@assert rank(F) == 2 && F.factors === P
+x = zeros(3)
+ldiv!(x, F, [1.0, 2, 3, 4]; rtol = 1e-10)           # minimum-norm solution
+@assert x ≈ pinv(X) * [1.0, 2, 3, 4]
+```
+
 `ldiv!(F, B; scratch, team)` solves in place on a `FaerMatrix` B of the same
 scalar type, including through `transpose(F)` and `adjoint(F)`. Tall QR writes
 the least-squares solution into `B[1:n, :]`. `\`, the factor properties,
@@ -478,8 +501,12 @@ triangular solves). On aarch64 with `Par::Seq`:
 | LDLᴴ/Bunch–Kaufman solve 140×140, 3 RHS | 8 | — |
 
 A lone faer 70×35×70 product allocates twice and a lone 140×140 unit-triangular
-solve four times (t4a-faer `upstream-reports/gemm-001`). Allocations under a team
-were not measured.
+solve four times (t4a-faer `upstream-reports/gemm-001`). With a `FaerTeam` of
+width 2, the direct LU, full-pivot LU, QR, column-pivoted QR and Cholesky
+factorizations and their solves made no allocation on the calling thread at
+n = 6 and n = 200 (aarch64). The test allocation probe counts the calling
+thread only, so allocations on the team's workers are not visible in these
+figures.
 
 Square factors also solve from the right in B's own storage:
 `rdiv!(B, F; scratch, team)` (and `transpose(F)`, `adjoint(F)`) runs faer's
@@ -518,7 +545,7 @@ The direct factor does not support operator or preconditioner use,
 mixed-scalar promotion of factors, rectangular LU or wide-QR solves (`pinv(F;
 atol, rtol, team)` of a direct QR is supported, see below). Those need the
 default result without `scratch=`. Pivoted Cholesky
-and column-pivoted QR have no direct path yet. `cholesky!(A, RowMaximum();
+has no direct path yet. `cholesky!(A, RowMaximum();
 scratch)` keeps its existing meaning (caller scratch for the independent
 `CholeskyPivoted` factor), and faer's in-place pivoted kernel covers only the
 negative-tolerance path.
@@ -708,6 +735,39 @@ end
   保持因子・型付き・借用入力・team・staged/直接の `!` と scratch 照会がすべて従います。LBLᴴ の直接経路の
   作業領域は `lblt_block_size` で変わるため、照会もスコープ内で行います。faer の `LbltInfo.transposition_count`
   は公開しません（置換そのものは `F.p` で得られ、対称置換は行列式に影響しないため `det` は `B` のブロックだけから求めます）。
+
+## LU・QR 分解のパラメータ
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1 2; 1 3 0; 2 0 5])
+F = with_lu_tuning(; partial_recursion_threshold = 2,
+                   full_par_threshold = FaerParThreshold(:never)) do
+    lu(A), full_piv_lu(A)
+end
+Q = with_qr_tuning(; blocking_threshold = 0,
+                   pivoted_par_threshold = FaerParThreshold(:never)) do
+    qr(A), qr!(copy(A), ColumnNorm(); scratch = FaerScratch(qr!, A, ColumnNorm()))
+end
+```
+
+- `with_lu_tuning(f; partial_recursion_threshold, partial_par_threshold, full_par_threshold)` は
+  faer の `PartialPivLuParams.{recursion_threshold, par_threshold}` と `FullPivLuParams.par_threshold`、
+  `with_qr_tuning(f; blocking_threshold, pivoted_par_threshold)` は `QrParams.blocking_threshold` と
+  `ColPivQrParams.par_threshold` をスコープ内のすべての `lu`/`full_piv_lu`/`qr`/`qr(A, ColumnNorm())`
+  構築に適用します（保存因子・型付き・借用入力・`team=`・staged/直接の `!`、`inv!(A)`、
+  混合スカラー求解の昇格再分解、scratch 照会・`FaerScratch`・`reserve!`）。`nothing` は faer 既定で、
+  2 つのスコープは同じ native 状態の別の欄を持つため、どちらの順にも入れ子にできます。
+  これらは再帰・ブロック化・並列化だけを変え、分解は丸め誤差の範囲で同じです。
+- faer の `PartialPivLu::new` などは既定パラメータしか渡さず、既存の因子から組み立てることもできないため、
+  Colmat は保存 LU/QR 因子を自前の型で持ち、低水準の `*_in_place` kernel を呼びます。既定値のままなら
+  faer の型と bit 一致します（Rust の単体テストで確認）。
+- `PartialPivLuParams`/`FullPivLuParams` の rank 打切り（`max_rank`・`abs_tol`・`rel_tol`）は分解を途中で止め、
+  faer の求解・逆行列・再構成はそのような因子を受け付けないため公開しません（列ピボット QR の rank は
+  `rank(F; atol, rtol)` と許容誤差付き `ldiv!` で扱います）。`PartialPivLuParams.block_size` と
+  `ColPivQrParams.blocking_threshold` は pin した faer の kernel が読まないため公開しません。
+  `with_svd_tuning` の `qr_blocking` は SVD 内部の QR 用で、このスコープとは独立です。
+  保存因子のない `A \ B`・`det(A)`・QZ/Schur・疎分解の内部 LU/QR は faer 既定のままです。
 
 ## SVD workspace, teams and destructive entry points
 
