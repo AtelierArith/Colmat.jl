@@ -390,7 +390,7 @@ allocating. Direct native in-place updates and the full 76-row scope remain open
 
 ## 並列 team 接続の棚卸し
 
-`team=`（または位置引数の `FaerTeam`）を受ける公開操作は caller-owned team を native 呼び出しの間だけ `Par::Team` として faer に貸与し、それ以外は `Par::Seq` で実行する。小さな問題で分割を避ける判定は faer の各 kernel（行列積は `gemm_team` の `pays` コストモデル）が行い、Colmat 側に閾値はない（公開閾値は bidiagonal/tridiagonal reduction の `FaerParThreshold` のみ）。1000×1000 Float64 の `mul!(C,A,B; team)` は aarch64 macOS で幅1 42.4 ms、幅2 21.4 ms、幅4 15.1 ms（他プロセス負荷下、7 回の最小値）。
+`team=`（または位置引数の `FaerTeam`）を受ける公開操作は caller-owned team を native 呼び出しの間だけ `Par::Team` として faer に貸与し、それ以外は `Par::Seq` で実行する。小さな問題で分割を避ける判定は faer の各 kernel（行列積は `gemm_team` の `pays` コストモデル）が行い、Colmat 側に閾値はない（公開閾値は bidiagonal/tridiagonal reduction の `FaerParThreshold` のみ）。その判定が見積り作業量と比べる team section の dispatch cost は `FaerTeam(width; dispatch_cost)` で上書きでき（既定は threadteam の計測済みホスト値、`team_diagnostics` で照会）、待機は `spin_polls`・`qos`・`pin`・`acquire_timeout` で調整する。1000×1000 Float64 の `mul!(C,A,B; team)` は aarch64 macOS で幅1 42.4 ms、幅2 21.4 ms、幅4 15.1 ms（他プロセス負荷下、7 回の最小値）。
 
 | 区分 | 公開操作 | 状況 |
 | --- | --- | --- |
