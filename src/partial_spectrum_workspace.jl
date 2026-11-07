@@ -94,8 +94,9 @@ end
 """
     scratch_requirements(partial_eigen|partial_self_adjoint_eigen|partial_svd, op, k; min_dim=0, max_dim=0, max_restarts=1000, team=nothing)
 
-Query the native partial kernel or explicit dense fallback, including operator
-materialization and independently recomputed residual applications. Queries do
+Query faer's native partial kernel, including its full-subspace operator
+materialization and dense EVD/SVD branch, and independently recomputed residual
+applications. Queries do
 not apply operators. Result staging, source promotion and Julia callback buffers
 allocate separately. Use identical projection options and team for execution.
 """

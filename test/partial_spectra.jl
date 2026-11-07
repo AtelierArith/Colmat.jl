@@ -82,3 +82,31 @@ end
     op=FaerLinearOperator(I, 96)
     @test_throws ArgumentError partial_eigen(op, 2; min_dim = 90, max_dim = 64)
 end
+@testset "Native full-subspace branch failure and triangle convention" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64)
+        R=typeof(real(zero(T)))
+        # Finite inputs whose composition overflows materialize a non-finite operator;
+        # faer's full-subspace branch reports that as zero converged pairs.
+        big=FaerLinearOperator(fill(T(floatmax(R)), 4, 4))
+        bad=big*big
+        close(big)
+        for f in (partial_self_adjoint_eigen, partial_svd)
+            F=f(bad, 2)
+            @test F.algorithm==:dense_fallback
+            @test F.requested==2
+            @test F.nconverged==0
+            @test isempty(F.residuals)
+            @test isempty(f===partial_svd ? F.S : F.values)
+        end
+        close(bad)
+        # The full-subspace self-adjoint branch reads the lower triangle of the operator.
+        H=T[4 1 0 0; 1 3 1 0; 0 1 -2 1; 0 0 1 1]
+        T<:Complex && (H[2, 1]+=T(0.5im); H[1, 2]=conj(H[2, 1]))
+        lower=FaerLinearOperator(tril(H))
+        F=partial_self_adjoint_eigen(lower, 4)
+        @test F.algorithm==:dense_fallback
+        @test F.nconverged==4
+        @test F.values≈sort(eigvals(Hermitian(H, :L)); by = abs, rev = true) rtol=100eps(R)
+        close(lower)
+    end
+end
