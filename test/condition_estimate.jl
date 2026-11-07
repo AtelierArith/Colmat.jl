@@ -115,10 +115,10 @@ end
         uplo in (:U, :L),
         n in (1, 3, 9)
 
-        T<:Complex && S===Symmetric && continue
         R=real(T)
         a=_tri_sample(T, n)
-        a=a+a'
+        # Complex Symmetric is not Hermitian: |λ| are not its singular values.
+        a=T<:Complex && S===Symmetric ? a+transpose(a) : a+a'
         a[1, 1]=-a[1, 1]
         source=FaerMatrix(a)
         h=S(source, uplo)
@@ -126,7 +126,9 @@ end
         @test cond(h) isa R
         @test cond(h)≈cond(dense) rtol=sqrt(eps(R))
         @test cond(h, 2)≈cond(dense, 2) rtol=sqrt(eps(R))
+        # Complex Symmetric `inv` has no native LDLᵀ (generic path throws).
         for p in (1, Inf)
+            T<:Complex && S===Symmetric && continue
             @test cond(h, p)≈cond(dense, p) rtol=sqrt(eps(R))
         end
         close(source)

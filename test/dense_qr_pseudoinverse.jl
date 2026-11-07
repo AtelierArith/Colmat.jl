@@ -225,6 +225,9 @@ end
             (3, 7, true),
             (4, 4, false),
             (4, 4, true),
+            (300, 4, false),
+            (300, 4, true),
+            (4, 120, true),
         )
 
         a=dqp_fixture(T, m, n, deficient)

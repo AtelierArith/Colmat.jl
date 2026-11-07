@@ -62,20 +62,26 @@ function LinearAlgebra.pinv(
     lock(_matrix_lock) do
         # An explicit rtol selects the rank-truncated action for square QR too.
         op=FaerLinearOperator(f; atol, rtol, scratch, team)
+        m, n=size(f)
+        T=eltype(f)
+        # Apply to the smaller identity: a tall factor forms (A⁺)ᴴ = op'·Iₙ.
+        tall=m>n
+        k=tall ? n : m
+        g=tall ? adjoint(op) : op
+        identity=out=nothing
         try
-            m, n=size(f)
-            T=eltype(f)
-            identity=FaerMatrix{T}(Matrix{T}(LinearAlgebra.I, m, m))
-            out=zeros(FaerMatrix{T}, n, m)
-            try
-                return LinearAlgebra.mul!(out, op, identity; team)
-            catch
-                close(out)
-                rethrow()
-            finally
-                close(identity)
-            end
+            identity=FaerMatrix{T}(Matrix{T}(LinearAlgebra.I, k, k))
+            out=zeros(FaerMatrix{T}, size(g, 1), k)
+            LinearAlgebra.mul!(out, g, identity; team)
+            tall || return out
+            return copy(adjoint(out))
+        catch
+            tall || isnothing(out) || close(out)
+            rethrow()
         finally
+            tall && !isnothing(out) && close(out)
+            isnothing(identity) || close(identity)
+            g===op || close(g)
             close(op)
         end
     end
