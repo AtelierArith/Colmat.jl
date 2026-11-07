@@ -31,6 +31,10 @@ _sample(::Type{T}, n, seed; density = 0.3) where {T} =
             c=FaerSparseMatrix(w; format = :csc)
             @test c.format===:csc && Matrix(c)==Matrix(want)
             @test FaerSparseMatrix(faerview(w isa Transpose ? transpose(S) : S')).format===:csr
+            # Used to recurse forever through SparseArrays' generic conversion.
+            @test sparse(w)==sparse(want)
+            @test SparseMatrixCSC(w)==SparseMatrixCSC(want)
+            @test Matrix(FaerSparseMatrix{ComplexF64}(w))==ComplexF64.(Matrix(want))
         end
     end
     small=faerview(_sample(Float64, 400, 2; density = 0.005))
@@ -61,6 +65,9 @@ end
         bad=copy(S)
         bad.nzval[1]=T(NaN)
         @test_throws ArgumentError FaerLinearOperator(faerview(bad))
+        P=S*S'+5I
+        y=cg(faerview(P), x; maxiter = 50)
+        @test P*Vector(y.x)≈x
     end
 end
 
@@ -85,6 +92,15 @@ end
                 @test r isa FaerSparseMatrix{T}
                 @test Matrix(r)≈ref
             end
+        end
+        # Owners produced by permutation and kron are read in place too.
+        p=FaerPermutation([3, 1, 6, 2, 5, 4])
+        for o in (FaerSparseMatrix(B)[p, p], kron(FaerSparseMatrix(sparse(T[1 0; 2 3])), FaerSparseMatrix(sparse(Matrix{T}(I, 3, 3)))))
+            O=Matrix(o)
+            @test Matrix(a*o)≈Matrix(A)*O
+            @test Matrix(o*a)≈O*Matrix(A)
+            @test Matrix(a+o)≈Matrix(A)+O
+            @test Matrix(transpose(a)-o)≈transpose(Matrix(A))-O
         end
         @test_throws DimensionMismatch faerview(sparse(ones(T, 2, 3)))*a
         @test_throws DimensionMismatch faerview(sparse(ones(T, 2, 3)))+a

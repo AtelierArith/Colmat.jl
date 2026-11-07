@@ -91,8 +91,9 @@ plan を使わない疎×疎 `*`・疎加減算、`FaerLinearOperator(B)` です
   `FaerSparseMatrix` で、形式は左被演算子 `op(A)` の向きに従います（`faerview(S)` は CSC、
   その転置・随伴は CSR）。向きの異なる右被演算子は 1 回変換し、加減算で共役が必要な
   被演算子は共役コピーを作ります。
-- `FaerLinearOperator(B)`（`transpose(B)`・`B'`・`Hermitian(B)` も）は構築時に 1 回だけ
-  snapshot を取ります。native の apply・合成・反復法は Rust の中で 1 回の呼び出しを越えて
+- `FaerLinearOperator(B)`（`transpose(B)`・`B'` も。`Hermitian(B)` は Julia CSC と同じく
+  Julia 側で三角部分を展開してから）は構築時に 1 回だけ snapshot を取ります。`cg`・
+  `bicgstab`・`lsmr` に `B` を渡した場合も同じ snapshot を使います。native の apply・合成・反復法は Rust の中で 1 回の呼び出しを越えて
   operator を使うため、呼び出し中しか有効でない借用ポインタを保持できません。以後の `S` への
   書き込みは operator に反映されません。
 - `FaerSparseMatrix(transpose(B))`・`copy(B')` は借用 CSR から所有 CSR を直接作ります
@@ -131,8 +132,9 @@ lu!(F, B)                          # 現在の値で再分解
 - `rmul!(B, α)`・`lmul!(α, B)`・`fill!(B, x)`・`B .*= α` などの broadcast は
   親 `S` に転送します（Julia の `SparseMatrixCSC` と同じ意味論）。
 
-`u32` index での faer 呼び出しは意図的に対応しません。Julia の `Ti` は符号付きかつ
-1-based なので、幅に関係なく呼び出しごとの 0-based バッファが必要です。所有疎行列・
+`u32` index での faer 呼び出しは意図的に対応しません。Julia の index は 1-based なので、
+`Ti` の幅や符号（`Int32`・`UInt32` なども受け付けます）に関係なく呼び出しごとの
+0-based バッファが必要です。所有疎行列・
 pattern・すべての疎 kernel は `usize` に単相化しており、`u32` を加えると疎の全入口の
 単相化が倍になる一方、利点は index バッファの縮小だけです。非圧縮形式（faer の
 `col_nnz`）も未接続です。Julia の `SparseMatrixCSC` は常に圧縮形式なので、非圧縮形式は

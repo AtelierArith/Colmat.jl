@@ -6,8 +6,9 @@
 
 `FaerLinearOperator` owns a snapshot of a dense, CSC/CSR sparse, diagonal, or
 identity operator. Sparse coefficients stay sparse during multiplication and CG.
-A borrowed `faerview(S)` (and its `transpose`/`adjoint`/`Hermitian` wrappers)
-is snapshotted once at construction, directly from its arrays: native applies,
+A borrowed `faerview(S)` (and its `transpose`/`adjoint`) is snapshotted once at
+construction, directly from its arrays (`Hermitian`/`Symmetric` wrappers first
+expand the stored triangle in Julia, as for a Julia CSC matrix): native applies,
 compositions and iterative solvers use the operator inside Rust beyond one call,
 so they never read `S` and later writes to `S` do not change the operator.
 A preconditioner applies an approximate inverse:
