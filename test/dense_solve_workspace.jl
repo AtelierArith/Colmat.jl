@@ -54,6 +54,34 @@ function dsw_check(f, a, T, S, team; check_default = false)
             callargs=right ? (aliased, g) : (g, aliased)
             @test fun(callargs...; scratch = work, team)===aliased
             @test aliased≈gold atol=tol*max(norm(gold), 1) rtol=tol
+            # A native B of the factor's scalar is solved in its own storage
+            # (deficient QR and SVD fall back to the out-of-place path).
+            inplace=FaerMatrix(P.(b))
+            callargs=right ? (inplace, g) : (g, inplace)
+            @test fun(callargs...; scratch = work, team)===inplace
+            @test Matrix(inplace)≈gold atol=tol*max(norm(gold), 1) rtol=tol
+            @test fun(callargs...; team)===inplace
+            close(inplace)
+            # Native views, vectors and faerview borrows are solved in place too.
+            r, c=size(b)
+            big=FaerMatrix(zeros(P, r+1, c+2))
+            copyto!(view(big, 2:(r+1), 3:(c+2)), P.(b))
+            vw=view(big, 2:(r+1), 3:(c+2))
+            callargs=right ? (vw, g) : (g, vw)
+            @test fun(callargs...; scratch = work, team)===vw
+            @test Matrix(vw)≈gold atol=tol*max(norm(gold), 1) rtol=tol
+            @test iszero(Matrix(big)[1, :])
+            close(big)
+            jb=P.(b)
+            callargs=right ? (faerview(jb), g) : (g, faerview(jb))
+            @test fun(callargs...; scratch = work, team) isa Colmat.FaerBorrowedArray
+            @test jb≈gold atol=tol*max(norm(gold), 1) rtol=tol
+            if !right
+                v=FaerVector(P.(b[:, 1]))
+                @test ldiv!(g, v; scratch = work, team)===v
+                @test Vector(v)≈gold[:, 1] atol=tol*max(norm(gold), 1) rtol=tol
+                close(v)
+            end
         end
         native=FaerMatrix(zeros(P, size(gold)))
         rhs=FaerMatrix(b)

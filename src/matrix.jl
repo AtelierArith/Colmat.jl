@@ -47,6 +47,7 @@ const _raw_owner_arguments = (
     (RustCrate.dense_triangular_raw, (1,)),
     (RustCrate.dense_triangular_requirements, (1,)),
     (RustCrate.dense_triangular_zero_diagonal, (1,)),
+    (RustCrate.factor_solve_into, (2,)),
     (RustCrate.diagonal_scale_into, (3, 5)),
     (RustCrate.diagonal_scaled, (2, 4)),
     (RustCrate.diagonal_scaled_vector, (2, 4)),

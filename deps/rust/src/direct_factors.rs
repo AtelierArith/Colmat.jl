@@ -37,11 +37,30 @@ const LDLT: i32 = 5;
 const LBLT: i32 = 6;
 const LBLT_ROOK: i32 = 8;
 
-/// Operation codes shared with Julia.
+/// Operation codes shared with Julia. Right solves `X op(A) = B` run on the
+/// transposed view of B, which the in-place kernels accept as any stride:
+/// `X A = B` is `Aᵀ Xᵀ = Bᵀ`, `X Aᵀ = B` is `A Xᵀ = Bᵀ` and `X Aᴴ = B` is
+/// `conj(A) Xᵀ = Bᵀ`.
 const FACTOR: i32 = 0;
 const SOLVE: i32 = 1;
 const TRANSPOSE: i32 = 2;
 const ADJOINT: i32 = 3;
+const RIGHT_SOLVE: i32 = 4;
+const RIGHT_TRANSPOSE: i32 = 5;
+const RIGHT_ADJOINT: i32 = 6;
+/// Overwrite the packed factor with the inverse of the factored matrix.
+const INVERSE: i32 = 7;
+
+/// `(transposed, conjugated)` of the left solve an operation code runs.
+fn solve_form(op: i32) -> Option<(bool, bool)> {
+    Some(match op {
+        SOLVE | RIGHT_TRANSPOSE => (false, false),
+        TRANSPOSE | RIGHT_SOLVE => (true, false),
+        ADJOINT => (true, true),
+        RIGHT_ADJOINT => (false, true),
+        _ => return None,
+    })
+}
 
 fn self_adjoint(kind: i32) -> bool {
     matches!(kind, LLT | LDLT | LBLT | LBLT_ROOK)
@@ -67,6 +86,16 @@ fn requirement<T: ComplexField>(
     par: ParShape,
 ) -> Result<StackReq, String> {
     let bs = block_size::<T>(kind, m, n);
+    if op == INVERSE {
+        return inverse_requirement::<T>(kind, m, n, bs, par);
+    }
+    // A right solve needs the scratch of the left solve it runs; conjugation
+    // does not change faer's workspace.
+    let op = match solve_form(op) {
+        Some((true, _)) if op != ADJOINT => TRANSPOSE,
+        Some((false, _)) => SOLVE,
+        _ => op,
+    };
     let solve = SOLVE..=ADJOINT;
     Ok(match (kind, op) {
         (LU, FACTOR) => plu::factor::lu_in_place_scratch::<usize, T>(m, n, par, Default::default()),
@@ -102,6 +131,35 @@ fn requirement<T: ComplexField>(
         }
         _ => return Err("unknown direct factorization kind or operation".into()),
     })
+}
+
+/// The packed factor's copy (plus Bunch–Kaufman's subdiagonal) followed by
+/// faer's inverse workspace, which writes into the matrix itself.
+fn inverse_requirement<T: ComplexField>(
+    kind: i32,
+    m: usize,
+    n: usize,
+    bs: usize,
+    par: ParShape,
+) -> Result<StackReq, String> {
+    if m != n {
+        return Err("an inverse requires a square factor".into());
+    }
+    let inverse = match kind {
+        LU => plu::inverse::inverse_scratch::<usize, T>(n, par),
+        FULL_LU => flu::inverse::inverse_scratch::<usize, T>(n, par),
+        QR => nqr::inverse::inverse_scratch::<T>(n, bs, par),
+        LLT => llt::inverse::inverse_scratch::<T>(n, par),
+        LDLT => ldlt::inverse::inverse_scratch::<T>(n, par),
+        LBLT | LBLT_ROOK => lblt::inverse::inverse_scratch::<usize, T>(n, par),
+        _ => return Err("unknown direct factorization kind or operation".into()),
+    };
+    let sub = if is_lblt(kind) { n } else { 0 };
+    Ok(StackReq::all_of(&[
+        faer::linalg::temp_mat_scratch::<T>(n, n),
+        faer::linalg::temp_mat_scratch::<T>(sub, 1),
+        inverse,
+    ]))
 }
 
 fn requirement_tag(
@@ -458,9 +516,12 @@ fn solve<T: ComplexField>(
 ) -> Result<(), String> {
     let (m, n) = a.shape();
     check_aux::<T>(kind, m, n, perm.len(), perm_inv.len(), coeff, coeff_rows)?;
-    if !(SOLVE..=ADJOINT).contains(&op) {
-        return Err("unknown direct solve operation".into());
-    }
+    let (transposed, conjugated) = solve_form(op).ok_or("unknown direct solve operation")?;
+    let rhs = if op >= RIGHT_SOLVE {
+        rhs.transpose_mut()
+    } else {
+        rhs
+    };
     let square = m == n;
     let rows_ok = match (kind, op) {
         (QR, SOLVE) => m >= n && rhs.nrows() == m,
@@ -474,9 +535,14 @@ fn solve<T: ComplexField>(
     let k = rhs.ncols();
     let req = requirement::<T>(kind, op, m, n, k, par.shape())?;
     let stack = scratch.stack(req)?;
-    let conj_op = if op == ADJOINT { Conj::Yes } else { Conj::No };
-    // A self-adjoint A has Aᵀ = conj(A): solve with the conjugated factor.
-    let conj_sa = if op == TRANSPOSE { Conj::Yes } else { Conj::No };
+    let conj_op = if conjugated { Conj::Yes } else { Conj::No };
+    // A self-adjoint A has Aᵀ = conj(A) and Aᴴ = A: solve with the factor,
+    // conjugated when exactly one of the two applies.
+    let conj_sa = if transposed != conjugated {
+        Conj::Yes
+    } else {
+        Conj::No
+    };
     // Upper storage holds Lᴴ, so `a.transpose()` is conj(L).
     let (l, conj_l) = if lower {
         (a, conj_sa)
@@ -486,8 +552,8 @@ fn solve<T: ComplexField>(
     match kind {
         LU => {
             let p = PermRef::new_checked(perm, perm_inv, n);
-            if op == SOLVE {
-                plu::solve::solve_in_place_with_conj(a, a, p, Conj::No, rhs, par, stack);
+            if !transposed {
+                plu::solve::solve_in_place_with_conj(a, a, p, conj_op, rhs, par, stack);
             } else {
                 plu::solve::solve_transpose_in_place_with_conj(a, a, p, conj_op, rhs, par, stack);
             }
@@ -495,8 +561,8 @@ fn solve<T: ComplexField>(
         FULL_LU => {
             let row = PermRef::new_checked(&perm[..n], &perm_inv[..n], n);
             let col = PermRef::new_checked(&perm[n..], &perm_inv[n..], n);
-            if op == SOLVE {
-                flu::solve::solve_in_place_with_conj(a, a, row, col, Conj::No, rhs, par, stack);
+            if !transposed {
+                flu::solve::solve_in_place_with_conj(a, a, row, col, conj_op, rhs, par, stack);
             } else {
                 flu::solve::solve_transpose_in_place_with_conj(
                     a, a, row, col, conj_op, rhs, par, stack,
@@ -506,8 +572,8 @@ fn solve<T: ComplexField>(
         QR => {
             // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
             let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, m.min(n)) };
-            if op == SOLVE {
-                nqr::solve::solve_lstsq_in_place_with_conj(a, c, a, Conj::No, rhs, par, stack);
+            if !transposed {
+                nqr::solve::solve_lstsq_in_place_with_conj(a, c, a, conj_op, rhs, par, stack);
             } else {
                 nqr::solve::solve_transpose_in_place_with_conj(a, c, a, conj_op, rhs, par, stack);
             }
@@ -533,6 +599,96 @@ fn solve<T: ComplexField>(
         }
     }
     Ok(())
+}
+
+/// Overwrite the packed factor in `a` with the inverse of the factored matrix
+/// (both triangles for the self-adjoint kinds, as Julia's `inv!(::Cholesky)`).
+/// faer's inverses read the factor while writing their output, so the factor
+/// is first copied into the caller scratch; nothing else is allocated here.
+/// Julia checks the factorization `info` before the call; a QR factor with a
+/// zero R diagonal returns its 1-based index before any write (0 otherwise).
+#[allow(clippy::too_many_arguments)]
+fn invert<T: ComplexField>(
+    mut a: MatMut<'_, T>,
+    kind: i32,
+    lower: bool,
+    perm: &[usize],
+    perm_inv: &[usize],
+    coeff: *const u8,
+    coeff_rows: usize,
+    scratch: &mut OwnedScratch,
+    par: Par<'_>,
+) -> Result<usize, String> {
+    use faer::mat::AsMatMut;
+    let (m, n) = a.shape();
+    check_aux::<T>(kind, m, n, perm.len(), perm_inv.len(), coeff, coeff_rows)?;
+    if kind == QR {
+        let i = first_zero_pivot(a.as_ref());
+        if i != 0 {
+            return Ok(i);
+        }
+    }
+    let bs = block_size::<T>(kind, m, n);
+    let stack = scratch.stack(inverse_requirement::<T>(kind, m, n, bs, par.shape())?)?;
+    let (mut f, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(n, n, stack);
+    let mut f = f.as_mat_mut();
+    let lblt = is_lblt(kind);
+    let (mut sub, stack) =
+        faer::linalg::temp_mat_zeroed::<T, _, _>(if lblt { n } else { 0 }, 1, stack);
+    let mut sub = sub.as_mat_mut();
+    if self_adjoint(kind) {
+        // The lower-oriented packed factor, as `packed_lower`.
+        for j in 0..n {
+            for i in j..n {
+                f[(i, j)] = if lower {
+                    copy(&a[(i, j)])
+                } else {
+                    conj(&a[(j, i)])
+                };
+            }
+        }
+    } else {
+        f.copy_from(a.as_ref());
+    }
+    if lblt {
+        // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+        let stored = unsafe { column_ref::<T>(coeff, n) };
+        for i in 0..n {
+            sub[(i, 0)] = if lower {
+                copy(&stored[i])
+            } else {
+                conj(&stored[i])
+            };
+        }
+    }
+    let f = f.as_ref();
+    match kind {
+        LU => {
+            let p = PermRef::new_checked(perm, perm_inv, n);
+            plu::inverse::inverse(a.as_mut(), f, f, p, par, stack);
+        }
+        FULL_LU => {
+            let row = PermRef::new_checked(&perm[..n], &perm_inv[..n], n);
+            let col = PermRef::new_checked(&perm[n..], &perm_inv[n..], n);
+            flu::inverse::inverse(a.as_mut(), f, f, row, col, par, stack);
+        }
+        QR => {
+            // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+            let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, n) };
+            nqr::inverse::inverse(a.as_mut(), f, c, f, par, stack);
+        }
+        LLT => llt::inverse::inverse(a.as_mut(), f, par, stack),
+        LDLT => ldlt::inverse::inverse(a.as_mut(), f, f.diagonal(), par, stack),
+        _ => {
+            let p = PermRef::new_checked(perm, perm_inv, n);
+            let s = sub.as_ref().col(0).as_diagonal();
+            lblt::inverse::inverse(a.as_mut(), f, f.diagonal(), s, p, par, stack);
+        }
+    }
+    if self_adjoint(kind) {
+        self_adjoint_from_lower(a);
+    }
+    Ok(0)
 }
 
 /// faer's self-adjoint reconstruct/inverse fill the lower triangle only.
@@ -908,6 +1064,33 @@ impl OwnedMatrix {
             })
         })
     }
+    /// Overwrite the packed factor stored in `self` with the inverse; returns
+    /// a QR factor's zero-pivot index (before any write) or 0.
+    #[julia]
+    pub fn direct_inverse(
+        &mut self,
+        kind: i32,
+        lower: bool,
+        m: usize,
+        n: usize,
+        tag: i32,
+        perm: &[usize],
+        perm_inv: &[usize],
+        coeff: *const u8,
+        coeff_rows: usize,
+        scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            owned_shape(&self.matrix, tag, m, n)?;
+            let a = self.matrix.as_mut();
+            with_team(team, |par| {
+                invert(
+                    a, kind, lower, perm, perm_inv, coeff, coeff_rows, scratch, par,
+                )
+            })
+        })
+    }
     /// Fill `self` with a part of the packed factor stored in `packed`.
     #[julia]
     pub fn direct_part(
@@ -1030,6 +1213,51 @@ impl TypedMatrix {
                 (MatrixData::C32(a), MatrixData::C32(b), 2) => go!(a, b),
                 (MatrixData::C64(a), MatrixData::C64(b), 3) => go!(a, b),
                 _ => Err("direct solve scalar types do not match".into()),
+            }
+        })
+    }
+    /// Overwrite the packed factor stored in `self` with the inverse; returns
+    /// a QR factor's zero-pivot index (before any write) or 0.
+    #[julia]
+    pub fn direct_inverse(
+        &mut self,
+        kind: i32,
+        lower: bool,
+        m: usize,
+        n: usize,
+        tag: i32,
+        perm: &[usize],
+        perm_inv: &[usize],
+        coeff: *const u8,
+        coeff_rows: usize,
+        scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            let data = self.data.as_mut().ok_or("matrix is not initialized")?;
+            check_typed(data, tag, m, n)?;
+            macro_rules! go {
+                ($a:expr) => {
+                    with_team(team, |par| {
+                        invert(
+                            $a.as_mut(),
+                            kind,
+                            lower,
+                            perm,
+                            perm_inv,
+                            coeff,
+                            coeff_rows,
+                            scratch,
+                            par,
+                        )
+                    })
+                };
+            }
+            match data {
+                MatrixData::F32(a) => go!(a),
+                MatrixData::F64(a) => go!(a),
+                MatrixData::C32(a) => go!(a),
+                MatrixData::C64(a) => go!(a),
             }
         })
     }

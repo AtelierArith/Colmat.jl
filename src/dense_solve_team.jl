@@ -137,9 +137,20 @@ end
 # native owner/view, borrowed or Julia strided array named by its view
 # descriptor). Returns `false`, writing nothing, when the factor needs the
 # rectangular, rank-revealing or SVD path.
-function _dense_in_place_solve!(original::FaerFactorization, target, op, team)
+#
+# With caller scratch (already checked by `_dense_in_place_scratch`) the
+# per-kind low-level `solve_in_place` kernels run on it, so the solve makes no
+# native allocation of its own. Right solves pass `transpose(B)` and the
+# remapped op: `X A = B` as `Aᵀ Xᵀ = Bᵀ`, `X Aᴴ = B` as `conj(A) Xᵀ = Bᵀ`.
+function _dense_in_place_solve!(
+    original::FaerFactorization,
+    target,
+    op,
+    team;
+    scratch = nothing,
+)
     p, d=_view_source(target)
-    return GC.@preserve d _native_call(
+    isnothing(scratch) && return GC.@preserve d _native_call(
         RustCrate.solve_in_place_view,
         original,
         p,
@@ -147,6 +158,34 @@ function _dense_in_place_solve!(original::FaerFactorization, target, op, team)
         Int32(op),
         team,
     )
+    T=eltype(original)
+    return GC.@preserve p d _native_call(
+        RustCrate.factor_solve_into,
+        original,
+        p,
+        pointer(d),
+        scratch,
+        Int32(op),
+        UInt(size(original, 1)),
+        UInt(size(original, 2)),
+        UInt(size(target, 2)),
+        _tag(T),
+        _dense_kind(original),
+        Float64(eps(_realtype(T))),
+        team,
+    )::Bool
+end
+# Validate caller scratch for an in-place solve before any write.
+function _dense_in_place_scratch(original, columns, op, scratch, team)
+    isnothing(scratch) && return nothing
+    scratch isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
+    precision=Float64(eps(_realtype(eltype(original))))
+    req=_dense_native_requirements(original, columns, op; team, precision)
+    cap=scratch_capacity(scratch)
+    cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+        ArgumentError("dense solve scratch capacity/alignment is insufficient; call reserve!"),
+    )
+    return scratch
 end
 # Same-scalar square solves run in place in the destination: `B` is assigned
 # into `X` natively first (inputs overlapping `X` are snapshot), so no RHS
@@ -154,7 +193,6 @@ end
 # otherwise the right-hand side for the fresh-result path (`X` once `B` has
 # been assigned into it).
 function _dense_ldiv_in_place!(dest, f, b, scratch, team)
-    isnothing(scratch) || return b
     original=_dense_parent(f)
     T=eltype(original)
     eltype(dest)===T && eltype(b)===T && size(f, 1)==size(f, 2) || return b
@@ -162,6 +200,7 @@ function _dense_ldiv_in_place!(dest, f, b, scratch, team)
     target=_gemm_destination(dest)
     input=b===dest ? target : _gemm_input(b)
     (isnothing(target) || isnothing(input)) && return b
+    work=_dense_in_place_scratch(original, size(target, 2), _dense_op(f), scratch, team)
     if b!==dest
         # A non-finite `B` fails in the fresh-result path before `X` is written.
         all(isfinite, b) || return b
@@ -169,10 +208,24 @@ function _dense_ldiv_in_place!(dest, f, b, scratch, team)
         q, e=_view_source(input)
         GC.@preserve d e _native_call(RustCrate.view_assign_into, p, pointer(d), q, pointer(e))
     end
-    _dense_in_place_solve!(original, target, _dense_op(f), team) && return nothing
+    _dense_in_place_solve!(original, target, _dense_op(f), team; scratch = work) &&
+        return nothing
     # Declined (rectangular-path factor): `X` now holds `B` and is the input of
     # the fresh-result path; a later failure there leaves `X == B`.
     return dest
+end
+# Two-argument right solves of a same-scalar square factor run in place on
+# `transpose(B)`; `false` (nothing written) when the factor declines.
+function _dense_rdiv_in_place!(b, f, scratch, team)
+    original=_dense_parent(f)
+    T=eltype(original)
+    eltype(b)===T && size(f, 1)==size(f, 2) || return false
+    _dense_solve_check(f, b; team, right = true)
+    target=_gemm_destination(b)
+    isnothing(target) && return false
+    op=(1, 0, 3)[_dense_op(f)+1]
+    work=_dense_in_place_scratch(original, size(b, 1), op, scratch, team)
+    return _dense_in_place_solve!(original, transpose(target), op, team; scratch = work)
 end
 function _dense_ldiv!(dest, f, b; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
@@ -253,7 +306,10 @@ numerically nonsingular factors solve in place in the destination with faer's
 `solve_in_place` when it is a native owner/view, a `faerview` or an injective
 Julia strided array: two-argument calls make no right-hand-side copy, result or
 writeback, and three-argument calls first assign `B` into `X` natively (inputs
-overlapping `X` are snapshot). Otherwise native and strided Julia right-hand
+overlapping `X` are snapshot). Two-argument `rdiv!(B, F)` solves in place
+on `transpose(B)` the same way. With caller scratch the low-level per-kind
+kernels run on it, so these in-place solves make no native allocation of their
+own. Otherwise native and strided Julia right-hand
 sides are copied once into native storage (right solves transpose through the
 view descriptor) and the fresh result is written natively into native,
 borrowed and Julia strided destinations of the result type. Native workspace allocates
@@ -301,6 +357,7 @@ function LinearAlgebra.rdiv!(
         _dense_rhs_validate(dest)
         size(dest)==(size(b, 1), size(f, 1)) ||
             throw(DimensionMismatch("right factor solve destination shape mismatch"))
+        dest===b && _dense_rdiv_in_place!(b, f, scratch, team) && return b
         result=_dense_solve_native(f, b; scratch, team, right = true)
         try
             _dense_native_dest(dest, result) &&

@@ -12,7 +12,7 @@ use crate::collections::{VectorData, VectorOwner};
 use crate::sparse_triangular::{widens, Native};
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
-use crate::views::{raw_mut, source, view_mut, Borrowed, Spec};
+use crate::views::{destination, raw_mut, source, view_mut, Borrowed, BorrowedMut, Spec};
 use crate::workspace::OwnedScratch;
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::StackReq;
@@ -389,6 +389,34 @@ impl VectorOwner {
     }
 }
 
+/// Destructive inverse of a triangle borrowed from Julia memory (descriptor
+/// kind 4), written through the parent's pointer and strides.
+#[julia]
+pub fn dense_triangular_invert_borrowed(
+    p: *mut u8,
+    desc: *const isize,
+    lower: bool,
+    unit: bool,
+    scratch: &mut OwnedScratch,
+    team: Option<&OwnedTeam>,
+) -> Result<usize, String> {
+    guarded(|| {
+        // SAFETY: Julia roots the injective borrowed array for this call; no
+        // native owner aliases Julia memory.
+        unsafe {
+            let s = Spec::read(desc)?;
+            if s.kind != 4 {
+                return Err("borrowed triangular inverse requires a borrowed parent".into());
+            }
+            match destination(p, s)? {
+                BorrowedMut::F32(x) => invert_in_place(x, lower, unit, scratch, team),
+                BorrowedMut::F64(x) => invert_in_place(x, lower, unit, scratch, team),
+                BorrowedMut::C32(x) => invert_in_place(x, lower, unit, scratch, team),
+                BorrowedMut::C64(x) => invert_in_place(x, lower, unit, scratch, team),
+            }
+        }
+    })
+}
 /// Scratch for the destructive inverse of an `n x n` triangle of scalar `tag`.
 #[julia]
 pub fn dense_triangular_invert_requirements(
@@ -680,5 +708,110 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Calling-thread allocations of team solves (worker threads are not
+    /// observed by the probe): the team section itself must not add any.
+    #[test]
+    fn team_solves_calling_thread_allocations() {
+        let mut team = OwnedTeam::new();
+        team.team_initialize(2).unwrap();
+        for n in [6usize, 70, 300] {
+            let a = OwnedMatrix {
+                matrix: triangle(n),
+            };
+            let ap = (&a as *const OwnedMatrix).cast::<u8>();
+            let mut scratch = OwnedScratch::new();
+            for right in [false, true] {
+                let t = reference(a.matrix.as_ref(), true, false);
+                let b = Mat::from_fn(
+                    if right { 3 } else { n },
+                    if right { n } else { 3 },
+                    |i, j| (i + 2 * j) as f64 - 1.5,
+                );
+                let xd = descriptor(b.nrows(), b.ncols(), false, false);
+                let ad = descriptor(n, n, false, false);
+                let mut run = |x: &mut OwnedMatrix| {
+                    x.dense_triangular_into(
+                        xd.as_ptr(),
+                        ap,
+                        ad.as_ptr(),
+                        true,
+                        false,
+                        right,
+                        &mut scratch,
+                        Some(&team),
+                    )
+                    .unwrap()
+                };
+                run(&mut OwnedMatrix { matrix: b.clone() });
+                let mut x = OwnedMatrix { matrix: b.clone() };
+                let count = allocation_probe::count(|| assert_eq!(run(&mut x), 0));
+                let residual = if right {
+                    &x.matrix * &t - &b
+                } else {
+                    &t * &x.matrix - &b
+                };
+                assert!(residual.norm_max() < 1e-10, "n={n}");
+                println!("team solve n={n} right={right}: {count} calling-thread allocations");
+                if n <= 8 {
+                    assert_eq!(count, 0, "n={n} right={right}");
+                }
+            }
+        }
+    }
+
+    /// A triangle borrowed from Julia memory (descriptor kind 4, here a
+    /// strided column-major buffer) is inverted in place through its pointer.
+    #[test]
+    fn borrowed_inverse_writes_the_julia_buffer() {
+        let n = 5;
+        let a = triangle(n);
+        // Leading dimension n + 2: the padding rows must stay untouched.
+        let ld = n + 2;
+        let mut buf = vec![-7.0f64; ld * n];
+        for j in 0..n {
+            for i in 0..n {
+                buf[i + j * ld] = a[(i, j)];
+            }
+        }
+        let mut out = [0usize; 2];
+        dense_triangular_invert_requirements(n, 1, &mut out[..]).unwrap();
+        let mut scratch = OwnedScratch::new();
+        scratch.scratch_reserve(out[0], out[1]).unwrap();
+        let mut d = descriptor(n, n, false, false);
+        d[0] = 4;
+        d.extend([n as isize, n as isize, 1, ld as isize, 1]);
+        let p = buf.as_mut_ptr().cast::<u8>();
+        let count = allocation_probe::count(|| {
+            let code =
+                dense_triangular_invert_borrowed(p, d.as_ptr(), false, false, &mut scratch, None)
+                    .unwrap();
+            assert_eq!(code, 0);
+        });
+        assert_eq!(count, 0);
+        let x = Mat::from_fn(n, n, |i, j| buf[i + j * ld]);
+        let inv = reference(x.as_ref(), false, false);
+        let t = reference(a.as_ref(), false, false);
+        assert!((&t * &inv - Mat::<f64>::identity(n, n)).norm_max() < 1e-10);
+        for j in 0..n {
+            for i in 0..n {
+                if i > j {
+                    assert_eq!(x[(i, j)], a[(i, j)]);
+                }
+            }
+            assert!(buf[n + j * ld..(j + 1) * ld].iter().all(|&v| v == -7.0));
+        }
+        // An owner descriptor is refused.
+        let owner = descriptor(n, n, false, false);
+        assert!(dense_triangular_invert_borrowed(
+            p,
+            owner.as_ptr(),
+            false,
+            false,
+            &mut scratch,
+            None
+        )
+        .is_err());
     }
 }

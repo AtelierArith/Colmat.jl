@@ -152,7 +152,10 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
         let source = OwnedMatrix {
             matrix: src.clone(),
         };
-        assert_eq!(old.initialize(&source, kind, true, m, n, 1, None).unwrap(), 0);
+        assert_eq!(
+            old.initialize(&source, kind, true, m, n, 1, None).unwrap(),
+            0
+        );
         let retained = count(|| {
             old.initialize(&source, kind, true, m, n, 1, None).unwrap();
         });
@@ -528,4 +531,193 @@ fn validation_failures_do_not_write_the_matrix() {
             None,
         )
         .is_err());
+}
+
+/// Complex test matrices: general, Hermitian positive definite and Hermitian
+/// indefinite (2×2 Bunch–Kaufman blocks).
+fn complex_sample(kind: i32, n: usize) -> Mat<faer::c64> {
+    use faer::c64;
+    let x = Mat::<c64>::from_fn(n, n, |i, j| {
+        let v = c64::new(
+            ((i * 7 + j * 3) % 11) as f64 - 5.0,
+            (i as f64 - j as f64) / 3.0,
+        );
+        if i == j {
+            v + c64::new(2.0 * n as f64, 0.0)
+        } else {
+            v / c64::new(4.0, 0.0)
+        }
+    });
+    match kind {
+        LLT | LDLT => &x * x.adjoint() + Mat::<c64>::identity(n, n),
+        LBLT | LBLT_ROOK => Mat::from_fn(n, n, |i, j| {
+            if i == j {
+                c64::new([1e-8, -3.0, 2.0, 0.0, -1.0, 4.0][i % 6], 0.0)
+            } else {
+                (x[(i, j)] + x[(j, i)].conj()) / c64::new(8.0, 0.0)
+            }
+        }),
+        _ => x,
+    }
+}
+
+/// Right solves `X op(A) = B` run on the transposed view of B, and the
+/// destructive inverse overwrites the packed factor, both without native
+/// allocation of their own for every kind and storage triangle.
+#[test]
+fn right_solves_and_inverse_overwrite_in_place() {
+    use faer::c64;
+    for &n in &[6usize, 70] {
+        for kind in [LU, FULL_LU, QR, LLT, LDLT, LBLT, LBLT_ROOK] {
+            let triangles: &[bool] = if self_adjoint(kind) {
+                &[true, false]
+            } else {
+                &[true]
+            };
+            for &lower in triangles {
+                let h = complex_sample(kind, n);
+                let mut a = h.clone();
+                let mut perm = vec![0usize; perm_len(kind, n, n)];
+                let mut perm_inv = perm.clone();
+                let (mut work, bs) = reserved(3, kind, FACTOR, n, n, 0);
+                let rows = if is_lblt(kind) { n } else { bs };
+                let mut coeff = vec![c64::new(0.0, 0.0); rows.max(1) * n.max(1)];
+                let info = factor(
+                    a.as_mut(),
+                    kind,
+                    lower,
+                    &mut perm,
+                    &mut perm_inv,
+                    coeff.as_mut_ptr().cast(),
+                    rows,
+                    &mut work,
+                    Par::Seq,
+                )
+                .unwrap();
+                assert_eq!(info, 0, "kind {kind} n {n}");
+                let c = coeff.as_ptr().cast::<u8>();
+                let b = Mat::<c64>::from_fn(3, n, |i, j| {
+                    c64::new(i as f64 - j as f64 / 5.0, 0.5 + j as f64 / 7.0)
+                });
+                for op in [RIGHT_SOLVE, RIGHT_TRANSPOSE, RIGHT_ADJOINT] {
+                    let rhs_a = match op {
+                        RIGHT_SOLVE => h.clone(),
+                        RIGHT_TRANSPOSE => h.transpose().to_owned(),
+                        _ => h.adjoint().to_owned(),
+                    };
+                    let mut x = b.clone();
+                    let (mut sw, _) = reserved(3, kind, op, n, n, 3);
+                    let mut go = |x: &mut Mat<c64>| {
+                        solve(
+                            a.as_ref(),
+                            x.as_mut(),
+                            kind,
+                            op,
+                            lower,
+                            &perm,
+                            &perm_inv,
+                            c,
+                            rows,
+                            &mut sw,
+                            Par::Seq,
+                        )
+                        .unwrap()
+                    };
+                    let mut warm = b.clone();
+                    go(&mut warm);
+                    let allocations = count(|| go(&mut x));
+                    eprintln!(
+                        "kind {kind} n {n} lower {lower} right op {op}: {allocations} native allocations"
+                    );
+                    if n <= 8 {
+                        assert_eq!(allocations, 0, "kind {kind} op {op} allocated");
+                    }
+                    let residual = (&x * &rhs_a - &b).norm_max();
+                    let scale = rhs_a.norm_max() * x.norm_max() * n as f64;
+                    assert!(
+                        residual <= 1e-12 * scale,
+                        "kind {kind} n {n} lower {lower} op {op}: {residual}"
+                    );
+                }
+                let (mut iw, _) = reserved(3, kind, INVERSE, n, n, 0);
+                let mut inv = a.clone();
+                let mut warm = a.clone();
+                let mut go = |m: &mut Mat<c64>| {
+                    invert(
+                        m.as_mut(),
+                        kind,
+                        lower,
+                        &perm,
+                        &perm_inv,
+                        c,
+                        rows,
+                        &mut iw,
+                        Par::Seq,
+                    )
+                    .unwrap()
+                };
+                assert_eq!(go(&mut warm), 0);
+                let allocations = count(|| assert_eq!(go(&mut inv), 0));
+                eprintln!(
+                    "kind {kind} n {n} lower {lower} inverse: {allocations} native allocations"
+                );
+                if n <= 8 {
+                    assert_eq!(allocations, 0, "kind {kind} inverse allocated");
+                }
+                let expected = part(
+                    a.as_ref(),
+                    kind,
+                    10,
+                    lower,
+                    &perm,
+                    &perm_inv,
+                    c,
+                    rows,
+                    Par::Seq,
+                )
+                .unwrap();
+                assert!(
+                    (&inv - &expected).norm_max() <= 1e-10 * expected.norm_max(),
+                    "kind {kind} n {n} lower {lower} inverse"
+                );
+                let identity = &inv * &h - Mat::<c64>::identity(n, n);
+                assert!(identity.norm_max() < 1e-8 * inv.norm_max() * h.norm_max());
+            }
+        }
+    }
+    // A singular QR reports its zero R pivot before writing the matrix.
+    let mut z = Mat::<f64>::from_fn(3, 3, |i, j| if j == 2 { 0.0 } else { (i + j + 1) as f64 });
+    let (mut work, bs) = reserved(1, QR, FACTOR, 3, 3, 0);
+    let mut coeff = vec![0.0f64; bs * 3];
+    factor(
+        z.as_mut(),
+        QR,
+        true,
+        &mut [],
+        &mut [],
+        coeff.as_mut_ptr().cast(),
+        bs,
+        &mut work,
+        Par::Seq,
+    )
+    .unwrap();
+    let packed = z.clone();
+    let (mut iw, _) = reserved(1, QR, INVERSE, 3, 3, 0);
+    let code = invert(
+        z.as_mut(),
+        QR,
+        true,
+        &[],
+        &[],
+        coeff.as_ptr().cast(),
+        bs,
+        &mut iw,
+        Par::Seq,
+    )
+    .unwrap();
+    assert_eq!(code, 3);
+    assert!(z == packed);
+    // A wide factor has no inverse: the query refuses it.
+    let mut out = [0usize; 3];
+    assert!(direct_factor_requirements(LU, INVERSE, 3, 4, 0, 1, None, &mut out).is_err());
 }
