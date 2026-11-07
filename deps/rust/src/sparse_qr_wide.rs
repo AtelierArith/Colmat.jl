@@ -15,8 +15,14 @@ pub(crate) struct Plan {
     columns: Perm<usize>,
     m: usize,
     n: usize,
+    /// Dense `QrParams.blocking_threshold` override for the head numeric QR.
+    pub(crate) blocking: Option<usize>,
 }
 impl Plan {
+    #[cfg(test)]
+    pub(crate) fn head(&self) -> Arc<SymbolicQr<usize>> {
+        self.head.clone()
+    }
     pub(crate) fn new(
         a: SymbolicSparseColMatRef<'_, usize>,
         columns: Perm<usize>,
@@ -57,6 +63,7 @@ impl Plan {
             columns,
             m,
             n,
+            blocking: None,
         })
     }
 }
@@ -83,8 +90,7 @@ impl<T: ComplexField> Factors<T> {
             .and(sparse_qr_owned::Factors::<T>::full_q_adjoint_scratch(
                 &plan.head, 1,
             ));
-        plan.head
-            .factorize_numeric_qr_scratch::<T>(par.shape(), Default::default())
+        sparse_qr_owned::Factors::<T>::numeric_scratch(&plan.head, par.shape(), plan.blocking)
             .or(projection)
     }
     pub(crate) fn new_in(
@@ -111,11 +117,12 @@ impl<T: ComplexField> Factors<T> {
             .collect();
         let prefix = SparseColMat::<usize, T>::try_new_from_triplets(m, m, &entries)
             .map_err(|e| format!("{e:?}"))?;
-        let head = sparse_qr_owned::Factors::new_in_parallel(
+        let head = sparse_qr_owned::Factors::new_tuned(
             plan.head.clone(),
             prefix.as_ref(),
             stack,
             par.reborrow(),
+            plan.blocking,
         )?;
         let mut entries = Vec::new();
         head.visit_r(|row, col, val| {

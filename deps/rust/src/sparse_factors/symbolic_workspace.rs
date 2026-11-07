@@ -4,7 +4,8 @@
 //! their own buffer. Cholesky AMD is therefore run here on the caller's stack and
 //! passed as `SymmetricOrdering::Custom`, which removes the AMD term from faer's
 //! internal requirement. Wide QR runs COLAMD in Colmat and uses the stack
-//! directly. Square/tall LU/QR COLAMD stays inside faer: its requirement keeps
+//! directly; explicit simplicial QR runs faer's public etree/postorder/column
+//! count/symbolic kernels on it. Square/tall LU/QR COLAMD stays inside faer: its requirement keeps
 //! the COLAMD term even for an explicit ordering, so precomputing would not
 //! shrink the internal buffer.
 use super::SparseSymbolic;
@@ -63,6 +64,8 @@ pub(super) fn requirement(
         // Only the AUTO threshold needs factor column counts for the decision.
         2 if ordering == 0 => cholesky_requirement(n, nnz, supernodal == 0),
         1 if m < n && ordering == 0 && supernodal != 1 => colamd::order_scratch::<usize>(m, n, nnz),
+        // Explicit simplicial QR runs every symbolic kernel on the caller stack.
+        1 if m >= n && supernodal == 1 => crate::sparse_qr_components::Plan::scratch(m, n, nnz),
         _ => StackReq::EMPTY,
     }
 }
@@ -550,10 +553,11 @@ mod tests {
         // Rejected combinations.
         assert!(lu(1.0, None, 2).is_err());
         assert!(lu(f64::NAN, Some(&[(8, 0.5)]), 1).is_err());
+        // Explicit simplicial QR has no supernodes to tune.
         let mut s = SparseSymbolic::new();
-        tune(&mut s, 1.0, None);
+        tune(&mut s, f64::NAN, Some(&[(8, 0.5)]));
         assert!(s
-            .sparse_analyze(&p, 1, true, 0, std::ptr::null(), 10.0, true, 0, 0.5, 0.5)
+            .sparse_analyze(&p, 1, true, 0, std::ptr::null(), 10.0, true, 1, 0.5, 0.5)
             .is_err());
         assert!(s
             .sparse_symbolic_tuning(-1.0, false, &[], &[], 0)
@@ -565,6 +569,156 @@ mod tests {
         assert!(s
             .sparse_symbolic_tuning(f64::NAN, true, &[], &[], 1)
             .is_err());
+    }
+
+    fn rect_owner(m: usize, n: usize, entries: &[(usize, usize)]) -> SparsityOwner {
+        let mut cols = vec![Vec::new(); n];
+        for &(i, j) in entries {
+            cols[j].push(i);
+        }
+        let mut ptr = vec![0usize];
+        let mut idx = Vec::new();
+        for mut c in cols {
+            c.sort_unstable();
+            c.dedup();
+            idx.extend(c);
+            ptr.push(idx.len());
+        }
+        SparsityOwner {
+            data: Some(Pattern::Csc(SymbolicSparseColMat::new_checked(
+                m, n, ptr, None, idx,
+            ))),
+        }
+    }
+    fn qr_entries(m: usize, n: usize) -> Vec<(usize, usize)> {
+        (0..n)
+            .flat_map(|j| {
+                [
+                    (j % m, j),
+                    ((j + 1) % m, j),
+                    ((j * 7 + 3) % m, j),
+                    ((j + n / 2) % m, j),
+                ]
+            })
+            .collect()
+    }
+    fn qr_analysis(
+        p: &SparsityOwner,
+        ratio: f64,
+        relax: Option<&[(usize, f64)]>,
+        blocking: Option<usize>,
+        alg: i32,
+    ) -> Result<SparseSymbolic, String> {
+        let mut s = SparseSymbolic::new();
+        tune(&mut s, ratio, relax);
+        if let Some(b) = blocking {
+            s.sparse_symbolic_qr_blocking(b)?;
+        }
+        s.sparse_analyze(p, 1, true, 0, std::ptr::null(), 10.0, true, alg, 0.5, 0.5)?;
+        Ok(s)
+    }
+    #[test]
+    fn supernodal_tuning_reaches_tall_and_wide_qr_analyses() {
+        use faer::sparse::linalg::qr::{SymbolicQr, SymbolicQrRaw};
+        let head = |s: &SparseSymbolic| -> std::sync::Arc<SymbolicQr<usize>> {
+            match &s.plan().unwrap().analysis {
+                super::super::Analysis::Qr(sym) => sym.clone(),
+                super::super::Analysis::WideQr(plan) => plan.head(),
+                _ => unreachable!(),
+            }
+        };
+        let simplicial = |s: &SparseSymbolic| matches!(head(s).raw(), SymbolicQrRaw::Simplicial(_));
+        for (m, n) in [(600, 300), (300, 600)] {
+            let p = rect_owner(m, n, &qr_entries(m, n));
+            assert!(simplicial(
+                &qr_analysis(&p, f64::INFINITY, None, None, 0).unwrap()
+            ));
+            assert!(!simplicial(&qr_analysis(&p, 0.0, None, None, 0).unwrap()));
+            // Relaxation reaches the supernodal QR structure. Unlike Cholesky,
+            // merged QR fronts can store fewer Householder entries in total
+            // (measured none/default/wide 112614 / 95093 / 94017 for 600×300,
+            // 6548 / 8844 / 8844 for the 300×300 wide head), so only check
+            // that the stored size responds.
+            let len = |relax| head(&qr_analysis(&p, f64::NAN, relax, None, 2).unwrap()).len_val();
+            let (none, default, wide) =
+                (len(Some(&[])), len(None), len(Some(&[(usize::MAX, 1.0)])));
+            eprintln!("{m}x{n} QR len_val relax none/default/wide: {none} {default} {wide}");
+            assert!(
+                none != default || default != wide,
+                "{none} {default} {wide}"
+            );
+            // The numeric blocking threshold is kept by the plan and its copies.
+            let s = qr_analysis(&p, f64::NAN, None, Some(16), 2).unwrap();
+            let mut copy = SparseSymbolic::new();
+            copy.sparse_symbolic_clone(&s).unwrap();
+            for s in [&s, &copy] {
+                let plan = s.plan().unwrap();
+                assert_eq!(plan.qr_blocking, Some(16));
+                if let super::super::Analysis::WideQr(w) = &plan.analysis {
+                    assert_eq!(w.blocking, Some(16));
+                }
+            }
+            // Rejected: tuning explicit simplicial QR; threshold with a forced algorithm.
+            assert!(qr_analysis(&p, f64::NAN, Some(&[(4, 0.5)]), None, 1).is_err());
+            assert!(qr_analysis(&p, f64::NAN, None, Some(16), 1).is_err());
+            assert!(qr_analysis(&p, 1.0, None, None, 2).is_err());
+        }
+        // Blocking applies only to QR.
+        let p = owner(400, &laplacian(20));
+        let mut s = SparseSymbolic::new();
+        s.sparse_symbolic_qr_blocking(16).unwrap();
+        assert!(s
+            .sparse_analyze(&p, 0, true, 0, std::ptr::null(), 10.0, true, 0, 0.5, 0.5)
+            .is_err());
+    }
+    #[test]
+    fn simplicial_qr_analysis_runs_in_caller_scratch() {
+        let (m, n) = (600, 300);
+        let p = rect_owner(m, n, &qr_entries(m, n));
+        let nnz = p.data().unwrap().csc().unwrap().compute_nnz();
+        let req = requirement(m, n, nnz, 1, 1, 1);
+        assert!(req.size_bytes() > 0);
+        let mut work = OwnedScratch::new();
+        work.scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        let mut reference = SparseSymbolic::new();
+        let reference_alloc = crate::allocation_probe::measure(|| {
+            reference
+                .sparse_analyze(&p, 1, true, 1, std::ptr::null(), 10.0, true, 1, 0.5, 0.5)
+                .unwrap()
+        });
+        let mut caller = SparseSymbolic::new();
+        let caller_alloc = crate::allocation_probe::measure(|| {
+            caller
+                .sparse_analyze_workspace(
+                    &p,
+                    &mut work,
+                    m,
+                    n,
+                    1,
+                    true,
+                    1,
+                    std::ptr::null(),
+                    10.0,
+                    true,
+                    1,
+                    0.5,
+                    0.5,
+                )
+                .unwrap()
+        });
+        eprintln!(
+            "simplicial QR analysis: internal={reference_alloc:?} caller scratch={caller_alloc:?}"
+        );
+        let sym = |s: &SparseSymbolic| match &s.plan().unwrap().analysis {
+            super::super::Analysis::SimplicialQr(plan) => {
+                (plan.symbolic.len_r(), plan.symbolic.len_householder())
+            }
+            _ => unreachable!(),
+        };
+        assert_eq!(sym(&reference), sym(&caller));
+        // Measured: largest 43208 B (internal stack) -> 9600 B (owned output).
+        assert!(caller_alloc.0 <= reference_alloc.0 && caller_alloc.1 < reference_alloc.1);
     }
 
     #[test]

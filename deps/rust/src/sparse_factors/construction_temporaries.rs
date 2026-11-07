@@ -281,6 +281,7 @@ mod tests {
                 analysis: Analysis::Llt(Arc::new(symbolic)),
                 pattern: std::sync::Arc::new(a.symbolic().to_owned().unwrap()),
                 lower,
+                qr_blocking: None,
             }),
         }
     }
