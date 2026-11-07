@@ -17,16 +17,17 @@ the new entries. Errors before writeback preserve A. Failed check=false
 Cholesky leaves A unchanged and returns the unsuccessful factorization.
 
 With `scratch=work::FaerScratch` (sized by `scratch_requirements(lu!, A)`,
-`scratch_requirements(qr!, A)` or `scratch_requirements(cholesky!, A)`), LU,
-unpivoted QR and Cholesky instead run faer's `lu_in_place`, `qr_in_place` or
+`scratch_requirements(qr!, A[, pivot])` or `scratch_requirements(cholesky!, A)`),
+LU, QR (unpivoted or `ColumnNorm()`) and Cholesky instead run faer's
+`lu_in_place`, `qr_in_place` (`no_pivoting` or `col_pivoting`) or
 `cholesky_in_place` directly on A's native storage and return a
 [`FaerInPlaceFactorization`](@ref) that aliases A (`F.factors === A`), as
 Julia's `lu!` does. Colmat itself allocates no native memory there (only faer's
-internal matrix products of blocked shapes may); the LU permutation and QR
+internal matrix products of blocked shapes may); the LU and column-pivoted QR permutations and the QR
 coefficient buffers of F are allocated in Julia. Shape, scalar, scratch, team and
 finiteness checks precede any write, but after a numerical failure (singular
 `check=true` LU, non-positive-definite Cholesky) A holds partially factored
-data, as with LAPACK. Column-pivoted `qr!` has no direct path.
+data, as with LAPACK.
 """
 function _factor_writeback!(a::FaerMatrix, f::FaerFactorization; upper = false)
     if getfield(f, :info)!=0 &&
@@ -64,7 +65,13 @@ function LinearAlgebra.qr!(
         return _factor_writeback!(a, LinearAlgebra.qr(a, pivot; team))
     end
 end
-function LinearAlgebra.qr!(a::FaerMatrix, pivot::LinearAlgebra.ColumnNorm; team = nothing)
+function LinearAlgebra.qr!(
+    a::FaerMatrix,
+    pivot::LinearAlgebra.ColumnNorm;
+    team = nothing,
+    scratch = nothing,
+)
+    isnothing(scratch) || return _direct_pivoted_qr!(a, scratch, team)
     lock(_matrix_lock) do
         return _factor_writeback!(a, LinearAlgebra.qr(a, pivot; team))
     end

@@ -36,6 +36,7 @@ end
 """
     pinv(F::FaerFactorization{T,:qr}; atol=0, rtol=min(size(F)...)*eps(real(T)), team=nothing, scratch=nothing)
     pinv(F::FaerInPlaceFactorization{T,:qr}; atol=0, rtol, team=nothing)
+    pinv(F::FaerInPlaceFactorization{T,:pivoted_qr}; atol=0, rtol, team=nothing)
 
 Return an independent native dense Moore–Penrose inverse from a saved dense QR
 (`qr(A)`, `qr(A, ColumnNorm())` or the direct `qr!(A; scratch)`), without
@@ -47,9 +48,10 @@ are discarded exactly as by `pinv(A; atol, rtol)`; a nonzero `atol` defaults
 For a retained QR the SVD of R runs in caller-owned `scratch`
 (`scratch_requirements(pinv, F; team)`; a temporary workspace when omitted) on
 the optional `team`; the retained singular columns are applied through the
-saved Householder reflectors, so no dense Q is formed. A direct `qr!(A; scratch)`
-factor uses the native SVD pseudoinverse of `F.R` and the thin `F.Q` on `team`
-(no caller scratch form).
+saved Householder reflectors, so no dense Q is formed. A direct
+`qr!(A[, ColumnNorm()]; scratch)` factor uses the native SVD pseudoinverse of
+`F.R` and the thin `F.Q` on `team` (no caller scratch form); the column-pivoted
+one then permutes the rows of `R⁺Qᴴ` by `F.p` in Julia.
 """
 function LinearAlgebra.pinv(
     f::_DenseQrFactor;
@@ -87,7 +89,7 @@ function LinearAlgebra.pinv(
     end
 end
 function LinearAlgebra.pinv(
-    f::FaerInPlaceFactorization{T,:qr};
+    f::_DirectQr{T};
     atol::Real = 0,
     rtol::Real = _default_spectral_rtol(f, atol),
     team = nothing,
@@ -101,7 +103,12 @@ function LinearAlgebra.pinv(
             q=qr_q(f; thin = true, team)
             out=zeros(FaerMatrix{T}, size(f, 2), size(f, 1))
             try
-                return LinearAlgebra.mul!(out, inner, adjoint(q); team)
+                LinearAlgebra.mul!(out, inner, adjoint(q); team)
+                f isa FaerInPlaceFactorization{T,:pivoted_qr} || return out
+                # A·P = Q·R gives A⁺ = P·R⁺·Qᴴ: row i of R⁺·Qᴴ is row p[i] of A⁺.
+                permuted=FaerMatrix(Matrix(out)[invperm(f.p), :])
+                close(out)
+                return permuted
             catch
                 close(out)
                 rethrow()

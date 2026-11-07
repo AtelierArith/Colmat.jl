@@ -20,7 +20,10 @@ use faer::{Conj, Mat, MatRef, Par};
 use rustcall_julia_macros::julia;
 
 fn rank<T: ComplexField>(f: &ColPivQr<T>, atol: f64, rtol: f64) -> usize {
-    let r = f.thin_R();
+    rank_of(f.thin_R(), atol, rtol)
+}
+/// Rank of a stored R (only its diagonal is read) with Julia's `QRPivoted` rule.
+pub(crate) fn rank_of<T: ComplexField>(r: MatRef<'_, T>, atol: f64, rtol: f64) -> usize {
     let k = r.nrows().min(r.ncols());
     if k == 0 {
         return 0;
@@ -31,15 +34,41 @@ fn rank<T: ComplexField>(f: &ColPivQr<T>, atol: f64, rtol: f64) -> usize {
     let tol = if atol > scaled { atol } else { scaled };
     (0..k).find(|&i| abs(&r[(i, i)]) <= tol).unwrap_or(k)
 }
-/// Minimum-norm solution of the problem truncated to the leading `r` rows of
-/// R. The caller chooses `r` with `rank`, so every tolerance form shares one cutoff.
+/// What the truncated solve reads from a column-pivoted QR: the m×min(m,n)
+/// Householder basis, its block coefficients, the min(m,n)×n R (only its upper
+/// triangle is read, so packed storage works) and the forward column permutation.
+pub(crate) struct PivotedQrParts<'a, T> {
+    pub basis: MatRef<'a, T>,
+    pub coeff: MatRef<'a, T>,
+    pub r: MatRef<'a, T>,
+    pub forward: &'a [usize],
+}
 fn truncated_solve<T: ComplexField>(
     f: &ColPivQr<T>,
     b: MatRef<'_, T>,
     r: usize,
+    par: Par<'_>,
+) -> Result<Mat<T>, String> {
+    let parts = PivotedQrParts {
+        basis: f.Q_basis(),
+        coeff: f.Q_coeff(),
+        r: f.thin_R(),
+        forward: f.P().arrays().0,
+    };
+    truncated_solve_parts(parts, b, r, par)
+}
+/// Minimum-norm solution of the problem truncated to the leading `r` rows of
+/// R. The caller chooses `r` with `rank`, so every tolerance form shares one cutoff.
+pub(crate) fn truncated_solve_parts<T: ComplexField>(
+    f: PivotedQrParts<'_, T>,
+    b: MatRef<'_, T>,
+    r: usize,
     mut par: Par<'_>,
 ) -> Result<Mat<T>, String> {
-    let (m, n) = (f.nrows(), f.ncols());
+    let (m, n) = (f.basis.nrows(), f.r.ncols());
+    if f.forward.len() != n || f.r.nrows() != m.min(n) {
+        return Err("column-pivoted QR parts do not match".into());
+    }
     if b.nrows() != m {
         return Err("solve dimensions mismatch".into());
     }
@@ -53,7 +82,7 @@ fn truncated_solve<T: ComplexField>(
         return Ok(x);
     }
     let mut c = b.to_owned();
-    let (basis, coeff) = (f.Q_basis(), f.Q_coeff());
+    let (basis, coeff) = (f.basis, f.coeff);
     let req = apply_block_householder_sequence_transpose_on_the_left_in_place_scratch::<T>(
         m,
         coeff.nrows(),
@@ -68,7 +97,18 @@ fn truncated_solve<T: ComplexField>(
         par.reborrow(),
         MemStack::new(&mut buffer),
     );
-    let r1 = f.thin_R().subrows(0, r);
+    let r1 = Mat::from_fn(
+        r,
+        n,
+        |i, j| {
+            if i <= j {
+                copy(&f.r[(i, j)])
+            } else {
+                zero()
+            }
+        },
+    );
+    let r1 = r1.as_ref();
     let mut y = c.as_ref().subrows(0, r).to_owned();
     let z = if r == n {
         solve_upper_triangular_in_place(r1.subcols(0, r), y.as_mut(), par.reborrow());
@@ -80,8 +120,7 @@ fn truncated_solve<T: ComplexField>(
         solve_lower_triangular_in_place(t.adjoint(), y.as_mut(), par.reborrow());
         cod.compute_thin_Q(par.reborrow()) * y
     };
-    let p = f.P();
-    let forward = p.arrays().0;
+    let forward = f.forward;
     for j in 0..k {
         for i in 0..n {
             x[(forward[i], j)] = copy(&z[(i, j)]);

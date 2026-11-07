@@ -122,6 +122,128 @@ _stored(S, uplo) =
         end
     end
 
+    @testset "column-pivoted QR $T $dims" for T in (Float32, Float64, ComplexF32, ComplexF64),
+        dims in ((0, 0), (1, 1), (4, 4), (6, 3), (3, 5))
+
+        m, n = dims
+        X = _sample(T, m, n)
+        A = FaerMatrix(X)
+        work = FaerScratch(qr!, A, ColumnNorm())
+        @test scratch_requirements(qr!, A, ColumnNorm()) ==
+              scratch_requirements(qr!, A, ColumnNorm(); team = nothing)
+        F = qr!(A, ColumnNorm(); scratch = work)
+        @test F isa FaerInPlaceFactorization{T,:pivoted_qr}
+        @test F.factors === A
+        @test issuccess(F)
+        old = qr(FaerMatrix(X), ColumnNorm())
+        # The same faer kernel and parameters as the retained factor.
+        @test Matrix(F.factors) == Matrix(old.packed)
+        @test Matrix(F.Qcoeff) == Matrix(old.Qcoeff)
+        @test F.p == old.p
+        @test Matrix(F.P) == Matrix{T}(I, n, n)[:, old.p]
+        @test Matrix(F.R) == Matrix(old.R)
+        @test Matrix(F.Qbasis) == Matrix(old.Qbasis)
+        @test Matrix(F.Q) ≈ Matrix(old.Q) rtol = _tol(T) atol = _tol(T)
+        @test Matrix(F.Qthin) ≈ Matrix(old.Qthin) rtol = _tol(T) atol = _tol(T)
+        @test Matrix(qr_q(F; thin = true)) ≈ Matrix(old.Qthin) rtol = _tol(T) atol = _tol(T)
+        @test Matrix(F.Qthin) * Matrix(F.R) ≈ X[:, F.p] rtol = _tol(T) atol = _tol(T)
+        @test Matrix(F) ≈ X rtol = _tol(T) atol = _tol(T)
+        @test Matrix(reconstruct(F; team = nothing)) ≈ X rtol = _tol(T) atol = _tol(T)
+        @test rank(F) == rank(old)
+        @test rank(F; atol = 1e3) == 0
+        if m >= n
+            b = T.(collect(1:m))
+            @test F \ b ≈ X \ b rtol = _tol(T) atol = _tol(T)
+            B = FaerMatrix(T.(reshape(1:(2m), m, 2)))
+            ldiv!(F, B; scratch = FaerScratch(ldiv!, F, B))
+            @test Matrix(B)[1:n, :] ≈ X \ T.(reshape(1:(2m), m, 2)) rtol = _tol(T) atol =
+                _tol(T)
+        else
+            @test_throws DimensionMismatch F \ T.(collect(1:m))
+        end
+        if m == n
+            b = T.(collect(1:n))
+            @test transpose(F) \ b ≈ transpose(X) \ b rtol = _tol(T)
+            @test F' \ b ≈ X' \ b rtol = _tol(T)
+            @test Matrix(inv(F)) ≈ inv(X) rtol = _tol(T) atol = _tol(T)
+        end
+        @test_throws ArgumentError det(F)
+        # Rank-truncated solves run the retained factor's kernel.
+        Bm = T.(reshape(1:(2m), m, 2))
+        for (atol, rtol) in ((0, 1e-3), (1e3, 0), (0, 0))
+            Xd = zeros(T, n, 2)
+            Xr = zeros(T, n, 2)
+            ldiv!(Xd, F, Bm; atol, rtol)
+            ldiv!(Xr, old, Bm; atol, rtol)
+            @test Xd == Xr
+        end
+        Bd = vcat(Bm, zeros(T, max(n - m, 0), 2))
+        Br = copy(Bd)
+        _, rd = ldiv!(F, Bd, 1e-3)
+        _, rr = ldiv!(old, Br, 1e-3)
+        @test rd == rr
+        @test Bd == Br
+        @test Matrix(pinv(F)) ≈ pinv(X) rtol = sqrt(_tol(T)) atol = sqrt(_tol(T))
+        G = copy(F)
+        @test G.factors !== A
+        @test G.p == F.p
+        close(A)
+        @test !isopen(F)
+        @test_throws ArgumentError F.R
+        @test_throws ArgumentError rank(F)
+        @test Matrix(G) ≈ X rtol = _tol(T) atol = _tol(T)
+    end
+
+    @testset "column-pivoted QR rank deficiency and teams" begin
+        for T in (Float64, ComplexF32)
+            # Rank two: the second column is twice the first.
+            X = T[1 2 3; 2 4 6; 1 2 1; 0 0 1; 1 2 0]
+            A = FaerMatrix(X)
+            F = qr!(A, ColumnNorm(); scratch = FaerScratch(qr!, A, ColumnNorm()))
+            old = qr(FaerMatrix(X), ColumnNorm())
+            @test rank(F) == rank(old) == 2
+            b = T.(collect(1:5))
+            x = zeros(T, 3)
+            ldiv!(x, F, b; rtol = sqrt(eps(real(T))))
+            @test x ≈ pinv(X) * b rtol = sqrt(_tol(T))
+            @test Matrix(pinv(F)) ≈ pinv(X) rtol = sqrt(_tol(T)) atol = sqrt(_tol(T))
+            @test Matrix(pinv(F; atol = 1e3)) == zeros(T, 3, 5)
+            @test_throws ArgumentError ldiv!(x, transpose(F), b; rtol = 1e-3)
+            @test_throws ArgumentError ldiv!(x, F, b; rtol = 1e-3, scratch = FaerScratch(64))
+            @test_throws ArgumentError rank(F; atol = -1)
+            @test_throws DimensionMismatch ldiv!(F, zeros(T, 2), 1e-3)
+            # A team lends its workers to construction, solves and parts.
+            team = FaerTeam(2)
+            Y = _sample(T, 70, 50)
+            A = FaerMatrix(Y)
+            work = FaerScratch(qr!, A, ColumnNorm(); team)
+            @test reserve!(work, qr!, A, ColumnNorm(); team) === work
+            F = qr!(A, ColumnNorm(); scratch = work, team)
+            old = qr(FaerMatrix(Y), ColumnNorm())
+            @test F.p == old.p
+            @test Matrix(F.R) ≈ Matrix(old.R) rtol = _tol(T)
+            C = T.(reshape(1:140, 70, 2))
+            B = FaerMatrix(C)
+            ldiv!(F, B; scratch = FaerScratch(ldiv!, F, B; team), team)
+            @test Matrix(B)[1:50, :] ≈ Y \ C rtol = _tol(T)
+            @test Matrix(FaerMatrix(F; team)) ≈ Y rtol = _tol(T)
+            close(team)
+        end
+        # Validation precedes any write.
+        X = rand(4, 3)
+        A = FaerMatrix(X)
+        @test_throws ArgumentError qr!(A, ColumnNorm(); scratch = FaerScratch(0))
+        @test_throws ArgumentError qr!(A, ColumnNorm(); scratch = :bad)
+        @test Matrix(A) == X
+        Y = copy(X)
+        Y[1] = NaN
+        B = FaerMatrix(Y)
+        @test_throws Exception qr!(B, ColumnNorm(); scratch = FaerScratch(qr!, B, ColumnNorm()))
+        @test isequal(Matrix(B), Y)
+        # Without scratch the staged path still returns a retained factor.
+        @test qr!(FaerMatrix(X), ColumnNorm()) isa FaerFactorization{Float64,:pivoted_qr}
+    end
+
     @testset "Cholesky $T $n $uplo" for T in (Float32, Float64, ComplexF32, ComplexF64),
         n in (0, 1, 5),
         uplo in (:L, :U)
@@ -458,6 +580,8 @@ _stored(S, uplo) =
         (:lu, _sample(T, n, n), A -> lu!(A; scratch = FaerScratch(lu!, A))),
         (:full_lu, _sample(T, n, n), A -> full_piv_lu!(A; scratch = FaerScratch(full_piv_lu!, A))),
         (:qr, _sample(T, n, n), A -> qr!(A; scratch = FaerScratch(qr!, A))),
+        (:pivoted_qr, _sample(T, n, n),
+            A -> qr!(A, ColumnNorm(); scratch = FaerScratch(qr!, A, ColumnNorm()))),
         (:cholesky_L, _hermitian(T, n),
             A -> cholesky!(Hermitian(A, :L); scratch = FaerScratch(cholesky!, A))),
         (:cholesky_U, _hermitian(T, n),
