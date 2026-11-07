@@ -149,13 +149,9 @@ end
         B=H[:, 1:(n÷2)]
         native=FaerLinearOperator(FaerMatrix(H))
         rect=FaerLinearOperator(FaerMatrix(B))
-        callback=FaerLinearOperator(
-            (Y, X)->mul!(Y, H, X),
-            (Y, X)->mul!(Y, H, X),
-            n,
-            n;
-            T,
-        )
+        applications=Ref(0)
+        apply!(Y, X)=(applications[]+=1; mul!(Y, H, X))
+        callback=FaerLinearOperator(apply!, apply!, n, n; T)
         start=FaerVector(T.(ones(n)))
         half=FaerVector(T.(ones(n÷2)))
         tol=_partial_tol(T)
@@ -172,11 +168,15 @@ end
                 @test F.nconverged==6
                 bytes=_partial_result_bytes(F)
                 # Beyond the returned arrays only Colmat's fixed FFI marshalling
-                # (and per-application callback trampolines) allocate. Inside
-                # the parallel full suite a worker that already ran other files
-                # measured up to 23 KB more than a fresh process.
-                slack=op===callback ? 160_000 : 64_000
-                @test @allocated(call())<bytes+slack
+                # and, for callbacks, the per-application trampolines allocate
+                # (about 0.6 KB per application). The fixed part is platform
+                # dependent: macOS x86_64 measured 66 KB for the n=1600
+                # partial_svd (Float64/ComplexF32), aarch64 less. Staging an
+                # n-vector per application would still exceed the bound.
+                applications[]=0
+                allocated=@allocated(call())
+                slack=96_000 + (op===callback ? 2048*applications[] : 0)
+                @test allocated<bytes+slack
             end
         end
         close(native)
