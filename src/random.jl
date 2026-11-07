@@ -4,7 +4,8 @@
 An independently owned Rust StdRng stream, with Julia's AbstractRNG interface.
 `seed!`, `copy`, `rand(rng,UInt64)` and native array sampling share its state.
 Native rand/randn use faer's distributions; standard Julia arrays/scalars use
-Julia's sampling algorithms over native random bits. Reproducibility requires
+Julia's sampling algorithms over native 64-bit words (narrower/128-bit integers,
+Float16/Float32 and complex draws included). Reproducibility requires
 the same native dependency versions and call sequence, not a Julia RNG match.
 `close` invalidates the owner; copied RNGs remain independent.
 """
@@ -60,6 +61,15 @@ end
 Random.rng_native_52(::FaerRNG) = UInt64
 Random.rand(rng::FaerRNG, ::Random.SamplerType{UInt64}) =
     _native_call(RustCrate.rng_next, rng)
+Random.rand(
+    rng::FaerRNG,
+    ::Random.SamplerType{T},
+) where {T<:Union{Bool,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64}} =
+    Random.rand(rng, UInt64) % T
+function Random.rand(rng::FaerRNG, ::Random.SamplerType{T}) where {T<:Union{Int128,UInt128}}
+    hi=Random.rand(rng, UInt64)
+    return ((UInt128(hi) << 64) | Random.rand(rng, UInt64)) % T
+end
 _random_owner(rng::FaerRNG, nonempty) = (_handle(rng); rng)
 _random_owner(rng::Random.AbstractRNG, nonempty) =
     FaerRNG(nonempty ? Random.rand(rng, UInt64) : UInt64(0))
@@ -167,17 +177,49 @@ for (fn, normal) in ((:rand, false), (:randn, true))
             Random.$fn(Random.default_rng(), FaerRow{Float64}, n)
     end
 end
+# Whole-array views take the bulk native assignment path for owner targets.
+function _random_assign!(a, staged)
+    copyto!(a isa FaerView ? a : view(a, axes(a)...), staged)
+    return a
+end
 function _native_random!(rng, a, normal)
     lock(_matrix_lock) do
         _rotation_open(a)
         kind=a isa AbstractVector ? 1 : a isa FaerRow ? 2 : 0
         result=_native_random(rng, eltype(a), size(a, 1), size(a, 2), kind, normal)
-        return _operator_copy_result!(a, result)
+        return _random_assign!(a, result)
     end
 end
 """Fill a native array/view from faer's uniform distribution, staging output before mutation."""
 Random.rand!(rng::Random.AbstractRNG, a::_RotationArray) = _native_random!(rng, a, false)
 Random.rand!(a::_RotationArray) = Random.rand!(Random.default_rng(), a)
+function _julia_sampler!(rng, a, X)
+    lock(_matrix_lock) do
+        _rotation_open(a)
+        staged=Random.rand!(rng, Array{eltype(a)}(undef, size(a)), X)
+        return _random_assign!(a, staged)
+    end
+end
+"""
+    rand!(rng=default_rng(), A, X)
+
+Fill a native matrix, vector, row or view with Julia samples from `X`: a
+collection, range, scalar type, `Random.Sampler`, or any value Julia's
+`rand(rng, X)` accepts (for example a Distributions.jl distribution). Samples
+come from Julia's `rand!` on an `Array` of the same eltype and shape, so `rng` is
+consumed exactly as for that array; a `FaerRNG` serves those draws from its
+native stream. Unlike `rand!(rng, A)`, this path uses Julia's algorithms, not
+faer's distributions. Target validation precedes sampling, and sampling and
+conversion finish before one bulk native update, so failures leave `A` unchanged.
+"""
+Random.rand!(rng::Random.AbstractRNG, a::_RotationArray, sp::Random.Sampler) =
+    _julia_sampler!(rng, a, sp)
+# Resolves the intersection with MersenneTwister's bulk Float64 array method.
+Random.rand!(
+    rng::Random.MersenneTwister,
+    a::typeintersect(_RotationArray, AbstractArray{Float64}),
+    sp::Random.SamplerTrivial{<:Random.FloatInterval{Float64}},
+) = _julia_sampler!(rng, a, sp)
 """Fill a native array/view with standard normal values; complex components have variance 1/2."""
 Random.randn!(rng::Random.AbstractRNG, a::_RotationArray) = _native_random!(rng, a, true)
 Random.randn!(a::_RotationArray) = Random.randn!(Random.default_rng(), a)
