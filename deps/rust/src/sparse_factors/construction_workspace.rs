@@ -1,6 +1,6 @@
 //! Sparse numeric construction with matching query/execution team shapes.
 use super::{
-    numeric_with_par, qr_construction_req, rank_hint, Analysis, Factors, SparseFactor,
+    numeric_with_par, qr_construction_req, rank_hint, Analysis, Factors, Plan, SparseFactor,
     SparseSymbolic,
 };
 use crate::guarded;
@@ -12,14 +12,15 @@ use faer::traits::ComplexField;
 use faer::{c32, c64, Par};
 use rustcall_julia_macros::julia;
 
-fn requirement<T: ComplexField>(analysis: &Analysis, par: &Par<'_>) -> Result<StackReq, String> {
-    Ok(match analysis {
+fn requirement<T: ComplexField>(plan: &Plan, par: &Par<'_>) -> Result<StackReq, String> {
+    Ok(match &plan.analysis {
         Analysis::Qr(sym) => qr_construction_req::<T>(sym, par),
         Analysis::SimplicialQr(plan) => crate::sparse_qr_components::Factors::<T>::scratch(plan)
             .or(rank_hint::scratch(plan.symbolic.ncols())),
         Analysis::WideQr(plan) => crate::sparse_qr_wide::Factors::<T>::scratch(plan, par),
         Analysis::Llt(sym) => {
-            sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default())
+            super::construction_temporaries::triangle_req::<T>(plan.pattern.as_ref(), plan.lower)
+                .and(sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default()))
         }
         Analysis::Lu(sym) => sym.factorize_numeric_lu_scratch::<T>(par.shape(), Default::default()),
         Analysis::SimplicialLu(cols) => {
@@ -33,7 +34,7 @@ pub(super) fn query(
     out: *mut usize,
     par: Par<'_>,
 ) -> Result<(), String> {
-    let analysis = &plan.plan()?.analysis;
+    let analysis = plan.plan()?;
     let req = match tag {
         0 => requirement::<f32>(analysis, &par)?,
         1 => requirement::<f64>(analysis, &par)?,
@@ -64,12 +65,11 @@ pub(super) fn run(
     par: Par<'_>,
 ) -> Result<usize, String> {
     let plan = analysis.plan()?;
-    let analysis = &plan.analysis;
     let req = match matrix.data()? {
-        SparseData::F32(_) => requirement::<f32>(analysis, &par)?,
-        SparseData::F64(_) => requirement::<f64>(analysis, &par)?,
-        SparseData::C32(_) => requirement::<c32>(analysis, &par)?,
-        SparseData::C64(_) => requirement::<c64>(analysis, &par)?,
+        SparseData::F32(_) => requirement::<f32>(plan, &par)?,
+        SparseData::F64(_) => requirement::<f64>(plan, &par)?,
+        SparseData::C32(_) => requirement::<c32>(plan, &par)?,
+        SparseData::C64(_) => requirement::<c64>(plan, &par)?,
     };
     scratch.stack(req)?;
     let result = match matrix.data()? {
@@ -200,6 +200,7 @@ mod tests {
                 let symbolic =
                     Arc::new(qr::factorize_symbolic_qr(a.symbolic(), Default::default()).unwrap());
                 let plan = SparseSymbolic {
+                    tuning: Default::default(),
                     plan: Some(Plan {
                         analysis: Analysis::Qr(symbolic.clone()),
                         pattern: a.symbolic().to_owned().unwrap(),
@@ -274,6 +275,7 @@ mod tests {
                     crate::sparse_qr_components::Plan::new(a.symbolic(), permutation.as_ref())
                         .unwrap();
                 let plan = SparseSymbolic {
+                    tuning: Default::default(),
                     plan: Some(Plan {
                         analysis: Analysis::SimplicialQr(symbolic.clone()),
                         pattern: a.symbolic().to_owned().unwrap(),
@@ -373,6 +375,7 @@ mod tests {
                             .unwrap(),
                         );
                         let plan = SparseSymbolic {
+                            tuning: Default::default(),
                             plan: Some(Plan {
                                 analysis: Analysis::Llt(symbolic.clone()),
                                 pattern: a.symbolic().to_owned().unwrap(),
@@ -387,10 +390,20 @@ mod tests {
                         let matrix = crate::sparse::Storage::Csc(a.clone());
                         let numeric = team
                             .execute(|par| {
-                                let req = symbolic.factorize_numeric_llt_scratch::<T>(
-                                    par.shape(),
-                                    Default::default(),
-                                );
+                                // Both triangles are stored, so the stripped
+                                // triangle shares the caller scratch.
+                                let req =
+                                    super::super::construction_temporaries::triangle_req::<T>(
+                                        a.symbolic(),
+                                        lower,
+                                    )
+                                    .and(
+                                        symbolic.factorize_numeric_llt_scratch::<T>(
+                                            par.shape(),
+                                            Default::default(),
+                                        ),
+                                    );
+                                assert_ne!(req, StackReq::EMPTY);
                                 assert_eq!(out, [req.size_bytes(), req.align_bytes()]);
                                 numeric_with_par(
                                     plan.plan().unwrap(),
@@ -502,6 +515,7 @@ mod tests {
             .unwrap(),
         );
         let plan = SparseSymbolic {
+            tuning: Default::default(),
             plan: Some(Plan {
                 analysis: Analysis::Llt(symbolic),
                 pattern: a.symbolic().to_owned().unwrap(),
@@ -630,6 +644,7 @@ mod tests {
                         .unwrap(),
                     );
                     let plan = SparseSymbolic {
+                        tuning: Default::default(),
                         plan: Some(Plan {
                             analysis: Analysis::Lu(symbolic.clone()),
                             pattern: a.symbolic().to_owned().unwrap(),
@@ -676,6 +691,7 @@ mod tests {
                     }
                 }
                 let plan = SparseSymbolic {
+                    tuning: Default::default(),
                     plan: Some(Plan {
                         analysis: Analysis::SimplicialLu(permutation),
                         pattern: a.symbolic().to_owned().unwrap(),
@@ -751,6 +767,7 @@ mod tests {
             .unwrap(),
         );
         let plan = SparseSymbolic {
+            tuning: Default::default(),
             plan: Some(Plan {
                 analysis: Analysis::Lu(symbolic),
                 pattern: a.symbolic().to_owned().unwrap(),
