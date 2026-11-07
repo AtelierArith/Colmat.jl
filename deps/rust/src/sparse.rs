@@ -938,3 +938,83 @@ impl SparseOwner {
         })
     }
 }
+/// Attach `len` values of scalar type `U` to an owned copy of `a`'s pattern.
+unsafe fn with_values<T: ComplexField, U: ComplexField + Copy>(
+    a: &Storage<T>,
+    val: *const u8,
+    len: usize,
+) -> Result<Storage<U>, String> {
+    if a.values().len() != len {
+        return Err("stored-value buffer length mismatch".into());
+    }
+    let vals = if len == 0 {
+        vec![]
+    } else {
+        std::slice::from_raw_parts(val.cast::<U>(), len).to_vec()
+    };
+    let err = |e| format!("{e:?}");
+    Ok(match a {
+        Storage::Csc(x) => Storage::Csc(SparseColMat::new(
+            x.symbolic().to_owned().map_err(err)?,
+            vals,
+        )),
+        Storage::Csr(x) => Storage::Csr(SparseRowMat::new(
+            x.symbolic().to_owned().map_err(err)?,
+            vals,
+        )),
+    })
+}
+unsafe fn write_values<T: ComplexField + Copy>(
+    a: &mut Storage<T>,
+    val: *const u8,
+    len: usize,
+) -> Result<(), String> {
+    let out = a.values_mut();
+    if out.len() != len {
+        return Err("stored-value buffer length mismatch".into());
+    }
+    if len > 0 {
+        out.copy_from_slice(std::slice::from_raw_parts(val.cast::<T>(), len));
+    }
+    Ok(())
+}
+#[julia]
+impl SparseOwner {
+    /// Own `p`'s CSC/CSR pattern with a caller value buffer of scalar `tag`.
+    #[julia]
+    pub fn sparse_from_values(
+        &mut self,
+        p: &SparseOwner,
+        val: *const u8,
+        len: usize,
+        tag: i32,
+    ) -> Result<(), String> {
+        guarded(|| unsafe {
+            let a = p.data()?;
+            self.data = Some(match tag {
+                0 => SparseData::F32(dispatch!(a, x => with_values(x, val, len)?)),
+                1 => SparseData::F64(dispatch!(a, x => with_values(x, val, len)?)),
+                2 => SparseData::C32(dispatch!(a, x => with_values(x, val, len)?)),
+                3 => SparseData::C64(dispatch!(a, x => with_values(x, val, len)?)),
+                _ => return Err("unsupported sparse scalar".into()),
+            });
+            Ok(())
+        })
+    }
+    /// Overwrite every stored value in physical order; the pattern is unchanged.
+    #[julia]
+    pub fn sparse_write_values(&mut self, val: *const u8, len: usize) -> Result<(), String> {
+        guarded(|| unsafe {
+            match self
+                .data
+                .as_mut()
+                .ok_or("sparse matrix is not initialized")?
+            {
+                SparseData::F32(a) => write_values(a, val, len),
+                SparseData::F64(a) => write_values(a, val, len),
+                SparseData::C32(a) => write_values(a, val, len),
+                SparseData::C64(a) => write_values(a, val, len),
+            }
+        })
+    }
+}
