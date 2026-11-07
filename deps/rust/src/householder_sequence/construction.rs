@@ -1,5 +1,6 @@
 //! Native construction and saved-factor upgrades borrow the caller's team.
 use super::{load, Data, OwnedHouseholderSequence, Sequence};
+use crate::teams::with_team;
 use crate::{guarded, teams::OwnedTeam};
 use faer::linalg::householder as hh;
 use faer::traits::ComplexField;
@@ -83,7 +84,7 @@ impl OwnedHouseholderSequence {
         guarded(|| super::workspace::validate(self, n, k, b, tag))
     }
     #[julia]
-    pub fn sequence_load_team(
+    pub fn sequence_load(
         &mut self,
         basis: *const u8,
         m: usize,
@@ -92,10 +93,10 @@ impl OwnedHouseholderSequence {
         b: usize,
         tag: i32,
         provided: *const u8,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 self.data = Some(unsafe {
                     match tag {
                         0 => Data::F32(load(basis, m, k, tau, b, provided, par)?),
@@ -106,7 +107,7 @@ impl OwnedHouseholderSequence {
                     }
                 });
                 Ok(())
-            })?
+            })
         })
     }
     #[julia]
@@ -119,29 +120,13 @@ impl OwnedHouseholderSequence {
         k: usize,
         old: usize,
         tag: i32,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            self.data = Some(reblock(source, b, prev, n, k, old, tag, Par::Seq)?);
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn sequence_reblock_from_team(
-        &mut self,
-        source: &OwnedHouseholderSequence,
-        b: usize,
-        prev: usize,
-        n: usize,
-        k: usize,
-        old: usize,
-        tag: i32,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 self.data = Some(reblock(source, b, prev, n, k, old, tag, par)?);
                 Ok(())
-            })?
+            })
         })
     }
 }
@@ -171,15 +156,14 @@ mod tests {
                         }
                         let mut source = OwnedHouseholderSequence::new();
                         source
-                            .sequence_load_team(
+                            .sequence_load(
                                 basis.as_ptr().cast(),
                                 m,
                                 k,
                                 tau.as_ptr().cast(),
                                 8,
                                 $tag,
-                                std::ptr::null(),
-                                &team,
+                                std::ptr::null(), Some(&team),
                             )
                             .unwrap();
                         for b in [1, 3, 8, 16, 24] {
@@ -188,8 +172,15 @@ mod tests {
                                     continue;
                                 }
                                 let mut out = OwnedHouseholderSequence::new();
-                                out.sequence_reblock_from_team(
-                                    &source, b, prev, m, k, 8, $tag, &team,
+                                out.sequence_reblock_from(
+                                    &source,
+                                    b,
+                                    prev,
+                                    m,
+                                    k,
+                                    8,
+                                    $tag,
+                                    Some(&team),
                                 )
                                 .unwrap();
                                 let Data::$variant(s) = out.data().unwrap() else {
@@ -240,7 +231,7 @@ mod tests {
                 tau.as_ptr().cast(),
                 8,
                 1,
-                std::ptr::null(),
+                std::ptr::null(),None
             )
             .unwrap();
         let mut out = OwnedHouseholderSequence::new();
@@ -250,28 +241,27 @@ mod tests {
             _ => unreachable!(),
         };
         assert!(out
-            .sequence_reblock_from(&source, 16, 3, 3, 2, 8, 1)
+            .sequence_reblock_from(&source, 16, 3, 3, 2, 8, 1, None)
             .is_err());
         assert!(out
-            .sequence_reblock_from(&source, 16, 8, 4, 2, 8, 1)
+            .sequence_reblock_from(&source, 16, 8, 4, 2, 8, 1, None)
             .is_err());
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         assert!(out
-            .sequence_load_team(
+            .sequence_load(
                 std::ptr::null(),
                 3,
                 2,
                 tau.as_ptr().cast(),
                 8,
                 1,
-                std::ptr::null(),
-                &team
+                std::ptr::null(), Some(&team)
             )
             .is_err());
         team.team_close().unwrap();
         assert!(out
-            .sequence_reblock_from_team(&source, 16, 8, 3, 2, 8, 1, &team)
+            .sequence_reblock_from(&source, 16, 8, 3, 2, 8, 1, Some(&team))
             .is_err());
         let Data::F64(s) = out.data().unwrap() else {
             unreachable!()

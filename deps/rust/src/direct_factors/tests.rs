@@ -152,9 +152,9 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
         let source = OwnedMatrix {
             matrix: src.clone(),
         };
-        assert_eq!(old.initialize(&source, kind, true, m, n, 1).unwrap(), 0);
+        assert_eq!(old.initialize(&source, kind, true, m, n, 1, None).unwrap(), 0);
         let retained = count(|| {
-            old.initialize(&source, kind, true, m, n, 1).unwrap();
+            old.initialize(&source, kind, true, m, n, 1, None).unwrap();
         });
         eprintln!(
             "kind {kind} {m}x{n}: direct {allocations} (first {first}), retained {retained} native allocations"
@@ -230,7 +230,7 @@ fn retained_construction_allocation_baseline() {
         let a = OwnedMatrix { matrix: spd(n) };
         let mut f = OwnedFactor::new();
         let allocations = count(|| {
-            f.initialize(&a, kind, true, n, n, 1).unwrap();
+            f.initialize(&a, kind, true, n, n, 1, None).unwrap();
         });
         eprintln!("retained kind {kind} {n}x{n}: {allocations} native allocations");
         assert!(allocations > 0);

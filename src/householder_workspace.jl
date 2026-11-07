@@ -1,15 +1,10 @@
 using LinearAlgebra: lmul!, rmul!, mul!, ldiv!, rdiv!
 
-_householder_workspace_functions(::FaerHouseholder) = (
-    RustCrate.householder_requirements,
-    RustCrate.householder_workspace,
-    RustCrate.householder_workspace_team,
-)
-_householder_workspace_functions(::FaerHouseholderSequence) = (
-    RustCrate.sequence_requirements,
-    RustCrate.sequence_workspace,
-    RustCrate.sequence_workspace_team,
-)
+# (requirements, apply); the apply function takes the optional team last.
+_householder_workspace_functions(::FaerHouseholder) =
+    (RustCrate.householder_requirements, RustCrate.householder_workspace)
+_householder_workspace_functions(::FaerHouseholderSequence) =
+    (RustCrate.sequence_requirements, RustCrate.sequence_workspace)
 _householder_workspace_metadata(h::FaerHouseholder) = (UInt(size(h, 1)), _tag(eltype(h)))
 _householder_workspace_metadata(h::FaerHouseholderSequence) =
     (UInt(size(h, 1)), UInt(h.k), UInt(h.blocksize), _tag(eltype(h)))
@@ -65,11 +60,7 @@ function _householder_resource_apply!(h, a, right; scratch = nothing, team = not
         t, c=_householder_orientation(h)
         fs=_householder_workspace_functions(h)
         args=(result, h, work, _householder_workspace_metadata(h)..., right, t, c)
-        if length(fs)==2
-            _native_call(fs[2], args..., team)
-        else
-            isnothing(team) ? _native_call(fs[2], args...) : _native_call(fs[3], args..., team)
-        end
+        _native_call(fs[2], args..., team)
         buffer=ndims(a)==1 ? vec(Matrix(result)) : Matrix(result)
         return copyto!(a, buffer)
     finally

@@ -159,7 +159,7 @@ mod tests {
             matrix: Mat::identity(4, 4),
         };
         let mut f = OwnedFactor::new();
-        f.initialize(&a, 0, true, 4, 4, 1).unwrap();
+        f.initialize(&a, 0, true, 4, 4, 1, None).unwrap();
         let mut out = OwnedMatrix {
             matrix: Mat::zeros(4, 4),
         };
@@ -194,7 +194,7 @@ mod tests {
             data: Some(MatrixData::C32(Mat::identity(4, 4))),
         };
         let mut f = TypedFactor::new();
-        f.initialize(&a, 2, true, 4, 4, 2).unwrap();
+        f.initialize(&a, 2, true, 4, 4, 2, None).unwrap();
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut out = TypedMatrix::new();

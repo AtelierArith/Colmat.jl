@@ -791,24 +791,15 @@ impl TypedFactor {
         m: usize,
         n: usize,
         tag: i32,
-    ) -> Result<usize, String> {
-        guarded(|| self.initialize_with_par(source, kind, lower, Par::Seq, m, n, tag))
-    }
-    #[julia]
-    pub fn initialize_team(
-        &mut self,
-        source: &TypedMatrix,
-        kind: i32,
-        lower: bool,
-        m: usize,
-        n: usize,
-        tag: i32,
-        team: &crate::teams::OwnedTeam,
+        team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<usize, String> {
         guarded(|| {
-            team.execute(|par| self.initialize_with_par(source, kind, lower, par, m, n, tag))?
+            crate::teams::with_team(team, |par| {
+                self.initialize_with_par(source, kind, lower, par, m, n, tag)
+            })
         })
     }
+
     #[julia]
     pub fn qr_blocksize(&self) -> Result<usize, String> {
         guarded(|| {

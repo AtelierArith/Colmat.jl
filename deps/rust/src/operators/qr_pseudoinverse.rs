@@ -825,7 +825,7 @@ mod tests {
             matrix: Mat::identity(4, 3),
         };
         let mut f = OwnedFactor::new();
-        f.initialize(&a, 2, true, 4, 3, 1).unwrap();
+        f.initialize(&a, 2, true, 4, 3, 1, None).unwrap();
         let mut out = OwnedLinearOperator::new();
         let mut info = [0usize; 2];
         operator_qr_pseudoinverse_requirements(4, 3, 1, info.as_mut_ptr()).unwrap();

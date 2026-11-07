@@ -127,7 +127,6 @@ function _householder_coerce(q::AbstractFaerCompactQ, ::Type{T}) where {T<:_Nati
         )
     end
 end
-# Two entries: the apply function takes the optional team as its last argument.
 _householder_workspace_functions(::AbstractFaerCompactQ) =
     (RustCrate.compact_tridiagonal_apply_requirements, RustCrate.compact_tridiagonal_workspace)
 _householder_workspace_metadata(q::AbstractFaerCompactQ) =
