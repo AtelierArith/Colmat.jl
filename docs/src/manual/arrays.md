@@ -207,6 +207,31 @@ native 側も元形状・スカラー型・Row/Col の種類・buffer 長を検�
 公開メソッドはなく、Colmat でも対角の次元は固定です。対応範囲と検証は
 [Issue #90](https://github.com/AtelierArith/Colmat.jl/issues/90) で追跡します。
 
+### Kronecker 積
+
+`kron(A,B)` は `FaerMatrix`・strided／逆順の `FaerMatrixView`・`FaerVector`／
+`FaerRow` とそのビュー・`faerview` の借用 Julia 配列・それらの転置／随伴、
+および native と混在する Julia strided 配列を view descriptor でその場で読み、
+faer `linalg::kron::kron` で新しい native owner に書きます（入力の snapshot なし）。
+形状は LinearAlgebra に合わせ、`kron(v,w)` は `FaerVector`、`kron(v',w')` は
+`kron(v,w)'`、`kron(FaerRow,FaerRow)` は `FaerRow`、それ以外は `FaerMatrix` です。
+異なるスカラー型は promotion し、変換が必要な入力だけをコピーします。
+`kron!(C,A,B)` は `FaerMatrix`・`FaerVector`・それらのビューへ積を直接書き、
+`C` と owner を共有する入力だけを先に snapshot します。faer の `kron` は `Par`
+を取らないため Seq/Team の指定はありません。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix([1.0 2; 3 4])
+v = FaerVector([1.0, 2.0])
+@assert kron(view(A, :, 2:-1:1), [1.0 0; 0 1]) isa FaerMatrix
+@assert Vector(kron(v, v)) == [1.0, 2.0, 2.0, 4.0]
+C = FaerMatrix(zeros(4, 4))
+kron!(C, A, A')
+@assert Matrix(C) == kron(Matrix(A), Matrix(A)')
+```
+
 ## 置換・ランク・疑似逆行列
 
 置換も Rust に保持できます。添字は Julia と同じ 1-based です。
@@ -282,7 +307,7 @@ faer `PermRef` の形式のうち、Julia から意味を持つものは上記�
 
 ## 数値型・変換・ライフサイクル
 
-`sum`／`norm`／`dot`／`tr`／`kron`、`pfaffian` も Rust に接続しています。
+`sum`／`norm`／`dot`／`tr`／`kron`／`kron!`、`pfaffian` も Rust に接続しています。
 Float32・Float64・ComplexF32・ComplexF64 の密行列に対応します。
 Issue #1 全体の進捗と残りの対象は
 [実装台帳](https://github.com/AtelierArith/Colmat.jl/blob/main/docs/implementation-status.md) に記録しています。

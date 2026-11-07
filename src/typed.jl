@@ -146,17 +146,11 @@ end
 Base.:+(a::FaerMatrix{T}, b::FaerMatrix{T}) where {T<:_ExtraScalar} = _typed_binary(a, b, 0)
 Base.:-(a::FaerMatrix{T}, b::FaerMatrix{T}) where {T<:_ExtraScalar} = _typed_binary(a, b, 1)
 Base.:*(a::FaerMatrix{T}, b::FaerMatrix{T}) where {T<:_ExtraScalar} = _typed_binary(a, b, 2)
-LinearAlgebra.kron(a::FaerMatrix{T}, b::FaerMatrix{T}) where {T<:_ExtraScalar} =
-    _typed_binary(a, b, 3)
 for op in (:+, :-, :*)
     @eval function Base.$op(a::FaerMatrix{T}, b::FaerMatrix{S}) where {T,S}
         P=promote_type(T, S)
         return Base.$op(_coerce(a, P), _coerce(b, P))
     end
-end
-function LinearAlgebra.kron(a::FaerMatrix{T}, b::FaerMatrix{S}) where {T,S}
-    P=promote_type(T, S)
-    return LinearAlgebra.kron(_coerce(a, P), _coerce(b, P))
 end
 Base.:+(a::FaerMatrix{T}) where {T<:_ExtraScalar} = copy(a)
 Base.:-(a::FaerMatrix{T}) where {T<:_ExtraScalar} = (-one(_realtype(T)))*a

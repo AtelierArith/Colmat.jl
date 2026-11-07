@@ -64,7 +64,7 @@ impl Spec {
             conjugate: a[8] != 0,
         })
     }
-    fn check(&self, m: usize, n: usize) -> Result<(), String> {
+    pub(crate) fn check(&self, m: usize, n: usize) -> Result<(), String> {
         check_axis(self.r, self.rs, self.m, m)?;
         check_axis(self.c, self.cs, self.n, n)
     }
