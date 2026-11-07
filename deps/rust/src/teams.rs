@@ -45,18 +45,59 @@ impl OwnedTeam {
     }
     #[julia]
     pub fn team_initialize(&mut self, width: usize) -> Result<(), String> {
+        self.team_initialize_with(width, 30.0, 0, 0, 1, &[0, 0], &[])
+    }
+    /// Builds the reservation with pool options. `set` flags the overridden
+    /// entries: `[spin_polls, qos]`; `qos` is 0 default, 1 utility, 2
+    /// user-initiated, 3 user-interactive (applied on Apple targets only).
+    /// `dispatch` holds `[width, seconds]` pairs of the team-section dispatch
+    /// cost that faer's split decisions read (`DispatchKind::Team`); empty keeps
+    /// the host default.
+    #[julia]
+    pub fn team_initialize_with(
+        &mut self,
+        width: usize,
+        acquire_timeout: f64,
+        spin_polls: u32,
+        qos: i32,
+        pin: u8,
+        set: &[u8],
+        dispatch: &[f64],
+    ) -> Result<(), String> {
         guarded(|| {
             if width == 0 {
                 return Err("team width must be positive".into());
             }
+            if set.len() != 2 {
+                return Err("team options need two flags".into());
+            }
+            if !(acquire_timeout.is_finite() && acquire_timeout > 0.0) {
+                return Err("acquire_timeout must be positive and finite".into());
+            }
+            let qos = match qos {
+                0 => threadteam::Qos::Default,
+                1 => threadteam::Qos::Utility,
+                2 => threadteam::Qos::UserInitiated,
+                3 => threadteam::Qos::UserInteractive,
+                _ => return Err("unknown team qos".into()),
+            };
+            let mut builder = threadteam::Pool::builder()
+                .threads(width)
+                .acquire_timeout(std::time::Duration::from_secs_f64(acquire_timeout))
+                .pin_participants(pin != 0);
+            if set[0] != 0 {
+                builder = builder.spin_polls(spin_polls);
+            }
+            if set[1] != 0 {
+                builder = builder.qos(qos);
+            }
+            if !dispatch.is_empty() {
+                builder = builder.dispatch_costs(team_dispatch_costs(dispatch)?);
+            }
             let team = if width == 1 {
                 None
             } else {
-                let pool = threadteam::Pool::builder()
-                    .threads(width)
-                    .acquire_timeout(std::time::Duration::from_secs(30))
-                    .build()
-                    .map_err(|e| format!("team pool: {e:?}"))?;
+                let pool = builder.build().map_err(|e| format!("team pool: {e:?}"))?;
                 Some(
                     pool.into_team(width)
                         .map_err(|e| format!("team reservation: {:?}", e.reason()))?,
@@ -64,6 +105,41 @@ impl OwnedTeam {
             };
             self.team = team;
             self.width = width;
+            Ok(())
+        })
+    }
+    /// Writes `[reserved width, spin polls, pins participants, resident
+    /// members, pin skips, join sleeps, barrier sleeps, member parks, team
+    /// dispatch cost at the reserved width in ns]`. A
+    /// width-one team runs sequentially and has no pool: all but the width are 0.
+    #[julia]
+    pub fn team_state(&self, values: &mut [u64]) -> Result<(), String> {
+        guarded(|| {
+            if values.len() != 9 {
+                return Err("team state has nine values".into());
+            }
+            if self.width == 0 {
+                return Err("team is closed or uninitialized".into());
+            }
+            values.fill(0);
+            values[0] = self.width as u64;
+            if let Some(team) = &self.team {
+                let pool = team.pool();
+                let w = pool.wait_counters();
+                values[0] = team.size().get() as u64;
+                values[1] = pool.spin_polls() as u64;
+                values[2] = pool.pin_participants() as u64;
+                values[3] = pool.resident_members() as u64;
+                values[4] = pool.pin_skips();
+                values[5] = w.join_sleeps;
+                values[6] = w.barrier_sleeps;
+                values[7] = w.member_parks;
+                values[8] = pool
+                    .dispatch_costs()
+                    .cost(threadteam::DispatchKind::Team, team.size())
+                    .as_nanos()
+                    .min(u64::MAX as u128) as u64;
+            }
             Ok(())
         })
     }
@@ -75,6 +151,28 @@ impl OwnedTeam {
             Ok(())
         })
     }
+}
+fn team_dispatch_costs(dispatch: &[f64]) -> Result<threadteam::DispatchCosts, String> {
+    if dispatch.len() % 2 != 0 || dispatch.len() / 2 > threadteam::WidthCosts::MAX_ANCHORS {
+        return Err(format!(
+            "dispatch_cost takes 1 to {} width => seconds pairs",
+            threadteam::WidthCosts::MAX_ANCHORS
+        ));
+    }
+    let mut anchors = Vec::with_capacity(dispatch.len() / 2);
+    for pair in dispatch.chunks_exact(2) {
+        let (w, t) = (pair[0], pair[1]);
+        if !(w.fract() == 0.0 && (2.0..=u16::MAX as f64).contains(&w)) {
+            return Err("dispatch_cost widths must be integers in 2:65535".into());
+        }
+        if !(t.is_finite() && t >= 0.0) {
+            return Err("dispatch_cost times must be finite and nonnegative".into());
+        }
+        anchors.push((w as usize, std::time::Duration::from_secs_f64(t)));
+    }
+    let costs = threadteam::WidthCosts::from_anchors(&anchors)
+        .ok_or("dispatch_cost widths must be strictly increasing")?;
+    Ok(threadteam::DispatchCosts::host_default().with(threadteam::DispatchKind::Team, costs))
 }
 fn product<T: ComplexField>(
     team: &OwnedTeam,

@@ -22,7 +22,7 @@ Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArray
 | 作用素・前処理 | `FaerLinearOperator`, `identity_preconditioner`, `diagonal_preconditioner` | [線形作用素](../manual/operators.md) |
 | Householder | `FaerHouseholder`, `householder`, `FaerHouseholderSequence`, `reblock`, `reblock!` | [反射](../manual/reductions.md) |
 | 回転・縮約 | `FaerJacobiRotation`, `rotg`, `make_givens`, `tridiagonalize`, `tridiagonal_eigen`, `tridiagonal_eigvals`, `bidiagonalize`, `bidiagonal_svd` | [回転・縮約](../manual/reductions.md) |
-| リソース | `FaerScratch`, `scratch_requirements`, `scratch_capacity`, `FaerTeam`, `team_mul`, `FaerParThreshold` | [作業領域](../manual/resources.md) |
+| リソース | `FaerScratch`, `scratch_requirements`, `scratch_capacity`, `FaerTeam`, `team_mul`, `team_diagnostics`, `FaerParThreshold` | [作業領域](../manual/resources.md) |
 | 統計・乱数 | `mean`, `var`, `std`, `FaerRNG`, `randunitary`, `rand!(rng, A, X)` | [統計・乱数](../manual/utilities.md) |
 | NPY | `FaerNpyMatrix`, `loadnpy`, `npyview`, `npyborrow`, `npyinfo` | [NPY](../manual/utilities.md) |
 | 構造化積 | `structured_mul!`, 三角ラッパー・`Diagonal` との `*`/`mul!` | [密分解](../manual/dense.md) |
