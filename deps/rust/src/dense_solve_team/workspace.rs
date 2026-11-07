@@ -22,7 +22,7 @@ enum Saved<'a, T: ComplexField> {
     PivotQr(&'a solvers::ColPivQr<T>),
     Llt(&'a solvers::Llt<T>),
     Ldlt(&'a solvers::Ldlt<T>),
-    Lblt(&'a solvers::Lblt<T>),
+    Lblt(&'a crate::lblt::Lblt<T>),
     Svd(&'a solvers::Svd<T>),
 }
 macro_rules! dispatch_saved {
@@ -1082,7 +1082,12 @@ mod tests {
                 3 => Factor::PivotQr(a.col_piv_qr(Par::Seq)),
                 4 => Factor::Llt(a.llt(Side::Lower, Par::Seq).unwrap()),
                 5 => Factor::Ldlt(a.ldlt(Side::Lower, Par::Seq).unwrap()),
-                6 => Factor::Lblt(a.lblt(Side::Lower, Par::Seq)),
+                6 => Factor::Lblt(crate::lblt::Lblt::new(
+                    a.as_ref(),
+                    Side::Lower,
+                    Par::Seq,
+                    false,
+                )),
                 _ => Factor::Svd(a.thin_svd(Par::Seq).unwrap()),
             };
             check(&Saved::from(&f), a.as_ref(), &team);
