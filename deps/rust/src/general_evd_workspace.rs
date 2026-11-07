@@ -44,7 +44,7 @@ macro_rules! real_scalar {
                             Vectors::No
                         },
                         par,
-                        Default::default(),
+                        crate::evd_tuning::evd_params::<Self>(),
                     ),
                 ])
             }
@@ -89,7 +89,7 @@ macro_rules! real_scalar {
                     ur,
                     par,
                     stack,
-                    Default::default(),
+                    crate::evd_tuning::evd_params::<Self>(),
                 )
                 .map_err(|e| format!("general EVD: {e:?}"))?;
                 for j in 0..n {
@@ -154,7 +154,7 @@ macro_rules! complex_scalar {
                         Vectors::No
                     },
                     par,
-                    Default::default(),
+                    crate::evd_tuning::evd_params::<Self>(),
                 )
             }
             unsafe fn compute(
@@ -205,7 +205,7 @@ macro_rules! complex_scalar {
                     ur,
                     par,
                     stack,
-                    Default::default(),
+                    crate::evd_tuning::evd_params::<Self>(),
                 )
                 .map_err(|e| format!("general EVD: {e:?}"))
             }

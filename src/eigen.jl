@@ -64,7 +64,7 @@ LinearAlgebra.eigen(
     scratch = nothing,
     team = nothing,
 ) =
-    side===:right && isnothing(scratch) && isnothing(team) ? _eigen(a, 0; sortby) :
+    side===:right && _evd_default_path(scratch, team) ? _eigen(a, 0; sortby) :
     _general_evd_workspace_result(a; sortby, scratch, team, side)
 LinearAlgebra.eigvals(
     a::FaerMatrix{Float64};
@@ -72,7 +72,7 @@ LinearAlgebra.eigvals(
     scratch = nothing,
     team = nothing,
 ) =
-    isnothing(scratch) && isnothing(team) ? _eigen(a, 0; vectors = false, sortby) :
+    _evd_default_path(scratch, team) ? _eigen(a, 0; vectors = false, sortby) :
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(
     a::_FaerSelfAdjoint;
@@ -83,8 +83,7 @@ LinearAlgebra.eigen(
 ) =
     native ?
     _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
-    isnothing(scratch) && isnothing(team) ?
-    _eigen(parent(a), 1; lower = _uplo(a)===:L, sortby) :
+    _evd_default_path(scratch, team) ? _eigen(parent(a), 1; lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; sortby, scratch, team)
 LinearAlgebra.eigvals(
     a::_FaerSelfAdjoint;
@@ -92,7 +91,7 @@ LinearAlgebra.eigvals(
     scratch = nothing,
     team = nothing,
 ) =
-    isnothing(scratch) && isnothing(team) ?
+    _evd_default_path(scratch, team) ?
     _eigen(parent(a), 1; vectors = false, lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; vectors = false, sortby, scratch, team)
 

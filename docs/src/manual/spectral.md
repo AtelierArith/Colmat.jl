@@ -61,6 +61,30 @@ lock: other tasks wait, `f` must call Colmat on the current task, and the
 previous settings return even when `f` throws. The general EVD driver's
 internal Schur step keeps faer's defaults.
 
+### Tuning the EVD drivers
+
+```julia
+using Colmat, LinearAlgebra
+S = Hermitian(FaerMatrix([1.0 / (i + j) + (i == j) for i in 1:60, j in 1:60]))
+F = with_evd_tuning(; self_adjoint_recursion_threshold=8,
+                    tridiagonal_par_threshold=FaerParThreshold(:never)) do
+    eigen(S)
+end
+@assert Matrix(S) * F.vectors ≈ F.vectors * Diagonal(F.values)
+close(parent(S))
+```
+
+`with_evd_tuning(f; ...)` overrides the parameters inside faer's EVD drivers
+for every general and self-adjoint `eigen`/`eigvals` call, scratch query,
+`FaerScratch` and `reserve!` in the scope: the general driver's Hessenberg
+`hessenberg_par_threshold`/`hessenberg_blocking_threshold` and
+`evd_recursion_threshold` (eigenvectors from Schur), and the self-adjoint
+driver's `tridiagonal_par_threshold` and `self_adjoint_recursion_threshold`.
+`nothing` keeps faer's default. Inside the scope, calls without
+`scratch`/`team` use the parameterized workspace driver. The general driver's
+multishift QR step follows `with_schur_tuning`, and both scopes nest.
+Destructive `eigen!` writeback keeps faer's defaults.
+
 ## 一般化 Schur／QZ
 
 一般化 Schur／QZ は行列対に適用します。
