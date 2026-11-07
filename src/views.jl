@@ -348,15 +348,6 @@ Base.:*(a::_BorrowTranspose, b::_BorrowMatrix) = _view_binary(a, b, 2)
 Base.:*(a::_BorrowMatrix, b::_BorrowTranspose) = _view_binary(a, b, 2)
 Base.:*(a::_BorrowTranspose, b::_BorrowTranspose) = _view_binary(a, b, 2)
 Base.:*(a::_BorrowTranspose, b::_BorrowVector) = _view_binary(a, b, 2; vector = true)
-# Intersections with the compatibility methods accepting Julia vectors.
-Base.:*(a::FaerMatrix{Float64}, b::FaerVector{<:Real}) =
-    _view_binary(a, b, 2; vector = true)
-Base.:*(a::FaerMatrix{T}, b::FaerVector{S}) where {T<:_ExtraScalar,S<:Number} =
-    _view_binary(a, b, 2; vector = true)
-Base.:*(a::FaerMatrix{Float64}, b::FaerVectorView{<:Real}) =
-    _view_binary(a, b, 2; vector = true)
-Base.:*(a::FaerMatrix{T}, b::FaerVectorView{S}) where {T<:_ExtraScalar,S<:Number} =
-    _view_binary(a, b, 2; vector = true)
 
 function _vector_from_source(a)
     lock(_matrix_lock) do

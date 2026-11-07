@@ -31,6 +31,3 @@ Base.:/(b::FaerMatrix{Float64}, f::FaerFactorization{Float64}) =
 Base.:/(b::_FaerTransposedMatrix, a::FaerMatrix{Float64}) = copy(b)/a
 Base.:/(b::FaerMatrix{Float64}, a::_FaerTransposedMatrix) = b/copy(a)
 Base.:/(b::_FaerTransposedMatrix, a::_FaerTransposedMatrix) = copy(b)/copy(a)
-Base.:*(a::_FaerTransposedMatrix, b::FaerMatrix{Float64}) = copy(a)*b
-Base.:*(a::FaerMatrix{Float64}, b::_FaerTransposedMatrix) = a*copy(b)
-Base.:*(a::_FaerTransposedMatrix, b::_FaerTransposedMatrix) = copy(a)*copy(b)
