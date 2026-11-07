@@ -166,7 +166,15 @@ for fn in (:ldlt, :bunchkaufman)
             # Like the default path: plain input must be Hermitian (checked
             # before any write).
             _require_hermitian(a)
-            return _direct_self_adjoint!(a, $(QuoteNode(fn)), true, $direct, check, scratch, team)
+            return _direct_self_adjoint!(
+                a,
+                $(QuoteNode(fn)),
+                true,
+                $direct,
+                check,
+                scratch,
+                team,
+            )
         end
         lock(_matrix_lock) do
             return _factor_writeback!(a, LinearAlgebra.$fn(a, $(forward...); check, team))

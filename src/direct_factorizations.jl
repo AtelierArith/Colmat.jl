@@ -207,7 +207,15 @@ function _direct_full_piv_lu!(a::FaerMatrix, check, scratch, team)
 end
 # LDLᴴ / Bunch–Kaufman of the `lower` (or upper) triangle; the caller has
 # checked that plain input is Hermitian.
-function _direct_self_adjoint!(a::FaerMatrix, K::Symbol, lower::Bool, rook, check, scratch, team)
+function _direct_self_adjoint!(
+    a::FaerMatrix,
+    K::Symbol,
+    lower::Bool,
+    rook,
+    check,
+    scratch,
+    team,
+)
     f=_direct_factor!(a, Val(K), lower, scratch, team; rook = rook===true)
     check && f.info!=0 && throw(LinearAlgebra.SingularException(f.info))
     return f
@@ -282,8 +290,11 @@ function scratch_requirements(::typeof(full_piv_lu!), a::FaerMatrix; team = noth
         return (bytes = req.bytes, alignment = req.alignment)
     end
 end
-scratch_requirements(::typeof(LinearAlgebra.ldlt!), a::_DirectCholeskyInput; team = nothing) =
-    _direct_square_requirements(5, a; team)
+scratch_requirements(
+    ::typeof(LinearAlgebra.ldlt!),
+    a::_DirectCholeskyInput;
+    team = nothing,
+) = _direct_square_requirements(5, a; team)
 scratch_requirements(
     ::typeof(LinearAlgebra.bunchkaufman!),
     a::_DirectCholeskyInput,
