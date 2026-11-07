@@ -164,7 +164,7 @@ pub(crate) unsafe fn norm_output<T: ComplexField>(
         }
         2 => {
             if T::IS_REAL {
-                // faer's real norm_max skips NaN; Julia's normInf propagates it.
+                // faer's norm_max skips NaN (tensor4all/faer#316); Julia's normInf propagates it.
                 if a.has_nan() {
                     nan::<T::Real>()
                 } else {

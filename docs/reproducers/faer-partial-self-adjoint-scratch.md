@@ -15,8 +15,10 @@ standalone crate depending on that git revision (`features = ["std", "linalg"]`)
 - `cargo run --release -- padded` (one extra `temp_mat_scratch::<f64>(n, n)`): exit status 0, four
   eigenpairs with residual 8.3e-14.
 
-Colmat adds the missing `n x n` buffer to its partial self-adjoint EVD scratch query as a workaround;
-remove it after adopting a faer revision that fixes #301 and re-running this reproducer.
+Fixed upstream by tensor4all/faer#305. On t4a-faer `d374ec0` (latest `main`, same toolchain) both
+modes exit 0: `exact` declares 213504 bytes and returns the same four eigenpairs (residual 8.3e-14).
+Colmat removed its extra `n x n` buffer from the partial self-adjoint EVD scratch query when it
+adopted that revision.
 
 Related API requests from the same work: [#302](https://github.com/tensor4all/faer/issues/302)
 (run-time `SchurParams`/`GeneralizedSchurParams` controls; Colmat uses scoped globals in
