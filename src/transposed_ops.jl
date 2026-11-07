@@ -24,24 +24,15 @@ function LinearAlgebra.opnorm(a::_BorrowTranspose, p::Real = 2)
     return LinearAlgebra.opnorm(parent(a), q)
 end
 
-# Accumulate products with transposed/adjoint native operands directly into a
-# native destination through `matmul::triangular` (dense structure).
-const _TransposedOperand=Union{_BorrowMatrix,_BorrowTranspose}
-for (A, B) in
-    ((:_BorrowTranspose, :_TransposedOperand), (:_BorrowMatrix, :_BorrowTranspose))
-    @eval begin
-        LinearAlgebra.mul!(c::_ProductDense, a::$A, b::$B, alpha::Number, beta::Number) =
-            _structured_mul!(c, a, b, alpha, beta)
-        LinearAlgebra.mul!(c::_ProductDense, a::$A, b::$B) =
-            _structured_mul!(c, a, b, true, false)
-    end
-end
+# mul! with transposed/adjoint operands into native matrix or Julia destinations
+# is handled by dense_destinations.jl; a native vector destination with a
+# transposed matrix is the remaining combination and uses the same gemm path.
 LinearAlgebra.mul!(
     y::FaerVector,
-    a::_BorrowTranspose,
-    x::_BorrowVector,
+    a::_GemmTransposed,
+    x::_GemmNativeVector,
     alpha::Number,
     beta::Number,
-) = _structured_mul!(y, a, x, alpha, beta)
-LinearAlgebra.mul!(y::FaerVector, a::_BorrowTranspose, x::_BorrowVector) =
-    _structured_mul!(y, a, x, true, false)
+) = _dense_mul!(y, a, x, alpha, beta)
+LinearAlgebra.mul!(y::FaerVector, a::_GemmTransposed, x::_GemmNativeVector) =
+    _dense_mul!(y, a, x, true, false)
