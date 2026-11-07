@@ -42,6 +42,29 @@ close(A)
 @assert F \ [1.0, 2.0] ≈ a \ [1.0, 2.0]
 ```
 
+## SVD algorithms and tuning
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([sin(i + 3j) for i in 1:40, j in 1:30])
+F = svd(A; alg=LinearAlgebra.QRIteration())
+@assert F.U * Diagonal(F.S) * F.Vt ≈ Matrix(A)
+@assert svdvals(A; alg=LinearAlgebra.DivideAndConquer()) ≈ F.S
+G = with_svd_tuning(; recursion_threshold=8, qr_ratio_threshold=1.5) do
+    svd(A)
+end
+@assert G.S ≈ F.S
+close(A)
+```
+
+`alg=DivideAndConquer()` (the default) uses faer's driver, which runs the
+bidiagonal implicit QR algorithm below `recursion_threshold` (128) and divide
+and conquer above it; `alg=QRIteration()` uses the implicit QR algorithm at
+every size. `with_svd_tuning(f; recursion_threshold, qr_ratio_threshold,
+bidiag_par_threshold)` overrides faer's `SvdParams` for every SVD, scratch query,
+`FaerScratch` and `reserve!` in the scope (unspecified values keep the enclosing
+scope's), and calls without `scratch`/`team` then use the parameterized
+workspace driver. The scope holds Colmat's native-call lock.
 ## Column-pivoted QR rank and truncated solves
 
 ```julia

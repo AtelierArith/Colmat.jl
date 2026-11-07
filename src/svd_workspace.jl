@@ -113,7 +113,9 @@ function LinearAlgebra.svd!(
     full::Bool = false,
     scratch = nothing,
     team = nothing,
+    alg = nothing,
 )
+    alg===nothing || return _svd_alg(()->LinearAlgebra.svd!(a; full, scratch, team), alg)
     lock(_matrix_lock) do
         F=_svd_workspace_result(a; full, scratch, team)
         _svd_writeback!(a, F.S)
@@ -128,7 +130,13 @@ function _svd_writeback!(a::FaerMatrix{T}, s) where {T}
     copyto!(a, FaerMatrix(sigma))
     return a
 end
-function LinearAlgebra.svdvals!(a::FaerMatrix; scratch = nothing, team = nothing)
+function LinearAlgebra.svdvals!(
+    a::FaerMatrix;
+    scratch = nothing,
+    team = nothing,
+    alg = nothing,
+)
+    alg===nothing || return _svd_alg(()->LinearAlgebra.svdvals!(a; scratch, team), alg)
     lock(_matrix_lock) do
         s=_svd_workspace_result(a; values_only = true, scratch, team)
         _svd_writeback!(a, s)

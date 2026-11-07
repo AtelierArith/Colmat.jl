@@ -1441,6 +1441,7 @@ mod storage_initializer;
 
 mod filled_construction;
 
+mod svd_tuning;
 mod schur_tuning;
 
 mod evd_tuning;

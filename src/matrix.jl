@@ -255,14 +255,17 @@ faer_solve(a::FaerMatrix{Float64}, b::AbstractMatrix{<:Real}) = a \ b
 faer_solve(a::FaerMatrix{Float64}, b::AbstractVector{<:Real}) = a \ b
 
 """
-    svd(A::FaerMatrix{Float64}; full=false)
+    svd(A::FaerMatrix; full=false, alg=nothing, scratch, team)
 
 Compute the SVD directly from the Rust-owned matrix using t4a-faer. Return a
 `LinearAlgebra.SVD` with independent Julia factors. The default is a thin SVD;
 `full=true` returns square orthogonal factors. `A` is not modified.
 
-This method uses faer's SVD algorithm; LAPACK-specific algorithm and tolerance
-keywords are not supported.
+`alg=LinearAlgebra.DivideAndConquer()` (or `nothing`) uses faer's default
+driver; `alg=QRIteration()` forces the bidiagonal implicit QR algorithm at every
+size (also for `svdvals`, `svd!` and `svdvals!`). Other `SvdParams` controls are
+available through [`with_svd_tuning`](@ref). LAPACK-specific tolerance keywords
+are not supported.
 """
 function LinearAlgebra.svd(
     a::FaerMatrix{Float64};
@@ -270,10 +273,13 @@ function LinearAlgebra.svd(
     native::Bool = false,
     scratch = nothing,
     team = nothing,
+    alg = nothing,
 )
+    alg===nothing || return _svd_alg(alg) do
+        LinearAlgebra.svd(a; full, native, scratch, team)
+    end
     native && return _owned_spectral(a; full, scratch, team)
-    (!isnothing(scratch) || !isnothing(team)) &&
-        return _svd_workspace_result(a; full, scratch, team)
+    _svd_default_path(scratch, team) || return _svd_workspace_result(a; full, scratch, team)
     m, n = size(a)
     k = min(m, n)
     u = Matrix{Float64}(undef, m, full ? m : k)
@@ -291,8 +297,14 @@ end
 Compute singular values directly from Rust-owned storage, without singular
 vectors. Values are nonnegative and sorted in descending order.
 """
-function LinearAlgebra.svdvals(a::FaerMatrix{Float64}; scratch = nothing, team = nothing)
-    (!isnothing(scratch) || !isnothing(team)) &&
+function LinearAlgebra.svdvals(
+    a::FaerMatrix{Float64};
+    scratch = nothing,
+    team = nothing,
+    alg = nothing,
+)
+    alg===nothing || return _svd_alg(()->LinearAlgebra.svdvals(a; scratch, team), alg)
+    _svd_default_path(scratch, team) ||
         return _svd_workspace_result(a; values_only = true, scratch, team)
     s = Vector{Float64}(undef, min(size(a)...))
     GC.@preserve s _native_call(RustCrate.singular_values_buffer, a, pointer(s))
