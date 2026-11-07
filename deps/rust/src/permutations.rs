@@ -504,17 +504,9 @@ impl TypedMatrix {
 mod tests {
     use super::*;
     fn spec(r: isize, rs: isize, m: usize, c: isize, cs: isize, n: usize) -> Spec {
-        Spec {
-            kind: 0,
-            r,
-            rs,
-            m,
-            c,
-            cs,
-            n,
-            transpose: false,
-            conjugate: false,
-        }
+        let words = [0, r, rs, m as isize, c, cs, n as isize, 0, 0];
+        // SAFETY: a nine-word descriptor of an owned (kind 0) matrix.
+        unsafe { Spec::read(words.as_ptr()) }.unwrap()
     }
     #[test]
     fn reversed_view_permutes_in_caller_scratch_without_allocating() {
