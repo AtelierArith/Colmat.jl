@@ -96,6 +96,7 @@ export FaerSpectralFactor,
     FaerBorrowedMatrix,
     FaerBorrowedVector,
     FaerBorrowedSparseMatrix,
+    FaerSparseProductPlan,
     FaerVector,
     FaerRow,
     FaerDiagonal,
@@ -288,6 +289,7 @@ include("dense_solve_team.jl")
 include("dense_solve_workspace.jl")
 include("sparse_direct_workspace.jl")
 include("sparse_triangular_workspace.jl")
+include("sparse_product_plan.jl")
 include("sparse_qr_solve_workspace.jl")
 include("spectral_solve_workspace.jl")
 include("pivoted_cholesky_workspace.jl")
