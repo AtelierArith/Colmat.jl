@@ -202,12 +202,8 @@ const _AnyFaerTransposed=Union{
     LinearAlgebra.Transpose{T,<:FaerMatrix{T}},
     LinearAlgebra.Adjoint{T,<:FaerMatrix{T}},
 } where {T}
-Base.:*(a::_AnyFaerTransposed, b::FaerMatrix) = copy(a)*b
-Base.:*(a::FaerMatrix, b::_AnyFaerTransposed) = a*copy(b)
-Base.:*(a::_AnyFaerTransposed, b::_AnyFaerTransposed) = copy(a)*copy(b)
-function Base.:*(a::FaerMatrix{T}, b::AbstractVector{S}) where {T<:_ExtraScalar,S<:Number}
-    return vec(Matrix(a*FaerMatrix(reshape(b, :, 1))))
-end
+# Products with lazy transposes and vectors read their operands in place
+# (views.jl, mixed_ops.jl).
 function LinearAlgebra.svd(
     a::FaerMatrix{T};
     full::Bool = false,

@@ -6,8 +6,8 @@
 
 # Native operands are read through their own descriptors; Julia strided
 # operands are borrowed read-only (repeated indices are fine for reads).
-const _GemmNative=Union{FaerMatrix,FaerVector,FaerView,FaerBorrowedArray}
-const _GemmNativeMatrix=Union{FaerMatrix,FaerMatrixView,FaerBorrowedMatrix}
+const _GemmNative=Union{FaerMatrix,FaerVector,FaerRow,FaerView,FaerBorrowedArray}
+const _GemmNativeMatrix=Union{FaerMatrix,FaerRow,FaerMatrixView,FaerBorrowedMatrix}
 const _GemmNativeVector=Union{FaerVector,FaerVectorView,FaerBorrowedVector}
 const _GemmTransposed=Union{
     LinearAlgebra.Transpose{<:Any,<:_GemmNativeMatrix},
@@ -20,6 +20,12 @@ const _GemmJuliaMatrix=Union{
     LinearAlgebra.Adjoint{<:Any,<:StridedMatrix{<:_NativeScalar}},
 }
 const _GemmJuliaVector=StridedVector{<:_NativeScalar}
+# Row-vector left operands of `FaerRow` destinations: `v'`/`transpose(v)` of
+# native, borrowed or Julia strided vectors (a `FaerRow` is a native matrix).
+const _GemmRowLeft=Union{
+    LinearAlgebra.Transpose{<:Any,<:Union{_GemmNativeVector,_GemmJuliaVector}},
+    LinearAlgebra.Adjoint{<:Any,<:Union{_GemmNativeVector,_GemmJuliaVector}},
+}
 const _GemmJuliaDestination=Union{StridedVecOrMat{<:_NativeScalar},FaerBorrowedArray}
 
 _gemm_input(x::_GemmNative) = x
@@ -31,11 +37,13 @@ function _gemm_wrap(f, p)
     q=_gemm_input(p)
     return isnothing(q) ? nothing : f(q)
 end
-# An operand of scalar `P` with a view descriptor; others are converted copies.
+# An operand of scalar `P` with a view descriptor; others are converted copies
+# (converted natively from the descriptor when there is one).
 function _gemm_operand(x, ::Type{P}) where {P}
-    if eltype(x)===P
-        y=_gemm_input(x)
-        isnothing(y) || return y
+    y=_gemm_input(x)
+    if !isnothing(y)
+        eltype(x)===P && return y
+        _native_promotable(eltype(x), P) && return _native_convert(y, P)
     end
     m=size(x, 1)
     return FaerMatrix{P}(reshape(Array{P}(_gemm_materialize(x)), m, :))
@@ -132,10 +140,12 @@ end
 
 # Destinations: native owners/views, borrowed and Julia strided arrays. Each
 # method needs one native or borrowed operand; Julia-only products stay BLAS.
+# `FaerRow` destinations also take row-vector left operands (`mul!(r, v', B)`).
 for (D, A, B) in (
-    (:(Union{FaerMatrix,FaerMatrixView}), :_GemmLeft, :_GemmLeft),
-    (:(Union{FaerMatrix,FaerMatrixView}), :_GemmLeft, :_GemmJuliaMatrix),
-    (:(Union{FaerMatrix,FaerMatrixView}), :_GemmJuliaMatrix, :_GemmLeft),
+    (:(Union{FaerMatrix,FaerRow,FaerMatrixView}), :_GemmLeft, :_GemmLeft),
+    (:(Union{FaerMatrix,FaerRow,FaerMatrixView}), :_GemmLeft, :_GemmJuliaMatrix),
+    (:(Union{FaerMatrix,FaerRow,FaerMatrixView}), :_GemmJuliaMatrix, :_GemmLeft),
+    (:FaerRow, :_GemmRowLeft, :(Union{_GemmLeft,_GemmJuliaMatrix})),
     (:_GemmJuliaDestination, :_GemmLeft, :_GemmLeft),
     (:_GemmJuliaDestination, :_GemmLeft, :_GemmJuliaMatrix),
     (:_GemmJuliaDestination, :_GemmJuliaMatrix, :_GemmLeft),

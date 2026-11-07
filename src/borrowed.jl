@@ -151,15 +151,17 @@ Base.:*(a::Union{FaerBorrowedMatrix,_BorrowedTranspose}, b::_ProductVector) =
     _view_binary(a, b, 2; vector = true)
 Base.:*(a::Union{_BorrowMatrix,_BorrowTranspose}, b::FaerBorrowedVector) =
     _view_binary(a, b, 2; vector = true)
-# Intersections with the native-matrix methods accepting Julia vectors.
-Base.:*(a::FaerMatrix{Float64}, b::FaerBorrowedVector{<:Real}) =
-    _view_binary(a, b, 2; vector = true)
-Base.:*(a::FaerMatrix{T}, b::FaerBorrowedVector{S}) where {T<:_ExtraScalar,S<:Number} =
-    _view_binary(a, b, 2; vector = true)
 for (A, B) in ((:FaerBorrowedMatrix, :_ProductVector), (:_BorrowMatrix, :FaerBorrowedVector))
     @eval begin
-        LinearAlgebra.mul!(dest::FaerVector, a::$A, b::$B, alpha::Number, beta::Number) =
-            _vector_mul!(dest, a, b, alpha, beta)
-        LinearAlgebra.mul!(dest::FaerVector, a::$A, b::$B) = _vector_mul!(dest, a, b, 1, 0)
+        LinearAlgebra.mul!(
+            dest::FaerVector,
+            a::$A,
+            b::$B,
+            alpha::Number,
+            beta::Number;
+            team = nothing,
+        ) = _vector_mul!(dest, a, b, alpha, beta; team)
+        LinearAlgebra.mul!(dest::FaerVector, a::$A, b::$B; team = nothing) =
+            _vector_mul!(dest, a, b, 1, 0; team)
     end
 end
