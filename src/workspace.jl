@@ -4,7 +4,8 @@
 
 Own an aligned native workspace for reuse across operations. `reserve!` grows
 capacity/alignment explicitly; computations never grow the buffer automatically.
-Pfaffian, SVD, single/generalized EVD and saved-factor pseudoinverse consume
+Pfaffian, SVD, single/generalized EVD, saved-factor pseudoinverse and saved-QR
+inverse-action construction (`FaerLinearOperator(F; scratch)`) consume
 `scratch=workspace`; an optional
 FaerTeam supplies parallel execution. The workspace is mutably
 borrowed during the native call and operations are serialized by the owner lock.

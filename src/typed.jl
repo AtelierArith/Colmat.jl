@@ -56,7 +56,9 @@ FaerMatrix(a::AbstractMatrix{ComplexF64}) = FaerMatrix{ComplexF64}(a)
 FaerMatrix(a::AbstractMatrix{<:Complex}) = FaerMatrix{ComplexF64}(a)
 FaerMatrix(a::FaerMatrix) = copy(a)
 _coerce(a::FaerMatrix{T}, ::Type{T}) where {T} = a
-_coerce(a::FaerMatrix, ::Type{T}) where {T} = FaerMatrix{T}(a)
+_coerce(a::FaerMatrix, ::Type{T}) where {T} =
+    T<:_NativeScalar && _native_promotable(eltype(a), T) ? _native_convert(a, T) :
+    FaerMatrix{T}(a)
 function _zeros(::Type{T}, dims::Tuple{Int,Int}) where {T<:_NativeScalar}
     all(>=(0), dims) || throw(ArgumentError("matrix dimensions must be nonnegative"))
     T===Float64 &&
@@ -411,9 +413,10 @@ LinearAlgebra.bunchkaufman(
     check::Bool = true,
     team = nothing,
 ) = _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook)
-_factor_part(f::FaerFactorization{T}, code, dims) where {T<:_ExtraScalar} =
-    _typed_result(T, RustCrate.factor_part_from, dims, f, Int32(code))
-FaerMatrix(f::FaerFactorization{T}) where {T<:_ExtraScalar} = _factor_part(f, 0, size(f))
+_factor_part(f::FaerFactorization{T}, code, dims; team = nothing) where {T<:_ExtraScalar} =
+    _typed_result(T, RustCrate.factor_part_from, dims, f, Int32(code), team)
+FaerMatrix(f::FaerFactorization{T}; team = nothing) where {T<:_ExtraScalar} =
+    _factor_part(f, 0, size(f); team)
 function Base.copy(f::FaerFactorization{T,K}) where {T<:_ExtraScalar,K}
     lock(_matrix_lock) do
         h=RustCrate.TypedFactor()

@@ -595,9 +595,9 @@ pub(crate) fn packed<T: ComplexField>(lower: MatRef<'_, T>, upper: MatRef<'_, T>
         }
     })
 }
-fn factor_part<T: ComplexField>(f: &Factor<T>, part: i32) -> Result<Mat<T>, String> {
+fn factor_part<T: ComplexField>(f: &Factor<T>, part: i32, par: Par<'_>) -> Result<Mat<T>, String> {
     Ok(match part {
-        0 => factor_dispatch!(f,x=>x.reconstruct(Par::Seq)),
+        0 => factor_dispatch!(f,x=>x.reconstruct(par)),
         1 => match f {
             Factor::Lu(x) => x.L().to_owned(),
             Factor::FullLu(x) => x.L().to_owned(),
@@ -612,8 +612,8 @@ fn factor_part<T: ComplexField>(f: &Factor<T>, part: i32) -> Result<Mat<T>, Stri
             _ => return Err("no U factor".into()),
         },
         3 => match f {
-            Factor::Qr(x) => x.compute_Q(Par::Seq),
-            Factor::PivotQr(x) => x.compute_Q(Par::Seq),
+            Factor::Qr(x) => x.compute_Q(par),
+            Factor::PivotQr(x) => x.compute_Q(par),
             _ => return Err("no Q factor".into()),
         },
         4 => match f {
@@ -643,8 +643,8 @@ fn factor_part<T: ComplexField>(f: &Factor<T>, part: i32) -> Result<Mat<T>, Stri
             _ => return Err("no D factor".into()),
         },
         6 => match f {
-            Factor::Qr(x) => x.compute_thin_Q(Par::Seq),
-            Factor::PivotQr(x) => x.compute_thin_Q(Par::Seq),
+            Factor::Qr(x) => x.compute_thin_Q(par),
+            Factor::PivotQr(x) => x.compute_thin_Q(par),
             _ => return Err("no Q factor".into()),
         },
         7 => match f {
@@ -849,10 +849,18 @@ impl TypedFactor {
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn factor_part_from(&mut self, source: &TypedFactor, part: i32) -> Result<(), String> {
+    pub fn factor_part_from(
+        &mut self,
+        source: &TypedFactor,
+        part: i32,
+        team: Option<&crate::teams::OwnedTeam>,
+    ) -> Result<(), String> {
         guarded(|| {
             let f = source.data()?;
-            self.data = Some(factor_matrix!(f,x=>factor_part(x,part)?));
+            let data = crate::teams::with_team(team, |par| {
+                Ok(factor_matrix!(f,x=>factor_part(x,part,par)?))
+            })?;
+            self.data = Some(data);
             Ok(())
         })
     }

@@ -249,8 +249,21 @@ function _copyto_faer_view!(v::FaerView, src::AbstractArray)
             src isa FaerBorrowedArray ? src : FaerBorrowedArray(src)
         elseif src isa Union{FaerMatrix{T},FaerVector{T},FaerView{T}}
             # Native sources of the same scalar type are read through their own
-            # descriptor; a source sharing the destination owner is first
-            # copied natively so Rust never sees an aliased mutable borrow.
+            # descriptor. An injective destination is written directly and Rust
+            # snapshots the source only if their bytes overlap; otherwise a
+            # source sharing the destination owner is first copied natively so
+            # Rust never sees an aliased mutable borrow.
+            if _injective_descriptor(d) && d[9]==0
+                q, sd=_view_source(src)
+                GC.@preserve d sd _native_call(
+                    RustCrate.view_assign_into,
+                    p,
+                    pointer(d),
+                    q,
+                    pointer(sd),
+                )
+                return
+            end
             owner=src isa FaerView ? _view_owner(src) : src
             owner===p ? copy(src) : src
         else
@@ -272,10 +285,8 @@ const _BorrowVector=Union{FaerVector,FaerVectorView}
 function _view_binary(a, b, op; vector = false)
     lock(_matrix_lock) do
         P=promote_type(eltype(a), eltype(b))
-        aa=eltype(a)===P ? a :
-           ndims(a)==1 ? FaerVector{P}(Vector(a)) : FaerMatrix{P}(Matrix(a))
-        bb=eltype(b)===P ? b :
-           ndims(b)==1 ? FaerVector{P}(Vector(b)) : FaerMatrix{P}(Matrix(b))
+        aa=_promote_operand(a, P)
+        bb=_promote_operand(b, P)
         p, d=_view_source(aa)
         q, e=_view_source(bb)
         dims=op==2 ? (size(a, 1), size(b, 2)) : size(a)
@@ -397,20 +408,21 @@ LinearAlgebra.mul!(
     a::_BorrowMatrix,
     b::_BorrowVector,
     alpha::Number,
-    beta::Number,
-) = _vector_mul!(dest, a, b, alpha, beta)
-function _vector_mul!(dest, a, b, alpha, beta)
+    beta::Number;
+    team = nothing,
+) = _vector_mul!(dest, a, b, alpha, beta; team)
+function _vector_mul!(dest, a, b, alpha, beta; team = nothing)
     lock(_matrix_lock) do
         _handle(dest)
         size(a, 2)==length(b) && length(dest)==size(a, 1) ||
             throw(DimensionMismatch("matrix/vector product dimensions must match"))
         # Written natively in place; operands aliasing dest are snapshot.
-        _dense_mul!(dest, a, b, alpha, beta)
+        _dense_mul!(dest, a, b, alpha, beta; team)
     end
     return dest
 end
-LinearAlgebra.mul!(dest::FaerVector, a::_BorrowMatrix, b::_BorrowVector) =
-    LinearAlgebra.mul!(dest, a, b, 1, 0)
+LinearAlgebra.mul!(dest::FaerVector, a::_BorrowMatrix, b::_BorrowVector; team = nothing) =
+    LinearAlgebra.mul!(dest, a, b, 1, 0; team)
 
 # Preserve Rust vector ownership through native matrix/factor solves.
 _native_vector_solve(a, b) = _vector_from_source(a\_copy_view_matrix(b))

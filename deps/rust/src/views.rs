@@ -9,6 +9,7 @@ use faer::{Accum, Col, Conj, Mat, MatMut, MatRef, Par};
 use rustcall_julia_macros::julia;
 
 mod destination;
+mod gather;
 pub(crate) use destination::{destination, raw_mut, view_mut, BorrowedMut};
 
 #[derive(Clone, Copy)]
@@ -209,8 +210,26 @@ unsafe fn snapshot(p: *const u8, s: Spec) -> Result<MatrixData, String> {
 /// One converted copy of a view at the wider scalar `tag`, applying the
 /// descriptor's transpose and conjugation (conjugating only complex sources).
 unsafe fn promoted(p: *const u8, s: Spec, tag: i32) -> Result<MatrixData, String> {
-    fn convert<S: Native, W: Native>(a: MatRef<'_, S>, conjugate: bool) -> Result<Mat<W>, String> {
-        if !widens(S::TAG, W::TAG) {
+    converted(p, s, tag, false)
+}
+/// Copies a borrowed matrix into scalar `tag`, applying its transpose and
+/// conjugation. Without `narrowing` the target must widen the source; with it
+/// any real or complex precision is allowed except complex to real.
+pub(crate) unsafe fn converted(
+    p: *const u8,
+    s: Spec,
+    tag: i32,
+    narrowing: bool,
+) -> Result<MatrixData, String> {
+    fn convert_to<S: Native, W: Native>(
+        a: MatRef<'_, S>,
+        conjugate: bool,
+        narrowing: bool,
+    ) -> Result<Mat<W>, String> {
+        if S::TAG >= 2 && W::TAG < 2 {
+            return Err("complex matrices cannot convert to a real scalar type".into());
+        }
+        if !narrowing && !widens(S::TAG, W::TAG) {
             return Err("native promotion must widen the scalar type".into());
         }
         let conjugate = conjugate && S::TAG >= 2;
@@ -219,21 +238,21 @@ unsafe fn promoted(p: *const u8, s: Spec, tag: i32) -> Result<MatrixData, String
             W::from_parts(re, if conjugate { -im } else { im })
         }))
     }
-    fn to<S: Native>(a: MatRef<'_, S>, c: bool, tag: i32) -> Result<MatrixData, String> {
+    fn to<S: Native>(a: MatRef<'_, S>, c: bool, tag: i32, n: bool) -> Result<MatrixData, String> {
         Ok(match tag {
-            0 => MatrixData::F32(convert(a, c)?),
-            1 => MatrixData::F64(convert(a, c)?),
-            2 => MatrixData::C32(convert(a, c)?),
-            3 => MatrixData::C64(convert(a, c)?),
+            0 => MatrixData::F32(convert_to(a, c, n)?),
+            1 => MatrixData::F64(convert_to(a, c, n)?),
+            2 => MatrixData::C32(convert_to(a, c, n)?),
+            3 => MatrixData::C64(convert_to(a, c, n)?),
             _ => return Err("unknown promotion scalar".into()),
         })
     }
     let c = s.conjugate;
     match source(p, s)? {
-        Borrowed::F32(a) => to(a, c, tag),
-        Borrowed::F64(a) => to(a, c, tag),
-        Borrowed::C32(a) => to(a, c, tag),
-        Borrowed::C64(a) => to(a, c, tag),
+        Borrowed::F32(a) => to(a, c, tag, narrowing),
+        Borrowed::F64(a) => to(a, c, tag, narrowing),
+        Borrowed::C32(a) => to(a, c, tag, narrowing),
+        Borrowed::C64(a) => to(a, c, tag, narrowing),
     }
 }
 fn binary<T: ComplexField>(

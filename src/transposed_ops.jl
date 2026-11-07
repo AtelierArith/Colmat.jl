@@ -32,7 +32,8 @@ LinearAlgebra.mul!(
     a::_GemmTransposed,
     x::_GemmNativeVector,
     alpha::Number,
-    beta::Number,
-) = _dense_mul!(y, a, x, alpha, beta)
-LinearAlgebra.mul!(y::FaerVector, a::_GemmTransposed, x::_GemmNativeVector) =
-    _dense_mul!(y, a, x, true, false)
+    beta::Number;
+    team = nothing,
+) = _dense_mul!(y, a, x, alpha, beta; team)
+LinearAlgebra.mul!(y::FaerVector, a::_GemmTransposed, x::_GemmNativeVector; team = nothing) =
+    _dense_mul!(y, a, x, true, false; team)

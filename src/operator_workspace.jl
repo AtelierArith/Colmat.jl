@@ -27,7 +27,8 @@ Right-operator products have the corresponding `(A, op)` order. Includes interme
 result matrices, Julia scaling/conversion buffers and promoted operator snapshots
 allocate separately. Prepared owned/wide sparse-QR inverse actions use caller
 scratch and propagate the team through projection, triangular solves and products.
-Wide inverse construction caches a dense pseudoinverse of R separately.
+Wide inverse construction caches a dense pseudoinverse of R; its construction
+temporaries use `scratch_requirements(FaerLinearOperator, F)` separately.
 """
 function scratch_requirements(
     ::typeof(*),

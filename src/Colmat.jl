@@ -94,6 +94,9 @@ export FaerSpectralFactor,
     FaerMatrixView,
     FaerVectorView,
     diagonalview,
+    split_at_row,
+    split_at_col,
+    split_at,
     faerview,
     FaerBorrowedArray,
     FaerBorrowedMatrix,
@@ -241,6 +244,7 @@ include("views.jl")
 include("borrowed.jl")
 include("dense_destinations.jl")
 include("permutations.jl")
+include("view_indexing.jl")
 include("pseudoinverse.jl")
 include("schur.jl")
 include("qz.jl")
@@ -273,6 +277,7 @@ include("workspace.jl")
 include("permutation_workspace.jl")
 include("ordering_workspace.jl")
 include("operator_workspace.jl")
+include("qr_action_construction_workspace.jl")
 include("iterative_workspace.jl")
 include("partial_spectrum_workspace.jl")
 include("householder_workspace.jl")
@@ -326,6 +331,7 @@ include("storage_initializer.jl")
 include("function_constructors.jl")
 include("filled_constructors.jl")
 include("transposed_ops.jl")
+include("mixed_ops.jl")
 include("svd_tuning.jl")
 include("schur_tuning.jl")
 include("evd_tuning.jl")

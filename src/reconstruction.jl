@@ -11,8 +11,8 @@ const _ReconstructableSparse=Union{_SparseLU,_SparseCholesky}
 
 # Typed reconstruction goes through one independent native reconstruction,
 # which is closed unless it is already the requested result.
-function _typed_dense_reconstruction(::Type{T}, f) where {T<:_NativeScalar}
-    native=FaerMatrix(f)
+function _typed_dense_reconstruction(::Type{T}, f; kwargs...) where {T<:_NativeScalar}
+    native=FaerMatrix(f; kwargs...)
     T===eltype(native) && return native
     try
         return FaerMatrix{T}(native)
@@ -20,18 +20,19 @@ function _typed_dense_reconstruction(::Type{T}, f) where {T<:_NativeScalar}
         close(native)
     end
 end
-function _convert_dense_reconstruction(convert_result, f)
-    native=FaerMatrix(f)
+function _convert_dense_reconstruction(convert_result, f; kwargs...)
+    native=FaerMatrix(f; kwargs...)
     try
         return convert_result(native)
     finally
         close(native)
     end
 end
-FaerMatrix{T}(f::_ReconstructableDense) where {T<:_NativeScalar} =
-    _typed_dense_reconstruction(T, f)
-Base.Matrix{T}(f::_ReconstructableDense) where {T} =
-    _convert_dense_reconstruction(Matrix{T}, f)
+# `kwargs` (dense direct factors: `team`) reach the native reconstruction.
+FaerMatrix{T}(f::_ReconstructableDense; kwargs...) where {T<:_NativeScalar} =
+    _typed_dense_reconstruction(T, f; kwargs...)
+Base.Matrix{T}(f::_ReconstructableDense; kwargs...) where {T} =
+    _convert_dense_reconstruction(Matrix{T}, f; kwargs...)
 Base.Array(f::_NativeSchur) = Matrix(f)
 
 """
@@ -106,8 +107,11 @@ Schur/Hessenberg and tridiagonal/bidiagonal reductions return a
 returns a dense `FaerMatrix` in original column order. Generalized Schur/Hessenberg
 return `(A=...,B=...)` with `A=Q*S*Z'` (or `Q*H*Z'`) and `B=Q*T*Z'`.
 Inputs and factors are preserved; returned owners survive closing F.
+For dense LU/QR/Cholesky/LDLT/Bunch–Kaufman factors (retained or in place),
+`reconstruct(F; team)`, `FaerMatrix(F; team)` and `Matrix(F; team)` lend a
+caller-owned `FaerTeam` to faer's reconstruction kernel for that call.
 """
-reconstruct(f::_ReconstructableDense) = FaerMatrix(f)
+reconstruct(f::_ReconstructableDense; kwargs...) = FaerMatrix(f; kwargs...)
 reconstruct(f::_ReconstructableSparse) = FaerSparseMatrix(f)
 function reconstruct(f::_NativePairFactor)
     lock(_matrix_lock) do

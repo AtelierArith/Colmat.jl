@@ -12,6 +12,10 @@ FaerTeam(2) do team
     @assert Matrix(B) == [7.0 10; 15 22]
     mul!(A, team, A, A, 2.0, 0.0)
     @assert Matrix(A) == 2Matrix(B)
+    C = zeros(2, 2)
+    mul!(C, A, A; team)             # writes C in place on the team
+    F = lu(A; team)
+    @assert Matrix(F; team) ≈ Matrix(A)
 end # releases the reservation, including when the body throws
 ```
 
@@ -25,7 +29,27 @@ reserve independent teams. Close teams promptly; GC also owns their handles.
 and supported factorization, solve, operator and reduction entry points with `team=` use this explicit team. Consult each operation’s page for sequential kernels and restrictions. Calls are serialized
 by Colmat's owner lock, and faer may choose a narrower region for small work.
 The API controls worker reservations; it does not promise a speedup for every
-matrix size. Inputs needing conversion and destination writes use temporaries.
+matrix size.
+
+Dense `mul!(C, A, B[, alpha, beta]; team)` and the positional
+`mul!(C, team, A, B[, alpha, beta])` run faer's gemm directly in `C` (native
+owners and views, `faerview` and Julia strided destinations; at least one
+operand must be native or `faerview`) without a temporary result; only mixed scalar types stage the promoted operands. faer's
+`gemm_team` cost model decides whether a product is large enough to split, so
+Colmat adds no threshold. Dense LU/QR/Cholesky/LDLT/Bunch–Kaufman factors,
+retained or computed in place, accept `team` in `reconstruct`, `FaerMatrix(F)`
+and `Matrix(F)`. Operators such as `A * B` and `F \ B`, and property access
+such as `F.Q`, cannot take keywords and stay sequential; use `mul!`, `ldiv!` or
+`team_mul` instead. Component copies (`F.L`, `F.U`, `F.R`, ...), `kron`,
+permutations, statistics, elementwise operations and sparse symbolic analysis
+are sequential because faer exposes no parallel form for them.
+
+A team cannot adopt a threadteam pool owned by another library: threadteam
+0.5.1 has no API to attach to an existing pool (its `Pool` is consumed by
+`into_team`), and a `Team` from a separately built crate is not ABI-compatible.
+Reuse one `FaerTeam` across operations instead. The owner lock is kept: one team
+runs one execution at a time anyway (threadteam's own gate), and running different
+teams concurrently would need per-owner locking across every native call.
 
 Pool options are keywords of the constructor, and `team_diagnostics` reads the
 reservation and wait counters of the pool:
