@@ -435,7 +435,9 @@ kernel 用 workspace を照会します。対象は次の経路です。
   必要量です。
 - 恒等・任意 ordering と、正方／縦長の auto／supernodal LU／QR は 0 バイトです。
   後者の COLAMD は caller stack を受け取らない faer の symbolic API 内で確保されます。
-  明示 ordering を渡しても faer の内部要求量に COLAMD 分が残るため、事前計算では減りません。
+  明示 ordering を渡しても faer の内部要求量に COLAMD 分が残るため、事前計算では減りません
+  （[tensor4all/faer#322](https://github.com/tensor4all/faer/issues/322)、
+  実行済みの再現例 `docs/reproducers/faer-symbolic-colamd-scratch.md`）。
 
 ordering kernel は逐次実行です。容量・alignment 不足や閉じた workspace は拒否します。
 CSC への変換・複製、faer の ordering 後の symbolic 用内部バッファ、保持する置換と
