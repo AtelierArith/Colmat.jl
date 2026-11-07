@@ -545,10 +545,11 @@ not allocate either.
 and `FaerVector`s, and a real factor solves a complex `b` as two real solves.
 `FaerLinearOperator(F)` (and `M = F` in `cg`/`bicgstab`/`lsmr`) is an
 inverse-action operator over an independent copy of the direct factor.
-The direct factor does not support
-promotion of the factor to another scalar type, rectangular LU or wide-QR solves (`pinv(F;
-atol, rtol, team)` of a direct QR is supported, see below). Those need the
-default result without `scratch=`. Pivoted Cholesky
+`F \ b` of a rectangular LU or wide-QR direct factor (or a transposed rectangular
+one) returns the minimum-norm least-squares solution through the pseudoinverse.
+`pinv(F; atol, rtol, team)` of a direct QR is supported (see below). The
+direct factor does not support promotion of the factor to another scalar type;
+that needs the default result without `scratch=`. Pivoted Cholesky
 has no direct path yet. `cholesky!(A, RowMaximum();
 scratch)` keeps its existing meaning (caller scratch for the independent
 `CholeskyPivoted` factor), and faer's in-place pivoted kernel covers only the
