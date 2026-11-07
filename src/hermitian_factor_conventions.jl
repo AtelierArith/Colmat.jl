@@ -36,6 +36,55 @@ function LinearAlgebra.cholesky!(
     return _non_hermitian_cholesky(parent(a), check, RustCrate.TypedFactor)
 end
 
+"""
+    eigen(Symmetric(A::FaerMatrix{<:Complex}); sortby, scratch, team, permute=false, scale=false)
+    eigvals(Symmetric(A::FaerMatrix{<:Complex}); ...)
+
+Follow Julia, whose generic EVD of a complex `Symmetric` wrapper takes the
+Hermitian branch exactly when the matrix is Hermitian. A real stored triangle
+(diagonal included) runs faer's self-adjoint EVD on that triangle and returns
+real eigenvalues with orthonormal eigenvectors (`permute`/`scale` are ignored,
+as in Julia). Otherwise the matrix is complex symmetric but generally not
+normal: the stored triangle is expanded natively into a full owner (one O(n²)
+copy) and the general native EVD runs on it with all keywords, returning
+complex eigenpairs. `eigen!`/`eigvals!` are not defined for complex
+`Symmetric` wrappers, as in Julia.
+"""
+function LinearAlgebra.eigen(
+    a::_ComplexSymmetric;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+    permute::Bool = false,
+    scale::Bool = false,
+)
+    _real_triangle(a) &&
+        return LinearAlgebra.eigen(_hermitian_wrapper(a); sortby, scratch, team)
+    full=_selfadjoint_full(a)
+    try
+        return LinearAlgebra.eigen(full; sortby, scratch, team, permute, scale)
+    finally
+        close(full)
+    end
+end
+function LinearAlgebra.eigvals(
+    a::_ComplexSymmetric;
+    sortby = _eigensort,
+    scratch = nothing,
+    team = nothing,
+    permute::Bool = false,
+    scale::Bool = false,
+)
+    _real_triangle(a) &&
+        return LinearAlgebra.eigvals(_hermitian_wrapper(a); sortby, scratch, team)
+    full=_selfadjoint_full(a)
+    try
+        return LinearAlgebra.eigvals(full; sortby, scratch, team, permute, scale)
+    finally
+        close(full)
+    end
+end
+
 # t4a-faer's LDLᴴ and LBLᴴ are self-adjoint only (they conjugate on every
 # symmetric swap and reconstruction), so complex symmetric non-Hermitian LDLᵀ
 # such as LAPACK `zsytrf` is not available natively.
