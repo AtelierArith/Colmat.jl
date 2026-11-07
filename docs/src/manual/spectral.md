@@ -151,13 +151,21 @@ independently recomputed residuals. Set `v0`, `min_dim`, `max_dim`, `tol` and
 `max_restarts` to control the search. The self-adjoint variant assumes Hermitian
 input. A start orthogonal to a desired invariant subspace can miss it. Inspect
 `nconverged` and residuals before using results. Small/full-projection
-self-adjoint and SVD requests use native dense decompositions to avoid upstream
-panics, with `algorithm == :dense_fallback`; iterative results report `:partial`.
+self-adjoint and SVD requests (`max(max_dim, 64, 2k) >= min(size(op)...)`) take
+faer's native full-subspace branch, which materializes the operator and runs a
+dense EVD/SVD; they report `algorithm == :dense_fallback`, and iterative results
+report `:partial`. The self-adjoint dense branch reads the lower triangle of the
+materialized operator, so results are defined only for Hermitian operators. If
+the branch fails, for example because the materialized operator is not finite,
+it returns `nconverged == 0` instead of throwing. Native results are written
+directly into the returned arrays without an intermediate Rust copy.
 
 All three methods accept `scratch` and `team`. Query or reserve with the same
 projection controls and team used for execution. The buffer covers the partial
-kernel or dense fallback (including operator materialization), plus independent
-residual applications. Querying does not apply operators. Result staging, scalar
+kernel, including its full-subspace operator materialization and dense EVD/SVD,
+plus independent residual applications. For the self-adjoint full-subspace
+branch Colmat also adds the `n×n` eigenvector buffer that faer's own scratch
+query omits. Querying does not apply operators. Result staging, scalar
 promotion and Julia callback arrays allocate separately; callbacks run on the
 calling Julia task, including when a team executes the native kernels.
 

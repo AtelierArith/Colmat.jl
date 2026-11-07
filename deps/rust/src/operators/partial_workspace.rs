@@ -1,12 +1,17 @@
 //! Partial spectra: declared kernel/materialization scratch and scoped teams.
+//!
+//! Every request runs faer's native drivers. Small/full-projection self-adjoint
+//! and SVD requests take faer's own full-subspace branch (operator
+//! materialization plus dense EVD/SVD, tensor4all/faer#204 and tensor4all/faer#213), whose
+//! workspace is part of the `*_scratch` requirement. Results are written directly
+//! into the caller's span-checked buffers without Rust-side staging.
 use super::{Data, Operator, OwnedLinearOperator};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch};
 use faer::dyn_stack::{MemStack, StackReq};
-use faer::linalg::{evd, svd, temp_mat_scratch, temp_mat_zeroed};
-use faer::mat::{AsMatMut, AsMatRef};
-use faer::matrix_free::{eigen as pe, LinOp};
+use faer::linalg::temp_mat_scratch;
+use faer::matrix_free::eigen as pe;
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{c32, c64, Col, Mat, Par, ParShape};
+use faer::{c32, c64, Col, MatMut, Par, ParShape};
 use rustcall_julia_macros::julia;
 fn params(min: usize, max: usize, restarts: usize) -> pe::PartialEigenParams {
     let mut p = pe::PartialEigenParams::default();
@@ -14,9 +19,6 @@ fn params(min: usize, max: usize, restarts: usize) -> pe::PartialEigenParams {
     p.max_dim = max;
     p.max_restarts = restarts;
     p
-}
-fn fallback(kind: i32, k: usize, m: usize, n: usize, max: usize, restarts: usize) -> bool {
-    k > 0 && restarts > 0 && kind != 0 && max.max(64).max(k.saturating_mul(2)) >= m.min(n)
 }
 fn requirement<T: ComplexField>(
     a: &Operator<T>,
@@ -35,40 +37,27 @@ fn requirement<T: ComplexField>(
     if min.max(32).max(k).min(limit) > max.max(64).max(k.saturating_mul(2)).min(limit) {
         return Err("partial spectrum min_dim exceeds maximum projection dimension".into());
     }
+    // faer's full-subspace branch ignores max_restarts; Colmat keeps restarts=0
+    // as an explicit "do not search" request with no workspace.
     if k == 0 || restarts == 0 {
         return Ok(StackReq::EMPTY);
     }
-    if fallback(kind, k, m, n, max, restarts) {
-        let decomp = if kind == 1 {
-            evd::self_adjoint_evd_scratch::<T>(
-                n,
-                evd::ComputeEigenvectors::Yes,
-                p,
-                Default::default(),
-            )
-        } else {
-            svd::svd_scratch::<T>(
-                m,
-                n,
-                svd::ComputeSvdVectors::Thin,
-                svd::ComputeSvdVectors::Thin,
-                p,
-                Default::default(),
-            )
-        };
-        Ok(temp_mat_scratch::<T>(m, n).and(
-            temp_mat_scratch::<T>(n, 1)
-                .and(a.apply_scratch(1, p))
-                .or(decomp),
-        ))
-    } else {
-        let param = params(min, max, restarts);
-        Ok(match kind {
-            0 => pe::partial_eigen_scratch(a, k, p, param),
-            1 => pe::partial_self_adjoint_eigen_scratch(a, k, p, param),
-            _ => pe::partial_svd_scratch(a, k, p, param),
-        })
-    }
+    let param = params(min, max, restarts);
+    Ok(match kind {
+        0 => pe::partial_eigen_scratch(a, k, p, param),
+        1 => {
+            let req = pe::partial_self_adjoint_eigen_scratch(a, k, p, param);
+            // faer's full-subspace scratch omits the n x n eigenvector buffer that
+            // `self_adjoint_eigen::full::partial_full_spectrum` allocates, so an
+            // exact-size buffer panics in `self_adjoint_evd` (n = 64, k = 2).
+            if max.max(64).max(k.saturating_mul(2)).min(n) >= n {
+                req.and(temp_mat_scratch::<T>(n, n))
+            } else {
+                req
+            }
+        }
+        _ => pe::partial_svd_scratch(a, k, p, param),
+    })
 }
 fn checked_requirement(
     a: &OwnedLinearOperator,
@@ -104,6 +93,30 @@ fn span<T>(ptr: *const u8, count: usize) -> Result<(), String> {
     }
     Ok(())
 }
+/// Mutable column-major view of a caller buffer; empty views never touch `ptr`.
+///
+/// # Safety
+/// For nonempty shapes `ptr` must be span/alignment checked for `rows*cols`
+/// entries and must not alias any other live view.
+unsafe fn view<'a, T>(ptr: *mut u8, rows: usize, cols: usize) -> MatMut<'a, T> {
+    let ptr = if rows == 0 || cols == 0 {
+        std::ptr::NonNull::<T>::dangling().as_ptr()
+    } else {
+        ptr.cast::<T>()
+    };
+    MatMut::from_raw_parts_mut(ptr, rows, cols, 1, rows.max(1) as isize)
+}
+/// Mutable slice of a caller buffer; empty slices never touch `ptr`.
+///
+/// # Safety
+/// Same contract as [`view`].
+unsafe fn slice<'a, T>(ptr: *mut u8, len: usize) -> &'a mut [T] {
+    if len == 0 {
+        &mut []
+    } else {
+        std::slice::from_raw_parts_mut(ptr.cast::<T>(), len)
+    }
+}
 macro_rules! solve {
     ($name:ident,$t:ty,$c:ty) => {
         fn $name(
@@ -119,7 +132,7 @@ macro_rules! solve {
             values: *mut u8,
             right: *mut u8,
             stack: &mut MemStack,
-            mut par: Par<'_>,
+            par: Par<'_>,
         ) -> Result<usize, String> {
             let (m, n) = a.shape();
             let tolerance = from_f64::<<$t as ComplexField>::Real>(tolerance);
@@ -147,136 +160,47 @@ macro_rules! solve {
             if !v.norm_l2().is_finite() || v.norm_l2() == 0.0 {
                 return Err("partial spectrum start must have finite nonzero norm".into());
             }
-            if kind == 0 {
-                let mut u = Mat::<$c>::zeros(n, k);
-                let mut s = vec![<$c>::new(0.0, 0.0); k];
-                let info = pe::partial_eigen(
-                    u.as_mut(),
-                    &mut s,
-                    a,
-                    v.as_ref(),
-                    tolerance as _,
-                    par,
-                    stack,
-                    params(min, max, restarts),
-                );
-                let count = info.n_converged_eigen.min(k);
-                // SAFETY: caller retains disjoint output arrays of the validated dimensions.
-                unsafe {
-                    for j in 0..count {
-                        values.cast::<$c>().add(j).write(s[j]);
-                        for i in 0..m {
-                            vectors.cast::<$c>().add(i + j * m).write(u[(i, j)]);
-                        }
-                    }
-                }
-                return Ok(count);
-            }
-            let dense = fallback(kind, k, m, n, max, restarts);
-            let r = if dense { m.min(n) } else { k };
-            let mut u = Mat::<$t>::zeros(m, r);
-            let mut w = Mat::<$t>::zeros(n, if kind == 2 { r } else { 0 });
-            let mut s = Mat::<$t>::zeros(r, 1);
-            let count = if dense {
-                let (mut coefficient, tail) = temp_mat_zeroed::<$t, _, _>(m, n, stack);
-                {
-                    let (mut input, work) = temp_mat_zeroed::<$t, _, _>(n, 1, tail);
-                    for j in 0..n {
-                        input.as_mat_mut().fill(zero());
-                        input.as_mat_mut()[(j, 0)] = one();
-                        a.apply(
-                            coefficient.as_mat_mut().col_mut(j).as_mat_mut(),
-                            input.as_mat_ref(),
-                            par.reborrow(),
-                            work,
-                        );
-                    }
-                }
-                if kind == 1 {
-                    // Match Julia Hermitian(A)'s default upper-triangle convention.
-                    for j in 0..n {
-                        for i in j + 1..n {
-                            let value = conj(&coefficient.as_mat_ref()[(j, i)]);
-                            coefficient.as_mat_mut()[(i, j)] = value;
-                        }
-                    }
-                    evd::self_adjoint_evd(
-                        coefficient.as_mat_ref(),
-                        s.as_mut().col_mut(0).as_diagonal_mut(),
-                        Some(u.as_mut()),
-                        par,
-                        tail,
-                        Default::default(),
-                    )
-                    .map_err(|e| format!("partial fallback EVD: {e:?}"))?;
-                } else {
-                    svd::svd(
-                        coefficient.as_mat_ref(),
-                        s.as_mut().col_mut(0).as_diagonal_mut(),
-                        Some(u.as_mut()),
-                        Some(w.as_mut()),
-                        par,
-                        tail,
-                        Default::default(),
-                    )
-                    .map_err(|e| format!("partial fallback SVD: {e:?}"))?;
-                }
-                k
-            } else {
-                let mut eig = vec![zero::<$t>(); k];
-                let info = if kind == 1 {
-                    pe::partial_self_adjoint_eigen(
-                        u.as_mut(),
-                        &mut eig,
+            let param = params(min, max, restarts);
+            // SAFETY: the Julia caller passes freshly allocated, mutually disjoint
+            // output arrays of exactly these span-checked dimensions, and the start
+            // vector has already been copied. faer writes only the leading converged
+            // columns; the caller reads only the returned count.
+            let info = unsafe {
+                match kind {
+                    0 => pe::partial_eigen(
+                        view::<$c>(vectors, n, k),
+                        slice::<$c>(values, k),
                         a,
                         v.as_ref(),
                         tolerance as _,
                         par,
                         stack,
-                        params(min, max, restarts),
-                    )
-                } else {
-                    pe::partial_svd(
-                        u.as_mut(),
-                        w.as_mut(),
-                        &mut eig,
+                        param,
+                    ),
+                    1 => pe::partial_self_adjoint_eigen(
+                        view::<$t>(vectors, n, k),
+                        slice::<$t>(values, k),
                         a,
                         v.as_ref(),
                         tolerance as _,
                         par,
                         stack,
-                        params(min, max, restarts),
-                    )
-                };
-                for j in 0..k {
-                    s[(j, 0)] = eig[j];
+                        param,
+                    ),
+                    _ => pe::partial_svd(
+                        view::<$t>(vectors, m, k),
+                        view::<$t>(right, n, k),
+                        slice::<$t>(values, k),
+                        a,
+                        v.as_ref(),
+                        tolerance as _,
+                        par,
+                        stack,
+                        param,
+                    ),
                 }
-                info.n_converged_eigen.min(k)
             };
-            let mut order: Vec<usize> = (0..if dense { r } else { count }).collect();
-            if dense {
-                order.sort_by(|&i, &j| {
-                    abs(&s[(j, 0)])
-                        .partial_cmp(&abs(&s[(i, 0)]))
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
-            }
-            // SAFETY: result buffers are valid for all k columns, checked before computation.
-            unsafe {
-                for j in 0..count {
-                    let q = order[j];
-                    values.cast::<$t>().add(j).write(s[(q, 0)]);
-                    for i in 0..m {
-                        vectors.cast::<$t>().add(i + j * m).write(u[(i, q)]);
-                    }
-                    if kind == 2 {
-                        for i in 0..n {
-                            right.cast::<$t>().add(i + j * n).write(w[(i, q)]);
-                        }
-                    }
-                }
-            }
-            Ok(count)
+            Ok(info.n_converged_eigen.min(k))
         }
     };
 }
@@ -443,6 +367,50 @@ impl OwnedLinearOperator {
 mod tests {
     use super::*;
     use crate::operators::Base;
+    use faer::Mat;
+    #[test]
+    fn non_finite_full_subspace_reports_zero_and_preserves_outputs() {
+        for kind in [1, 2] {
+            let op = OwnedLinearOperator {
+                data: Some(Data::F64(Operator::new(Base::Dense(Mat::<f64>::from_fn(
+                    4,
+                    4,
+                    |_, _| f64::NAN,
+                ))))),
+            };
+            let mut info = [0usize; 2];
+            op.partial_requirements(kind, 2, 4, 4, 1, 0, 0, 20, info.as_mut_ptr())
+                .unwrap();
+            let mut scratch = OwnedScratch::new();
+            scratch.scratch_reserve(info[0], info[1]).unwrap();
+            let start = [1.0; 4];
+            let mut vectors = [19.0; 8];
+            let mut values = [23.0; 2];
+            let mut right = [29.0; 8];
+            let count = op
+                .partial_workspace(
+                    kind,
+                    2,
+                    4,
+                    4,
+                    1,
+                    start.as_ptr().cast(),
+                    1e-8,
+                    0,
+                    0,
+                    20,
+                    vectors.as_mut_ptr().cast(),
+                    values.as_mut_ptr().cast(),
+                    right.as_mut_ptr().cast(),
+                    &mut scratch,
+                )
+                .unwrap();
+            assert_eq!(count, 0);
+            assert_eq!(vectors, [19.0; 8]);
+            assert_eq!(values, [23.0; 2]);
+            assert_eq!(right, [29.0; 8]);
+        }
+    }
     macro_rules! test_scalar {
         ($test:ident,$t:ty,$c:ty,$variant:ident,$tag:expr,$tol:expr) => {
             #[test]

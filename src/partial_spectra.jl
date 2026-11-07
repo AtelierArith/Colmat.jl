@@ -11,8 +11,12 @@ independently recomputed as LinearAlgebra.norm(A*v-lambda*v). Eigenpairs are sor
 magnitude. v0 defaults to a deterministic nonzero vector; use another start if
 it is orthogonal to a desired invariant subspace.
 
-Small/full-subspace self-adjoint requests use native dense eigen as an explicit
-workaround for faer #204; algorithm reports :dense_fallback in that case.
+Small/full-subspace self-adjoint requests (max(max_dim, 64, 2nev) >= n) take
+faer's native full-subspace branch, which materializes the operator and runs a
+dense self-adjoint eigendecomposition reading its lower triangle; algorithm
+reports :dense_fallback in that case. Results are defined only for Hermitian
+operators. If that branch fails (for example a non-finite materialized
+operator) it reports nconverged == 0 instead of throwing.
 Projection dimension controls are lower bounds in faer (at least 64 and 2nev).
 `scratch` reuses caller-owned native kernel/materialization and final residual
 workspace; `team` supplies the scoped native team. Query with
@@ -27,8 +31,10 @@ function partial_self_adjoint_eigen end
 Estimate largest singular triplets using faer's partial SVD. Keywords match
 [`partial_eigen`](@ref). Return U, S, Vt, nconverged, requested, residuals and
 algorithm. Residuals check both A*v=s*u and A'*u=s*v. Only reported converged
-triplets are returned. Full-projection requests use a native dense SVD fallback; algorithm reports
-:dense_fallback. Other requests do not materialize the operator.
+triplets are returned. Full-projection requests (max(max_dim, 64, 2nsv) >=
+min(size(op)...)) take faer's native full-subspace dense SVD branch; algorithm
+reports :dense_fallback, and a failure there reports nconverged == 0. Other
+requests do not materialize the operator.
 """
 function partial_svd end
 function _partial_spectrum(
@@ -71,6 +77,7 @@ function _partial_spectrum(
             algorithm=:partial
             count=0
             if k>0 && max_restarts>0
+                # Mirrors faer's full-subspace trigger max(max_dim, 2MIN_DIM, 2k) >= limit.
                 algorithm=kind in (1, 2) && max(Int(max_dim), 64, 2k)>=min(m, n) ?
                           :dense_fallback : :partial
                 GC.@preserve start vectors values right begin
