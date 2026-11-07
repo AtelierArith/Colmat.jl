@@ -1,6 +1,7 @@
 //! Apply retained spectral factors without materializing a pseudoinverse.
 use crate::pseudoinverse::ToleranceReal;
 use crate::spectral_factors::{Decomposition, OwnedSpectral, SpectralData};
+use crate::teams::with_team;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::traits::{math_utils::*, ComplexField};
@@ -238,57 +239,11 @@ impl OwnedMatrix {
         atol: f64,
         rtol: f64,
         relative_f32: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             let rhs = Rhs::F64(b.matrix.as_ref());
-            let par = Par::Seq;
-            let result = f.solve(
-                rhs,
-                factor_rows,
-                factor_cols,
-                rows,
-                cols,
-                factor_tag,
-                tag,
-                eigen,
-                op,
-                right,
-                atol,
-                rtol,
-                relative_f32,
-                par,
-                None,
-            )?;
-            if let MatrixData::F64(a) = result {
-                self.matrix = a;
-            } else {
-                return Err("Float64 spectral solve output dtype mismatch".into());
-            }
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_solve_team(
-        &mut self,
-        f: &OwnedSpectral,
-        b: &OwnedMatrix,
-        factor_rows: usize,
-        factor_cols: usize,
-        rows: usize,
-        cols: usize,
-        factor_tag: i32,
-        tag: i32,
-        eigen: bool,
-        op: i32,
-        right: bool,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let rhs = Rhs::F64(b.matrix.as_ref());
-            let result = team.execute(|par| {
+            let result = with_team(team, |par| {
                 f.solve(
                     rhs,
                     factor_rows,
@@ -306,7 +261,7 @@ impl OwnedMatrix {
                     par,
                     None,
                 )
-            })??;
+            })?;
             if let MatrixData::F64(a) = result {
                 self.matrix = a;
             } else {
@@ -335,6 +290,7 @@ impl TypedMatrix {
         atol: f64,
         rtol: f64,
         relative_f32: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             let rhs = match b.data()? {
@@ -343,55 +299,7 @@ impl TypedMatrix {
                 MatrixData::C32(b) => Rhs::C32(b.as_ref()),
                 MatrixData::C64(b) => Rhs::C64(b.as_ref()),
             };
-            let par = Par::Seq;
-            let result = f.solve(
-                rhs,
-                factor_rows,
-                factor_cols,
-                rows,
-                cols,
-                factor_tag,
-                tag,
-                eigen,
-                op,
-                right,
-                atol,
-                rtol,
-                relative_f32,
-                par,
-                None,
-            )?;
-            self.data = Some(result);
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_solve_team(
-        &mut self,
-        f: &OwnedSpectral,
-        b: &TypedMatrix,
-        factor_rows: usize,
-        factor_cols: usize,
-        rows: usize,
-        cols: usize,
-        factor_tag: i32,
-        tag: i32,
-        eigen: bool,
-        op: i32,
-        right: bool,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let rhs = match b.data()? {
-                MatrixData::F32(b) => Rhs::F32(b.as_ref()),
-                MatrixData::F64(b) => Rhs::F64(b.as_ref()),
-                MatrixData::C32(b) => Rhs::C32(b.as_ref()),
-                MatrixData::C64(b) => Rhs::C64(b.as_ref()),
-            };
-            let result = team.execute(|par| {
+            let result = with_team(team, |par| {
                 f.solve(
                     rhs,
                     factor_rows,
@@ -409,7 +317,7 @@ impl TypedMatrix {
                     par,
                     None,
                 )
-            })??;
+            })?;
             self.data = Some(result);
             Ok(())
         })

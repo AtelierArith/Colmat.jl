@@ -89,8 +89,7 @@ function _svd_workspace_result(
                     UInt(n),
                     _tag(T),
                 )
-                isnothing(team) ? _native_call(RustCrate.svd_workspace, a, work, args...) :
-                _native_call(RustCrate.svd_workspace_team, a, work, team, args...)
+                _native_call(RustCrate.svd_workspace, a, work, team, args...)
             end
             return values_only ? singular : SVD(u, singular, copy(adjoint(v)))
         finally

@@ -98,8 +98,8 @@ function _spectral_part(
             rt,
             promote_type(typeof(rtol), _realtype(T))===Float32,
         )
-        fun=isnothing(team) ? RustCrate.spectral_part : RustCrate.spectral_part_team
-        tail=isnothing(team) ? () : (team,)
+        fun=RustCrate.spectral_part
+        tail=(team,)
         return T===Float64 ? _matrix_result(fun, dims, args..., tail...) :
                _typed_result(T, fun, dims, args..., tail...)
     end
@@ -151,8 +151,7 @@ function _owned_spectral(
         eigen && LinearAlgebra.checksquare(a)
         h=RustCrate.OwnedSpectral()
         args=(a, h, eigen, lower, full)
-        isnothing(team) ? _native_call(RustCrate.spectral_factor, args...) :
-        _native_call(RustCrate.spectral_factor_team, args..., team)
+        _native_call(RustCrate.spectral_factor, args..., team)
         m, n=size(a)
         k=min(m, n)
         f=FaerSpectralFactor{T,eigen ? :eigen : :svd,typeof(h)}(

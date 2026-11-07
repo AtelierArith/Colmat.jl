@@ -239,22 +239,34 @@ mod spectral_workspace_tests {
                 ),
             };
             let mut factor = OwnedSpectral::new();
-            a.spectral_factor(&mut factor, eigen, true, false).unwrap();
+            a.spectral_factor(&mut factor, eigen, true, false, None)
+                .unwrap();
             let mut req = [0usize; 2];
             factor
-                .spectral_pinv_requirements(3, 3, 1, eigen, req.as_mut_ptr())
+                .spectral_pinv_requirements(3, 3, 1, eigen, req.as_mut_ptr(), None)
                 .unwrap();
             let mut scratch = OwnedScratch::new();
             let mut output = OwnedMatrix {
                 matrix: faer::Mat::full(1, 1, 99.0),
             };
             assert!(output
-                .spectral_pinv_workspace(&factor, &mut scratch, 3, 3, 1, eigen, 1e-3, 0.0, false)
+                .spectral_pinv_workspace(
+                    &factor,
+                    &mut scratch,
+                    3,
+                    3,
+                    1,
+                    eigen,
+                    1e-3,
+                    0.0,
+                    false,
+                    None
+                )
                 .is_err());
             assert_eq!(output.matrix[(0, 0)], 99.0);
             let mut info = [123usize, 456];
             assert!(factor
-                .spectral_pinv_requirements(4, 3, 1, eigen, info.as_mut_ptr())
+                .spectral_pinv_requirements(4, 3, 1, eigen, info.as_mut_ptr(), None)
                 .is_err());
             assert_eq!(info, [123, 456]);
             scratch.scratch_reserve(req[0], req[1]).unwrap();
@@ -271,6 +283,7 @@ mod spectral_workspace_tests {
                         1e-3,
                         0.0,
                         false,
+                        None,
                     )
                     .unwrap();
                 assert!((output.matrix[(0, 0)] + 0.25).abs() < 1e-12);

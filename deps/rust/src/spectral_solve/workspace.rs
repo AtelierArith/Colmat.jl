@@ -2,6 +2,7 @@
 use super::{threshold, Rhs};
 use crate::pseudoinverse::ToleranceReal;
 use crate::spectral_factors::{Decomposition, OwnedSpectral, SpectralData};
+use crate::teams::with_team;
 use crate::typed::{finite, MatrixData, TypedMatrix};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::StackReq;
@@ -326,31 +327,17 @@ impl OwnedSpectral {
         right: bool,
         extent: usize,
         out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| query(self, m, n, source, target, eigen, op, right, extent, out))
-    }
-}
-#[julia]
-impl OwnedSpectral {
-    #[julia]
-    pub fn spectral_solve_requirements_team(
-        &self,
-        m: usize,
-        n: usize,
-        source: i32,
-        target: i32,
-        eigen: bool,
-        op: i32,
-        right: bool,
-        extent: usize,
-        out: *mut usize,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            team.execute(|_| query(self, m, n, source, target, eigen, op, right, extent, out))?
+            with_team(team, |_| {
+                query(self, m, n, source, target, eigen, op, right, extent, out)
+            })
         })
     }
 }
+#[julia]
+impl OwnedSpectral {}
 #[julia]
 impl OwnedMatrix {
     #[julia]
@@ -371,60 +358,11 @@ impl OwnedMatrix {
         rtol: f64,
         relative_f32: bool,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             let rhs = Rhs::F64(b.matrix.as_ref());
-            let result = f.solve(
-                rhs,
-                m,
-                n,
-                rows,
-                cols,
-                source,
-                target,
-                eigen,
-                op,
-                right,
-                atol,
-                rtol,
-                relative_f32,
-                Par::Seq,
-                Some(scratch),
-            )?;
-            if let MatrixData::F64(a) = result {
-                self.matrix = a;
-                Ok(())
-            } else {
-                Err("spectral output scalar mismatch".into())
-            }
-        })
-    }
-}
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn spectral_solve_workspace_team(
-        &mut self,
-        f: &OwnedSpectral,
-        b: &OwnedMatrix,
-        m: usize,
-        n: usize,
-        rows: usize,
-        cols: usize,
-        source: i32,
-        target: i32,
-        eigen: bool,
-        op: i32,
-        right: bool,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let rhs = Rhs::F64(b.matrix.as_ref());
-            let result = team.execute(|par| {
+            let result = with_team(team, |par| {
                 f.solve(
                     rhs,
                     m,
@@ -442,7 +380,7 @@ impl OwnedMatrix {
                     par,
                     Some(scratch),
                 )
-            })??;
+            })?;
             if let MatrixData::F64(a) = result {
                 self.matrix = a;
                 Ok(())
@@ -452,6 +390,8 @@ impl OwnedMatrix {
         })
     }
 }
+#[julia]
+impl OwnedMatrix {}
 #[julia]
 impl TypedMatrix {
     #[julia]
@@ -472,6 +412,7 @@ impl TypedMatrix {
         rtol: f64,
         relative_f32: bool,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             let rhs = match b.data()? {
@@ -480,58 +421,7 @@ impl TypedMatrix {
                 MatrixData::C32(b) => Rhs::C32(b.as_ref()),
                 MatrixData::C64(b) => Rhs::C64(b.as_ref()),
             };
-            let result = f.solve(
-                rhs,
-                m,
-                n,
-                rows,
-                cols,
-                source,
-                target,
-                eigen,
-                op,
-                right,
-                atol,
-                rtol,
-                relative_f32,
-                Par::Seq,
-                Some(scratch),
-            )?;
-            self.data = Some(result);
-            Ok(())
-        })
-    }
-}
-#[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn spectral_solve_workspace_team(
-        &mut self,
-        f: &OwnedSpectral,
-        b: &TypedMatrix,
-        m: usize,
-        n: usize,
-        rows: usize,
-        cols: usize,
-        source: i32,
-        target: i32,
-        eigen: bool,
-        op: i32,
-        right: bool,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let rhs = match b.data()? {
-                MatrixData::F32(b) => Rhs::F32(b.as_ref()),
-                MatrixData::F64(b) => Rhs::F64(b.as_ref()),
-                MatrixData::C32(b) => Rhs::C32(b.as_ref()),
-                MatrixData::C64(b) => Rhs::C64(b.as_ref()),
-            };
-            let result = team.execute(|par| {
+            let result = with_team(team, |par| {
                 f.solve(
                     rhs,
                     m,
@@ -549,12 +439,14 @@ impl TypedMatrix {
                     par,
                     Some(scratch),
                 )
-            })??;
+            })?;
             self.data = Some(result);
             Ok(())
         })
     }
 }
+#[julia]
+impl TypedMatrix {}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -797,7 +689,7 @@ mod tests {
             matrix: Mat::from_fn(3, 2, |i, j| if i == j { 4.0 + j as f64 } else { 0.0 }),
         };
         let mut f = OwnedSpectral::new();
-        a.spectral_factor(&mut f, false, true, false).unwrap();
+        a.spectral_factor(&mut f, false, true, false, None).unwrap();
         let b = OwnedMatrix {
             matrix: Mat::full(3, 2, 1.0),
         };
@@ -805,7 +697,7 @@ mod tests {
             matrix: Mat::identity(2, 2),
         };
         let mut info = [0; 2];
-        f.spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, info.as_mut_ptr())
+        f.spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, info.as_mut_ptr(), None)
             .unwrap();
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0], info[1]).unwrap();
@@ -825,6 +717,7 @@ mod tests {
             0.0,
             false,
             &mut scratch,
+            None,
         )
         .unwrap();
         let saved = out.matrix.clone();
@@ -845,7 +738,8 @@ mod tests {
                     op,
                     false,
                     2,
-                    info.as_mut_ptr()
+                    info.as_mut_ptr(),
+                    None
                 )
                 .is_err());
             assert!(out
@@ -864,19 +758,20 @@ mod tests {
                     0.0,
                     0.0,
                     false,
-                    &mut scratch
+                    &mut scratch,
+                    None
                 )
                 .is_err());
             assert_eq!(out.matrix, saved);
         }
         assert!(f
-            .spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, std::ptr::null_mut())
+            .spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, std::ptr::null_mut(), None)
             .is_err());
         let mut team = OwnedTeam::new();
         team.team_initialize(2).unwrap();
         team.team_close().unwrap();
         assert!(f
-            .spectral_solve_requirements_team(
+            .spectral_solve_requirements(
                 3,
                 2,
                 1,
@@ -886,7 +781,7 @@ mod tests {
                 false,
                 2,
                 info.as_mut_ptr(),
-                &team
+                Some(&team)
             )
             .is_err());
         scratch.scratch_close().unwrap();
@@ -906,13 +801,14 @@ mod tests {
                 0.0,
                 0.0,
                 false,
-                &mut scratch
+                &mut scratch,
+                None
             )
             .is_err());
         assert_eq!(out.matrix, saved);
         f.spectral_close().unwrap();
         assert!(f
-            .spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, info.as_mut_ptr())
+            .spectral_solve_requirements(3, 2, 1, 1, false, 0, false, 2, info.as_mut_ptr(), None)
             .is_err());
     }
 }

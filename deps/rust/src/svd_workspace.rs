@@ -1,4 +1,5 @@
 //! SVD with caller-owned workspace and ephemeral team authority.
+use crate::teams::with_team;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::StackReq;
@@ -166,6 +167,7 @@ impl OwnedMatrix {
     pub fn svd_workspace(
         &self,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
         u: *mut u8,
         s: *mut u8,
         v: *mut u8,
@@ -179,38 +181,7 @@ impl OwnedMatrix {
             run(
                 self.matrix.as_ref(),
                 scratch,
-                None,
-                u,
-                s,
-                v,
-                full,
-                values,
-                m,
-                n,
-                tag,
-                1,
-            )
-        })
-    }
-    #[julia]
-    pub fn svd_workspace_team(
-        &self,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-        u: *mut u8,
-        s: *mut u8,
-        v: *mut u8,
-        full: bool,
-        values: bool,
-        m: usize,
-        n: usize,
-        tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| unsafe {
-            run(
-                self.matrix.as_ref(),
-                scratch,
-                Some(team),
+                team,
                 u,
                 s,
                 v,
@@ -304,6 +275,7 @@ impl TypedMatrix {
     pub fn svd_workspace(
         &self,
         scratch: &mut OwnedScratch,
+        team: Option<&OwnedTeam>,
         u: *mut u8,
         s: *mut u8,
         v: *mut u8,
@@ -313,24 +285,6 @@ impl TypedMatrix {
         n: usize,
         tag: i32,
     ) -> Result<(), String> {
-        guarded(|| unsafe { self.workspace_svd(scratch, None, u, s, v, full, values, m, n, tag) })
-    }
-    #[julia]
-    pub fn svd_workspace_team(
-        &self,
-        scratch: &mut OwnedScratch,
-        team: &OwnedTeam,
-        u: *mut u8,
-        s: *mut u8,
-        v: *mut u8,
-        full: bool,
-        values: bool,
-        m: usize,
-        n: usize,
-        tag: i32,
-    ) -> Result<(), String> {
-        guarded(|| unsafe {
-            self.workspace_svd(scratch, Some(team), u, s, v, full, values, m, n, tag)
-        })
+        guarded(|| unsafe { self.workspace_svd(scratch, team, u, s, v, full, values, m, n, tag) })
     }
 }

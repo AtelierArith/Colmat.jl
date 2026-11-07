@@ -1,5 +1,6 @@
 //! Reusable owned faer SVD and self-adjoint EVD objects.
 use crate::pseudoinverse::ToleranceReal;
+use crate::teams::with_team;
 use crate::typed::{finite, hermitian_copy, MatrixData, TypedMatrix};
 use crate::workspace::OwnedScratch;
 use crate::{guarded, teams::OwnedTeam, OwnedMatrix};
@@ -274,30 +275,10 @@ impl OwnedMatrix {
         eigen: bool,
         lower: bool,
         full: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            out.data = Some(SpectralData::F64(Decomposition::new(
-                self.matrix.as_ref(),
-                eigen,
-                lower,
-                full,
-                par,
-            )?));
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_factor_team(
-        &self,
-        out: &mut OwnedSpectral,
-        eigen: bool,
-        lower: bool,
-        full: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            out.data = Some(team.execute(|par| -> Result<SpectralData, String> {
+            out.data = Some(with_team(team, |par| -> Result<SpectralData, String> {
                 Ok(SpectralData::F64(Decomposition::new(
                     self.matrix.as_ref(),
                     eigen,
@@ -305,10 +286,11 @@ impl OwnedMatrix {
                     full,
                     par,
                 )?))
-            })??);
+            })?);
             Ok(())
         })
     }
+
     #[julia]
     pub fn spectral_part(
         &mut self,
@@ -321,36 +303,12 @@ impl OwnedMatrix {
         atol: f64,
         rtol: f64,
         relative_f32: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            let result = f.part(part, rows, cols, tag, eigen, atol, rtol, relative_f32, par)?;
-            if let MatrixData::F64(a) = result {
-                self.matrix = a;
-            } else {
-                return Err("Float64 spectral output dtype mismatch".into());
-            }
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_part_team(
-        &mut self,
-        f: &OwnedSpectral,
-        part: i32,
-        rows: usize,
-        cols: usize,
-        tag: i32,
-        eigen: bool,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let result = team.execute(|par| {
+            let result = with_team(team, |par| {
                 f.part(part, rows, cols, tag, eigen, atol, rtol, relative_f32, par)
-            })??;
+            })?;
             if let MatrixData::F64(a) = result {
                 self.matrix = a;
             } else {
@@ -369,37 +327,10 @@ impl TypedMatrix {
         eigen: bool,
         lower: bool,
         full: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            out.data = Some(match self.data()? {
-                MatrixData::F32(a) => {
-                    SpectralData::F32(Decomposition::new(a.as_ref(), eigen, lower, full, par)?)
-                }
-                MatrixData::F64(a) => {
-                    SpectralData::F64(Decomposition::new(a.as_ref(), eigen, lower, full, par)?)
-                }
-                MatrixData::C32(a) => {
-                    SpectralData::C32(Decomposition::new(a.as_ref(), eigen, lower, full, par)?)
-                }
-                MatrixData::C64(a) => {
-                    SpectralData::C64(Decomposition::new(a.as_ref(), eigen, lower, full, par)?)
-                }
-            });
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_factor_team(
-        &self,
-        out: &mut OwnedSpectral,
-        eigen: bool,
-        lower: bool,
-        full: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            out.data = Some(team.execute(|par| -> Result<SpectralData, String> {
+            out.data = Some(with_team(team, |par| -> Result<SpectralData, String> {
                 Ok(match self.data()? {
                     MatrixData::F32(a) => {
                         SpectralData::F32(Decomposition::new(a.as_ref(), eigen, lower, full, par)?)
@@ -414,10 +345,11 @@ impl TypedMatrix {
                         SpectralData::C64(Decomposition::new(a.as_ref(), eigen, lower, full, par)?)
                     }
                 })
-            })??);
+            })?);
             Ok(())
         })
     }
+
     #[julia]
     pub fn spectral_part(
         &mut self,
@@ -430,32 +362,12 @@ impl TypedMatrix {
         atol: f64,
         rtol: f64,
         relative_f32: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            let result = f.part(part, rows, cols, tag, eigen, atol, rtol, relative_f32, par)?;
-            self.data = Some(result);
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_part_team(
-        &mut self,
-        f: &OwnedSpectral,
-        part: i32,
-        rows: usize,
-        cols: usize,
-        tag: i32,
-        eigen: bool,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let result = team.execute(|par| {
+            let result = with_team(team, |par| {
                 f.part(part, rows, cols, tag, eigen, atol, rtol, relative_f32, par)
-            })??;
+            })?;
             self.data = Some(result);
             Ok(())
         })
@@ -585,30 +497,12 @@ impl OwnedSpectral {
         tag: i32,
         eigen: bool,
         out: *mut usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            let req = self.pinv_requirement(rows, cols, tag, eigen, par.shape())?;
-            unsafe {
-                out.write(req.size_bytes());
-                out.add(1).write(req.align_bytes());
-            }
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_pinv_requirements_team(
-        &self,
-        rows: usize,
-        cols: usize,
-        tag: i32,
-        eigen: bool,
-        out: *mut usize,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let req =
-                team.execute(|par| self.pinv_requirement(rows, cols, tag, eigen, par.shape()))??;
+            let req = with_team(team, |par| {
+                self.pinv_requirement(rows, cols, tag, eigen, par.shape())
+            })?;
             unsafe {
                 out.write(req.size_bytes());
                 out.add(1).write(req.align_bytes());
@@ -631,44 +525,10 @@ impl OwnedMatrix {
         atol: f64,
         rtol: f64,
         relative_f32: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            let result = f.pinv_workspace(
-                scratch,
-                rows,
-                cols,
-                tag,
-                eigen,
-                atol,
-                rtol,
-                relative_f32,
-                par,
-            )?;
-            if let MatrixData::F64(a) = result {
-                self.matrix = a;
-            } else {
-                return Err("Float64 spectral output dtype mismatch".into());
-            }
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_pinv_workspace_team(
-        &mut self,
-        f: &OwnedSpectral,
-        scratch: &mut OwnedScratch,
-        rows: usize,
-        cols: usize,
-        tag: i32,
-        eigen: bool,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let result = team.execute(|par| {
+            let result = with_team(team, |par| {
                 f.pinv_workspace(
                     scratch,
                     rows,
@@ -680,7 +540,7 @@ impl OwnedMatrix {
                     relative_f32,
                     par,
                 )
-            })??;
+            })?;
             if let MatrixData::F64(a) = result {
                 self.matrix = a;
             } else {
@@ -704,40 +564,10 @@ impl TypedMatrix {
         atol: f64,
         rtol: f64,
         relative_f32: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            let result = f.pinv_workspace(
-                scratch,
-                rows,
-                cols,
-                tag,
-                eigen,
-                atol,
-                rtol,
-                relative_f32,
-                par,
-            )?;
-            self.data = Some(result);
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn spectral_pinv_workspace_team(
-        &mut self,
-        f: &OwnedSpectral,
-        scratch: &mut OwnedScratch,
-        rows: usize,
-        cols: usize,
-        tag: i32,
-        eigen: bool,
-        atol: f64,
-        rtol: f64,
-        relative_f32: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let result = team.execute(|par| {
+            let result = with_team(team, |par| {
                 f.pinv_workspace(
                     scratch,
                     rows,
@@ -749,7 +579,7 @@ impl TypedMatrix {
                     relative_f32,
                     par,
                 )
-            })??;
+            })?;
             self.data = Some(result);
             Ok(())
         })
