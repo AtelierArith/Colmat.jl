@@ -19,7 +19,9 @@ and completes scalar conversion before writing the destination.
 In-place Julia arrays must use one of the four native scalar types.
 Application to arrays does not form H as a dense matrix; `Matrix(H)` explicitly
 does. Composing two reflections returns a dense native product.
-Views stage an independent native result before copying back. In-place calls
+`lmul!`/`rmul!` apply the reflection directly in native views, borrowed
+arrays (`faerview`) and injective Julia strided arrays of the reflection's
+converted scalar; repeated-index views stage a native result instead. In-place calls
 convert the reflection's stored coefficients/metadata to the destination type
 before mutation. Adjoint/copy/conjugate/transpose return independent owners.
 `lmul!/rmul!/mul!/ldiv!/rdiv!` accept caller-owned `scratch=` and `team=`;
@@ -164,6 +166,22 @@ function _householder_apply!(
         return a
     end
 end
+# A single reflection is applied by faer directly in any destination it can
+# borrow mutably (native views, borrowed and Julia strided arrays).
+function _householder_apply_into!(h::FaerHouseholder, dest, right; scratch, team)
+    req=_householder_resource_check(h, dest, eltype(dest), right; scratch, team)
+    p, d=_view_source(dest)
+    GC.@preserve d _native_call(
+        RustCrate.householder_apply_into,
+        p,
+        pointer(d),
+        h,
+        right,
+        scratch,
+        team,
+    )
+    return req
+end
 function _householder_apply!(
     h::AbstractFaerHouseholder,
     a::FaerView,
@@ -173,6 +191,11 @@ function _householder_apply!(
 )
     lock(_matrix_lock) do
         _householder_check(h, a, right)
+        reflected=_householder_coerce(h, eltype(a))
+        if reflected isa FaerHouseholder && !isnothing(_gemm_destination(a))
+            _householder_apply_into!(reflected, a, right; scratch, team)
+            return a
+        end
         result=copy(a)
         _householder_apply!(h, result, right; scratch, team)
         return copyto!(a, result)
@@ -180,21 +203,29 @@ function _householder_apply!(
 end
 function _householder_apply!(
     h::AbstractFaerHouseholder,
-    a::Union{StridedVector,StridedMatrix},
+    a::Union{StridedVector,StridedMatrix,FaerBorrowedArray},
     right;
     scratch = nothing,
     team = nothing,
 )
     lock(_matrix_lock) do
+        _check_writable(a)
         _householder_check(h, a, right)
         eltype(a)<:_NativeScalar || throw(
             ArgumentError(
                 "in-place Householder arrays require Float32, Float64, ComplexF32 or ComplexF64",
             ),
         )
-        result=a isa AbstractVector ? FaerVector(a) : FaerMatrix(a)
+        reflected=_householder_coerce(h, eltype(a))
+        dest=_gemm_destination(a)
+        if reflected isa FaerHouseholder && !isnothing(dest)
+            _householder_apply_into!(reflected, dest, right; scratch, team)
+            return a
+        end
+        julia=a isa FaerBorrowedArray ? parent(a) : a
+        result=julia isa AbstractVector ? FaerVector(julia) : FaerMatrix(julia)
         _householder_apply!(h, result, right; scratch, team)
-        copyto!(a, result isa FaerVector ? Vector(result) : Matrix(result))
+        copyto!(julia, result isa FaerVector ? Vector(result) : Matrix(result))
         return a
     end
 end
@@ -206,6 +237,18 @@ LinearAlgebra.lmul!(
 ) = _householder_apply!(h, a, false; scratch, team)
 LinearAlgebra.rmul!(
     a::_HouseholderMatrix,
+    h::AbstractFaerHouseholder;
+    scratch = nothing,
+    team = nothing,
+) = _householder_apply!(h, a, true; scratch, team)
+LinearAlgebra.lmul!(
+    h::AbstractFaerHouseholder,
+    a::FaerBorrowedArray;
+    scratch = nothing,
+    team = nothing,
+) = _householder_apply!(h, a, false; scratch, team)
+LinearAlgebra.rmul!(
+    a::FaerBorrowedMatrix,
     h::AbstractFaerHouseholder;
     scratch = nothing,
     team = nothing,

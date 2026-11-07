@@ -1,5 +1,5 @@
 //! Native diagonal scaling of dense or triangular operands. The diagonal is
-//! borrowed as its stored column (or a contiguous Julia buffer) and never
+//! borrowed as its stored column (or a borrowed Julia buffer, owner kind 4) and never
 //! expanded to an `n x n` matrix.
 use crate::collections::{VectorData, VectorOwner, VectorStore};
 use crate::typed::{MatrixData, TypedMatrix};
@@ -9,8 +9,6 @@ use faer::traits::{math_utils::*, ComplexField};
 use faer::{Col, Mat, MatMut, MatRef};
 use rustcall_julia_macros::julia;
 
-/// Descriptor kind for a contiguous Julia diagonal buffer borrowed for one call.
-const JULIA_DIAGONAL: i32 = 3;
 trait Scalar: ComplexField + Sized {
     fn pick(b: Borrowed<'_>) -> Option<MatRef<'_, Self>>;
 }
@@ -63,17 +61,6 @@ impl Operands {
         let s = self.ds;
         if s.n != 1 || s.transpose || s.conjugate {
             return Err("diagonal descriptor must be one plain column".into());
-        }
-        if s.kind == JULIA_DIAGONAL {
-            if s.r != 0 || s.rs != 1 || s.c != 0 {
-                return Err("Julia diagonal buffers must be contiguous".into());
-            }
-            let v = if s.m == 0 {
-                &[]
-            } else {
-                std::slice::from_raw_parts(self.dp.cast::<T>(), s.m)
-            };
-            return Ok(MatRef::from_column_major_slice(v, s.m, 1));
         }
         T::pick(source(self.dp, s)?).ok_or_else(|| "diagonal scalar type must match".into())
     }

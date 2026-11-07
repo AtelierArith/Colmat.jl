@@ -53,6 +53,7 @@ const _raw_owner_arguments = (
     (RustCrate.diagonal_of_view, (2,)),
     (RustCrate.diagonal_vector, (3,)),
     (RustCrate.diagonal_vector_values, (4,)),
+    (RustCrate.householder_apply_into, (1,)),
     (RustCrate.operator_bicgstab, (3, 4)),
     (RustCrate.operator_cg, (3,)),
     (RustCrate.operator_load, (2,)),
@@ -70,12 +71,14 @@ const _raw_owner_arguments = (
     (RustCrate.structured_vector, (2, 5)),
     (RustCrate.vector_view_kron, (2, 4)),
     (RustCrate.view_assign, (3,)),
+    (RustCrate.view_assign_into, (1, 3)),
     (RustCrate.view_measure, (1,)),
     (RustCrate.view_binary, (2, 4)),
     (RustCrate.view_copy, (2,)),
     (RustCrate.view_dot, (1, 3)),
     (RustCrate.view_kron, (2, 4)),
     (RustCrate.view_kron_into, (3, 5)),
+    (RustCrate.view_gemm, (1, 3, 5)),
     (RustCrate.view_predicate, (1,)),
     (RustCrate.view_reduce, (1,)),
 )
@@ -227,32 +230,7 @@ function Base.copy(a::LinearAlgebra.Adjoint{Float64,<:FaerMatrix{Float64}})
     return copy(transpose(parent(a)))
 end
 
-function LinearAlgebra.mul!(
-    c::FaerMatrix{Float64},
-    a::FaerMatrix{Float64},
-    b::FaerMatrix{Float64},
-    alpha::Number,
-    beta::Number,
-)
-    size(a, 2) == size(b, 1) || throw(DimensionMismatch("inner dimensions must match"))
-    size(c) == (size(a, 1), size(b, 2)) ||
-        throw(DimensionMismatch("output dimensions must match"))
-    # Compute before writing, making C === A and C === B safe. beta == 0
-    # must not read C, which may contain NaNs or unspecified values.
-    lock(_matrix_lock) do
-        _handle(a)
-        _handle(b)
-        _handle(c)
-        if iszero(alpha)
-            return iszero(beta) ? fill!(c, 0.0) : copyto!(c, beta * c)
-        end
-        product = alpha * (a * b)
-        copyto!(c, iszero(beta) ? product : product + beta * c)
-    end
-    return c
-end
-LinearAlgebra.mul!(c::FaerMatrix{Float64}, a::FaerMatrix{Float64}, b::FaerMatrix{Float64}) =
-    LinearAlgebra.mul!(c, a, b, 1.0, 0.0)
+# Dense mul! into native destinations is in dense_destinations.jl.
 
 faer_mul(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}) = a * b
 faer_solve(a::FaerMatrix{Float64}, b::AbstractMatrix{<:Real}) = a \ b

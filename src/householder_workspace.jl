@@ -49,6 +49,10 @@ function _householder_resource_check(h, a, P, right; scratch = nothing, team = n
     return req
 end
 function _householder_resource_apply!(h, a, right; scratch = nothing, team = nothing)
+    if h isa FaerHouseholder && !(isnothing(scratch) && isnothing(team))
+        _householder_apply_into!(h, a, right; scratch, team)
+        return a
+    end
     req=_householder_resource_check(h, a, eltype(a), right; scratch, team)
     if isnothing(scratch) && isnothing(team)
         return _householder_native_apply!(h, a, right)

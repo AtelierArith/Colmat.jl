@@ -404,10 +404,8 @@ function _vector_mul!(dest, a, b, alpha, beta)
         _handle(dest)
         size(a, 2)==length(b) && length(dest)==size(a, 1) ||
             throw(DimensionMismatch("matrix/vector product dimensions must match"))
-        # Compute before writing dest, which may alias the source or a view of it.
-        result=iszero(alpha) ? zero(dest) : alpha*(a*b)
-        !iszero(beta) && (result=result+beta*dest)
-        copyto!(dest, result)
+        # Written natively in place; operands aliasing dest are snapshot.
+        _dense_mul!(dest, a, b, alpha, beta)
     end
     return dest
 end

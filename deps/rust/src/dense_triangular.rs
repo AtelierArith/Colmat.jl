@@ -9,10 +9,10 @@
 //! `invert_*` kernels require. Right solves `X op(A) = B` run as
 //! `op(A)^T X^T = B^T` on the transposed destination, again without a copy.
 use crate::collections::{VectorData, VectorOwner};
-use crate::sparse_triangular::{view_mut, widens, Native};
+use crate::sparse_triangular::{widens, Native};
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
-use crate::views::{source, Borrowed, Spec};
+use crate::views::{raw_mut, source, view_mut, Borrowed, Spec};
 use crate::workspace::OwnedScratch;
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::StackReq;
@@ -230,20 +230,6 @@ pub fn dense_triangular_raw(
     team: Option<&OwnedTeam>,
 ) -> Result<usize, String> {
     guarded(|| {
-        unsafe fn raw<'a, T>(
-            p: *mut u8,
-            m: usize,
-            n: usize,
-            rs: isize,
-            cs: isize,
-        ) -> MatMut<'a, T> {
-            let ptr = if m == 0 || n == 0 {
-                std::ptr::NonNull::<T>::dangling().as_ptr()
-            } else {
-                p.cast::<T>()
-            };
-            MatMut::from_raw_parts_mut(ptr, m, n, rs, cs)
-        }
         // SAFETY: Julia roots the injective strided array, which native
         // storage never aliases, for this call.
         unsafe {
@@ -252,7 +238,7 @@ pub fn dense_triangular_raw(
                     solve_into::<$t>(
                         a,
                         ad,
-                        raw(p, m, n, rs, cs),
+                        raw_mut(p, m, n, rs, cs),
                         lower,
                         unit,
                         right,
