@@ -27,6 +27,9 @@ end
 
 A square diagonal Julia matrix owning a Rust `faer::diag::Diag<T>`. Off-diagonal
 entries are implicit zeros; assigning a nonzero off the diagonal is an error.
+Products with a `FaerMatrix`, its range views or native triangular wrappers
+(either side, `*` and `mul!`), `D * v::FaerVector` and `r::FaerRow * D` scale in
+Rust from the stored diagonal without forming a dense matrix.
 """
 mutable struct FaerDiagonal{T,H} <: AbstractMatrix{T}
     handle::Union{Nothing,H}
