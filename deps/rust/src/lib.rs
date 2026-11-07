@@ -1421,3 +1421,5 @@ mod storage_capacity;
 mod storage_initializer;
 
 mod filled_construction;
+
+mod pivoted_qr_rank;
