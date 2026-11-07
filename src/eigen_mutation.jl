@@ -110,12 +110,13 @@ function _selfadjoint_eigen_writeback!(
     sortby;
     scratch = nothing,
     team = nothing,
+    alg = nothing,
 )
     lock(_matrix_lock) do
         source=parent(a)
         _handle(source)
-        result=vectors ? LinearAlgebra.eigen(a; sortby, scratch, team) :
-               LinearAlgebra.eigvals(a; sortby, scratch, team)
+        result=vectors ? LinearAlgebra.eigen(a; sortby, scratch, team, alg) :
+               LinearAlgebra.eigvals(a; sortby, scratch, team, alg)
         packed=vectors ? FaerMatrix(result.vectors) :
                FaerMatrix(Matrix{eltype(source)}(LinearAlgebra.Diagonal(result)))
         copyto!(source, packed)
@@ -127,13 +128,15 @@ LinearAlgebra.eigen!(
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
-) = _selfadjoint_eigen_writeback!(a, true, sortby; scratch, team)
+    alg = nothing,
+) = _selfadjoint_eigen_writeback!(a, true, sortby; scratch, team, alg)
 LinearAlgebra.eigvals!(
     a::_AnyFaerSelfAdjoint;
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
-) = _selfadjoint_eigen_writeback!(a, false, sortby; scratch, team)
+    alg = nothing,
+) = _selfadjoint_eigen_writeback!(a, false, sortby; scratch, team, alg)
 function _eigen_pair_check(a, b)
     a===b && throw(ArgumentError("generalized eigen inputs must have distinct storage"))
     eltype(a)===eltype(b) || throw(

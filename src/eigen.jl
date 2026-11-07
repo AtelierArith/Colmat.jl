@@ -45,7 +45,7 @@ end
 
 """
     eigen(A::FaerMatrix; side=:right, sortby, scratch, team, permute=false, scale=false)
-    eigen(A::Union{Hermitian,Symmetric}; sortby)
+    eigen(A::Union{Hermitian,Symmetric}; sortby, alg, native=false, scratch, team)
 
 Compute eigenvalues and right eigenvectors using t4a-faer. Self-adjoint
 wrappers read only the specified triangle. Results own independent Julia
@@ -56,6 +56,12 @@ Both-sided results are `(values,left,right)` sharing one eigenvalue sequence.
 The default right-sided result remains `Eigen`. Construct/query scratch with
 the requested `side`; output arrays and sorting allocate separately. Side
 selection applies to general matrices, not self-adjoint wrappers or bang calls.
+
+Self-adjoint `alg=DivideAndConquer()` (or `nothing`) is faer's default driver,
+`QRIteration()` forces the tridiagonal implicit QR algorithm at every size
+(not with `native=true`), and `RobustRepresentations()` (Julia's default; faer
+has no MRRR) also uses the default driver. The subset forms `eigen(A, irange)`
+and `eigen(A, vl, vu)` select from the full native spectrum.
 
 faer's EVD driver does not balance. `permute=true, scale=true` (which must be
 given together, because faer's `balance_in_place` always does both) balances
@@ -88,26 +94,36 @@ LinearAlgebra.eigvals(
     _balanced_check(permute, scale) ? _balanced_eigen(a, false; sortby, scratch, team) :
     _general_evd_default_path(scratch, team) ? _eigen(a, 0; vectors = false, sortby) :
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
-LinearAlgebra.eigen(
+function LinearAlgebra.eigen(
     a::_FaerSelfAdjoint;
     native::Bool = false,
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
-) =
-    native ?
+    alg = nothing,
+)
+    alg===nothing || return _selfadjoint_alg(alg; native) do
+        LinearAlgebra.eigen(a; native, sortby, scratch, team)
+    end
+    return native ?
     _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
     _evd_default_path(scratch, team) ? _eigen(parent(a), 1; lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; sortby, scratch, team)
-LinearAlgebra.eigvals(
+end
+function LinearAlgebra.eigvals(
     a::_FaerSelfAdjoint;
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
-) =
-    _evd_default_path(scratch, team) ?
-    _eigen(parent(a), 1; vectors = false, lower = _uplo(a)===:L, sortby) :
-    _evd_workspace_result(a; vectors = false, sortby, scratch, team)
+    alg = nothing,
+)
+    alg===nothing || return _selfadjoint_alg(alg) do
+        LinearAlgebra.eigvals(a; sortby, scratch, team)
+    end
+    return _evd_default_path(scratch, team) ?
+           _eigen(parent(a), 1; vectors = false, lower = _uplo(a)===:L, sortby) :
+           _evd_workspace_result(a; vectors = false, sortby, scratch, team)
+end
 
 """
     eigen(A::FaerMatrix, B::FaerMatrix; homogeneous=false, side=:right, sortby, scratch, team)

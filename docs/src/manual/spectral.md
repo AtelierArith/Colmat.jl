@@ -341,6 +341,51 @@ Sorting and independent eigenvector output arrays allocate separately. Caller
 workspace never grows implicitly, and temporary workspace is closed on errors.
 Other kernels retain their existing workspace and execution interfaces.
 
+## Self-adjoint EVD algorithms, subsets and complex Symmetric input
+
+```julia
+using Colmat, LinearAlgebra
+H = Hermitian(FaerMatrix([2.0 -1 0; -1 2 -1; 0 -1 2]))
+λ = eigvals(H)
+@assert eigen(H; alg=LinearAlgebra.QRIteration()).values ≈ λ
+@assert eigvals(H, 2:3) ≈ λ[2:3]
+@assert eigen(H, 1.0, 4.0).values ≈ λ[1.0 .< λ .<= 4.0]
+@assert eigmin(H) ≈ λ[1] && eigmax(H) ≈ λ[end]
+S = Symmetric(FaerMatrix(ComplexF64[1 2im; 2im 3]))
+@assert eigen(S).values ≈ eigen(Symmetric(ComplexF64[1 2im; 2im 3])).values
+@assert eigvals(Symmetric(FaerMatrix(ComplexF64[2 1; 1 2]))) isa Vector{Float64}
+```
+
+Self-adjoint `eigen`, `eigvals`, `eigen!` and `eigvals!` accept LinearAlgebra's
+`alg`. `DivideAndConquer()` is faer's default driver (divide and conquer above
+`self_adjoint_recursion_threshold`, implicit QR below). `QRIteration()` raises
+that threshold for the call so the tridiagonal implicit QR algorithm runs at
+every size; other settings of an enclosing `with_evd_tuning` scope are
+kept. faer has no MRRR driver, so `RobustRepresentations()`, Julia's default
+spelling, also selects the default divide and conquer. `native=true` builds
+faer's owned decomposition with default parameters and rejects `QRIteration()`.
+The algorithm only affects eigenvectors; `eigvals` always uses implicit QR.
+
+The positional subset forms `eigen/eigvals(A, irange)` and `(A, vl, vu)`
+select ascending eigenvalue indices or the half-open interval `(vl, vu]`, as
+LAPACK `syevr`; `eigmin`/`eigmax` follow. faer has no dense subset driver, so
+the full spectrum is computed and the selection copied: the cost and workspace
+are those of the full decomposition. The bang forms overwrite the parent as the
+full `eigen!`/`eigvals!` do. For a few extreme eigenpairs of large operators,
+see `partial_self_adjoint_eigen` above.
+
+A complex `Symmetric` wrapper follows Julia's generic EVD, which takes the
+Hermitian branch exactly when the matrix is Hermitian. If the stored triangle
+(diagonal included) is real, faer's self-adjoint EVD runs on it and returns real
+eigenvalues with orthonormal eigenvectors. Otherwise the matrix is complex
+symmetric but generally not normal: the triangle is expanded natively into a
+full owner and the general native EVD runs on it (`sortby`, `team` and
+`permute`/`scale` apply; no `scratch` form, since the driver depends on the
+data), returning complex eigenpairs. Julia's shortcut that
+returns complex values for diagonal input is not mirrored, and `eigen!` on a
+complex `Symmetric` wrapper is not defined, as in Julia. This is the same rule
+as `cholesky` of a complex `Symmetric` wrapper.
+
 ## General EVD with caller-owned scratch and teams
 
 ```julia

@@ -81,3 +81,47 @@ function with_evd_tuning(
         end
     end
 end
+
+# `alg` of self-adjoint `eigen`/`eigvals`/`eigen!`/`eigvals!` follows
+# LinearAlgebra's spellings. DivideAndConquer() is faer's default driver;
+# RobustRepresentations() (Julia's default, LAPACK's MRRR `syevr`) has no faer
+# counterpart, so it also selects that default driver. QRIteration() raises
+# only the self-adjoint recursion threshold so the tridiagonal implicit QR
+# algorithm runs at every size, keeping the enclosing `with_evd_tuning` values.
+const _SelfAdjointDefaultAlg=Union{
+    Nothing,
+    LinearAlgebra.DivideAndConquer,
+    LinearAlgebra.RobustRepresentations,
+}
+_selfadjoint_alg(f, ::_SelfAdjointDefaultAlg; native::Bool = false) = f()
+function _selfadjoint_alg(f, ::LinearAlgebra.QRIteration; native::Bool = false)
+    native && throw(
+        ArgumentError(
+            "native=true uses faer's owned self-adjoint EVD with default parameters; " *
+            "alg=QRIteration() requires native=false",
+        ),
+    )
+    lock(_matrix_lock) do
+        old_values=zeros(UInt, 5)
+        old_flags=zeros(UInt8, 5)
+        _native_call(RustCrate.evd_tuning_state, old_values, old_flags)
+        values=copy(old_values)
+        flags=copy(old_flags)
+        values[4]=UInt(typemax(Int))
+        flags[4]=1
+        _native_call(RustCrate.set_evd_tuning, values, flags)
+        _evd_tuning_depth[]+=1
+        try
+            return f()
+        finally
+            _evd_tuning_depth[]-=1
+            _native_call(RustCrate.set_evd_tuning, old_values, old_flags)
+        end
+    end
+end
+_selfadjoint_alg(f, alg; native::Bool = false) = throw(
+    ArgumentError(
+        "alg must be LinearAlgebra.DivideAndConquer(), QRIteration() or " *
+        "RobustRepresentations() (which uses faer's default divide and conquer)",
+    ),
+)
