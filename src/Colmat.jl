@@ -332,5 +332,6 @@ include("balanced_eigen.jl")
 include("pivoted_qr_rank.jl")
 include("measures.jl")
 include("diagonal_ops.jl")
+include("collection_ops.jl")
 
 end
