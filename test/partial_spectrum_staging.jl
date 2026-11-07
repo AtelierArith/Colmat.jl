@@ -172,8 +172,10 @@ end
                 @test F.nconverged==6
                 bytes=_partial_result_bytes(F)
                 # Beyond the returned arrays only Colmat's fixed FFI marshalling
-                # (and per-application callback trampolines) allocate.
-                slack=op===callback ? 112_000 : 48_000
+                # (and per-application callback trampolines) allocate. Inside
+                # the parallel full suite a worker that already ran other files
+                # measured up to 23 KB more than a fresh process.
+                slack=op===callback ? 160_000 : 64_000
                 @test @allocated(call())<bytes+slack
             end
         end
