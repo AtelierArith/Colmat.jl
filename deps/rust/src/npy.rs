@@ -248,7 +248,8 @@ fn source<'a>(p: *const u8, len: usize) -> &'a [u8] {
 /// Writes validated source metadata without copying the payload:
 /// [tag, m, n, rank, fortran, version major, version minor, endian].
 #[julia]
-pub fn npy_source_info(p: *const u8, len: usize, out: *mut usize) -> Result<(), String> {
+pub fn npy_source_info(p: *const u8, len: usize, out: &mut [usize]) -> Result<(), String> {
+    let out = crate::workspace::fixed_out(out, 8)?;
     guarded(|| {
         let bytes = source(p, len);
         let a = parser_stack(|| validate(bytes))??;
@@ -303,7 +304,8 @@ impl OwnedNpy {
         })
     }
     #[julia]
-    pub fn npy_info(&self, out: *mut usize) -> Result<(), String> {
+    pub fn npy_info(&self, out: &mut [usize]) -> Result<(), String> {
+        let out = crate::workspace::fixed_out(out, 9)?;
         guarded(|| {
             let a = self.data()?;
             let info = [

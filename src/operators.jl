@@ -564,7 +564,7 @@ function cg(
             team,
         )
         stats=Vector{P}(undef, 5)
-        iterations=Ref{UInt}(0)
+        iterations=zeros(UInt, 1)
         log, observing, observer, normalop=_iteration_observer(
             P,
             operator,
@@ -582,7 +582,7 @@ function cg(
             Float64(rel_tol),
             UInt(limit),
             Ptr{UInt8}(pointer(stats)),
-            Base.unsafe_convert(Ptr{UInt}, iterations),
+            iterations,
             observing,
             observer,
         )
@@ -614,7 +614,7 @@ function cg(
         result=FaerCgResult(
             x,
             status==0,
-            Int(iterations[]),
+            Int(iterations[1]),
             R(real(stats[2])),
             R(real(stats[3])),
             R(real(stats[4])),
@@ -771,7 +771,7 @@ function bicgstab(
             team,
         )
         stats=Vector{P}(undef, 5)
-        iterations=Ref{UInt}(0)
+        iterations=zeros(UInt, 1)
         log, observing, observer, normalop=_iteration_observer(
             P,
             operator,
@@ -790,7 +790,7 @@ function bicgstab(
             Float64(rel_tol),
             UInt(limit),
             Ptr{UInt8}(pointer(stats)),
-            Base.unsafe_convert(Ptr{UInt}, iterations),
+            iterations,
             observing,
             observer,
         )
@@ -822,7 +822,7 @@ function bicgstab(
         result=FaerBicgstabResult(
             x,
             status==0,
-            Int(iterations[]),
+            Int(iterations[1]),
             R(real(stats[2])),
             R(real(stats[3])),
             R(real(stats[4])),
@@ -977,7 +977,7 @@ function lsmr(
             team,
         )
         stats=Vector{P}(undef, 7)
-        iterations=Ref{UInt}(0)
+        iterations=zeros(UInt, 1)
         log, observing, observer, normalop=_iteration_observer(
             P,
             operator,
@@ -997,7 +997,7 @@ function lsmr(
             Float64(rel_tol),
             UInt(limit),
             Ptr{UInt8}(pointer(stats)),
-            Base.unsafe_convert(Ptr{UInt}, iterations),
+            iterations,
             observing,
             observer,
         )
@@ -1029,7 +1029,7 @@ function lsmr(
         result=FaerLsmrResult(
             x,
             status==0,
-            Int(iterations[]),
+            Int(iterations[1]),
             R(real(stats[2])),
             R(real(stats[3])),
             R(real(stats[4])),

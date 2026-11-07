@@ -722,10 +722,11 @@ impl OwnedMatrix {
         rtol: f64,
         maxiter: usize,
         stats: *mut u8,
-        iterations: *mut usize,
+        iterations: &mut [usize],
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
+        let iterations = crate::workspace::fixed_out(iterations, 1)?;
         guarded(|| {
             let a = operator.data()?;
             let m = if precond.is_null() {
@@ -785,10 +786,11 @@ impl TypedMatrix {
         rtol: f64,
         maxiter: usize,
         stats: *mut u8,
-        iterations: *mut usize,
+        iterations: &mut [usize],
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
+        let iterations = crate::workspace::fixed_out(iterations, 1)?;
         guarded(|| {
             let a = operator.data()?;
             let m = if precond.is_null() {
@@ -1020,10 +1022,11 @@ impl OwnedMatrix {
         rtol: f64,
         maxiter: usize,
         stats: *mut u8,
-        iterations: *mut usize,
+        iterations: &mut [usize],
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
+        let iterations = crate::workspace::fixed_out(iterations, 1)?;
         guarded(|| {
             let a = operator.data()?;
             let left = if left.is_null() {
@@ -1084,10 +1087,11 @@ impl TypedMatrix {
         rtol: f64,
         maxiter: usize,
         stats: *mut u8,
-        iterations: *mut usize,
+        iterations: &mut [usize],
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
+        let iterations = crate::workspace::fixed_out(iterations, 1)?;
         guarded(|| {
             let a = operator.data()?;
             let left = if left.is_null() {
@@ -1319,10 +1323,11 @@ impl OwnedMatrix {
         rtol: f64,
         maxiter: usize,
         stats: *mut u8,
-        iterations: *mut usize,
+        iterations: &mut [usize],
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
+        let iterations = crate::workspace::fixed_out(iterations, 1)?;
         guarded(|| {
             let a = operator.data()?;
             let m = if precond.is_null() {
@@ -1382,10 +1387,11 @@ impl TypedMatrix {
         rtol: f64,
         maxiter: usize,
         stats: *mut u8,
-        iterations: *mut usize,
+        iterations: &mut [usize],
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
     ) -> Result<(), String> {
+        let iterations = crate::workspace::fixed_out(iterations, 1)?;
         guarded(|| {
             let a = operator.data()?;
             let m = if precond.is_null() {

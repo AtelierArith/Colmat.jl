@@ -38,7 +38,7 @@ end
 function scratch_capacity(s::FaerScratch)
     lock(_matrix_lock) do
         info=zeros(UInt, 2)
-        GC.@preserve info _native_call(RustCrate.scratch_info, s, pointer(info))
+        GC.@preserve info _native_call(RustCrate.scratch_info, s, info)
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end
 end

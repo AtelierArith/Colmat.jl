@@ -47,7 +47,7 @@ function _sparse_plan_result(f, args...)
         h=RustCrate.SparseProductPlan()
         _native_call(f, h, args...)
         info=zeros(UInt, 5)
-        GC.@preserve info _native_call(RustCrate.sparse_product_plan_info, h, pointer(info))
+        GC.@preserve info _native_call(RustCrate.sparse_product_plan_info, h, info)
         return FaerSparseProductPlan{typeof(h)}(
             h,
             (Int(info[1]), Int(info[2])),

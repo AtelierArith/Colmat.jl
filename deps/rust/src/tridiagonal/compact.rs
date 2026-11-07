@@ -740,7 +740,8 @@ impl OwnedCompactTridiagonal {
 #[julia]
 impl OwnedCompactTridiagonal {
     #[julia]
-    pub fn compact_tridiagonal_info(&self, out: *mut usize) -> Result<(), String> {
+    pub fn compact_tridiagonal_info(&self, out: &mut [usize]) -> Result<(), String> {
+        let out = crate::workspace::fixed_out(out, 4)?;
         guarded(|| {
             buffer::<usize>(out.cast(), 4)?;
             let (n, b, tag) = match &self.data {
