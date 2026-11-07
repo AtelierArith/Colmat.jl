@@ -601,6 +601,39 @@ mod tests {
             Data::C64(x)
         }
     }
+    /// Heap allocations of the faer products a dense residual issues, outside
+    /// Colmat: `A * x` and, for LSMR, `A^H * r` (the identity `M` needs none).
+    /// faer's dense `LinOp` ignores the caller's `MemStack` and forwards to
+    /// `matmul`, which on blocked sizes reaches `gemm-common`'s per-call packing
+    /// buffer and `did_pack_lhs` flags (t4a-faer `upstream-reports/gemm-001`).
+    /// Allowing only this baseline keeps the check that Colmat itself uses
+    /// caller scratch alone, on every platform and gemm backend.
+    fn gemm_allocations<T: ComplexField>(a: MatRef<'_, T>, kind: i32, mut par: Par<'_>) -> usize {
+        let x = Mat::<T>::zeros(a.ncols(), 2);
+        let r = Mat::<T>::zeros(a.nrows(), 2);
+        let mut ax = Mat::<T>::zeros(a.nrows(), 2);
+        let mut ahr = Mat::<T>::zeros(a.ncols(), 2);
+        crate::allocation_probe::count(|| {
+            faer::linalg::matmul::matmul(
+                ax.as_mut(),
+                faer::Accum::Replace,
+                a,
+                x.as_ref(),
+                one::<T>(),
+                par.reborrow(),
+            );
+            if kind == 2 {
+                faer::linalg::matmul::matmul(
+                    ahr.as_mut(),
+                    faer::Accum::Replace,
+                    a.adjoint(),
+                    r.as_ref(),
+                    one::<T>(),
+                    par,
+                );
+            }
+        })
+    }
     fn check<T: Value>() {
         for width in [1, 2] {
             let mut team = OwnedTeam::new();
@@ -716,19 +749,22 @@ mod tests {
                             par.reborrow(),
                             work.stack(req).unwrap(),
                         );
-                        assert_eq!(
-                            crate::allocation_probe::count(|| {
-                                residual_norms(
-                                    &a,
-                                    &m,
-                                    out.as_ref(),
-                                    b.as_ref(),
-                                    kind,
-                                    par,
-                                    work.stack(req).unwrap(),
-                                );
-                            }),
-                            0
+                        let residual = crate::allocation_probe::count(|| {
+                            residual_norms(
+                                &a,
+                                &m,
+                                out.as_ref(),
+                                b.as_ref(),
+                                kind,
+                                par.reborrow(),
+                                work.stack(req).unwrap(),
+                            );
+                        });
+                        let products = gemm_allocations(dense.as_ref(), kind, par);
+                        assert!(
+                            residual <= products,
+                            "residual path allocated {residual} times, faer products alone \
+                             {products}: kind {kind}, shape {rows}x{cols}, width {width}"
                         );
                     })
                     .unwrap();

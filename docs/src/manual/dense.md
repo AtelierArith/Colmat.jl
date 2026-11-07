@@ -42,6 +42,54 @@ close(A)
 @assert F \ [1.0, 2.0] ≈ a \ [1.0, 2.0]
 ```
 
+## Column-pivoted QR rank and truncated solves
+
+```julia
+using Colmat, LinearAlgebra
+a = [1.0 2 3; 2 4 6; 1 0 1; 0 1 1]
+a[:, 2] = 2a[:, 1]                       # rank two
+F = qr(FaerMatrix(a), ColumnNorm())
+@assert rank(F) == 2
+@assert rank(F; atol=1e3) == 0
+B = reshape([1.0, 2, 3, 4], 4, 1)
+B, r = ldiv!(F, B, 1e-10)               # minimum-norm, rank-truncated
+@assert r == 2
+@assert B[1:3, :] ≈ pinv(a) * [1.0, 2, 3, 4]
+close(F)
+```
+
+`rank(F; atol, rtol)` follows `rank(::QRPivoted)`: the first stored
+`|R[i,i]| <= max(atol, rtol*|R[1,1]|)`, with the same default `rtol`. It reads
+the native R diagonal without reconstruction. `ldiv!(F, B, rcond; team)`
+matches `ldiv!(::QRPivoted, B, rcond)`. `B` needs at least `max(m,n)` rows,
+its first `n` rows receive the minimum-norm solution, and the rank is
+returned. The rank is decided with `rtol=rcond`, whereas LAPACK `xgelsy`
+estimates it incrementally, so the two can differ for pivots near the
+threshold. The leading rank rows of R are completed orthogonally on the
+native side. faer's `ColPivQr` has no rank or tolerance API of its own.
+## Determinant and trace
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1 2; 1 3 0; 2 0 5])
+@assert det(A) ≈ 43
+@assert det(view(A, 3:-1:1, :)) ≈ -43        # borrowed view, no copy
+team = FaerTeam(2)
+@assert det(A'; team) ≈ 43
+close(team)
+@assert det(LowerTriangular(A)) == 60       # product of the stored diagonal
+@assert logabsdet(FaerDiagonal([2.0, -3.0])) == (log(6.0), -1.0)
+@assert tr(view(A, 1:2, 1:2)) == 7
+```
+
+`det` of a native matrix, range view, `transpose` or `adjoint` calls faer's
+`determinant` on the borrowed view; `team=` runs it on a caller-owned
+`FaerTeam`. Triangular wrappers and `FaerDiagonal` use only the stored
+diagonal for `det`, `tr` and `logabsdet` (a zero entry gives `(-Inf, 0)`).
+Non-square operands throw `DimensionMismatch`, empty operands give a
+determinant of one, and a real negative determinant makes `logdet` throw
+`DomainError`.
+
 ## Structured products
 
 ```julia
@@ -205,6 +253,105 @@ with the strict lower Householder basis; its block coefficients are exposed as
 LAPACK's tau layout. `F.packed` returns an independent copy, with lower storage
 for Cholesky. Upper-triangle Cholesky wrappers receive U in the input instead.
 
+## Direct in-place LU, QR and Cholesky
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1; 1 3])
+work = FaerScratch(lu!, A)          # scratch_requirements(lu!, A; team)
+F = lu!(A; scratch = work)          # faer lu_in_place on A's own storage
+@assert F isa FaerInPlaceFactorization && F.factors === A
+B = FaerMatrix([1.0 2; 3 4])
+solve = FaerScratch(ldiv!, F, B)
+ldiv!(F, B; scratch = solve)        # overwrites B with A \ B
+C = FaerMatrix([4.0 1; 1 3])
+G = cholesky!(Hermitian(C, :U); scratch = FaerScratch(cholesky!, C))
+```
+
+Passing `scratch=` to `lu!`, `qr!`/`qr!(A, NoPivot())` or `cholesky!`
+(including `Hermitian`/`Symmetric` wrappers) selects the direct path. faer's
+`lu_in_place`, `qr_in_place` or `cholesky_in_place` runs on the input's native
+storage, and the result is a `FaerInPlaceFactorization` that aliases it, as
+Julia's `lu!` does. The packed layout is the same as above. The LU permutation
+and the QR block coefficients live in Julia-owned buffers of F. Writes to A
+change F. Closing, resizing or truncating A invalidates F. Shape, scalar,
+scratch, team, finiteness and Hermitian checks all run before the first write.
+A numerical failure (a singular LU with `check=true`, or a non-positive-definite
+Cholesky) leaves A partially factored, as LAPACK does.
+
+`ldiv!(F, B; scratch, team)` solves in place on a `FaerMatrix` B of the same
+scalar type, including through `transpose(F)` and `adjoint(F)`. Tall QR writes
+the least-squares solution into `B[1:n, :]`. `\`, the factor properties,
+`Matrix(F)`, `inv`, and `det`/`logabsdet` (LU and Cholesky) are also available.
+
+With caller scratch, Colmat allocates no native memory for the factorization
+or the solve. Small shapes and all solves make no native allocation at all.
+Blocked shapes still allocate inside faer's matrix products. On aarch64 with
+`Par::Seq`, a 70×70 LU made 9 such allocations, against 14 for the default
+path, and a lone faer product also allocates. See t4a-faer
+`upstream-reports/gemm-001`. Allocations under a team were not measured.
+
+The direct factor does not support `rdiv!`, operator or preconditioner use,
+pseudoinverse, mixed-scalar promotion of factors, rectangular LU or wide-QR
+solves. Those need the default result without `scratch=`. Full-pivot LU,
+LDLT, Bunch–Kaufman, pivoted Cholesky and column-pivoted QR have no direct
+path yet.
+
+## Direct triangular solves and destructive triangular inverses
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([2.0 0; 1 4])
+B = FaerMatrix([2.0 4; 9 8])
+ldiv!(LowerTriangular(A), B)            # solved in B's own storage
+@assert Matrix(B) ≈ LowerTriangular([2.0 0; 1 4]) \ [2.0 4; 9 8]
+X = [1.0 2; 3 4]
+rdiv!(X, UpperTriangular(transpose(A))) # X / transpose(L), in place in X
+Z = FaerMatrix(ComplexF64[1 2; 3 4])
+work = FaerScratch(ldiv!, LowerTriangular(A), Z) # promoted triangle copy
+ldiv!(LowerTriangular(A), Z; scratch = work)
+T = UpperTriangular(FaerMatrix([2.0 1; 0 4]))
+LinearAlgebra.inv!(T; scratch = FaerScratch(LinearAlgebra.inv!, T))
+```
+
+Lower/upper/unit triangular wrappers of a `FaerMatrix`, a native matrix view or
+the `transpose`/`adjoint` (or elementwise conjugate) of either solve with faer's
+`solve_{unit_}{lower,upper}_triangular_in_place_with_conj`. The triangle is
+borrowed through its view descriptor, so transposed, adjoint and strided parents
+are never copied. `ldiv!(A, B)`, `ldiv!(Y, A, B)` and `rdiv!(B, A)` run the
+kernel directly on the destination when it is a `FaerMatrix`/`FaerVector`, a
+native view, a `faerview` borrow or an injective Julia strided array holding
+`promote_type(eltype(A), eltype(B))`. `rdiv!` solves `transpose(op(A)) *
+transpose(X) = transpose(B)` on the same memory. Narrower or non-strided
+destinations stage one promoted copy. A destination that shares the triangle's
+owner solves from a snapshot of the triangle. `A \ B` and `B / A` return a
+`FaerMatrix` (a vector RHS returns a vector, and a row vector stays a row
+vector).
+
+faer's dense triangular kernels need no workspace. `scratch` holds only the
+promoted copy of a triangle whose scalar is narrower than the promoted type
+(for example, a real triangle with a complex RHS), so
+`scratch_requirements(ldiv!, A, B)` is zero without promotion. It is also
+defined for `\`, `rdiv!` and `ldiv!(Y, A, B)`, with `FaerScratch` and
+`reserve!` for each. `team=` runs the kernel on a caller-owned `FaerTeam`.
+Zero diagonals throw `SingularException(i)`. Closed owners, closed teams and
+undersized scratch throw before any write.
+
+`LinearAlgebra.inv!(A; scratch, team)` overwrites the selected triangle of the
+parent (a `FaerMatrix`, a native view or a `transpose` of either) with the
+inverse triangle and returns `A`, as Julia's `inv!` does for strided triangles.
+The opposite strict triangle is untouched, and so is the diagonal of a unit
+wrapper. faer's `triangular_inverse::invert_*` kernels write into a separate
+destination, so the source triangle is first copied into scratch, sized by
+`scratch_requirements(inv!, A)`. Adjoint parents keep using `inv(A)`.
+
+With caller scratch, Colmat allocates no native memory on these paths. The
+direct solve made no native allocation through n = 70 (aarch64, `Par::Seq`).
+At n = 300, faer's blocked kernel allocates matmul packing buffers: 12 per
+solve. The in-place inverse is allocation-free at n = 5, but faer's matrix
+products allocate at n = 70. See t4a-faer `upstream-reports/gemm-001`.
+Allocations under a team were not measured.
+
 ## Destructive indefinite and full-pivot LU decompositions
 
 ```julia
@@ -232,6 +379,38 @@ split block representation. `F.packed` is always lower-oriented. Failed
 `ldlt!(...; check=false)` leaves input unchanged because no factor is available;
 allowed singular full-pivot LU/block LDLT write the available packed factors.
 These entry points allocate factors and writeback buffers.
+
+## 自己随伴分解の Julia 規約
+
+```julia
+using Colmat, LinearAlgebra
+S = [1e-3 1 0; 1 1e-3 100; 0 100 1e-3]
+F = bunchkaufman(Hermitian(FaerMatrix(S)), true)   # rook ピボット
+@assert F.rook && Matrix(F.L * F.D * F.L') ≈ S[F.p, F.p]
+@assert inertia(F) == inertia(bunchkaufman(Hermitian(S), true))
+G = cholesky(FaerMatrix([4.0 1; 2 3]); check = false)  # 非対称入力
+@assert G.info == -1 && !issuccess(G)
+C = FaerMatrix(ComplexF64[4 1+2im; 1+2im 3])
+@assert cholesky(Symmetric(C); check = false).info == -1
+```
+
+- `bunchkaufman[!](A, rook=false; check, team)` は Julia と同じ位置引数 `rook` を受け、
+  `true` で faer の rook ピボット（`PivotingStrategy::Rook`）を使います。`false` は従来どおり
+  faer 既定の `PartialDiag` で、LAPACK の古典的 Bunch–Kaufman（faer の `Partial`）とは
+  ピボット列が異なり得ます。`F.rook` は選んだ戦略を返し、`copy` と昇格求解の再分解でも保持されます。
+- `inertia(F; atol, rtol)` は `F.D` の 1×1/2×2 ブロックから Julia と同じ許容規則で
+  `(正, 負, 零)` 固有値数を数えます。`F.D` を密に取り出すため O(n²) の一時領域を使います。
+- `cholesky(A; check=false)` は非 Hermitian 入力に対して Julia と同様 `info == -1` の
+  失敗因子を返します（`check=true` は `PosDefException(-1)`）。`cholesky!` はこのとき入力を変更しません。
+  失敗因子は数値因子を保持しないため、成分取り出しはエラーになります。`F.UL` は `uplo` 側の三角因子です。
+- 複素 `Symmetric` ラッパーは、格納三角（対角を含む）が実数のとき Hermitian として分解します。
+  それ以外の複素対称（非 Hermitian）行列は、`cholesky` では Julia と同じく `info == -1`、
+  `ldlt`/`bunchkaufman` では `ArgumentError` です。t4a-faer の LDLᴴ/LBLᴴ は自己随伴専用で、
+  LAPACK `zsytrf` 相当の転置対称分解を提供しないためです。
+- `F.uplo` は Julia の `Char` ではなく `Symbol`（`:L`/`:U`）です。LDLT/Bunch–Kaufman は
+  常に下三角向きの `F.L` を返し、Julia の `uplo='U'` における `F.U`（`A[p,p] = U D Uᴴ`）は
+  提供しません。密な `ldlt(A)` は Julia 標準には無く（`SymTridiagonal`・疎のみ）、Colmat では
+  ピボットなし LDLᴴ として Hermitian 入力を受けます。`cholesky[!](A, NoPivot())` も同じ native 経路です。
 
 ## SVD workspace, teams and destructive entry points
 

@@ -117,46 +117,55 @@ impl<T: ComplexField> Factors<T> {
             tau,
         })
     }
+    // Assembles sorted CSC R directly into exact-size outputs: no triplet list
+    // and no sort/duplicate pass from try_new_from_triplets.
     pub(crate) fn r(&self) -> Result<faer::sparse::SparseColMat<usize, T>, String> {
-        use faer::sparse::{SparseColMat, Triplet};
-        use faer::traits::math_utils::{conj, copy};
-        let mut entries = Vec::new();
+        use faer::sparse::{SparseColMat, SymbolicSparseColMat};
+        use faer::traits::math_utils::conj;
         if let Some(f) = self.simplicial() {
-            entries.extend(f.R().triplet_iter().map(|e| Triplet {
-                row: e.row,
-                col: e.col,
-                val: copy(e.val),
-            }));
-        } else {
-            let f = self.supernodal().unwrap();
-            let l = faer::sparse::linalg::cholesky::supernodal::SupernodalLltRef::new(
-                f.symbolic.R_adjoint(),
-                f.r,
-            );
-            for s in 0..f.symbolic.R_adjoint().n_supernodes() {
+            return Ok(sorted_simplicial_r(f.R()));
+        }
+        let f = self.supernodal().unwrap();
+        let symbolic = f.symbolic.R_adjoint();
+        let l = faer::sparse::linalg::cholesky::supernodal::SupernodalLltRef::new(symbolic, f.r);
+        let n = self.symbolic.ncols();
+        // Row start+j of R holds the conjugated column j of each supernode of
+        // R^H: its dense lower block, then the supernode's off-diagonal pattern.
+        // Visiting supernodes and their columns in order emits ascending rows.
+        let visit = |emit: &mut dyn FnMut(&T, usize, usize)| {
+            for s in 0..symbolic.n_supernodes() {
                 let node = l.supernode(s);
                 let a = node.val();
                 let w = a.ncols();
                 for j in 0..w {
                     for i in j..w {
-                        entries.push(Triplet {
-                            row: node.start() + j,
-                            col: node.start() + i,
-                            val: conj(&a[(i, j)]),
-                        });
+                        emit(&a[(i, j)], node.start() + j, node.start() + i);
                     }
-                    for (i, &row) in node.pattern().iter().enumerate() {
-                        entries.push(Triplet {
-                            row: node.start() + j,
-                            col: row,
-                            val: conj(&a[(w + i, j)]),
-                        });
+                    for (i, &col) in node.pattern().iter().enumerate() {
+                        emit(&a[(w + i, j)], node.start() + j, col);
                     }
                 }
             }
+        };
+        let mut col_ptr = vec![0usize; n + 1];
+        visit(&mut |_, _, col| col_ptr[col + 1] += 1);
+        for j in 0..n {
+            col_ptr[j + 1] += col_ptr[j];
         }
-        SparseColMat::try_new_from_triplets(self.symbolic.ncols(), self.symbolic.ncols(), &entries)
-            .map_err(|e| format!("{e:?}"))
+        let nnz = col_ptr[n];
+        let mut next = col_ptr[..n].to_vec();
+        let mut rows = vec![0usize; nnz];
+        let mut vals = vec![zero::<T>(); nnz];
+        visit(&mut |value, row, col| {
+            let k = next[col];
+            next[col] += 1;
+            rows[k] = row;
+            vals[k] = conj(value);
+        });
+        Ok(SparseColMat::new(
+            SymbolicSparseColMat::new_checked(n, n, col_ptr, None, rows),
+            vals,
+        ))
     }
     pub(crate) fn apply_q(&self, b: MatRef<'_, T>, conjugated: bool) -> Result<Mat<T>, String> {
         self.apply_q_basis(b, conjugated, false)
@@ -637,6 +646,41 @@ mod tests {
     }
 }
 
+/// Sorted CSC copy of faer's unsorted simplicial R (diagonal last): exact-size
+/// outputs plus one longest-column order buffer, without a triplet list.
+pub(crate) fn sorted_simplicial_r<T: ComplexField>(
+    r: SparseColMatRef<'_, usize, T>,
+) -> faer::sparse::SparseColMat<usize, T> {
+    use faer::sparse::{SparseColMat, SymbolicSparseColMat};
+    use faer::traits::math_utils::copy;
+    let n = r.ncols();
+    let nnz = r.compute_nnz();
+    let longest = (0..n)
+        .map(|j| r.row_idx_of_col_raw(j).len())
+        .max()
+        .unwrap_or(0);
+    let mut col_ptr = Vec::with_capacity(n + 1);
+    let mut rows = Vec::with_capacity(nnz);
+    let mut vals = Vec::with_capacity(nnz);
+    let mut order = Vec::with_capacity(longest);
+    col_ptr.push(0);
+    for j in 0..n {
+        let (ri, rv) = (r.row_idx_of_col_raw(j), r.val_of_col(j));
+        order.clear();
+        order.extend(0..ri.len());
+        order.sort_unstable_by_key(|&k| ri[k]);
+        for &k in &order {
+            rows.push(ri[k]);
+            vals.push(copy(&rv[k]));
+        }
+        col_ptr.push(rows.len());
+    }
+    SparseColMat::new(
+        SymbolicSparseColMat::new_checked(r.nrows(), n, col_ptr, None, rows),
+        vals,
+    )
+}
+
 pub(crate) fn complete_q_seed<T: ComplexField>(
     mut out: faer::MatMut<'_, T>,
     b: MatRef<'_, T>,
@@ -738,3 +782,99 @@ pub(crate) mod projection;
 pub(crate) mod borrowed;
 
 mod adjoint;
+
+#[cfg(test)]
+mod r_assembly_tests {
+    use super::*;
+    use faer::sparse::linalg::{
+        qr::{factorize_symbolic_qr, QrSymbolicParams},
+        SupernodalThreshold,
+    };
+    use faer::sparse::{SparseColMat, Triplet};
+    use faer::traits::math_utils::{conj, copy, from_f64};
+
+    // Reference: the previous triplet assembly of the same stored R entries.
+    fn reference<T: ComplexField>(f: &Factors<T>) -> Mat<T> {
+        let n = f.symbolic.ncols();
+        let mut out = Mat::zeros(n, n);
+        if let Some(s) = f.simplicial() {
+            for e in s.R().triplet_iter() {
+                out[(e.row, e.col)] = copy(e.val);
+            }
+        } else {
+            let s = f.supernodal().unwrap();
+            let l = faer::sparse::linalg::cholesky::supernodal::SupernodalLltRef::new(
+                s.symbolic.R_adjoint(),
+                s.r,
+            );
+            for k in 0..s.symbolic.R_adjoint().n_supernodes() {
+                let node = l.supernode(k);
+                let a = node.val();
+                let w = a.ncols();
+                for j in 0..w {
+                    for i in j..w {
+                        out[(node.start() + j, node.start() + i)] = conj(&a[(i, j)]);
+                    }
+                    for (i, &col) in node.pattern().iter().enumerate() {
+                        out[(node.start() + j, col)] = conj(&a[(w + i, j)]);
+                    }
+                }
+            }
+        }
+        out
+    }
+    fn check<T: ComplexField>(value: fn(f64, f64) -> T) {
+        let (m, n) = (120, 60);
+        let entries: Vec<_> = (0..n)
+            .flat_map(|j| (0..m).map(move |i| (i, j)))
+            .filter(|&(i, j)| i == j + 7 || (i * 7 + j * 3) % 11 == 0)
+            .map(|(i, j)| Triplet {
+                row: i,
+                col: j,
+                val: value(1.0 + ((i + 2 * j) % 5) as f64, 0.25),
+            })
+            .collect();
+        let a = SparseColMat::<usize, T>::try_new_from_triplets(m, n, &entries).unwrap();
+        for threshold in [
+            SupernodalThreshold::FORCE_SIMPLICIAL,
+            SupernodalThreshold::FORCE_SUPERNODAL,
+        ] {
+            let symbolic = Arc::new(
+                factorize_symbolic_qr(
+                    a.symbolic(),
+                    QrSymbolicParams {
+                        supernodal_flop_ratio_threshold: threshold,
+                        ..Default::default()
+                    },
+                )
+                .unwrap(),
+            );
+            let f = Factors::new(symbolic, a.as_ref()).unwrap();
+            let r = f.r().unwrap();
+            // Sorted, duplicate-free CSC with exactly the stored entries.
+            for j in 0..n {
+                let rows = r.as_ref().row_idx_of_col_raw(j);
+                assert!(rows.windows(2).all(|w| w[0] < w[1]));
+            }
+            assert!((r.to_dense() - reference(&f)).norm_max() == from_f64::<T::Real>(0.0));
+            let mut out = None;
+            let count = crate::allocation_probe::count(|| out = Some(f.r().unwrap()));
+            let largest = crate::allocation_probe::largest(|| drop(f.r().unwrap()));
+            eprintln!(
+                "sparse QR R assembly {:?} nnz={} allocations={count} largest={largest}",
+                threshold.0,
+                r.compute_nnz()
+            );
+            // col_ptr, row indices and values, plus one cursor/order buffer.
+            assert!(count <= 4, "R assembly allocated {count} times");
+        }
+    }
+    #[test]
+    fn direct_r_assembly_f64() {
+        check::<f64>(|r, _| r);
+    }
+    #[test]
+    fn direct_r_assembly_c64() {
+        check::<faer::c64>(faer::c64::new);
+    }
+}

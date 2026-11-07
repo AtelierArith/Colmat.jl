@@ -431,9 +431,10 @@ pub struct SparseOwner {
 }
 impl SparseOwner {
     pub(crate) fn data(&self) -> Result<&SparseData, String> {
+        // Lazy: an eager message would allocate on every borrow.
         self.data
             .as_ref()
-            .ok_or("sparse matrix is not initialized".into())
+            .ok_or_else(|| "sparse matrix is not initialized".into())
     }
 }
 #[julia]
@@ -736,98 +737,6 @@ impl SparseOwner {
     }
 }
 
-// Triangular wrappers ignore the unused half, including a stored diagonal for
-// unit triangles. Rebuild only sparse entries so faer's diagonal-first/last
-// precondition holds even when the original owner stores both halves.
-fn triangular_solve<T: ComplexField>(
-    a: &Storage<T>,
-    b: MatRef<'_, T>,
-    lower: bool,
-    unit: bool,
-) -> Result<Mat<T>, String> {
-    let (m, n) = a.shape();
-    if m != n || b.nrows() != n {
-        return Err("sparse triangular solve dimensions must match".into());
-    }
-    let mut entries: Vec<_> = a
-        .triplets()
-        .into_iter()
-        .filter(|e| if lower { e.row > e.col } else { e.row < e.col })
-        .collect();
-    for i in 0..n {
-        let val = if unit { one::<T>() } else { a.get(i, i)? };
-        if !unit && val == zero::<T>() {
-            return Err(format!("zero diagonal at index {}", i + 1));
-        }
-        entries.push(Triplet {
-            row: i,
-            col: i,
-            val,
-        });
-    }
-    let triangle =
-        SparseColMat::try_new_from_triplets(n, n, &entries).map_err(|e| format!("{e:?}"))?;
-    let mut out = b.to_owned();
-    match (lower, unit) {
-        (true, true) => triangle.sp_solve_unit_lower_triangular_in_place(out.as_mut(), Par::Seq),
-        (true, false) => triangle.sp_solve_lower_triangular_in_place(out.as_mut(), Par::Seq),
-        (false, true) => triangle.sp_solve_unit_upper_triangular_in_place(out.as_mut(), Par::Seq),
-        (false, false) => triangle.sp_solve_upper_triangular_in_place(out.as_mut(), Par::Seq),
-    }
-    Ok(out)
-}
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn sparse_triangular_from(
-        &mut self,
-        sparse: &SparseOwner,
-        rhs: &OwnedMatrix,
-        lower: bool,
-        unit: bool,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let b = rhs;
-            match sparse.data()? {
-                SparseData::F64(a) => {
-                    self.matrix = triangular_solve(a, b.matrix.as_ref(), lower, unit)?
-                }
-                _ => return Err("sparse triangular scalar types must match".into()),
-            }
-            Ok(())
-        })
-    }
-}
-#[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn sparse_triangular_from(
-        &mut self,
-        sparse: &SparseOwner,
-        rhs: &TypedMatrix,
-        lower: bool,
-        unit: bool,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let a = sparse.data()?;
-            let b = rhs.data()?;
-            self.data = Some(match (a, b) {
-                (SparseData::F32(a), MatrixData::F32(b)) => {
-                    MatrixData::F32(triangular_solve(a, b.as_ref(), lower, unit)?)
-                }
-                (SparseData::C32(a), MatrixData::C32(b)) => {
-                    MatrixData::C32(triangular_solve(a, b.as_ref(), lower, unit)?)
-                }
-                (SparseData::C64(a), MatrixData::C64(b)) => {
-                    MatrixData::C64(triangular_solve(a, b.as_ref(), lower, unit)?)
-                }
-                _ => return Err("sparse triangular scalar types must match".into()),
-            });
-            Ok(())
-        })
-    }
-}
-
 #[julia]
 impl SparseOwner {
     #[julia]
@@ -1025,6 +934,86 @@ impl SparseOwner {
                     fixed_update(d, a, b, op)
                 }
                 _ => Err("fixed sparse update scalar types must match".into()),
+            }
+        })
+    }
+}
+/// Attach `len` values of scalar type `U` to an owned copy of `a`'s pattern.
+unsafe fn with_values<T: ComplexField, U: ComplexField + Copy>(
+    a: &Storage<T>,
+    val: *const u8,
+    len: usize,
+) -> Result<Storage<U>, String> {
+    if a.values().len() != len {
+        return Err("stored-value buffer length mismatch".into());
+    }
+    let vals = if len == 0 {
+        vec![]
+    } else {
+        std::slice::from_raw_parts(val.cast::<U>(), len).to_vec()
+    };
+    let err = |e| format!("{e:?}");
+    Ok(match a {
+        Storage::Csc(x) => Storage::Csc(SparseColMat::new(
+            x.symbolic().to_owned().map_err(err)?,
+            vals,
+        )),
+        Storage::Csr(x) => Storage::Csr(SparseRowMat::new(
+            x.symbolic().to_owned().map_err(err)?,
+            vals,
+        )),
+    })
+}
+unsafe fn write_values<T: ComplexField + Copy>(
+    a: &mut Storage<T>,
+    val: *const u8,
+    len: usize,
+) -> Result<(), String> {
+    let out = a.values_mut();
+    if out.len() != len {
+        return Err("stored-value buffer length mismatch".into());
+    }
+    if len > 0 {
+        out.copy_from_slice(std::slice::from_raw_parts(val.cast::<T>(), len));
+    }
+    Ok(())
+}
+#[julia]
+impl SparseOwner {
+    /// Own `p`'s CSC/CSR pattern with a caller value buffer of scalar `tag`.
+    #[julia]
+    pub fn sparse_from_values(
+        &mut self,
+        p: &SparseOwner,
+        val: *const u8,
+        len: usize,
+        tag: i32,
+    ) -> Result<(), String> {
+        guarded(|| unsafe {
+            let a = p.data()?;
+            self.data = Some(match tag {
+                0 => SparseData::F32(dispatch!(a, x => with_values(x, val, len)?)),
+                1 => SparseData::F64(dispatch!(a, x => with_values(x, val, len)?)),
+                2 => SparseData::C32(dispatch!(a, x => with_values(x, val, len)?)),
+                3 => SparseData::C64(dispatch!(a, x => with_values(x, val, len)?)),
+                _ => return Err("unsupported sparse scalar".into()),
+            });
+            Ok(())
+        })
+    }
+    /// Overwrite every stored value in physical order; the pattern is unchanged.
+    #[julia]
+    pub fn sparse_write_values(&mut self, val: *const u8, len: usize) -> Result<(), String> {
+        guarded(|| unsafe {
+            match self
+                .data
+                .as_mut()
+                .ok_or("sparse matrix is not initialized")?
+            {
+                SparseData::F32(a) => write_values(a, val, len),
+                SparseData::F64(a) => write_values(a, val, len),
+                SparseData::C32(a) => write_values(a, val, len),
+                SparseData::C64(a) => write_values(a, val, len),
             }
         })
     }

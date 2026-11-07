@@ -61,6 +61,8 @@ function _borrowable_memory(a)
     return _borrowable_memory(p)
 end
 function _injective_layout(a)
+    # Julia gives empty arrays zero strides; they have no elements to repeat.
+    isempty(a) && return true
     dims=[(abs(stride(a, d)), size(a, d)) for d in 1:ndims(a) if size(a, d)>1]
     sort!(dims)
     for (k, (s, n)) in enumerate(dims)

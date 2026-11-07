@@ -246,6 +246,10 @@ Base.Matrix{T}(h::AbstractFaerHouseholder) where {T} = Matrix{T}(Matrix(h))
 function _householder_matrix_source(a, ::Type{T}) where {T}
     a isa _BorrowMatrix && return _coerce(copy(a), T)
     a isa _BorrowVector && return _coerce(_copy_view_matrix(a), T)
+    # Strided Julia arrays of the target type copy straight into native storage.
+    a isa StridedVecOrMat{T} &&
+        _julia_borrowable(a) &&
+        return _copy_view_matrix(FaerBorrowedArray(a))
     return a isa AbstractVector ? FaerMatrix{T}(reshape(a, :, 1)) : FaerMatrix{T}(a)
 end
 function _householder_mul!(
