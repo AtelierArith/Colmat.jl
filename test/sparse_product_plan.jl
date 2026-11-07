@@ -10,12 +10,16 @@ end
 
 @testset "Reusable sparse product plans" begin
     rng=MersenneTwister(114)
-    for T in (Float32, Float64, ComplexF32, ComplexF64), format in (:csc, :csr)
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        format in (:csc, :csr),
+        bformat in (:csc, :csr)
+
         a=sprand(rng, T, 7, 5, 0.4)
         b=sprand(rng, T, 5, 6, 0.4)
         a.nzval[1]=zero(T) # Stored zeros are part of the planned pattern.
         A=FaerSparseMatrix(a; format)
-        B=FaerSparseMatrix(b; format)
+        # A B of the other format is transposed once at planning time.
+        B=FaerSparseMatrix(b; format = bformat)
         plan=FaerSparseProductPlan(A, B)
         @test plan isa FaerSparseProductPlan
         @test isopen(plan)
@@ -35,7 +39,7 @@ end
         # Reuse after the values (not the patterns) of A and B change.
         a2, b2=_revalue(a, rng), _revalue(b, rng)
         copyto!(A, FaerSparseMatrix(a2; format))
-        copyto!(B, FaerSparseMatrix(b2; format))
+        copyto!(B, FaerSparseMatrix(b2; format = bformat))
         α, β=T(2), T(1)/3
         C0=Matrix(C)
         mul!(C, plan, A, B, α, β)
@@ -98,7 +102,13 @@ end
     # Storage formats must match the plan.
     @test_throws ArgumentError mul!(C, plan, FaerSparseMatrix(a; format = :csr), B)
     @test_throws ArgumentError mul!(copy(C; format = :csr), plan, A, B)
-    @test_throws ArgumentError FaerSparseProductPlan(A, FaerSparseMatrix(b; format = :csr))
+    # A plan over a CSR B rejects a CSC B and vice versa.
+    mixed=FaerSparseProductPlan(A, FaerSparseMatrix(b; format = :csr))
+    @test mixed.format===:csc
+    @test_throws ArgumentError mul!(C, mixed, A, B)
+    @test Matrix(C)==snapshot
+    # Native CSR operands still cannot join borrowed ones.
+    @test_throws ArgumentError FaerSparseProductPlan(faerview(a), FaerSparseMatrix(b; format = :csr))
     @test_throws DimensionMismatch FaerSparseProductPlan(B, B)
     # The destination scalar must hold the promoted operand scalar.
     @test_throws ArgumentError mul!(FaerSparseMatrix{Float32}(plan), plan, A, B)
@@ -164,7 +174,15 @@ end
     old=_bytes(() -> mul!(C, A, B))
     planned=_bytes(() -> mul!(C, plan, A, B; scratch = work))
     borrowed=_bytes(() -> mul!(C, plan, fa, fb; scratch = work))
-    @info "sparse product mul! Julia bytes" old planned borrowed
+    Br=FaerSparseMatrix(b; format = :csr)
+    mixed=FaerSparseProductPlan(A, Br)
+    mwork=FaerScratch(mul!, C, mixed, A, Br)
+    @test scratch_requirements(mul!, C, mixed, A, Br).bytes>=
+          scratch_requirements(mul!, C, plan, A, B).bytes+8nnz(b)
+    mixed_bytes=_bytes(() -> mul!(C, mixed, A, Br; scratch = mwork))
+    @test Matrix(C) ≈ Matrix(a)*Matrix(b)
+    @info "sparse product mul! Julia bytes" old planned borrowed mixed_bytes
     @test planned<old
+    @test mixed_bytes<=planned+256
     @test Matrix(C) ≈ Matrix(a)*Matrix(b)
 end

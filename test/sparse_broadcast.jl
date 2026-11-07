@@ -54,6 +54,70 @@ end
     end
 end
 
+@testset "Native multi-sparse and transposed broadcast" begin
+    rng=MersenneTwister(5054)
+    _flip(f)=f===:csc ? :csr : :csc
+    for T in _BroadcastTypes, fmt in (:csc, :csr), (m, n) in ((6, 5), (0, 3), (1, 1))
+        ref=_broadcast_source(rng, T, m, n)
+        ref2=_broadcast_source(rng, T, m, n)
+        same=copy(ref)
+        same.nzval .= randn(rng, T, nnz(same))
+        a=FaerSparseMatrix(ref; format = fmt)
+        b=FaerSparseMatrix(ref2; format = fmt)
+        c=FaerSparseMatrix(same; format = fmt)
+        other=FaerSparseMatrix(ref2; format = _flip(fmt))
+        α=T(2)
+        cases=(
+            # Identical patterns: aligned value buffers.
+            (a .+ c, ref .+ same),
+            (a .* c .- α .* a, ref .* same .- α .* ref),
+            (map(-, a, c), map(-, ref, same)),
+            # Different patterns: union pattern and aligned values.
+            (a .+ b, ref .+ ref2),
+            (a .* b, ref .* ref2),
+            (a .- α .* b .+ a, ref .- α .* ref2 .+ ref),
+            (map(+, a, b, c), map(+, ref, ref2, same)),
+            # A different storage format is converted to the first one.
+            (a .+ other, ref .+ ref2),
+        )
+        for (got, want) in cases
+            @test got isa FaerSparseMatrix
+            @test _same_sparse(got, want, fmt)
+        end
+        # Transposed and adjoint operands: the format flips, as for copy(A').
+        tcases=(
+            (transpose(a) .* α, transpose(ref) .* α),
+            (a' .* α, ref' .* α),
+            (abs.(a'), abs.(ref')),
+            (map(conj, transpose(a)), conj.(transpose(ref))),
+            (transpose(a) .+ transpose(b), transpose(ref) .+ transpose(ref2)),
+        )
+        for (got, want) in tcases
+            @test got isa FaerSparseMatrix
+            @test _same_sparse(got, want, _flip(fmt))
+        end
+        @test isequal(SparseMatrixCSC(a), ref)
+        if m==n
+            sq=FaerSparseMatrix(ref; format = fmt)
+            @test _same_sparse(sq' .+ sq, ref' .+ ref, _flip(fmt))
+            @test _same_sparse(sq .+ sq', ref .+ ref', fmt)
+        end
+        # In place: the destination may be an operand.
+        d=copy(a)
+        d .= d .+ b
+        @test _same_sparse(d, ref .+ ref2, fmt)
+        e=copy(b)
+        e .= transpose(transpose(a)) .* 2
+        @test isequal(SparseMatrixCSC(e), ref .* 2)
+    end
+    # Mixed scalar types promote like SparseArrays.
+    x, y=_broadcast_source(rng, Float32, 4, 4), _broadcast_source(rng, ComplexF64, 4, 4)
+    @test _same_sparse(FaerSparseMatrix(x) .* FaerSparseMatrix(y), x .* y, :csc)
+    # Shapes that need broadcast expansion keep the SparseArrays path.
+    col=_broadcast_source(rng, Float64, 4, 1)
+    @test _same_sparse(FaerSparseMatrix(x) .* FaerSparseMatrix(col), x .* col, :csc)
+end
+
 @testset "Sparse broadcast fallbacks follow SparseArrays" begin
     rng=MersenneTwister(5051)
     for T in _BroadcastTypes, fmt in (:csc, :csr)
@@ -199,5 +263,17 @@ end
     @test @allocated(abs.(a)) < 2k*sizeof(Float64) + 4096
     @test @allocated(a .*= 1.0) < 2k*sizeof(Float64) + 4096
     @test @allocated(map(abs, a)) < 2k*sizeof(Float64) + 4096
+    # Transposed operands use the same value path.
+    transpose(a) .* 2; a' .* 2
+    @test @allocated(transpose(a) .* 2) < 2k*sizeof(Float64) + 4096
+    @test @allocated(a' .* 2) < 2k*sizeof(Float64) + 4096
+    # Several operands: about one buffer per operand on the (union) pattern plus
+    # the result buffer, instead of SparseArrays' conversions.
+    c=copy(a)
+    b=FaerSparseMatrix(sprand(rng, 400, 400, 0.02))
+    a .+ c; a .+ b
+    @test @allocated(a .+ c) < 4k*sizeof(Float64) + 4096
+    u=nnz(a .+ b)
+    @test @allocated(a .+ b) < 5u*sizeof(Float64) + 8192
     @test isempty(detect_ambiguities(Colmat, Base, LinearAlgebra, SparseArrays; recursive = true))
 end

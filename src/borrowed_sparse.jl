@@ -263,22 +263,25 @@ function _borrowed_sparse_mul!(c::FaerMatrix, a, b, alpha, beta, left::Bool)
         q===c && ((q, d)=_view_source(_copy_view_matrix(x)))
         y=Ref{T}(alpha)
         z=Ref{T}(beta)
-        trans=_sparse_orientation(s)
-        GC.@preserve d y z _with_borrowed_sparse(_sparse_stored(s)) do raw...
-            _native_call(
-                RustCrate.borrowed_sparse_mul,
-                c,
-                raw...,
-                trans,
-                q,
-                pointer(d),
-                Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, y)),
-                Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, z)),
-                !iszero(beta),
-                left,
-            )
-        end
+        GC.@preserve d y z _sparse_dense_mul_call!(
+            c,
+            s,
+            q,
+            pointer(d),
+            Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, y)),
+            Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, z)),
+            !iszero(beta),
+            left,
+        )
         return c
+    end
+end
+# In-place `c = alpha * op(s) * x + beta * c` (or `x * op(s)`) for a dense
+# source `(q, desc)`; the sparse operand is read in place.
+function _sparse_dense_mul_call!(c, s::_BorrowedSparseOperand, q, desc, y, z, acc, left)
+    trans=_sparse_orientation(s)
+    _with_borrowed_sparse(_sparse_stored(s)) do raw...
+        _native_call(RustCrate.borrowed_sparse_mul, c, raw..., trans, q, desc, y, z, acc, left)
     end
 end
 LinearAlgebra.mul!(

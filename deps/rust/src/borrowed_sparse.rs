@@ -104,10 +104,12 @@ fn owned<T: Clone>(a: SparseColMatRef<'_, usize, T>) -> SparseColMat<usize, T> {
 }
 
 /// Stored operand orientation: the CSC matrix itself, its transpose (the same
-/// arrays read as a CSR `SparseRowMatRef`) or its adjoint.
+/// arrays read as a CSR `SparseRowMatRef`), its adjoint or its conjugate (the
+/// adjoint of a CSR owner, whose column-major view is its transpose).
 pub(crate) const PLAIN: i32 = 0;
 pub(crate) const TRANSPOSE: i32 = 1;
 pub(crate) const ADJOINT: i32 = 2;
+pub(crate) const CONJUGATE: i32 = 3;
 
 fn apply<T: ComplexField, S: SparseDenseMatMul<T> + DenseSparseMatMul<T>>(
     out: MatMut<'_, T>,
@@ -130,7 +132,7 @@ fn apply<T: ComplexField, S: SparseDenseMatMul<T> + DenseSparseMatMul<T>>(
 /// is `op(a) * b` (`left`) or `b * op(a)` with `op(a)` selected by `trans`
 /// (`a`, `aᵀ` or `aᴴ`, all read in place); a conjugated `b` is read in place.
 #[allow(clippy::too_many_arguments)]
-fn product<T: ComplexField>(
+pub(crate) fn product<T: ComplexField>(
     mut out: MatMut<'_, T>,
     a: SparseColMatRef<'_, usize, T>,
     trans: i32,
@@ -141,7 +143,7 @@ fn product<T: ComplexField>(
     left: bool,
 ) -> Result<(), String> {
     let (m, n) = match trans {
-        PLAIN => (a.nrows(), a.ncols()),
+        PLAIN | CONJUGATE => (a.nrows(), a.ncols()),
         TRANSPOSE | ADJOINT => (a.ncols(), a.nrows()),
         _ => return Err("unknown sparse operand orientation".into()),
     };
@@ -169,19 +171,20 @@ fn product<T: ComplexField>(
     match trans {
         PLAIN => apply(out, accum, a, b, conjugate, alpha, left),
         TRANSPOSE => apply(out, accum, a.transpose(), b, conjugate, alpha, left),
-        _ => apply(out, accum, a.adjoint(), b, conjugate, alpha, left),
+        ADJOINT => apply(out, accum, a.adjoint(), b, conjugate, alpha, left),
+        _ => apply(out, accum, a.conjugate(), b, conjugate, alpha, left),
     }
     Ok(())
 }
 
-fn new_product<T: ComplexField>(
+pub(crate) fn new_product<T: ComplexField>(
     a: SparseColMatRef<'_, usize, T>,
     trans: i32,
     b: MatRef<'_, T>,
     conjugate: bool,
     left: bool,
 ) -> Result<Mat<T>, String> {
-    let (m, n) = if trans == PLAIN {
+    let (m, n) = if trans == PLAIN || trans == CONJUGATE {
         (a.nrows(), a.ncols())
     } else {
         (a.ncols(), a.nrows())
@@ -193,13 +196,16 @@ fn new_product<T: ComplexField>(
 }
 
 // SAFETY: `p`/`desc` describe a live dense source for this call.
-unsafe fn dense<'a>(p: *const u8, desc: *const isize) -> Result<(Borrowed<'a>, bool), String> {
+pub(crate) unsafe fn dense<'a>(
+    p: *const u8,
+    desc: *const isize,
+) -> Result<(Borrowed<'a>, bool), String> {
     let s = Spec::read(desc)?;
     Ok((source(p, s)?, s.conjugate))
 }
 
 // SAFETY: alpha/beta address one `T` each; beta is ignored unless `accumulate`.
-unsafe fn scalars<T: ComplexField>(
+pub(crate) unsafe fn scalars<T: ComplexField>(
     alpha: *const u8,
     beta: *const u8,
     accumulate: bool,
@@ -209,7 +215,7 @@ unsafe fn scalars<T: ComplexField>(
     (alpha, beta)
 }
 
-const MISMATCH: &str = "sparse/dense scalar types must match";
+pub(crate) const MISMATCH: &str = "sparse/dense scalar types must match";
 
 #[julia]
 impl SparsityOwner {

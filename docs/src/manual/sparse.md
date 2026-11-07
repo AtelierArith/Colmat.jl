@@ -108,6 +108,43 @@ lu!(F, B)                          # 現在の値で再分解
 Julia の `SparseMatrixCSC` は常に圧縮形式なので、非圧縮形式は Julia 入力では
 生じません。
 
+### 転置・随伴の疎行列積と疎×密の `mul!`
+
+native の疎行列 `A` は、どちらの格納形式でも faer の列優先ビューを1つコピーなしで持ちます
+（CSC はそのまま、CSR は転置として読みます）。`transpose(A)`・`A'` はこのビューの向きと
+共役 flag（faer の `Conjugate` 型）に写像するため、積の入力として転置や共役のコピーを作りません。
+
+- 疎×密: `op(A) * X`・`X * op(A)`（`op` は恒等・`transpose`・`adjoint`、`X` は
+  `FaerMatrix`・native view・転置／随伴・`faerview` 借用）と、`FaerMatrix` への
+  `mul!(C, op(A), X, α, β)`・`mul!(C, X, op(A), α, β)` は、faer の
+  `sparse_dense_matmul`/`dense_sparse_matmul` で `C` に直接書き込みます。
+  以前の `mul!` は積を新しく作り、`β*C` と足してから代入していました。
+  `X` が `C` を参照する場合は、書き込み前に `X` を複製します。
+- 疎×疎: `op(A) * op(B)` は faer の `sparse_sparse_matmul` に共役 flag 付きで渡します。
+  両方が列優先として読める場合は、そのまま CSC の結果を返します。
+  両方が行列優先の場合は `Cᵀ = op(B)ᵀ op(A)ᵀ` を計算し、CSR の結果を返します。
+  どちらもコピーしません。向きが異なる組（CSC×CSR など）では、faer に CSR×CSC の
+  kernel がないため、右の入力だけを1回変換します。結果の形式は `op(A)` に従い、
+  `A`（CSC）・`transpose(A)`／`A'`（CSR）は CSC、それ以外は CSR です。
+
+この faer の版の疎×密 kernel は `MemStack` を受け取らず、`Par` も使わずに逐次実行します。
+そのため疎×密の `mul!` には caller の `scratch`／`team` を渡す引数がなく、Rust 側の
+作業領域も必要ありません。並列化には faer 側の対応が必要です。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sprand(6, 4, 0.5); format=:csr)
+X = FaerMatrix(rand(6, 3))
+C = FaerMatrix(rand(4, 3))
+C0 = Matrix(C)
+mul!(C, A', X, 2.0, 1.0)              # Aᴴ を共役ビューとして読み、C に直接書く
+@assert Matrix(C) ≈ 2 * Matrix(A)' * Matrix(X) + C0
+B = FaerSparseMatrix(sprand(3, 6, 0.5); format=:csr)
+G = A' * B'                           # 両方を共役の列優先ビューとして読む（コピーなし）
+@assert G.format === :csc && Matrix(G) ≈ Matrix(A)' * Matrix(B)'
+```
+
 ### 疎×疎積の計画再利用 (`FaerSparseProductPlan`)
 
 `A * B` は呼び出しごとに faer の symbolic 段（結果の疎構造と作業分割）と
@@ -125,14 +162,18 @@ numeric 段を実行し、結果の疎行列を新しく割り当てます。疎
 - `C` には `FaerSparseMatrix{T}(plan)`（ゼロ値）か `A * B` を使います。
   `mul!` は `C` のパターン・nnz・`epoch`・`nonzeros(C)` の live view を維持します。
   `β == 0` は上書き、それ以外は `C` を `β` 倍して加算します。
-- `A`・`B`・`C` は同じ CSC か CSR です（CSR は `Cᵀ = Bᵀ Aᵀ` の列優先 plan）。
+- plan と `C` の形式は `A` に従います（CSR は `Cᵀ = Bᵀ Aᵀ` の列優先 plan）。
+  `B` の形式が `A` と異なる場合は、plan の作成時に `B` の転置パターンと値の置換を
+  1回だけ計算して保持します。毎回の `mul!` は `B` の値をこの置換で caller の
+  `scratch` 上に並べ替えるだけで、形式変換の割り当ては行いません。
   `faerview(S)` の借用 Julia CSC 同士なら値も index 変換バッファ経由でコピーせずに
   読みます。借用と native CSC の混在でもどちらもコピーせずに読みます（native CSR は
   借用と混在できません）。出力先 `C` には借用 `faerview(C)` も使えます。
 - `eltype(C)` は `promote_type(eltype(A), eltype(B))` を保持できる型です。
   型の異なる入力は `eltype(C)` へ変換したコピー（同じパターン）を作ります。
   `C === A`／`C === B` は `ArgumentError` です。
-- numeric 段の作業領域はスレッドごとに `eltype(C)` の密な1列です。
+- numeric 段の作業領域はスレッドごとに `eltype(C)` の密な1列です。`B` の形式が
+  `A` と異なる plan では、`B` の値を並べ替える `nnz(B)` 個分の領域が加わります。
   `scratch_requirements(mul!, C, plan, A, B; team)`、
   `FaerScratch(mul!, C, plan, A, B; team)`、
   `reserve!(work, mul!, C, plan, A, B; team)` で用意します。`scratch` を省略すると
@@ -230,27 +271,42 @@ mask = S .> 0                     # Bool は native 型ではないため Sparse
 
 次の条件をすべて満たす場合は、native の高速経路で計算します。
 
-- 疎入力が1つの `FaerSparseMatrix` だけ（同じ行列の複数回参照は可）
+- 疎入力が `FaerSparseMatrix` またはその `transpose`／`adjoint` だけで、
+  すべて結果と同じ大きさ（broadcast による次元の拡張なし）
 - ほかの引数が `Number`／`Ref`／0次元配列のスカラー
-- `f(0, スカラー...)` がゼロ（`S .* Inf` は `0*Inf` が NaN になるため対象外）
+- `f(0, …, スカラー...)` がゼロ（`S .* Inf` は `0*Inf` が NaN になるため対象外）
 - 結果の数値型が native 型
 
-この経路では、格納値を Julia に1回だけ転送し、Julia 側で `f` を適用します。
-その値を元の疎構造のコピーに付けて新しい owner を作ります。
+この経路では、格納値を入力ごとに Julia へ1回だけ転送し、Julia 側で `f` を適用します。
+
+- 疎入力が1つ（同じ行列の複数回参照を含む）: 値を元の疎構造のコピーに付けて
+  新しい owner を作ります。`transpose(S)`・`S'` は `S` の配列を他方の格納形式として
+  読むため、結果の形式は `copy(S')` と同じく `S` と逆になります（随伴は値を共役にしてから `f` を適用）。
+- 疎入力が複数: 転置／随伴の入力は native で1回コピーし、最初の入力と形式の異なる
+  入力も1回変換します。全入力の疎構造が一致すれば、値を位置ごとにそのまま組み合わせます。
+  一致しなければ、faer の `union_symbolic` で和集合の構造を作ります。各入力の値はその
+  構造上に Rust 側で並べ（未格納の位置は 0）、Julia 側で `f` を適用します。
+  400×400・密度 2% の `S .+ T` では、Julia ヒープの割り当てが約 600 KB から約 220 KB に、
+  同じ構造の場合は約 870 KB から約 100 KB になりました。
+
+`f` は Rust 側では実行しません。Julia の関数を Rust の kernel から呼ぶには `f` ごとの
+`@cfunction` と GC・スレッドの制約が必要です。一方、値の転送は入力ごとに1回で済むため、
+Rust 側での callback 実行には利点がありません。
+
+1つの疎入力の経路では、値を元の疎構造のコピーに付けて新しい owner を作ります。
 出力先が入力自身の `S .= f.(S)`／`S .*= α` では値を一括で書き戻します。
 このとき nnz・格納順・値ビューは維持されます。
 ゼロが生じた場合は `dropzeros!` 相当の処理で構造を変え、以前の値ビューを失効させます。
 出力の型への変換に失敗した場合（実数行列に複素数を書く等）は、書き込み前に例外を投げます。
 400×400・密度 2% の `abs.(S)` では、Julia ヒープの割り当てが約 230 MB から約 33 KB になりました。
 
-上記以外（`f(0)≠0`、複数の疎入力、密配列・`SparseMatrixCSC` との混在）では、
+上記以外（`f(0)≠0`、次元の拡張、密配列・`SparseMatrixCSC` との混在）では、
 各 native 入力を `SparseMatrixCSC` に1回変換して SparseArrays の broadcast を使います。
 結果の数値型が native なら `FaerSparseMatrix` に戻し、それ以外（`Bool`・`BigFloat` 等）は `SparseMatrixCSC` のまま返します。
 `S .= x` のようなスカラー代入は Base の規約どおり `fill!` になります。
 `x == 0` では構造を保ち、非ゼロでは暗黙のゼロ位置を埋めることになるため `ArgumentError` です。
 密な出力先への `D .+= S` は、疎入力を変換してから Julia の broadcast で計算します。
 `map(f, A, B...)` は全引数が同じサイズである必要があり、異なると `DimensionMismatch` です。
-疎行列の転置／随伴ラッパーの broadcast は、この経路の対象外です。
 
 ## symbolic analysis と数値分解
 

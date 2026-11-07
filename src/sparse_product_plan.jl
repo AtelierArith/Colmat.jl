@@ -6,11 +6,15 @@ phase (`sparse_sparse_matmul_symbolic`) once: it computes the result pattern
 and the work partition, and keeps independent copies of the stored patterns of
 `A` and `B` (stored zeros included). Values are not read.
 
-`A` and `B` are `FaerSparseMatrix` operands sharing one storage format (`:csc`
-or `:csr`; a CSR plan is the column-major plan of `Bᵀ Aᵀ`), or borrowed Julia
-CSC matrices `faerview(S)` (`FaerBorrowedSparseMatrix`), read in place. A
-borrowed operand may be paired with a native CSC operand; both are read in
-place (a native CSR operand cannot be paired with a borrowed one).
+`A` and `B` are `FaerSparseMatrix` operands (`:csc` or `:csr`; a CSR plan is
+the column-major plan of `Bᵀ Aᵀ`), or borrowed Julia CSC matrices `faerview(S)`
+(`FaerBorrowedSparseMatrix`), read in place. The plan follows `A`'s storage
+format. A native `B` of the other format is transposed once at planning time:
+the plan keeps that transposed pattern and a value permutation, and each
+numeric call gathers `B`'s values through it into the caller scratch (no
+conversion per call). A borrowed operand may be paired with a native CSC
+operand; both are read in place (a native CSR operand cannot be paired with a
+borrowed one).
 
 `FaerSparseMatrix{T}(plan)` allocates a zero-valued destination with the
 planned pattern and format; `A * B` has the same pattern. A borrowed Julia CSC
@@ -62,9 +66,6 @@ function FaerSparseProductPlan(a::FaerSparseMatrix, b::FaerSparseMatrix)
         _handle(a)
         _handle(b)
         _sparse_plan_dims(a, b)
-        a.format===b.format || throw(
-            ArgumentError("sparse product plan operands must share a storage format"),
-        )
         return _sparse_plan_result(RustCrate.sparse_product_plan_build, a, b)
     end
 end
@@ -185,7 +186,8 @@ end
 
 Bytes and alignment of the caller workspace for the numeric phase of
 `mul!(C, plan, A, B)`: one dense work column of `eltype(C)` per thread
-(`faer::sparse_sparse_matmul_numeric_scratch`). It depends on the plan, the
+(`faer::sparse_sparse_matmul_numeric_scratch`), plus `nnz(B)` values of
+`eltype(C)` when `B`'s storage format differs from `A`'s. It depends on the plan, the
 scalar type and the team, not on the values. `FaerScratch(mul!, C, plan, A, B;
 team)` and `reserve!(scratch, mul!, C, plan, A, B; team)` size a workspace.
 """
@@ -335,7 +337,7 @@ end
 
 Compute `C = α*A*B + β*C` with faer's numeric phase
 (`sparse_sparse_matmul_numeric`), reusing the symbolic analysis of `plan`. The
-stored patterns of `A` and `B` (and their storage format) must equal those the
+stored patterns of `A` and `B` (and their storage formats) must equal those the
 plan was built from, and `C` must have exactly the planned result pattern
 (`FaerSparseMatrix{T}(plan)` or `A*B`); otherwise `ArgumentError` is thrown
 before any value of `C` is written. Values of `A`/`B` may change freely between
