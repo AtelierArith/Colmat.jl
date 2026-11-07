@@ -110,3 +110,45 @@ function _ordering_options(a, symmetric, row, col, aggressive, statistics, scrat
         end
     end
 end
+const _SymbolicOrderingInput=Union{FaerSparsity,FaerSparseMatrix}
+"""
+    scratch_requirements(FaerSparseSymbolic, A; kind=:lu, uplo=:L, ordering=:default, algorithm=:auto, dense=10.0, dense_row=0.5, dense_col=0.5, aggressive=true)
+
+Return `(bytes, alignment)` for the fill-reducing ordering workspace used inside
+`FaerSparseSymbolic(A; scratch=s, kwargs...)`, with the same keywords. A is a
+`FaerSparsity` or `FaerSparseMatrix` (CSC/CSR, stored zeros included).
+Cholesky `:default`/`:amd` runs faer's AMD (same input and controls as faer's
+symbolic analysis) in the caller buffer, plus exact factor column counts for
+`algorithm=:auto` so the simplicial/supernodal choice matches the no-scratch
+path. Wide QR default COLAMD and explicit simplicial LU/QR `ordering=:colamd`
+use the COLAMD kernel requirement. Identity/custom orderings and square/tall
+auto/supernodal LU/QR return zero bytes: the latter's COLAMD runs inside faer's
+allocating symbolic API, which accepts no caller stack. The kernels are
+sequential. Pattern conversion to CSC, faer's post-ordering symbolic buffer,
+the retained permutation and the symbolic structure allocate separately.
+"""
+function scratch_requirements(
+    ::Type{<:FaerSparseSymbolic},
+    a::_SymbolicOrderingInput;
+    kwargs...,
+)
+    lock(_matrix_lock) do
+        _with_ordering_pattern(a) do pattern
+            o=_sparse_symbolic_options(pattern; kwargs...)
+            return _sparse_symbolic_requirements(pattern, o)
+        end
+    end
+end
+function FaerScratch(t::Type{<:FaerSparseSymbolic}, a::_SymbolicOrderingInput; kwargs...)
+    req=scratch_requirements(t, a; kwargs...)
+    return FaerScratch(req.bytes; alignment = req.alignment)
+end
+function reserve!(
+    s::FaerScratch,
+    t::Type{<:FaerSparseSymbolic},
+    a::_SymbolicOrderingInput;
+    kwargs...,
+)
+    req=scratch_requirements(t, a; kwargs...)
+    return reserve!(s, req.bytes; alignment = req.alignment)
+end

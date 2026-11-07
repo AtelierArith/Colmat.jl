@@ -69,6 +69,37 @@ impl SparseSymbolic {
         dense_row: f64,
         dense_col: f64,
     ) -> Result<(), String> {
+        self.analyze(
+            pattern,
+            kind,
+            lower,
+            ordering,
+            permutation,
+            dense,
+            aggressive,
+            supernodal,
+            dense_row,
+            dense_col,
+            None,
+        )
+    }
+    /// Shared symbolic analysis; `work` supplies the ordering kernel stack when
+    /// the caller manages it (see `symbolic_workspace::requirement`).
+    #[allow(clippy::too_many_arguments)]
+    fn analyze(
+        &mut self,
+        pattern: &SparsityOwner,
+        kind: i32,
+        lower: bool,
+        ordering: i32,
+        permutation: *const u8,
+        dense: f64,
+        aggressive: bool,
+        supernodal: i32,
+        dense_row: f64,
+        dense_col: f64,
+        mut work: Option<&mut MemStack>,
+    ) -> Result<(), String> {
         guarded(|| {
             if !dense_row.is_finite() || !dense_col.is_finite() {
                 return Err("COLAMD thresholds must be finite".into());
@@ -145,14 +176,19 @@ impl SparseSymbolic {
                     } else {
                         let mut fwd = vec![0; n];
                         let mut inv = vec![0; n];
-                        let mut mem = MemBuffer::try_new(
-                            faer::sparse::linalg::colamd::order_scratch::<usize>(
-                                m,
-                                n,
-                                pattern.compute_nnz(),
-                            ),
-                        )
-                        .map_err(|e| format!("{e:?}"))?;
+                        let req = faer::sparse::linalg::colamd::order_scratch::<usize>(
+                            m,
+                            n,
+                            pattern.compute_nnz(),
+                        );
+                        let mut mem;
+                        let stack = match work.as_deref_mut() {
+                            Some(work) => work,
+                            None => {
+                                mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+                                MemStack::new(&mut mem)
+                            }
+                        };
                         faer::sparse::linalg::colamd::order(
                             &mut fwd,
                             &mut inv,
@@ -162,7 +198,7 @@ impl SparseSymbolic {
                                 dense_col,
                                 aggressive,
                             },
-                            MemStack::new(&mut mem),
+                            stack,
                         )
                         .map_err(|e| format!("{e:?}"))?;
                         faer::perm::Perm::new_checked(
@@ -248,22 +284,28 @@ impl SparseSymbolic {
                         2 => SupernodalThreshold::FORCE_SUPERNODAL,
                         _ => return Err("unknown sparse factor algorithm".into()),
                     };
-                    Analysis::Llt(Arc::new(
-                        cholesky::factorize_symbolic_cholesky(
+                    let side = if lower { Side::Lower } else { Side::Upper };
+                    let amd_params = faer::sparse::linalg::amd::Control { dense, aggressive };
+                    Analysis::Llt(Arc::new(match (ord, work.as_deref_mut()) {
+                        (SymmetricOrdering::Amd, Some(work)) => symbolic_workspace::amd_cholesky(
                             pattern.as_ref(),
-                            if lower { Side::Lower } else { Side::Upper },
+                            side,
+                            amd_params,
+                            threshold,
+                            work,
+                        )?,
+                        (ord, _) => cholesky::factorize_symbolic_cholesky(
+                            pattern.as_ref(),
+                            side,
                             ord,
                             cholesky::CholeskySymbolicParams {
-                                amd_params: faer::sparse::linalg::amd::Control {
-                                    dense,
-                                    aggressive,
-                                },
+                                amd_params,
                                 supernodal_flop_ratio_threshold: threshold,
                                 ..Default::default()
                             },
                         )
                         .map_err(|e| format!("{e:?}"))?,
-                    ))
+                    }))
                 }
                 _ => return Err("unknown sparse analysis kind".into()),
             };
@@ -1358,3 +1400,5 @@ mod rank_hint;
 mod input_metadata;
 
 mod construction_workspace;
+
+mod symbolic_workspace;
