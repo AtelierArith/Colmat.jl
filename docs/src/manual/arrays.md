@@ -322,8 +322,79 @@ t4a-faer の `fx128`／`cx128`（`qd::Quad`、2つの f64 による double-doubl
 
 `size`、`axes`、インデックスによる読み書き、`similar`、`fill!`、`copy`、
 `deepcopy`、ブロードキャストにも対応します。`A'` / `transpose(A)` は Julia の
-遅延ラッパーで、`copy(A')` は Rust 側で転置行列を作ります。汎用の配列演算や
-ブロードキャストは要素ごとに FFI を呼ぶ場合があります。
+遅延ラッパーで、`copy(A')` は Rust 側で転置行列を作ります。ブロードキャスト・
+`map`・連結は次節の一括経路を使います。それ以外の汎用の配列演算（`collect`、
+反復、Julia 配列が先頭の `map` 等）は要素ごとに FFI を呼ぶ場合があります。
+
+### 密配列全体の broadcast・`map`・連結
+
+`FaerMatrix`・`FaerVector`・`FaerRow`・native ビューとその `'`／`transpose` を含む
+broadcast は、専用の `FaerArrayStyle` で処理します。各 native 入力を Julia 配列へ
+1回ずつ一括転送し（同じ入力の複数回参照は1回）、`faerview` の借用配列は親配列を
+そのまま読みます。その上で Julia 自身の broadcast を実行するため、次元の拡張・
+0次元配列・`Ref`・タプル・空配列・結果の数値型は Julia と同じ規則になります。
+
+```julia
+using Colmat
+A = FaerMatrix([1.0 2; 3 4])
+v = FaerVector([10.0, 20.0])
+r = FaerRow([1.0, -1.0])
+B = sin.(A) .+ 2 .* v          # FaerMatrix（列ベクトルを各列に拡張）
+w = v ./ 0                     # Inf を含む結果も FaerVector
+s = r .* 3                     # 行だけの式は FaerRow
+mask = A .> 2                  # Bool は native 型ではないため BitMatrix
+A .+= 1                        # Julia の作業配列で計算し、1回で書き戻す
+view(A, 2:2, :) .= view(A, 1:1, :) .* 2  # 同じ owner の重なりも旧値を読む
+C = map(+, A, B)               # FaerMatrix
+D = [A B; B A]                 # hvcat も一括で FaerMatrix
+@assert Matrix(D) == [Matrix(A) Matrix(B); Matrix(B) Matrix(A)]
+```
+
+結果の規約:
+
+- Julia が `Float32`・`Float64`・`ComplexF32`・`ComplexF64` の密な
+  `Vector`／`Matrix` を返す場合は、`FaerVector`／`FaerMatrix` を返します。
+  結果が1行で、native 入力がすべて `FaerRow` の場合は `FaerRow` です。
+  Julia から native への転送は1回の一括書き込みで、`Inf`／`NaN` も保持します。
+- それ以外は Julia の結果をそのまま返します（比較の `BitMatrix`、
+  `Int`／`BigFloat` 等の配列、3次元以上の配列、`SparseMatrixCSC` との積の疎行列等）。
+- `FaerSparseMatrix` を含む式は疎行列の規約に従います（[疎行列](sparse.md)）。
+  `FaerDiagonal` 自体は対象外で、混在時は通常の要素アクセスで読みます。
+- 借用配列だけの broadcast は従来どおり Julia 配列を返します。
+
+同じ形状・同じ数値型の `FaerMatrix` 同士の `A .+ B`／`A .- B` と、実数行列の
+型を広げない実スカラー倍・複素行列の同型スカラー倍（`2 .* A` 等）は、Rust の
+行列全体の加算・スカラー倍をそのまま使います。丸めと `Inf`／`NaN` の扱いは
+Julia のスカラー演算と一致する組合せに限っています（`false .* A` や実行列への
+複素スカラー倍は一般経路）。
+
+`dest .= 式`（`.+=` 等を含む）は、各入力を読み終えてから `eltype(dest)` の Julia
+作業配列に計算し、最後に1回の一括書き込みで `dest` を更新します。変換の失敗
+（実数行列への複素数等の `InexactError`）や形状不一致では `dest` は変わりません。
+`dest .= x`（スカラー）は `fill!`、同じ型の `FaerMatrix` や同じ数値型・同じ軸の
+Julia 配列からの `dest .= B` は直接の一括 `copyto!` です（他の組合せも作業配列経由で
+`Inf`／`NaN` を保持します）。Julia 配列や借用配列が出力先の場合は、native 入力を転送した後に Julia の
+`materialize!` で書き込み、借用配列は親配列として別名解析されます。
+
+`map(f, A, Bs...)`／`map!(f, dest, A, Bs...)` は、最初の配列（`map!` では出力先）が
+native の場合に同じ転送を行い、Julia の `map` を実行します。`hcat`・`vcat`・
+`hvcat`（`[A B; C D]` 形式のリテラル）・`cat(...; dims)` は、最初の引数が native の
+場合に全引数を一括転送して Julia のアルゴリズムで連結し、`vcat` によるベクトル
+同士の連結は `FaerVector`、全 native 引数が `FaerRow` の1行結果は `FaerRow`、
+それ以外の2次元結果は `FaerMatrix`、3次元以上は Julia 配列を返します。Julia 配列が
+先頭の呼び出しは Base／SparseArrays の経路のままです。
+
+faer の `mat!`／`row!`／`col!`・`concat!`・`zip!`／`unzip!` マクロは Rust の
+コンパイル時構文で、Julia には移植しません。それぞれ配列リテラルからの構築
+（`FaerMatrix([1.0 2; 3 4])`、`FaerRow([1.0, 2.0])`、`FaerVector([1.0, 2.0])`）、
+上記の連結、broadcast／`map` が同じ用途を担います。
+
+`dest .= A .± B`／`dest .*= α` も同じ条件で Rust の結果を1回の native 代入で書き込みます。
+
+200×200 の `Float64` で、Julia ヒープの割り当ては `sin.(A)` が約 52 MB から約 0.66 MB、
+`hcat(A, B)` が約 218 MB から約 1.3 MB、`A .+ B` が約 103 MB から 2 KB 未満、
+`A .+= B` が約 161 MB から約 3 KB になりました。一般経路で残る割り当ては入力の
+転送と結果の作業配列で、出力 owner は Rust 側に確保します。
 
 RustCall の所有ハンドルにより、GC 時に Rust の行列も解放されます。
 `close(A)` は参照を外して以後のアクセスを禁止し、実際の解放は GC に委ねます。
