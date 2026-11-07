@@ -244,8 +244,10 @@ Measured Julia `@allocated` for `k = 6` and a dense `Float64` operator,
 before → after: `partial_eigen` 567 KB → 66 KB (n = 400) and 1.84 MB → 181 KB
 (n = 1600); `partial_self_adjoint_eigen` 973 KB → 99 KB and `partial_svd`
 (1600×800) 1.56 MB → 148 KB at n = 1600. What remains is the returned arrays
-plus a fixed FFI marshalling overhead of roughly 16–30 KB; a Julia callback
-operator adds about 100 B per application for its trampoline.
+plus a fixed FFI marshalling overhead of roughly 16–33 KB. A Julia callback
+operator reuses its marshalling arrays; with an allocation-free action the
+marginal cost is about 32 B per application, the same as inside `cg`
+(n = 400, measured by varying `max_restarts` / `maxiter`).
 
 All three methods accept `scratch` and `team`. Query or reserve with the same
 projection controls and team used for execution. The buffer covers the partial

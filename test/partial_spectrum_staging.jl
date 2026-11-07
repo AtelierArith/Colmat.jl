@@ -27,6 +27,16 @@ end
         tol=_partial_tol(T)
         H=T.(Matrix(SymTridiagonal(collect(R, 1:n), fill(R(1//4), n-1))))
         B=hcat(Matrix(Diagonal(T.(1:n))), zeros(T, n, 3))
+        if T<:Complex
+            # Nonreal Hermitian and rectangular data: complex singular vectors
+            # exercise the in-place conjugation into Vt.
+            for i = 1:(n-1)
+                H[i, i+1]=T(1//4)+T(1//5)*im
+                H[i+1, i]=conj(H[i, i+1])
+                B[i, i+1]=T(1//3)*im
+            end
+            B[n, n+1]=T(1//2)-T(1//3)*im
+        end
         G=_partial_rotation_blocks(T, n)
         for (f, A) in (
             (partial_self_adjoint_eigen, H),
@@ -43,8 +53,10 @@ end
             if f===partial_svd
                 @test F.Vt isa Matrix{T}
                 @test size(F.Vt)==(5, size(A, 2))
+                @test norm(A*F.Vt'-F.U*Diagonal(F.S))<100tol*n
+                @test norm(A'*F.U-F.Vt'*Diagonal(F.S))<100tol*n
                 for j = 1:5
-                    v=F.Vt[j, :]
+                    v=conj(F.Vt[j, :])
                     u=F.U[:, j]
                     @test F.residuals[j]≈max(norm(A*v-F.S[j]*u), norm(A'*u-F.S[j]*v)) atol=10tol*n
                     @test norm(A*v-F.S[j]*u)<100tol*n
@@ -68,21 +80,26 @@ end
         n=200
         R=real(T)
         A=T.(Matrix(Diagonal(collect(R, 1:n))))
-        A[1, 2]=A[2, 1]=T(1//10)
+        for i = 1:(n-1)
+            A[i, i+1]=T<:Complex ? T(1//10)*im : T(1//10)
+            A[i+1, i]=conj(A[i, i+1])
+        end
         op=FaerLinearOperator(A)
         for f in (partial_eigen, partial_self_adjoint_eigen, partial_svd)
-            F=f(op, 30; tol = _partial_tol(T), max_restarts = 1)
+            F=f(op, 30; tol = _partial_tol(T), max_restarts = 3)
             c=F.nconverged
-            @test 0<=c<30
+            @test 0<c<30
             @test length(F.residuals)==c
             if f===partial_svd
                 @test size(F.U)==(n, c)
                 @test size(F.Vt)==(c, n)
                 @test length(F.S)==c
                 for j = 1:c
-                    v=F.Vt[j, :]
-                    @test norm(A*v-F.S[j]*F.U[:, j])≤F.residuals[j]*(1+1e-3)+eps(R)
+                    v=conj(F.Vt[j, :])
+                    @test norm(A*v-F.S[j]*F.U[:, j])≤F.residuals[j]*(1+1e-3)+10eps(R)*n
+                    @test norm(A'*F.U[:, j]-F.S[j]*v)≤F.residuals[j]*(1+1e-3)+10eps(R)*n
                 end
+                @test F.residuals[1]<100_partial_tol(T)*n
             else
                 @test size(F.vectors)==(n, c)
                 @test length(F.values)==c

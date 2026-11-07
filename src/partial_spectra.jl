@@ -27,7 +27,8 @@ workspace; `team` supplies the scoped native team. Query with
 `scratch_requirements(partial_eigen,op,nev;min_dim,max_dim,max_restarts,team)`.
 faer writes the converged results, already in their final order, straight into
 the returned Julia arrays; truncation to the converged count resizes them in
-place. Julia callback operators reuse their per-operator marshalling buffers.
+place (they keep the memory of the requested count). Results stay Julia
+`Vector`/`Matrix` by contract rather than native owners. Julia callback operators reuse their per-operator marshalling buffers.
 """
 function partial_eigen end
 function partial_self_adjoint_eigen end
