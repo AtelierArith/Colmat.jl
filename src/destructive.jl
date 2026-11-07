@@ -154,6 +154,12 @@ faer's `lu::full_pivoting::factor::lu_in_place`, `cholesky::ldlt::factor::choles
 or `cholesky::lblt::factor::cholesky_in_place` (with the rook or default
 partial-diagonal pivoting `LbltParams`) runs directly on A's native storage
 and returns a [`FaerInPlaceFactorization`](@ref) aliasing A, as for `lu!`.
+
+`cholesky!` and `ldlt!` accept the regularization keywords of `cholesky`/`ldlt`
+and `bunchkaufman!` accepts `pivoting`, on both paths (pass the same `pivoting`
+to `scratch_requirements(bunchkaufman!, A, rook; pivoting)`). Direct factors
+report `F.regularization_count` like retained ones; parameters set by
+[`with_cholesky_tuning`](@ref) apply to both paths and their queries.
 """
 function full_piv_lu!(a::FaerMatrix; check::Bool = true, team = nothing, scratch = nothing)
     isnothing(scratch) || return _direct_full_piv_lu!(a, check, scratch, team)

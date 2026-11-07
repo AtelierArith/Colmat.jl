@@ -27,7 +27,8 @@ F aliases A: later writes to A change F, and closing, resizing or truncating A
 invalidates F (its operations then throw `ArgumentError`). `close(F)` only
 invalidates F. Solves (`\\`, `ldiv!` with optional `scratch=`/`team=`, transpose
 and adjoint for square factors, tall QR least squares), `L/U/p/P/R/Q/Qthin/
-Qbasis/Qcoeff/packed`, `q` (full LU), `D` (LDLᴴ, Bunch–Kaufman), `rook` and
+Qbasis/Qcoeff/packed`, `q` (full LU), `D` (LDLᴴ, Bunch–Kaufman),
+`regularization_count` (Cholesky, LDLᴴ), `rook` and
 `inertia` (Bunch–Kaufman), `reconstruct(F)`/`Matrix(F)`/`FaerMatrix(F)` and their
 typed forms, `inv`, and `det/logabsdet/logdet` (all but QR, natively) read A's
 storage. `copy(F)` copies A and F's buffers into a new direct
@@ -247,7 +248,7 @@ end
     scratch_requirements(cholesky!, A; team=nothing)
     scratch_requirements(full_piv_lu!, A::FaerMatrix; team=nothing)
     scratch_requirements(ldlt!, A; team=nothing)
-    scratch_requirements(bunchkaufman!, A[, rook=false]; team=nothing)
+    scratch_requirements(bunchkaufman!, A[, rook=false]; team=nothing, pivoting=nothing)
 
 Query faer's exact workspace for the direct in-place factorization of A (a
 `FaerMatrix`, or for the self-adjoint factorizations also a `Hermitian`/real

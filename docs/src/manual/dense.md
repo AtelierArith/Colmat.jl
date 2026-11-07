@@ -563,9 +563,56 @@ C = FaerMatrix(ComplexF64[4 1+2im; 1+2im 3])
   `eigen`/`eigvals` も同じ規則で、格納三角が実数なら自己随伴 EVD（実固有値）、それ以外は一般 native EVD
   （複素固有値）に渡します（spectral マニュアルの self-adjoint EVD algorithms 節）。
 - `F.uplo` は Julia の `Char` ではなく `Symbol`（`:L`/`:U`）です。LDLT/Bunch–Kaufman は
-  常に下三角向きの `F.L` を返し、Julia の `uplo='U'` における `F.U`（`A[p,p] = U D Uᴴ`）は
-  提供しません。密な `ldlt(A)` は Julia 標準には無く（`SymTridiagonal`・疎のみ）、Colmat では
+  常に下三角向きの `F.L`（`A[p,p] = L D Lᴴ`、上三角ラッパーは格納三角の随伴を分解）を返し、
+  Julia の `uplo='U'` における `F.U`（`A[p,p] = U D Uᴴ`）は提供しません。`F.L'` は
+  `Uᴴ D U` を満たすだけで Julia の `U` にならず、反転による上三角への付け替え
+  （`U = J L J`）は LAPACK `sytrf` の上三角因子と一致せず `F.D`/`F.p` の意味も変えるためです。
+  密な `ldlt(A)` は Julia 標準には無く（`SymTridiagonal`・疎のみ）、Colmat では
   ピボットなし LDLᴴ として Hermitian 入力を受けます。`cholesky[!](A, NoPivot())` も同じ native 経路です。
+
+## 自己随伴分解のパラメータと動的正則化
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([1.0 2; 2 1])                      # 不定値
+F = cholesky(A; regularization_delta = 1, regularization_epsilon = 1e-8)
+@assert issuccess(F) && F.regularization_count == 1
+L = Matrix(F.L)
+@assert L * L' ≈ [1 2; 2 5]                       # A + diag(0, 4)
+G = ldlt(FaerMatrix([0.0 1; 1 0]); regularization_delta = 1,
+         regularization_epsilon = 1e-8, regularization_signs = [1, -1])
+@assert G.regularization_count == 1
+H = bunchkaufman(Hermitian(FaerMatrix([1e-8 1; 1 -3])); pivoting = :full)
+K = with_cholesky_tuning(; ldlt_block_size = 32, lblt_block_size = 16) do
+    ldlt(FaerMatrix([4.0 1; 1 3]))
+end
+```
+
+- 結果を変える faer の設定は呼び出しごとのキーワードです。`cholesky`・`ldlt`（`!`、
+  `scratch=` の直接経路、`team=`、`faerview`・ラッパー入力を含む）の
+  `regularization_delta`/`regularization_epsilon` は faer の `LltRegularization`/
+  `LdltRegularization` を有効にします（両方正のときのみ。片方だけ・負・非有限は `ArgumentError`）。
+  分解される行列が `A` に対角摂動を加えたものに変わるため、意図した場合（前処理など）に限って使います。
+  `ldlt` の `regularization_signs`（各行 -1/0/1）は期待する符号です。`F.regularization_count` は
+  faer の `dynamic_regularization_count` です。
+- 固定版 faer の LLᴴ 正則化は置換したピボットの対角を誤って格納し、ブロック化経路では因子全体が
+  壊れます。Colmat は同じ置換規則・カウントを持つ faer の LDLᴴ カーネル（全符号 +1）で分解し、
+  `sqrt(D)` を掛けて L を作ります。LDLᴴ のカウントは期待符号 +1 のピボットだけを数え、
+  -1 方向の補正や符号なしの置換は数えません（どちらも
+  [実行済み再現例](https://github.com/AtelierArith/Colmat.jl/tree/main/docs/reproducers/faer-selfadjoint-factor-params)）。
+- `bunchkaufman[!](A, rook; pivoting)` は `LbltParams.pivoting` の全戦略
+  `:partial`・`:partial_diag`（既定）・`:rook`・`:rook_diag`・`:full` を選べます。`F.rook` は
+  `:rook`/`:rook_diag` で `true`、`rook=true` と他の戦略の組み合わせは `ArgumentError` です。
+  `:partial` は LAPACK の古典的 Bunch–Kaufman と同じ探索規則ですが、ピボット列が一致するとは限りません
+  （9×9 の乱数対称行列 200 例で `bunchkaufman(Symmetric(A, :L)).p` と一致したのは 159 例）。
+  非推奨の `Diagonal` は提供しません。`scratch_requirements(bunchkaufman!, A, rook; pivoting)` も同じ戦略を受けます。
+- 性能だけに効く `LltParams`/`LdltParams` の `recursion_threshold`・`block_size` と
+  `LbltParams` の `block_size`・`par_threshold`（`:full` のみが参照）は
+  `with_cholesky_tuning(f; llt_recursion_threshold, llt_block_size, ldlt_recursion_threshold,
+  ldlt_block_size, lblt_block_size, lblt_par_threshold)` のスコープで指定します（`nothing` は faer 既定）。
+  保持因子・型付き・借用入力・team・staged/直接の `!` と scratch 照会がすべて従います。LBLᴴ の直接経路の
+  作業領域は `lblt_block_size` で変わるため、照会もスコープ内で行います。faer の `LbltInfo.transposition_count`
+  は公開しません（置換そのものは `F.p` で得られ、対称置換は行列式に影響しないため `det` は `B` のブロックだけから求めます）。
 
 ## SVD workspace, teams and destructive entry points
 

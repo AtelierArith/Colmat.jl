@@ -148,3 +148,11 @@ reserve control and compile-only getter probe for [faer #284](https://github.com
 [zero-sized-capacity](zero-sized-capacity/README.md) independently reproduces the
 zero-sized-element reservation panic in [faer #286](https://github.com/tensor4all/faer/issues/286);
 this does not affect Colmat's four advertised numeric scalars.
+
+## Self-adjoint factorization parameters
+
+[Standalone Rust reproduction](faer-selfadjoint-factor-params/README.md) (not
+filed upstream) of faer's regularized LLᴴ wrong diagonal, the LDLᴴ
+regularization undercount, the missing parameterized `Llt`/`Ldlt`/`Lblt`
+constructors and the missing transposed-symmetric LBLᵀ. Colmat works around
+the first and documents the others (issue #104).
