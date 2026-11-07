@@ -45,7 +45,7 @@ end
 
 """
     eigen(A::FaerMatrix; side=:right, sortby, scratch, team, permute=false, scale=false)
-    eigen(A::Union{Hermitian,Symmetric}; sortby)
+    eigen(A::Union{Hermitian,Symmetric}; sortby, alg, native=false, scratch, team)
 
 Compute eigenvalues and right eigenvectors using t4a-faer. Self-adjoint
 wrappers read only the specified triangle. Results own independent Julia
@@ -56,6 +56,12 @@ Both-sided results are `(values,left,right)` sharing one eigenvalue sequence.
 The default right-sided result remains `Eigen`. Construct/query scratch with
 the requested `side`; output arrays and sorting allocate separately. Side
 selection applies to general matrices, not self-adjoint wrappers or bang calls.
+
+Self-adjoint `alg=DivideAndConquer()` (or `nothing`) is faer's default driver,
+`QRIteration()` forces the tridiagonal implicit QR algorithm at every size
+(not with `native=true`), and `RobustRepresentations()` (Julia's default; faer
+has no MRRR) also uses the default driver. The subset forms `eigen(A, irange)`
+and `eigen(A, vl, vu)` select from the full native spectrum.
 
 faer's EVD driver does not balance. `permute=true, scale=true` (which must be
 given together, because faer's `balance_in_place` always does both) balances
