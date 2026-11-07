@@ -7,7 +7,7 @@
 use crate::collections::{VectorData, VectorOwner};
 use crate::guarded;
 use crate::typed::{MatrixData, TypedMatrix};
-use crate::views::{borrowed, source, Borrowed, Spec};
+use crate::views::{source, view_mut, Borrowed, Spec};
 use crate::workspace::OwnedScratch;
 use crate::OwnedMatrix;
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
@@ -145,24 +145,14 @@ fn permuted<T: ComplexField>(
     }
     Ok(out)
 }
-/// Borrow an injective view selection mutably for one call. Repeated indices
-/// (a zero step over more than one element) would alias a `MatMut`, so they
-/// are rejected; Julia stages those updates instead.
+/// Borrow an injective view selection mutably for one call through the shared
+/// destination borrow. Repeated indices (a zero step over more than one
+/// element) would alias a `MatMut`, so `view_mut` rejects them; Julia stages
+/// those updates instead. Conjugation is cleared first: a permutation only
+/// moves elements, so permuting a conjugated view permutes its parent the
+/// same way.
 fn borrowed_mut<T>(a: MatMut<'_, T>, s: Spec) -> Result<MatMut<'_, T>, String> {
-    if (s.rs == 0 && s.m > 1) || (s.cs == 0 && s.n > 1) {
-        return Err("repeated view indices cannot be borrowed mutably".into());
-    }
-    let (offset, m, n, rs, cs) = {
-        let view = borrowed(a.as_ref(), s)?;
-        // SAFETY: `borrowed` offsets the owner's pointer in its allocation.
-        let offset = unsafe { view.as_ptr().offset_from(a.as_ptr()) };
-        let (rs, cs) = (view.row_stride(), view.col_stride());
-        (offset, view.nrows(), view.ncols(), rs, cs)
-    };
-    // SAFETY: `borrowed` validated every selected index against the owner and
-    // the nonzero steps make the selection injective. The pointer derives from
-    // the exclusive owner borrow and does not outlive this call.
-    Ok(unsafe { MatMut::from_raw_parts_mut(a.as_ptr_mut().offset(offset), m, n, rs, cs) })
+    view_mut(a, s.unconjugated())
 }
 fn requirement<T: ComplexField>(m: usize, n: usize, columns: bool) -> StackReq {
     if columns {

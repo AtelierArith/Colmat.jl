@@ -582,18 +582,19 @@ end
 
 for T in (Float32, ComplexF32, ComplexF64)
     @eval begin
-        Base.:\(f::FaerFactorization{$T}, b::AbstractMatrix{<:Number}) = f\FaerMatrix(b)
+        Base.:\(f::FaerFactorization{$T}, b::AbstractMatrix{<:Number}) =
+            _dense_solve_temporary(f, _dense_rhs_copy(b))
         Base.:\(f::FaerFactorization{$T}, b::AbstractVector{<:Number}) =
-            vec(Matrix(f\FaerMatrix(reshape(b, :, 1))))
+            _dense_vector_solve(f, b)
         Base.:\(f::FaerFactorization{$T}, b::FaerMatrix{<:Number}) = _typed_solve(f, b)
     end
     for TF in (LinearAlgebra.AdjointFactorization, LinearAlgebra.TransposeFactorization)
         op=TF===LinearAlgebra.AdjointFactorization ? 2 : 1
         @eval begin
             Base.:\(f::$TF{$T,<:FaerFactorization{$T}}, b::AbstractMatrix{<:Number}) =
-                f\FaerMatrix(b)
+                _dense_solve_temporary(f, _dense_rhs_copy(b))
             Base.:\(f::$TF{$T,<:FaerFactorization{$T}}, b::AbstractVector{<:Number}) =
-                vec(Matrix(f\FaerMatrix(reshape(b, :, 1))))
+                _dense_vector_solve(f, b)
             Base.:\(f::$TF{$T,<:FaerFactorization{$T}}, b::FaerMatrix{<:Number}) =
                 _typed_solve(parent(f), b, $op)
         end

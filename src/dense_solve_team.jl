@@ -55,14 +55,7 @@ function _dense_native_rhs(b, right)
     end
     return _copy_view_matrix(right ? adjoint(src) : src)
 end
-# Validate and solve; returns a fresh native result in the solve orientation.
-function _dense_solve_native(
-    f::_DenseSolveFactor,
-    b;
-    scratch = nothing,
-    team = nothing,
-    right = false,
-)
+function _dense_solve_check(f::_DenseSolveFactor, b; team = nothing, right = false)
     original=_dense_parent(f)
     _handle(original)
     _spectral_rhs_open(b)
@@ -75,6 +68,17 @@ function _dense_solve_native(
     _dense_solve_validate(original)
     (right ? size(b, 2)==size(f, 2) : size(b, 1)==size(f, 1)) ||
         throw(DimensionMismatch("factor and RHS dimensions do not match"))
+    return original
+end
+# Validate and solve; returns a fresh native result in the solve orientation.
+function _dense_solve_native(
+    f::_DenseSolveFactor,
+    b;
+    scratch = nothing,
+    team = nothing,
+    right = false,
+)
+    original=_dense_solve_check(f, b; team, right)
     op = _dense_op(f)
     right && (op = (2, 3, 0)[op+1])
     rhs = _dense_native_rhs(b, right)
@@ -119,16 +123,70 @@ function _dense_julia_dest!(dest, x)
     eltype(dest)===eltype(x) || return _dense_copy_result!(dest, x)
     return copyto!(dest, x)
 end
+# Write a fresh native result into a borrowed or Julia strided destination of
+# its scalar type natively (no Julia staging array); `false` otherwise.
+function _dense_write_julia!(dest, result, right)
+    target=eltype(dest)===eltype(result) ? _gemm_destination(dest) : nothing
+    isnothing(target) && return false
+    p, d=_view_source(target)
+    q, e=_view_source(right ? adjoint(result) : result)
+    GC.@preserve d e _native_call(RustCrate.view_assign_into, p, pointer(d), q, pointer(e))
+    return true
+end
+# faer's in-place solve with the retained factor directly in `target` (a
+# native owner/view, borrowed or Julia strided array named by its view
+# descriptor). Returns `false`, writing nothing, when the factor needs the
+# rectangular, rank-revealing or SVD path.
+function _dense_in_place_solve!(original::FaerFactorization, target, op, team)
+    p, d=_view_source(target)
+    return GC.@preserve d _native_call(
+        RustCrate.solve_in_place_view,
+        original,
+        p,
+        pointer(d),
+        Int32(op),
+        team,
+    )
+end
+# Same-scalar square solves run in place in the destination: `B` is assigned
+# into `X` natively first (inputs overlapping `X` are snapshot), so no RHS
+# copy, fresh result or writeback is made. Returns `nothing` when solved,
+# otherwise the right-hand side for the fresh-result path (`X` once `B` has
+# been assigned into it).
+function _dense_ldiv_in_place!(dest, f, b, scratch, team)
+    isnothing(scratch) || return b
+    original=_dense_parent(f)
+    T=eltype(original)
+    eltype(dest)===T && eltype(b)===T && size(f, 1)==size(f, 2) || return b
+    _dense_solve_check(f, b; team)
+    target=_gemm_destination(dest)
+    input=b===dest ? target : _gemm_input(b)
+    (isnothing(target) || isnothing(input)) && return b
+    if b!==dest
+        # A non-finite `B` fails in the fresh-result path before `X` is written.
+        all(isfinite, b) || return b
+        p, d=_view_source(target)
+        q, e=_view_source(input)
+        GC.@preserve d e _native_call(RustCrate.view_assign_into, p, pointer(d), q, pointer(e))
+    end
+    _dense_in_place_solve!(original, target, _dense_op(f), team) && return nothing
+    # Declined (rectangular-path factor): `X` now holds `B` and is the input of
+    # the fresh-result path; a later failure there leaves `X == B`.
+    return dest
+end
 function _dense_ldiv!(dest, f, b; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
         _spectral_rhs_open(dest)
         _dense_rhs_validate(dest)
         size(dest)==(ndims(b)==1 ? (size(f, 2),) : (size(f, 2), size(b, 2))) ||
             throw(DimensionMismatch("factor solve destination shape mismatch"))
+        b=_dense_ldiv_in_place!(dest, f, b, scratch, team)
+        isnothing(b) && return dest
         result=_dense_solve_native(f, b; scratch, team)
         try
             _dense_native_dest(dest, result) &&
                 return _dense_assign_native!(dest, result, false)
+            _dense_write_julia!(dest, result, false) && return dest
             return _dense_julia_dest!(
                 dest,
                 ndims(dest)==1 ? vec(Matrix(result)) : Matrix(result),
@@ -138,6 +196,51 @@ function _dense_ldiv!(dest, f, b; scratch = nothing, team = nothing)
         end
     end
 end
+# `x` is a fresh native copy of a right-hand side that nothing else holds:
+# same-scalar square solves overwrite it in place and return it; otherwise
+# the ordinary solve runs and the copy is released.
+function _dense_solve_temporary(f::_DenseSolveFactor, x)
+    original=_dense_parent(f)
+    if eltype(x)===eltype(original) &&
+       size(f, 1)==size(f, 2)==size(x, 1) &&
+       LinearAlgebra.issuccess(original)
+        solved=lock(_matrix_lock) do
+            _dense_in_place_solve!(original, x, _dense_op(f), nothing)
+        end
+        solved && return x
+    end
+    result=f\x
+    result===x || close(x)
+    return result
+end
+# One native copy of a same-scalar borrowed or Julia strided right-hand side.
+function _dense_rhs_copy(b::AbstractMatrix, ::Type{T}) where {T}
+    eltype(b)===T || return FaerMatrix{T}(b)
+    b isa FaerBorrowedMatrix && return _copy_view_matrix(b)
+    b isa StridedMatrix && _julia_borrowable(b) && return _copy_view_matrix(FaerBorrowedArray(b))
+    return FaerMatrix{T}(b)
+end
+# Without a target scalar the copy keeps the right-hand side's native scalar.
+_dense_rhs_copy(b::AbstractMatrix) =
+    eltype(b)<:_NativeScalar ? _dense_rhs_copy(b, eltype(b)) : FaerMatrix(b)
+_dense_vector_solve(f, b::AbstractVector) =
+    _dense_vector_solve(f, b, eltype(b)<:_NativeScalar ? eltype(b) : nothing)
+function _dense_vector_solve(f, b::AbstractVector, ::Type{T}) where {T}
+    x=_dense_solve_temporary(f, _dense_rhs_copy(reshape(b, :, 1), T))
+    try
+        return vec(Matrix(x))
+    finally
+        close(x)
+    end
+end
+function _dense_vector_solve(f, b::AbstractVector, ::Nothing)
+    x=_dense_solve_temporary(f, FaerMatrix(reshape(b, :, 1)))
+    try
+        return vec(Matrix(x))
+    finally
+        close(x)
+    end
+end
 """
     ldiv!(X, F::FaerFactorization, B; scratch=nothing, team=nothing)
     ldiv!(F, B; scratch=nothing, team=nothing)
@@ -145,11 +248,15 @@ end
 Solve with retained dense factors and an optional caller-owned native team.
 Transpose/adjoint, rectangular LU/full LU/QR and rank-deficient QR solves are supported.
 Three-argument calls compute a fresh native result before writeback and support
-overlapping inputs. Two-argument calls require square factors. Native and
-strided Julia right-hand sides are copied once into native storage (right solves
-transpose through the view descriptor), and native destinations of the result
-type are written natively, so no Julia staging array is made; Julia
-destinations receive one copy of the result. Native workspace allocates
+overlapping inputs. Two-argument calls require square factors. Same-scalar square,
+numerically nonsingular factors solve in place in the destination with faer's
+`solve_in_place` when it is a native owner/view, a `faerview` or an injective
+Julia strided array: two-argument calls make no right-hand-side copy, result or
+writeback, and three-argument calls first assign `B` into `X` natively (inputs
+overlapping `X` are snapshot). Otherwise native and strided Julia right-hand
+sides are copied once into native storage (right solves transpose through the
+view descriptor) and the fresh result is written natively into native,
+borrowed and Julia strided destinations of the result type. Native workspace allocates
 separately. Caller scratch covers native solve work, including
 R SVD/projection for rectangular or deficient QR. Mixed scalar
 promotion retains the existing factor reconstruction/refactorization policy;
@@ -198,6 +305,7 @@ function LinearAlgebra.rdiv!(
         try
             _dense_native_dest(dest, result) &&
                 return _dense_assign_native!(dest, result, true)
+            _dense_write_julia!(dest, result, true) && return dest
             return _dense_julia_dest!(dest, copy(adjoint(Matrix(result))))
         finally
             close(result)

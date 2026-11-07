@@ -50,6 +50,12 @@ It is also a native destination: dense `mul!(B, X, Y[, alpha, beta])`,
 through a faer `MatMut` built from the parent's pointer and strides for the
 call (plain injective Julia strided arrays of the same scalar take the same
 path). Inputs whose memory overlaps the destination are snapshot natively.
+
+Dense factorizations (`lu`, `full_piv_lu`, `qr`, `cholesky`, `ldlt`,
+`bunchkaufman`, also of `Hermitian`/real `Symmetric` wrappers) and `svd`,
+`svdvals`, `eigen`, `eigvals` of a borrowed matrix read it in place and return
+the same native results as for a `FaerMatrix`. Retained dense factors solve
+`ldiv!(F, B)` in place in a borrowed `B`.
 """
 struct FaerBorrowedArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
     parent::A

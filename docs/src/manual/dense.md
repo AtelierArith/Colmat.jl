@@ -42,6 +42,44 @@ close(A)
 @assert F \ [1.0, 2.0] ≈ a \ [1.0, 2.0]
 ```
 
+### 借用 Julia 配列の分解と in-place 求解
+
+`faerview(J)` で借用した Julia 行列（4 型、負・非単位 stride を含む）は、
+`lu`・`full_piv_lu`・`qr`（`NoPivot`/`ColumnNorm`）・`cholesky`・`ldlt`・
+`bunchkaufman`（`Hermitian`/実 `Symmetric` ラッパーを含む）・`svd`/`svdvals`・
+`eigen`/`eigvals` の入力として faer が親配列の `MatRef` を直接読みます。
+結果は `FaerMatrix` 入力と同じ型（`FaerFactorization`・`SVD`・`Eigen`）で、
+Julia や native の入力 snapshot は作りません（因子自身の格納は出力として確保）。
+以前は LinearAlgebra の汎用経路（LAPACK と `Matrix` へのコピー）でした。
+LAPACK を使うには親配列 `parent(B)` を渡します。`det`・`inv`・`B\b`・
+`factorize`・`cond`・`rank`・`pinv` など LinearAlgebra の汎用関数もこの native 分解を
+通ります。`scratch`・`team`（SVD/EVD）・`alg`・`native=true`・`side`・平衡化・
+チューニング中の呼び出しは入力を native へ1回コピーして `FaerMatrix` の経路を使います。
+読み取り専用の NPY 借用も分解の入力にできます。ラッパーなしの Hermitian な借用行列の
+`eigen`/`eigvals` は、Julia 配列と同様に自己随伴ドライバで実固有値を返します
+（`eigmax`/`eigmin` も使えます。`FaerMatrix` の `eigen` は一般ドライバで複素数です）。
+
+同じ要素型の正方・ランク落ちしていない保存因子による `ldiv!(F, B)` は、
+`B` が `Matrix`・strided `SubArray`・`faerview`・`FaerVector`・native ビューなら
+faer の `solve_in_place` を `B` の記憶域で直接実行し、右辺のコピー・新しい結果・
+書き戻しを作りません。`ldiv!(X, F, B)` は `B` を `X` へ native に1回代入して
+（重なる入力は snapshot）から `X` で同じ in-place 求解をします。`F \ B`
+（`B` が Julia strided 配列・`faerview`）は右辺の native コピー1つで解いて返します。
+長方形・ランク落ちした QR・SVD 因子、型昇格、`scratch=` は従来の新規結果の経路で、
+Julia の書き込み先へは結果を native に1回代入します。
+
+```julia
+using Colmat, LinearAlgebra
+
+J = [4.0 1; 1 3]
+F = lu(faerview(J))                  # J を直接読む native LU
+@assert F isa Colmat.FaerFactorization
+B = [1.0 2; 3 4]
+ldiv!(F, B)                          # B の記憶域で直接求解
+@assert B ≈ J \ [1.0 2; 3 4]
+@assert eigvals(Hermitian(faerview(J))) ≈ eigvals(Hermitian(J))
+```
+
 ## SVD algorithms and tuning
 
 ```julia

@@ -195,6 +195,11 @@ alignment padding を含む行容量です（`reserve!` で変わります）。
 表せない場合は結果を全て計算・変換してから書き込みます（`InexactError` なら C は
 変わりません）。stride 0 のビューなど要素が重複する書き込み先は Julia の経路です。
 
+借用配列は密分解（`lu`・`qr`・`cholesky`・`ldlt`・`bunchkaufman`・`svd`・`eigen` など）の
+入力にもなり、faer が親配列を直接読んで native の分解を返します。保存因子による
+`ldiv!(F, B)` は借用配列・Julia strided 配列の `B` で直接 in-place に解きます
+（[密行列の分解と求解](dense.md) を参照）。
+
 ```julia
 J = rand(4, 3)
 B = faerview(J)                       # コピーしない
