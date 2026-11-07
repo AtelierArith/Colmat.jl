@@ -63,8 +63,9 @@ reconstruction for all algorithms, using the current saved numeric buffers.
 `F.Qoperator` is the lazy m×m Q (SPQR's `F.Q`): an independent `FaerLinearOperator`
 applying saved Householder reflectors with optional caller scratch/team, and `F.prow`
 is the identity row permutation, since Q is stored in the original row order.
-It also exposes independent `F.p`, the actual `F.algorithm`
-and `F.factor_storage` (numeric scalar slots, including supernodal padding).
+Sparse QR also reports the actual `F.algorithm`. Sparse Cholesky exposes
+independent `F.p`, the actual `F.algorithm` and `F.factor_storage` (numeric
+scalar slots, including supernodal padding).
 `cholesky(A; perm=p)` selects a custom ordering using Julia's sparse keyword;
 `ordering=p` is an alternative. Numeric updates preserve the symbolic controls.
 """
