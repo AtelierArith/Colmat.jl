@@ -1182,6 +1182,10 @@ pub mod borrowed_sparse;
 
 pub mod sparse_product_plan;
 
+pub mod sparse_oriented;
+
+pub mod sparse_broadcast;
+
 pub mod sparse_factors;
 
 pub mod ordering;

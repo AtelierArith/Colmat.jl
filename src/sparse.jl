@@ -428,6 +428,7 @@ Base.Array(a::FaerSparseMatrix) = Matrix(a)
 _sparse_coerce(a::FaerSparseMatrix{T}, ::Type{T}) where {T} = a
 _sparse_coerce(a::FaerSparseMatrix, ::Type{T}) where {T} = FaerSparseMatrix{T}(a)
 function _sparse_binary(a::FaerSparseMatrix, b::FaerSparseMatrix, op)
+    op==2 && return _sparse_oriented_product(a, b)
     lock(_matrix_lock) do
         dims=op==2 ? (size(a, 1), size(b, 2)) : size(a)
         (op==2 ? size(a, 2)==size(b, 1) : size(a)==size(b)) ||
@@ -506,25 +507,9 @@ function _sparse_dense_product(a::FaerSparseMatrix, b::FaerMatrix, left = true)
 end
 Base.:*(a::FaerSparseMatrix, b::FaerMatrix) = _sparse_dense_product(a, b)
 Base.:*(a::FaerMatrix, b::FaerSparseMatrix) = _sparse_dense_product(b, a, false)
-Base.:*(a::FaerSparseMatrix, b::FaerMatrixView) = a*copy(b)
-Base.:*(a::FaerMatrixView, b::FaerSparseMatrix) = copy(a)*b
 Base.:*(a::FaerSparseMatrix, b::FaerVector{<:Number}) = _vector_from_source(a*FaerMatrix(b))
 Base.:*(a::FaerSparseMatrix, b::FaerVectorView{<:Number}) =
     _vector_from_source(a*_copy_view_matrix(b))
-for (A, B) in (
-    (:_SparseTransform, :FaerSparseMatrix),
-    (:FaerSparseMatrix, :_SparseTransform),
-    (:_SparseTransform, :_SparseTransform),
-    (:_SparseTransform, :FaerMatrix),
-    (:FaerMatrix, :_SparseTransform),
-    (:_BorrowTranspose, :FaerSparseMatrix),
-    (:FaerSparseMatrix, :_BorrowTranspose),
-)
-    @eval Base.:*(a::$A, b::$B) =
-        $(A===:FaerSparseMatrix||A===:FaerMatrix ? :a : :(copy(a)))*$(
-            B===:FaerSparseMatrix||B===:FaerMatrix ? :b : :(copy(b))
-        )
-end
 function Base.sum(a::FaerSparseMatrix{T}; dims = :) where {T}
     dims isa Colon || return sum(SparseArrays.SparseMatrixCSC(a); dims)
     out=Ref{T}()
@@ -589,17 +574,15 @@ LinearAlgebra.mul!(
 ) = _sparse_mul!(c, a, b, alpha, beta)
 LinearAlgebra.mul!(c::FaerSparseMatrix, a::FaerSparseMatrix, b::FaerSparseMatrix) =
     _sparse_mul!(c, a, b, 1, 0)
-for (A, B) in (
-    (:FaerSparseMatrix, :FaerMatrix),
-    (:FaerMatrix, :FaerSparseMatrix),
-    (:FaerSparseMatrix, :FaerSparseMatrix),
-)
-    @eval begin
-        LinearAlgebra.mul!(c::FaerMatrix, a::$A, b::$B, alpha::Number, beta::Number) =
-            _sparse_mul!(c, a, b, alpha, beta)
-        LinearAlgebra.mul!(c::FaerMatrix, a::$A, b::$B) = _sparse_mul!(c, a, b, 1, 0)
-    end
-end
+LinearAlgebra.mul!(
+    c::FaerMatrix,
+    a::FaerSparseMatrix,
+    b::FaerSparseMatrix,
+    alpha::Number,
+    beta::Number,
+) = _sparse_mul!(c, a, b, alpha, beta)
+LinearAlgebra.mul!(c::FaerMatrix, a::FaerSparseMatrix, b::FaerSparseMatrix) =
+    _sparse_mul!(c, a, b, 1, 0)
 for (f, op) in ((:+, 0), (:-, 1), (:*, 2))
     @eval begin
         Base.$f(a::FaerSparseMatrix, b::SparseArrays.SparseMatrixCSC) =

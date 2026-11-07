@@ -10,12 +10,16 @@ end
 
 @testset "Reusable sparse product plans" begin
     rng=MersenneTwister(114)
-    for T in (Float32, Float64, ComplexF32, ComplexF64), format in (:csc, :csr)
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        format in (:csc, :csr),
+        bformat in (:csc, :csr)
+
         a=sprand(rng, T, 7, 5, 0.4)
         b=sprand(rng, T, 5, 6, 0.4)
         a.nzval[1]=zero(T) # Stored zeros are part of the planned pattern.
         A=FaerSparseMatrix(a; format)
-        B=FaerSparseMatrix(b; format)
+        # A B of the other format is transposed once at planning time.
+        B=FaerSparseMatrix(b; format = bformat)
         plan=FaerSparseProductPlan(A, B)
         @test plan isa FaerSparseProductPlan
         @test isopen(plan)
@@ -35,7 +39,7 @@ end
         # Reuse after the values (not the patterns) of A and B change.
         a2, b2=_revalue(a, rng), _revalue(b, rng)
         copyto!(A, FaerSparseMatrix(a2; format))
-        copyto!(B, FaerSparseMatrix(b2; format))
+        copyto!(B, FaerSparseMatrix(b2; format = bformat))
         α, β=T(2), T(1)/3
         C0=Matrix(C)
         mul!(C, plan, A, B, α, β)
@@ -98,7 +102,11 @@ end
     # Storage formats must match the plan.
     @test_throws ArgumentError mul!(C, plan, FaerSparseMatrix(a; format = :csr), B)
     @test_throws ArgumentError mul!(copy(C; format = :csr), plan, A, B)
-    @test_throws ArgumentError FaerSparseProductPlan(A, FaerSparseMatrix(b; format = :csr))
+    # A plan over a CSR B rejects a CSC B and vice versa.
+    mixed=FaerSparseProductPlan(A, FaerSparseMatrix(b; format = :csr))
+    @test mixed.format===:csc
+    @test_throws ArgumentError mul!(C, mixed, A, B)
+    @test Matrix(C)==snapshot
     @test_throws DimensionMismatch FaerSparseProductPlan(B, B)
     # The destination scalar must hold the promoted operand scalar.
     @test_throws ArgumentError mul!(FaerSparseMatrix{Float32}(plan), plan, A, B)
@@ -148,6 +156,31 @@ end
         a2[1, 1]=iszero(a2[1, 1]) ? one(T) : zero(T)
         dropzeros!(a2)
         nnz(a2)==nnz(a) || @test_throws ArgumentError mul!(C, plan, faerview(a2), faerview(b))
+        # Native CSR operands mix with borrowed ones; the plan follows A.
+        ar, br=FaerSparseMatrix(a; format = :csr), FaerSparseMatrix(b; format = :csr)
+        p1=FaerSparseProductPlan(faerview(a), br)
+        @test p1.format===:csc
+        C1=FaerSparseMatrix{T}(p1)
+        mul!(C1, p1, faerview(a), br)
+        @test Matrix(C1) ≈ Matrix(a)*Matrix(b)
+        # A borrowed destination needs a CSC plan, which this one is.
+        J=SparseMatrixCSC{T,Ti}(SparseMatrixCSC(C1))
+        mul!(faerview(J), p1, faerview(a), br, 2, 0)
+        @test Matrix(J) ≈ 2Matrix(a)*Matrix(b)
+        p2=FaerSparseProductPlan(ar, faerview(b))
+        @test p2.format===:csr
+        C2=FaerSparseMatrix{T}(p2)
+        @test C2.format===:csr
+        work2=FaerScratch(mul!, C2, p2, ar, faerview(b))
+        mul!(C2, p2, ar, faerview(b); scratch = work2)
+        @test Matrix(C2) ≈ Matrix(a)*Matrix(b)
+        # Operands of another format than planned are rejected before writing.
+        snap=Matrix(C2)
+        @test_throws ArgumentError mul!(C2, p2, faerview(a), faerview(b))
+        @test_throws ArgumentError mul!(C2, p2, ar, FaerSparseMatrix(b; format = :csr))
+        @test_throws ArgumentError mul!(C1, p1, faerview(a), FaerSparseMatrix(b))
+        @test_throws ArgumentError mul!(faerview(copy(J)), p2, ar, faerview(b))
+        @test Matrix(C2)==snap
     end
 end
 
@@ -164,7 +197,15 @@ end
     old=_bytes(() -> mul!(C, A, B))
     planned=_bytes(() -> mul!(C, plan, A, B; scratch = work))
     borrowed=_bytes(() -> mul!(C, plan, fa, fb; scratch = work))
-    @info "sparse product mul! Julia bytes" old planned borrowed
+    Br=FaerSparseMatrix(b; format = :csr)
+    mixed=FaerSparseProductPlan(A, Br)
+    mwork=FaerScratch(mul!, C, mixed, A, Br)
+    @test scratch_requirements(mul!, C, mixed, A, Br).bytes>=
+          scratch_requirements(mul!, C, plan, A, B).bytes+8nnz(b)
+    mixed_bytes=_bytes(() -> mul!(C, mixed, A, Br; scratch = mwork))
+    @test Matrix(C) ≈ Matrix(a)*Matrix(b)
+    @info "sparse product mul! Julia bytes" old planned borrowed mixed_bytes
     @test planned<old
+    @test mixed_bytes<=planned+256
     @test Matrix(C) ≈ Matrix(a)*Matrix(b)
 end
