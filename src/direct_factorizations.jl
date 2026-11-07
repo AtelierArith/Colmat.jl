@@ -5,7 +5,7 @@
 """
     FaerInPlaceFactorization
 
-Factorization returned by `lu!(A; scratch)`, `qr!(A[, NoPivot()]; scratch)` and
+Factorization returned by `lu!(A; scratch)`, `qr!(A[, pivot]; scratch)` and
 `cholesky!(A; scratch)` for a `FaerMatrix` `A`. Following Julia's `lu!`, the
 packed factor lives in A itself: `F.factors === A`. LU stores U on/above the
 diagonal and the strict unit-lower L below it; QR stores R on/above the
@@ -22,6 +22,15 @@ the symmetric permutation in Julia-owned buffers of F. For an upper
 `Hermitian`/`Symmetric` wrapper both store the adjoint in the upper triangle;
 the other triangle is zeroed. A singular `check=false` full LU or Bunch–Kaufman
 factor keeps `info > 0`; an LDLᴴ zero pivot leaves A partially factored.
+
+`qr!(A, ColumnNorm(); scratch)` runs faer's column-pivoted `qr_in_place`
+(`FaerInPlaceFactorization{T,:pivoted_qr}`): A holds the packed QR of `A*P` as
+unpivoted QR does, and the column permutation (`F.p`, `F.P` with
+`A*P == Q*R`) lives in Julia vectors. The factor, `F.p` and `F.Qcoeff` are
+bit-identical to the retained `qr(A, ColumnNorm())`. `rank(F; atol, rtol)`,
+`ldiv!(F, B, rcond)` and `ldiv!(X, F, B; atol, rtol)` run the retained factor's
+rank rule and rank-truncated minimum-norm kernel; the plain `\\`/`ldiv!`
+solve does not detect rank deficiency.
 
 F aliases A: later writes to A change F, and closing, resizing or truncating A
 invalidates F (its operations then throw `ArgumentError`). `close(F)` only
@@ -61,6 +70,7 @@ FaerInPlaceFactorization{T,K,M}(args::Vararg{Any,10}) where {T,K,M} =
 _direct_kind(::Val{:lu}, rook = false) = Int32(0)
 _direct_kind(::Val{:full_lu}, rook = false) = Int32(1)
 _direct_kind(::Val{:qr}, rook = false) = Int32(2)
+_direct_kind(::Val{:pivoted_qr}, rook = false) = Int32(3)
 _direct_kind(::Val{:cholesky}, rook = false) = Int32(4)
 _direct_kind(::Val{:ldlt}, rook = false) = Int32(5)
 _direct_kind(::Val{:bunchkaufman}, rook = false) = rook ? Int32(8) : Int32(6)
@@ -112,7 +122,7 @@ end
 _coeff_pointer(c::Matrix) = Ptr{UInt8}(isempty(c) ? C_NULL : pointer(c))
 # A zero-column coefficient buffer still needs a valid, non-null pointer.
 _qr_coeff_pointer(c::Matrix) = Ptr{UInt8}(pointer(c))
-_direct_coeff_pointer(kind, c::Matrix) = kind==2 ? _qr_coeff_pointer(c) : _coeff_pointer(c)
+_direct_coeff_pointer(kind, c::Matrix) = kind in (2, 3) ? _qr_coeff_pointer(c) : _coeff_pointer(c)
 
 function _direct_factor!(
     a::FaerMatrix{T},
@@ -139,14 +149,14 @@ function _direct_factor!(
         end
         _direct_scratch_check(scratch, req, "factorization")
         # LU: row permutation; full LU: [row; column]; Bunch–Kaufman: symmetric.
-        plen=K===:lu ? m : K===:full_lu ? m+n : K===:bunchkaufman ? n : 0
+        plen=K===:lu ? m : K===:full_lu ? m+n : K in (:bunchkaufman, :pivoted_qr) ? n : 0
         perm=Vector{UInt}(undef, plen)
         perm_inv=Vector{UInt}(undef, plen)
         # QR block coefficients, or Bunch–Kaufman's block off-diagonal column.
         coeff=Matrix{T}(
             undef,
-            K===:qr ? req.block : K===:bunchkaufman ? n : 0,
-            K===:qr ? min(m, n) : K===:bunchkaufman ? 1 : 0,
+            K in (:qr, :pivoted_qr) ? req.block : K===:bunchkaufman ? n : 0,
+            K in (:qr, :pivoted_qr) ? min(m, n) : K===:bunchkaufman ? 1 : 0,
         )
         info, count=_with_selfadjoint_options(options) do
             info=GC.@preserve coeff Int(
@@ -206,6 +216,8 @@ function _direct_lu!(a::FaerMatrix, check, allowsingular, scratch, team)
     return f
 end
 _direct_qr!(a::FaerMatrix, scratch, team) = _direct_factor!(a, Val(:qr), true, scratch, team)
+_direct_pivoted_qr!(a::FaerMatrix, scratch, team) =
+    _direct_factor!(a, Val(:pivoted_qr), true, scratch, team)
 function _direct_cholesky!(
     a::FaerMatrix,
     lower::Bool,
@@ -247,7 +259,7 @@ end
 
 """
     scratch_requirements(lu!, A::FaerMatrix; team=nothing)
-    scratch_requirements(qr!, A::FaerMatrix[, NoPivot()]; team=nothing)
+    scratch_requirements(qr!, A::FaerMatrix[, NoPivot() | ColumnNorm()]; team=nothing)
     scratch_requirements(cholesky!, A; team=nothing)
     scratch_requirements(full_piv_lu!, A::FaerMatrix; team=nothing)
     scratch_requirements(ldlt!, A; team=nothing)
@@ -280,6 +292,18 @@ scratch_requirements(
     ::LinearAlgebra.NoPivot;
     team = nothing,
 ) = scratch_requirements(LinearAlgebra.qr!, a; team)
+function scratch_requirements(
+    ::typeof(LinearAlgebra.qr!),
+    a::FaerMatrix,
+    ::LinearAlgebra.ColumnNorm;
+    team = nothing,
+)
+    lock(_matrix_lock) do
+        _handle(a)
+        req=_direct_requirements(3, 0, size(a)..., 0, eltype(a), team)
+        return (bytes = req.bytes, alignment = req.alignment)
+    end
+end
 const _DirectCholeskyInput = Union{
     FaerMatrix,
     LinearAlgebra.Hermitian{<:Any,<:FaerMatrix},
@@ -341,6 +365,7 @@ for (fn, signature, args) in (
     (:(LinearAlgebra.bunchkaufman!), :(a::_DirectCholeskyInput, rook::Bool), :(a, rook)),
     (:(LinearAlgebra.qr!), :(a::FaerMatrix,), :(a,)),
     (:(LinearAlgebra.qr!), :(a::FaerMatrix, p::LinearAlgebra.NoPivot), :(a, p)),
+    (:(LinearAlgebra.qr!), :(a::FaerMatrix, p::LinearAlgebra.ColumnNorm), :(a, p)),
     (:(LinearAlgebra.cholesky!), :(a::_DirectCholeskyInput,), :(a,)),
 )
     @eval function FaerScratch(::typeof($fn), $(signature.args...); team = nothing, kwargs...)
@@ -415,6 +440,7 @@ function Base.getproperty(f::FaerInPlaceFactorization{T,K}, name::Symbol) where 
     m, n=size(f)
     k=min(m, n)
     lu=K===:lu || K===:full_lu
+    qrk=K===:qr || K===:pivoted_qr
     if name===:factors
         lock(() -> _direct_source(f), _matrix_lock)
         return getfield(f, :factors)
@@ -426,25 +452,28 @@ function Base.getproperty(f::FaerInPlaceFactorization{T,K}, name::Symbol) where 
         return _direct_part(f, 1, (m, k))
     elseif lu && name===:U
         return _direct_part(f, 2, (k, n))
-    elseif (lu || K===:bunchkaufman) && name===:p
+    elseif (lu || K in (:bunchkaufman, :pivoted_qr)) && name===:p
         return _direct_permutation(f)
     elseif K===:full_lu && name===:q
         return _direct_permutation(f, true)
     elseif (lu || K===:bunchkaufman) && name===:P
         return FaerMatrix(Matrix{T}(LinearAlgebra.I, m, m)[f.p, :])
+    elseif K===:pivoted_qr && name===:P
+        # `A*P == Q*R`, as `QRPivoted`.
+        return FaerMatrix(Matrix{T}(LinearAlgebra.I, n, n)[:, f.p])
     elseif K in (:ldlt, :bunchkaufman) && name===:L
         return _direct_part(f, 1, (n, n))
     elseif K in (:ldlt, :bunchkaufman) && name===:D
         return _direct_part(f, 5, (n, n))
-    elseif K===:qr && name===:Q
+    elseif qrk && name===:Q
         return _direct_part(f, 3, (m, m))
-    elseif K===:qr && name===:Qthin
+    elseif qrk && name===:Qthin
         return _direct_part(f, 6, (m, k))
-    elseif K===:qr && name===:R
+    elseif qrk && name===:R
         return _direct_part(f, 4, (k, n))
-    elseif K===:qr && name===:Qbasis
+    elseif qrk && name===:Qbasis
         return _direct_part(f, 8, (m, k))
-    elseif K===:qr && name===:Qcoeff
+    elseif qrk && name===:Qcoeff
         return _direct_part(f, 9, size(getfield(f, :coeff)))
     elseif K===:cholesky && name===:L
         return _direct_part(f, 1, (n, n))
@@ -455,7 +484,9 @@ function Base.getproperty(f::FaerInPlaceFactorization{T,K}, name::Symbol) where 
     end
     return getfield(f, name)
 end
-qr_q(f::FaerInPlaceFactorization{T,:qr}; thin::Bool = false, team = nothing) where {T} =
+const _DirectQr{T} =
+    Union{FaerInPlaceFactorization{T,:qr},FaerInPlaceFactorization{T,:pivoted_qr}}
+qr_q(f::_DirectQr; thin::Bool = false, team = nothing) =
     _direct_part(
         f,
         thin ? 6 : 3,
@@ -467,6 +498,7 @@ function Base.propertynames(f::FaerInPlaceFactorization{T,K}, private::Bool = fa
         K===:lu ? (:L, :U, :p, :P) :
         K===:full_lu ? (:L, :U, :p, :q, :P) :
         K===:qr ? (:Q, :Qthin, :R, :Qbasis, :Qcoeff) :
+        K===:pivoted_qr ? (:Q, :Qthin, :R, :Qbasis, :Qcoeff, :p, :P) :
         K===:ldlt ? (:L, :D) :
         K===:bunchkaufman ? (:L, :D, :p, :P, :rook) : (:L, :U, :UL)
     K in (:cholesky, :ldlt) && (props=(props..., :regularization_count))
@@ -492,7 +524,7 @@ function Base.inv(f::FaerInPlaceFactorization{T,K}; team = nothing) where {T,K}
     isnothing(team) || _handle(team)
     size(f, 1)==size(f, 2) || throw(DimensionMismatch("inverse requires a square factor"))
     LinearAlgebra.issuccess(f) || throw(_cholesky_failure(f))
-    if K===:qr
+    if K in (:qr, :pivoted_qr)
         d=Matrix(_direct_part(f, 11, (size(f, 1), 1)))
         i=findfirst(iszero, d)
         isnothing(i) || throw(LinearAlgebra.SingularException(i[1]))
@@ -503,7 +535,7 @@ end
 # det(A) (U's diagonal, L's twice, D, or B's block determinants) times the
 # permutation signs. A singular LU or Bunch–Kaufman factor gives (-Inf, 0).
 function LinearAlgebra.logabsdet(f::FaerInPlaceFactorization{T,K}) where {T,K}
-    K===:qr && throw(
+    K in (:qr, :pivoted_qr) && throw(
         ArgumentError(
             "logabsdet/det are not provided for in-place QR; use the default qr! result",
         ),
@@ -563,7 +595,7 @@ const _DirectSolveFactor = Union{FaerInPlaceFactorization,_DirectTransposed}
 
 function _direct_solve_rows(f::FaerInPlaceFactorization{T,K}, op) where {T,K}
     m, n=size(f)
-    if K===:qr && op==1
+    if K in (:qr, :pivoted_qr) && op==1
         m>=n || throw(
             DimensionMismatch(
                 "in-place QR solves require a tall or square factor; wide QR uses the default qr! result",

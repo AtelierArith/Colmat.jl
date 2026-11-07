@@ -20,10 +20,10 @@ use faer::{Accum, Conj, Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 
 enum Saved<'a, T: ComplexField> {
-    Lu(&'a solvers::PartialPivLu<T>),
-    FullLu(&'a solvers::FullPivLu<T>),
-    Qr(&'a solvers::Qr<T>),
-    PivotQr(&'a solvers::ColPivQr<T>),
+    Lu(&'a crate::lu_qr_factors::PartialPivLu<T>),
+    FullLu(&'a crate::lu_qr_factors::FullPivLu<T>),
+    Qr(&'a crate::lu_qr_factors::Qr<T>),
+    PivotQr(&'a crate::lu_qr_factors::ColPivQr<T>),
     Llt(&'a crate::cholesky_factors::Llt<T>),
     Ldlt(&'a crate::cholesky_factors::Ldlt<T>),
     Lblt(&'a crate::lblt::Lblt<T>),
@@ -1075,10 +1075,13 @@ mod tests {
                 from_f64::<T>(if i == j { 6.0 + i as f64 } else { 0.1 })
             });
             let f = match kind {
-                0 => Factor::Lu(a.partial_piv_lu(Par::Seq)),
-                1 => Factor::FullLu(a.full_piv_lu(Par::Seq)),
-                2 => Factor::Qr(a.qr(Par::Seq)),
-                3 => Factor::PivotQr(a.col_piv_qr(Par::Seq)),
+                0 => Factor::Lu(crate::lu_qr_factors::PartialPivLu::new(
+                    a.as_ref(),
+                    Par::Seq,
+                )),
+                1 => Factor::FullLu(crate::lu_qr_factors::FullPivLu::new(a.as_ref(), Par::Seq)),
+                2 => Factor::Qr(crate::lu_qr_factors::Qr::new(a.as_ref(), Par::Seq)),
+                3 => Factor::PivotQr(crate::lu_qr_factors::ColPivQr::new(a.as_ref(), Par::Seq)),
                 4 => Factor::Llt(
                     crate::cholesky_factors::Llt::new(a.as_ref(), Side::Lower, Par::Seq).unwrap(),
                 ),
@@ -1114,17 +1117,20 @@ mod tests {
             });
             if !rankdef && m.min(n) > 0 {
                 for f in [
-                    Factor::Lu(a.partial_piv_lu(Par::Seq)),
-                    Factor::FullLu(a.full_piv_lu(Par::Seq)),
+                    Factor::Lu(crate::lu_qr_factors::PartialPivLu::new(
+                        a.as_ref(),
+                        Par::Seq,
+                    )),
+                    Factor::FullLu(crate::lu_qr_factors::FullPivLu::new(a.as_ref(), Par::Seq)),
                 ] {
                     check(&Saved::from(&f), a.as_ref(), &team);
                 }
             }
             for pivot in [false, true] {
                 let f = if pivot {
-                    Factor::PivotQr(a.col_piv_qr(Par::Seq))
+                    Factor::PivotQr(crate::lu_qr_factors::ColPivQr::new(a.as_ref(), Par::Seq))
                 } else {
-                    Factor::Qr(a.qr(Par::Seq))
+                    Factor::Qr(crate::lu_qr_factors::Qr::new(a.as_ref(), Par::Seq))
                 };
                 check(&Saved::from(&f), a.as_ref(), &team);
             }
@@ -1210,7 +1216,7 @@ mod tests {
                 0.0
             }
         });
-        let f = Factor::Qr(a.qr(Par::Seq));
+        let f = Factor::Qr(crate::lu_qr_factors::Qr::new(a.as_ref(), Par::Seq));
         let saved = Saved::from(&f);
         let precision = f32::EPSILON as f64;
         let req = requirement_precision(&saved, 1, 0, ParShape::Seq, precision).unwrap();
@@ -1243,10 +1249,17 @@ mod tests {
             for kind in 0..8 {
                 let src = if (4..7).contains(&kind) { &h } else { &a };
                 let f = match kind {
-                    0 => Factor::Lu(src.partial_piv_lu(Par::Seq)),
-                    1 => Factor::FullLu(src.full_piv_lu(Par::Seq)),
-                    2 => Factor::Qr(src.qr(Par::Seq)),
-                    3 => Factor::PivotQr(src.col_piv_qr(Par::Seq)),
+                    0 => Factor::Lu(crate::lu_qr_factors::PartialPivLu::new(
+                        src.as_ref(),
+                        Par::Seq,
+                    )),
+                    1 => {
+                        Factor::FullLu(crate::lu_qr_factors::FullPivLu::new(src.as_ref(), Par::Seq))
+                    }
+                    2 => Factor::Qr(crate::lu_qr_factors::Qr::new(src.as_ref(), Par::Seq)),
+                    3 => {
+                        Factor::PivotQr(crate::lu_qr_factors::ColPivQr::new(src.as_ref(), Par::Seq))
+                    }
                     4 => Factor::Llt(
                         crate::cholesky_factors::Llt::new(src.as_ref(), Side::Lower, Par::Seq)
                             .unwrap(),
@@ -1331,7 +1344,7 @@ mod tests {
             for i in 0..n {
                 d[(i, n - 1)] = copy(&d[(i, 0)]);
             }
-            let f = Factor::Qr(d.qr(Par::Seq));
+            let f = Factor::Qr(crate::lu_qr_factors::Qr::new(d.as_ref(), Par::Seq));
             let mut scratch = OwnedScratch::new();
             let mut x = Mat::<T>::zeros(n, 1);
             assert!(!run_in_place(

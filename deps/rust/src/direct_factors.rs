@@ -13,6 +13,7 @@
 //! holds the symmetric permutation (n) and uses the coefficient buffer as an
 //! n×1 column with the block diagonal's subdiagonal (lower storage) or its
 //! superdiagonal, the conjugate (upper storage).
+use crate::lu_qr_factors as lq;
 use crate::selfadjoint_tuning as tuning;
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
@@ -23,6 +24,7 @@ use faer::linalg::cholesky::{lblt, ldlt, llt};
 use faer::linalg::householder;
 use faer::linalg::lu::full_pivoting as flu;
 use faer::linalg::lu::partial_pivoting as plu;
+use faer::linalg::qr::col_pivoting as pqr;
 use faer::linalg::qr::no_pivoting as nqr;
 use faer::perm::PermRef;
 use faer::traits::{math_utils::*, ComplexField};
@@ -33,6 +35,7 @@ use rustcall_julia_macros::julia;
 const LU: i32 = 0;
 const FULL_LU: i32 = 1;
 const QR: i32 = 2;
+const PIVOTED_QR: i32 = 3;
 const LLT: i32 = 4;
 const LDLT: i32 = 5;
 const LBLT: i32 = 6;
@@ -69,9 +72,13 @@ fn self_adjoint(kind: i32) -> bool {
 fn is_lblt(kind: i32) -> bool {
     kind == LBLT || kind == LBLT_ROOK
 }
+/// Householder QR kinds: block coefficients in the auxiliary buffer.
+fn is_qr(kind: i32) -> bool {
+    kind == QR || kind == PIVOTED_QR
+}
 
 fn block_size<T: ComplexField>(kind: i32, m: usize, n: usize) -> usize {
-    if kind == QR {
+    if is_qr(kind) {
         nqr::factor::recommended_block_size::<T>(m, n)
     } else {
         0
@@ -99,22 +106,45 @@ fn requirement<T: ComplexField>(
     };
     let solve = SOLVE..=ADJOINT;
     Ok(match (kind, op) {
-        (LU, FACTOR) => plu::factor::lu_in_place_scratch::<usize, T>(m, n, par, Default::default()),
+        (LU, FACTOR) => plu::factor::lu_in_place_scratch::<usize, T>(
+            m,
+            n,
+            par,
+            lq::partial_piv_lu_params::<T>().into(),
+        ),
         (LU, SOLVE) => plu::solve::solve_in_place_scratch::<usize, T>(n, k, par),
         (LU, TRANSPOSE | ADJOINT) => {
             plu::solve::solve_transpose_in_place_scratch::<usize, T>(n, k, par)
         }
-        (FULL_LU, FACTOR) => {
-            flu::factor::lu_in_place_scratch::<usize, T>(m, n, par, Default::default())
-        }
+        (FULL_LU, FACTOR) => flu::factor::lu_in_place_scratch::<usize, T>(
+            m,
+            n,
+            par,
+            lq::full_piv_lu_params::<T>().into(),
+        ),
         (FULL_LU, SOLVE) => flu::solve::solve_in_place_scratch::<usize, T>(n, k, par),
         (FULL_LU, TRANSPOSE | ADJOINT) => {
             flu::solve::solve_transpose_in_place_scratch::<usize, T>(n, k, par)
         }
-        (QR, FACTOR) => nqr::factor::qr_in_place_scratch::<T>(m, n, bs, par, Default::default()),
+        (QR, FACTOR) => {
+            nqr::factor::qr_in_place_scratch::<T>(m, n, bs, par, lq::qr_params::<T>().into())
+        }
         (QR, SOLVE) => nqr::solve::solve_lstsq_in_place_scratch::<T>(m, n, bs, k, par),
         (QR, TRANSPOSE | ADJOINT) => {
             nqr::solve::solve_transpose_in_place_scratch::<T>(n, bs, k, par)
+        }
+        (PIVOTED_QR, FACTOR) => pqr::factor::qr_in_place_scratch::<usize, T>(
+            m,
+            n,
+            bs,
+            par,
+            lq::col_piv_qr_params::<T>().into(),
+        ),
+        (PIVOTED_QR, SOLVE) => {
+            pqr::solve::solve_lstsq_in_place_scratch::<usize, T>(m, n, bs, k, par)
+        }
+        (PIVOTED_QR, TRANSPOSE | ADJOINT) => {
+            pqr::solve::solve_transpose_in_place_scratch::<usize, T>(n, bs, k, par)
         }
         (LLT, FACTOR) => llt::factor::cholesky_in_place_scratch::<T>(
             n,
@@ -158,6 +188,7 @@ fn inverse_requirement<T: ComplexField>(
         LU => plu::inverse::inverse_scratch::<usize, T>(n, par),
         FULL_LU => flu::inverse::inverse_scratch::<usize, T>(n, par),
         QR => nqr::inverse::inverse_scratch::<T>(n, bs, par),
+        PIVOTED_QR => pqr::inverse::inverse_scratch::<usize, T>(n, bs, par),
         LLT => llt::inverse::inverse_scratch::<T>(n, par),
         LDLT => ldlt::inverse::inverse_scratch::<T>(n, par),
         LBLT | LBLT_ROOK => lblt::inverse::inverse_scratch::<usize, T>(n, par),
@@ -271,7 +302,10 @@ fn check_aux<T: ComplexField>(
         FULL_LU if perm != m + n || perm_inv != m + n => {
             Err("full-pivot LU permutation length mismatch".into())
         }
-        QR if coeff_rows != block_size::<T>(QR, m, n) || coeff.is_null() => {
+        PIVOTED_QR if perm != n || perm_inv != n => {
+            Err("column-pivoted QR permutation length mismatch".into())
+        }
+        QR | PIVOTED_QR if coeff_rows != block_size::<T>(kind, m, n) || coeff.is_null() => {
             Err("QR coefficient buffer shape mismatch".into())
         }
         LBLT | LBLT_ROOK if perm != n || perm_inv != n => {
@@ -280,7 +314,7 @@ fn check_aux<T: ComplexField>(
         LBLT | LBLT_ROOK if coeff_rows != n || (n > 0 && coeff.is_null()) => {
             Err("Bunch-Kaufman off-diagonal buffer shape mismatch".into())
         }
-        LU | FULL_LU | QR | LLT | LDLT | LBLT | LBLT_ROOK => Ok(()),
+        LU | FULL_LU | QR | PIVOTED_QR | LLT | LDLT | LBLT | LBLT_ROOK => Ok(()),
         _ => Err("unknown direct factorization kind".into()),
     }
 }
@@ -388,7 +422,14 @@ fn factor<T: ComplexField>(
     // partially factored, as Julia's LAPACK-backed `lu!`/`cholesky!` do.
     Ok(match kind {
         LU => {
-            plu::factor::lu_in_place(a.as_mut(), perm, perm_inv, par, stack, Default::default());
+            plu::factor::lu_in_place(
+                a.as_mut(),
+                perm,
+                perm_inv,
+                par,
+                stack,
+                lq::partial_piv_lu_params::<T>().into(),
+            );
             first_zero_pivot(a.as_ref())
         }
         FULL_LU => {
@@ -402,14 +443,28 @@ fn factor<T: ComplexField>(
                 col_inv,
                 par,
                 stack,
-                Default::default(),
+                lq::full_piv_lu_params::<T>().into(),
             );
             first_zero_pivot(a.as_ref())
         }
         QR => {
             // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
             let c = unsafe { coeff_mut::<T>(coeff, coeff_rows, m.min(n)) };
-            nqr::factor::qr_in_place(a, c, par, stack, Default::default());
+            nqr::factor::qr_in_place(a, c, par, stack, lq::qr_params::<T>().into());
+            0
+        }
+        PIVOTED_QR => {
+            // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+            let c = unsafe { coeff_mut::<T>(coeff, coeff_rows, m.min(n)) };
+            pqr::factor::qr_in_place(
+                a,
+                c,
+                perm,
+                perm_inv,
+                par,
+                stack,
+                lq::col_piv_qr_params::<T>().into(),
+            );
             0
         }
         LLT => {
@@ -547,7 +602,7 @@ fn solve<T: ComplexField>(
     };
     let square = m == n;
     let rows_ok = match (kind, op) {
-        (QR, SOLVE) => m >= n && rhs.nrows() == m,
+        (QR | PIVOTED_QR, SOLVE) => m >= n && rhs.nrows() == m,
         _ => square && rhs.nrows() == n,
     };
     if !rows_ok {
@@ -601,6 +656,18 @@ fn solve<T: ComplexField>(
                 nqr::solve::solve_transpose_in_place_with_conj(a, c, a, conj_op, rhs, par, stack);
             }
         }
+        PIVOTED_QR => {
+            // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+            let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, m.min(n)) };
+            let p = PermRef::new_checked(perm, perm_inv, n);
+            if !transposed {
+                pqr::solve::solve_lstsq_in_place_with_conj(a, c, a, p, conj_op, rhs, par, stack);
+            } else {
+                pqr::solve::solve_transpose_in_place_with_conj(
+                    a, c, a, p, conj_op, rhs, par, stack,
+                );
+            }
+        }
         LLT => llt::solve::solve_in_place_with_conj(l, conj_l, rhs, par, stack),
         LDLT => ldlt::solve::solve_in_place_with_conj(l, a.diagonal(), conj_l, rhs, par, stack),
         _ => {
@@ -645,7 +712,7 @@ fn invert<T: ComplexField>(
     use faer::mat::AsMatMut;
     let (m, n) = a.shape();
     check_aux::<T>(kind, m, n, perm.len(), perm_inv.len(), coeff, coeff_rows)?;
-    if kind == QR {
+    if is_qr(kind) {
         let i = first_zero_pivot(a.as_ref());
         if i != 0 {
             return Ok(i);
@@ -699,6 +766,12 @@ fn invert<T: ComplexField>(
             // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
             let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, n) };
             nqr::inverse::inverse(a.as_mut(), f, c, f, par, stack);
+        }
+        PIVOTED_QR => {
+            // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+            let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, n) };
+            let p = PermRef::new_checked(perm, perm_inv, n);
+            pqr::inverse::inverse(a.as_mut(), f, c, f, p, par, stack);
         }
         LLT => llt::inverse::inverse(a.as_mut(), f, par, stack),
         LDLT => ldlt::inverse::inverse(a.as_mut(), f, f.diagonal(), par, stack),
@@ -886,13 +959,15 @@ fn part<T: ComplexField<Real: crate::measures::Ln>>(
             flu::inverse::inverse(out.as_mut(), a, a, row, col, par, MemStack::new(&mut mem));
             out
         }
-        (QR, 4) => Mat::from_fn(
-            size,
-            n,
-            |i, j| if i <= j { copy(&a[(i, j)]) } else { zero() },
-        ),
-        (QR, 8) => unit_lower(a, m, size),
-        (QR, 3 | 6 | 0) => {
+        (QR | PIVOTED_QR, 4) => {
+            Mat::from_fn(
+                size,
+                n,
+                |i, j| if i <= j { copy(&a[(i, j)]) } else { zero() },
+            )
+        }
+        (QR | PIVOTED_QR, 8) => unit_lower(a, m, size),
+        (QR, 3 | 6 | 0) | (PIVOTED_QR, 3 | 6) => {
             // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
             let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, size) };
             let mut out = match code {
@@ -925,7 +1000,7 @@ fn part<T: ComplexField<Real: crate::measures::Ln>>(
         // The coefficients may hold faer's infinite rank-deficiency markers,
         // which Julia-side FaerMatrix construction would reject as non-finite.
         // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
-        (QR, 9) => unsafe { coeff_ref::<T>(coeff, coeff_rows, size) }.to_owned(),
+        (QR | PIVOTED_QR, 9) => unsafe { coeff_ref::<T>(coeff, coeff_rows, size) }.to_owned(),
         (QR, 10) if m == n => {
             let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, size) };
             let mut out = Mat::zeros(n, n);
@@ -937,7 +1012,44 @@ fn part<T: ComplexField<Real: crate::measures::Ln>>(
             nqr::inverse::inverse(out.as_mut(), a, c, a, par, MemStack::new(&mut mem));
             out
         }
-        (_, 11) if lu_kind || kind == QR || self_adjoint(kind) => {
+        (PIVOTED_QR, 0 | 10) => {
+            // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+            let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, size) };
+            let p = PermRef::new_checked(perm, perm_inv, n);
+            if code == 0 {
+                let mut out = Mat::zeros(m, n);
+                let mut mem = buffer(pqr::reconstruct::reconstruct_scratch::<usize, T>(
+                    m,
+                    n,
+                    coeff_rows,
+                    par.shape(),
+                ))?;
+                // The basis and R views of the packed factor.
+                pqr::reconstruct::reconstruct(
+                    out.as_mut(),
+                    a.get(.., ..size),
+                    c,
+                    a.get(..size, ..),
+                    p,
+                    par,
+                    MemStack::new(&mut mem),
+                );
+                out
+            } else {
+                if m != n {
+                    return Err("an inverse requires a square factor".into());
+                }
+                let mut out = Mat::zeros(n, n);
+                let mut mem = buffer(pqr::inverse::inverse_scratch::<usize, T>(
+                    n,
+                    coeff_rows,
+                    par.shape(),
+                ))?;
+                pqr::inverse::inverse(out.as_mut(), a, c, a, p, par, MemStack::new(&mut mem));
+                out
+            }
+        }
+        (_, 11) if lu_kind || is_qr(kind) || self_adjoint(kind) => {
             Mat::from_fn(size, 1, |i, _| copy(&a[(i, i)]))
         }
         (LLT, 1) | (LLT | LDLT | LBLT | LBLT_ROOK, 7) => packed_lower(a, lower),
@@ -1329,6 +1441,151 @@ impl TypedMatrix {
             };
             self.data = Some(out);
             Ok(())
+        })
+    }
+}
+
+/// Rank-truncated minimum-norm solve of a direct column-pivoted QR, with the
+/// kernel of the retained factor (`crate::pivoted_qr_rank`).
+#[allow(clippy::too_many_arguments)]
+fn pivoted_truncated<T: ComplexField>(
+    a: MatRef<'_, T>,
+    b: MatRef<'_, T>,
+    perm: &[usize],
+    perm_inv: &[usize],
+    coeff: *const u8,
+    coeff_rows: usize,
+    rank: usize,
+    par: Par<'_>,
+) -> Result<Mat<T>, String> {
+    let (m, n) = a.shape();
+    check_aux::<T>(
+        PIVOTED_QR,
+        m,
+        n,
+        perm.len(),
+        perm_inv.len(),
+        coeff,
+        coeff_rows,
+    )?;
+    let size = m.min(n);
+    // SAFETY: shape checked by `check_aux`; Julia preserves the buffer.
+    let c = unsafe { coeff_ref::<T>(coeff, coeff_rows, size) };
+    let parts = crate::pivoted_qr_rank::PivotedQrParts {
+        basis: a.get(.., ..size),
+        coeff: c,
+        r: a.get(..size, ..),
+        forward: perm,
+    };
+    crate::pivoted_qr_rank::truncated_solve_parts(parts, b, rank, par)
+}
+
+#[julia]
+impl OwnedMatrix {
+    /// `rank(F; atol, rtol)` of the column-pivoted QR packed in `self`.
+    #[julia]
+    pub fn direct_pivoted_qr_rank(
+        &self,
+        m: usize,
+        n: usize,
+        tag: i32,
+        atol: f64,
+        rtol: f64,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            owned_shape(&self.matrix, tag, m, n)?;
+            let r = self.matrix.as_ref();
+            Ok(crate::pivoted_qr_rank::rank_of(
+                r.get(..m.min(n), ..),
+                atol,
+                rtol,
+            ))
+        })
+    }
+    /// Writes the solution truncated to the leading `rank` rows of R into `self`.
+    #[julia]
+    pub fn direct_pivoted_qr_truncated_solve(
+        &mut self,
+        packed: &OwnedMatrix,
+        rhs: &OwnedMatrix,
+        m: usize,
+        n: usize,
+        tag: i32,
+        perm: &[usize],
+        perm_inv: &[usize],
+        coeff: *const u8,
+        coeff_rows: usize,
+        rank: usize,
+        team: Option<&OwnedTeam>,
+    ) -> Result<(), String> {
+        guarded(|| {
+            owned_shape(&packed.matrix, tag, m, n)?;
+            let (a, b) = (packed.matrix.as_ref(), rhs.matrix.as_ref());
+            self.matrix = with_team(team, |par| {
+                pivoted_truncated(a, b, perm, perm_inv, coeff, coeff_rows, rank, par)
+            })?;
+            Ok(())
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn direct_pivoted_qr_rank(
+        &self,
+        m: usize,
+        n: usize,
+        tag: i32,
+        atol: f64,
+        rtol: f64,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            let data = self.data()?;
+            check_typed(data, tag, m, n)?;
+            let k = m.min(n);
+            Ok(match data {
+                MatrixData::F32(a) => crate::pivoted_qr_rank::rank_of(a.get(..k, ..), atol, rtol),
+                MatrixData::F64(a) => crate::pivoted_qr_rank::rank_of(a.get(..k, ..), atol, rtol),
+                MatrixData::C32(a) => crate::pivoted_qr_rank::rank_of(a.get(..k, ..), atol, rtol),
+                MatrixData::C64(a) => crate::pivoted_qr_rank::rank_of(a.get(..k, ..), atol, rtol),
+            })
+        })
+    }
+    #[julia]
+    pub fn direct_pivoted_qr_truncated_solve(
+        &mut self,
+        packed: &TypedMatrix,
+        rhs: &TypedMatrix,
+        m: usize,
+        n: usize,
+        tag: i32,
+        perm: &[usize],
+        perm_inv: &[usize],
+        coeff: *const u8,
+        coeff_rows: usize,
+        rank: usize,
+        team: Option<&OwnedTeam>,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let data = packed.data()?;
+            check_typed(data, tag, m, n)?;
+            macro_rules! go {
+                ($a:expr, $b:expr, $V:ident) => {{
+                    let (a, b) = ($a.as_ref(), $b.as_ref());
+                    let x = with_team(team, |par| {
+                        pivoted_truncated(a, b, perm, perm_inv, coeff, coeff_rows, rank, par)
+                    })?;
+                    self.data = Some(MatrixData::$V(x));
+                    Ok(())
+                }};
+            }
+            match (data, rhs.data()?) {
+                (MatrixData::F32(a), MatrixData::F32(b)) => go!(a, b, F32),
+                (MatrixData::F64(a), MatrixData::F64(b)) => go!(a, b, F64),
+                (MatrixData::C32(a), MatrixData::C32(b)) => go!(a, b, C32),
+                (MatrixData::C64(a), MatrixData::C64(b)) => go!(a, b, C64),
+                _ => Err("factor and right-hand side scalar types must match".into()),
+            }
         })
     }
 }

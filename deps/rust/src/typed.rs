@@ -2,10 +2,9 @@
 use super::guarded;
 use crate::cholesky_factors::{Ldlt, Llt};
 use crate::lblt::Lblt;
+use crate::lu_qr_factors::{ColPivQr, FullPivLu, PartialPivLu, Qr};
 use crate::views::Borrowed;
-use faer::linalg::solvers::{
-    ColPivQr, DenseSolveCore, FullPivLu, PartialPivLu, Qr, ShapeCore, Solve, SolveLstsq, Svd,
-};
+use faer::linalg::solvers::{DenseSolveCore, ShapeCore, Solve, SolveLstsq, Svd};
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{c32, c64, Accum, Conj, Mat, MatRef, Par, Side};
 use rustcall_julia_macros::julia;
@@ -513,10 +512,10 @@ fn factor_new<T: ComplexField>(
     };
     let side = if lower { Side::Lower } else { Side::Upper };
     let f = match kind {
-        0 => Factor::Lu(a.partial_piv_lu(par)),
-        1 => Factor::FullLu(a.full_piv_lu(par)),
-        2 => Factor::Qr(a.qr(par)),
-        3 => Factor::PivotQr(a.col_piv_qr(par)),
+        0 => Factor::Lu(PartialPivLu::new(a.as_ref(), par)),
+        1 => Factor::FullLu(FullPivLu::new(a.as_ref(), par)),
+        2 => Factor::Qr(Qr::new(a.as_ref(), par)),
+        3 => Factor::PivotQr(ColPivQr::new(a.as_ref(), par)),
         4 => match Llt::new(a, side, par) {
             Ok(f) => Factor::Llt(f),
             Err(faer::linalg::solvers::LltError::NonPositivePivot { index }) => {

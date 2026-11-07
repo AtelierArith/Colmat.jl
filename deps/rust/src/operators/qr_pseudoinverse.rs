@@ -570,7 +570,7 @@ mod tests {
                         }
                     }
                     let saved = if pivoted {
-                        let f = a.as_ref().col_piv_qr(Par::Seq);
+                        let f = crate::lu_qr_factors::ColPivQr::new(a.as_ref(), Par::Seq);
                         QrPseudoInverse::new(
                             f.Q_basis(),
                             f.Q_coeff(),
@@ -584,7 +584,7 @@ mod tests {
                         )
                         .unwrap()
                     } else {
-                        let f = a.as_ref().qr(Par::Seq);
+                        let f = crate::lu_qr_factors::Qr::new(a.as_ref(), Par::Seq);
                         QrPseudoInverse::new(
                             f.Q_basis(),
                             f.Q_coeff(),
@@ -680,7 +680,10 @@ mod tests {
                         a[(m - 1, j)] = copy(&a[(0, j)]);
                     }
                 }
-                let (qr, pqr) = (a.as_ref().qr(Par::Seq), a.as_ref().col_piv_qr(Par::Seq));
+                let (qr, pqr) = (
+                    crate::lu_qr_factors::Qr::new(a.as_ref(), Par::Seq),
+                    crate::lu_qr_factors::ColPivQr::new(a.as_ref(), Par::Seq),
+                );
                 let (b, c, r, p) = if pivoted {
                     (pqr.Q_basis(), pqr.Q_coeff(), pqr.R(), Some(pqr.P()))
                 } else {

@@ -61,7 +61,7 @@ fn perm_len(kind: i32, m: usize, n: usize) -> usize {
     match kind {
         LU => m,
         FULL_LU => m + n,
-        LBLT | LBLT_ROOK => n,
+        LBLT | LBLT_ROOK | PIVOTED_QR => n,
         _ => 0,
     }
 }
@@ -75,6 +75,10 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
         (QR, 9, 5),
         (QR, 4, 7),
         (QR, 80, 64),
+        (PIVOTED_QR, 6, 6),
+        (PIVOTED_QR, 9, 5),
+        (PIVOTED_QR, 4, 7),
+        (PIVOTED_QR, 80, 64),
         (LLT, 6, 6),
         (LLT, 70, 70),
         (FULL_LU, 6, 6),
@@ -185,7 +189,7 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
             expected.factor_part(&old, 5, None).unwrap();
             assert_eq!(d.matrix, expected.matrix, "kind {kind} {m}x{n} D");
         }
-        if (kind == QR && m < n) || (kind != QR && m != n) {
+        if (is_qr(kind) && m < n) || (!is_qr(kind) && m != n) {
             continue;
         }
         for op in [SOLVE, TRANSPOSE, ADJOINT] {
@@ -256,6 +260,97 @@ fn bare_triangular_solve_allocation_on_this_target() {
     run();
     let allocations = count(run);
     eprintln!("bare 140x140 unit-lower solve, 3 RHS: {allocations} native allocations");
+}
+
+#[test]
+fn team_direct_factor_and_solve_calling_thread_allocations() {
+    // The probe counts the calling thread only: allocations of team workers
+    // (faer's per-worker matmul packing included) are not visible here.
+    let mut team = OwnedTeam::new();
+    team.team_initialize(2).unwrap();
+    for &(kind, n) in &[
+        (LU, 6),
+        (LU, 200),
+        (FULL_LU, 6),
+        (FULL_LU, 200),
+        (QR, 6),
+        (QR, 200),
+        (PIVOTED_QR, 6),
+        (PIVOTED_QR, 200),
+        (LLT, 6),
+        (LLT, 200),
+    ] {
+        let src = if kind == LLT { spd(n) } else { sample(n, n) };
+        let mut out = [0usize; 3];
+        direct_factor_requirements(kind, FACTOR, n, n, 0, 1, Some(&team), &mut out).unwrap();
+        let mut work = OwnedScratch::new();
+        work.scratch_reserve(out[0], out[1]).unwrap();
+        let bs = out[2];
+        let mut perm = vec![0usize; perm_len(kind, n, n)];
+        let mut perm_inv = perm.clone();
+        let mut coeff = vec![0.0f64; bs.max(1) * n.max(1)];
+        let p = coeff.as_mut_ptr().cast::<u8>();
+        let mut factor = |a: &mut OwnedMatrix, perm: &mut [usize], perm_inv: &mut [usize]| {
+            a.direct_factor(
+                kind,
+                true,
+                n,
+                n,
+                1,
+                perm,
+                perm_inv,
+                p,
+                bs,
+                &mut work,
+                Some(&team),
+            )
+            .unwrap()
+        };
+        // Warm up the team's workers and faer's per-thread storage.
+        let (mut wp, mut wi) = (perm.clone(), perm_inv.clone());
+        factor(
+            &mut OwnedMatrix {
+                matrix: src.clone(),
+            },
+            &mut wp,
+            &mut wi,
+        );
+        let mut a = OwnedMatrix {
+            matrix: src.clone(),
+        };
+        let allocations = count(|| assert_eq!(factor(&mut a, &mut perm, &mut perm_inv), 0));
+        let b = Mat::from_fn(n, 3, |i, j| (i + 2 * j) as f64 - 1.5);
+        direct_factor_requirements(kind, SOLVE, n, n, 3, 1, Some(&team), &mut out).unwrap();
+        let mut sw = OwnedScratch::new();
+        sw.scratch_reserve(out[0], out[1]).unwrap();
+        let mut x = OwnedMatrix { matrix: b.clone() };
+        let solve = count(|| {
+            a.direct_solve(
+                &mut x,
+                kind,
+                SOLVE,
+                true,
+                n,
+                n,
+                1,
+                &perm,
+                &perm_inv,
+                p,
+                bs,
+                &mut sw,
+                Some(&team),
+            )
+            .unwrap();
+        });
+        eprintln!(
+            "team(2) kind {kind} {n}x{n}: factor {allocations}, solve {solve} calling-thread allocations"
+        );
+        let residual = (&src * &x.matrix - &b).norm_max();
+        assert!(residual < 1e-9 * src.norm_max() * x.matrix.norm_max() * n as f64);
+        if n <= 8 {
+            assert_eq!((allocations, solve), (0, 0), "kind {kind} {n}x{n}");
+        }
+    }
 }
 
 /// Complex Hermitian LDLᴴ and Bunch–Kaufman in both storage triangles: the
