@@ -237,7 +237,7 @@ returned `Vt::Matrix` (conjugated in place), so no transpose copy is made. The
 residuals are recomputed natively in the same call; a real operator acts on the
 real and imaginary parts of complex `partial_eigen` vectors instead of being
 promoted to a complex copy. A `v0` given as a `FaerVector`, a one-dimensional
-`FaerView`, a [`faerview`](@ref) borrow or a strided Julia vector of the
+`FaerView`, a `faerview` borrow or a strided Julia vector of the
 operator's scalar type is read in place; other start vectors are converted once.
 
 Measured Julia `@allocated` for `k = 6` and a dense `Float64` operator,
