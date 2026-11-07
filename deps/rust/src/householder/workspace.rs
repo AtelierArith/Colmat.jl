@@ -112,41 +112,10 @@ impl OwnedMatrix {
         right: bool,
         transpose: bool,
         conjugate: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            validate(source, n, tag)?;
-            match source.data()? {
-                ReflectionData::F64(s) => run(
-                    s,
-                    self.matrix.as_mut(),
-                    work,
-                    right,
-                    transpose,
-                    conjugate,
-                    par,
-                ),
-                _ => Err("Householder scalar types must match".into()),
-            }
-        })
-    }
-}
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn householder_workspace_team(
-        &mut self,
-        source: &OwnedHouseholder,
-        work: &mut OwnedScratch,
-        n: usize,
-        tag: i32,
-        right: bool,
-        transpose: bool,
-        conjugate: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 validate(source, n, tag)?;
                 match source.data()? {
                     ReflectionData::F64(s) => run(
@@ -160,10 +129,12 @@ impl OwnedMatrix {
                     ),
                     _ => Err("Householder scalar types must match".into()),
                 }
-            })?
+            })
         })
     }
 }
+#[julia]
+impl OwnedMatrix {}
 #[julia]
 impl TypedMatrix {
     #[julia]
@@ -176,47 +147,10 @@ impl TypedMatrix {
         right: bool,
         transpose: bool,
         conjugate: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            validate(source, n, tag)?;
-            match (
-                source.data()?,
-                self.data.as_mut().ok_or("matrix is not initialized")?,
-            ) {
-                (ReflectionData::F32(s), MatrixData::F32(a)) => {
-                    run(s, a.as_mut(), work, right, transpose, conjugate, par)
-                }
-                (ReflectionData::F64(s), MatrixData::F64(a)) => {
-                    run(s, a.as_mut(), work, right, transpose, conjugate, par)
-                }
-                (ReflectionData::C32(s), MatrixData::C32(a)) => {
-                    run(s, a.as_mut(), work, right, transpose, conjugate, par)
-                }
-                (ReflectionData::C64(s), MatrixData::C64(a)) => {
-                    run(s, a.as_mut(), work, right, transpose, conjugate, par)
-                }
-                _ => Err("Householder scalar types must match".into()),
-            }
-        })
-    }
-}
-#[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn householder_workspace_team(
-        &mut self,
-        source: &OwnedHouseholder,
-        work: &mut OwnedScratch,
-        n: usize,
-        tag: i32,
-        right: bool,
-        transpose: bool,
-        conjugate: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 validate(source, n, tag)?;
                 match (
                     source.data()?,
@@ -236,10 +170,12 @@ impl TypedMatrix {
                     }
                     _ => Err("Householder scalar types must match".into()),
                 }
-            })?
+            })
         })
     }
 }
+#[julia]
+impl TypedMatrix {}
 
 /// Apply the reflection in place to any view destination (native owner,
 /// native view or borrowed Julia strided memory), with optional caller

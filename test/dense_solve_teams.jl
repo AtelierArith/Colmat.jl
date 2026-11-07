@@ -166,6 +166,7 @@ end
         UInt(2),
         UInt(2),
         Int32(1),
+        nothing,
     )
     @test_throws Colmat.RustCall.RustError ldiv!(out, f, b; team)
     @test out==saved
@@ -180,6 +181,7 @@ end
         UInt(2),
         UInt(2),
         Int32(2),
+        nothing,
     )
     @test_throws Colmat.RustCall.RustError ldiv!(out, f, b; team)
     @test out==saved

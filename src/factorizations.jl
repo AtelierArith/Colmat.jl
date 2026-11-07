@@ -45,8 +45,7 @@ function _initialize_dense_factor(h, a, code, lower, team)
     isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
     isnothing(team) || _handle(team)
     args=(h, a, Int32(code), lower, UInt(size(a, 1)), UInt(size(a, 2)), _tag(eltype(a)))
-    return isnothing(team) ? _native_call(RustCrate.initialize, args...) :
-           _native_call(RustCrate.initialize_team, args..., team)
+    return _native_call(RustCrate.initialize, args..., team)
 end
 
 function _factor(

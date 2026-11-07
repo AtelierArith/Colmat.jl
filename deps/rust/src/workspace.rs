@@ -127,9 +127,10 @@ impl OwnedMatrix {
     pub fn pfaffian_workspace(
         &self,
         scratch: &mut OwnedScratch,
+        team: Option<&crate::teams::OwnedTeam>,
         out: *mut u8,
     ) -> Result<(), String> {
-        guarded(|| run(self.matrix.as_ref(), scratch, out, None))
+        guarded(|| run(self.matrix.as_ref(), scratch, out, team))
     }
 }
 #[julia]
@@ -138,13 +139,14 @@ impl TypedMatrix {
     pub fn pfaffian_workspace(
         &self,
         scratch: &mut OwnedScratch,
+        team: Option<&crate::teams::OwnedTeam>,
         out: *mut u8,
     ) -> Result<(), String> {
         guarded(|| match self.data()? {
-            MatrixData::F32(a) => run(a.as_ref(), scratch, out, None),
-            MatrixData::F64(a) => run(a.as_ref(), scratch, out, None),
-            MatrixData::C32(a) => run(a.as_ref(), scratch, out, None),
-            MatrixData::C64(a) => run(a.as_ref(), scratch, out, None),
+            MatrixData::F32(a) => run(a.as_ref(), scratch, out, team),
+            MatrixData::F64(a) => run(a.as_ref(), scratch, out, team),
+            MatrixData::C32(a) => run(a.as_ref(), scratch, out, team),
+            MatrixData::C64(a) => run(a.as_ref(), scratch, out, team),
         })
     }
 }
@@ -182,34 +184,9 @@ mod tests {
 }
 
 #[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn pfaffian_workspace_team(
-        &self,
-        scratch: &mut OwnedScratch,
-        team: &crate::teams::OwnedTeam,
-        out: *mut u8,
-    ) -> Result<(), String> {
-        guarded(|| run(self.matrix.as_ref(), scratch, out, Some(team)))
-    }
-}
+impl OwnedMatrix {}
 #[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn pfaffian_workspace_team(
-        &self,
-        scratch: &mut OwnedScratch,
-        team: &crate::teams::OwnedTeam,
-        out: *mut u8,
-    ) -> Result<(), String> {
-        guarded(|| match self.data()? {
-            MatrixData::F32(a) => run(a.as_ref(), scratch, out, Some(team)),
-            MatrixData::F64(a) => run(a.as_ref(), scratch, out, Some(team)),
-            MatrixData::C32(a) => run(a.as_ref(), scratch, out, Some(team)),
-            MatrixData::C64(a) => run(a.as_ref(), scratch, out, Some(team)),
-        })
-    }
-}
+impl TypedMatrix {}
 
 impl OwnedScratch {
     pub(crate) fn stack(&mut self, req: StackReq) -> Result<&mut MemStack, String> {

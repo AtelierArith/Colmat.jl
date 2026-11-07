@@ -118,8 +118,7 @@ function _sequence_build(
             ptr,
         )
         GC.@preserve basis denominators factor begin
-            isnothing(team) ? _native_call(RustCrate.sequence_load, args...) :
-            _native_call(RustCrate.sequence_load_team, args..., team)
+            _native_call(RustCrate.sequence_load, args..., team)
         end
         return FaerHouseholderSequence{T,typeof(h)}(h, m, k, b, transposed, conjugated)
     end
@@ -320,8 +319,7 @@ function reblock(
             UInt(q.blocksize),
             _tag(eltype(q)),
         )
-        isnothing(team) ? _native_call(RustCrate.sequence_reblock_from, args...) :
-        _native_call(RustCrate.sequence_reblock_from_team, args..., team)
+        _native_call(RustCrate.sequence_reblock_from, args..., team)
         return FaerHouseholderSequence{eltype(q),typeof(h)}(
             h,
             q.n,

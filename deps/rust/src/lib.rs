@@ -440,24 +440,15 @@ impl OwnedFactor {
         m: usize,
         n: usize,
         tag: i32,
-    ) -> Result<usize, String> {
-        guarded(|| self.initialize_with_par(source, kind, lower, Par::Seq, m, n, tag))
-    }
-    #[julia]
-    pub fn initialize_team(
-        &mut self,
-        source: &OwnedMatrix,
-        kind: i32,
-        lower: bool,
-        m: usize,
-        n: usize,
-        tag: i32,
-        team: &crate::teams::OwnedTeam,
+        team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<usize, String> {
         guarded(|| {
-            team.execute(|par| self.initialize_with_par(source, kind, lower, par, m, n, tag))?
+            crate::teams::with_team(team, |par| {
+                self.initialize_with_par(source, kind, lower, par, m, n, tag)
+            })
         })
     }
+
     #[julia]
     pub fn qr_blocksize(&self) -> Result<usize, String> {
         guarded(|| match self.get()? {
@@ -632,9 +623,8 @@ impl OwnedMatrix {
             if singular {
                 return Err("singular factorization".into());
             }
-            self.matrix = crate::teams::with_team(team, |par| {
-                Ok(dispatch_factor!(f, x => x.inverse(par)))
-            })?;
+            self.matrix =
+                crate::teams::with_team(team, |par| Ok(dispatch_factor!(f, x => x.inverse(par))))?;
             Ok(())
         })
     }
@@ -1353,15 +1343,15 @@ mod dense_team_tests {
         team.execute(|par| assert!(matches!(par, Par::Team(_))))
             .unwrap();
         let mut f = OwnedFactor::new();
-        assert_eq!(f.initialize_team(&a, 0, true, 4, 4, 1, &team).unwrap(), 0);
+        assert_eq!(f.initialize(&a, 0, true, 4, 4, 1, Some(&team)).unwrap(), 0);
         team.team_close().unwrap();
-        assert!(f.initialize_team(&a, 0, true, 4, 4, 1, &team).is_err());
+        assert!(f.initialize(&a, 0, true, 4, 4, 1, Some(&team)).is_err());
         match f.get().unwrap() {
             DenseFactor::Lu(x) => assert!((x.reconstruct(Par::Seq) - &a.matrix).norm_max() < 1e-12),
             _ => panic!("wrong factor kind"),
         }
-        assert!(f.initialize(&a, 0, true, 5, 4, 1).is_err());
-        assert!(f.initialize(&a, 0, true, 4, 4, 0).is_err());
+        assert!(f.initialize(&a, 0, true, 5, 4, 1, None).is_err());
+        assert!(f.initialize(&a, 0, true, 4, 4, 0, None).is_err());
     }
     #[test]
     fn typed_factor_checks_current_dtype_and_shape_before_construction() {
@@ -1371,11 +1361,11 @@ mod dense_team_tests {
         let mut team = teams::OwnedTeam::new();
         team.team_initialize(2).unwrap();
         let mut f = typed::TypedFactor::new();
-        assert!(f.initialize_team(&a, 2, true, 3, 3, 0, &team).is_err());
+        assert!(f.initialize(&a, 2, true, 3, 3, 0, Some(&team)).is_err());
         assert!(f.data().is_err());
-        assert!(f.initialize_team(&a, 2, true, 4, 3, 2, &team).is_err());
+        assert!(f.initialize(&a, 2, true, 4, 3, 2, Some(&team)).is_err());
         assert!(f.data().is_err());
-        assert_eq!(f.initialize_team(&a, 2, true, 3, 3, 2, &team).unwrap(), 0);
+        assert_eq!(f.initialize(&a, 2, true, 3, 3, 2, Some(&team)).unwrap(), 0);
         team.team_close().unwrap();
         assert!(f.data().is_ok());
     }
@@ -1467,12 +1457,12 @@ mod storage_initializer;
 
 mod filled_construction;
 
-mod svd_tuning;
 mod schur_tuning;
+mod svd_tuning;
 
-mod evd_tuning;
-mod pivoted_qr_rank;
-pub(crate) mod measures;
 mod diagonal_ops;
+mod evd_tuning;
+pub(crate) mod measures;
+mod pivoted_qr_rank;
 
 mod scalar_convert;

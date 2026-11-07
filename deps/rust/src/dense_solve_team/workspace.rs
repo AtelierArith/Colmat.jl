@@ -787,42 +787,10 @@ impl OwnedMatrix {
         tag: i32,
         kind: i32,
         precision: f64,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            validate_owned(f, m, n, tag, kind)?;
-            self.matrix = run_precision(
-                &owned(f)?,
-                rhs.matrix.as_ref(),
-                scratch,
-                op,
-                columns,
-                par,
-                precision,
-            )?;
-            Ok(())
-        })
-    }
-}
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn factor_solve_workspace_team(
-        &mut self,
-        f: &OwnedFactor,
-        rhs: &OwnedMatrix,
-        scratch: &mut OwnedScratch,
-        op: i32,
-        m: usize,
-        n: usize,
-        columns: usize,
-        tag: i32,
-        kind: i32,
-        precision: f64,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 validate_owned(f, m, n, tag, kind)?;
                 self.matrix = run_precision(
                     &owned(f)?,
@@ -834,10 +802,12 @@ impl OwnedMatrix {
                     precision,
                 )?;
                 Ok(())
-            })?
+            })
         })
     }
 }
+#[julia]
+impl OwnedMatrix {}
 #[julia]
 impl TypedMatrix {
     #[julia]
@@ -853,73 +823,10 @@ impl TypedMatrix {
         tag: i32,
         kind: i32,
         precision: f64,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            validate_typed(f, m, n, tag, kind)?;
-            f.solve_ready()?;
-            self.data = Some(match (f.data()?, rhs.data()?) {
-                (FactorData::F32(f), MatrixData::F32(b)) => MatrixData::F32(run_precision(
-                    &Saved::from(f),
-                    b.as_ref(),
-                    scratch,
-                    op,
-                    columns,
-                    par,
-                    precision,
-                )?),
-                (FactorData::F64(f), MatrixData::F64(b)) => MatrixData::F64(run_precision(
-                    &Saved::from(f),
-                    b.as_ref(),
-                    scratch,
-                    op,
-                    columns,
-                    par,
-                    precision,
-                )?),
-                (FactorData::C32(f), MatrixData::C32(b)) => MatrixData::C32(run_precision(
-                    &Saved::from(f),
-                    b.as_ref(),
-                    scratch,
-                    op,
-                    columns,
-                    par,
-                    precision,
-                )?),
-                (FactorData::C64(f), MatrixData::C64(b)) => MatrixData::C64(run_precision(
-                    &Saved::from(f),
-                    b.as_ref(),
-                    scratch,
-                    op,
-                    columns,
-                    par,
-                    precision,
-                )?),
-                _ => return Err("factor/RHS native scalar types must match".into()),
-            });
-            Ok(())
-        })
-    }
-}
-#[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn factor_solve_workspace_team(
-        &mut self,
-        f: &TypedFactor,
-        rhs: &TypedMatrix,
-        scratch: &mut OwnedScratch,
-        op: i32,
-        m: usize,
-        n: usize,
-        columns: usize,
-        tag: i32,
-        kind: i32,
-        precision: f64,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 validate_typed(f, m, n, tag, kind)?;
                 f.solve_ready()?;
                 self.data = Some(match (f.data()?, rhs.data()?) {
@@ -962,10 +869,12 @@ impl TypedMatrix {
                     _ => return Err("factor/RHS native scalar types must match".into()),
                 });
                 Ok(())
-            })?
+            })
         })
     }
 }
+#[julia]
+impl TypedMatrix {}
 #[cfg(test)]
 fn requirement<T: ComplexField>(
     f: &Saved<'_, T>,
@@ -1185,7 +1094,7 @@ mod tests {
             matrix: Mat::identity(4, 4),
         };
         let mut f = OwnedFactor::new();
-        f.initialize(&a, 0, true, 4, 4, 1).unwrap();
+        f.initialize(&a, 0, true, 4, 4, 1, None).unwrap();
         let mut out = OwnedMatrix {
             matrix: Mat::identity(4, 4),
         };
@@ -1194,7 +1103,7 @@ mod tests {
             .unwrap();
         let mut scratch = OwnedScratch::new();
         scratch.scratch_reserve(info[0], info[1]).unwrap();
-        out.factor_solve_workspace(&f, &a, &mut scratch, 0, 4, 4, 4, 1, 0, f64::EPSILON)
+        out.factor_solve_workspace(&f, &a, &mut scratch, 0, 4, 4, 4, 1, 0, f64::EPSILON, None)
             .unwrap();
         for (op, m, n, k, tag, kind) in [
             (8, 4, 4, 4, 1, 0),
@@ -1204,7 +1113,19 @@ mod tests {
             (0, 4, 4, 4, 1, 2),
         ] {
             assert!(out
-                .factor_solve_workspace(&f, &a, &mut scratch, op, m, n, k, tag, kind, f64::EPSILON)
+                .factor_solve_workspace(
+                    &f,
+                    &a,
+                    &mut scratch,
+                    op,
+                    m,
+                    n,
+                    k,
+                    tag,
+                    kind,
+                    f64::EPSILON,
+                    None
+                )
                 .is_err());
             assert_eq!(out.matrix, a.matrix);
         }
@@ -1212,7 +1133,7 @@ mod tests {
         team.team_initialize(2).unwrap();
         team.team_close().unwrap();
         assert!(out
-            .factor_solve_workspace_team(
+            .factor_solve_workspace(
                 &f,
                 &a,
                 &mut scratch,
@@ -1223,13 +1144,13 @@ mod tests {
                 1,
                 0,
                 f64::EPSILON,
-                &team
+                Some(&team)
             )
             .is_err());
         assert_eq!(out.matrix, a.matrix);
         scratch.scratch_close().unwrap();
         assert!(out
-            .factor_solve_workspace(&f, &a, &mut scratch, 0, 4, 4, 4, 1, 0, f64::EPSILON)
+            .factor_solve_workspace(&f, &a, &mut scratch, 0, 4, 4, 4, 1, 0, f64::EPSILON, None)
             .is_err());
         assert_eq!(out.matrix, a.matrix);
     }

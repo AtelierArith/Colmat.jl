@@ -1,5 +1,6 @@
 //! External native scratch and scoped teams for compact reflector application.
 use super::{apply_in, requirement, Data, OwnedHouseholderSequence, Sequence};
+use crate::teams::with_team;
 use crate::{
     guarded,
     typed::{MatrixData, TypedMatrix},
@@ -123,43 +124,10 @@ impl OwnedMatrix {
         right: bool,
         transpose: bool,
         conjugate: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            validate(source, n, k, blocksize, tag)?;
-            match source.data()? {
-                Data::F64(s) => run(
-                    s,
-                    self.matrix.as_mut(),
-                    work,
-                    right,
-                    transpose,
-                    conjugate,
-                    par,
-                ),
-                _ => Err("Householder scalar types must match".into()),
-            }
-        })
-    }
-}
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn sequence_workspace_team(
-        &mut self,
-        source: &OwnedHouseholderSequence,
-        work: &mut OwnedScratch,
-        n: usize,
-        k: usize,
-        blocksize: usize,
-        tag: i32,
-        right: bool,
-        transpose: bool,
-        conjugate: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 validate(source, n, k, blocksize, tag)?;
                 match source.data()? {
                     Data::F64(s) => run(
@@ -173,10 +141,12 @@ impl OwnedMatrix {
                     ),
                     _ => Err("Householder scalar types must match".into()),
                 }
-            })?
+            })
         })
     }
 }
+#[julia]
+impl OwnedMatrix {}
 #[julia]
 impl TypedMatrix {
     #[julia]
@@ -191,49 +161,10 @@ impl TypedMatrix {
         right: bool,
         transpose: bool,
         conjugate: bool,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let par = Par::Seq;
-            validate(source, n, k, blocksize, tag)?;
-            match (
-                source.data()?,
-                self.data.as_mut().ok_or("matrix is not initialized")?,
-            ) {
-                (Data::F32(s), MatrixData::F32(a)) => {
-                    run(s, a.as_mut(), work, right, transpose, conjugate, par)
-                }
-                (Data::F64(s), MatrixData::F64(a)) => {
-                    run(s, a.as_mut(), work, right, transpose, conjugate, par)
-                }
-                (Data::C32(s), MatrixData::C32(a)) => {
-                    run(s, a.as_mut(), work, right, transpose, conjugate, par)
-                }
-                (Data::C64(s), MatrixData::C64(a)) => {
-                    run(s, a.as_mut(), work, right, transpose, conjugate, par)
-                }
-                _ => Err("Householder scalar types must match".into()),
-            }
-        })
-    }
-}
-#[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn sequence_workspace_team(
-        &mut self,
-        source: &OwnedHouseholderSequence,
-        work: &mut OwnedScratch,
-        n: usize,
-        k: usize,
-        blocksize: usize,
-        tag: i32,
-        right: bool,
-        transpose: bool,
-        conjugate: bool,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|par| {
+            with_team(team, |par| {
                 validate(source, n, k, blocksize, tag)?;
                 match (
                     source.data()?,
@@ -253,10 +184,12 @@ impl TypedMatrix {
                     }
                     _ => Err("Householder scalar types must match".into()),
                 }
-            })?
+            })
         })
     }
 }
+#[julia]
+impl TypedMatrix {}
 
 #[cfg(test)]
 mod tests {

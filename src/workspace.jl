@@ -105,8 +105,7 @@ function _pfaffian_with_scratch(a::FaerMatrix{T}, s::FaerScratch, team) where {T
         value=Ref{T}()
         GC.@preserve value begin
             out=Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, value))
-            isnothing(team) ? _native_call(RustCrate.pfaffian_workspace, a, s, out) :
-            _native_call(RustCrate.pfaffian_workspace_team, a, s, team, out)
+            _native_call(RustCrate.pfaffian_workspace, a, s, team, out)
         end
         return value[]
     end

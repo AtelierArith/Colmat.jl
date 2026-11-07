@@ -90,9 +90,8 @@ function _dense_workspace_native_result(
             _dense_kind(f),
             Float64(precision),
         )
-        fun=isnothing(team) ? RustCrate.factor_solve_workspace :
-            RustCrate.factor_solve_workspace_team
-        isnothing(team) || (args=(args..., team))
+        fun=RustCrate.factor_solve_workspace
+        args=(args..., team)
         return eltype(f)===Float64 ? _matrix_result(fun, dims, args...) :
                _typed_result(eltype(f), fun, dims, args...)
     finally

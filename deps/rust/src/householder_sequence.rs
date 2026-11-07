@@ -100,30 +100,7 @@ impl OwnedHouseholderSequence {
     pub fn new() -> Self {
         Self::default()
     }
-    #[julia]
-    pub fn sequence_load(
-        &mut self,
-        basis: *const u8,
-        m: usize,
-        k: usize,
-        tau: *const u8,
-        b: usize,
-        tag: i32,
-        provided: *const u8,
-    ) -> Result<(), String> {
-        guarded(|| {
-            self.data = Some(unsafe {
-                match tag {
-                    0 => Data::F32(load(basis, m, k, tau, b, provided, Par::Seq)?),
-                    1 => Data::F64(load(basis, m, k, tau, b, provided, Par::Seq)?),
-                    2 => Data::C32(load(basis, m, k, tau, b, provided, Par::Seq)?),
-                    3 => Data::C64(load(basis, m, k, tau, b, provided, Par::Seq)?),
-                    _ => return Err("unsupported sequence scalar".into()),
-                }
-            });
-            Ok(())
-        })
-    }
+
     #[julia]
     pub fn sequence_clone(&mut self, source: &Self) -> Result<(), String> {
         guarded(|| {
