@@ -167,6 +167,39 @@ block (`:full`, `:lower`, `:upper`, `:strict_lower`, `:strict_upper`) that is
 computed and written. Unused triangles and implicit unit diagonals are
 ignored, including nonfinite values stored there.
 
+Structured wrappers mixed with Julia arrays follow the same rule as other
+mixed products: a native operand gives a native result. A triangular wrapper
+of a `FaerMatrix`, a range view or their `transpose`/`adjoint` (so
+`UpperTriangular(A)'` too) times a strided Julia matrix, its lazy
+transpose/adjoint, a `faerview` or a Julia vector (on either side for
+matrices) borrows the Julia operand and returns a `FaerMatrix`/`FaerVector`.
+`mul!` with these operands, and with a Julia-parent wrapper or a Julia
+`Diagonal` and a native operand, writes a strided Julia destination (or a
+`faerview`) in place through its buffer; operands sharing the destination's
+memory are snapshotted first. `Symmetric`/`Hermitian` wrappers (native or
+strided Julia parents) with native operands, Julia operands of a native
+wrapper, triangular wrappers or each other are expanded once, natively, from
+the stored triangle (a `Hermitian` diagonal keeps its real part) because faer
+has no self-adjoint product kernel; the product then takes the dense gemm path.
+`Bidiagonal`, `Tridiagonal` and `SymTridiagonal` with a native matrix copy the
+native operand to Julia once and use LinearAlgebra's O(n²) banded kernel,
+returning a `FaerMatrix` (expanding the band for faer's gemm would make the
+product O(n³)). `FaerMatrix ± Diagonal` (and view operands) passes only the
+diagonal's n entries to Rust. Without these routes LinearAlgebra's generic
+kernels read the native operand element by element (hundreds of MB at n=64).
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([2.0 1; 3 4])
+J = [1.0 2; 3 4]
+@assert UpperTriangular(A) * J isa FaerMatrix
+@assert Matrix(Symmetric(A) * J) ≈ Symmetric([2.0 1; 3 4]) * J
+C = zeros(2, 2)
+mul!(C, UpperTriangular(A), J)              # written in C's buffer
+@assert C ≈ UpperTriangular([2.0 1; 3 4]) * J
+@assert Matrix(A + Diagonal([1.0, 1.0])) == [3.0 1; 3 5]
+```
+
 `FaerDiagonal` or Julia `Diagonal` times a `FaerMatrix`, a range view, their
 `transpose`/`adjoint`, or a triangular wrapper of a `FaerMatrix` (on either
 side) scales rows or columns in

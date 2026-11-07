@@ -93,6 +93,19 @@ Base.:+(d::FaerDiagonal, a::_DiagonalDense) = _dop_matrix(d, a, 4)
 Base.:+(a::_DiagonalDense, d::FaerDiagonal) = _dop_matrix(d, a, 4)
 Base.:-(a::_DiagonalDense, d::FaerDiagonal) = _dop_matrix(d, a, 5)
 Base.:-(d::FaerDiagonal, a::_DiagonalDense) = _dop_matrix(d, a, 6)
+# Julia `Diagonal`s pass their n stored entries; non-native promotions
+# (BigFloat, ...) keep LinearAlgebra's generic result.
+for (f, mode, swap) in ((:+, 4, false), (:+, 4, true), (:-, 5, false), (:-, 6, true))
+    sig=swap ? :((d::LinearAlgebra.Diagonal, a::_DiagonalDense)) :
+        :((a::_DiagonalDense, d::LinearAlgebra.Diagonal))
+    generic=swap ? :(Tuple{LinearAlgebra.Diagonal,AbstractMatrix}) :
+            :(Tuple{AbstractMatrix,LinearAlgebra.Diagonal})
+    call=swap ? :(invoke($f, $generic, d, a)) : :(invoke($f, $generic, a, d))
+    @eval function Base.$f($(sig.args...))
+        promote_type(eltype(d), eltype(a))<:_NativeScalar || return $call
+        return _dop_matrix(d, a, $mode)
+    end
+end
 # Julia strided matrices and vectors (and their lazy transposes) with a native
 # diagonal are borrowed in place and give native results, as native operands
 # do (Julia `Diagonal`s with Julia arrays stay Julia).
