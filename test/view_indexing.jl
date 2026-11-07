@@ -48,10 +48,25 @@ end
         @test rv[[5, 1, 3]]==data[2, [5, 1, 3]]
         r=FaerRow(data[1, :])
         @test r[1, [5, 2]]==data[1, [5, 2]]
-        # Linear indexing reads the owner once in bulk.
+        # Linear indexing reads the owner once in bulk; containers follow Base.
+        base(x, I...) = invoke(getindex, Tuple{AbstractArray,Vararg{Any}}, x, I...)
         lmask=real.(data) .> 10
-        @test a[lmask]==data[lmask]
-        @test a[[1, 30, 7]]==data[[1, 30, 7]]
+        for (x, I) in (
+            (a, (lmask,)),
+            (a, ([1, 30, 7],)),
+            (a, (:,)),
+            (a, ([1 2; 3 4],)),
+            (r, (2:3,)),
+            (v, ([1, 5],)),
+            (a, (rows, cols)),
+            (v, (rmask[1:5], 2)),
+            (x, (rmask,)),
+        )
+            expected=base(x, I...)
+            got=x[I...]
+            @test got==expected
+            @test typeof(got)==typeof(expected)
+        end
         @test_throws BoundsError a[[0, 1], :]
         @test_throws BoundsError a[[1, 7], :]
         @test_throws BoundsError a[:, [6]]

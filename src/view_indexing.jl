@@ -74,8 +74,12 @@ Base.getindex(a::_NativeIndexed2, i::Integer, J::_ArrayIndex) = _native_getindex
 Base.getindex(a::_NativeIndexed2, I::_ArrayIndex, j::Integer) = _native_getindex(a, I, j)
 Base.getindex(a::_NativeIndexed1, I::_ArrayIndex) = _native_getindex(a, I)
 # Linear indexing of matrices (`A[mask]`, `A[[1, 5]]`, `A[:]`): one bulk read,
-# then Julia's indexing.
-Base.getindex(a::_NativeIndexed2, I::Union{Colon,AbstractArray}) = Array(a)[I]
+# Julia's indexing, then one bulk write into Base's result container.
+function Base.getindex(a::_NativeIndexed2, I::Union{Colon,AbstractArray})
+    x=Array(a)[I]
+    dest=similar(a, eltype(a), size(x))
+    return dest isa Array ? x : copyto!(dest, x)
+end
 
 # Source of a scatter as an `nr x nc` descriptor of `T`: native and Julia
 # strided arrays of `T` are read in place (vectors transposed as needed);
