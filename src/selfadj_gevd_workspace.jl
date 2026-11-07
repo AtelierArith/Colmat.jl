@@ -30,14 +30,7 @@ function scratch_requirements(
             f in (LinearAlgebra.eigvals, LinearAlgebra.eigvals!),
         )
         GC.@preserve info begin
-            isnothing(team) ?
-            _native_call(RustCrate.selfadj_gevd_requirements, args..., pointer(info)) :
-            _native_call(
-                RustCrate.selfadj_gevd_team_requirements,
-                team,
-                args...,
-                pointer(info),
-            )
+            _native_call(RustCrate.selfadj_gevd_requirements, args..., pointer(info), team)
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end
@@ -116,22 +109,7 @@ function _selfadj_gevd_workspace_result(
                     _tag(T),
                 )
                 try
-                    isnothing(team) ?
-                    _native_call(
-                        RustCrate.selfadj_gevd_workspace,
-                        source,
-                        other,
-                        work,
-                        args...,
-                    ) :
-                    _native_call(
-                        RustCrate.selfadj_gevd_workspace_team,
-                        source,
-                        other,
-                        work,
-                        team,
-                        args...,
-                    )
+                    _native_call(RustCrate.selfadj_gevd_workspace, source, other, work, team, args...)
                 catch e
                     _selfadj_gevd_rethrow(e)
                 end

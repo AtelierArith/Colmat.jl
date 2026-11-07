@@ -94,9 +94,8 @@ function _spectral_solve_rhs(
                     rt,
                     promote_type(typeof(rtol), _realtype(eltype(original)))===Float32,
                 )
-                fun=isnothing(team) ? RustCrate.spectral_solve_workspace :
-                    RustCrate.spectral_solve_workspace_team
-                tail=isnothing(team) ? (work,) : (work, team)
+                fun=RustCrate.spectral_solve_workspace
+                tail=(work, team)
                 result=P===Float64 ? _matrix_result(fun, dims, args..., tail...) :
                        _typed_result(P, fun, dims, args..., tail...)
                 if ndims(b)==1

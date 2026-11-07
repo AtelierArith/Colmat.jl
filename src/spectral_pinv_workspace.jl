@@ -19,8 +19,7 @@ function scratch_requirements(
         info=zeros(UInt, 2)
         args=(f, UInt(size(f, 1)), UInt(size(f, 2)), _tag(T), K===:eigen, pointer(info))
         GC.@preserve info begin
-            isnothing(team) ? _native_call(RustCrate.spectral_pinv_requirements, args...) :
-            _native_call(RustCrate.spectral_pinv_requirements_team, args..., team)
+            _native_call(RustCrate.spectral_pinv_requirements, args..., team)
         end
         return (bytes = Int(info[1]), alignment = Int(info[2]))
     end
@@ -68,9 +67,8 @@ function _spectral_pinv_with_scratch(
             rt,
             promote_type(typeof(rtol), _realtype(T))===Float32,
         )
-        fun=isnothing(team) ? RustCrate.spectral_pinv_workspace :
-            RustCrate.spectral_pinv_workspace_team
-        tail=isnothing(team) ? () : (team,)
+        fun=RustCrate.spectral_pinv_workspace
+        tail=(team,)
         return T===Float64 ? _matrix_result(fun, dims, args..., tail...) :
                _typed_result(T, fun, dims, args..., tail...)
     end

@@ -23,8 +23,7 @@ function _spectral_solve_workspace_query(
         pointer(info),
     )
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.spectral_solve_requirements, args...) :
-        _native_call(RustCrate.spectral_solve_requirements_team, args..., team)
+        _native_call(RustCrate.spectral_solve_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
