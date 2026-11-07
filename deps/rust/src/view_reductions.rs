@@ -151,6 +151,41 @@ unsafe fn extrema<R: Ordered>(
     Ok(())
 }
 
+/// Visit the entries of `a` in column order, through contiguous slices when
+/// possible (monomorphized: the closure inlines into the loop).
+fn each<T, F: FnMut(&T)>(a: MatRef<'_, T>, mut f: F) {
+    let a = if a.row_stride() < 0 {
+        a.reverse_rows()
+    } else {
+        a
+    };
+    for j in 0..a.ncols() {
+        let c = a.col(j);
+        match c.try_as_col_major() {
+            Some(c) => c.as_slice().iter().for_each(&mut f),
+            None => c.iter().for_each(&mut f),
+        }
+    }
+}
+/// Fold the magnitudes of `a` (as Float64) with `g`.
+fn fold_abs<T: Native, G: FnMut(f64, f64) -> f64>(a: MatRef<'_, T>, init: f64, mut g: G) -> f64 {
+    let mut acc = init;
+    each(a, |x| acc = g(acc, T::real_to_f64(&abs(x))));
+    acc
+}
+/// `sum(pre(|x|)^p)`. Integer exponents (Julia's `x^y` takes its integer power
+/// path for integer-valued `y`) use repeated multiplication via `powi`, several
+/// times faster than `powf`; results can differ from Julia's compensated
+/// integer power by an ulp or so.
+fn power_sum<T: Native>(a: MatRef<'_, T>, p: f64, pre: impl Fn(f64) -> f64) -> f64 {
+    if p.fract() == 0.0 && p.abs() <= 64.0 {
+        let q = p as i32;
+        fold_abs(a, 0.0, |s, x| s + pre(x).powi(q))
+    } else {
+        fold_abs(a, 0.0, |s, x| s + pre(x).powf(p))
+    }
+}
+
 /// `LinearAlgebra.norm(A, p)` for every `p` but NaN, as Julia computes it:
 /// p = 0 counts nonzeros, ±Inf propagate NaN, other p follow `generic_normp`
 /// (accumulation in Float64, rescaling by the extreme magnitude).
@@ -170,26 +205,6 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
         return norm_output(a, out, code);
     }
     let len = (a.nrows() * a.ncols()) as f64;
-    // Entries in column order, through contiguous slices when possible.
-    let each = |f: &mut dyn FnMut(&T)| {
-        let a = if a.row_stride() < 0 {
-            a.reverse_rows()
-        } else {
-            a
-        };
-        for j in 0..a.ncols() {
-            let c = a.col(j);
-            match c.try_as_col_major() {
-                Some(c) => c.as_slice().iter().for_each(&mut *f),
-                None => c.iter().for_each(&mut *f),
-            }
-        }
-    };
-    let fold = |init: f64, g: &dyn Fn(f64, f64) -> f64| {
-        let mut acc = init;
-        each(&mut |x| acc = g(acc, T::real_to_f64(&abs(x))));
-        acc
-    };
     // mapreduce(norm, min/max): NaN propagates from any position.
     let extreme = |largest: bool| {
         let init = if largest {
@@ -197,7 +212,7 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
         } else {
             f64::INFINITY
         };
-        fold(init, &|v, x| {
+        fold_abs(a, init, |v, x| {
             if v.is_nan() || x.is_nan() {
                 f64::NAN
             } else if largest {
@@ -209,7 +224,7 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
     };
     let value = if p == 0.0 {
         let mut count = 0usize;
-        each(&mut |x| count += usize::from(x.parts() != (0.0, 0.0)));
+        each(a, |x| count += usize::from(x.parts() != (0.0, 0.0)));
         count as f64
     } else if p == f64::NEG_INFINITY {
         extreme(false)
@@ -224,12 +239,10 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
         }
         let scaled = maxabs.powf(p);
         if (-1.0..=1.0).contains(&p) || ((len * scaled).is_finite() && scaled != 0.0) {
-            fold(0.0, &|s, x| s + x.powf(p)).powf(1.0 / p)
+            power_sum(a, p, |x| x).powf(1.0 / p)
         } else {
             // norm(v)/maxabs is computed in the data's real type.
-            let sum = fold(0.0, &|s, x| {
-                s + T::real_to_f64(&T::real_from_f64(x / maxabs)).powf(p)
-            });
+            let sum = power_sum(a, p, |x| T::real_to_f64(&T::real_from_f64(x / maxabs)));
             maxabs * sum.powf(1.0 / p)
         }
     };
@@ -299,6 +312,74 @@ pub fn view_predicate(owner: *const u8, desc: *const isize, code: i32) -> Result
             Borrowed::F64(a) => test!(a),
             Borrowed::C32(a) => test!(a),
             Borrowed::C64(a) => test!(a),
+        }
+    })
+}
+
+const IS_ONE: i32 = 0;
+const IS_SYMMETRIC: i32 = 1;
+const IS_HERMITIAN: i32 = 2;
+const IS_TRIU: i32 = 3;
+const IS_TRIL: i32 = 4;
+const IS_DIAG: i32 = 5;
+
+/// Julia's `isone`/`issymmetric`/`ishermitian`/`istriu(A, k)`/`istril(A, k)`/
+/// `isdiag`, comparing entries with `==` (NaN differs from itself, `-0.0 == 0.0`).
+fn structure<T: Native>(a: MatRef<'_, T>, code: i32, k: i64) -> Result<bool, String> {
+    let (m, n) = a.shape();
+    let at = |i: usize, j: usize| a[(i, j)].parts();
+    let is_zero = |(re, im): (f64, f64)| re == 0.0 && im == 0.0;
+    // Every entry of column j with row index in rows is zero.
+    let zeros = |j: usize, rows: std::ops::Range<usize>| {
+        if rows.is_empty() {
+            return true;
+        }
+        let c = a.col(j).subrows(rows.start, rows.len());
+        match c.try_as_col_major() {
+            Some(c) => c.as_slice().iter().all(|x| is_zero(x.parts())),
+            None => c.iter().all(|x| is_zero(x.parts())),
+        }
+    };
+    // istriu: rows i >= j + 1 - k must be zero; istril: rows i < j - k.
+    let below = |j: usize, k: i64| (j as i64 + 1 - k).clamp(0, m as i64) as usize;
+    let above = |j: usize, k: i64| (j as i64 - k).clamp(0, m as i64) as usize;
+    Ok(match code {
+        IS_ONE => {
+            m == n && (0..n).all(|j| zeros(j, 0..j) && at(j, j) == (1.0, 0.0) && zeros(j, j + 1..m))
+        }
+        IS_SYMMETRIC | IS_HERMITIAN => {
+            let conjugate = code == IS_HERMITIAN;
+            m == n
+                && (0..n).all(|j| {
+                    (0..=j).all(|i| {
+                        let (x, (re, im)) = (at(i, j), at(j, i));
+                        x == if conjugate { (re, -im) } else { (re, im) }
+                    })
+                })
+        }
+        IS_TRIU => (0..n).all(|j| zeros(j, below(j, k)..m)),
+        IS_TRIL => (0..n).all(|j| zeros(j, 0..above(j, k))),
+        IS_DIAG => (0..n).all(|j| zeros(j, below(j, 0)..m) && zeros(j, 0..above(j, 0))),
+        _ => return Err("unknown structure predicate".into()),
+    })
+}
+
+/// `isone` (0), `issymmetric` (1), `ishermitian` (2), `istriu(A, k)` (3),
+/// `istril(A, k)` (4) or `isdiag` (5) of a native owner, view or borrowed Julia
+/// matrix, read in place. Conjugation changes none of these answers.
+#[julia]
+pub fn view_structure(
+    owner: *const u8,
+    desc: *const isize,
+    code: i32,
+    k: i64,
+) -> Result<bool, String> {
+    guarded(|| unsafe {
+        match source(owner, Spec::read(desc)?)? {
+            Borrowed::F32(a) => structure(a, code, k),
+            Borrowed::F64(a) => structure(a, code, k),
+            Borrowed::C32(a) => structure(a, code, k),
+            Borrowed::C64(a) => structure(a, code, k),
         }
     })
 }
@@ -383,15 +464,40 @@ fn dot<W: Native>(
             cb,
         ));
     }
-    if a.shape() != b.shape() {
-        return Err("dot product arguments must have the same shape".into());
+    if a.shape() == b.shape() {
+        return Ok((0..a.ncols()).fold(zero::<W>(), |s, j| {
+            add(
+                &s,
+                &faer::linalg::matmul::dot::inner_prod(a.col(j).transpose(), ca, b.col(j), cb),
+            )
+        }));
     }
-    Ok((0..a.ncols()).fold(zero::<W>(), |s, j| {
-        add(
-            &s,
-            &faer::linalg::matmul::dot::inner_prod(a.col(j).transpose(), ca, b.col(j), cb),
-        )
+    let (len, ma, mb) = (a.nrows() * a.ncols(), a.nrows(), b.nrows());
+    if len != b.nrows() * b.ncols() {
+        return Err("dot product arguments must have the same length".into());
+    }
+    // Equal lengths, different shapes: pair entries in column-major order.
+    if let (Some(x), Some(y)) = (flat(a), flat(b)) {
+        return Ok(faer::linalg::matmul::dot::inner_prod(
+            x.transpose(),
+            ca,
+            y,
+            cb,
+        ));
+    }
+    let entry = |x: &W, conj_x: bool| if conj_x { conj(x) } else { *x };
+    Ok((0..len).fold(zero::<W>(), |s, k| {
+        let x = entry(&a[(k % ma, k / ma)], conj_a);
+        let y = entry(&b[(k % mb, k / mb)], conj_b);
+        add(&s, &mul(&x, &y))
     }))
+}
+/// `a` in column-major order as one column, when its columns are adjacent
+/// (`col_stride == nrows * row_stride`, e.g. a contiguous owner).
+fn flat<W>(a: MatRef<'_, W>) -> Option<ColRef<'_, W>> {
+    let (m, n) = a.shape();
+    (m > 0 && n > 0 && a.col_stride() == m as isize * a.row_stride())
+        .then(|| unsafe { ColRef::from_raw_parts(a.as_ptr(), m * n, a.row_stride()) })
 }
 unsafe fn dot_into<W: Native>(
     a: Borrowed<'_>,
@@ -524,6 +630,80 @@ mod tests {
             x.as_ref(),
             true,
             Mat::<faer::c64>::zeros(2, 1).as_ref(),
+            false
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn structure_predicates_follow_julia() {
+        let m = |rows: &[[f64; 3]]| Mat::<f64>::from_fn(rows.len(), 3, |i, j| rows[i][j]);
+        let eye = m(&[[1.0, 0.0, -0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
+        let e = eye.as_ref();
+        for code in [
+            IS_ONE,
+            IS_SYMMETRIC,
+            IS_HERMITIAN,
+            IS_TRIU,
+            IS_TRIL,
+            IS_DIAG,
+        ] {
+            assert!(structure(e, code, 0).unwrap());
+        }
+        let u = m(&[[1.0, 2.0, 3.0], [0.0, 4.0, 5.0], [0.0, 0.0, 6.0]]);
+        let u = u.as_ref();
+        assert!(structure(u, IS_TRIU, 0).unwrap() && !structure(u, IS_TRIU, 1).unwrap());
+        assert!(structure(u, IS_TRIU, -5).unwrap());
+        assert!(!structure(u, IS_TRIL, 1).unwrap() && structure(u, IS_TRIL, 2).unwrap());
+        assert!(!structure(u, IS_DIAG, 0).unwrap());
+        // Reversed views read the same entries in place.
+        assert!(structure(u.reverse_rows_and_cols(), IS_TRIL, 0).unwrap());
+        assert!(!structure(u.transpose(), IS_TRIU, 0).unwrap());
+        let s = m(&[[1.0, 2.0, 3.0], [2.0, f64::NAN, 5.0], [3.0, 5.0, 6.0]]);
+        assert!(!structure(s.as_ref(), IS_SYMMETRIC, 0).unwrap());
+        let wide = m(&[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]);
+        assert!(!structure(wide.as_ref(), IS_ONE, 0).unwrap());
+        assert!(!structure(wide.as_ref(), IS_SYMMETRIC, 0).unwrap());
+        assert!(structure(wide.as_ref(), IS_DIAG, 0).unwrap());
+        let z = Mat::<faer::c64>::from_fn(2, 2, |i, j| {
+            faer::c64::new((i + j) as f64, i as f64 - j as f64)
+        });
+        assert!(structure(z.as_ref(), IS_HERMITIAN, 0).unwrap());
+        assert!(!structure(z.as_ref(), IS_SYMMETRIC, 0).unwrap());
+        let d = Mat::<faer::c64>::from_fn(1, 1, |_, _| faer::c64::new(1.0, 1.0));
+        assert!(!structure(d.as_ref(), IS_HERMITIAN, 0).unwrap());
+        assert!(structure(d.as_ref(), IS_SYMMETRIC, 0).unwrap());
+        assert!(structure(Mat::<f64>::zeros(0, 0).as_ref(), IS_ONE, 0).unwrap());
+    }
+
+    #[test]
+    fn dot_pairs_equal_length_shapes_in_column_major_order() {
+        let a = Mat::<faer::c64>::from_fn(2, 3, |i, j| faer::c64::new((i + 2 * j) as f64, 1.0));
+        let b = Mat::<faer::c64>::from_fn(3, 2, |i, j| faer::c64::new(1.0, (i + 3 * j) as f64));
+        let expected = (0..6).fold(faer::c64::new(0.0, 0.0), |s, k| {
+            s + faer::c64::new(k as f64, 1.0).conj() * faer::c64::new(1.0, k as f64)
+        });
+        // Contiguous operands as single columns, strided ones entry by entry.
+        assert_eq!(dot(a.as_ref(), true, b.as_ref(), false).unwrap(), expected);
+        let wide = Mat::<faer::c64>::from_fn(3, 4, |i, j| b[(i, j / 2)] * f64::from(j % 2 == 0));
+        let strided = wide.as_ref().subcols(0, 4);
+        let picked =
+            unsafe { MatRef::from_raw_parts(strided.as_ptr(), 3, 2, 1, 2 * strided.col_stride()) };
+        assert!(flat(picked).is_none());
+        let got = dot(a.as_ref(), true, picked, false).unwrap();
+        assert!((got - expected).norm() < 1e-12);
+        let data: Vec<f64> = (0..6).map(f64::from).collect();
+        let packed = MatRef::from_column_major_slice(&data, 2, 3);
+        assert!(flat(packed).is_some() && flat(packed.reverse_rows_and_cols()).is_some());
+        let r = a.as_ref().reverse_rows_and_cols();
+        let expected_r = (0..6).fold(faer::c64::new(0.0, 0.0), |s, k| {
+            s + faer::c64::new((5 - k) as f64, 1.0).conj() * faer::c64::new(1.0, k as f64)
+        });
+        assert_eq!(dot(r, true, b.as_ref(), false).unwrap(), expected_r);
+        assert!(dot(
+            a.as_ref(),
+            true,
+            Mat::<faer::c64>::zeros(5, 1).transpose(),
             false
         )
         .is_err());
