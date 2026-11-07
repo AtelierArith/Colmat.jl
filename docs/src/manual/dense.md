@@ -188,6 +188,50 @@ with the strict lower Householder basis; its block coefficients are exposed as
 LAPACK's tau layout. `F.packed` returns an independent copy, with lower storage
 for Cholesky. Upper-triangle Cholesky wrappers receive U in the input instead.
 
+## Direct in-place LU, QR and Cholesky
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1; 1 3])
+work = FaerScratch(lu!, A)          # scratch_requirements(lu!, A; team)
+F = lu!(A; scratch = work)          # faer lu_in_place on A's own storage
+@assert F isa FaerInPlaceFactorization && F.factors === A
+B = FaerMatrix([1.0 2; 3 4])
+solve = FaerScratch(ldiv!, F, B)
+ldiv!(F, B; scratch = solve)        # overwrites B with A \ B
+C = FaerMatrix([4.0 1; 1 3])
+G = cholesky!(Hermitian(C, :U); scratch = FaerScratch(cholesky!, C))
+```
+
+Passing `scratch=` to `lu!`, `qr!`/`qr!(A, NoPivot())` or `cholesky!`
+(including `Hermitian`/`Symmetric` wrappers) selects the direct path. faer's
+`lu_in_place`, `qr_in_place` or `cholesky_in_place` runs on the input's native
+storage, and the result is a `FaerInPlaceFactorization` that aliases it, as
+Julia's `lu!` does. The packed layout is the same as above. The LU permutation
+and the QR block coefficients live in Julia-owned buffers of F. Writes to A
+change F. Closing, resizing or truncating A invalidates F. Shape, scalar,
+scratch, team, finiteness and Hermitian checks all run before the first write.
+A numerical failure (a singular LU with `check=true`, or a non-positive-definite
+Cholesky) leaves A partially factored, as LAPACK does.
+
+`ldiv!(F, B; scratch, team)` solves in place on a `FaerMatrix` B of the same
+scalar type, including through `transpose(F)` and `adjoint(F)`. Tall QR writes
+the least-squares solution into `B[1:n, :]`. `\`, the factor properties,
+`Matrix(F)`, `inv`, and `det`/`logabsdet` (LU and Cholesky) are also available.
+
+With caller scratch, Colmat allocates no native memory for the factorization
+or the solve. Small shapes and all solves make no native allocation at all.
+Blocked shapes still allocate inside faer's matrix products. On aarch64 with
+`Par::Seq`, a 70×70 LU made 9 such allocations, against 14 for the default
+path, and a lone faer product also allocates. See t4a-faer
+`upstream-reports/gemm-001`. Allocations under a team were not measured.
+
+The direct factor does not support `rdiv!`, operator or preconditioner use,
+pseudoinverse, mixed-scalar promotion of factors, rectangular LU or wide-QR
+solves. Those need the default result without `scratch=`. Full-pivot LU,
+LDLT, Bunch–Kaufman, pivoted Cholesky and column-pivoted QR have no direct
+path yet.
+
 ## Destructive indefinite and full-pivot LU decompositions
 
 ```julia

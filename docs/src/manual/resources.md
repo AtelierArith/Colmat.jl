@@ -82,7 +82,7 @@ when the native workspace is reused.
 
 | 操作 | 詳細 |
 | :--- | :--- |
-| 密分解・保存因子の求解・SVD | [密行列の分解と求解](dense.md) |
+| 密分解・保存因子の求解・SVD、`lu!/qr!/cholesky!(A; scratch)` の直接 in-place 分解 | [密行列の分解と求解](dense.md) |
 | 固有値・Schur・QZ・並べ替え | [固有値問題](spectral.md) |
 | 疎 LU・Cholesky の構築・更新・求解、ordering | [疎直接法](sparse.md) |
 | 疎 QR の構築・更新・最小ノルム求解 | [疎 QR](sparse-qr.md) |

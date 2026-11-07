@@ -24,9 +24,15 @@ function LinearAlgebra.cholesky(a::_ComplexSymmetric; check::Bool = true, team =
         return LinearAlgebra.cholesky(_hermitian_wrapper(a); check, team)
     return _non_hermitian_cholesky(parent(a), check, RustCrate.TypedFactor)
 end
-function LinearAlgebra.cholesky!(a::_ComplexSymmetric; check::Bool = true, team = nothing)
+function LinearAlgebra.cholesky!(
+    a::_ComplexSymmetric;
+    check::Bool = true,
+    team = nothing,
+    scratch = nothing,
+)
     _real_triangle(a) &&
-        return LinearAlgebra.cholesky!(_hermitian_wrapper(a); check, team)
+        return LinearAlgebra.cholesky!(_hermitian_wrapper(a); check, team, scratch)
+    isnothing(scratch) || return _direct_cholesky!(parent(a), true, false, check, scratch, team)
     return _non_hermitian_cholesky(parent(a), check, RustCrate.TypedFactor)
 end
 
