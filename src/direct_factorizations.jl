@@ -46,10 +46,11 @@ typed forms, `inv`, `pinv` (QR), and `det/logabsdet/logdet` (QR from R's diagona
 natively) read A's storage. `ldiv!(F, b)` also overwrites Julia strided arrays
 and `FaerVector`s of a square factor (one native copy solved in place and
 written back); a real factor solves a complex `b` as two real solves.
-`copy(F)` copies A and F's buffers into a new direct factor. Other
-retained-factor operations (linear-operator and preconditioner use, factor
-promotion to another scalar type, rectangular-LU or wide-QR solves) require the
-default `lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
+`copy(F)` copies A and F's buffers into a new direct factor, and
+`FaerLinearOperator(F)` (also `cg(A, b; M = F)`) wraps such a copy as an
+inverse-action operator. Other retained-factor operations (factor promotion to
+another scalar type, rectangular-LU or wide-QR solves) require the default
+`lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
 """
 mutable struct FaerInPlaceFactorization{T,K,M<:FaerMatrix{T}} <:
                LinearAlgebra.Factorization{T}
@@ -1045,4 +1046,31 @@ function LinearAlgebra.inv!(a::FaerMatrix; scratch = nothing, team = nothing)
     finally
         temporary && close(work)
     end
+end
+
+"""
+    FaerLinearOperator(F::FaerInPlaceFactorization)
+
+Inverse-action operator of a square nonsingular direct factor (`lu!`,
+`full_piv_lu!`, `qr!` with or without `ColumnNorm()`, `cholesky!`, `ldlt!` or
+`bunchkaufman!` with `scratch=`), usable as a preconditioner: `cg(A, b;
+M = F)` converts it automatically. The operator owns an independent copy of
+the factor (`copy(F)`), so later writes to `A` do not change it. Each forward
+or adjoint application solves the callback's array in place with that copy
+(`ldiv!(F, Y)`/`ldiv!(F', Y)`).
+"""
+function FaerLinearOperator(f::FaerInPlaceFactorization{T,K}) where {T,K}
+    g=lock(_matrix_lock) do
+        _direct_source(f)
+        LinearAlgebra.checksquare(f)
+        LinearAlgebra.issuccess(f) || throw(
+            K in (:cholesky, :ldlt) ? _cholesky_failure(f) :
+            LinearAlgebra.SingularException(Int(getfield(f, :info))),
+        )
+        copy(f)
+    end
+    n=size(g, 1)
+    forward=(Y, X)->(copyto!(Y, X); LinearAlgebra.ldiv!(g, Y); Y)
+    adjoint=(Y, X)->(copyto!(Y, X); LinearAlgebra.ldiv!(g', Y); Y)
+    return FaerLinearOperator(forward, adjoint, n, n; T)
 end
