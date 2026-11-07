@@ -120,7 +120,8 @@ Return `(bytes, alignment)` for the fill-reducing ordering workspace used inside
 Cholesky `:default`/`:amd` runs faer's AMD (same input and controls as faer's
 symbolic analysis) in the caller buffer, plus exact factor column counts for
 `algorithm=:auto` so the simplicial/supernodal choice matches the no-scratch
-path. Wide QR default COLAMD and explicit simplicial LU/QR `ordering=:colamd`
+path. That extra column-count pass makes `:auto` with scratch slower (about
+15-30% in measured cases); an explicit `:simplicial`/`:supernodal` skips it. Wide QR default COLAMD and explicit simplicial LU/QR `ordering=:colamd`
 use the COLAMD kernel requirement. Identity/custom orderings and square/tall
 auto/supernodal LU/QR return zero bytes: the latter's COLAMD runs inside faer's
 allocating symbolic API, which accepts no caller stack. The kernels are

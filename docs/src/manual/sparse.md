@@ -213,6 +213,8 @@ kernel 用 workspace を照会します。対象は次の経路です。
   caller scratch で実行し、得た置換を faer に明示指定します。`algorithm=:auto` では
   simplicial／supernodal の選択を scratch なしの場合と一致させるため、因子の列数も
   同じ scratch で計算します。置換・方式・`factor_storage` は scratch なしと同一です。
+  この列数計算の分だけ `:auto` は scratch なしより遅くなります（測定例で約 15–30%）。
+  `:simplicial`／`:supernodal` を明示すると追加計算はありません。
 - 横長 QR の既定 COLAMD と、明示 simplicial LU／QR の `ordering=:colamd`: COLAMD kernel の
   必要量です。
 - 恒等・任意 ordering と、正方／縦長の auto／supernodal LU／QR は 0 バイトです。
