@@ -350,3 +350,145 @@ _poke!(bytes, at, x) = copyto!(bytes, at+1, reinterpret(UInt8, [x]), 1, sizeof(x
     @test (@allocated npyborrow(large))<4096
     @test (@allocated npyborrow(large))<=(@allocated npyborrow(small))+256
 end
+
+@testset "Writable NPY mappings, shared same-file mappings and stream borrows" begin
+    nativebig=Base.ENDIAN_BOM!=0x04030201
+    native=nativebig ? :big : :little
+    for T in (Float32, Float64, ComplexF32, ComplexF64), fortran in (false, true)
+        n=4
+        A=reshape(T.(1:(n*n)), n, n)
+        T<:Complex && (A .+= T(0.5im))
+        X=T.(reshape(n*n:-1:1, n, n))
+        mktemp() do path, io
+            write(io, _npy_bytes(A; fortran, big = nativebig))
+            close(io)
+            W=npyborrow(path; writable = true)
+            @test W isa FaerBorrowedMatrix{T}
+            @test W==A
+            @test npyinfo(W)==(
+                dtype = T,
+                shape = (n, n),
+                matrix_size = (n, n),
+                fortran_order = fortran,
+                version = (1, 0),
+                byteorder = native,
+                aligned = true,
+                normalized_byteorder = native,
+                writable = true,
+            )
+            # Every native write goes to the file pages.
+            W[1, 1]=T(-1)
+            E=copy(A)
+            E[1, 1]=T(-1)
+            @test W==E
+            copyto!(W, FaerMatrix(X))
+            E=copy(X)
+            @test W==E
+            mul!(W, FaerMatrix(A), FaerMatrix(X), 2, 1)
+            E=2*A*X+E
+            @test W≈E
+            W.=FaerMatrix(A).+1
+            E=A.+1
+            @test W≈E
+            U=UpperTriangular(FaerMatrix(Matrix{T}(I, n, n)+triu(ones(T, n, n))))
+            ldiv!(U, W)
+            E=Matrix(U)\E
+            @test W≈E
+            Colmat.Mmap.sync!(W)
+            @test loadnpy(path)≈E
+            # A second mapping of the same file shares the pages and addresses,
+            # so the native overlap checks see the alias.
+            R=npyborrow(path)
+            W2=npyborrow(path; writable = true)
+            @test pointer(R)==pointer(W)==pointer(W2)
+            @test npyinfo(R).writable===false
+            Rj=Matrix(R)
+            mul!(W, R, R)
+            E=Rj*Rj
+            @test W≈E
+            @test R≈E
+            Rj=Matrix(R)
+            mul!(W2, W, transpose(R), 1, 1)
+            E=Rj*transpose(Rj)+Rj
+            @test W≈E
+            Rj=Matrix(R)
+            copyto!(W, transpose(R))
+            E=transpose(Rj)
+            @test W≈E
+            Rj=Matrix(R)
+            W2.=transpose(R).+R
+            E=transpose(Rj)+Rj
+            @test W≈E
+            # The read-only borrow still rejects writes.
+            @test_throws ArgumentError R[1, 1]=zero(T)
+            @test_throws ArgumentError copyto!(R, FaerMatrix(X))
+            @test_throws ArgumentError mul!(R, FaerMatrix(A), FaerMatrix(X))
+            @test_throws ArgumentError R.=zero(T)
+            @test R≈E
+            # Writes persist once the borrows are finalized.
+            W=W2=R=nothing
+            GC.gc()
+            GC.gc()
+            @test loadnpy(path)≈E
+        end
+    end
+    A=[1.0 2; 3 4]
+    bytes=_npy_bytes(A; big = nativebig)
+    mktemp() do path, io
+        write(io, bytes)
+        close(io)
+        # Hard links share the inode and therefore the mapping; copies do not.
+        link=path*".link"
+        hardlink(path, link)
+        copied=path*".copy"
+        cp(path, copied)
+        try
+            W=npyborrow(path; writable = true)
+            @test pointer(npyborrow(link))==pointer(W)
+            C=npyborrow(copied; writable = true)
+            @test pointer(C)!=pointer(W)
+            mul!(C, W, W)
+            @test C==A*A
+            @test W==A
+        finally
+            rm(link)
+            rm(copied)
+        end
+        # Mapping directly from an open stream at its current position.
+        open(path) do s
+            B=npyborrow(s)
+            @test B==A
+            @test_throws ArgumentError B[1, 1]=0.0
+            @test_throws ArgumentError npyborrow(s; writable = true)
+        end
+        open(path, "r+") do s
+            B=npyborrow(s; writable = true)
+            B[2, 1]=30.0
+        end
+        GC.gc()
+        @test loadnpy(path)==[1.0 2; 30 4]
+    end
+    mktemp() do path, io
+        write(io, UInt8[1, 2, 3])
+        write(io, bytes)
+        seek(io, 3)
+        B=npyborrow(io)
+        @test B==A
+        @test npyinfo(B).shape==(2, 2)
+        close(io)
+    end
+    # A writable borrow never falls back to an independent copy.
+    big=_npy_bytes(A; big = !nativebig)
+    @test_throws ArgumentError npyborrow(big; writable = true)
+    @test_throws ArgumentError npyborrow(big; writable = true, fallback = true)
+    # Byte vectors may be borrowed writable; writes alias the vector.
+    v=copy(bytes)
+    B=npyborrow(v; writable = true)
+    B[1, 2]=20.0
+    @test loadnpy(v)==[1.0 20; 3 4]
+    @test npyinfo(npyborrow(v))==merge(npyinfo(loadnpy(v; view = true)), (writable = false,))
+    # Two borrows of one vector are seen as aliased by Julia broadcasts.
+    R=npyborrow(v)
+    B.=transpose(R)
+    @test B==[1.0 3; 20 4]
+end
