@@ -75,7 +75,7 @@ impl OwnedHouseholder {
     fn data(&self) -> Result<&ReflectionData, String> {
         self.data
             .as_ref()
-            .ok_or("Householder is not initialized".into())
+            .ok_or_else(|| "Householder is not initialized".into())
     }
 }
 #[julia]

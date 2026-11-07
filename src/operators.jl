@@ -339,6 +339,9 @@ function _operator_mul_native!(dest, op, a, alpha, beta, right; scratch, team)
     target=_gemm_destination(dest)
     src=_gemm_input(a)
     (isnothing(target) || isnothing(src)) && return nothing
+    # Native owners must still have the shape/scalar Julia records.
+    _dense_rhs_validate(a)
+    _dense_rhs_validate(dest)
     working=_operator_coerce(op, P)
     al, be=Ref{P}(P(alpha)), Ref{P}(P(beta))
     p, d=_view_source(right ? transpose(target) : target)
@@ -363,6 +366,7 @@ function _operator_mul_native!(dest, op, a, alpha, beta, right; scratch, team)
         # transposed-operator clone a Julia-side query would need.
         isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
         isnothing(team) || _handle(team)
+        _operator_workspace_query(working, 0)  # native operator metadata
         run(nothing)
     else
         effective=right ? transpose(working) : working

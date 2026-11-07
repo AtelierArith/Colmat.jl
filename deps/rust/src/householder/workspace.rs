@@ -416,9 +416,19 @@ mod tests {
             )
             .unwrap()
         };
+        // The bare kernel on caller scratch: faer's block application may
+        // allocate inside its matrix product (gemm-001); Colmat adds nothing.
+        // Probed on the same padded Julia layout as the destination.
+        let kernel = {
+            let mut probe = vec![1.0f64; 7 * 3];
+            let view = faer::MatMut::from_column_major_slice_with_stride_mut(&mut probe, 5, 3, 7);
+            allocation_probe::count(|| {
+                apply_in(&s, view, false, Par::Seq, scratch.stack(req).unwrap()).unwrap()
+            })
+        };
         // beta == 0: B is copied into C and reflected there; C (NaN) is not read.
         let count = allocation_probe::count(|| call(&mut julia, true, &mut scratch));
-        assert_eq!(count, 0);
+        assert_eq!(count, kernel);
         let expected = &h * &b * alpha;
         for j in 0..3 {
             for i in 0..5 {
@@ -429,7 +439,7 @@ mod tests {
         // beta != 0: exactly one native product buffer.
         let before = Mat::from_fn(5, 3, |i, j| julia[i + 7 * j]);
         let count = allocation_probe::count(|| call(&mut julia, false, &mut scratch));
-        assert_eq!(count, 1);
+        assert_eq!(count, kernel + 1);
         let expected = &h * &b * alpha + &before * beta;
         for j in 0..3 {
             for i in 0..5 {
@@ -456,7 +466,7 @@ mod tests {
             )
             .unwrap()
         });
-        assert_eq!(count, 0);
+        assert_eq!(count, kernel);
         assert!((&c - &h * &b).norm_max() < 1e-12);
         // A short scratch fails before the destination is written.
         if req.size_bytes() > 0 {

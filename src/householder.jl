@@ -346,6 +346,8 @@ function _householder_mul!(
         target=P===T ? _gemm_destination(dest) : nothing
         src=eltype(a)===P ? _gemm_input(a) : nothing
         if !isnothing(target) && !isnothing(src)
+            _dense_rhs_validate(a)
+            _dense_rhs_validate(dest)
             reflected=_householder_coerce(h, P)
             _householder_into!(reflected, target, src, al, be, right; scratch, team)
             return dest
