@@ -41,7 +41,7 @@ function _compact_q(
     GC.@preserve info _native_call(
         RustCrate.compact_tridiagonal_info,
         handle,
-        pointer(info),
+        info,
     )
     info[4]==UInt(_tag(T)) ||
         throw(ArgumentError("compact Q returned an incompatible scalar"))

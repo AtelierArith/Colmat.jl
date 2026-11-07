@@ -294,7 +294,8 @@ impl SparseOwner {
     /// while the owner is rooted and not mutated; Julia uses them only inside
     /// one call under its matrix lock.
     #[julia]
-    pub fn sparse_csc_raw_parts(&self, out: *mut usize) -> Result<bool, String> {
+    pub fn sparse_csc_raw_parts(&self, out: &mut [usize]) -> Result<bool, String> {
+        let out = crate::workspace::fixed_out(out, 6)?;
         guarded(|| {
             fn parts<T>(a: &Storage<T>) -> ([usize; 6], bool) {
                 let (s, val, csr) = match a {

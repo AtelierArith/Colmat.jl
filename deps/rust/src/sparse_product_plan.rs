@@ -641,7 +641,8 @@ impl SparseProductPlan {
     }
     /// Write `[rows, cols, nnz, csr, b_csr]` of the planned product.
     #[julia]
-    pub fn sparse_product_plan_info(&self, out: *mut usize) -> Result<(), String> {
+    pub fn sparse_product_plan_info(&self, out: &mut [usize]) -> Result<(), String> {
+        let out = crate::workspace::fixed_out(out, 5)?;
         guarded(|| {
             let p = self.plan()?;
             let (m, n) = p.dims();

@@ -55,7 +55,7 @@ function _compact_basis(
     conjugated = false,
 ) where {T}
     info=zeros(UInt, 4)
-    GC.@preserve info _native_call(RustCrate.compact_bidiagonal_info, h, pointer(info))
+    GC.@preserve info _native_call(RustCrate.compact_bidiagonal_info, h, info)
     info[4]==UInt(_tag(T))||throw(
         ArgumentError("compact basis returned an incompatible scalar"),
     )

@@ -14,6 +14,14 @@ pub(crate) fn requirement_out(out: &mut [usize]) -> Result<*mut usize, String> {
     }
     Ok(out.as_mut_ptr())
 }
+/// A fixed-length `UInt` output from Julia (info records, counters), checked
+/// for exactly `n` entries, as the raw pointer the existing writers use.
+pub(crate) fn fixed_out(out: &mut [usize], n: usize) -> Result<*mut usize, String> {
+    if out.len() != n {
+        return Err(format!("output must hold {n} entries, got {}", out.len()));
+    }
+    Ok(out.as_mut_ptr())
+}
 #[julia]
 pub struct OwnedScratch {
     memory: Option<MemBuffer>,
@@ -50,7 +58,8 @@ impl OwnedScratch {
         })
     }
     #[julia]
-    pub fn scratch_info(&self, out: *mut usize) -> Result<(), String> {
+    pub fn scratch_info(&self, out: &mut [usize]) -> Result<(), String> {
+        let out = crate::workspace::fixed_out(out, 2)?;
         guarded(|| {
             if self.memory.is_none() {
                 return Err("scratch is closed or uninitialized".into());

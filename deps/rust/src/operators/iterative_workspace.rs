@@ -264,12 +264,13 @@ impl OwnedMatrix {
         rtol: f64,
         maxiter: usize,
         stats: *mut u8,
-        iterations: *mut usize,
+        iterations: &mut [usize],
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
         scratch: &mut OwnedScratch,
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let iterations = crate::workspace::fixed_out(iterations, 1)?;
         guarded(|| {
             with_team(team, |par| {
                 let (Data::F64(a), Data::F64(m), Data::F64(n)) = (a.data()?, m.data()?, n.data()?)
@@ -313,12 +314,13 @@ impl TypedMatrix {
         rtol: f64,
         maxiter: usize,
         stats: *mut u8,
-        iterations: *mut usize,
+        iterations: &mut [usize],
         observing: bool,
         observer: extern "C" fn(*const u8, usize, usize, isize, isize) -> bool,
         scratch: &mut OwnedScratch,
         team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
+        let iterations = crate::workspace::fixed_out(iterations, 1)?;
         guarded(|| {
             with_team(team, |par| {
                 self.data = Some(
@@ -689,7 +691,7 @@ mod tests {
                 1e-8,
                 64,
                 stats.as_mut_ptr().cast(),
-                &mut count,
+                std::slice::from_mut(&mut count),
                 false,
                 keep,
                 &mut work, Some(&team)
@@ -712,7 +714,7 @@ mod tests {
                 1e-8,
                 64,
                 stats.as_mut_ptr().cast(),
-                &mut count,
+                std::slice::from_mut(&mut count),
                 false,
                 keep,
                 &mut work, Some(&team)

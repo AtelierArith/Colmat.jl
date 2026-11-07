@@ -54,7 +54,7 @@ function _npy_view(input::AbstractVector{UInt8})
         try
             GC.@preserve data info begin
                 _native_call(RustCrate.npy_load, h, pointer(data), UInt(length(data)))
-                _native_call(RustCrate.npy_info, h, pointer(info))
+                _native_call(RustCrate.npy_info, h, info)
             end
         catch err
             err isa RustCall.RustError && throw(ArgumentError(sprint(showerror, err)))
@@ -88,7 +88,7 @@ function _npy_matrix(input::AbstractVector{UInt8})
             GC.@preserve data info begin
                 p=pointer(data)
                 len=UInt(length(data))
-                _native_call(RustCrate.npy_source_info, p, len, pointer(info))
+                _native_call(RustCrate.npy_source_info, p, len, info)
                 T=(Float32, Float64, ComplexF32, ComplexF64)[Int(info[1])+1]
                 m, n=Int(info[2]), Int(info[3])
                 return T===Float64 ?
@@ -400,7 +400,7 @@ function _npy_borrow(source::_NpyMapping, start::Int, writable::Bool, fallback::
                 RustCrate.npy_source_info,
                 pointer(bytes)+start,
                 UInt(max(length(bytes)-start, 0)),
-                pointer(info),
+                info,
             )
         catch err
             err isa RustCall.RustError && throw(ArgumentError(sprint(showerror, err)))

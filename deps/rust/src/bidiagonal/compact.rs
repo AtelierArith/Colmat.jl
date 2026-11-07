@@ -396,7 +396,8 @@ impl OwnedCompactBidiagonal {
 #[julia]
 impl OwnedCompactBidiagonal {
     #[julia]
-    pub fn compact_bidiagonal_info(&self, out: *mut usize) -> Result<(), String> {
+    pub fn compact_bidiagonal_info(&self, out: &mut [usize]) -> Result<(), String> {
+        let out = crate::workspace::fixed_out(out, 4)?;
         guarded(|| {
             buffer::<usize>(out.cast(), 4)?;
             let (m, n, b, tag) = self.metadata();

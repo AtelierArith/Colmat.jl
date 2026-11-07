@@ -312,7 +312,7 @@ _with_raw_sparse(f, b::FaerBorrowedSparseMatrix) =
 function _with_raw_sparse(f, a::FaerSparseMatrix)
     _handle(a)
     parts=Vector{UInt}(undef, 6)
-    GC.@preserve parts _native_call(RustCrate.sparse_csc_raw_parts, a, pointer(parts))
+    GC.@preserve parts _native_call(RustCrate.sparse_csc_raw_parts, a, parts)
     GC.@preserve a parts return f(
         parts[1],
         parts[2],
