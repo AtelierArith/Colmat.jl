@@ -295,5 +295,6 @@ include("storage_construction.jl")
 include("storage_initializer.jl")
 include("function_constructors.jl")
 include("filled_constructors.jl")
+include("balanced_eigen.jl")
 
 end

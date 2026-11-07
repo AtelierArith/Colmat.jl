@@ -703,7 +703,11 @@ LinearAlgebra.eigen(
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
+    permute::Bool = false,
+    scale::Bool = false,
 ) where {T<:_ExtraScalar} =
+    _balanced_check(permute, scale) ?
+    _balanced_eigen(a, true; side, sortby, scratch, team) :
     side===:right && isnothing(scratch) && isnothing(team) ? _typed_eigen(a; sortby) :
     _general_evd_workspace_result(a; sortby, scratch, team, side)
 LinearAlgebra.eigvals(
@@ -711,7 +715,10 @@ LinearAlgebra.eigvals(
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
+    permute::Bool = false,
+    scale::Bool = false,
 ) where {T<:_ExtraScalar} =
+    _balanced_check(permute, scale) ? _balanced_eigen(a, false; sortby, scratch, team) :
     isnothing(scratch) && isnothing(team) ? _typed_eigen(a; vectors = false, sortby) :
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 LinearAlgebra.eigen(

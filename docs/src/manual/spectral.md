@@ -132,6 +132,30 @@ columns in place after staging the full result. Back-transforms do not normalize
 columns; invalid metadata, conversion failure or overflow leave the destination
 unchanged.
 
+The general EVD can balance in one call. faer's EVD driver itself does not
+balance, so `eigen`/`eigvals(A; permute=true, scale=true)` balances natively
+first, runs the EVD on `B` with the same `side`, `scratch` and `team`, maps the
+right (`P*S*v`) or left (`P*S⁻¹*w`) eigenvectors back and renormalizes each
+column to unit 2-norm:
+
+```julia
+using Colmat, LinearAlgebra
+a = [1.0 1e4 0; 1e-4 2 1e3; 0 1e-3 3]
+A = FaerMatrix(a)
+E = eigen(A; permute=true, scale=true)
+@assert norm(a * E.vectors - E.vectors * Diagonal(E.values)) < 1e-10
+L = eigen(A; side=:left, permute=true, scale=true)
+@assert norm(L.vectors' * a - Diagonal(L.values) * L.vectors') < 1e-10
+close(A)
+```
+
+faer's `balance_in_place` always permutes and scales together, so `permute`
+and `scale` must be equal (otherwise `ArgumentError`). Balancing is opt-in:
+the default `false` keeps the unbalanced native driver, unlike LinearAlgebra's
+LAPACK default. The Hessenberg, Schur and EVD-from-Schur parameters inside
+faer's EVD driver are tracked with the Hessenberg (#123) and Schur (#110)
+controls.
+
 ## Partial eigenvalues and singular values
 
 ```julia
