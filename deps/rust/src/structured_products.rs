@@ -467,8 +467,10 @@ impl VectorOwner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn raw(m: usize, n: usize, tag: isize) -> [isize; 9] {
-        [4, tag, 1, m as isize, 0, m as isize, n as isize, 0, 0]
+    // #152's borrowed-buffer descriptor: nine view words, then m, n, rs, cs, tag.
+    fn raw(m: usize, n: usize, tag: isize) -> [isize; 14] {
+        let (m, n) = (m as isize, n as isize);
+        [4, 0, 1, m, 0, 1, n, 0, 0, m, n, 1, m, tag]
     }
     #[test]
     fn borrowed_buffers_ignore_unused_entries() {

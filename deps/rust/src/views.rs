@@ -152,37 +152,7 @@ pub(crate) unsafe fn source<'a>(p: *const u8, s: Spec) -> Result<Borrowed<'a>, S
             VectorData::C32(x) => Borrowed::C32(borrowed(x.as_mat(), s)?),
             VectorData::C64(x) => Borrowed::C64(borrowed(x.as_mat(), s)?),
         },
-        4 => {
-            // A Julia column-major buffer preserved for this call: `r` holds the
-            // scalar tag, `rs`/`cs` the element strides and `m`/`n` the shape.
-            if s.m != 0 && s.n != 0 && (p.is_null() || s.rs < 1 || s.cs < 1) {
-                return Err("invalid borrowed Julia buffer".into());
-            }
-            return raw(p, s);
-        }
         _ => return Err("unknown view owner".into()),
-    })
-}
-unsafe fn raw<'a>(p: *const u8, s: Spec) -> Result<Borrowed<'a>, String> {
-    unsafe fn view<'a, T>(p: *const u8, s: Spec) -> MatRef<'a, T> {
-        let v = if s.m == 0 || s.n == 0 {
-            let p = std::ptr::NonNull::<T>::dangling().as_ptr().cast_const();
-            MatRef::from_raw_parts(p, s.m, s.n, 1, 1)
-        } else {
-            MatRef::from_raw_parts(p.cast::<T>(), s.m, s.n, s.rs, s.cs)
-        };
-        if s.transpose {
-            v.transpose()
-        } else {
-            v
-        }
-    }
-    Ok(match s.r {
-        0 => Borrowed::F32(view(p, s)),
-        1 => Borrowed::F64(view(p, s)),
-        2 => Borrowed::C32(view(p, s)),
-        3 => Borrowed::C64(view(p, s)),
-        _ => return Err("unsupported borrowed buffer scalar".into()),
     })
 }
 /// A mutable, injective, untransposed range of a native owner's matrix.

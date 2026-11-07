@@ -91,18 +91,22 @@ function _diagonal_mul!(dest, a, b, alpha, beta)
     return dest
 end
 # Operands are borrowed: native owners and ranges through view descriptors,
-# strided Julia buffers of the product type through a kind-4 descriptor that
-# preserves the buffer for the call. Only conversions and non-strided Julia
+# strided Julia buffers of the product type as borrowed arrays (kind 4). Only conversions and non-strided Julia
 # inputs are copied. Returns (pointer or owner, descriptor, retained object).
-function _raw_operand(a::StridedMatrix{P}) where {P<:_NativeScalar}
-    m, n=size(a)
-    rs, cs=m*n==0 ? (1, 1) : (stride(a, 1), stride(a, 2))
-    d=Int[4, _tag(P), rs, m, 0, cs, n, 0, 0]
-    return Ptr{UInt8}(pointer(a)), d, a
+# Strided Julia buffers cross as #152's kind-4 borrowed arrays (read-only, so
+# repeated elements are allowed); other inputs are copied once.
+function _raw_operand(a::AbstractMatrix{P}) where {P<:_NativeScalar}
+    a isa StridedMatrix && _julia_borrowable(a) || (a=Matrix{P}(a))
+    b=FaerBorrowedArray(a)
+    p, d=_view_source(b)
+    return p, d, b
 end
 const _ProductNativeSource=Union{
     FaerMatrix,
     FaerView,
+    FaerVector,
+    FaerRow,
+    FaerBorrowedArray,
     LinearAlgebra.Transpose{<:Any,<:Union{FaerMatrix,FaerView}},
     LinearAlgebra.Adjoint{<:Any,<:Union{FaerMatrix,FaerView}},
 }
@@ -121,10 +125,8 @@ function _structured_operand(x, ::Type{P}) where {P}
         p, d=_view_source(y)
         return p, d, y
     end
-    if y isa StridedMatrix{P} && all(>=(1), strides(y))
-        return _raw_operand(y)
-    end
-    return _raw_operand(Matrix{P}(y))
+    y isa AbstractVector && (y=reshape(y, :, 1))
+    return _raw_operand(eltype(y)===P ? y : Matrix{P}(y))
 end
 function _structured_scalar(a, b)
     size(a, 2)==size(b, 1) ||
