@@ -120,8 +120,9 @@ npyview(source) = loadnpy(source; view = true)
     npyinfo(source)
 
 Return dtype, original shape/order/version/byteorder, matrix_size and alignment
-metadata. Sources can be an existing open FaerNpyMatrix, NPY bytes, an IO or a
-path. Raw bytes are normalized to aligned native byteorder for safe faer views;
+metadata. Sources can be an existing open FaerNpyMatrix, an [`npyborrow`](@ref)
+borrow (metadata recorded when it was borrowed, plus `writable`; the source is
+not reread), NPY bytes, an IO or a path. Raw bytes are normalized to aligned native byteorder for safe faer views;
 byteorder reports the source's order, normalized_byteorder reports storage.
 IO inputs are read from their current position to EOF.
 """
@@ -226,77 +227,179 @@ function Base.deepcopy_internal(a::FaerNpyMatrix{T}, d::IdDict) where {T}
 end
 
 """
-    npyborrow(bytes::Vector{UInt8}; fallback=true)
-    npyborrow(path::AbstractString; fallback=true)
+    npyborrow(bytes::Vector{UInt8}; writable=false, fallback=true)
+    npyborrow(path::AbstractString; writable=false, fallback=true)
+    npyborrow(io::IOStream; writable=false, fallback=true)
 
 Borrow an NPY payload without copying it. A byte vector is aliased in place; a
-path is memory-mapped read-only (`MAP_SHARED`, so later writes to the file by
-other handles are visible). The result is a read-only
-[`FaerBorrowedMatrix`](@ref) whose parent addresses the payload directly,
-C-order arrays through row strides `(n, 1)`; native consumers (`copy`,
-`FaerMatrix`, `+`/`-`/`*`, `mean`/`var`, `sum`, ...) read it in place like
-[`faerview`](@ref) borrows. Scalar/vector shapes map to 1×1 / n×1 as in
-[`loadnpy`](@ref), and the header, dtype, shape and exact payload length are
-validated first.
+path or an open `IOStream` (whose NPY data starts at its current position and
+runs to the end of the file) is memory-mapped with `MAP_SHARED`, so writes by
+other handles are visible. The result is a [`FaerBorrowedMatrix`](@ref) whose
+parent addresses the payload directly, C-order arrays through row strides
+`(n, 1)`; native consumers (`copy`, `FaerMatrix`, `+`/`-`/`*`, `mean`/`var`,
+`sum`, ...) read it in place like [`faerview`](@ref) borrows. Scalar/vector
+shapes map to 1×1 / n×1 as in [`loadnpy`](@ref), and the header, dtype, shape
+and exact payload length are validated first. [`npyinfo`](@ref) of the borrow
+returns its metadata (plus `writable`) without rereading the source.
 
 Aliasing requires a native-endian payload whose data offset is a multiple of the
 element alignment and, for bytes, a `Vector{UInt8}` source. Otherwise, with
 `fallback=true`, the independent `FaerMatrix` from `loadnpy` is returned (big
 endian on a little-endian host, odd header padding, `SubArray` byte sources);
-`fallback=false` throws `ArgumentError` instead.
+`fallback=false` throws `ArgumentError` instead, and so does `writable=true`
+(a copy would silently not write back).
 
-The borrow is read-only: `setindex!`, broadcasts, `copyto!`, `fill!` and
-in-place products/solves into it throw `ArgumentError`, and native routines
-never write it. Views of it are ordinary Julia views. It keeps the byte vector
-or mapping alive; a mapping is unmapped by its finalizer once the borrow and its
-views are unreachable (closing or unlinking the file does not invalidate it).
-A source vector shrunk by `resize!` is detected before every access, but
-truncating a mapped file while it is mapped raises `SIGBUS` as for any `mmap`.
-Writable mappings are not provided yet: native writes into borrowed Julia
-memory need destination alias checks, and two mappings of one file alias
-without sharing addresses.
+By default the borrow is read-only: `setindex!`, broadcasts, `copyto!`,
+`fill!` and in-place products/solves into it throw `ArgumentError`, and native
+routines never write it. `writable=true` maps the file read-write (a path is
+opened `"r+"`; a stream must be writable) or allows writes into the byte
+vector: `setindex!`, `.=`, `copyto!`, `fill!`, `mul!` and `ldiv!`/`rdiv!`
+then write the payload in place (dense `mul!`, `copyto!` and triangular solves
+natively through a faer `MatMut`). `Mmap.sync!(B)` flushes a mapped borrow to
+the file; unmapping by the finalizer also leaves the written pages in the file.
+
+All borrows of one file (same device and inode, so hard links included) in a
+process share a single mapping, read-write once any of them is writable. The
+byte-range overlap checks of native destinations and Julia's `mightalias`
+therefore see two borrows of one file as aliased memory, and inputs overlapping
+the destination are snapshot; separate mappings would alias at different
+virtual addresses that no range check can relate. A read-only borrow keeps
+rejecting writes when it shares a read-write mapping. Copies of a file have
+their own inode and do not alias. When the file size has changed since it was
+mapped, the next borrow remaps it and every borrow of the file moves to the new
+mapping; borrows whose payload no longer fits then throw `ArgumentError` on
+access. Writes by other processes, or through `Mmap.mmap` arrays created
+outside `npyborrow`, are visible but neither tracked by the overlap checks nor
+ordered with native calls.
+
+The borrow keeps the byte vector or mapping alive; a mapping is unmapped by its
+finalizer once every borrow of the file and its views are unreachable (closing
+or unlinking the file does not invalidate it). A source vector shrunk by
+`resize!` is detected before every access, but truncating a mapped file while
+it is accessed raises `SIGBUS` as for any `mmap`.
 """
 function npyborrow end
 
-# The aliased payload of a validated NPY source: element (i, j) is at byte
-# `offset + ((i-1)*s1 + (j-1)*s2)*sizeof(T)` of `bytes`.
-struct _NpyBuffer{T} <: AbstractMatrix{T}
+# The bytes behind NPY borrows: a borrowed byte vector, or the process-wide
+# mapping of one file (keyed by device and inode) shared by all its borrows.
+# A remap replaces `bytes`; retired mappings stay referenced so a pointer read
+# by an in-flight call stays valid until no borrow of the file remains.
+mutable struct _NpyMapping
     bytes::Vector{UInt8}
+    writable::Bool
+    const key::Union{Nothing,Tuple{UInt64,UInt64}}
+    const retired::Vector{Vector{UInt8}}
+end
+_NpyMapping(bytes::Vector{UInt8}, writable::Bool) =
+    _NpyMapping(bytes, writable, nothing, Vector{UInt8}[])
+# Guarded by `_matrix_lock`.
+const _npy_mappings=Dict{Tuple{UInt64,UInt64},WeakRef}()
+
+# The aliased payload of a validated NPY source: element (i, j) is at byte
+# `offset + ((i-1)*s1 + (j-1)*s2)*sizeof(T)` of `source.bytes`.
+struct _NpyBuffer{T} <: AbstractMatrix{T}
+    source::_NpyMapping
     offset::Int
     dims::Tuple{Int,Int}
     fortran::Bool
+    writable::Bool
+    shape::Tuple{Vararg{Int}}
+    version::Tuple{Int,Int}
+    byteorder::Symbol
 end
 Base.size(a::_NpyBuffer) = a.dims
-Base.parent(a::_NpyBuffer) = a.bytes
+Base.parent(a::_NpyBuffer) = a.source.bytes
 Base.strides(a::_NpyBuffer) = a.fortran ? (1, a.dims[1]) : (a.dims[2], 1)
 Base.stride(a::_NpyBuffer, d::Integer) = d<=2 ? strides(a)[d] : length(a)
 Base.elsize(::Type{<:_NpyBuffer{T}}) where {T} = sizeof(T)
 Base.similar(::_NpyBuffer, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims)
+# Borrows of one vector or one file mapping share their data id, so Julia's
+# unaliasing (broadcasts, views) treats them as the same memory.
+Base.dataids(a::_NpyBuffer) =
+    isnothing(a.source.key) ? Base.dataids(a.source.bytes) : (UInt(objectid(a.source)),)
+# A private read-only copy of the payload (Julia's broadcast unaliasing).
+function Base.unaliascopy(a::_NpyBuffer{T}) where {T}
+    bytes=_npy_live(a).source.bytes[a.offset .+ (1:(prod(a.dims)*sizeof(T)))]
+    return _NpyBuffer{T}(
+        _NpyMapping(bytes, false),
+        0,
+        a.dims,
+        a.fortran,
+        false,
+        a.shape,
+        a.version,
+        a.byteorder,
+    )
+end
 function _npy_live(a::_NpyBuffer{T}) where {T}
-    length(a.bytes)>=a.offset+prod(a.dims)*sizeof(T) ||
+    length(a.source.bytes)>=a.offset+prod(a.dims)*sizeof(T) ||
         throw(ArgumentError("NPY borrow source bytes were resized below the payload"))
     return a
 end
 Base.unsafe_convert(::Type{Ptr{T}}, a::_NpyBuffer{T}) where {T} =
-    Ptr{T}(pointer(_npy_live(a).bytes)+a.offset)
+    Ptr{T}(pointer(_npy_live(a).source.bytes)+a.offset)
 Base.pointer(a::_NpyBuffer{T}) where {T} = Base.unsafe_convert(Ptr{T}, a)
+function _npy_index(a::_NpyBuffer, i::Int, j::Int)
+    s1, s2=strides(a)
+    return 1+(i-1)*s1+(j-1)*s2
+end
 Base.@propagate_inbounds function Base.getindex(a::_NpyBuffer, i::Int, j::Int)
     @boundscheck checkbounds(a, i, j)
-    s1, s2=strides(a)
-    return GC.@preserve a unsafe_load(pointer(a), 1+(i-1)*s1+(j-1)*s2)
+    bytes=a.source.bytes
+    return GC.@preserve a bytes unsafe_load(pointer(a), _npy_index(a, i, j))
 end
-Base.setindex!(::_NpyBuffer, x, ::Int...) =
-    throw(ArgumentError("NPY borrows are read-only; copy to FaerMatrix first"))
-_borrowed_writable(::FaerBorrowedArray{<:Any,<:Any,<:_NpyBuffer}) = false
+Base.@propagate_inbounds function Base.setindex!(a::_NpyBuffer{T}, x, i::Int, j::Int) where {T}
+    a.writable ||
+        throw(ArgumentError("NPY borrows are read-only; copy to FaerMatrix first"))
+    @boundscheck checkbounds(a, i, j)
+    v=convert(T, x)
+    bytes=a.source.bytes
+    GC.@preserve a bytes unsafe_store!(pointer(a), v, _npy_index(a, i, j))
+    return a
+end
+# Validated element-aligned and injective (C/Fortran order) at construction.
+_julia_borrowable(::_NpyBuffer) = true
+const _NpyBorrow{T}=FaerBorrowedMatrix{T,<:_NpyBuffer{T}}
+_borrowed_writable(b::_NpyBorrow) = parent(b).writable
+# Borrows expose their parent's memory to Julia's unaliasing.
+Base.dataids(b::FaerBorrowedArray) = Base.dataids(parent(b))
+Base.unaliascopy(b::FaerBorrowedArray) = FaerBorrowedArray(Base.unaliascopy(parent(b)))
+"""
+    Mmap.sync!(B::FaerBorrowedMatrix[, flags])
 
-function _npy_borrow(bytes::Vector{UInt8}, fallback::Bool)
+Flush the file mapping behind an [`npyborrow`](@ref) borrow of a path or
+stream to the file (a no-op for borrowed byte vectors).
+"""
+function Mmap.sync!(b::_NpyBorrow, flags::Integer = Mmap.MS_SYNC)
+    m=parent(b).source
+    isnothing(m.key) || Mmap.sync!(m.bytes, flags)
+    return b
+end
+function npyinfo(b::_NpyBorrow{T}) where {T}
+    a=_npy_live(parent(b))
+    return (
+        dtype = T,
+        shape = a.shape,
+        matrix_size = a.dims,
+        fortran_order = a.fortran,
+        version = a.version,
+        byteorder = a.byteorder,
+        aligned = true,
+        normalized_byteorder = Base.ENDIAN_BOM==0x04030201 ? :little : :big,
+        writable = a.writable,
+    )
+end
+
+# Borrow the NPY data in `source.bytes[start+1:end]`.
+function _npy_borrow(source::_NpyMapping, start::Int, writable::Bool, fallback::Bool)
+    bytes=source.bytes
     info=zeros(UInt, 8)
     lock(_matrix_lock) do
         try
             GC.@preserve bytes info _native_call(
                 RustCrate.npy_source_info,
-                pointer(bytes),
-                UInt(length(bytes)),
+                pointer(bytes)+start,
+                UInt(max(length(bytes)-start, 0)),
                 pointer(info),
             )
         catch err
@@ -306,22 +409,87 @@ function _npy_borrow(bytes::Vector{UInt8}, fallback::Bool)
     end
     T=(Float32, Float64, ComplexF32, ComplexF64)[Int(info[1])+1]
     m, n=Int(info[2]), Int(info[3])
+    rank=Int(info[4])
     native=info[8]==0 || info[8]==(Base.ENDIAN_BOM==0x04030201 ? 1 : 2)
-    buf=_NpyBuffer{T}(bytes, length(bytes)-m*n*sizeof(T), (m, n), info[5]!=0)
-    native && _aligned(buf) && return FaerBorrowedArray(buf)
-    fallback || throw(
-        ArgumentError(
-            "NPY payload is $(native ? "not element-aligned" : "foreign-endian"); " *
-            "it cannot be borrowed without copying",
-        ),
+    buf=_NpyBuffer{T}(
+        source,
+        length(bytes)-m*n*sizeof(T),
+        (m, n),
+        info[5]!=0,
+        writable,
+        rank==0 ? () : rank==1 ? (m,) : (m, n),
+        (Int(info[6]), Int(info[7])),
+        (:irrelevant, :little, :big)[Int(info[8])+1],
     )
-    return loadnpy(bytes)
+    native && _aligned(buf) && return FaerBorrowedArray(buf)
+    reason=native ? "not element-aligned" : "foreign-endian"
+    writable &&
+        throw(ArgumentError("NPY payload is $reason; it cannot be borrowed writable"))
+    fallback || throw(
+        ArgumentError("NPY payload is $reason; it cannot be borrowed without copying"),
+    )
+    return loadnpy(start==0 ? bytes : view(bytes, (start+1):length(bytes)))
 end
-npyborrow(bytes::Vector{UInt8}; fallback::Bool = true) = _npy_borrow(bytes, fallback)
-function npyborrow(bytes::AbstractVector{UInt8}; fallback::Bool = true)
-    fallback ||
+npyborrow(bytes::Vector{UInt8}; writable::Bool = false, fallback::Bool = true) =
+    _npy_borrow(_NpyMapping(bytes, writable), 0, writable, fallback)
+function npyborrow(
+    bytes::AbstractVector{UInt8};
+    writable::Bool = false,
+    fallback::Bool = true,
+)
+    fallback && !writable ||
         throw(ArgumentError("only a Vector{UInt8} NPY source can be borrowed in place"))
     return loadnpy(bytes)
 end
-npyborrow(path::AbstractString; fallback::Bool = true) =
-    _npy_borrow(open(io->Mmap.mmap(io, Vector{UInt8}), path), fallback)
+npyborrow(path::AbstractString; writable::Bool = false, fallback::Bool = true) =
+    open(path, writable ? "r+" : "r") do io
+        m=_npy_mapping(io, writable, ()->open(path, "r+"))
+        return _npy_borrow(m, 0, writable, fallback)
+    end
+function npyborrow(io::IOStream; writable::Bool = false, fallback::Bool = true)
+    writable &&
+        !iswritable(io) &&
+        throw(ArgumentError("a writable NPY borrow needs a stream opened for writing"))
+    start=Int(position(io))
+    return _npy_borrow(_npy_mapping(io, writable, nothing), start, writable, fallback)
+end
+
+# The shared mapping of the whole file open as `io`, (re)mapped when absent,
+# resized or needed read-write. `reopen()` opens a writable handle when `io`
+# is read-only but the shared mapping must stay read-write.
+function _npy_mapping(io::IOStream, writable::Bool, reopen)
+    st=stat(io)
+    # Files without an inode number cannot be identified; they are not shared.
+    key=st.inode==0 ? nothing : (UInt64(st.device), UInt64(st.inode))
+    len=Int(filesize(io))
+    lock(_matrix_lock) do
+        filter!(p->!isnothing(p.second.value), _npy_mappings)
+        m=isnothing(key) ? nothing : get(_npy_mappings, key, WeakRef()).value
+        rw=writable || (m isa _NpyMapping && m.writable)
+        m isa _NpyMapping && length(m.bytes)==len && m.writable>=rw && return m
+        src=io
+        if rw && !iswritable(io)
+            isnothing(reopen) && throw(
+                ArgumentError(
+                    "the file is borrowed writable and must be remapped; " *
+                    "borrow it through its path or a writable stream",
+                ),
+            )
+            src=reopen()
+        end
+        bytes=try
+            Mmap.mmap(src, Vector{UInt8}, (len,), 0; grow = false, shared = true)
+        finally
+            src===io || close(src)
+        end
+        if m isa _NpyMapping
+            push!(m.retired, m.bytes)
+            m.bytes=bytes
+            m.writable=rw
+            return m
+        end
+        m=_NpyMapping(bytes, rw, key, Vector{UInt8}[])
+        isnothing(key) || (_npy_mappings[key]=WeakRef(m))
+        return m
+    end
+end

@@ -148,40 +148,71 @@ Closing a view invalidates its reads, while materialized/deep copies remain vali
 
 ### Zero-copy borrows: memory-mapped files and aliased bytes
 
-`npyborrow(path)` memory-maps the file read-only, and `npyborrow(bytes)` aliases
-a `Vector{UInt8}` in place. Both return a read-only `FaerBorrowedMatrix` whose
-parent addresses the payload directly. C-order arrays are exposed through row
-strides `(n, 1)`, so neither order is copied. Native consumers such as `copy`,
-`FaerMatrix`, `+`/`-`/`*` (including transposes and native operands), `sum`,
-`mean` and `var` read the mapped pages in place, as they do for `faerview`.
+`npyborrow(path)` and `npyborrow(io::IOStream)` memory-map the file, and
+`npyborrow(bytes)` aliases a `Vector{UInt8}` in place. All return a
+`FaerBorrowedMatrix` whose parent addresses the payload directly. C-order arrays
+are exposed through row strides `(n, 1)`, so neither order is copied. Native
+consumers such as `copy`, `FaerMatrix`, `+`/`-`/`*` (including transposes and
+native operands), `sum`, `mean` and `var` read the mapped pages in place, as
+they do for `faerview`. `npyinfo(M)` returns the metadata recorded at borrow
+time (shape, order, version, byte order, plus `writable`) without rereading the
+source.
 
 ```julia
-M = npyborrow(path)      # mmap, no payload copy
+M = npyborrow(path)      # read-only mmap, no payload copy
 @assert M == [1.0 2 3; 4 5 6]
 @assert strides(M) == (3, 1) # C order read through row strides
 C = copy(M)              # independent FaerMatrix
+
+tmp = tempname()
+cp(path, tmp)
+W = npyborrow(tmp; writable = true) # read-write MAP_SHARED mapping
+mul!(W, FaerMatrix([0.0 1; 1 0]), npyborrow(tmp)) # rows swapped in the file pages
+Colmat.Mmap.sync!(W)     # flush; the aliased input was snapshot first
+@assert loadnpy(tmp) == [4.0 5 6; 1 2 3]
 ```
 
 - **When aliasing applies:** the payload must be native-endian and its data
   offset a multiple of the element alignment. NumPy pads headers to 16 or 64 bytes,
   so its files qualify. Otherwise (foreign endian, odd header padding, or a
   `SubArray` byte source) the copying `loadnpy` result is returned. Pass
-  `fallback=false` to get an `ArgumentError` instead.
-- **Read-only:** `setindex!`, broadcasts, `copyto!`, `fill!`, `mul!` and
-  `ldiv!` into the borrow throw `ArgumentError`. Native kernels never write it,
-  because a read-only mapping cannot be written. Views of it are plain Julia
-  views.
-- **Lifetime:** the borrow keeps the byte vector or mapping alive. Writes to the
-  file through other handles are visible (`MAP_SHARED`). Closing or unlinking
-  the file does not invalidate the mapping, which is unmapped by its finalizer
-  once the borrow and its views are unreachable; there is no explicit `close`.
+  `fallback=false` to get an `ArgumentError` instead. `writable=true` never
+  falls back: a copy would silently not write back.
+- **Read-only by default:** `setindex!`, broadcasts, `copyto!`, `fill!`, `mul!`
+  and `ldiv!` into the borrow throw `ArgumentError`, and native kernels never
+  write it. Views of it are plain Julia views.
+- **Writable borrows:** `writable=true` opens a path `"r+"` (a stream must be
+  writable) and maps it read-write, or allows writes into the byte vector.
+  `setindex!`, `.=`, `copyto!`, `fill!`, `mul!` and `ldiv!`/`rdiv!` then write the
+  payload in place; dense `mul!`, `copyto!` and triangular solves write it
+  natively through a faer `MatMut`. `Mmap.sync!(W)` flushes the mapping, and
+  pages written before the finalizer unmaps it stay in the file either way.
+- **Same-file aliasing:** every borrow of one file in a process (identified by
+  device and inode, so hard links too) shares a single mapping. That mapping is
+  read-write once any borrow of the file is writable, and a read-only borrow
+  sharing it still rejects writes. Two borrows of one file therefore alias at
+  the same addresses. The byte-range overlap checks of native destinations, and
+  Julia's `mightalias` for broadcasts, snapshot an overlapping input before
+  writing (`mul!(W, R, R)` or `copyto!(W, transpose(R))` with `R` a second
+  borrow of the file is correct). Separate mappings would alias at different
+  virtual addresses, which no range check can relate. Copies of a file have
+  their own inode and do not alias. Writes by other processes, or through
+  `Mmap.mmap` arrays created outside `npyborrow`, are visible but neither
+  tracked nor ordered with native calls.
+- **Streams:** `npyborrow(io)` maps the whole file behind an `IOStream` and
+  borrows the NPY data from the stream's current position to the end of the
+  file. The position is not advanced. If the shared mapping is read-write and
+  must be remapped (the file size changed), the stream must be writable.
+- **Lifetime:** the borrow keeps the byte vector or mapping alive. Closing or
+  unlinking the file does not invalidate the mapping, which is unmapped by its
+  finalizer once every borrow of the file and its views are unreachable; there
+  is no explicit `close`.
 - **Changing the source:** shrinking the source vector with `resize!` is
-  detected before every access. Truncating a mapped file raises `SIGBUS`, as for
-  any `mmap`.
-- **No writable mappings yet:** native writes into borrowed Julia memory need
-  the destination alias checks of #92. Two mappings of one file also share
-  pages without sharing addresses, so an address-range check cannot detect
-  that alias.
+  detected before every access. When a file's size has changed, the next borrow
+  of it remaps the file and all its borrows move to the new mapping; a borrow
+  whose payload no longer fits then throws `ArgumentError` on access.
+  Truncating a mapped file while it is accessed raises `SIGBUS`, as for any
+  `mmap`.
 
 ## Real matrix extrema
 
