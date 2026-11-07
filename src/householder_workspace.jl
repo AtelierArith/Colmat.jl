@@ -43,29 +43,12 @@ function _householder_resource_check(h, a, P, right; scratch = nothing, team = n
     end
     return req
 end
+# Caller scratch/team are lent to faer's in-place application in the native
+# owner itself (no result staging); without them the owner's kernel runs.
 function _householder_resource_apply!(h, a, right; scratch = nothing, team = nothing)
-    if h isa FaerHouseholder && !(isnothing(scratch) && isnothing(team))
-        _householder_apply_into!(h, a, right; scratch, team)
-        return a
-    end
-    req=_householder_resource_check(h, a, eltype(a), right; scratch, team)
-    if isnothing(scratch) && isnothing(team)
-        return _householder_native_apply!(h, a, right)
-    end
-    temporary=isnothing(scratch)
-    work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
-    try
-        # Result staging and Julia/native conversion are outside the kernel query.
-        result=_householder_matrix_source(a, eltype(a))
-        t, c=_householder_orientation(h)
-        fs=_householder_workspace_functions(h)
-        args=(result, h, work, _householder_workspace_metadata(h)..., right, t, c)
-        _native_call(fs[2], args..., team)
-        buffer=ndims(a)==1 ? vec(Matrix(result)) : Matrix(result)
-        return copyto!(a, buffer)
-    finally
-        temporary && close(work)
-    end
+    isnothing(scratch) && isnothing(team) && return _householder_native_apply!(h, a, right)
+    _householder_apply_into!(h, a, right; scratch, team)
+    return a
 end
 """
     scratch_requirements(lmul!, H, A; team=nothing)

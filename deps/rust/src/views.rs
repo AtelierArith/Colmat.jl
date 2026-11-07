@@ -11,7 +11,8 @@ use rustcall_julia_macros::julia;
 mod destination;
 mod gather;
 pub(crate) use destination::{
-    destination, destination_span, operand, raw_mut, view_mut, Arm, BorrowedMut,
+    action_into, destination, destination_span, operand, raw_mut, spec_shape, view_mut, Arm,
+    BorrowedMut,
 };
 
 #[derive(Clone, Copy)]

@@ -2,6 +2,10 @@
 use super::construction::{block_size, params};
 use super::workspace::buffer;
 use crate::teams::with_team;
+use crate::views::{
+    destination, destination_span, operand, source as source_view, spec_shape, Arm, Borrowed,
+    Spec,
+};
 use crate::{guarded, householder_sequence, teams::OwnedTeam, workspace::OwnedScratch};
 use faer::dyn_stack::{MemStack, StackReq};
 use faer::linalg::{self, svd};
@@ -568,6 +572,150 @@ impl OwnedCompactBidiagonal {
                 apply_data(
                     self, scratch, m, n, b, tag, u, cols, extent, right, t, c, input, out, par,
                 )
+            })
+        })
+    }
+}
+
+/// `C = alpha*basis_action(B) + beta*C` read from and written to view
+/// descriptors. The embedding/projection work matrix is the declared
+/// scratch's `temp_mat_zeroed`, so no other buffer exists. Inputs, the
+/// action and the combined result are checked finite before the first
+/// destination write; `beta_zero` never reads C.
+#[allow(clippy::too_many_arguments)]
+unsafe fn mul_into<T: Arm>(
+    s: &Core<T>,
+    work: &mut OwnedScratch,
+    shape: (bool, usize, usize, bool, bool, bool),
+    dest: *mut u8,
+    ds: Spec,
+    src: *const u8,
+    ss: Spec,
+    coefficients: (*const u8, *const u8, bool, bool),
+    par: Par,
+) -> Result<(), String> {
+    let (u, cols, extent, right, t, c) = shape;
+    s.validate_cols(u, cols)?;
+    let dim = s.dim(u);
+    let idim = if right == t { cols } else { dim };
+    let odim = if right == t { dim } else { cols };
+    let (ir, ic) = if right { (extent, idim) } else { (idim, extent) };
+    let (or, oc) = if right { (extent, odim) } else { (odim, extent) };
+    if spec_shape(ss) != (ir, ic) || spec_shape(ds) != (or, oc) {
+        return Err("compact bidiagonal action dimensions must match".into());
+    }
+    let stack = work.stack(apply_req::<T>(s.m, s.n, s.b(), u, cols, extent, right, t)?)?;
+    let x = operand::<T>(src, ss, destination_span(dest, ds)?)?;
+    let (a, conjugate) = x.get();
+    if !a.is_all_finite() {
+        return Err("compact bidiagonal action input must be finite".into());
+    }
+    let (alpha, beta, alpha_zero, beta_zero) = coefficients;
+    let alpha = copy(&*alpha.cast::<T>());
+    let beta = copy(&*beta.cast::<T>());
+    let mut out = T::pick_mut(destination(dest, ds)?).ok_or("destination scalar types must match")?;
+    let combine = |p: Option<&T>, y: &T| {
+        let scaled = if beta_zero { zero::<T>() } else { mul(&beta, y) };
+        match p {
+            Some(p) if !alpha_zero => add(&mul(&alpha, p), &scaled),
+            _ => scaled,
+        }
+    };
+    if cols == 0 || alpha_zero {
+        for j in 0..oc {
+            for i in 0..or {
+                if !is_finite(&combine(None, &out[(i, j)])) {
+                    return Err("compact basis product overflowed the destination scalar".into());
+                }
+            }
+        }
+        for j in 0..oc {
+            for i in 0..or {
+                out[(i, j)] = combine(None, &out[(i, j)]);
+            }
+        }
+        return Ok(());
+    }
+    let (rows, ncols) = if right { (extent, dim) } else { (dim, extent) };
+    let (mut work, stack) = linalg::temp_mat_zeroed::<T, _, _>(rows, ncols, stack);
+    let mut w = work.as_mat_mut();
+    for j in 0..ic {
+        for i in 0..ir {
+            w[(i, j)] = if conjugate {
+                conj(&a[(i, j)])
+            } else {
+                copy(&a[(i, j)])
+            };
+        }
+    }
+    s.apply_in(u, w.rb_mut(), right, t, c, par, stack)?;
+    crate::typed::finite(w.as_ref())?;
+    for j in 0..oc {
+        for i in 0..or {
+            if !is_finite(&combine(Some(&w[(i, j)]), &out[(i, j)])) {
+                return Err("compact basis product overflowed the destination scalar".into());
+            }
+        }
+    }
+    for j in 0..oc {
+        for i in 0..or {
+            out[(i, j)] = combine(Some(&w[(i, j)]), &out[(i, j)]);
+        }
+    }
+    Ok(())
+}
+#[julia]
+impl OwnedCompactBidiagonal {
+    /// Native destination form of [`Self::compact_bidiagonal_apply`]:
+    /// `dest = alpha*Q*src + beta*dest` for view descriptors of one scalar.
+    /// `metadata` is `(m, n, blocksize, cols, extent)`; the source is
+    /// snapshot when it overlaps the destination.
+    ///
+    /// # Safety
+    /// Julia roots the destination, source, descriptors and coefficients.
+    #[allow(clippy::too_many_arguments)]
+    #[julia]
+    pub fn compact_bidiagonal_mul_into(
+        &self,
+        scratch: &mut OwnedScratch,
+        metadata: &[usize],
+        tag: i32,
+        u: bool,
+        right: bool,
+        t: bool,
+        c: bool,
+        dest: *mut u8,
+        dd: *const isize,
+        src: *const u8,
+        sd: *const isize,
+        alpha: *const u8,
+        beta: *const u8,
+        alpha_zero: bool,
+        beta_zero: bool,
+        team: Option<&OwnedTeam>,
+    ) -> Result<(), String> {
+        guarded(|| unsafe {
+            let [m, n, b, cols, extent] = metadata else {
+                return Err("compact basis metadata must hold (m, n, blocksize, cols, extent)".into());
+            };
+            self.validate(*m, *n, *b, tag)?;
+            let (ds, ss) = (Spec::read(dd)?, Spec::read(sd)?);
+            let shape = (u, *cols, *extent, right, t, c);
+            let k = (alpha, beta, alpha_zero, beta_zero);
+            with_team(team, |par| match (&self.data, source_view(dest, ds)?) {
+                (Data::F32(s), Borrowed::F32(_)) => {
+                    mul_into(s, scratch, shape, dest, ds, src, ss, k, par)
+                }
+                (Data::F64(s), Borrowed::F64(_)) => {
+                    mul_into(s, scratch, shape, dest, ds, src, ss, k, par)
+                }
+                (Data::C32(s), Borrowed::C32(_)) => {
+                    mul_into(s, scratch, shape, dest, ds, src, ss, k, par)
+                }
+                (Data::C64(s), Borrowed::C64(_)) => {
+                    mul_into(s, scratch, shape, dest, ds, src, ss, k, par)
+                }
+                _ => Err("compact basis and destination scalar types must match".into()),
             })
         })
     }

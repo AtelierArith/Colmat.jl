@@ -6,7 +6,14 @@ use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::StackReq;
 use faer::matrix_free::LinOp;
 use faer::traits::ComplexField;
-use faer::{Mat, MatRef, Par, ParShape};
+use crate::views::{
+    destination, destination_span, operand, source as source_view, spec_shape, Arm, Borrowed,
+    Spec,
+};
+use crate::workspace::scratch_or_temporary;
+use faer::prelude::ReborrowMut;
+use faer::traits::math_utils;
+use faer::{Mat, MatMut, MatRef, Par, ParShape};
 use rustcall_julia_macros::julia;
 
 pub(super) fn validate(
@@ -202,6 +209,131 @@ impl TypedMatrix {
         });
         Ok(())
     }
+}
+
+fn run_scratch<T: ComplexField>(a: &Operator<T>, k: usize, par: ParShape, t: bool) -> StackReq {
+    if t {
+        faer::matrix_free::BiLinOp::transpose_apply_scratch(a, k, par)
+    } else {
+        a.apply_scratch(k, par)
+    }
+}
+fn scale_into<T: ComplexField>(mut c: MatMut<'_, T>, s: &T, zero: bool) {
+    for j in 0..c.ncols() {
+        for i in 0..c.nrows() {
+            c[(i, j)] = if zero {
+                math_utils::zero::<T>()
+            } else {
+                math_utils::mul(s, &c[(i, j)])
+            };
+        }
+    }
+}
+#[allow(clippy::too_many_arguments)]
+unsafe fn mul_into<T: Arm>(
+    a: &Operator<T>,
+    dest: *mut u8,
+    ds: Spec,
+    src: *const u8,
+    ss: Spec,
+    coefficients: (*const u8, *const u8, bool, bool),
+    transpose: bool,
+    work: Option<&mut OwnedScratch>,
+    par: Par<'_>,
+) -> Result<(), String> {
+    let (rows, cols) = spec_shape(ds);
+    let (m, n) = if transpose {
+        (a.ncols(), a.nrows())
+    } else {
+        (a.nrows(), a.ncols())
+    };
+    if spec_shape(ss) != (n, cols) || rows != m {
+        return Err("operator product dimensions must match".into());
+    }
+    let (alpha, beta, alpha_zero, beta_zero) = coefficients;
+    let alpha = math_utils::copy(&*alpha.cast::<T>());
+    let beta = math_utils::copy(&*beta.cast::<T>());
+    let req = run_scratch(a, cols, par.shape(), transpose);
+    scratch_or_temporary(work, req, |work| {
+        let x = operand::<T>(src, ss, destination_span(dest, ds)?)?;
+        let conjugated;
+        let rhs = match x.get() {
+            (b, false) => b,
+            (b, true) => {
+                conjugated = b.conjugate().to_owned();
+                conjugated.as_ref()
+            }
+        };
+        let mut c =
+            T::pick_mut(destination(dest, ds)?).ok_or("destination scalar types must match")?;
+        let stack = work.stack(req)?;
+        if alpha_zero {
+            scale_into(c, &beta, beta_zero);
+            return Ok(());
+        }
+        if beta_zero {
+            a.run(c.rb_mut(), rhs, par, stack, transpose, false);
+            if alpha != math_utils::one::<T>() {
+                scale_into(c, &alpha, false);
+            }
+            return Ok(());
+        }
+        let mut product = Mat::<T>::zeros(rows, cols);
+        a.run(product.as_mut(), rhs, par, stack, transpose, false);
+        for j in 0..cols {
+            for i in 0..rows {
+                let y = math_utils::add(
+                    &math_utils::mul(&alpha, &product[(i, j)]),
+                    &math_utils::mul(&beta, &c[(i, j)]),
+                );
+                c[(i, j)] = y;
+            }
+        }
+        Ok(())
+    })
+}
+
+/// `dest = alpha*op*src + beta*dest`, or with `transpose` the transposed
+/// action `alpha*op^T*src + beta*dest` (Julia writes right products
+/// `Y = alpha*X*op + beta*Y` as `Y^T = alpha*op^T*X^T + beta*Y^T` through
+/// transposed descriptors). The native operator writes its `MatMut`
+/// output straight into the destination when `beta_zero` (LinOp outputs
+/// are replaced, never read); otherwise one native product buffer of the
+/// destination's shape holds the action before the axpby. A source that
+/// overlaps the destination is snapshot first. `alpha_zero` never reads
+/// `src` and does not run the operator. Scratch capacity and shapes are
+/// checked before the destination is written.
+///
+/// # Safety
+/// Julia roots the destination, source, descriptors and coefficients.
+#[allow(clippy::too_many_arguments)]
+#[julia]
+pub fn operator_mul_into(
+    dest: *mut u8,
+    dd: *const isize,
+    src: *const u8,
+    sd: *const isize,
+    operator: &OwnedLinearOperator,
+    transpose: bool,
+    alpha: *const u8,
+    beta: *const u8,
+    alpha_zero: bool,
+    beta_zero: bool,
+    work: Option<&mut OwnedScratch>,
+    team: Option<&OwnedTeam>,
+) -> Result<(), String> {
+    guarded(|| unsafe {
+        let (ds, ss) = (Spec::read(dd)?, Spec::read(sd)?);
+        let k = (alpha, beta, alpha_zero, beta_zero);
+        let t = transpose;
+        with_team(team, |par| match (operator.data()?, source_view(dest, ds)?) {
+            (Data::F32(a), Borrowed::F32(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
+            (Data::F64(a), Borrowed::F64(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
+            (Data::C32(a), Borrowed::C32(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
+            (Data::C64(a), Borrowed::C64(_)) => mul_into(a, dest, ds, src, ss, k, t, work, par),
+            _ => Err("operator and destination scalar types must match".into()),
+        })
+    })
 }
 
 #[cfg(test)]

@@ -324,9 +324,59 @@ function _operator_mul_prepare(dest, op, a, alpha, beta, right)
         throw(ArgumentError("operator mul! requires native working scalar types"))
     return P
 end
+# `dest = alpha*op*a + beta*dest` written by the native operator directly
+# into a native, borrowed or Julia strided destination of the working scalar
+# (Rust `operator_mul_into`). Right products `alpha*a*op + beta*dest` run as
+# the transposed action on transposed descriptors. `beta == 0` hands the
+# destination's `MatMut` to the operator (no result buffer); otherwise one
+# native product buffer precedes the axpby. A source overlapping `dest` is
+# snapshot natively. Returns `nothing` when the operands need conversion.
+function _operator_mul_native!(dest, op, a, alpha, beta, right; scratch, team)
+    P=promote_type(eltype(op), eltype(a), eltype(dest))
+    eltype(dest)===eltype(a)===P &&
+        promote_type(P, typeof(alpha), typeof(beta))<:_NativeScalar ||
+        return nothing
+    target=_gemm_destination(dest)
+    src=_gemm_input(a)
+    (isnothing(target) || isnothing(src)) && return nothing
+    working=_operator_coerce(op, P)
+    al, be=Ref{P}(P(alpha)), Ref{P}(P(beta))
+    p, d=_view_source(right ? transpose(target) : target)
+    q, e=_view_source(right ? transpose(src) : src)
+    run(work) = GC.@preserve d e al be _native_call(
+        RustCrate.operator_mul_into,
+        p,
+        pointer(d),
+        q,
+        pointer(e),
+        working,
+        right,
+        Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, al)),
+        Ptr{UInt8}(Base.unsafe_convert(Ptr{P}, be)),
+        iszero(al[]),
+        iszero(be[]),
+        work,
+        team,
+    )
+    if right && isnothing(scratch)
+        # Without caller scratch the kernel reserves its own; skip the
+        # transposed-operator clone a Julia-side query would need.
+        isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
+        isnothing(team) || _handle(team)
+        run(nothing)
+    else
+        effective=right ? transpose(working) : working
+        columns=right ? size(a, 1) : ndims(a)==1 ? 1 : size(a, 2)
+        _with_operator_workspace(run, effective, columns; scratch, team)
+    end
+    return dest
+end
 function _operator_mul!(dest, op, a, alpha, beta, right; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
+        _check_writable(dest)
         P=_operator_mul_prepare(dest, op, a, alpha, beta, right)
+        native=_operator_mul_native!(dest, op, a, alpha, beta, right; scratch, team)
+        isnothing(native) || return dest
         if iszero(alpha) && (!isnothing(scratch) || !isnothing(team))
             working=_operator_coerce(op, P)
             effective=right ? adjoint(working) : working
@@ -410,19 +460,26 @@ function LinearAlgebra.lmul!(
         return a
     end
 end
+# In-place products on views and Julia arrays write the destination natively
+# (the source, which is the destination, is snapshot first).
 function LinearAlgebra.lmul!(
     op::FaerLinearOperator,
-    a::Union{FaerView,StridedVector,StridedMatrix},
+    a::Union{FaerView,StridedVector,StridedMatrix,FaerBorrowedArray},
 )
     lock(_matrix_lock) do
         a isa FaerView && _rotation_open(a)
         size(op, 1)==size(op, 2) ||
             throw(DimensionMismatch("in-place preconditioner must be square"))
-        return _operator_copy_result!(a, op*a)
+        return _operator_mul!(a, op, a, true, false, false)
     end
 end
-LinearAlgebra.rmul!(a::_OperatorMatrix, op::FaerLinearOperator) =
-    _operator_copy_result!(a, a*op)
+function LinearAlgebra.rmul!(a::_OperatorMatrix, op::FaerLinearOperator)
+    lock(_matrix_lock) do
+        size(op, 1)==size(op, 2) ||
+            throw(DimensionMismatch("in-place operator product must be square"))
+        return _operator_mul!(a, op, a, true, false, true)
+    end
+end
 """Create an implicit native identity preconditioner (an action approximating inv(A), not A)."""
 identity_preconditioner(n::Integer; T::Type = Float64) =
     FaerLinearOperator(LinearAlgebra.I, n; T)

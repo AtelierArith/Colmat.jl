@@ -17,6 +17,7 @@ use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, OwnedMatrix};
 use faer::traits::{math_utils::*, ComplexField};
+use faer::prelude::ReborrowMut;
 use faer::{Accum, Conj, Mat, MatMut, MatRef};
 use rustcall_julia_macros::julia;
 
@@ -355,6 +356,93 @@ pub fn view_gemm(
             Borrowed::C64(_) => go!(faer::c64),
         }
     })
+}
+
+/// The `(rows, cols)` a descriptor selects.
+pub(crate) fn spec_shape(s: Spec) -> (usize, usize) {
+    if s.transpose {
+        (s.n, s.m)
+    } else {
+        (s.m, s.n)
+    }
+}
+
+/// `C = alpha*Q(B) + beta*C` for a same-shape linear action `Q` that runs
+/// in place on a `MatMut` (Householder reflections, sequences and compact
+/// reduction bases). With no source (`src` null) the action runs directly
+/// in `C` (`lmul!`/`rmul!`; the coefficients are not read).
+///
+/// `beta_zero` copies B into C and runs the action there, so no temporary
+/// exists and C is never read (NaN-safe); `alpha_zero` never reads B and
+/// does not run the action. Otherwise one native product buffer of C's
+/// shape holds `Q(B)` before the axpby. A source overlapping C is snapshot
+/// first. Callers validate the action's dimensions and scratch before this
+/// call so that a failing action never runs after C has been overwritten.
+///
+/// # Safety
+/// As for [`destination`] and [`operand`]; `alpha`/`beta` point to `T`
+/// unless `src` is null.
+#[allow(clippy::too_many_arguments)]
+pub(crate) unsafe fn action_into<T: Arm>(
+    dest: *mut u8,
+    ds: Spec,
+    src: *const u8,
+    ss: Option<Spec>,
+    alpha: *const u8,
+    beta: *const u8,
+    alpha_zero: bool,
+    beta_zero: bool,
+    action: impl FnOnce(MatMut<'_, T>) -> Result<(), String>,
+) -> Result<(), String> {
+    let Some(ss) = ss.filter(|_| !src.is_null()) else {
+        let c = T::pick_mut(destination(dest, ds)?).ok_or("destination scalar types must match")?;
+        return action(c);
+    };
+    let x = operand::<T>(src, ss, destination_span(dest, ds)?)?;
+    let alpha = copy(&*alpha.cast::<T>());
+    let beta = copy(&*beta.cast::<T>());
+    let mut c = T::pick_mut(destination(dest, ds)?).ok_or("destination scalar types must match")?;
+    let (a, conjugate) = x.get();
+    if c.shape() != a.shape() {
+        return Err("action destination shape mismatch".into());
+    }
+    if alpha_zero {
+        if beta_zero {
+            c.fill(zero::<T>());
+        } else {
+            scale(c, &beta);
+        }
+        return Ok(());
+    }
+    let load = |mut c: MatMut<'_, T>| {
+        if conjugate {
+            for j in 0..a.ncols() {
+                for i in 0..a.nrows() {
+                    c[(i, j)] = conj(&a[(i, j)]);
+                }
+            }
+        } else {
+            c.copy_from(a);
+        }
+    };
+    if beta_zero {
+        load(c.rb_mut());
+        action(c.rb_mut())?;
+        if alpha != one::<T>() {
+            scale(c, &alpha);
+        }
+        return Ok(());
+    }
+    let mut product = Mat::<T>::zeros(a.nrows(), a.ncols());
+    load(product.as_mut());
+    action(product.as_mut())?;
+    for j in 0..c.ncols() {
+        for i in 0..c.nrows() {
+            let x = add(&mul(&alpha, &product[(i, j)]), &mul(&beta, &c[(i, j)]));
+            c[(i, j)] = x;
+        }
+    }
+    Ok(())
 }
 
 unsafe fn assign<T: Arm>(dest: *mut u8, ds: Spec, p: *const u8, s: Spec) -> Result<(), String> {

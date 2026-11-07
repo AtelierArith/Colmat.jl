@@ -8,6 +8,8 @@ use super::workspace::buffer;
 use crate::collections::{VectorData, VectorOwner};
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
+use crate::views::{action_into, source as source_view, spec_shape, Arm, Borrowed, Spec};
+use crate::workspace::scratch_or_temporary;
 use crate::OwnedMatrix;
 use crate::{guarded, householder_sequence, workspace::OwnedScratch};
 use faer::dyn_stack::StackReq;
@@ -570,6 +572,92 @@ impl TypedMatrix {
 
 #[julia]
 impl TypedMatrix {}
+
+/// `dest = alpha*Q*src + beta*dest` (`right`: `alpha*src*Q + beta*dest`)
+/// for the compact tridiagonal/Hessenberg `Q` in the orientation
+/// `transpose`/`conjugated`, written by faer directly in any view
+/// destination; a null `src` applies `Q` in place. See
+/// [`crate::views::action_into`] for the coefficient and overlap rules.
+/// Metadata and scratch capacity are checked before the destination is
+/// written.
+///
+/// # Safety
+/// Julia roots the destination, source, descriptors and coefficients.
+#[allow(clippy::too_many_arguments)]
+#[julia]
+pub fn compact_tridiagonal_mul_into(
+    dest: *mut u8,
+    dd: *const isize,
+    src: *const u8,
+    sd: *const isize,
+    source: &OwnedCompactTridiagonal,
+    metadata: &[usize],
+    tag: i32,
+    right: bool,
+    transpose: bool,
+    conjugated: bool,
+    alpha: *const u8,
+    beta: *const u8,
+    alpha_zero: bool,
+    beta_zero: bool,
+    work: Option<&mut OwnedScratch>,
+    team: Option<&OwnedTeam>,
+) -> Result<(), String> {
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn go<T: Arm>(
+        s: &Core<T>,
+        dest: *mut u8,
+        ds: Spec,
+        src: *const u8,
+        ss: Option<Spec>,
+        coefficients: (*const u8, *const u8, bool, bool),
+        orientation: (bool, bool, bool),
+        work: Option<&mut OwnedScratch>,
+        par: Par,
+    ) -> Result<(), String> {
+        let (right, transpose, conjugated) = orientation;
+        let (rows, cols) = spec_shape(ds);
+        if (if right { cols } else { rows }) != s.n() {
+            return Err("compact Q application dimensions must match".into());
+        }
+        let req = s.requirement(if right { rows } else { cols }, right, transpose);
+        let (alpha, beta, alpha_zero, beta_zero) = coefficients;
+        scratch_or_temporary(work, req, |work| {
+            action_into::<T>(
+                dest,
+                ds,
+                src,
+                ss,
+                alpha,
+                beta,
+                alpha_zero,
+                beta_zero,
+                |c| s.apply(c, work, right, transpose, conjugated, par),
+            )
+        })
+    }
+    guarded(|| unsafe {
+        let [n, k, b] = metadata else {
+            return Err("compact Q metadata must hold (n, k, blocksize)".into());
+        };
+        source.validate(*n, *k, *b, tag)?;
+        let ds = Spec::read(dd)?;
+        let ss = if src.is_null() {
+            None
+        } else {
+            Some(Spec::read(sd)?)
+        };
+        let c = (alpha, beta, alpha_zero, beta_zero);
+        let o = (right, transpose, conjugated);
+        with_team(team, |par| match (&source.data, source_view(dest, ds)?) {
+            (Data::F32(s), Borrowed::F32(_)) => go(s, dest, ds, src, ss, c, o, work, par),
+            (Data::F64(s), Borrowed::F64(_)) => go(s, dest, ds, src, ss, c, o, work, par),
+            (Data::C32(s), Borrowed::C32(_)) => go(s, dest, ds, src, ss, c, o, work, par),
+            (Data::C64(s), Borrowed::C64(_)) => go(s, dest, ds, src, ss, c, o, work, par),
+            _ => Err("compact tridiagonal scalar types must match".into()),
+        })
+    })
+}
 
 // Promote only Q's meaningful data. Packed H coefficients can overflow in a
 // narrower scalar even when the unitary Q is perfectly representable.

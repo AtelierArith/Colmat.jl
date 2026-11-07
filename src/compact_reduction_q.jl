@@ -157,6 +157,41 @@ function _householder_native_apply!(q::AbstractFaerCompactQ, a, right)
     end
 end
 Base.:\(q::AbstractFaerCompactQ, a::_HouseholderArray) = q'*a
+# Native destination action; see `_householder_into!`.
+function _householder_into_native!(
+    q::AbstractFaerCompactQ,
+    p,
+    d,
+    s,
+    e,
+    right,
+    al,
+    be,
+    az,
+    bz;
+    scratch,
+    team,
+)
+    _native_call(
+        RustCrate.compact_tridiagonal_mul_into,
+        p,
+        d,
+        s,
+        e,
+        q,
+        UInt[q.n, q.k, q.blocksize],
+        _tag(eltype(q)),
+        right,
+        q.transposed,
+        q.conjugated,
+        al,
+        be,
+        az,
+        bz,
+        scratch,
+        team,
+    )
+end
 
 # Queries validate the original native owner, then select the target scalar's
 # kernel layout directly. They never allocate a promoted copy of the reflectors.

@@ -1,6 +1,8 @@
 //! External native scratch and scoped teams for compact reflector application.
 use super::{apply_in, requirement, Data, OwnedHouseholderSequence, Sequence};
 use crate::teams::with_team;
+use crate::views::{action_into, source as source_view, spec_shape, Arm, Borrowed, Spec};
+use crate::workspace::scratch_or_temporary;
 use crate::{
     guarded,
     typed::{MatrixData, TypedMatrix},
@@ -191,6 +193,84 @@ impl TypedMatrix {
 }
 #[julia]
 impl TypedMatrix {}
+
+/// `dest = alpha*Q*src + beta*dest` (`right`: `alpha*src*Q + beta*dest`)
+/// for the sequence `Q` in the orientation `transpose`/`conjugate`, written
+/// by faer directly in any view destination; a null `src` applies `Q` in
+/// place. See [`crate::views::action_into`] for the coefficient and overlap
+/// rules. Scratch capacity is checked before the destination is written.
+///
+/// # Safety
+/// Julia roots the destination, source, descriptors and coefficients.
+#[allow(clippy::too_many_arguments)]
+#[julia]
+pub fn sequence_mul_into(
+    dest: *mut u8,
+    dd: *const isize,
+    src: *const u8,
+    sd: *const isize,
+    source: &OwnedHouseholderSequence,
+    right: bool,
+    transpose: bool,
+    conjugate: bool,
+    alpha: *const u8,
+    beta: *const u8,
+    alpha_zero: bool,
+    beta_zero: bool,
+    work: Option<&mut OwnedScratch>,
+    team: Option<&OwnedTeam>,
+) -> Result<(), String> {
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn go<T: Arm>(
+        s: &Sequence<T>,
+        dest: *mut u8,
+        ds: Spec,
+        src: *const u8,
+        ss: Option<Spec>,
+        coefficients: (*const u8, *const u8, bool, bool),
+        orientation: (bool, bool, bool),
+        work: Option<&mut OwnedScratch>,
+        par: Par,
+    ) -> Result<(), String> {
+        let (right, transpose, conjugate) = orientation;
+        let (rows, cols) = spec_shape(ds);
+        if (if right { cols } else { rows }) != s.basis.nrows() {
+            return Err("Householder application dimensions must match".into());
+        }
+        let req = requirement(s, if right { rows } else { cols }, right, transpose);
+        let (alpha, beta, alpha_zero, beta_zero) = coefficients;
+        scratch_or_temporary(work, req, |work| {
+            action_into::<T>(
+                dest,
+                ds,
+                src,
+                ss,
+                alpha,
+                beta,
+                alpha_zero,
+                beta_zero,
+                |c| apply_in(s, c, right, transpose, conjugate, par, work.stack(req)?),
+            )
+        })
+    }
+    guarded(|| unsafe {
+        let ds = Spec::read(dd)?;
+        let ss = if src.is_null() {
+            None
+        } else {
+            Some(Spec::read(sd)?)
+        };
+        let k = (alpha, beta, alpha_zero, beta_zero);
+        let o = (right, transpose, conjugate);
+        with_team(team, |par| match (source.data()?, source_view(dest, ds)?) {
+            (Data::F32(s), Borrowed::F32(_)) => go(s, dest, ds, src, ss, k, o, work, par),
+            (Data::F64(s), Borrowed::F64(_)) => go(s, dest, ds, src, ss, k, o, work, par),
+            (Data::C32(s), Borrowed::C32(_)) => go(s, dest, ds, src, ss, k, o, work, par),
+            (Data::C64(s), Borrowed::C64(_)) => go(s, dest, ds, src, ss, k, o, work, par),
+            _ => Err("Householder scalar types must match".into()),
+        })
+    })
+}
 
 #[cfg(test)]
 mod tests {

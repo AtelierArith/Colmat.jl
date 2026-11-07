@@ -1,6 +1,9 @@
 //! External native scratch and scoped teams for compact reflector application.
 use super::{apply_in, requirement, OwnedHouseholder, Reflection, ReflectionData};
-use crate::views::{destination, BorrowedMut, Spec};
+use crate::views::{
+    action_into, source as source_view, spec_shape, Arm, Borrowed, Spec,
+};
+use crate::workspace::scratch_or_temporary;
 use crate::{
     guarded,
     typed::{MatrixData, TypedMatrix},
@@ -10,7 +13,6 @@ use crate::{
     teams::{with_team, OwnedTeam},
     workspace::OwnedScratch,
 };
-use faer::dyn_stack::{MemBuffer, MemStack};
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{MatMut, Par};
 use rustcall_julia_macros::julia;
@@ -178,49 +180,85 @@ impl TypedMatrix {
 #[julia]
 impl TypedMatrix {}
 
-/// Apply the reflection in place to any view destination (native owner,
-/// native view or borrowed Julia strided memory), with optional caller
-/// scratch and team. No input/output staging: the destination is the
-/// faer `MatMut` itself.
+/// `dest = alpha*H*src + beta*dest` (`right`: `alpha*src*H + beta*dest`)
+/// written by faer directly in any view destination; a null `src` applies
+/// the reflection in place. See [`crate::views::action_into`] for the
+/// coefficient and overlap rules. `work` is the caller's scratch (a
+/// temporary one is reserved without it); its capacity is checked before
+/// the destination is written.
 ///
 /// # Safety
-/// Julia roots the destination owner (or Julia array) and descriptor.
+/// Julia roots the destination, source, descriptors and coefficients.
+#[allow(clippy::too_many_arguments)]
 #[julia]
-pub fn householder_apply_into(
+pub fn householder_mul_into(
     dest: *mut u8,
     dd: *const isize,
+    src: *const u8,
+    sd: *const isize,
     source: &OwnedHouseholder,
     right: bool,
+    alpha: *const u8,
+    beta: *const u8,
+    alpha_zero: bool,
+    beta_zero: bool,
     work: Option<&mut OwnedScratch>,
     team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    fn go<T: ComplexField>(
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn go<T: Arm>(
         s: &Reflection<T>,
-        a: MatMut<'_, T>,
+        dest: *mut u8,
+        ds: Spec,
+        src: *const u8,
+        ss: Option<Spec>,
+        coefficients: (*const u8, *const u8, bool, bool),
         right: bool,
         work: Option<&mut OwnedScratch>,
         par: Par,
     ) -> Result<(), String> {
-        match work {
-            Some(work) => run(s, a, work, right, false, false, par),
-            None => {
-                let extent = if right { a.nrows() } else { a.ncols() };
-                let req = requirement(s, extent, right, false);
-                let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
-                apply_in(s, a, right, par, MemStack::new(&mut mem))
-            }
+        let (rows, cols) = spec_shape(ds);
+        if (if right { cols } else { rows }) != s.basis.nrows() {
+            return Err("Householder application dimensions must match".into());
         }
+        let req = requirement(s, if right { rows } else { cols }, right, false);
+        let (alpha, beta, alpha_zero, beta_zero) = coefficients;
+        scratch_or_temporary(work, req, |work| {
+            action_into::<T>(
+                dest,
+                ds,
+                src,
+                ss,
+                alpha,
+                beta,
+                alpha_zero,
+                beta_zero,
+                |c| apply_in(s, c, right, par, work.stack(req)?),
+            )
+        })
     }
-    guarded(|| {
-        let spec = unsafe { Spec::read(dd)? };
-        with_team(team, |par| {
-            match (source.data()?, unsafe { destination(dest, spec)? }) {
-                (ReflectionData::F32(s), BorrowedMut::F32(a)) => go(s, a, right, work, par),
-                (ReflectionData::F64(s), BorrowedMut::F64(a)) => go(s, a, right, work, par),
-                (ReflectionData::C32(s), BorrowedMut::C32(a)) => go(s, a, right, work, par),
-                (ReflectionData::C64(s), BorrowedMut::C64(a)) => go(s, a, right, work, par),
-                _ => Err("Householder scalar types must match".into()),
+    guarded(|| unsafe {
+        let ds = Spec::read(dd)?;
+        let ss = if src.is_null() {
+            None
+        } else {
+            Some(Spec::read(sd)?)
+        };
+        let k = (alpha, beta, alpha_zero, beta_zero);
+        with_team(team, |par| match (source.data()?, source_view(dest, ds)?) {
+            (ReflectionData::F32(s), Borrowed::F32(_)) => {
+                go(s, dest, ds, src, ss, k, right, work, par)
             }
+            (ReflectionData::F64(s), Borrowed::F64(_)) => {
+                go(s, dest, ds, src, ss, k, right, work, par)
+            }
+            (ReflectionData::C32(s), Borrowed::C32(_)) => {
+                go(s, dest, ds, src, ss, k, right, work, par)
+            }
+            (ReflectionData::C64(s), Borrowed::C64(_)) => {
+                go(s, dest, ds, src, ss, k, right, work, par)
+            }
+            _ => Err("Householder scalar types must match".into()),
         })
     })
 }
