@@ -131,6 +131,7 @@ pub(super) fn amd_cholesky(
     side: Side,
     control: amd::Control,
     threshold: SupernodalThreshold,
+    supernodal_params: faer::sparse::linalg::SymbolicSupernodalParams<'_>,
     stack: &mut MemStack,
 ) -> Result<SymbolicCholesky<usize>, String> {
     let n = a.nrows();
@@ -147,7 +148,7 @@ pub(super) fn amd_cholesky(
         cholesky::CholeskySymbolicParams {
             amd_params: control,
             supernodal_flop_ratio_threshold: forced,
-            ..Default::default()
+            supernodal_params,
         },
     )
     .map_err(|e| format!("{e:?}"))
@@ -373,6 +374,114 @@ mod tests {
             }
         }
         assert_eq!(seen, [true, true]);
+    }
+
+    fn tune(s: &mut SparseSymbolic, ratio: f64, relax: Option<&[(usize, f64)]>) {
+        let (sizes, fractions): (Vec<usize>, Vec<f64>) =
+            relax.unwrap_or(&[]).iter().copied().unzip();
+        s.sparse_symbolic_tuning(
+            ratio,
+            relax.is_some(),
+            sizes.as_ptr(),
+            fractions.as_ptr(),
+            sizes.len(),
+        )
+        .unwrap();
+    }
+    #[test]
+    fn supernodal_tuning_reaches_cholesky_and_lu_analyses() {
+        let p = owner(400, &laplacian(20));
+        let a = p.data().unwrap().csc().unwrap();
+        let simplicial = |s: &SparseSymbolic| {
+            matches!(
+                llt(s).raw(),
+                faer::sparse::linalg::cholesky::SymbolicCholeskyRaw::Simplicial(_)
+            )
+        };
+        let req = requirement(400, 400, a.compute_nnz(), 2, 0, 0);
+        let mut work = OwnedScratch::new();
+        work.scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        let mut s = SparseSymbolic::new();
+        analyze(&mut s, &p, None, 0);
+        let default = simplicial(&s);
+        for (ratio, expected) in [(f64::INFINITY, true), (0.0, false)] {
+            for caller in [false, true] {
+                let mut s = SparseSymbolic::new();
+                tune(&mut s, ratio, None);
+                analyze(&mut s, &p, caller.then_some(&mut work), 0);
+                assert_eq!(simplicial(&s), expected);
+                // Tuning is consumed by one analysis.
+                analyze(&mut s, &p, caller.then_some(&mut work), 0);
+                assert_eq!(simplicial(&s), default);
+            }
+        }
+        // No relaxation stores no padding; faer's default relaxation does.
+        let storage = |relax: Option<&[(usize, f64)]>, caller: bool, work: &mut OwnedScratch| {
+            let mut s = SparseSymbolic::new();
+            tune(&mut s, f64::NAN, relax);
+            analyze(&mut s, &p, caller.then_some(work), 2);
+            llt(&s).len_val()
+        };
+        for caller in [false, true] {
+            let default = storage(None, caller, &mut work);
+            let none = storage(Some(&[]), caller, &mut work);
+            let wide = storage(Some(&[(usize::MAX, 1.0)]), caller, &mut work);
+            assert!(none < default && default < wide, "{none} {default} {wide}");
+        }
+        let lu = |ratio: f64, relax: Option<&[(usize, f64)]>, alg: i32| {
+            let mut s = SparseSymbolic::new();
+            tune(&mut s, ratio, relax);
+            s.sparse_analyze(&p, 0, true, 0, std::ptr::null(), 10.0, true, alg, 0.5, 0.5)
+                .map(|()| match &s.plan().unwrap().analysis {
+                    super::super::Analysis::Lu(sym) => sym.clone(),
+                    _ => unreachable!(),
+                })
+        };
+        // faer exposes no LU variant accessor; numeric scratch identifies it.
+        let numeric_req = |sym: &faer::sparse::linalg::lu::SymbolicLu<usize>| {
+            sym.factorize_numeric_lu_scratch::<f64>(faer::Par::Seq.shape(), Default::default())
+        };
+        let forced = |t| {
+            faer::sparse::linalg::lu::factorize_symbolic_lu(
+                a.as_ref(),
+                faer::sparse::linalg::lu::LuSymbolicParams {
+                    supernodal_flop_ratio_threshold: t,
+                    supernodal_params: faer::sparse::linalg::SymbolicSupernodalParams {
+                        relax: Some(&[]),
+                    },
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+        let simplicial_lu = numeric_req(&forced(SupernodalThreshold::FORCE_SIMPLICIAL));
+        let supernodal_lu = numeric_req(&forced(SupernodalThreshold::FORCE_SUPERNODAL));
+        assert_ne!(simplicial_lu, supernodal_lu);
+        assert_eq!(
+            numeric_req(&lu(f64::INFINITY, None, 0).unwrap()),
+            simplicial_lu
+        );
+        assert_eq!(numeric_req(&lu(0.0, Some(&[]), 0).unwrap()), supernodal_lu);
+        assert!(lu(f64::NAN, Some(&[(8, 0.5)]), 2).is_ok());
+        // Rejected combinations.
+        assert!(lu(1.0, None, 2).is_err());
+        assert!(lu(f64::NAN, Some(&[(8, 0.5)]), 1).is_err());
+        let mut s = SparseSymbolic::new();
+        tune(&mut s, 1.0, None);
+        assert!(s
+            .sparse_analyze(&p, 1, true, 0, std::ptr::null(), 10.0, true, 0, 0.5, 0.5)
+            .is_err());
+        assert!(s
+            .sparse_symbolic_tuning(-1.0, false, std::ptr::null(), std::ptr::null(), 0)
+            .is_err());
+        let (sizes, fractions) = ([4usize], [1.5f64]);
+        assert!(s
+            .sparse_symbolic_tuning(f64::NAN, true, sizes.as_ptr(), fractions.as_ptr(), 1)
+            .is_err());
+        assert!(s
+            .sparse_symbolic_tuning(f64::NAN, true, std::ptr::null(), std::ptr::null(), 1)
+            .is_err());
     }
 
     #[test]

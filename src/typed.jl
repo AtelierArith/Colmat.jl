@@ -299,10 +299,6 @@ function Base.sum(a::FaerMatrix{T}; dims = :, kw...) where {T<:_ExtraScalar}
         return _typed_result(T, RustCrate.axis_sum_from, (size(a, 1), 1), a, Int32(2))
     return _native_sum(a, dims)
 end
-function LinearAlgebra.det(a::FaerMatrix{T}) where {T<:_ExtraScalar}
-    LinearAlgebra.checksquare(a)
-    return _typed_scalar(a, 1)
-end
 function LinearAlgebra.tr(a::FaerMatrix{T}) where {T<:_ExtraScalar}
     LinearAlgebra.checksquare(a)
     return _typed_scalar(a, 2)
@@ -348,18 +344,20 @@ function _factor(
     check = true,
     uplo = :L,
     team = nothing,
+    rook::Bool = false,
 ) where {T<:_ExtraScalar,K}
     if K in (:cholesky, :ldlt, :bunchkaufman)
         LinearAlgebra.checksquare(a)
     end
     lock(_matrix_lock) do
         h=RustCrate.TypedFactor()
+        code=_construction_code(K, code, rook)
         info=Int(_initialize_dense_factor(h, a, code, uplo===:L, team))
         if check && info!=0
             K===:cholesky && throw(LinearAlgebra.PosDefException(info))
             throw(LinearAlgebra.SingularException(info))
         end
-        return FaerFactorization{T,K,typeof(h)}(h, size(a), info, uplo)
+        return FaerFactorization{T,K,typeof(h)}(h, size(a), info, uplo, rook)
     end
 end
 LinearAlgebra.lu(
@@ -396,26 +394,44 @@ function LinearAlgebra.cholesky(
     check::Bool = true,
     team = nothing,
 ) where {T<:_ExtraScalar}
-    LinearAlgebra.ishermitian(a) || throw(LinearAlgebra.PosDefException(-1))
+    LinearAlgebra.ishermitian(a) ||
+        return _non_hermitian_cholesky(a, check, RustCrate.TypedFactor)
     return _factor(a, Val(:cholesky), 4; check, team)
 end
 LinearAlgebra.cholesky(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing) =
     _factor(parent(a), Val(:cholesky), 4; check, team, uplo = _uplo(a))
-for (fn, code) in ((:ldlt, 5), (:bunchkaufman, 6))
-    @eval begin
-        function LinearAlgebra.$fn(
-            a::FaerMatrix{T};
-            check::Bool = true,
-            team = nothing,
-        ) where {T<:_ExtraScalar}
-            LinearAlgebra.ishermitian(a) ||
-                throw(ArgumentError("self-adjoint factorization requires Hermitian input"))
-            return _factor(a, Val($(QuoteNode(fn))), $code; check, team)
-        end
-        LinearAlgebra.$fn(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing) =
-            _factor(parent(a), Val($(QuoteNode(fn))), $code; check, team, uplo = _uplo(a))
-    end
+function _require_hermitian(a::FaerMatrix)
+    LinearAlgebra.ishermitian(a) && return nothing
+    message="self-adjoint factorization requires Hermitian input"
+    eltype(a)<:Complex && LinearAlgebra.issymmetric(a) &&
+        (message*="; complex symmetric (non-Hermitian) LDLᵀ is not provided by t4a-faer")
+    throw(ArgumentError(message))
 end
+function LinearAlgebra.ldlt(
+    a::FaerMatrix{T};
+    check::Bool = true,
+    team = nothing,
+) where {T<:_ExtraScalar}
+    _require_hermitian(a)
+    return _factor(a, Val(:ldlt), 5; check, team)
+end
+LinearAlgebra.ldlt(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing) =
+    _factor(parent(a), Val(:ldlt), 5; check, team, uplo = _uplo(a))
+function LinearAlgebra.bunchkaufman(
+    a::FaerMatrix{T},
+    rook::Bool = false;
+    check::Bool = true,
+    team = nothing,
+) where {T<:_ExtraScalar}
+    _require_hermitian(a)
+    return _factor(a, Val(:bunchkaufman), 6; check, team, rook)
+end
+LinearAlgebra.bunchkaufman(
+    a::_ExtraSelfAdjoint,
+    rook::Bool = false;
+    check::Bool = true,
+    team = nothing,
+) = _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook)
 _factor_part(f::FaerFactorization{T}, code, dims) where {T<:_ExtraScalar} =
     _typed_result(T, RustCrate.factor_part_from, dims, f, Int32(code))
 FaerMatrix(f::FaerFactorization{T}) where {T<:_ExtraScalar} = _factor_part(f, 0, size(f))
@@ -423,7 +439,7 @@ function Base.copy(f::FaerFactorization{T,K}) where {T<:_ExtraScalar,K}
     lock(_matrix_lock) do
         h=RustCrate.TypedFactor()
         _native_call(RustCrate.clone_factor, h, f)
-        return FaerFactorization{T,K,typeof(h)}(h, size(f), f.info, f.uplo)
+        return FaerFactorization{T,K,typeof(h)}(h, size(f), f.info, f.uplo, f.rook)
     end
 end
 function Base.deepcopy_internal(
@@ -464,6 +480,7 @@ function _typed_solve(
             getproperty(_FactorCodes, K);
             uplo = f.uplo,
             team,
+            rook = f.rook,
         )
         try
             # Keep source precision when applying the promoted saved factor.
@@ -850,24 +867,6 @@ function _triangular_wrap(a, b)
         LinearAlgebra.UpperTriangular(b)
     )
 end
-function Base.:\(a::_ExtraTriangular, b::FaerMatrix)
-    size(a, 1)==size(b, 1) ||
-        throw(DimensionMismatch("triangular solve dimensions must match"))
-    P=promote_type(eltype(a), eltype(b))
-    P===eltype(a) || return _triangular_wrap(a, _coerce(parent(a), P))\_coerce(b, P)
-    return _typed_result(
-        P,
-        RustCrate.triangular_solve_typed,
-        size(b),
-        parent(a),
-        _coerce(b, P),
-        _islower(a),
-        _isunit(a),
-    )
-end
-Base.:\(a::_ExtraTriangular, b::StridedMatrix{<:Number}) = a\FaerMatrix(b)
-Base.:\(a::_ExtraTriangular, b::AbstractVector{<:Number}) =
-    vec(Matrix(a\FaerMatrix(reshape(b, :, 1))))
 Base.inv(a::_ExtraTriangular) = _typed_result(
     eltype(a),
     RustCrate.triangular_inverse_typed,
@@ -876,11 +875,6 @@ Base.inv(a::_ExtraTriangular) = _typed_result(
     _islower(a),
     _isunit(a),
 )
-LinearAlgebra.ldiv!(a::_ExtraTriangular, b::FaerMatrix) = copyto!(b, a\b)
-function LinearAlgebra.ldiv!(dest::FaerMatrix, a::_ExtraTriangular, b::FaerMatrix)
-    size(dest)==size(b) || throw(DimensionMismatch("output dimensions must match RHS"))
-    return copyto!(dest, a\b)
-end
 function LinearAlgebra.logabsdet(f::FaerFactorization{T}) where {T<:_ExtraScalar}
     R=_realtype(T)
     value=Ref{R}()

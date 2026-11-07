@@ -155,6 +155,39 @@ pub(crate) unsafe fn source<'a>(p: *const u8, s: Spec) -> Result<Borrowed<'a>, S
         _ => return Err("unknown view owner".into()),
     })
 }
+/// A mutable, injective, untransposed range of a native owner's matrix.
+pub(crate) fn borrowed_mut<'a, T>(a: MatMut<'a, T>, s: Spec) -> Result<MatMut<'a, T>, String> {
+    if s.transpose || s.conjugate {
+        return Err("destination views cannot be transposed or conjugated".into());
+    }
+    if (s.rs == 0 && s.m > 1) || (s.cs == 0 && s.n > 1) {
+        return Err("destination view must not repeat indices".into());
+    }
+    s.check(a.nrows(), a.ncols())?;
+    let rs = a
+        .row_stride()
+        .checked_mul(s.rs)
+        .ok_or("view stride overflow")?;
+    let cs = a
+        .col_stride()
+        .checked_mul(s.cs)
+        .ok_or("view stride overflow")?;
+    let offset = if s.m == 0 || s.n == 0 {
+        0
+    } else {
+        a.row_stride()
+            .checked_mul(s.r)
+            .and_then(|x| {
+                a.col_stride()
+                    .checked_mul(s.c)
+                    .and_then(|y| x.checked_add(y))
+            })
+            .ok_or("view offset overflow")?
+    };
+    // SAFETY: the checked, injective index map stays inside the owner, which
+    // the caller borrows mutably for the whole call.
+    Ok(unsafe { MatMut::from_raw_parts_mut(a.as_ptr_mut().offset(offset), s.m, s.n, rs, cs) })
+}
 fn copied<T: ComplexField>(a: MatRef<'_, T>, conjugate: bool) -> Mat<T> {
     if conjugate {
         a.conjugate().to_owned()

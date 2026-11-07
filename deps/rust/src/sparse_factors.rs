@@ -37,10 +37,31 @@ struct Plan {
     pattern: SymbolicSparseColMat<usize>,
     lower: bool,
 }
+/// Supernodal controls consumed by the next analysis: faer's
+/// `supernodal_flop_ratio_threshold` (auto selection only) and
+/// `SymbolicSupernodalParams::relax` (`None` keeps faer's default).
+#[derive(Clone, Default)]
+struct Tuning {
+    ratio: Option<f64>,
+    relax: Option<Vec<(usize, f64)>>,
+}
+impl Tuning {
+    fn supernodal(&self) -> faer::sparse::linalg::SymbolicSupernodalParams<'_> {
+        match &self.relax {
+            Some(relax) => faer::sparse::linalg::SymbolicSupernodalParams { relax: Some(relax) },
+            None => Default::default(),
+        }
+    }
+    fn threshold(&self) -> SupernodalThreshold {
+        self.ratio
+            .map_or(SupernodalThreshold::AUTO, SupernodalThreshold)
+    }
+}
 #[julia]
 #[derive(Default)]
 pub struct SparseSymbolic {
     plan: Option<Plan>,
+    tuning: Tuning,
 }
 impl SparseSymbolic {
     fn plan(&self) -> Result<&Plan, String> {
@@ -54,6 +75,57 @@ impl SparseSymbolic {
     #[julia]
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Stage supernodal controls for the next `sparse_analyze*` call:
+    /// `ratio` (NaN keeps faer's automatic 1.0) and, when `custom_relax`,
+    /// `len` relaxation pairs `(sizes[k], fractions[k])`.
+    #[julia]
+    pub fn sparse_symbolic_tuning(
+        &mut self,
+        ratio: f64,
+        custom_relax: bool,
+        sizes: *const usize,
+        fractions: *const f64,
+        len: usize,
+    ) -> Result<(), String> {
+        guarded(|| {
+            if !ratio.is_nan() && ratio < 0.0 {
+                return Err("supernodal threshold must be nonnegative".into());
+            }
+            let relax = if custom_relax {
+                if len > 0 && (sizes.is_null() || fractions.is_null()) {
+                    return Err("relaxation pairs require sizes and fractions".into());
+                }
+                let (sizes, fractions): (&[usize], &[f64]) = if len == 0 {
+                    (&[], &[])
+                } else {
+                    // SAFETY: Julia preserves `len` sizes and fractions for this call.
+                    unsafe {
+                        (
+                            std::slice::from_raw_parts(sizes, len),
+                            std::slice::from_raw_parts(fractions, len),
+                        )
+                    }
+                };
+                if fractions.iter().any(|z| !(0.0..=1.0).contains(z)) {
+                    return Err("relaxation zero fractions must lie in [0, 1]".into());
+                }
+                Some(
+                    sizes
+                        .iter()
+                        .copied()
+                        .zip(fractions.iter().copied())
+                        .collect(),
+                )
+            } else {
+                None
+            };
+            self.tuning = Tuning {
+                ratio: (!ratio.is_nan()).then_some(ratio),
+                relax,
+            };
+            Ok(())
+        })
     }
     #[julia]
     pub fn sparse_analyze(
@@ -100,7 +172,17 @@ impl SparseSymbolic {
         dense_col: f64,
         mut work: Option<&mut MemStack>,
     ) -> Result<(), String> {
+        let tuning = std::mem::take(&mut self.tuning);
         guarded(|| {
+            let tuned = tuning.ratio.is_some() || tuning.relax.is_some();
+            if tuned && (kind == 1 || (kind == 0 && supernodal == 1)) {
+                return Err(
+                    "supernodal tuning requires sparse Cholesky or non-simplicial sparse LU".into(),
+                );
+            }
+            if tuning.ratio.is_some() && supernodal != 0 {
+                return Err("supernodal threshold requires automatic algorithm selection".into());
+            }
             if !dense_row.is_finite() || !dense_col.is_finite() {
                 return Err("COLAMD thresholds must be finite".into());
             }
@@ -154,9 +236,9 @@ impl SparseSymbolic {
                         supernodal_flop_ratio_threshold: if supernodal == 2 {
                             SupernodalThreshold::FORCE_SUPERNODAL
                         } else {
-                            SupernodalThreshold::AUTO
+                            tuning.threshold()
                         },
-                        ..Default::default()
+                        supernodal_params: tuning.supernodal(),
                     };
                     let symbolic = Arc::new(faer::sparse::linalg::lu::factorize_symbolic_lu_with_column_ordering(
                         pattern.as_ref(),params,explicit_cols.as_ref().map(|p|p.as_ref()),
@@ -279,7 +361,7 @@ impl SparseSymbolic {
                         _ => return Err("unknown Cholesky ordering".into()),
                     };
                     let threshold = match supernodal {
-                        0 => SupernodalThreshold::AUTO,
+                        0 => tuning.threshold(),
                         1 => SupernodalThreshold::FORCE_SIMPLICIAL,
                         2 => SupernodalThreshold::FORCE_SUPERNODAL,
                         _ => return Err("unknown sparse factor algorithm".into()),
@@ -292,6 +374,7 @@ impl SparseSymbolic {
                             side,
                             amd_params,
                             threshold,
+                            tuning.supernodal(),
                             work,
                         )?,
                         (ord, _) => cholesky::factorize_symbolic_cholesky(
@@ -301,7 +384,7 @@ impl SparseSymbolic {
                             cholesky::CholeskySymbolicParams {
                                 amd_params,
                                 supernodal_flop_ratio_threshold: threshold,
-                                ..Default::default()
+                                supernodal_params: tuning.supernodal(),
                             },
                         )
                         .map_err(|e| format!("{e:?}"))?,
@@ -374,7 +457,15 @@ fn numeric_with_par<T: ComplexField>(
     scratch: Option<&mut crate::workspace::OwnedScratch>,
     par: Par<'_>,
 ) -> Result<Result<Numeric<T>, usize>, String> {
-    let a = a.csc()?;
+    // Borrow CSC input; only CSR orientation needs a normalized copy.
+    let converted;
+    let a = match a {
+        Storage::Csc(a) => a.as_ref(),
+        Storage::Csr(a) => {
+            converted = a.to_col_major().map_err(|e| format!("{e:?}"))?;
+            converted.as_ref()
+        }
+    };
     let s = a.symbolic();
     if (s.nrows(), s.ncols()) != (p.pattern.nrows(), p.pattern.ncols())
         || s.col_ptr() != p.pattern.col_ptr()
@@ -430,29 +521,13 @@ fn numeric_with_par<T: ComplexField>(
         }),
         Analysis::Llt(sym) => {
             // faer's identity-order numeric path can pass the original matrix
-            // straight to its triangle-only kernel. Strip the ignored half
-            // explicitly so stored entries there never contaminate workspace.
-            let entries: Vec<_> = a
-                .as_ref()
-                .triplet_iter()
-                .filter(|e| {
-                    if p.lower {
-                        e.row >= e.col
-                    } else {
-                        e.row <= e.col
-                    }
-                })
-                .map(|e| faer::sparse::Triplet {
-                    row: e.row,
-                    col: e.col,
-                    val: copy(e.val),
-                })
-                .collect();
-            let triangle =
-                faer::sparse::SparseColMat::try_new_from_triplets(a.nrows(), a.ncols(), &entries)
-                    .map_err(|e| format!("{e:?}"))?;
+            // straight to its triangle-only kernel. Strip the ignored half so
+            // stored entries there never contaminate workspace; the stripped
+            // copy lives in the same stack as faer's numeric workspace.
             let mut values = vec![zero::<T>(); sym.len_val()];
-            let req = sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default());
+            let req = construction_temporaries::triangle_req::<T>(s, p.lower).and(
+                sym.factorize_numeric_llt_scratch::<T>(par.shape(), Default::default()),
+            );
             let mut memory = if scratch.is_none() {
                 Some(MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?)
             } else {
@@ -463,16 +538,22 @@ fn numeric_with_par<T: ComplexField>(
             } else {
                 MemStack::new(memory.as_mut().unwrap())
             };
-            match sym.factorize_numeric_llt(
-                &mut values,
-                triangle.as_ref(),
-                if p.lower { Side::Lower } else { Side::Upper },
-                Default::default(),
-                par,
-                stack,
-                Default::default(),
-            ) {
-                Ok(_) => Numeric::Llt(SparseLlt {
+            let side = if p.lower { Side::Lower } else { Side::Upper };
+            let result =
+                construction_temporaries::with_triangle(a, p.lower, stack, |triangle, stack| {
+                    sym.factorize_numeric_llt(
+                        &mut values,
+                        triangle,
+                        side,
+                        Default::default(),
+                        par,
+                        stack,
+                        Default::default(),
+                    )
+                    .map(|_| ())
+                });
+            match result {
+                Ok(()) => Numeric::Llt(SparseLlt {
                     symbolic: sym.clone(),
                     values,
                 }),
@@ -684,22 +765,15 @@ impl SparseSymbolic {
     }
 }
 
-// Export only mathematical lower-triangle entries. Supernode buffers also
-// contain unused upper block entries, which must not become sparse values.
-fn cholesky_entries<T: ComplexField>(
-    f: &SparseLlt<T>,
-) -> Vec<faer::sparse::Triplet<usize, usize, T>> {
-    use faer::sparse::Triplet;
-    let mut entries = Vec::new();
+// Enumerate only mathematical lower-triangle entries, column by column.
+// Supernode buffers also contain unused upper block entries, which must not
+// become sparse values.
+fn cholesky_entries<T: ComplexField>(f: &SparseLlt<T>, emit: &mut dyn FnMut(usize, usize, &T)) {
     match f.symbolic.raw() {
         cholesky::SymbolicCholeskyRaw::Simplicial(sym) => {
             for col in 0..sym.ncols() {
                 for k in sym.col_ptr()[col]..sym.col_ptr()[col + 1] {
-                    entries.push(Triplet {
-                        row: sym.row_idx()[k],
-                        col,
-                        val: copy(&f.values[k]),
-                    });
+                    emit(sym.row_idx()[k], col, &f.values[k]);
                 }
             }
         }
@@ -710,43 +784,60 @@ fn cholesky_entries<T: ComplexField>(
                 let block = node.val();
                 let width = block.ncols();
                 let start = node.start();
+                // Diagonal-block rows, then the sorted off-block pattern below it.
                 for j in 0..width {
                     for i in j..width {
-                        entries.push(Triplet {
-                            row: start + i,
-                            col: start + j,
-                            val: copy(&block[(i, j)]),
-                        });
+                        emit(start + i, start + j, &block[(i, j)]);
                     }
                     for (i, &row) in node.pattern().iter().enumerate() {
-                        entries.push(Triplet {
-                            row,
-                            col: start + j,
-                            val: copy(&block[(width + i, j)]),
-                        });
+                        emit(row, start + j, &block[(width + i, j)]);
                     }
                 }
             }
         }
     }
-    entries
 }
+// Assemble L (or U = L^H) directly as sorted CSC without a triplet buffer.
 fn cholesky_component<T: ComplexField>(
     f: &SparseLlt<T>,
     upper: bool,
 ) -> Result<Storage<T>, String> {
-    let mut entries = cholesky_entries(f);
-    if upper {
-        for e in &mut entries {
-            std::mem::swap(&mut e.row, &mut e.col);
-            e.val = faer::traits::math_utils::conj(&e.val);
-        }
-    }
     let n = f.symbolic.nrows();
-    Ok(Storage::Csc(
-        faer::sparse::SparseColMat::try_new_from_triplets(n, n, &entries)
-            .map_err(|e| format!("{e:?}"))?,
-    ))
+    let nnz = match f.symbolic.raw() {
+        cholesky::SymbolicCholeskyRaw::Simplicial(sym) => sym.col_ptr()[n],
+        cholesky::SymbolicCholeskyRaw::Supernodal(sym) => {
+            let factor = cholesky::supernodal::SupernodalLltRef::new(sym, &f.values);
+            (0..sym.n_supernodes())
+                .map(|s| {
+                    let node = factor.supernode(s);
+                    let width = node.val().ncols();
+                    width * (width + 1) / 2 + width * node.pattern().len()
+                })
+                .sum()
+        }
+    };
+    let entries = |emit: &mut dyn FnMut(usize, usize, &T)| cholesky_entries(f, emit);
+    Ok(Storage::Csc(match (f.symbolic.raw(), upper) {
+        (_, true) => construction_temporaries::adjoint_from_entries(n, n, nnz, &entries)?,
+        (cholesky::SymbolicCholeskyRaw::Simplicial(sym), false) => {
+            // SAFETY: faer's simplicial symbolic factor owns valid column
+            // pointers and in-bounds rows; sorted_csc orders each column.
+            let pattern = unsafe {
+                faer::sparse::SymbolicSparseColMatRef::new_unchecked(
+                    n,
+                    n,
+                    sym.col_ptr(),
+                    None,
+                    sym.row_idx(),
+                )
+            };
+            construction_temporaries::sorted_csc(faer::sparse::SparseColMatRef::new(
+                pattern,
+                &f.values[..nnz],
+            ))?
+        }
+        (_, false) => construction_temporaries::csc_from_entries(n, n, nnz, &entries)?,
+    }))
 }
 #[julia]
 impl SparseOwner {
@@ -828,18 +919,8 @@ fn lu_component<T: ComplexField>(
     } else {
         f.numeric.l_factor_unsorted()
     };
-    let entries: Vec<_> = a
-        .triplet_iter()
-        .map(|e| faer::sparse::Triplet {
-            row: e.row,
-            col: e.col,
-            val: copy(e.val),
-        })
-        .collect();
-    Ok(Storage::Csc(
-        faer::sparse::SparseColMat::try_new_from_triplets(a.nrows(), a.ncols(), &entries)
-            .map_err(|e| format!("{e:?}"))?,
-    ))
+    // faer leaves simplicial LU columns unsorted; order them while copying.
+    Ok(Storage::Csc(construction_temporaries::sorted_csc(a)?))
 }
 fn native_lu_component<T: ComplexField>(
     f: &Lu<T>,
@@ -931,23 +1012,9 @@ impl SparseOwner {
             fn export<T: ComplexField>(
                 f: &crate::sparse_qr_components::Factors<T>,
             ) -> Result<Storage<T>, String> {
-                let entries: Vec<_> =
-                    f.r.as_ref()
-                        .triplet_iter()
-                        .map(|e| faer::sparse::Triplet {
-                            row: e.row,
-                            col: e.col,
-                            val: copy(e.val),
-                        })
-                        .collect();
-                Ok(Storage::Csc(
-                    faer::sparse::SparseColMat::try_new_from_triplets(
-                        f.r.nrows(),
-                        f.r.ncols(),
-                        &entries,
-                    )
-                    .map_err(|e| format!("{e:?}"))?,
-                ))
+                Ok(Storage::Csc(crate::sparse_qr_owned::sorted_simplicial_r(
+                    f.r.as_ref(),
+                )))
             }
             self.data = Some(match factor.factors()? {
                 Factors::F32(Numeric::SimplicialQr(f)) => SparseData::F32(export(f)?),
@@ -1402,3 +1469,5 @@ mod input_metadata;
 mod construction_workspace;
 
 mod symbolic_workspace;
+
+mod construction_temporaries;

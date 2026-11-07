@@ -1,0 +1,204 @@
+//! Rank decisions and rank-truncated minimum-norm solves for column-pivoted QR.
+//! faer's `ColPivQr` exposes no rank or tolerance, so both follow Julia's
+//! `QRPivoted` rule on the stored R diagonal: rank is the first index with
+//! `|R[i,i]| <= max(atol, rtol*|R[1,1]|)`. The truncated solve uses a complete
+//! orthogonal decomposition of the leading rank rows, like LAPACK `xgelsy`.
+use crate::teams::{with_team, OwnedTeam};
+use crate::typed::{Factor, FactorData, MatrixData, TypedFactor, TypedMatrix};
+use crate::{guarded, DenseFactor, OwnedFactor, OwnedMatrix};
+use faer::dyn_stack::{MemBuffer, MemStack};
+use faer::linalg::householder::{
+    apply_block_householder_sequence_transpose_on_the_left_in_place_scratch,
+    apply_block_householder_sequence_transpose_on_the_left_in_place_with_conj,
+};
+use faer::linalg::solvers::{ColPivQr, ShapeCore};
+use faer::linalg::triangular_solve::{
+    solve_lower_triangular_in_place, solve_upper_triangular_in_place,
+};
+use faer::traits::{math_utils::*, ComplexField};
+use faer::{Conj, Mat, MatRef, Par};
+use rustcall_julia_macros::julia;
+
+fn rank<T: ComplexField>(f: &ColPivQr<T>, atol: f64, rtol: f64) -> usize {
+    let r = f.thin_R();
+    let k = r.nrows().min(r.ncols());
+    if k == 0 {
+        return 0;
+    }
+    let first = abs(&r[(0, 0)]);
+    let scaled = mul(&from_f64::<T::Real>(rtol), &first);
+    let atol = from_f64::<T::Real>(atol);
+    let tol = if atol > scaled { atol } else { scaled };
+    (0..k).find(|&i| abs(&r[(i, i)]) <= tol).unwrap_or(k)
+}
+/// Minimum-norm solution of the rank-`r` truncated problem and `r`.
+fn truncated_solve<T: ComplexField>(
+    f: &ColPivQr<T>,
+    b: MatRef<'_, T>,
+    rcond: f64,
+    mut par: Par<'_>,
+) -> Result<(Mat<T>, usize), String> {
+    let (m, n) = (f.nrows(), f.ncols());
+    if b.nrows() != m {
+        return Err("solve dimensions mismatch".into());
+    }
+    if !(rcond >= 0.0) {
+        return Err("rcond must be nonnegative".into());
+    }
+    let k = b.ncols();
+    let r = rank(f, 0.0, rcond);
+    let mut x = Mat::<T>::zeros(n, k);
+    if r == 0 || k == 0 {
+        return Ok((x, r));
+    }
+    let mut c = b.to_owned();
+    let (basis, coeff) = (f.Q_basis(), f.Q_coeff());
+    let req = apply_block_householder_sequence_transpose_on_the_left_in_place_scratch::<T>(
+        m,
+        coeff.nrows(),
+        k,
+    );
+    let mut buffer = MemBuffer::try_new(req).map_err(|_| "scratch allocation failed")?;
+    apply_block_householder_sequence_transpose_on_the_left_in_place_with_conj(
+        basis,
+        coeff,
+        Conj::Yes,
+        c.as_mut(),
+        par.reborrow(),
+        MemStack::new(&mut buffer),
+    );
+    let r1 = f.thin_R().subrows(0, r);
+    let mut y = c.as_ref().subrows(0, r).to_owned();
+    let z = if r == n {
+        solve_upper_triangular_in_place(r1.subcols(0, r), y.as_mut(), par.reborrow());
+        y
+    } else {
+        // R1 = T^H Z^H with R1^H = Z T, so the minimum-norm y is Z T^-H c1.
+        let cod = r1.adjoint().to_owned().qr(par.reborrow());
+        let t = cod.thin_R();
+        solve_lower_triangular_in_place(t.adjoint(), y.as_mut(), par.reborrow());
+        cod.compute_thin_Q(par.reborrow()) * y
+    };
+    let p = f.P();
+    let forward = p.arrays().0;
+    for j in 0..k {
+        for i in 0..n {
+            x[(forward[i], j)] = copy(&z[(i, j)]);
+        }
+    }
+    Ok((x, r))
+}
+fn owned(f: &OwnedFactor) -> Result<&ColPivQr<f64>, String> {
+    match f.get()? {
+        DenseFactor::PivotQr(x) => Ok(x),
+        _ => Err("not a column-pivoted QR factorization".into()),
+    }
+}
+macro_rules! typed_qr {
+    ($f:expr, $x:ident => $body:expr) => {
+        match $f.data()? {
+            FactorData::F32(Factor::PivotQr($x)) => $body,
+            FactorData::F64(Factor::PivotQr($x)) => $body,
+            FactorData::C32(Factor::PivotQr($x)) => $body,
+            FactorData::C64(Factor::PivotQr($x)) => $body,
+            _ => Err("not a column-pivoted QR factorization".into()),
+        }
+    };
+}
+
+#[julia]
+impl OwnedFactor {
+    #[julia]
+    pub fn pivoted_qr_rank(&self, atol: f64, rtol: f64) -> Result<usize, String> {
+        guarded(|| Ok(rank(owned(self)?, atol, rtol)))
+    }
+}
+#[julia]
+impl TypedFactor {
+    #[julia]
+    pub fn pivoted_qr_rank(&self, atol: f64, rtol: f64) -> Result<usize, String> {
+        guarded(|| typed_qr!(self, x => Ok(rank(x, atol, rtol))))
+    }
+}
+#[julia]
+impl OwnedMatrix {
+    /// Writes the truncated solution into `self` and returns the rank.
+    #[julia]
+    pub fn pivoted_qr_truncated_solve(
+        &mut self,
+        f: &OwnedFactor,
+        rhs: &OwnedMatrix,
+        rcond: f64,
+        team: Option<&OwnedTeam>,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            let (x, r) = with_team(team, |par| {
+                truncated_solve(owned(f)?, rhs.matrix.as_ref(), rcond, par)
+            })?;
+            self.matrix = x;
+            Ok(r)
+        })
+    }
+}
+#[julia]
+impl TypedMatrix {
+    #[julia]
+    pub fn pivoted_qr_truncated_solve(
+        &mut self,
+        f: &TypedFactor,
+        rhs: &TypedMatrix,
+        rcond: f64,
+        team: Option<&OwnedTeam>,
+    ) -> Result<usize, String> {
+        guarded(|| {
+            macro_rules! go {
+                ($x:expr, $V:ident) => {{
+                    let MatrixData::$V(b) = rhs.data()? else {
+                        return Err("factor and right-hand side scalar types must match".into());
+                    };
+                    let (x, r) =
+                        with_team(team, |par| truncated_solve($x, b.as_ref(), rcond, par))?;
+                    self.data = Some(MatrixData::$V(x));
+                    Ok(r)
+                }};
+            }
+            match f.data()? {
+                FactorData::F32(Factor::PivotQr(x)) => go!(x, F32),
+                FactorData::F64(Factor::PivotQr(x)) => go!(x, F64),
+                FactorData::C32(Factor::PivotQr(x)) => go!(x, C32),
+                FactorData::C64(Factor::PivotQr(x)) => go!(x, C64),
+                _ => Err("not a column-pivoted QR factorization".into()),
+            }
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn rank_and_minimum_norm_truncation() {
+        // Rank two: the second column is twice the first.
+        let a = Mat::from_fn(4, 3, |i, j| {
+            let base = [1.0, 2.0, 1.0, 0.0][i];
+            match j {
+                0 => base,
+                1 => 2.0 * base,
+                _ => [3.0, 6.0, 1.0, 1.0][i],
+            }
+        });
+        let f = a.col_piv_qr(Par::Seq);
+        assert_eq!(rank(&f, 0.0, 3.0 * f64::EPSILON), 2);
+        assert_eq!(rank(&f, 1e3, 0.0), 0);
+        let b = Mat::from_fn(4, 1, |i, _| (i + 1) as f64);
+        let (x, r) = truncated_solve(&f, b.as_ref(), 1e-10, Par::Seq).unwrap();
+        assert_eq!(r, 2);
+        // The minimum-norm solution satisfies the normal equations and lies in
+        // the row space: x1 and x2 are proportional to (1, 2).
+        let res = &a * &x - &b;
+        let g = a.transpose() * res;
+        assert!(g.norm_max() < 1e-10);
+        assert!((x[(1, 0)] - 2.0 * x[(0, 0)]).abs() < 1e-10);
+        assert!(truncated_solve(&f, b.as_ref(), -1.0, Par::Seq).is_err());
+    }
+}
