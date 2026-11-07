@@ -25,6 +25,21 @@ using Test, Colmat, Random, LinearAlgebra, SparseArrays, Statistics
         @test FaerRNG() isa FaerRNG
         @test_throws ArgumentError FaerRNG(-1)
         @test_throws ArgumentError FaerRNG(big(typemax(UInt64))+1)
+        # Julia scalar sampling below 64/above 64 bits derives from native UInt64 words.
+        for U in (Bool, Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64)
+            @test rand(FaerRNG(5), U)===rand(FaerRNG(5), UInt64)%U
+        end
+        for U in (Int128, UInt128)
+            r=FaerRNG(5)
+            hi, lo=rand(r, UInt64), rand(r, UInt64)
+            @test rand(FaerRNG(5), U)===((UInt128(hi)<<64)|lo)%U
+        end
+        for U in (Float16, Float32, ComplexF32, Char, UInt32(1):UInt32(9))
+            r=FaerRNG(6)
+            s=copy(r)
+            @test rand(r, U, 4)==rand(s, U, 4)
+        end
+        @test all(x->0<=x<1, rand(FaerRNG(7), Float32, 100))
     end
     for T in (Float32, Float64, ComplexF32, ComplexF64)
         R=typeof(real(zero(T)))
@@ -116,6 +131,81 @@ using Test, Colmat, Random, LinearAlgebra, SparseArrays, Statistics
             @test abs(mean(imag, uniform)-0.5)<0.04
             @test abs(var(real.(normal))-0.5)<0.06
             @test abs(var(imag.(normal))-0.5)<0.06
+        end
+    end
+    @testset "Julia sampler fills" begin
+        for T in (Float32, Float64, ComplexF32, ComplexF64)
+            collections = Any[1:5, T[2, 3.5, -1], T, Random.Sampler(Xoshiro, 0:3)]
+            T<:Complex && push!(collections, T[1+2im, -3im])
+            for X in collections, make in (MersenneTwister, Xoshiro, FaerRNG)
+                for (target, dims) in (
+                    (zeros(FaerMatrix{T}, 4, 5), (4, 5)),
+                    (zeros(FaerVector{T}, 7), (7,)),
+                    (zeros(FaerRow{T}, 6), (1, 6)),
+                    (zeros(FaerMatrix{T}, 0, 3), (0, 3)),
+                )
+                    r=make(55)
+                    s=copy(r)
+                    @test rand!(r, target, X)===target
+                    expected=rand!(s, Array{T}(undef, dims), X)
+                    @test reshape(Array(target), dims)==expected
+                    @test rand(r, UInt64)==rand(s, UInt64)
+                    close(target)
+                end
+                parent=FaerMatrix(zeros(T, 6, 7))
+                region=view(parent, 2:4, 3:6)
+                r=make(56)
+                s=copy(r)
+                @test rand!(r, region, X)===region
+                @test Matrix(region)==rand!(s, Matrix{T}(undef, 3, 4), X)
+                @test all(iszero, Matrix(parent)[[1, 5, 6], :])
+                @test all(iszero, Matrix(parent)[:, [1, 2, 7]])
+                column=view(parent, 1:3, 1)
+                @test rand!(r, column, X)===column
+                @test Vector(column)==rand!(s, Vector{T}(undef, 3), X)
+                r=make(57)
+                s=copy(r)
+                close(parent)
+                @test_throws ArgumentError rand!(r, region, X)
+                @test rand(r, UInt64)==rand(s, UInt64)
+            end
+            Random.seed!(1)
+            a=rand!(zeros(FaerVector{T}, 4), 1:3)
+            Random.seed!(1)
+            @test Vector(a)==rand!(Vector{T}(undef, 4), 1:3)
+            # Sampling from the target (or its parent) reads a pre-write state.
+            values=T[1 2 3; 4 5 6; 7 8 9]
+            A=FaerMatrix(values)
+            r=Xoshiro(58)
+            s=copy(r)
+            @test rand!(r, A, A)===A
+            @test Matrix(A)==rand!(s, Matrix{T}(undef, 3, 3), values)
+            P=FaerMatrix(values)
+            region=view(P, 1:2, 2:3)
+            rand!(r, region, P)
+            expected=copy(values)
+            expected[1:2, 2:3]=rand!(s, Matrix{T}(undef, 2, 2), values)
+            @test Matrix(P)==expected
+            # Sampling and conversion finish before the native target changes.
+            A=zeros(FaerMatrix{T}, 4, 5)
+            @test_throws MethodError rand!(Xoshiro(1), A, Any[1, "x"])
+            @test Matrix(A)==zeros(T, 4, 5)
+            if T<:Real
+                @test_throws InexactError rand!(Xoshiro(1), A, [0.5im])
+                @test Matrix(A)==zeros(T, 4, 5)
+            end
+        end
+    end
+    @testset "bulk staging allocations" begin
+        # Staged output and the native snapshot are required; per-element writes are not.
+        for T in (Float32, ComplexF64)
+            r=Xoshiro(2)
+            A=zeros(FaerMatrix{T}, 64, 64)
+            bound=8*sizeof(T)*length(A)
+            for fill in (a->rand!(r, a, 1:5), a->rand!(r, a), a->randn!(r, a))
+                fill(A)
+                @test @allocated(fill(A))<bound
+            end
         end
     end
     for sampler in (rand, randn)

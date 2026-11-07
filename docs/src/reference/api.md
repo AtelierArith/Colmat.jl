@@ -23,7 +23,7 @@ Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArray
 | Householder | `FaerHouseholder`, `householder`, `FaerHouseholderSequence`, `reblock`, `reblock!` | [反射](../manual/reductions.md) |
 | 回転・縮約 | `FaerJacobiRotation`, `rotg`, `make_givens`, `tridiagonalize`, `tridiagonal_eigen`, `tridiagonal_eigvals`, `bidiagonalize`, `bidiagonal_svd` | [回転・縮約](../manual/reductions.md) |
 | リソース | `FaerScratch`, `scratch_requirements`, `scratch_capacity`, `FaerTeam`, `team_mul`, `FaerParThreshold` | [作業領域](../manual/resources.md) |
-| 統計・乱数 | `mean`, `var`, `std`, `FaerRNG`, `randunitary` | [統計・乱数](../manual/utilities.md) |
+| 統計・乱数 | `mean`, `var`, `std`, `FaerRNG`, `randunitary`, `rand!(rng, A, X)` | [統計・乱数](../manual/utilities.md) |
 | NPY | `FaerNpyMatrix`, `loadnpy`, `npyview`, `npyinfo` | [NPY](../manual/utilities.md) |
 | 互換 API | `faer_mul`, `faer_solve`, `faer_svd` | [互換 API](../manual/arrays.md) |
 

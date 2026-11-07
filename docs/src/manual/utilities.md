@@ -54,12 +54,43 @@ vectors, rows and views after staging the result. `randunitary(Float64,n)` gives
 an orthogonal sample; complex types give unitary samples through faer's
 sequential QR and phase correction.
 
-Another Julia RNG can supply a UInt64 seed for each nonempty native sampling
-call. Empty calls consume no seed. Use `FaerRNG` to keep a continuous native
-stream; copy and reseed it independently, and close it when no longer needed.
-Native sampling is reproducible for the same dependency versions and call
-sequence, without promising Julia's random sequence. Scalar/ordinary Julia-array
-draws from `FaerRNG` use Julia's sampling algorithms over its native random bits.
+Seed contract for other Julia RNGs: each nonempty native `rand`, `randn`,
+`rand!(rng, A)`, `randn!(rng, A)` or `randunitary` call draws exactly one
+`rand(rng, UInt64)`, seeds a temporary native stream with it, and samples from
+that stream. Empty calls consume no seed. The result is reproducible for the
+same Julia RNG state, dependency versions and call sequence, but it is not
+Julia's own `rand(rng, T, dims)`/`randn` sequence, and consecutive calls are
+seeded independently rather than continuing one native stream. Use `FaerRNG` to
+keep a continuous native stream; copy and reseed it independently, and close it
+when no longer needed. Scalar/ordinary Julia-array draws from `FaerRNG` use
+Julia's sampling algorithms over its native 64-bit words, including narrower
+and 128-bit integer, `Float16`/`Float32` and complex draws.
+
+`rand!(rng, A, X)` fills a native matrix, vector, row or view with Julia samples
+from `X`: a range, collection, scalar type, `Random.Sampler`, or any
+distribution object that implements Julia's `rand(rng, X)` (Distributions.jl
+included). It stages Julia's `rand!` on an `Array` of the same eltype and shape,
+so `rng` is consumed exactly as for that array, then performs one bulk native
+assignment. A closed target fails before sampling; sampling or conversion
+failures leave the target unchanged:
+
+```julia
+using Colmat, Random
+A = zeros(FaerMatrix{Float64}, 2, 3)
+rand!(Xoshiro(1), A, 1:6)
+@assert Matrix(A) == rand!(Xoshiro(1), Matrix{Float64}(undef, 2, 3), 1:6)
+B = 2 .+ 3 .* Matrix(randn(FaerRNG(1), FaerMatrix{Float64}, 2, 2))  # N(2, 3²)
+```
+
+Parameterized faer/rand_distr distributions are not exposed as separate native
+APIs: uniform on `[a,b)` and normal with mean `μ` and standard deviation `σ` are
+affine maps of native `rand`/`randn`, and other distributions are available
+through `rand!(rng, A, X)` or the per-element function constructors such as
+`FaerMatrix{T}((i, j) -> f(i, j), m, n)`. Rust's `Distribution<T>` is a
+compile-time generic trait with no runtime object a Julia value could name;
+wrapping a Julia callback as one would cost one FFI round trip per element
+while holding the native RNG borrow, which is slower than staging in Julia.
+faer's distributions take no `Par`, so there is no Seq/Team variant.
 
 ## NPY loading and read-only views
 
