@@ -1212,6 +1212,8 @@ pub mod lblt;
 
 pub mod direct_factors;
 
+mod borrowed_factors;
+
 mod sparse_lu_components;
 mod sparse_lu_owned;
 
@@ -1254,6 +1256,16 @@ impl OwnedFactor {
                 "factor input native scalar type/dimensions do not match requested metadata".into(),
             );
         }
+        self.initialize_ref(a, kind, lower, par)
+    }
+    /// Factor `a` (an owned matrix or a borrowed view) into owned storage.
+    fn initialize_ref(
+        &mut self,
+        a: MatRef<'_, f64>,
+        kind: i32,
+        lower: bool,
+        par: Par<'_>,
+    ) -> Result<usize, String> {
         if (4..=6).contains(&kind) || kind == 8 {
             if a.nrows() != a.ncols() {
                 return Err("factorization requires square input".into());

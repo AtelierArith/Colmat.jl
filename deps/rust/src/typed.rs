@@ -1,6 +1,7 @@
 //! Typed native storage. Scalar buffers carry the exact Julia primitive layout.
 use super::guarded;
 use crate::lblt::Lblt;
+use crate::views::Borrowed;
 use faer::linalg::solvers::{
     ColPivQr, DenseSolveCore, FullPivLu, Ldlt, Llt, PartialPivLu, Qr, ShapeCore, Solve, SolveLstsq,
     Svd,
@@ -191,7 +192,7 @@ pub(crate) unsafe fn norm_output<T: ComplexField>(
     out.cast::<T::Real>().write(value);
     Ok(())
 }
-unsafe fn svd_output<T: ComplexField>(
+pub(crate) unsafe fn svd_output<T: ComplexField>(
     a: MatRef<'_, T>,
     u: *mut u8,
     s: *mut u8,
@@ -670,7 +671,7 @@ fn factor_part<T: ComplexField>(f: &Factor<T>, part: i32, par: Par<'_>) -> Resul
         _ => return Err("unknown factor part".into()),
     })
 }
-fn rank_deficient<T: ComplexField>(r: MatRef<'_, T>) -> bool {
+pub(crate) fn rank_deficient<T: ComplexField>(r: MatRef<'_, T>) -> bool {
     let tolerance = mul(
         &mul(
             &eps::<T::Real>(),
@@ -949,7 +950,7 @@ pub(crate) fn hermitian_copy<T: ComplexField>(
     finite(b.as_ref())?;
     Ok(b)
 }
-unsafe fn eigen_output<T: ComplexField>(
+pub(crate) unsafe fn eigen_output<T: ComplexField>(
     a: MatRef<'_, T>,
     values: *mut u8,
     vectors: *mut u8,
@@ -1420,27 +1421,34 @@ impl TypedFactor {
             );
         }
 
+        let a = match a {
+            MatrixData::F32(x) => Borrowed::F32(x.as_ref()),
+            MatrixData::F64(x) => Borrowed::F64(x.as_ref()),
+            MatrixData::C32(x) => Borrowed::C32(x.as_ref()),
+            MatrixData::C64(x) => Borrowed::C64(x.as_ref()),
+        };
+        self.initialize_ref(a, kind, lower, par)
+    }
+    /// Factor an owned matrix or a borrowed view into owned storage.
+    pub(crate) fn initialize_ref(
+        &mut self,
+        a: Borrowed<'_>,
+        kind: i32,
+        lower: bool,
+        par: Par<'_>,
+    ) -> Result<usize, String> {
+        macro_rules! new {
+            ($x:expr, $v:ident) => {{
+                let (f, i) = factor_new($x, kind, lower, par)?;
+                self.info = i;
+                f.map(FactorData::$v)
+            }};
+        }
         self.data = match a {
-            MatrixData::F32(x) => {
-                let (f, i) = factor_new(x.as_ref(), kind, lower, par)?;
-                self.info = i;
-                f.map(FactorData::F32)
-            }
-            MatrixData::F64(x) => {
-                let (f, i) = factor_new(x.as_ref(), kind, lower, par)?;
-                self.info = i;
-                f.map(FactorData::F64)
-            }
-            MatrixData::C32(x) => {
-                let (f, i) = factor_new(x.as_ref(), kind, lower, par)?;
-                self.info = i;
-                f.map(FactorData::C32)
-            }
-            MatrixData::C64(x) => {
-                let (f, i) = factor_new(x.as_ref(), kind, lower, par)?;
-                self.info = i;
-                f.map(FactorData::C64)
-            }
+            Borrowed::F32(x) => new!(x, F32),
+            Borrowed::F64(x) => new!(x, F64),
+            Borrowed::C32(x) => new!(x, C32),
+            Borrowed::C64(x) => new!(x, C64),
         };
         Ok(self.info)
     }

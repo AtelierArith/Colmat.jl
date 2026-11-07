@@ -2,8 +2,9 @@
     FaerFactorization
 
 A reusable t4a-faer factorization, returned by `lu`, `qr`, `cholesky`, `ldlt`,
-`bunchkaufman` and `full_piv_lu` on `FaerMatrix`. Numerical factors are owned in
-Rust and independent of the input. `F \\ B` reuses them; factor properties return
+`bunchkaufman` and `full_piv_lu` on `FaerMatrix` or a borrowed `faerview` (read
+in place, without an input snapshot). Numerical factors are owned in Rust and
+independent of the input. `F \\ B` reuses them; factor properties return
 independent FaerMatrix objects. `close(F)` invalidates only this factorization.
 
 Construction accepts `team=FaerTeam(...)` to borrow a reusable native team.
@@ -278,18 +279,19 @@ function _factor_solve(
 end
 Base.:\(f::FaerFactorization{Float64}, b::FaerMatrix{Float64}) = _factor_solve(f, b)
 Base.:\(f::FaerFactorization{Float64}, b::AbstractMatrix{<:Real}) =
-    f \ FaerMatrix{Float64}(b)
+    _dense_solve_temporary(f, _dense_rhs_copy(b, Float64))
 Base.:\(f::FaerFactorization{Float64}, b::AbstractVector{<:Real}) =
-    vec(Matrix(f \ FaerMatrix(reshape(b, :, 1))))
+    _dense_vector_solve(f, b, Float64)
 const _FaerTransposedFactor = Union{
     LinearAlgebra.TransposeFactorization{Float64,<:FaerFactorization{Float64}},
     LinearAlgebra.AdjointFactorization{Float64,<:FaerFactorization{Float64}},
 }
 Base.:\(f::_FaerTransposedFactor, b::FaerMatrix{Float64}) =
     _factor_solve(parent(f), b, true)
-Base.:\(f::_FaerTransposedFactor, b::AbstractMatrix{<:Real}) = f \ FaerMatrix{Float64}(b)
+Base.:\(f::_FaerTransposedFactor, b::AbstractMatrix{<:Real}) =
+    _dense_solve_temporary(f, _dense_rhs_copy(b, Float64))
 Base.:\(f::_FaerTransposedFactor, b::AbstractVector{<:Real}) =
-    vec(Matrix(f \ FaerMatrix(reshape(b, :, 1))))
+    _dense_vector_solve(f, b, Float64)
 
 # `team` lends a caller-owned `FaerTeam` to faer's factor inverse kernel.
 function Base.inv(f::FaerFactorization{Float64}; team = nothing)
