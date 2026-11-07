@@ -61,7 +61,6 @@ const _raw_owner_arguments = (
     (RustCrate.operator_load, (2,)),
     (RustCrate.operator_lsmr, (3,)),
     (RustCrate.partial_workspace, (7,)),
-    (RustCrate.partial_workspace_team, (7,)),
     (RustCrate.permute_from_view, (2,)),
     (RustCrate.qz_from, (10, 11)),
     (RustCrate.sparse_kron, (2, 4)),

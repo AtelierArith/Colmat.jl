@@ -1,4 +1,5 @@
 //! Owned native LinOp/BiLinOp/Precond adapters and conjugate gradient.
+use crate::teams::with_team;
 use crate::collections::{VectorData, VectorOwner, VectorStore};
 use crate::sparse::{SparseData, SparseOwner, Storage};
 use crate::typed::{MatrixData, TypedMatrix};
@@ -3071,55 +3072,36 @@ fn write_requirement(req: StackReq, out: *mut usize) {
 }
 #[julia]
 impl SparseFactor {
-    /// Query construction scratch for `FaerLinearOperator(F)` of sparse QR.
     #[julia]
-    pub fn operator_sparse_qr_inverse_requirements(&self, out: *mut usize) -> Result<(), String> {
-        guarded(|| {
-            write_requirement(sparse_qr_inverse_requirement(self, ParShape::Seq)?, out);
-            Ok(())
-        })
-    }
-    #[julia]
-    pub fn operator_sparse_qr_inverse_requirements_team(
+    pub fn operator_sparse_qr_inverse_requirements(
         &self,
         out: *mut usize,
-        team: &crate::teams::OwnedTeam,
+        team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let req = team.execute(|p| sparse_qr_inverse_requirement(self, p.shape()))??;
+            let req = with_team(team, |p| sparse_qr_inverse_requirement(self, p.shape()))?;
             write_requirement(req, out);
             Ok(())
         })
     }
+
 }
 #[julia]
 impl OwnedLinearOperator {
-    /// Build a sparse QR inverse action; wide `pinv(R)` uses caller scratch.
     #[julia]
     pub fn operator_sparse_qr_inverse(
         &mut self,
         factor: &crate::sparse_factors::SparseFactor,
         scratch: &mut crate::workspace::OwnedScratch,
+        team: Option<&crate::teams::OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let data = sparse_qr_inverse(factor, scratch, Par::Seq)?;
+            let data = with_team(team, |p| sparse_qr_inverse(factor, scratch, p))?;
             self.data = Some(data);
             Ok(())
         })
     }
-    #[julia]
-    pub fn operator_sparse_qr_inverse_team(
-        &mut self,
-        factor: &crate::sparse_factors::SparseFactor,
-        scratch: &mut crate::workspace::OwnedScratch,
-        team: &crate::teams::OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let data = team.execute(|p| sparse_qr_inverse(factor, scratch, p))??;
-            self.data = Some(data);
-            Ok(())
-        })
-    }
+
 }
 
 mod apply_workspace;

@@ -36,8 +36,7 @@ function _iterative_prepared_query(kind, op, m, n, columns, team)
         pointer(info),
     )
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.iterative_requirements, args...) :
-        _native_call(RustCrate.iterative_requirements_team, args..., team)
+        _native_call(RustCrate.iterative_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
@@ -76,10 +75,8 @@ function _iterative_solution_impl(context, kind, P, legacy, dims, args, scratch,
     work=isnothing(scratch) ?
          FaerScratch(context.req.bytes; alignment = context.req.alignment) : scratch
     try
-        native=isnothing(team) ? RustCrate.iterative_workspace :
-               RustCrate.iterative_workspace_team
-        callargs=(source, context.m, context.n, Int32(kind), tail..., work)
-        isnothing(team)||(callargs=(callargs..., team))
+        native=RustCrate.iterative_workspace
+        callargs=(source, context.m, context.n, Int32(kind), tail..., work, team)
         return P===Float64 ? _matrix_result(native, dims, callargs...) :
                _typed_result(P, native, dims, callargs...)
     finally

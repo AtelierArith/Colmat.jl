@@ -26,23 +26,14 @@ function _qr_pseudoinverse_requirement(f, team)
     info=zeros(UInt, 2)
     args=(UInt(size(f, 1)), UInt(size(f, 2)), _tag(eltype(f)), pointer(info))
     GC.@preserve info begin
-        isnothing(team) ?
-        _native_call(RustCrate.operator_qr_pseudoinverse_requirements, args...) :
-        _native_call(RustCrate.operator_qr_pseudoinverse_requirements_team, args..., team)
+        _native_call(RustCrate.operator_qr_pseudoinverse_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
 function _sparse_qr_inverse_requirement(f, team)
     info=zeros(UInt, 2)
     GC.@preserve info begin
-        isnothing(team) ?
-        _native_call(RustCrate.operator_sparse_qr_inverse_requirements, f, pointer(info)) :
-        _native_call(
-            RustCrate.operator_sparse_qr_inverse_requirements_team,
-            f,
-            pointer(info),
-            team,
-        )
+        _native_call(RustCrate.operator_sparse_qr_inverse_requirements, f, pointer(info), team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end

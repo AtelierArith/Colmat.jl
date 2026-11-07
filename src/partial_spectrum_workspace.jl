@@ -33,6 +33,7 @@ function _partial_validate(
         UInt(0),
         UInt(0),
         pointer(info),
+        nothing,
     )
     0<=k<=min(m, n) || throw(ArgumentError("requested count must be in 0:min(size(op)...)"))
     min_dim>=0 && max_dim>=0 && max_restarts>=0 ||
@@ -86,8 +87,7 @@ function _partial_workspace_query(op, kind, k; min_dim, max_dim, max_restarts, t
         pointer(info),
     )
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.partial_requirements, args...) :
-        _native_call(RustCrate.partial_requirements_team, args..., team)
+        _native_call(RustCrate.partial_requirements, args..., team)
     end
     # The native requirement includes the independent residual applications.
     return (bytes = Int(info[1]), alignment = Int(info[2]))
@@ -143,8 +143,7 @@ function _partial_native(op, args, work, team)
     sticky=task.sticky
     task.sticky=true
     try
-        isnothing(team) ? _native_call(RustCrate.partial_workspace, op, args..., work) :
-        _native_call(RustCrate.partial_workspace_team, op, args..., work, team)
+        _native_call(RustCrate.partial_workspace, op, args..., work, team)
     finally
         task.sticky=sticky
     end
