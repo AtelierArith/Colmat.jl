@@ -170,29 +170,46 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
         return norm_output(a, out, code);
     }
     let len = (a.nrows() * a.ncols()) as f64;
-    let magnitudes = || {
-        (0..a.ncols())
-            .flat_map(move |j| (0..a.nrows()).map(move |i| T::real_to_f64(&abs(&a[(i, j)]))))
+    // Entries in column order, through contiguous slices when possible.
+    let each = |f: &mut dyn FnMut(&T)| {
+        let a = if a.row_stride() < 0 {
+            a.reverse_rows()
+        } else {
+            a
+        };
+        for j in 0..a.ncols() {
+            let c = a.col(j);
+            match c.try_as_col_major() {
+                Some(c) => c.as_slice().iter().for_each(&mut *f),
+                None => c.iter().for_each(&mut *f),
+            }
+        }
+    };
+    let fold = |init: f64, g: &dyn Fn(f64, f64) -> f64| {
+        let mut acc = init;
+        each(&mut |x| acc = g(acc, T::real_to_f64(&abs(x))));
+        acc
     };
     // mapreduce(norm, min/max): NaN propagates from any position.
     let extreme = |largest: bool| {
-        magnitudes()
-            .fold(None::<f64>, |acc, x| match acc {
-                None => Some(x),
-                Some(v) if v.is_nan() || x.is_nan() => Some(f64::NAN),
-                Some(v) => Some(if largest { v.max(x) } else { v.min(x) }),
-            })
-            .unwrap_or(0.0)
+        let init = if largest {
+            f64::NEG_INFINITY
+        } else {
+            f64::INFINITY
+        };
+        fold(init, &|v, x| {
+            if v.is_nan() || x.is_nan() {
+                f64::NAN
+            } else if largest {
+                v.max(x)
+            } else {
+                v.min(x)
+            }
+        })
     };
     let value = if p == 0.0 {
         let mut count = 0usize;
-        for j in 0..a.ncols() {
-            for i in 0..a.nrows() {
-                if a[(i, j)].parts() != (0.0, 0.0) {
-                    count += 1;
-                }
-            }
-        }
+        each(&mut |x| count += usize::from(x.parts() != (0.0, 0.0)));
         count as f64
     } else if p == f64::NEG_INFINITY {
         extreme(false)
@@ -207,12 +224,12 @@ unsafe fn norm<T: Native>(a: MatRef<'_, T>, p: f64, out: *mut u8) -> Result<(), 
         }
         let scaled = maxabs.powf(p);
         if (-1.0..=1.0).contains(&p) || ((len * scaled).is_finite() && scaled != 0.0) {
-            magnitudes().map(|x| x.powf(p)).sum::<f64>().powf(1.0 / p)
+            fold(0.0, &|s, x| s + x.powf(p)).powf(1.0 / p)
         } else {
             // norm(v)/maxabs is computed in the data's real type.
-            let sum = magnitudes()
-                .map(|x| T::real_to_f64(&T::real_from_f64(x / maxabs)).powf(p))
-                .sum::<f64>();
+            let sum = fold(0.0, &|s, x| {
+                s + T::real_to_f64(&T::real_from_f64(x / maxabs)).powf(p)
+            });
             maxabs * sum.powf(1.0 / p)
         }
     };
@@ -510,5 +527,80 @@ mod tests {
             false
         )
         .is_err());
+    }
+
+    // Rust-side counts: same-type kernels read every layout in place; a
+    // promoted dot operand is staged once.
+    #[test]
+    fn allocations_are_limited_to_promotion_staging() {
+        use crate::allocation_probe::count;
+        let a = Mat::<f64>::from_fn(64, 48, |i, j| (i * 3 + j) as f64 - 50.0);
+        let reversed = a.as_ref().reverse_rows().reverse_cols();
+        let strided = a.as_ref().subrows(0, 32).subcols(0, 24);
+        let mut out = vec![0.0f64; 2 * 64 * 48];
+        let out = out.as_mut_ptr().cast::<u8>();
+        for view in [a.as_ref(), reversed, strided] {
+            for axis in [NONE, ROWS, COLS, ALL] {
+                for code in [MINIMUM, MAXIMUM, EXTREMA] {
+                    assert_eq!(
+                        count(|| unsafe { extrema(view, out, axis, code).unwrap() }),
+                        0
+                    );
+                }
+                assert_eq!(count(|| unsafe { sums(view, out, axis).unwrap() }), 0);
+            }
+            for p in [
+                1.0,
+                2.0,
+                f64::INFINITY,
+                0.0,
+                f64::NEG_INFINITY,
+                3.0,
+                0.5,
+                -2.5,
+            ] {
+                assert_eq!(count(|| unsafe { norm(view, p, out).unwrap() }), 0);
+            }
+            assert_eq!(
+                count(|| assert!(view.is_all_finite() && !view.has_nan())),
+                0
+            );
+            let row = view.row(0).as_mat();
+            assert_eq!(
+                count(|| unsafe {
+                    dot_into::<f64>(Borrowed::F64(view), true, Borrowed::F64(view), false, out)
+                        .unwrap()
+                }),
+                0
+            );
+            assert_eq!(
+                count(|| unsafe {
+                    dot_into::<f64>(
+                        Borrowed::F64(row),
+                        true,
+                        Borrowed::F64(view.row(1).transpose().as_mat()),
+                        false,
+                        out,
+                    )
+                    .unwrap()
+                }),
+                0
+            );
+            let narrow =
+                Mat::<f32>::from_fn(view.nrows(), view.ncols(), |i, j| view[(i, j)] as f32);
+            assert_eq!(
+                count(|| unsafe {
+                    dot_into::<f64>(
+                        Borrowed::F32(narrow.as_ref()),
+                        true,
+                        Borrowed::F64(view),
+                        false,
+                        out,
+                    )
+                    .unwrap()
+                }),
+                1
+            );
+        }
     }
 }
