@@ -124,6 +124,17 @@ export FaerSpectralFactor,
 
 const RustCrate = @rust_crate joinpath(@__DIR__, "..", "deps", "rust")
 
+# RustCall 0.10 memoizes resolved symbols in a `Dict{Tuple{Ptr{Cvoid},String},
+# Ptr{Cvoid}}` probed through a `@nospecialize` callable. A call site's first
+# resolution memoizes its symbols, which bumps the artifact epoch and makes the
+# call-target snapshot it just published stale, so its second call resolves
+# again and takes the memo's hit branch. In a fresh process, the first such hit
+# JIT-compiled `getindex` and `Some` for these types, about 170 KB, inside an
+# arbitrary user call (#186). Compiling them into Colmat's image removes that cost.
+precompile(getindex, (Dict{Tuple{Ptr{Cvoid}, String}, Ptr{Cvoid}}, Tuple{Ptr{Cvoid}, String}))
+precompile(haskey, (Dict{Tuple{Ptr{Cvoid}, String}, Ptr{Cvoid}}, Tuple{Ptr{Cvoid}, String}))
+precompile(Some, (Ptr{Cvoid},))
+
 # Materialize views, transposes and other element types into owned column-major
 # buffers. All native calls are synchronous and preserve their Julia owners.
 function _checked_dense(::Type{T}, a::AbstractMatrix) where {T}
