@@ -93,6 +93,19 @@ Base.:+(d::FaerDiagonal, a::_DiagonalDense) = _dop_matrix(d, a, 4)
 Base.:+(a::_DiagonalDense, d::FaerDiagonal) = _dop_matrix(d, a, 4)
 Base.:-(a::_DiagonalDense, d::FaerDiagonal) = _dop_matrix(d, a, 5)
 Base.:-(d::FaerDiagonal, a::_DiagonalDense) = _dop_matrix(d, a, 6)
+# Julia strided matrices and vectors (and their lazy transposes) with a native
+# diagonal are borrowed in place and give native results, as native operands
+# do (Julia `Diagonal`s with Julia arrays stay Julia).
+for (f, mode) in ((:*, 0), (:\, 2), (:+, 4), (:-, 6))
+    @eval Base.$f(d::FaerDiagonal, a::_GemmJuliaMatrix) =
+        _dop_matrix(d, _julia_operand(a), $mode)
+end
+for (f, mode) in ((:*, 1), (:/, 3), (:+, 4), (:-, 5))
+    @eval Base.$f(a::_GemmJuliaMatrix, d::FaerDiagonal) =
+        _dop_matrix(d, _julia_operand(a), $mode)
+end
+Base.:*(d::FaerDiagonal, v::_GemmJuliaVector) = _dop_vector(d, _julia_operand(v), 0)
+Base.:\(d::FaerDiagonal, v::_GemmJuliaVector) = _dop_vector(d, _julia_operand(v), 2)
 
 # FaerDiagonal*FaerVector and FaerRow*FaerDiagonal are defined with the
 # diagonal scaling products; views of vectors use the same native path here.

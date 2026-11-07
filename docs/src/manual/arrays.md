@@ -22,6 +22,7 @@ C = 2A + B - A / 2
 D = A * B
 X = A \ B
 x = A \ [1.0, 2.0]         # ベクトルの右辺には Julia Vector を返す
+y = A * [1.0, 2.0]         # 行列ベクトル積は FaerVector
 @assert Matrix(X) ≈ Matrix(A) \ Matrix(B)
 
 C[1, 2] = 5
@@ -31,6 +32,38 @@ copyto!(C, A)
 Z = zero(A)
 E = copy(A)               # Rust の行列を複製
 snapshot = Matrix(A)      # Julia へ独立したコピーを取得
+```
+
+### Julia 配列・転置・ビューとの混合演算
+
+native の行列・範囲ビューとその `transpose` / `adjoint` が一方に含まれる `+` / `-` / `*`
+は、もう一方が native・`faerview` の借用・要素重複のない Julia strided 配列
+（`Matrix`・strided `SubArray`・その転置／随伴）のいずれでも、Julia 側を借用配列として
+その場で読み、結果を新しい native owner に書きます（入力の snapshot・Julia 経由の
+一時配列なし）。結果の型は「native が関与すれば native」で、`A * J`・`A' * J`・
+`A * J'` は `FaerMatrix`、`FaerMatrix`・ビュー・`A'` と Julia ベクトルの積 `A * x` は
+`FaerVector`、`r::FaerRow * B` は `FaerRow`（`r * x` は1要素の `FaerVector`）、
+`v' * B` / `transpose(v) * B`（`v::FaerVector`）は `FaerVector` の随伴／転置です。
+異なるスカラー型は `promote_type` に従い、狭い側だけを Rust の `view_convert` が
+descriptor から直接昇格コピーします。ビュー・遅延転置のスカラー倍 `x * V` / `V / x` /
+`-V` も native にコピーしてからスケールします。昇格型が native でない（`BigFloat`
+など）場合と、Julia 配列だけ・`faerview` と Julia 配列だけの組合せは従来どおり Julia の
+結果（`Matrix` など）です。
+
+`mul!(y, A, x[, α, β])`（`y` が `FaerVector`・ビュー・Julia／借用ベクトル）と
+`mul!(r, x, B[, α, β])`（`r` が `FaerRow`、`x` が `FaerRow`・`v'`・`transpose(v)`）は、
+行列積と同じく faer が `y` / `r` へ直接書きます（`A` の転置／随伴、Julia 行列・
+ベクトルの混在を含む。`y` / `r` と重なる入力だけ snapshot。`team=` も同じ）。
+
+```julia
+J = rand(3, 3)
+A = FaerMatrix(rand(3, 3))
+@assert A * J isa FaerMatrix          # 以前は Matrix
+@assert A' + J' isa FaerMatrix
+@assert A * rand(3) isa FaerVector    # 以前は Vector
+r = FaerRow(rand(3))
+@assert r * J isa FaerRow             # 以前は Matrix
+mul!(r, r, A)                         # r = r * A（r は先に snapshot）
 ```
 
 ## ベクトル・行・対角行列とビュー
@@ -182,6 +215,10 @@ n×n の密な snapshot を作りません。`D*A` / `A*D` / `D\A` / `A/D` / `D�
 `D*v` / `D\v`、`r*D` / `r/D`（結果は `FaerRow`）、`inv(D)`、
 `lmul!` / `rmul!` / `ldiv!` / `rdiv!` に対応します。Julia の `Diagonal` も、
 格納された n 個の要素だけを渡して同じ経路を使います。
+`FaerDiagonal` と Julia strided 行列・ベクトル（`Matrix`・strided `SubArray`・その
+転置／随伴）の `D*M` / `M*D` / `D\M` / `M/D` / `D±M` / `D*x` / `D\x` も Julia 側を
+その場で読み、結果は `FaerMatrix` / `FaerVector` です（以前は `Matrix` / `Vector`）。
+Julia の `Diagonal` と Julia 配列だけの組合せは Julia の結果です。
 ゼロの対角要素で割ると `SingularException` を投げ、入力も代入先も変更しません。
 `diag(A)` と `FaerDiagonal(A)` は密行列・範囲ビューの主対角を native にコピーし、
 `v * w'` と `v * r::FaerRow` は Rust 所有の `FaerMatrix` を返します。
