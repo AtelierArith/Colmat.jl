@@ -382,8 +382,15 @@ the callback returns. User exceptions return through the native boundary before 
 failed actions preserve staged destinations. Outputs must be finite and fully
 written. Empty-domain/range and zero-column products are treated as zero maps.
 Native composition/conjugation intermediates can reuse `scratch=`/`team=` as
-for other operators; Julia callback buffers and result staging allocate separately.
-This interface does not promise allocation-free Julia actions.
+for other operators. Callback inputs and outputs are marshalled through
+Julia-owned matrices that each operator reuses per scalar type and orientation,
+so repeated same-shape applications inside CG/BiCGSTAB/LSMR and partial spectra
+do not allocate for marshalling (measured `@allocated` per extra application of
+a 64×64 `Float64` operator in `cg`: about 1.1 KB before, 0 after). The buffers
+are overwritten by later applications, so actions must not retain `Y` or `X`;
+recursive applications of the same operator get fresh arrays. Result staging
+and promotion of the solver call still allocate, and the user's action itself
+is not constrained.
 
 ## Iterative histories and stopping callbacks
 

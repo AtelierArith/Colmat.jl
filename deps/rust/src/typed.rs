@@ -1,8 +1,9 @@
 //! Typed native storage. Scalar buffers carry the exact Julia primitive layout.
 use super::guarded;
+use crate::lblt::Lblt;
 use faer::linalg::solvers::{
-    ColPivQr, DenseSolveCore, FullPivLu, Lblt, Ldlt, Llt, PartialPivLu, Qr, ShapeCore, Solve,
-    SolveLstsq, Svd,
+    ColPivQr, DenseSolveCore, FullPivLu, Ldlt, Llt, PartialPivLu, Qr, ShapeCore, Solve, SolveLstsq,
+    Svd,
 };
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{c32, c64, Accum, Conj, Mat, MatRef, Par, Side};
@@ -359,7 +360,8 @@ impl TypedMatrix {
         guarded(|| {
             dispatch!(self.data()?,x=>Ok(match code{
                 0=>x.is_all_finite(),1=>x.has_nan(),2=>x.nrows()==x.ncols()&&x.as_ref().is_identity(),
-                3=>symmetric(x.as_ref(),false),4=>symmetric(x.as_ref(),true),_=>return Err("unknown predicate".into())
+                3=>symmetric(x.as_ref(),false),4=>symmetric(x.as_ref(),true),
+                5=>real_triangle(x.as_ref(),true),6=>real_triangle(x.as_ref(),false),_=>return Err("unknown predicate".into())
             }))
         })
     }
@@ -398,6 +400,17 @@ fn symmetric<T: ComplexField>(a: MatRef<'_, T>, hermitian: bool) -> bool {
                     }
             })
         })
+}
+/// Whether the stored lower (or upper) triangle, diagonal included, is real.
+fn real_triangle<T: ComplexField>(a: MatRef<'_, T>, lower: bool) -> bool {
+    (0..a.ncols()).all(|j| {
+        let (start, end) = if lower {
+            (j, a.nrows())
+        } else {
+            (0, (j + 1).min(a.nrows()))
+        };
+        (start..end).all(|i| a[(i, j)] == conj(&a[(i, j)]))
+    })
 }
 
 #[derive(Clone)]
@@ -469,7 +482,7 @@ fn factor_new<T: ComplexField>(
     lower: bool,
     par: Par<'_>,
 ) -> Result<(Option<Factor<T>>, usize), String> {
-    let h = if (4..=6).contains(&kind) {
+    let h = if (4..=6).contains(&kind) || kind == 8 {
         Some(hermitian_copy(a, lower)?)
     } else {
         None
@@ -498,7 +511,7 @@ fn factor_new<T: ComplexField>(
                 return Ok((None, index + 1))
             }
         },
-        6 => Factor::Lblt(a.lblt(side, par)),
+        6 | 8 => Factor::Lblt(Lblt::new(a, side, par, kind == 8)),
         7 => Factor::Svd(a.thin_svd(par).map_err(|e| format!("{e:?}"))?),
         _ => return Err("unknown factorization".into()),
     };
