@@ -3,11 +3,11 @@ use super::sparse_qr_owned;
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::mat::AsMatMut;
 use faer::perm::Perm;
-use faer::prelude::ReborrowMut;
+use faer::prelude::{Reborrow, ReborrowMut};
 use faer::sparse::linalg::qr::{self, QrSymbolicParams, SymbolicQr};
 use faer::sparse::{SparseColMat, SparseColMatRef, SymbolicSparseColMatRef, Triplet};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Mat, MatRef, Par};
+use faer::{Mat, MatRef, Par, ParShape};
 use std::sync::Arc;
 #[derive(Clone)]
 pub(crate) struct Plan {
@@ -186,33 +186,84 @@ impl<T: ComplexField> Factors<T> {
             copy(&product[(i, inverse[j])])
         }))
     }
+    /// Construction temporaries of `pinv(R)`: dense R, its thin SVD and
+    /// faer's SVD/reconstruction workspace. Only the `n x m` result is kept.
+    pub(crate) fn inverse_r_scratch(m: usize, n: usize, par: ParShape) -> StackReq {
+        if m == 0 {
+            return StackReq::EMPTY;
+        }
+        let thin = faer::linalg::svd::ComputeSvdVectors::Thin;
+        StackReq::all_of(&[
+            faer::linalg::temp_mat_scratch::<T>(m, n),
+            faer::linalg::temp_mat_scratch::<T>(m, 1),
+            faer::linalg::temp_mat_scratch::<T>(m, m),
+            faer::linalg::temp_mat_scratch::<T>(n, m),
+            StackReq::any_of(&[
+                faer::linalg::svd::svd_scratch::<T>(m, n, thin, thin, par, Default::default()),
+                faer::linalg::svd::pseudoinverse_from_svd_scratch::<T>(m, n, par),
+            ]),
+        ])
+    }
     fn inverse_r(&self) -> Result<Mat<T>, String> {
-        let dense = self.r.to_dense();
-        let f = dense.thin_svd(Par::Seq).map_err(|e| format!("{e:?}"))?;
-        let mut out = Mat::zeros(self.n, self.m);
-        let req = faer::linalg::svd::pseudoinverse_from_svd_scratch::<T>(
-            self.m,
-            self.n,
-            Par::Seq.shape(),
-        );
-        let mut mem = faer::dyn_stack::MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+        let req = Self::inverse_r_scratch(self.m, self.n, Par::Seq.shape());
+        let mut mem = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+        self.inverse_r_in(Par::Seq, MemStack::new(&mut mem))
+    }
+    /// `pinv(R)` with every temporary in `stack`; the result is the only
+    /// allocation besides faer's matrix-product internals.
+    pub(crate) fn inverse_r_in(
+        &self,
+        mut par: Par<'_>,
+        stack: &mut MemStack,
+    ) -> Result<Mat<T>, String> {
+        let (m, n) = (self.m, self.n);
+        let mut out = Mat::zeros(n, m);
+        if m == 0 {
+            return Ok(out);
+        }
+        let (mut dense, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(m, n, stack);
+        let (mut s, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(m, 1, stack);
+        let (mut u, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(m, m, stack);
+        let (mut v, stack) = faer::linalg::temp_mat_zeroed::<T, _, _>(n, m, stack);
+        let mut dense = dense.as_mat_mut();
+        let r = self.r.as_ref();
+        for j in 0..n {
+            for (i, x) in r.row_idx_of_col(j).zip(r.val_of_col(j)) {
+                dense[(i, j)] = copy(x);
+            }
+        }
+        let (mut s, mut u, mut v) = (s.as_mat_mut(), u.as_mat_mut(), v.as_mat_mut());
+        faer::linalg::svd::svd(
+            dense.rb(),
+            s.rb_mut().col_mut(0).as_diagonal_mut(),
+            Some(u.rb_mut()),
+            Some(v.rb_mut()),
+            par.reborrow(),
+            stack,
+            Default::default(),
+        )
+        .map_err(|e| format!("{e:?}"))?;
         faer::linalg::svd::pseudoinverse_from_svd_with_tolerance(
             out.as_mut(),
-            f.S(),
-            f.U(),
-            f.V(),
+            s.rb().col(0).as_diagonal(),
+            u.rb(),
+            v.rb(),
             zero::<T::Real>(),
-            eps::<T::Real>() * from_f64::<T::Real>(self.m.min(self.n) as f64),
-            Par::Seq,
-            faer::dyn_stack::MemStack::new(&mut mem),
+            eps::<T::Real>() * from_f64::<T::Real>(m.min(n) as f64),
+            par,
+            stack,
         );
         Ok(out)
     }
-    pub(crate) fn into_action_parts(
-        self,
+    /// Inverse-action state: an independent head factor and permutation plus
+    /// `pinv(R)` built in caller scratch. The saved sparse R is not cloned.
+    pub(crate) fn action_parts_in(
+        &self,
+        par: Par<'_>,
+        stack: &mut MemStack,
     ) -> Result<(sparse_qr_owned::Factors<T>, Mat<T>, Perm<usize>), String> {
-        let inverse = self.inverse_r()?;
-        Ok((self.head, inverse, self.columns))
+        let inverse = self.inverse_r_in(par, stack)?;
+        Ok((self.head.clone(), inverse, self.columns.clone()))
     }
     pub(crate) fn solve_transpose(
         &self,

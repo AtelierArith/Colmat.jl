@@ -1277,11 +1277,13 @@ impl SparseFactor {
         guarded(|| construction_workspace::run(self, analysis, matrix, scratch, Par::Seq))
     }
 }
-pub(crate) enum QrComponents {
-    WideF32(crate::sparse_qr_wide::Factors<f32>),
-    WideF64(crate::sparse_qr_wide::Factors<f64>),
-    WideC32(crate::sparse_qr_wide::Factors<c32>),
-    WideC64(crate::sparse_qr_wide::Factors<c64>),
+pub(crate) enum QrComponents<'a> {
+    // Wide factors are borrowed: the inverse action keeps only the head factor,
+    // permutation and pinv(R), so cloning the sparse R would be discarded.
+    WideF32(&'a crate::sparse_qr_wide::Factors<f32>),
+    WideF64(&'a crate::sparse_qr_wide::Factors<f64>),
+    WideC32(&'a crate::sparse_qr_wide::Factors<c32>),
+    WideC64(&'a crate::sparse_qr_wide::Factors<c64>),
 
     OwnedF32(crate::sparse_qr_owned::Factors<f32>),
     OwnedF64(crate::sparse_qr_owned::Factors<f64>),
@@ -1294,7 +1296,7 @@ pub(crate) enum QrComponents {
     C64(crate::sparse_qr_components::Factors<c64>),
 }
 impl SparseFactor {
-    pub(crate) fn simplicial_qr_components(&self) -> Result<QrComponents, String> {
+    pub(crate) fn simplicial_qr_components(&self) -> Result<QrComponents<'_>, String> {
         Ok(match self.factors()? {
             Factors::F32(Numeric::SimplicialQr(f)) => QrComponents::F32(f.clone()),
             Factors::F64(Numeric::SimplicialQr(f)) => QrComponents::F64(f.clone()),
@@ -1304,11 +1306,21 @@ impl SparseFactor {
             Factors::F64(Numeric::Qr(f)) => QrComponents::OwnedF64(f.clone()),
             Factors::C32(Numeric::Qr(f)) => QrComponents::OwnedC32(f.clone()),
             Factors::C64(Numeric::Qr(f)) => QrComponents::OwnedC64(f.clone()),
-            Factors::F32(Numeric::WideQr(f)) => QrComponents::WideF32(f.clone()),
-            Factors::F64(Numeric::WideQr(f)) => QrComponents::WideF64(f.clone()),
-            Factors::C32(Numeric::WideQr(f)) => QrComponents::WideC32(f.clone()),
-            Factors::C64(Numeric::WideQr(f)) => QrComponents::WideC64(f.clone()),
+            Factors::F32(Numeric::WideQr(f)) => QrComponents::WideF32(f),
+            Factors::F64(Numeric::WideQr(f)) => QrComponents::WideF64(f),
+            Factors::C32(Numeric::WideQr(f)) => QrComponents::WideC32(f),
+            Factors::C64(Numeric::WideQr(f)) => QrComponents::WideC64(f),
             _ => return Err("QR inverse operator requires sparse QR factors".into()),
+        })
+    }
+    /// `(m, n, scalar tag)` of a saved wide QR factor; `None` for other kinds.
+    pub(crate) fn wide_qr_shape(&self) -> Result<Option<(usize, usize, i32)>, String> {
+        Ok(match self.factors()? {
+            Factors::F32(Numeric::WideQr(f)) => Some((f.dimensions().0, f.dimensions().1, 0)),
+            Factors::F64(Numeric::WideQr(f)) => Some((f.dimensions().0, f.dimensions().1, 1)),
+            Factors::C32(Numeric::WideQr(f)) => Some((f.dimensions().0, f.dimensions().1, 2)),
+            Factors::C64(Numeric::WideQr(f)) => Some((f.dimensions().0, f.dimensions().1, 3)),
+            _ => None,
         })
     }
 }
