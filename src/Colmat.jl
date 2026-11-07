@@ -116,6 +116,7 @@ export FaerSpectralFactor,
     resize_with!,
     truncate!,
     full_piv_lu,
+    qr_q,
     full_piv_lu!,
     pfaffian,
     faer_mul,
@@ -251,6 +252,7 @@ include("qz.jl")
 include("sparse.jl")
 include("sparsity.jl")
 include("borrowed_sparse.jl")
+include("sparse_oriented.jl")
 include("kron.jl")
 include("sparse_compat.jl")
 include("sparse_triangular.jl")

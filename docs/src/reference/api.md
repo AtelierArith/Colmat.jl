@@ -11,7 +11,7 @@ Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArray
 | ビュー・容量 | `view`, `split_at_row`, `split_at_col`, `split_at`, `strides`, `diagonalview`, `faerview`, `FaerBorrowedMatrix`, `FaerBorrowedSparseMatrix`, `capacity`, `with_capacity`, `reserve!`, `resize!`, `resize_with!`, `truncate!`, `close`, `isopen` | [所有権](../manual/arrays.md) |
 | 置換 | `FaerPermutation`, `permute_rows!`, `permute_cols!`, `permute!`, `invpermute!`, `swap_rows!`, `swap_cols!`, `scratch_requirements(permute_rows!, A, p)` | [置換](../manual/arrays.md) |
 | 密分解 | `lu`, `full_piv_lu`, `qr`, `cholesky`, `ldlt`, `bunchkaufman`, `factorize` と対応する `!` 形式 | [密分解](../manual/dense.md) |
-| 求解・再構成 | `ldiv!`, `rdiv!`, `reconstruct`, `pinv`, `rank`, `cond`, `FaerSpectralFactor` | [求解](../manual/dense.md) |
+| 求解・再構成 | `ldiv!`, `rdiv!`, `reconstruct`, `qr_q`, `inv`, `pinv`, `rank`, `cond`, `FaerSpectralFactor` | [求解](../manual/dense.md) |
 | SVD | `svd`, `svd!`, `svdvals`, `svdvals!` | [SVD](../manual/dense.md) |
 | 固有値問題 | `eigen`, `eigvals`, `eigvecs`, `hessenberg`, `schur`, `ordschur`, `balance` | [スペクトル](../manual/spectral.md) |
 | 部分スペクトル | `partial_eigen`, `partial_self_adjoint_eigen`, `partial_svd` | [部分スペクトル](../manual/spectral.md) |

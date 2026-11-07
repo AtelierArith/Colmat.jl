@@ -882,18 +882,25 @@ impl TypedMatrix {
         })
     }
     #[julia]
-    pub fn inverse_from(&mut self, source: &TypedFactor) -> Result<(), String> {
+    pub fn inverse_from(
+        &mut self,
+        source: &TypedFactor,
+        team: Option<&crate::teams::OwnedTeam>,
+    ) -> Result<(), String> {
         guarded(|| {
             let f = source;
             if f.info != 0 {
                 return Err("singular factorization".into());
             }
-            self.data = Some(factor_matrix!(f.data()?,x=>{
-                if factor_dispatch!(x,f=>f.nrows()!=f.ncols()){return Err("inverse requires square input".into());}
-                let deficient=match x{Factor::Qr(f)=>rank_deficient(f.thin_R()),Factor::PivotQr(f)=>rank_deficient(f.thin_R()),_=>false};
-                if deficient{return Err("singular factorization".into());}
-                factor_dispatch!(x,f=>f.inverse(Par::Seq))
-            }));
+            let data = f.data()?;
+            self.data = Some(crate::teams::with_team(team, |par| {
+                Ok(factor_matrix!(data,x=>{
+                    if factor_dispatch!(x,f=>f.nrows()!=f.ncols()){return Err("inverse requires square input".into());}
+                    let deficient=match x{Factor::Qr(f)=>rank_deficient(f.thin_R()),Factor::PivotQr(f)=>rank_deficient(f.thin_R()),_=>false};
+                    if deficient{return Err("singular factorization".into());}
+                    factor_dispatch!(x,f=>f.inverse(par))
+                }))
+            })?);
             Ok(())
         })
     }

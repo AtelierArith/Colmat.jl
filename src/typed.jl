@@ -507,12 +507,13 @@ _solve_op(::_ExtraAdjointFactor) = 2
 _solve_op(::_ExtraTransposeFactor) = 1
 Base.:\(f::_ExtraTransformedFactor, b::FaerMatrix) =
     _typed_solve(parent(f), b, _solve_op(f))
-function Base.inv(f::FaerFactorization{T}) where {T<:_ExtraScalar}
+function Base.inv(f::FaerFactorization{T}; team = nothing) where {T<:_ExtraScalar}
     LinearAlgebra.checksquare(f)
     LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
-    return _typed_result(T, RustCrate.inverse_from, size(f), f)
+    return _typed_result(T, RustCrate.inverse_from, size(f), f, team)
 end
-Base.inv(a::FaerMatrix{T}) where {T<:_ExtraScalar} = inv(LinearAlgebra.lu(a))
+Base.inv(a::FaerMatrix{T}; team = nothing) where {T<:_ExtraScalar} =
+    inv(LinearAlgebra.lu(a; team); team)
 LinearAlgebra.factorize(a::FaerMatrix{T}; team = nothing) where {T<:_ExtraScalar} =
     size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a; team) :
     LinearAlgebra.qr(a, LinearAlgebra.ColumnNorm(); team)

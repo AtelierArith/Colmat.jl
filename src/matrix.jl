@@ -41,6 +41,8 @@ _raw_owner_argument(x, owner) = _is_native_owner(owner) ? Ptr{UInt8}(x.ptr) : x
 const _raw_owner_arguments = (
     (RustCrate.borrowed_sparse_mul, (10,)),
     (RustCrate.borrowed_sparse_product, (10,)),
+    (RustCrate.sparse_owner_mul, (4,)),
+    (RustCrate.sparse_owner_product, (4,)),
     (RustCrate.dense_triangular_into, (3,)),
     (RustCrate.dense_triangular_raw, (1,)),
     (RustCrate.dense_triangular_requirements, (1,)),

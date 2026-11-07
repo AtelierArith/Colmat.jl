@@ -346,8 +346,12 @@ _bytes(f) = (f(); @allocated f())
             sq=SparseMatrixCSC{T,Ti}(sprand(rng, T, 6, 6, 0.4)+I)
             sp=FaerSparseProductPlan(faerview(sq), faerview(sq))
             @test_throws ArgumentError mul!(faerview(sq), sp, faerview(sq), faerview(sq))
-            # Owned CSR operands cannot mix with borrowed CSC ones.
-            @test_throws ArgumentError FaerSparseProductPlan(faerview(a), FaerSparseMatrix(b; format = :csr))
+            # Owned CSR operands mix with borrowed CSC ones (read in place).
+            br=FaerSparseMatrix(b; format = :csr)
+            mp=FaerSparseProductPlan(faerview(a), br)
+            mc=FaerSparseMatrix{T}(mp)
+            mul!(mc, mp, faerview(a), br)
+            @test Matrix(mc) ≈ Matrix(a)*Matrix(b)
         end
     end
 

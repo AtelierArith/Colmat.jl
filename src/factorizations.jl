@@ -201,6 +201,21 @@ function Base.getproperty(f::FaerFactorization{T,K}, name::Symbol) where {T,K}
     end
     return getfield(f, name)
 end
+"""
+    qr_q(F; thin=false, team=nothing)
+
+Form the explicit orthogonal/unitary `Q` of a dense QR factor (`qr(A)`,
+`qr(A, ColumnNorm())` or the in-place `qr!(A; scratch)`) as a new `FaerMatrix`:
+the square `m×m` `F.Q`, or with `thin=true` the `m×min(m,n)` `F.Qthin`. Property
+access cannot take keywords; `qr_q` lends a caller-owned `FaerTeam` to faer's
+blocked Householder application that builds `Q`. The factor is preserved.
+"""
+function qr_q end
+qr_q(
+    f::Union{FaerFactorization{<:Any,:qr},FaerFactorization{<:Any,:pivoted_qr}};
+    thin::Bool = false,
+    team = nothing,
+) = _factor_part(f, thin ? 6 : 3, (size(f, 1), thin ? minimum(size(f)) : size(f, 1)); team)
 function Base.propertynames(f::FaerFactorization{T,K}, private::Bool = false) where {T,K}
     props =
         K in (:lu, :full_lu) ? (:L, :U, :p, :P) :
@@ -277,12 +292,13 @@ Base.:\(f::_FaerTransposedFactor, b::AbstractMatrix{<:Real}) = f \ FaerMatrix{Fl
 Base.:\(f::_FaerTransposedFactor, b::AbstractVector{<:Real}) =
     vec(Matrix(f \ FaerMatrix(reshape(b, :, 1))))
 
-function Base.inv(f::FaerFactorization{Float64})
+# `team` lends a caller-owned `FaerTeam` to faer's factor inverse kernel.
+function Base.inv(f::FaerFactorization{Float64}; team = nothing)
     size(f, 1)==size(f, 2) || throw(DimensionMismatch("inverse requires a square factor"))
     LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
-    return _matrix_result(RustCrate.factor_inverse, size(f), f)
+    return _matrix_result(RustCrate.factor_inverse, size(f), f, team)
 end
-Base.inv(a::FaerMatrix{Float64}) = inv(LinearAlgebra.lu(a))
+Base.inv(a::FaerMatrix{Float64}; team = nothing) = inv(LinearAlgebra.lu(a; team); team)
 LinearAlgebra.factorize(a::FaerMatrix{Float64}; team = nothing) =
     size(a, 1)==size(a, 2) ? LinearAlgebra.lu(a; team) :
     LinearAlgebra.qr(a, LinearAlgebra.ColumnNorm(); team)

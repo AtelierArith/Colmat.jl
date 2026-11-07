@@ -10,6 +10,11 @@
 //!
 //! CSR operands are handled as column-major transposes: `Cᵀ = Bᵀ Aᵀ`, so a CSR
 //! plan is the column-major plan of `(Bᵀ, Aᵀ)` and its result is `Cᵀ`.
+//!
+//! The plan follows the storage format of `A`. A `B` stored in the other
+//! format is transposed once at planning time: the plan keeps the transposed
+//! pattern and a value permutation, and each numeric call gathers `B`'s
+//! values through it into a buffer taken from the caller's scratch.
 use crate::borrowed_sparse::{
     numeric as borrowed_numeric, numeric_mut as borrowed_numeric_mut,
     symbolic as borrowed_symbolic, Raw,
@@ -75,22 +80,73 @@ impl Pattern {
     }
 }
 
+/// The transpose of a stored column-major pattern, with `perm[q]` the stored
+/// value index of transposed entry `q`.
+struct Transposed {
+    pattern: Pattern,
+    perm: Vec<usize>,
+}
+impl Transposed {
+    fn of(s: SymbolicSparseColMatRef<'_, usize>) -> Self {
+        let (m, n) = (s.nrows(), s.ncols());
+        let (ptr, idx) = (s.col_ptr(), s.row_idx());
+        let k = ptr[n];
+        let mut tptr = vec![0usize; m + 1];
+        for &i in &idx[..k] {
+            tptr[i + 1] += 1;
+        }
+        for i in 0..m {
+            tptr[i + 1] += tptr[i];
+        }
+        let mut next = tptr[..m].to_vec();
+        let mut tidx = vec![0usize; k];
+        let mut perm = vec![0usize; k];
+        for j in 0..n {
+            for p in ptr[j]..ptr[j + 1] {
+                let q = &mut next[idx[p]];
+                tidx[*q] = j;
+                perm[*q] = p;
+                *q += 1;
+            }
+        }
+        Self {
+            pattern: Pattern {
+                nrows: n,
+                ncols: m,
+                ptr: tptr,
+                idx: tidx,
+            },
+            perm,
+        }
+    }
+}
+
 struct Plan {
     csr: bool,
+    /// Storage format of `B` (differs from `csr` when `b_transposed` is set).
+    b_csr: bool,
     /// Column-major patterns of the stored `A` and `B` (`Aᵀ`, `Bᵀ` for CSR).
     a: Pattern,
     b: Pattern,
+    /// For a `B` stored in the other format: the transpose of its stored
+    /// column-major pattern, i.e. the column-major view the plan needs.
+    b_transposed: Option<Transposed>,
     /// Column-major result: `C`, or `Cᵀ` for CSR.
     result: SymbolicSparseColMat<usize>,
     info: SparseMatMulInfo,
 }
 impl Plan {
+    /// `a`/`b` are the stored column-major patterns of `A` (format `csr`) and
+    /// `B` (format `b_csr`).
     fn build(
         a: SymbolicSparseColMatRef<'_, usize>,
         b: SymbolicSparseColMatRef<'_, usize>,
         csr: bool,
+        b_csr: bool,
     ) -> Result<Self, String> {
-        let (lhs, rhs) = if csr { (b, a) } else { (a, b) };
+        let b_transposed = (csr != b_csr).then(|| Transposed::of(b));
+        let bv = b_transposed.as_ref().map_or(b, |t| t.pattern.view());
+        let (lhs, rhs) = if csr { (bv, a) } else { (a, bv) };
         if lhs.ncols() != rhs.nrows() {
             return Err("sparse product dimensions must match".into());
         }
@@ -98,8 +154,10 @@ impl Plan {
             sparse_sparse_matmul_symbolic(lhs, rhs).map_err(|e| format!("{e:?}"))?;
         Ok(Self {
             csr,
+            b_csr,
             a: Pattern::of(a),
             b: Pattern::of(b),
+            b_transposed,
             result,
             info,
         })
@@ -114,7 +172,14 @@ impl Plan {
         }
     }
     fn requirement<T: ComplexField>(&self, par: ParShape) -> StackReq {
-        sparse_sparse_matmul_numeric_scratch::<usize, T>(self.result.as_ref(), par)
+        let gathered = self
+            .b_transposed
+            .as_ref()
+            .map_or(StackReq::EMPTY, |t| StackReq::new::<T>(t.perm.len()));
+        gathered.and(sparse_sparse_matmul_numeric_scratch::<usize, T>(
+            self.result.as_ref(),
+            par,
+        ))
     }
     /// Validate every pattern, then `C = alpha * A * B + beta * C` in place
     /// (`beta == None` replaces). The arguments are column-major views of the
@@ -162,6 +227,14 @@ impl Plan {
                 Accum::Add
             }
         };
+        let Some(t) = &self.b_transposed else {
+            let (lhs, rhs) = if self.csr { (b, a) } else { (a, b) };
+            sparse_sparse_matmul_numeric(dst, accum, lhs, rhs, alpha, &self.info, par, stack);
+            return Ok(OK);
+        };
+        let stored = b.val();
+        let (vals, stack) = stack.make_with::<T>(t.perm.len(), |q| copy(&stored[t.perm[q]]));
+        let b = SparseColMatRef::new(t.pattern.view(), &vals);
         let (lhs, rhs) = if self.csr { (b, a) } else { (a, b) };
         sparse_sparse_matmul_numeric(dst, accum, lhs, rhs, alpha, &self.info, par, stack);
         Ok(OK)
@@ -265,7 +338,7 @@ fn owned_mul(
     // Operand formats are checked against the plan before any value is read.
     let (_, lcsr) = pattern_of(lhs.data()?);
     let (_, rcsr) = pattern_of(rhs.data()?);
-    if lcsr != plan.csr || rcsr != plan.csr {
+    if lcsr != plan.csr || rcsr != plan.b_csr {
         return Ok(FORMAT);
     }
     let a = lhs.data()?;
@@ -318,7 +391,8 @@ fn owned_mul(
     }
 }
 
-/// Borrowed Julia CSC operands of scalar `tag` into a CSC owner.
+/// Raw column-major operands of scalar `tag` (borrowed Julia CSC matrices or
+/// raw parts of owners) into an owner of the plan's format.
 #[allow(clippy::too_many_arguments)]
 unsafe fn borrowed_mul(
     plan: &Plan,
@@ -342,7 +416,7 @@ unsafe fn borrowed_mul(
         scratch: &mut OwnedScratch,
     ) -> Result<usize, String> {
         let (d, csr) = column_major_mut(d);
-        if csr || plan.csr {
+        if csr != plan.csr {
             return Ok(FORMAT);
         }
         let (a, b) = (borrowed_numeric::<T>(a)?, borrowed_numeric::<T>(b)?);
@@ -551,7 +625,7 @@ impl SparseProductPlan {
     pub fn new() -> Self {
         Self { plan: None }
     }
-    /// Symbolic phase of `A * B` for two owners sharing one storage format.
+    /// Symbolic phase of `A * B` for two owners; the plan follows `A`'s format.
     #[julia]
     pub fn sparse_product_plan_build(
         &mut self,
@@ -561,14 +635,13 @@ impl SparseProductPlan {
         guarded(|| {
             let (a, acsr) = pattern_of(lhs.data()?);
             let (b, bcsr) = pattern_of(rhs.data()?);
-            if acsr != bcsr {
-                return Err("sparse product plan operands must share a storage format".into());
-            }
-            self.plan = Some(Plan::build(a, b, acsr)?);
+            self.plan = Some(Plan::build(a, b, acsr, bcsr)?);
             Ok(())
         })
     }
-    /// Symbolic phase of `A * B` for two borrowed Julia CSC matrices.
+    /// Symbolic phase of `A * B` from raw column-major patterns (borrowed
+    /// Julia CSC matrices or `sparse_csc_raw_parts` of owners); `acsr`/`bcsr`
+    /// say whether each operand is a CSR owner read as its transpose.
     #[julia]
     #[allow(clippy::too_many_arguments)]
     pub fn sparse_product_plan_build_borrowed(
@@ -583,6 +656,8 @@ impl SparseProductPlan {
         ptr2: *const usize,
         idx2: *const usize,
         k2: usize,
+        acsr: bool,
+        bcsr: bool,
     ) -> Result<(), String> {
         guarded(|| unsafe {
             let raw = |m, n, ptr, idx, k| Raw {
@@ -595,7 +670,7 @@ impl SparseProductPlan {
             };
             let a = borrowed_symbolic(raw(m, n, ptr, idx, k))?;
             let b = borrowed_symbolic(raw(m2, n2, ptr2, idx2, k2))?;
-            self.plan = Some(Plan::build(a, b, false)?);
+            self.plan = Some(Plan::build(a, b, acsr, bcsr)?);
             Ok(())
         })
     }
@@ -607,11 +682,11 @@ impl SparseProductPlan {
     ) -> Result<(), String> {
         guarded(|| {
             let p = other.plan()?;
-            self.plan = Some(Plan::build(p.a.view(), p.b.view(), p.csr)?);
+            self.plan = Some(Plan::build(p.a.view(), p.b.view(), p.csr, p.b_csr)?);
             Ok(())
         })
     }
-    /// Write `[rows, cols, nnz, csr]` of the planned product.
+    /// Write `[rows, cols, nnz, csr, b_csr]` of the planned product.
     #[julia]
     pub fn sparse_product_plan_info(&self, out: *mut usize) -> Result<(), String> {
         guarded(|| {
@@ -622,6 +697,7 @@ impl SparseProductPlan {
                 out.add(1).write(n);
                 out.add(2).write(p.result.row_idx().len());
                 out.add(3).write(p.csr as usize);
+                out.add(4).write(p.b_csr as usize);
             }
             Ok(())
         })
@@ -917,9 +993,9 @@ mod tests {
 
     #[test]
     fn planned_products_match_dense_and_do_not_allocate() {
-        for csr in [false, true] {
+        for (csr, b_csr) in [(false, false), (true, true), (false, true), (true, false)] {
             let a = owner(storage(6, 5, 1, csr));
-            let b = owner(storage(5, 7, 2, csr));
+            let b = owner(storage(5, 7, 2, b_csr));
             let p = plan_for(&a, &b);
             let mut c = SparseOwner::new();
             c.sparse_from_product_plan(&p, 3).unwrap();
@@ -940,7 +1016,7 @@ mod tests {
                     )
                     .unwrap();
             });
-            assert_eq!((code, count), (OK, 0), "csr={csr}");
+            assert_eq!((code, count), (OK, 0), "csr={csr} b_csr={b_csr}");
             let first = dense(&c);
             assert!((&first - &gold * faer::Scale(alpha)).norm_max() < 1e-10);
             // Accumulate: C = alpha*A*B + beta*C.
@@ -957,7 +1033,7 @@ mod tests {
                     )
                     .unwrap();
             });
-            assert_eq!((code, count), (OK, 0), "csr={csr}");
+            assert_eq!((code, count), (OK, 0), "csr={csr} b_csr={b_csr}");
             assert!(
                 (dense(&c) - (&gold * faer::Scale(alpha) + &first * faer::Scale(beta))).norm_max()
                     < 1e-10
@@ -998,6 +1074,29 @@ mod tests {
             c.sparse_plan_mul(&p, &csr, &b, one, one, false, &mut s)
                 .unwrap(),
             FORMAT
+        );
+        let b_csr = owner(storage(5, 7, 2, true));
+        assert_eq!(
+            c.sparse_plan_mul(&p, &a, &b_csr, one, one, false, &mut s)
+                .unwrap(),
+            FORMAT
+        );
+        // A plan over a CSR `B` rejects the CSC `B` and too small a scratch.
+        let mixed = plan_for(&a, &b_csr);
+        let mut short = OwnedScratch::new();
+        let mut req = [0usize; 2];
+        p.sparse_product_plan_requirements(3, req.as_mut_ptr())
+            .unwrap();
+        short.scratch_reserve(req[0], req[1]).unwrap();
+        assert_eq!(
+            c.sparse_plan_mul(&mixed, &a, &b, one, one, false, &mut s)
+                .unwrap(),
+            FORMAT
+        );
+        assert_eq!(
+            c.sparse_plan_mul(&mixed, &a, &b_csr, one, one, false, &mut short)
+                .unwrap(),
+            SCRATCH
         );
         let mut wrong = owner(storage(6, 7, 0, false));
         assert_eq!(
