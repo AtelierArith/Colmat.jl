@@ -140,7 +140,7 @@ end
         work=FaerScratch(mul!, C, plan, faerview(a), faerview(b))
         mul!(C, plan, faerview(a), faerview(b), 1, 0; scratch = work)
         @test Matrix(C) ≈ Matrix(a)*Matrix(b)
-        # Mixed borrowed/owned operands are accepted (the borrowed one is copied).
+        # Mixed borrowed/owned CSC operands are both read in place.
         mul!(C, plan, FaerSparseMatrix(a), faerview(b))
         @test Matrix(C) ≈ Matrix(a)*Matrix(b)
         # A structural change of a parent is detected.

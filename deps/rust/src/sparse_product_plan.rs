@@ -10,7 +10,10 @@
 //!
 //! CSR operands are handled as column-major transposes: `Cᵀ = Bᵀ Aᵀ`, so a CSR
 //! plan is the column-major plan of `(Bᵀ, Aᵀ)` and its result is `Cᵀ`.
-use crate::borrowed_sparse::{numeric as borrowed_numeric, symbolic as borrowed_symbolic, Raw};
+use crate::borrowed_sparse::{
+    numeric as borrowed_numeric, numeric_mut as borrowed_numeric_mut,
+    symbolic as borrowed_symbolic, Raw,
+};
 use crate::guarded;
 use crate::sparse::{SparseData, SparseOwner, Storage};
 use crate::teams::{with_team, OwnedTeam};
@@ -387,6 +390,158 @@ unsafe fn borrowed_mul(
             scratch,
         ),
         _ => Ok(SCALAR),
+    }
+}
+
+/// Raw CSC operands into a borrowed Julia CSC destination `dst` whose values
+/// live at `dval`. Julia rejects destinations that might alias an operand.
+#[allow(clippy::too_many_arguments)]
+unsafe fn borrowed_into(
+    plan: &Plan,
+    dst: Raw,
+    dval: *mut u8,
+    a: Raw,
+    b: Raw,
+    tag: i32,
+    alpha: *const u8,
+    beta: *const u8,
+    accumulate: bool,
+    team: Option<&OwnedTeam>,
+    scratch: &mut OwnedScratch,
+) -> Result<usize, String> {
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn run<T: ComplexField>(
+        plan: &Plan,
+        dst: Raw,
+        dval: *mut u8,
+        a: Raw,
+        b: Raw,
+        (alpha, beta): (T, Option<T>),
+        team: Option<&OwnedTeam>,
+        scratch: &mut OwnedScratch,
+    ) -> Result<usize, String> {
+        if plan.csr {
+            return Ok(FORMAT);
+        }
+        let d = borrowed_numeric_mut::<T>(dst, dval)?;
+        let (a, b) = (borrowed_numeric::<T>(a)?, borrowed_numeric::<T>(b)?);
+        with_team(team, |par| plan.numeric(d, a, b, alpha, beta, par, scratch))
+    }
+    let s = (alpha, beta, accumulate);
+    match tag {
+        0 => run::<f32>(plan, dst, dval, a, b, scalars(s.0, s.1, s.2), team, scratch),
+        1 => run::<f64>(plan, dst, dval, a, b, scalars(s.0, s.1, s.2), team, scratch),
+        2 => run::<faer::c32>(plan, dst, dval, a, b, scalars(s.0, s.1, s.2), team, scratch),
+        3 => run::<faer::c64>(plan, dst, dval, a, b, scalars(s.0, s.1, s.2), team, scratch),
+        _ => Ok(SCALAR),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn raw(m: usize, n: usize, ptr: *const usize, idx: *const usize, val: *const u8, k: usize) -> Raw {
+    Raw {
+        m,
+        n,
+        ptr,
+        idx,
+        val,
+        k,
+    }
+}
+
+#[julia]
+impl SparseProductPlan {
+    /// `C = alpha * A * B (+ beta * C)` into a borrowed Julia CSC destination
+    /// (`d*` parts, values written in place) from raw CSC operands (borrowed
+    /// Julia matrices or `sparse_csc_raw_parts` of CSC owners).
+    #[julia]
+    #[allow(clippy::too_many_arguments)]
+    pub fn sparse_plan_mul_into_borrowed(
+        &self,
+        dm: usize,
+        dn: usize,
+        dptr: *const usize,
+        didx: *const usize,
+        dval: *mut u8,
+        dk: usize,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        val: *const u8,
+        k: usize,
+        m2: usize,
+        n2: usize,
+        ptr2: *const usize,
+        idx2: *const usize,
+        val2: *const u8,
+        k2: usize,
+        tag: i32,
+        alpha: *const u8,
+        beta: *const u8,
+        accumulate: bool,
+        scratch: &mut OwnedScratch,
+    ) -> Result<usize, String> {
+        guarded(|| unsafe {
+            borrowed_into(
+                self.plan()?,
+                raw(dm, dn, dptr, didx, dval.cast_const(), dk),
+                dval,
+                raw(m, n, ptr, idx, val, k),
+                raw(m2, n2, ptr2, idx2, val2, k2),
+                tag,
+                alpha,
+                beta,
+                accumulate,
+                None,
+                scratch,
+            )
+        })
+    }
+    #[julia]
+    #[allow(clippy::too_many_arguments)]
+    pub fn sparse_plan_mul_into_borrowed_team(
+        &self,
+        dm: usize,
+        dn: usize,
+        dptr: *const usize,
+        didx: *const usize,
+        dval: *mut u8,
+        dk: usize,
+        m: usize,
+        n: usize,
+        ptr: *const usize,
+        idx: *const usize,
+        val: *const u8,
+        k: usize,
+        m2: usize,
+        n2: usize,
+        ptr2: *const usize,
+        idx2: *const usize,
+        val2: *const u8,
+        k2: usize,
+        tag: i32,
+        alpha: *const u8,
+        beta: *const u8,
+        accumulate: bool,
+        scratch: &mut OwnedScratch,
+        team: &OwnedTeam,
+    ) -> Result<usize, String> {
+        guarded(|| unsafe {
+            borrowed_into(
+                self.plan()?,
+                raw(dm, dn, dptr, didx, dval.cast_const(), dk),
+                dval,
+                raw(m, n, ptr, idx, val, k),
+                raw(m2, n2, ptr2, idx2, val2, k2),
+                tag,
+                alpha,
+                beta,
+                accumulate,
+                Some(team),
+                scratch,
+            )
+        })
     }
 }
 
