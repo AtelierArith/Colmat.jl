@@ -144,9 +144,7 @@ function LinearAlgebra.schur(f::FaerCompactHessenberg; scratch = nothing, team =
                 f.Q.transposed,
                 f.Q.conjugated,
             )
-            isnothing(team) ?
-            _native_call(RustCrate.compact_tridiagonal_workspace, args...) :
-            _native_call(RustCrate.compact_tridiagonal_workspace_team, args..., team)
+            _native_call(RustCrate.compact_tridiagonal_workspace, args..., team)
             success=true
             return result
         finally

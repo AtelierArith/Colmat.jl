@@ -1,6 +1,7 @@
 //! Reusable tridiagonal reduction and explicit Q construction workspace.
 use super::workspace::buffer;
-use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch};
+use crate::teams::{with_team, OwnedTeam};
+use crate::{guarded, workspace::OwnedScratch};
 use faer::dyn_stack::StackReq;
 use faer::linalg::{self, evd, householder as hh};
 use faer::mat::{AsMatMut, AsMatRef};
@@ -140,27 +141,18 @@ fn query(
     }
     Ok(())
 }
+/// Workspace of `tridiagonalize_workspace`; `threshold` 0 keeps faer's derived
+/// parallel threshold, and `team` borrows a caller team's shape.
 #[julia]
 pub fn tridiagonalize_requirements(
     n: usize,
     tag: i32,
     bs: usize,
+    threshold: usize,
     out: *mut usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| query(n, tag, bs, ParShape::Seq, 0, out))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn tridiagonalize_team_requirements(
-        &self,
-        n: usize,
-        tag: i32,
-        bs: usize,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(n, tag, bs, par.shape(), 0, out))?)
-    }
+    guarded(|| with_team(team, |par| query(n, tag, bs, par.shape(), threshold, out)))
 }
 unsafe fn compute<T: ComplexField>(
     scratch: &mut OwnedScratch,
@@ -314,22 +306,14 @@ pub fn tridiagonalize_workspace(
     e: *mut u8,
     tag: i32,
     bs: usize,
+    threshold: usize,
+    team: Option<&OwnedTeam>,
 ) -> Result<(), String> {
-    guarded(|| run(scratch, input, n, q, d, e, tag, bs, Par::Seq, 0))
-}
-#[julia]
-pub fn tridiagonalize_workspace_team(
-    scratch: &mut OwnedScratch,
-    input: *const u8,
-    n: usize,
-    q: *mut u8,
-    d: *mut u8,
-    e: *mut u8,
-    tag: i32,
-    bs: usize,
-    team: &OwnedTeam,
-) -> Result<(), String> {
-    guarded(|| team.execute(|par| run(scratch, input, n, q, d, e, tag, bs, par, 0))?)
+    guarded(|| {
+        with_team(team, |par| {
+            run(scratch, input, n, q, d, e, tag, bs, par, threshold)
+        })
+    })
 }
 pub(super) fn allocate(
     input: *const u8,
@@ -344,60 +328,6 @@ pub(super) fn allocate(
     let mut scratch = OwnedScratch::new();
     scratch.scratch_reserve(req.size_bytes(), req.align_bytes())?;
     run(&mut scratch, input, n, q, d, e, tag, bs, Par::Seq, 0)
-}
-
-#[julia]
-pub fn tridiagonalize_tuned_requirements(
-    n: usize,
-    tag: i32,
-    bs: usize,
-    threshold: usize,
-    out: *mut usize,
-) -> Result<(), String> {
-    guarded(|| query(n, tag, bs, ParShape::Seq, threshold, out))
-}
-#[julia]
-impl OwnedTeam {
-    #[julia]
-    pub fn tridiagonalize_tuned_team_requirements(
-        &self,
-        n: usize,
-        tag: i32,
-        bs: usize,
-        threshold: usize,
-        out: *mut usize,
-    ) -> Result<(), String> {
-        guarded(|| self.execute(|par| query(n, tag, bs, par.shape(), threshold, out))?)
-    }
-}
-#[julia]
-pub fn tridiagonalize_tuned_workspace(
-    scratch: &mut OwnedScratch,
-    input: *const u8,
-    n: usize,
-    q: *mut u8,
-    d: *mut u8,
-    e: *mut u8,
-    tag: i32,
-    bs: usize,
-    threshold: usize,
-) -> Result<(), String> {
-    guarded(|| run(scratch, input, n, q, d, e, tag, bs, Par::Seq, threshold))
-}
-#[julia]
-pub fn tridiagonalize_tuned_workspace_team(
-    scratch: &mut OwnedScratch,
-    input: *const u8,
-    n: usize,
-    q: *mut u8,
-    d: *mut u8,
-    e: *mut u8,
-    tag: i32,
-    bs: usize,
-    threshold: usize,
-    team: &OwnedTeam,
-) -> Result<(), String> {
-    guarded(|| team.execute(|par| run(scratch, input, n, q, d, e, tag, bs, par, threshold))?)
 }
 
 #[cfg(test)]
