@@ -178,9 +178,10 @@ builds the result in one Rust buffer and writes it into `C`; `β == 0` never rea
 `C`, `α == 0` never reads the operands, and an operand sharing the destination's
 owner is first copied natively. A native dense operand of a narrower scalar
 type is converted once in Rust (applying its transpose or conjugation) rather
-than through a Julia snapshot; a triangular wrapper of a Julia matrix or a
-destination narrower than the promoted type still falls back to the dense
-snapshot path. `D * v::FaerVector` and `r::FaerRow * D` return native vectors,
+than through a Julia snapshot. A destination narrower than the promoted type
+is intentionally computed in the promoted type and converted on assignment, as
+LinearAlgebra does (a nonreal result for a real destination throws
+`InexactError`). `D * v::FaerVector` and `r::FaerRow * D` return native vectors,
 and `mul!(y, D, x, α, β)` / `mul!(z, r, D, α, β)` write native column (or
 column view) and row destinations in place. `transpose(D)` and `D'` take the
 same native paths (`D'` of a complex diagonal is one O(n) conjugated copy).

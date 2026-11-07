@@ -35,6 +35,31 @@ Base.:\(d::LinearAlgebra.Diagonal, b::FaerDiagonal) = _diagonal_quotient(d, b, 2
 Base.:/(b::Union{FaerDiagonal,LinearAlgebra.Diagonal}, d::FaerDiagonal) =
     _diagonal_quotient(d, b, 3)
 Base.:/(b::FaerDiagonal, d::LinearAlgebra.Diagonal) = _diagonal_quotient(d, b, 3)
+# `mul!` into a FaerDiagonal forms the O(n) native product first (so operands
+# sharing the destination are read before writing) and assigns its entries to
+# the stored diagonal; `β == 0` never reads the destination.
+function _diagonal_into!(c::FaerDiagonal, a, b, alpha, beta)
+    lock(_matrix_lock) do
+        _handle(c)
+        size(a)==size(b)==size(c) ||
+            throw(DimensionMismatch("diagonal product destination size must match"))
+        r=a*b
+        isone(alpha) || (r=alpha*r)
+        iszero(beta) || (r=r+beta*c)
+        copyto!(diagonalview(c), LinearAlgebra.diag(r))
+        return c
+    end
+end
+const _DiagonalProductPair=Union{FaerDiagonal,LinearAlgebra.Diagonal}
+LinearAlgebra.mul!(
+    c::FaerDiagonal,
+    a::_DiagonalProductPair,
+    b::_DiagonalProductPair,
+    alpha::Number,
+    beta::Number,
+) = _diagonal_into!(c, a, b, alpha, beta)
+LinearAlgebra.mul!(c::FaerDiagonal, a::_DiagonalProductPair, b::_DiagonalProductPair) =
+    _diagonal_into!(c, a, b, true, false)
 
 # `transpose(D)` is `D` and `D'` is `conj(D)` (one O(n) native copy for complex
 # entries), so wrapped diagonals use the native diagonal methods.

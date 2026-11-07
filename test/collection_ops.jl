@@ -85,6 +85,11 @@ end
             @test Vector(diag(W*D)) ≈ diag(R*J)
             @test Vector(diag(D+W)) ≈ diag(J+R)
             @test Vector(diag(W\J)) ≈ diag(R\J)
+            C=FaerMatrix(zeros(T, 3, 3))
+            @test _colmat_method(mul!, C, W, A, true, false)
+            @test Matrix(mul!(C, W, A)) ≈ R*a
+            @test Matrix(mul!(C, A, W, T(2), T(0))) ≈ 2*a*R
+            close(C)
         end
         foreach(close, (D, A, v, r))
         @test_throws ArgumentError D'*FaerMatrix(a)
@@ -167,6 +172,28 @@ end
             @test Vector(diag(E)) ≈ d .* x
             foreach(close, (V, E))
         end
+        # Row slices of matrices are (transposed) native vector destinations.
+        A=FaerMatrix(_cop_sample(T, 2, n))
+        a=Matrix(A)
+        mul!(view(A, 2, :), D, v)
+        a[2, :]=d .* Vector(v)
+        @test Matrix(A) ≈ a
+        mul!(view(A, 2, :), D, v, T(2), T(1))
+        a[2, :]=2 .* d .* Vector(v) .+ a[2, :]
+        @test Matrix(A) ≈ a
+        @test Vector(D*view(A, 1, :)) ≈ d .* a[1, :]
+        mul!(view(A, 2, :), D, view(A, 2, :))
+        a[2, :]=d .* a[2, :]
+        @test Matrix(A) ≈ a
+        close(A)
+        # Diagonal destinations.
+        E=FaerDiagonal(fill(T(1), n))
+        @test _colmat_method(mul!, E, D, Diagonal(d))
+        @test mul!(E, D, Diagonal(d), T(2), T(1)) === E
+        @test Vector(diag(E)) ≈ 2 .* d .* d .+ 1
+        mul!(E, E, D)
+        @test Vector(diag(E)) ≈ (2 .* d .* d .+ 1) .* d
+        close(E)
         @test_throws DimensionMismatch mul!(FaerVector(zeros(T, n+1)), D, v)
         foreach(close, (D, v, y, r, z))
     end
