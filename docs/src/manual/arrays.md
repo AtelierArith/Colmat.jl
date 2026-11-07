@@ -110,6 +110,35 @@ close(native_full)
 代入先は変わりません。
 `FaerDiagonal` の非対角要素は暗黙のゼロで、非ゼロの代入はできません。
 
+対角との積・除算・和は faer の `DiagRef` を借用して native に計算し、
+n×n の密な snapshot を作りません。`D*A` / `A*D` / `D\A` / `A/D` / `D±A`、
+`D*v` / `D\v`、`r*D` / `r/D`（結果は `FaerRow`）、`inv(D)`、
+`lmul!` / `rmul!` / `ldiv!` / `rdiv!` に対応します。Julia の `Diagonal` も、
+格納された n 個の要素だけを渡して同じ経路を使います。
+ゼロの対角要素で割ると `SingularException` を投げ、入力も代入先も変更しません。
+`diag(A)` と `FaerDiagonal(A)` は密行列・範囲ビューの主対角を native にコピーし、
+`v * w'` は Rust 所有の `FaerMatrix` を返します。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix([1.0 2; 3 4])
+D = FaerDiagonal([2.0, 4.0])
+@assert Matrix(D * A) == Diagonal([2.0, 4.0]) * [1.0 2; 3 4]
+@assert Matrix(FaerRow([1.0, 1.0]) / D) == [0.5 0.25]
+ldiv!(D, A)                      # A の格納領域を直接更新
+@assert Matrix(A) == [0.5 1; 0.75 1]
+@assert Vector(diag(inv(D))) == [0.5, 0.25]
+@assert Vector(diag(A)) == [0.5, 1.0]
+try
+    FaerDiagonal([1.0, 0.0]) \ A
+catch e
+    @assert e isa SingularException && e.info == 2
+end
+close(A)
+close(D)
+```
+
 `FaerMatrix{T}(m,n; fill=value)` と `FaerVector{T}(n; fill=value)` /
 `FaerRow{T}(n; fill=value)` / `FaerDiagonal{T}(n; fill=value)` は定数値から
 native に直接構築し、Julia の密配列を実体化しません。fill の既定値はゼロです。
