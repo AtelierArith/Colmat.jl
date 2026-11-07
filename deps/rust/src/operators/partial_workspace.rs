@@ -51,17 +51,9 @@ fn requirement<T: ComplexField>(
     let param = params(min, max, restarts);
     let kernel = match kind {
         0 => pe::partial_eigen_scratch(a, k, p, param),
-        1 => {
-            let req = pe::partial_self_adjoint_eigen_scratch(a, k, p, param);
-            // faer's full-subspace scratch omits the n x n eigenvector buffer that
-            // `self_adjoint_eigen::full::partial_full_spectrum` allocates, so an
-            // exact-size buffer panics in `self_adjoint_evd` (n = 64, k = 2).
-            if max.max(64).max(k.saturating_mul(2)).min(n) >= n {
-                req.and(temp_mat_scratch::<T>(n, n))
-            } else {
-                req
-            }
-        }
+        // faer declares the full-subspace branch's two n x n buffers itself
+        // since tensor4all/faer#305 (the under-declaration reported as #301).
+        1 => pe::partial_self_adjoint_eigen_scratch(a, k, p, param),
         _ => pe::partial_svd_scratch(a, k, p, param),
     };
     Ok(kernel.or(residual_requirement(a, kind, p)))
