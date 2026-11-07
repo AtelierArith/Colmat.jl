@@ -87,8 +87,24 @@ lu!(F, B)                          # 現在の値で再分解
 @assert F \ [1.0, 2, 3] ≈ (2 * Matrix(sparse([4.0 1 0; 1 5 2; 0 2 6]))) \ [1.0, 2, 3]
 ```
 
-CSR の借用（`transpose(S)` 由来）、借用を代入先にする `SparseColMatMut` 経路、
-`u32` index での faer 呼び出し、非圧縮形式（faer の `col_nnz`）は未接続です。
+`faerview(transpose(S))`・`faerview(S')` は `transpose(faerview(S))`・
+`adjoint(faerview(S))` を返します。借用 CSC の転置は同じ配列を CSR として読む faer の
+`SparseRowMatRef`（随伴は共役型）なので、密な行列・ビュー・Julia 配列との `*` と
+`FaerMatrix` への `mul!`（左右両方）は転置や共役のコピーを作りません。
+
+借用を値の書き込み先（faer の `SparseColMatMut`）にもできます。パターンは固定で、
+`nonzeros(S)` は同じベクトルのまま書き換わります。
+
+- `add_assign!(faerview(S), src)`・`sub_assign!`・`add_into!`・`sub_into!`:
+  所有の出力先と同じ規約（入力は snapshot なので別名も安全、出力先にない位置は
+  書き込み前に `ArgumentError`）。
+- `mul!(faerview(C), plan, A, B, α, β; scratch, team)`: `C` は plan の結果
+  パターンと完全一致が必要です。`C` と借用入力が格納値を共有する場合は
+  `ArgumentError` です。
+- `rmul!(B, α)`・`lmul!(α, B)`・`fill!(B, x)`・`B .*= α` などの broadcast は
+  親 `S` に転送します（Julia の `SparseMatrixCSC` と同じ意味論）。
+
+`u32` index での faer 呼び出しと非圧縮形式（faer の `col_nnz`）は未接続です。
 Julia の `SparseMatrixCSC` は常に圧縮形式なので、非圧縮形式は Julia 入力では
 生じません。
 
@@ -111,7 +127,8 @@ numeric 段を実行し、結果の疎行列を新しく割り当てます。疎
   `β == 0` は上書き、それ以外は `C` を `β` 倍して加算します。
 - `A`・`B`・`C` は同じ CSC か CSR です（CSR は `Cᵀ = Bᵀ Aᵀ` の列優先 plan）。
   `faerview(S)` の借用 Julia CSC 同士なら値も index 変換バッファ経由でコピーせずに
-  読みます。借用と native CSC の混在では借用側を1回コピーします。
+  読みます。借用と native CSC の混在でもどちらもコピーせずに読みます（native CSR は
+  借用と混在できません）。出力先 `C` には借用 `faerview(C)` も使えます。
 - `eltype(C)` は `promote_type(eltype(A), eltype(B))` を保持できる型です。
   型の異なる入力は `eltype(C)` へ変換したコピー（同じパターン）を作ります。
   `C === A`／`C === B` は `ArgumentError` です。

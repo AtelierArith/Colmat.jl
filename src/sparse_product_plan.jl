@@ -8,11 +8,14 @@ and the work partition, and keeps independent copies of the stored patterns of
 
 `A` and `B` are `FaerSparseMatrix` operands sharing one storage format (`:csc`
 or `:csr`; a CSR plan is the column-major plan of `Bᵀ Aᵀ`), or borrowed Julia
-CSC matrices `faerview(S)` (`FaerBorrowedSparseMatrix`), read in place. Mixing a
-borrowed operand with a native CSC operand copies the borrowed one.
+CSC matrices `faerview(S)` (`FaerBorrowedSparseMatrix`), read in place. A
+borrowed operand may be paired with a native CSC operand; both are read in
+place (a native CSR operand cannot be paired with a borrowed one).
 
 `FaerSparseMatrix{T}(plan)` allocates a zero-valued destination with the
-planned pattern and format; `A * B` has the same pattern. Reuse the plan with
+planned pattern and format; `A * B` has the same pattern. A borrowed Julia CSC
+matrix `faerview(C)` with exactly that pattern is also accepted as destination
+(values written in place). Reuse the plan with
 `mul!(C, plan, A, B, α=1, β=0; scratch, team)` while the patterns stay fixed.
 `size(plan)`, `nnz(plan)`, `plan.format`, `copy`, `close` and `isopen` are
 supported; a copy reruns the symbolic phase from the saved patterns.
@@ -65,11 +68,18 @@ function FaerSparseProductPlan(a::FaerSparseMatrix, b::FaerSparseMatrix)
         return _sparse_plan_result(RustCrate.sparse_product_plan_build, a, b)
     end
 end
-function FaerSparseProductPlan(a::FaerBorrowedSparseMatrix, b::FaerBorrowedSparseMatrix)
+function _raw_sparse_plan(a, b)
     lock(_matrix_lock) do
+        for x in (a, b)
+            x isa FaerSparseMatrix || continue
+            _handle(x)
+            x.format===:csc || throw(
+                ArgumentError("sparse product plan operands must share a storage format"),
+            )
+        end
         _sparse_plan_dims(a, b)
-        _with_borrowed_sparse(a) do m, n, p, i, _, k, _
-            _with_borrowed_sparse(b) do m2, n2, p2, i2, _, k2, _
+        _with_raw_sparse(a) do m, n, p, i, _, k
+            _with_raw_sparse(b) do m2, n2, p2, i2, _, k2
                 _sparse_plan_result(
                     RustCrate.sparse_product_plan_build_borrowed,
                     m,
@@ -87,10 +97,12 @@ function FaerSparseProductPlan(a::FaerBorrowedSparseMatrix, b::FaerBorrowedSpars
         end
     end
 end
+FaerSparseProductPlan(a::FaerBorrowedSparseMatrix, b::FaerBorrowedSparseMatrix) =
+    _raw_sparse_plan(a, b)
 FaerSparseProductPlan(a::FaerBorrowedSparseMatrix, b::FaerSparseMatrix) =
-    FaerSparseProductPlan(FaerSparseMatrix(a), b)
+    _raw_sparse_plan(a, b)
 FaerSparseProductPlan(a::FaerSparseMatrix, b::FaerBorrowedSparseMatrix) =
-    FaerSparseProductPlan(a, FaerSparseMatrix(b))
+    _raw_sparse_plan(a, b)
 
 Base.size(p::FaerSparseProductPlan) = p.dims
 Base.size(p::FaerSparseProductPlan, i::Integer) = i<=2 ? p.dims[i] : 1
@@ -179,7 +191,7 @@ team)` and `reserve!(scratch, mul!, C, plan, A, B; team)` size a workspace.
 """
 function scratch_requirements(
     ::typeof(LinearAlgebra.mul!),
-    c::FaerSparseMatrix,
+    c::_PlanOperand,
     p::FaerSparseProductPlan,
     a::_PlanOperand,
     b::_PlanOperand;
@@ -189,7 +201,7 @@ function scratch_requirements(
 end
 FaerScratch(
     fun::typeof(LinearAlgebra.mul!),
-    c::FaerSparseMatrix,
+    c::_PlanOperand,
     p::FaerSparseProductPlan,
     a::_PlanOperand,
     b::_PlanOperand;
@@ -198,7 +210,7 @@ FaerScratch(
 reserve!(
     s::FaerScratch,
     fun::typeof(LinearAlgebra.mul!),
-    c::FaerSparseMatrix,
+    c::_PlanOperand,
     p::FaerSparseProductPlan,
     a::_PlanOperand,
     b::_PlanOperand;
@@ -216,13 +228,13 @@ const _PLAN_ERRORS=(
 _plan_operand(a::FaerSparseMatrix, ::Type{T}) where {T} = _sparse_coerce(a, T)
 _plan_operand(a::FaerBorrowedSparseMatrix, ::Type{T}) where {T} =
     _borrowed_sparse_promote(a, T)
-_plan_owned(a::FaerSparseMatrix, ::Type{T}) where {T} = _sparse_coerce(a, T)
-_plan_owned(a::FaerBorrowedSparseMatrix, ::Type{T}) where {T} =
-    FaerSparseMatrix{T}(a.parent)
+_plan_values(a::FaerBorrowedSparseMatrix) = SparseArrays.nonzeros(a.parent)
+_plan_values(::FaerSparseMatrix) = nothing
 
-function _plan_mul!(c::FaerSparseMatrix{T}, p, a, b, alpha, beta, scratch, team) where {T}
+function _plan_mul!(c::_PlanOperand, p, a, b, alpha, beta, scratch, team)
     lock(_matrix_lock) do
-        _handle(c)
+        T=eltype(c)
+        c isa FaerSparseMatrix && _handle(c)
         _handle(p)
         a isa FaerSparseMatrix && _handle(a)
         b isa FaerSparseMatrix && _handle(b)
@@ -233,12 +245,22 @@ function _plan_mul!(c::FaerSparseMatrix{T}, p, a, b, alpha, beta, scratch, team)
         promote_type(P, T)===T || throw(
             ArgumentError("destination scalar $T cannot hold the operand scalar $P"),
         )
-        (c===a || c===b) && throw(
-            ArgumentError("the destination of a planned sparse product must not alias an operand"),
-        )
-        borrowed=a isa FaerBorrowedSparseMatrix && b isa FaerBorrowedSparseMatrix
-        aa=borrowed ? _plan_operand(a, T) : _plan_owned(a, T)
-        bb=borrowed ? _plan_operand(b, T) : _plan_owned(b, T)
+        alias=ArgumentError("the destination of a planned sparse product must not alias an operand")
+        (c===a || c===b) && throw(alias)
+        # Any borrowed matrix reads every matrix through raw CSC parts in place;
+        # native CSR owners cannot join such a call.
+        raw=any(x -> x isa FaerBorrowedSparseMatrix, (c, a, b))
+        raw && any(x -> x isa FaerSparseMatrix && x.format!==:csc, (c, a, b)) &&
+            throw(ArgumentError(_PLAN_ERRORS[4]))
+        aa=_plan_operand(a, T)
+        bb=_plan_operand(b, T)
+        if c isa FaerBorrowedSparseMatrix
+            dst=_plan_values(c)
+            for x in (aa, bb)
+                v=_plan_values(x)
+                isnothing(v) || !Base.mightalias(dst, v) || throw(alias)
+            end
+        end
         temp=isnothing(scratch)
         temp || scratch isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
         work=if temp
@@ -255,25 +277,50 @@ function _plan_mul!(c::FaerSparseMatrix{T}, p, a, b, alpha, beta, scratch, team)
             code=GC.@preserve x y begin
                 xp=Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, x))
                 yp=Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, y))
-                if borrowed
-                    _with_borrowed_sparse(aa) do ra...
-                        _with_borrowed_sparse(bb) do rb...
-                            raw=(ra[1:6]..., rb[1:6]..., _tag(T), xp, yp, accumulate, work)
-                            isnothing(team) ?
-                            _native_call(RustCrate.sparse_plan_mul_borrowed, c, p, raw...) :
-                            _native_call(
-                                RustCrate.sparse_plan_mul_borrowed_team,
-                                c,
-                                p,
-                                raw...,
-                                team,
-                            )
-                        end
-                    end
-                else
+                if !raw
                     args=(p, aa, bb, xp, yp, accumulate, work)
                     isnothing(team) ? _native_call(RustCrate.sparse_plan_mul, c, args...) :
                     _native_call(RustCrate.sparse_plan_mul_team, c, args..., team)
+                else
+                    _with_raw_sparse(aa) do ra...
+                        _with_raw_sparse(bb) do rb...
+                            tail=(_tag(T), xp, yp, accumulate, work)
+                            if c isa FaerSparseMatrix
+                                isnothing(team) ?
+                                _native_call(RustCrate.sparse_plan_mul_borrowed, c, p, ra..., rb..., tail...) :
+                                _native_call(
+                                    RustCrate.sparse_plan_mul_borrowed_team,
+                                    c,
+                                    p,
+                                    ra...,
+                                    rb...,
+                                    tail...,
+                                    team,
+                                )
+                            else
+                                _with_raw_sparse(c) do rc...
+                                    isnothing(team) ?
+                                    _native_call(
+                                        RustCrate.sparse_plan_mul_into_borrowed,
+                                        p,
+                                        rc...,
+                                        ra...,
+                                        rb...,
+                                        tail...,
+                                    ) :
+                                    _native_call(
+                                        RustCrate.sparse_plan_mul_into_borrowed_team,
+                                        p,
+                                        rc...,
+                                        ra...,
+                                        rb...,
+                                        tail...,
+                                        team,
+                                    )
+                                end
+                            end
+                        end
+                    end
                 end
             end
             code==0 || throw(ArgumentError(_PLAN_ERRORS[Int(code)]))
@@ -284,7 +331,7 @@ function _plan_mul!(c::FaerSparseMatrix{T}, p, a, b, alpha, beta, scratch, team)
     end
 end
 """
-    mul!(C::FaerSparseMatrix, plan::FaerSparseProductPlan, A, B, α=1, β=0; scratch=nothing, team=nothing)
+    mul!(C, plan::FaerSparseProductPlan, A, B, α=1, β=0; scratch=nothing, team=nothing)
 
 Compute `C = α*A*B + β*C` with faer's numeric phase
 (`sparse_sparse_matmul_numeric`), reusing the symbolic analysis of `plan`. The
@@ -295,6 +342,11 @@ before any value of `C` is written. Values of `A`/`B` may change freely between
 calls. `C`'s pattern, nnz, `epoch` and live `nonzeros(C)` views are retained;
 `β == 0` overwrites, otherwise `C` is scaled by `β` and accumulated.
 
+`C` is a `FaerSparseMatrix` or a borrowed Julia CSC destination `faerview(S)`:
+then `nonzeros(S)` is written in place (same vector, same pattern) and `S` must
+not share stored values with a borrowed operand (`ArgumentError`). `A`/`B` may
+mix borrowed and native CSC operands; all of them are read in place.
+
 `eltype(C)` must hold `promote_type(eltype(A), eltype(B))`; an operand of
 another scalar type is converted to `eltype(C)` (allocating a copy with the same
 pattern). `C` must not be
@@ -304,7 +356,7 @@ temporary workspace is allocated and released. A `FaerTeam` supplies parallel
 execution (faer's cost model may still run small products sequentially).
 """
 LinearAlgebra.mul!(
-    c::FaerSparseMatrix,
+    c::_PlanOperand,
     p::FaerSparseProductPlan,
     a::_PlanOperand,
     b::_PlanOperand,

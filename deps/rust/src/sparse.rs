@@ -832,11 +832,14 @@ impl SparseOwner {
     }
 }
 
-fn pattern_subset<T: ComplexField>(dst: &Storage<T>, src: &Storage<T>) -> bool {
-    for col in 0..src.pointers().len() - 1 {
-        let target = &dst.indices()[dst.pointers()[col]..dst.pointers()[col + 1]];
+fn pattern_subset(
+    dst: faer::sparse::SymbolicSparseColMatRef<'_, usize>,
+    src: faer::sparse::SymbolicSparseColMatRef<'_, usize>,
+) -> bool {
+    for col in 0..src.ncols() {
+        let target = &dst.row_idx()[dst.col_ptr()[col]..dst.col_ptr()[col + 1]];
         let mut pos = 0;
-        for &index in &src.indices()[src.pointers()[col]..src.pointers()[col + 1]] {
+        for &index in &src.row_idx()[src.col_ptr()[col]..src.col_ptr()[col + 1]] {
             while pos < target.len() && target[pos] < index {
                 pos += 1;
             }
@@ -847,62 +850,64 @@ fn pattern_subset<T: ComplexField>(dst: &Storage<T>, src: &Storage<T>) -> bool {
     }
     true
 }
+/// Fixed-pattern `dst (+|-)= lhs` (`op` 0/1) or `dst = lhs (+|-) rhs` (2/3) on
+/// column-major views; `Ok(false)` (nothing written) when a source position is
+/// missing from `dst`. `dst` may be an owner or a borrowed Julia CSC matrix.
+pub(crate) fn fixed_update_columns<T: ComplexField>(
+    mut dst: faer::sparse::SparseColMatMut<'_, usize, T>,
+    lhs: faer::sparse::SparseColMatRef<'_, usize, T>,
+    rhs: faer::sparse::SparseColMatRef<'_, usize, T>,
+    op: i32,
+) -> Result<bool, String> {
+    use faer::reborrow::ReborrowMut;
+    if !(0..=3).contains(&op) {
+        return Err("unknown fixed sparse update".into());
+    }
+    let shape = (dst.nrows(), dst.ncols());
+    if shape != (lhs.nrows(), lhs.ncols()) || shape != (rhs.nrows(), rhs.ncols()) {
+        return Err("fixed sparse update dimensions must match".into());
+    }
+    // faer's kernels may mutate before detecting a missing index. Validate all
+    // stored positions first, including positions whose numeric value is zero.
+    if !pattern_subset(dst.symbolic(), lhs.symbolic())
+        || (op >= 2 && !pattern_subset(dst.symbolic(), rhs.symbolic()))
+    {
+        return Ok(false);
+    }
+    // faer's ternary kernel currently omits trailing destination positions
+    // after both sources end. Independent input snapshots let us initialize
+    // all stored destination values without affecting aliased source values.
+    if op >= 2 {
+        for value in dst.rb_mut().val_mut() {
+            *value = zero::<T>();
+        }
+    }
+    match op {
+        0 => faer::sparse::ops::add_assign(dst, lhs),
+        1 => faer::sparse::ops::sub_assign(dst, lhs),
+        2 => faer::sparse::ops::add_into(dst, lhs, rhs),
+        _ => faer::sparse::ops::sub_into(dst, lhs, rhs),
+    }
+    Ok(true)
+}
 fn fixed_update<T: ComplexField>(
     dst: &mut Storage<T>,
     lhs: &Storage<T>,
     rhs: &Storage<T>,
     op: i32,
 ) -> Result<bool, String> {
-    if !(0..=3).contains(&op) {
-        return Err("unknown fixed sparse update".into());
-    }
-    if dst.shape() != lhs.shape() || dst.shape() != rhs.shape() {
-        return Err("fixed sparse update dimensions must match".into());
-    }
-    if dst.csr() != lhs.csr() || dst.csr() != rhs.csr() {
-        return Err("fixed sparse update storage formats must match".into());
-    }
-    // faer's kernels may mutate before detecting a missing index. Validate all
-    // stored positions first, including positions whose numeric value is zero.
-    if !pattern_subset(dst, lhs) || (op >= 2 && !pattern_subset(dst, rhs)) {
-        return Ok(false);
-    }
-    fn run<T: ComplexField>(
-        dst: faer::sparse::SparseColMatMut<'_, usize, T>,
-        lhs: faer::sparse::SparseColMatRef<'_, usize, T>,
-        rhs: faer::sparse::SparseColMatRef<'_, usize, T>,
-        op: i32,
-    ) -> Result<(), String> {
-        match op {
-            0 => faer::sparse::ops::add_assign(dst, lhs),
-            1 => faer::sparse::ops::sub_assign(dst, lhs),
-            2 => faer::sparse::ops::add_into(dst, lhs, rhs),
-            3 => faer::sparse::ops::sub_into(dst, lhs, rhs),
-            _ => return Err("unknown fixed sparse update".into()),
-        }
-        Ok(())
-    }
-    // faer's ternary kernel currently omits trailing destination positions
-    // after both sources end. Independent input snapshots let us initialize
-    // all stored destination values without affecting aliased source values.
-    if op >= 2 {
-        for value in dst.values_mut() {
-            *value = zero::<T>();
-        }
-    }
     match (dst, lhs, rhs) {
         (Storage::Csc(d), Storage::Csc(a), Storage::Csc(b)) => {
-            run(d.as_dyn_mut(), a.as_ref(), b.as_ref(), op)?
+            fixed_update_columns(d.as_dyn_mut(), a.as_ref(), b.as_ref(), op)
         }
-        (Storage::Csr(d), Storage::Csr(a), Storage::Csr(b)) => run(
+        (Storage::Csr(d), Storage::Csr(a), Storage::Csr(b)) => fixed_update_columns(
             d.transpose_mut(),
             a.as_ref().transpose(),
             b.as_ref().transpose(),
             op,
-        )?,
-        _ => return Err("fixed sparse update storage formats must match".into()),
+        ),
+        _ => Err("fixed sparse update storage formats must match".into()),
     }
-    Ok(true)
 }
 #[julia]
 impl SparseOwner {
