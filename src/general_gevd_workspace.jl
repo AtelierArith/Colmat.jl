@@ -6,8 +6,6 @@ outputs where required. Use `side=:both` for simultaneous left/right output;
 real input requires an additional packed matrix. Bang queries describe the
 eigen pass; the separate
 QZ writeback uses its own sequential workspace. Output and sorting allocate.
-Exceptional repeated-eigenvalue vector recovery propagates the team and uses
-additional native SVD workspace outside this requirement.
 """
 function scratch_requirements(
     f::_EvdFunction,
@@ -114,53 +112,6 @@ function _general_gevd_workspace_result(
                     args...,
                 )
             end
-            if vectors &&
-               side===:left &&
-               (
-                   !all(isfinite, alpha) ||
-                   !all(isfinite, beta) ||
-                   !all(isfinite, eigenvectors)
-               )
-                # Recover via the equivalent adjoint pencil and right driver.
-                aa=FaerMatrix(Matrix(a)')
-                bb=FaerMatrix(Matrix(b)')
-                result=try
-                    _general_gevd_workspace_result(
-                        aa,
-                        bb;
-                        homogeneous = true,
-                        sortby = nothing,
-                        scratch = work,
-                        team,
-                    )
-                finally
-                    close(aa)
-                    close(bb)
-                end
-                alpha=conj.(result.α)
-                beta=conj.(result.β)
-                eigenvectors=result.vectors
-            end
-            if vectors
-                _repair_generalized_vectors!(
-                    eigenvectors,
-                    alpha,
-                    beta,
-                    a,
-                    b;
-                    team,
-                    side = side===:both ? :left : side,
-                )
-                side===:both && _repair_generalized_vectors!(
-                    rightvectors,
-                    alpha,
-                    beta,
-                    a,
-                    b;
-                    team,
-                    side = :right,
-                )
-            end
             if vectors
                 for matrix in
                     (side===:both ? (eigenvectors, rightvectors) : (eigenvectors,)),
@@ -194,54 +145,4 @@ function _general_gevd_workspace_result(
             temp && close(work)
         end
     end
-end
-
-# faer solve_shifted_1x1 can form 0 * inv(0) for repeated eigenvalues.
-# Recover invalid columns from homogeneous native SVD nullspaces.
-function _repair_generalized_vectors!(
-    vectors,
-    alpha,
-    beta,
-    a,
-    b;
-    team = nothing,
-    side = :right,
-)
-    bad=findall(j->!all(isfinite, view(vectors, :, j)), axes(vectors, 2))
-    isempty(bad) && return vectors
-    R=_realtype(eltype(vectors))
-    threshold=100eps(R)*max(size(a, 1), 1)
-    A, B=Matrix(a), Matrix(b)
-    pending=Set(bad)
-    while !isempty(pending)
-        j=first(pending)
-        pairscale=max(abs(alpha[j]), abs(beta[j]))
-        isfinite(pairscale) ||
-            throw(ArgumentError("native homogeneous eigenvalue is nonfinite"))
-        iszero(pairscale) &&
-            throw(ArgumentError("cannot recover an indeterminate generalized eigenvector"))
-        α, β=alpha[j]/pairscale, beta[j]/pairscale
-        group=findall(eachindex(alpha)) do i
-            scale=max(abs(alpha[i]), abs(beta[i]))
-            !iszero(scale) && abs(α*(beta[i]/scale)-β*(alpha[i]/scale))<=threshold
-        end
-        matrix=FaerMatrix(side===:right ? β*A-α*B : conj(β)*A'-conj(α)*B')
-        F=try
-            LinearAlgebra.svd(matrix; team)
-        finally
-            close(matrix)
-        end
-        k=length(group)
-        scale=max(abs(β)*LinearAlgebra.norm(A), abs(α)*LinearAlgebra.norm(B), one(R))
-        count(x->x<=threshold*scale, F.S)>=k || throw(
-            ArgumentError(
-                "native generalized eigenvector recovery found insufficient nullity",
-            ),
-        )
-        vectors[:, group]=F.V[:, (end-k+1):end]
-        for i in group
-            delete!(pending, i)
-        end
-    end
-    return vectors
 end

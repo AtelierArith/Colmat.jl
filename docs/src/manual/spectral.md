@@ -314,12 +314,14 @@ eigen pass, then compute a separate sequential QZ for staged S/T writeback;
 that QZ workspace is outside this query. Sorting, output arrays and writeback
 allocate separately.
 
-For repeated finite eigenvalues, upstream can return nonfinite vectors
-([faer #217](https://github.com/tensor4all/faer/issues/217)). Colmat recovers
-invalid columns using native SVD nullspaces with the requested team, checking sufficient
-nullity. This exceptional path allocates additional matrices and internal SVD
-workspace outside the supplied buffer. Recovery also supports repeated infinite eigenvalues. Defective eigenspaces
-with insufficient nullity and invalid indeterminate vectors are rejected. The dependency checkout is left unchanged.
+Native output is returned without post-processing. The pinned faer revision
+returns finite vectors for repeated finite and infinite eigenvalues
+([faer #217](https://github.com/tensor4all/faer/issues/217), fixed upstream), so
+Colmat no longer recomputes nullspaces. Regression tests cover identity pencils,
+defective Jordan blocks (finite and infinite), singular pencils with
+indeterminate α=β=0 pairs and pencils scaled near the floating-point range
+limits. Defective pencils yield finite but linearly dependent vectors, as in
+LAPACK.
 
 ## Homogeneous generalized eigenvalues
 
@@ -345,9 +347,7 @@ common permutation of both arrays and the vectors. Ordinary calls still return
 
 A nonzero α with β=0 denotes infinity. The pair α=β=0 remains indeterminate;
 values-only homogeneous queries preserve it, while quotient queries return NaN.
-The homogeneous residual above stays meaningful for infinite eigenvalues. Vector
-recovery uses normalized pairs and native SVD, propagating the requested team,
-and may allocate additional workspace. This option is for general pairs;
+The homogeneous residual above stays meaningful for infinite eigenvalues. This option is for general pairs;
 self-adjoint wrappers and destructive eigen routines keep their current APIs.
 
 ## Left generalized eigenvectors
@@ -374,11 +374,10 @@ vectors aligned with their eigenvalues or α/β pairs. The returned `vectors`
 field contains the selected side. Left-only quotient output is a named tuple
 `(values,vectors)`, rather than a factorization for subsequent solves. Requirements are common to the two one-sided
 modes in the current backend; the same `FaerScratch(eigen, A, B; team=team)`
-works for either. If the direct left driver produces nonfinite outputs
-([faer #219](https://github.com/tensor4all/faer/issues/219)), Colmat recomputes the
-equivalent adjoint pencil with the native right driver. This reuses the selected
-scratch/team and allocates additional input/output copies. Invalid repeated left
-vectors can also use adjoint homogeneous nullspaces, including infinite values. Simultaneous output is available with `side=:both` below. Side selection for
+works for either. The left-only driver result is returned directly; the pinned
+faer revision preserves the spectrum when only left vectors are requested
+([faer #219](https://github.com/tensor4all/faer/issues/219), fixed upstream), so
+no adjoint-pencil recomputation or extra copies occur. Simultaneous output is available with `side=:both` below. Side selection for
 single matrices is described below; destructive routines retain their current API.
 
 ## Simultaneous left and right generalized eigenvectors
