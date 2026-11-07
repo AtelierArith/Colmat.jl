@@ -244,8 +244,15 @@ function _copyto_faer_view!(v::FaerView, src::AbstractArray)
         dims=v.dropped==1 ? (length(v), 1) : (length(v.rows), length(v.cols))
         # Julia strided sources of the native scalar are read in place (they
         # cannot alias Rust-owned storage); others are staged in Rust.
-        a=if src isa FaerBorrowedArray{T} || (src isa StridedArray{T} && _julia_borrowable(src))
+        a=if src isa FaerBorrowedArray{T} ||
+             (src isa StridedArray{T} && _julia_borrowable(src))
             src isa FaerBorrowedArray ? src : FaerBorrowedArray(src)
+        elseif src isa Union{FaerMatrix{T},FaerVector{T},FaerView{T}}
+            # Native sources of the same scalar type are read through their own
+            # descriptor; a source sharing the destination owner is first
+            # copied natively so Rust never sees an aliased mutable borrow.
+            owner=src isa FaerView ? _view_owner(src) : src
+            owner===p ? copy(src) : src
         else
             FaerMatrix{T}(reshape(Array(src), dims))
         end
