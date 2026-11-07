@@ -163,9 +163,9 @@ function faer_mul(a::AbstractMatrix{<:Real}, b::AbstractMatrix{<:Real})
     GC.@preserve aa bb c begin
         RustCall.result_to_exception(
             RustCrate.matmul_f64(
-                pointer(aa),
-                pointer(bb),
-                pointer(c),
+                vec(aa),
+                vec(bb),
+                vec(c),
                 UInt(size(aa, 1)),
                 UInt(size(aa, 2)),
                 UInt(size(bb, 2)),
@@ -190,9 +190,9 @@ function faer_solve(a::AbstractMatrix{<:Real}, b::AbstractMatrix{<:Real})
     GC.@preserve aa bb x begin
         RustCall.result_to_exception(
             RustCrate.solve_f64(
-                pointer(aa),
-                pointer(bb),
-                pointer(x),
+                vec(aa),
+                vec(bb),
+                vec(x),
                 UInt(size(aa, 1)),
                 UInt(size(bb, 2)),
             ),
@@ -220,10 +220,10 @@ function faer_svd(a::AbstractMatrix{<:Real})
         GC.@preserve aa u s v begin
             RustCall.result_to_exception(
                 RustCrate.svd_f64(
-                    pointer(aa),
-                    pointer(u),
-                    pointer(s),
-                    pointer(v),
+                    vec(aa),
+                    vec(u),
+                    s,
+                    vec(v),
                     UInt(m),
                     UInt(n),
                 ),
