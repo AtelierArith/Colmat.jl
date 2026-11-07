@@ -99,10 +99,10 @@ _sparse_dense_leaf(a) = lock(() -> _dense_snapshot(a), _matrix_lock)
 _julia_sparse_broadcasted(a::Union{FaerVector,FaerRow,FaerView,_DenseNativeWrapped}) =
     _sparse_dense_leaf(a)
 
-# Julia-to-native result transfers. Native constructors reject non-finite
-# input, but broadcast results (`A ./ 0`, `log.(A)`) may hold Inf/NaN like any
-# owner written in place, so results are written into a fresh owner with one
-# bulk view assignment that reads the Julia buffer in place.
+# Julia-to-native result transfers. Broadcast results (`A ./ 0`, `log.(A)`)
+# may hold Inf/NaN, which owners store like Julia arrays; results are written
+# into a fresh owner with one bulk view assignment that reads the Julia buffer
+# in place.
 _native_owner_from(owner, data) = (copyto!(owner, data); owner)
 # `Array{Union{}}` (empty results of inferred-bottom eltypes) stays Julia's.
 _native_array_result(r, ::Bool) = r
@@ -137,8 +137,8 @@ end
 # (mixed real/complex products differ for infinite parts). Bool is excluded
 # because `false*NaN` is zero in Julia.
 _native_scale(α, a) = false
-# The scalar must also not widen the matrix: promoting kernels reload the
-# operand through the finite-only constructor.
+# The scalar must also not widen the matrix, keeping the fast path to the
+# kernels that need no promotion.
 _native_scale(α::Union{Float32,Float64,Base.BitInteger}, ::FaerMatrix{T}) where {T<:Union{Float32,Float64}} =
     promote_type(typeof(α), T)===T
 _native_scale(α::T, a::FaerMatrix{T}) where {T<:Union{ComplexF32,ComplexF64}} = true
@@ -152,8 +152,8 @@ function Base.copy(bc::Broadcast.Broadcasted{FaerArrayStyle{N}}) where {N}
 end
 
 const _DenseNativeDest=Union{FaerMatrix,FaerVector,FaerRow,FaerView}
-# Sources that the bulk `copyto!` writes without restaging them through the
-# finite-only native constructors (which would reject Inf/NaN).
+# Sources that the bulk `copyto!` writes without restaging them through a
+# temporary native owner.
 _direct_copy_source(dest, a) = false
 _direct_copy_source(::FaerMatrix{T}, ::FaerMatrix{T}) where {T} = true
 _direct_copy_source(dest, a::Union{Array,FaerBorrowedArray}) =

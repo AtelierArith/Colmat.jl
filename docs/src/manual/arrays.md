@@ -310,6 +310,32 @@ truncate!(B, 2, 2)
 残る点に注意してください。複素行列の内積は第1引数を共役化し、
 `transpose(A)` と `A'` を区別します。
 
+### 非有限値（Inf・NaN）
+
+構築（Julia 配列・ビュー・転置から）・型変換・`copy`／`copyto!`・
+`+`／`-`／スカラー積・除算は、Julia の `Matrix` と同様に Inf・NaN・符号付きゼロを
+そのまま保持します。実数のスカラーは複素行列の実部・虚部を成分ごとに
+スケールするため（Julia の `Real*Complex` と同じ）、`-A` や `2A` で無限大の成分が
+もう一方の成分を NaN にすることはありません。実行列と複素スカラーの積、
+複素スカラーでの除算は複素数の積として計算するため、Julia と比べてゼロの符号だけが
+異なることがあります。
+
+有限性は分解・求解などの数値カーネルの入口で検査します。`lu`・`qr`・`cholesky`・
+`ldlt`・`bunchkaufman`・`svd`／`svdvals`・`eigen`／`eigvals`（一般化を含む）・
+`schur`・`hessenberg`・`inv`・`pinv`・`\`・`logabsdet`・`rank`・`opnorm`・`cond`・
+疎行列の分解は、非有限な入力に対して `ArgumentError` または `RustError` を投げます
+（Julia の `lu` などは NaN を伝播しますが、faer のカーネルは有限入力を前提とするため）。
+行列積・`tr`・`det` などの要素演算は Julia と同様に非有限値を伝播します。
+
+```julia
+using Colmat, LinearAlgebra
+
+A = FaerMatrix(ComplexF64[Inf 1; NaN -0.0])
+@assert isequal(Matrix(-A), -Matrix(A))
+@assert isequal(Matrix(FaerMatrix{ComplexF64}(FaerMatrix(Float32[Inf -0.0]))), ComplexF64[Inf -0.0])
+@assert try lu(A); false catch; true end
+```
+
 ### 対応スカラー型の範囲
 
 native 所有型（`FaerMatrix`・`FaerVector`・`FaerRow`・`FaerDiagonal`・

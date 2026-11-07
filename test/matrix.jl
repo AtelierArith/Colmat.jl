@@ -48,7 +48,7 @@ using Test, LinearAlgebra, Random, Colmat
         @test Matrix(FaerMatrix(@view a[1:2:3, :])) == a[1:2:3, :]
         @test Matrix(FaerMatrix(a')) == a'
         @test Matrix(FaerMatrix([1 2; 3 4])) == [1 2; 3 4]
-        @test_throws Exception FaerMatrix(fill(NaN, 2, 2))
+        @test all(isnan, Matrix(FaerMatrix(fill(NaN, 2, 2))))
         @test similar(A) isa FaerMatrix
         @test similar(A, Float32) isa FaerMatrix{Float32}
         @test similar(A, Float64, (2,)) isa Vector{Float64}
