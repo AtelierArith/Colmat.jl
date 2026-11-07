@@ -95,6 +95,7 @@ export FaerSpectralFactor,
     FaerBorrowedArray,
     FaerBorrowedMatrix,
     FaerBorrowedVector,
+    FaerBorrowedSparseMatrix,
     FaerVector,
     FaerRow,
     FaerDiagonal,
@@ -224,6 +225,7 @@ include("schur.jl")
 include("qz.jl")
 include("sparse.jl")
 include("sparsity.jl")
+include("borrowed_sparse.jl")
 include("sparse_compat.jl")
 include("sparse_triangular.jl")
 include("sparse_factors.jl")
@@ -284,6 +286,7 @@ include("spectral_solve.jl")
 include("dense_solve_team.jl")
 include("dense_solve_workspace.jl")
 include("sparse_direct_workspace.jl")
+include("sparse_triangular_workspace.jl")
 include("sparse_qr_solve_workspace.jl")
 include("spectral_solve_workspace.jl")
 include("pivoted_cholesky_workspace.jl")

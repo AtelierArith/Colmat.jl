@@ -37,6 +37,44 @@ julia_csc = SparseMatrixCSC(S)    # Julia CSC への明示変換
 `FaerSparseMatrix(I,J,V,m,n)` では重複する triplet を加算し、格納ゼロを保持します。
 `Matrix(S)`・`FaerMatrix(S)` は明示的に密行列を作ります。
 
+### Julia CSC の借用 (`faerview`)
+
+`faerview(S::SparseMatrixCSC{T,Ti})`（`T` は 4 型、`Ti` は任意の整数型）は
+`FaerBorrowedSparseMatrix` を返し、各ネイティブ呼び出しの間だけ faer の
+`SparseColMatRef<usize,T>` を渡します。格納値 `nonzeros(S)` はコピーせず読みます。
+faer の疎構造は常に 0-based なので、Julia の 1-based な `colptr`/`rowval` は
+そのままでは借用できません。呼び出しごとにビューが持つ再利用バッファ
+（`n+1` 語と `nnz` 語の `UInt`）へ変換し、単調性・範囲・行の昇順一意を検査してから
+Rust に渡します（容量に達した後は割り当てなし）。何もキャッシュしないため、
+値の変更も `S[i,j]=x` による構造変更も次の呼び出しに反映されます。
+
+接続済みの経路は、密な native 行列・ビュー・転置／随伴・`faerview` した Julia
+配列・Julia 配列との積（`*`、`FaerMatrix` への5引数 `mul!`、左右両方）、
+`copy`/`FaerSparseMatrix`/`FaerSparsity`（1回の所有コピー）、`lu`・`qr`・
+`cholesky`・`factorize(plan,B)`・`FaerSparseSymbolic(B)`・`B \ x`・
+`lu!`/`qr!`/`cholesky!` です。分解は従来どおり所有 snapshot を保持するため、
+後で `S` を書き換えても分解済みの因子は変わりません。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+S = sparse([4.0 1 0; 1 5 2; 0 2 6])
+B = faerview(S)                    # 値はコピーしない
+X = FaerMatrix(rand(3, 2))
+C = FaerMatrix(zeros(3, 2))
+mul!(C, B, X, 2, 0)                # native 積を C に直接書き込む
+@assert Matrix(C) ≈ 2 * S * Matrix(X)
+F = lu(B)
+S.nzval .*= 2                      # 借用ビューには反映、F は不変
+lu!(F, B)                          # 現在の値で再分解
+@assert F \ [1.0, 2, 3] ≈ (2 * Matrix(sparse([4.0 1 0; 1 5 2; 0 2 6]))) \ [1.0, 2, 3]
+```
+
+CSR の借用（`transpose(S)` 由来）、借用を代入先にする `SparseColMatMut` 経路、
+`u32` index での faer 呼び出し、非圧縮形式（faer の `col_nnz`）は未接続です。
+Julia の `SparseMatrixCSC` は常に圧縮形式なので、非圧縮形式は Julia 入力では
+生じません。
+
 疎三角ラッパーの `\` と2引数・3引数の `ldiv!` は native の疎求解を使います。
 通常・単位・下三角・上三角、転置／随伴、型の promotion に対応します。
 単位三角では未格納の対角を 1 として扱い、通常の三角行列で対角がゼロなら
@@ -51,6 +89,36 @@ x = LowerTriangular(A) \ b
 @assert Vector(x) ≈ [1.0, 2.0]
 ldiv!(UnitLowerTriangular(A), b)
 @assert Vector(b) ≈ [3.0, 4.0]
+```
+
+`ldiv!(T, B)` は、`B` が `promote_type(eltype(T), eltype(B))` の要素型を持つ
+`FaerMatrix`／`FaerVector`・native view・`faerview` 借用・重複要素のない Julia strided
+配列なら、faer の `sp_solve_{unit_}{lower,upper}_triangular_in_place` を `B` のメモリ上で
+直接実行します。結果用の行列や右辺の複製は作りません。CSR 格納と `transpose`／`adjoint`
+は列優先の kernel とその転置版・共役 flag に写像するため、疎行列も複製しません。
+格納済みの疎行列は、すべての列が faer の前提を満たす場合にそのまま借用されます。
+前提は、選択した半分だけが格納され、対角が下三角なら先頭、上三角なら末尾にあることです。
+単位三角でも対角の格納が必要です。両半分を格納した行列や対角のない単位三角では、
+三角部分を caller の `scratch` 上に組み直します。実数の疎行列と複素の右辺のように
+型を昇格する場合は、昇格した値だけを `scratch` に置きます。
+`scratch_requirements(ldiv!, T, B)` は、この組み直しと昇格に必要な byte 数を返します。
+前提を満たす同型の場合は 0 です。`FaerScratch(ldiv!, T, B)` と
+`reserve!(work, ldiv!, T, B)` も使えます。caller の scratch を渡し、`Y === B` の場合、
+Rust 側の求解は割り当てを行いません。Julia 側には n に依存しない数 KB の固定 bookkeeping
+（lock・view 記述子・必要量と容量の照会・FFI 引数）だけが残ります。`ldiv!(Y, T, B)` で `Y !== B` なら `B` を `Y` に
+複製してから解きます。要素型の狭い出力や strided でない出力では、昇格型の作業コピーを
+1つ作り、書き戻すときに変換します。`team=` は検証しますが、faer の疎三角 kernel は逐次実行です。
+対角のゼロ、close 済みの行列・view・scratch・team、容量不足はいずれも出力に書き込む前に検出します。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+L = FaerSparseMatrix(sparse([2.0 0; 1 4]))       # 対角が先頭の下三角
+B = FaerMatrix([2.0 4; 9 6])
+@assert scratch_requirements(ldiv!, LowerTriangular(L), B).bytes == 0
+work = FaerScratch(ldiv!, UpperTriangular(transpose(L)), B)
+ldiv!(UpperTriangular(transpose(L)), B; scratch=work)   # Lᵀ x = B を B 上で解く
+@assert Matrix(B) ≈ UpperTriangular([2.0 1; 0 4]) \ [2.0 4; 9 6]
 ```
 
 疎行列の `lu`・`cholesky`・`qr` は再利用可能な `FaerSparseFactorization` を返します。
