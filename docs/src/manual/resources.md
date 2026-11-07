@@ -57,11 +57,12 @@ reservation and wait counters of the pool:
 ```julia
 using Colmat
 
-FaerTeam(2; spin_polls=0, qos=:utility, pin=false, acquire_timeout=5) do team
+FaerTeam(2; spin_polls=0, qos=:utility, pin=false, acquire_timeout=5,
+         dispatch_cost=[2 => 2e-6, 4 => 4e-6]) do team
     A = FaerMatrix(rand(200, 200))
     team_mul(team, A, A)
     d = team_diagnostics(team)
-    @assert d.width <= 2 && d.spin_polls == 0 && !d.pin
+    @assert d.width <= 2 && d.spin_polls == 0 && !d.pin && d.dispatch_cost > 0
 end
 ```
 
@@ -74,6 +75,13 @@ end
 - `pin` (default `true`): place participants on distinct CPUs of the caller's
   CPU set during team sections on Linux; pass `false` when the CPUs are shared
   with other work.
+- `dispatch_cost`: cost of one team section that faer weighs against the
+  estimated work when it decides whether to split (gemm, LU, Householder
+  updates, ...): seconds for every width, or `width => seconds` pairs. Larger
+  values split less often; `nothing` keeps threadteam's measured host default.
+  On a 1000×1000 `Float64` matrix with width 4 (aarch64 macOS), the default
+  gave `mul!` 8.6 ms and `lu` 11.3 ms, and `dispatch_cost=1.0` gave the
+  sequential 34.7 ms and 19.6 ms.
 
 `copy(team)` reserves a new pool with the same options. A team cannot borrow an
 external (for example Julia's) thread pool: threadteam reserves its own worker

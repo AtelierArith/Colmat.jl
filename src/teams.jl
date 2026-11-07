@@ -32,7 +32,35 @@ end
 _native_argument(t::FaerTeam) = _handle(t)
 _is_native_owner(::FaerTeam) = true
 const _TEAM_QOS=(default = 0, utility = 1, user_initiated = 2, user_interactive = 3)
-function _team_options(; acquire_timeout = 30, spin_polls = nothing, qos = nothing, pin = true)
+const _TEAM_DISPATCH_ANCHORS=12  # threadteam WidthCosts::MAX_ANCHORS
+# A single time is threadteam's `WidthCosts::flat` (anchors at widths 2, 4, 6).
+_team_dispatch(::Nothing) = nothing
+_team_dispatch(t::Real) = _team_dispatch([2=>t, 4=>t, 6=>t])
+function _team_dispatch(pairs::AbstractVector{<:Pair})
+    isempty(pairs) && throw(ArgumentError("dispatch_cost needs at least one width => seconds pair"))
+    length(pairs)<=_TEAM_DISPATCH_ANCHORS || throw(
+        ArgumentError("dispatch_cost takes at most $(_TEAM_DISPATCH_ANCHORS) width => seconds pairs"),
+    )
+    w=[first(p) for p in pairs]
+    t=[Float64(last(p)) for p in pairs]
+    all(x->x isa Integer && 2<=x<=typemax(UInt16), w) ||
+        throw(ArgumentError("dispatch_cost widths must be integers in 2:$(typemax(UInt16))"))
+    issorted(w; lt = <=) ||
+        throw(ArgumentError("dispatch_cost widths must be strictly increasing"))
+    all(x->isfinite(x) && x>=0, t) ||
+        throw(ArgumentError("dispatch_cost times must be finite and nonnegative seconds"))
+    return [Pair{Int,Float64}(Int(a), b) for (a, b) in zip(w, t)]
+end
+_team_dispatch(x) = throw(
+    ArgumentError("dispatch_cost must be nothing, seconds, or a vector of width => seconds pairs"),
+)
+function _team_options(;
+    acquire_timeout = 30,
+    spin_polls = nothing,
+    qos = nothing,
+    pin = true,
+    dispatch_cost = nothing,
+)
     t=Float64(acquire_timeout)
     isfinite(t) && t>0 ||
         throw(ArgumentError("acquire_timeout must be a positive finite number of seconds"))
@@ -42,10 +70,12 @@ function _team_options(; acquire_timeout = 30, spin_polls = nothing, qos = nothi
     isnothing(qos) ||
         haskey(_TEAM_QOS, qos) ||
         throw(ArgumentError("qos must be one of $(keys(_TEAM_QOS)) or nothing"))
-    return (; acquire_timeout = t, spin_polls, qos, pin = Bool(pin))
+    d=_team_dispatch(dispatch_cost)
+    return (; acquire_timeout = t, spin_polls, qos, pin = Bool(pin), dispatch_cost = d)
 end
 """
-    FaerTeam(width=Threads.nthreads(); acquire_timeout=30, spin_polls=nothing, qos=nothing, pin=true)
+    FaerTeam(width=Threads.nthreads(); acquire_timeout=30, spin_polls=nothing,
+             qos=nothing, pin=true, dispatch_cost=nothing)
 
 Pool options of the threadteam reservation (the defaults are threadteam's,
 except the 30 s acquisition timeout used before):
@@ -62,6 +92,12 @@ except the 30 s acquisition timeout used before):
 - `pin`: place the participants on distinct CPUs of the caller's CPU set during
   team sections (Linux only); pass `false` for a pool that shares its CPUs with
   other work.
+- `dispatch_cost`: cost of one team section, which faer's split decisions
+  (for example gemm, LU and Householder updates) weigh against the estimated
+  work: a time in seconds for every width, or `width => seconds` pairs with
+  strictly increasing widths ≥ 2 (linear between them and proportional to the
+  width above the last). `nothing` keeps threadteam's measured host default.
+  Larger values make faer split less often.
 
 A width-one team runs sequentially and builds no pool. `copy` reuses the
 options. See [`team_diagnostics`](@ref).
@@ -81,6 +117,8 @@ function FaerTeam(width::Integer = Threads.nthreads(); kwargs...)
             Int32(isnothing(o.qos) ? 0 : _TEAM_QOS[o.qos]),
             UInt8(o.pin),
             UInt8[!isnothing(o.spin_polls), !isnothing(o.qos)],
+            isnothing(o.dispatch_cost) ? Float64[] :
+            Float64[x for (w, t) in o.dispatch_cost for x in (w, t)],
         )
         return FaerTeam{typeof(h)}(h, n, o)
     end
@@ -116,11 +154,11 @@ requested width), `spin_polls`, `pin` (whether participants are pinned),
 `resident_members` (workers currently kept awake), `pin_skips` (team sections
 that placed nobody because the CPU set was narrower than the team),
 `join_sleeps`, `barrier_sleeps` and `member_parks` (waits that slept rather than
-spun). A width-one team has no pool and reports zeros except `width`.
+spun), and `dispatch_cost` (seconds of one team section at `width`). A width-one team has no pool and reports zeros except `width`.
 """
 function team_diagnostics(t::FaerTeam)
     lock(_matrix_lock) do
-        v=zeros(UInt64, 8)
+        v=zeros(UInt64, 9)
         _native_call(RustCrate.team_state, t, v)
         return (
             width = Int(v[1]),
@@ -131,6 +169,7 @@ function team_diagnostics(t::FaerTeam)
             join_sleeps = Int(v[6]),
             barrier_sleeps = Int(v[7]),
             member_parks = Int(v[8]),
+            dispatch_cost = v[9]/1e9,
         )
     end
 end
