@@ -2992,7 +2992,7 @@ fn sparse_qr_action<T: ComplexField>(
             tmp.as_mat_mut(),
             p,
         );
-        f.apply_q_into(tmp.as_mat_ref(), out, !c);
+        f.apply_q_into(tmp.as_mat_ref(), out, !c, s);
     } else {
         tmp.as_mat_mut().copy_from(b);
         f.as_ref()
@@ -3012,8 +3012,13 @@ impl<T: ComplexField> LinOp<T> for crate::sparse_qr_components::Factors<T> {
         self.plan.symbolic.nrows()
     }
     fn apply_scratch(&self, k: usize, p: ParShape) -> StackReq {
-        faer::linalg::temp_mat_scratch::<T>(self.ncols(), k)
-            .and(self.plan.symbolic.solve_in_place_scratch::<T>(k, p))
+        let (m, n) = (self.plan.symbolic.nrows(), self.plan.symbolic.ncols());
+        faer::linalg::temp_mat_scratch::<T>(self.ncols(), k).and(
+            self.plan
+                .symbolic
+                .solve_in_place_scratch::<T>(k, p)
+                .or(Self::q_scratch(m, n)),
+        )
     }
     fn apply(&self, o: MatMut<'_, T>, b: MatRef<'_, T>, p: Par, s: &mut MemStack) {
         sparse_qr_action(self, o, b, p, s, false, false)

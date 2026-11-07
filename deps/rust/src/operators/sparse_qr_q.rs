@@ -240,6 +240,42 @@ mod tests {
         }
     }
     #[test]
+    fn wide_q_operator_copies_the_head_once() {
+        use crate::allocation_probe::measure;
+        let (m, n) = (24, 60);
+        let entries: Vec<_> = (0..n)
+            .flat_map(|j| (0..m).map(move |i| (i, j)))
+            .filter(|&(i, j)| i == j % m || (i * 3 + j) % 7 == 0)
+            .map(|(i, j)| Triplet {
+                row: i,
+                col: j,
+                val: 1.0 + ((i + 2 * j) % 5) as f64,
+            })
+            .collect();
+        let a = SparseColMat::<usize, f64>::try_new_from_triplets(m, n, &entries).unwrap();
+        let order: Vec<_> = (0..n).collect();
+        let columns = faer::perm::Perm::new_checked(
+            order.clone().into_boxed_slice(),
+            order.into_boxed_slice(),
+            n,
+        );
+        let plan =
+            crate::sparse_qr_wide::Plan::new(a.symbolic(), columns, Default::default()).unwrap();
+        let f = crate::sparse_qr_wide::Factors::new(&plan, a.as_ref()).unwrap();
+        let operator = measure(|| drop(wrap(Projection::new(f.head_ref().clone()))));
+        let head = measure(|| drop(f.head_ref().clone()));
+        let copy = f.head_ref().clone();
+        let layout = measure(|| drop(wrap(Projection::new(copy))));
+        let whole = measure(|| drop(f.clone()));
+        eprintln!("wide Qoperator={operator:?} head={head:?} layout={layout:?} factor={whole:?}");
+        // One head snapshot plus the prepared reflector layout; neither the
+        // whole wide factor (sparse R, permutation) nor a second head copy.
+        assert_eq!(operator.0, head.0 + layout.0);
+        // Measured (24×60 f64): operator 10 allocations / largest 2208 B =
+        // head 2 / 2208 + layout 8 / 384; cloning the wide factor: 7 / 5216.
+        assert!(operator.1 == head.1 && operator.1 < whole.1);
+    }
+    #[test]
     fn lazy_q_matches_full_q_f32() {
         check::<f32>(1e-4, |r, _| r as f32);
     }
