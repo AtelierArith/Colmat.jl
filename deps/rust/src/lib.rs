@@ -1144,6 +1144,7 @@ pub mod schur;
 pub mod qz;
 
 pub mod sparse;
+pub mod sparse_triangular;
 
 pub mod sparsity;
 
