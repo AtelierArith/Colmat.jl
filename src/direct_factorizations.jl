@@ -342,7 +342,7 @@ function Base.close(f::FaerInPlaceFactorization)
     return nothing
 end
 
-function _direct_part(f::FaerInPlaceFactorization{T}, code, dims) where {T}
+function _direct_part(f::FaerInPlaceFactorization{T}, code, dims; team = nothing) where {T}
     lock(_matrix_lock) do
         a=_direct_source(f)
         coeff=getfield(f, :coeff)
@@ -357,6 +357,7 @@ function _direct_part(f::FaerInPlaceFactorization{T}, code, dims) where {T}
             getfield(f, :perm_inv),
             _direct_coeff_pointer(_direct_kind(f), coeff),
             UInt(size(coeff, 1)),
+            team,
         )
         GC.@preserve coeff begin
             T===Float64 ? _matrix_result(RustCrate.direct_part, dims, args...) :
@@ -437,14 +438,15 @@ function _cholesky_failure(f::FaerInPlaceFactorization{T,K}) where {T,K}
     K===:cholesky ? LinearAlgebra.PosDefException(info) :
     LinearAlgebra.SingularException(info)
 end
-FaerMatrix(f::FaerInPlaceFactorization) = _direct_part(f, 0, size(f))
-FaerMatrix{T}(f::FaerInPlaceFactorization) where {T<:_NativeScalar} =
-    _typed_dense_reconstruction(T, f)
-reconstruct(f::FaerInPlaceFactorization) = FaerMatrix(f)
-Base.Matrix(f::FaerInPlaceFactorization) = _convert_dense_reconstruction(Matrix, f)
-Base.Matrix{T}(f::FaerInPlaceFactorization) where {T} =
-    _convert_dense_reconstruction(Matrix{T}, f)
-Base.Array(f::FaerInPlaceFactorization) = Matrix(f)
+FaerMatrix(f::FaerInPlaceFactorization; team = nothing) = _direct_part(f, 0, size(f); team)
+FaerMatrix{T}(f::FaerInPlaceFactorization; team = nothing) where {T<:_NativeScalar} =
+    _typed_dense_reconstruction(T, f; team)
+reconstruct(f::FaerInPlaceFactorization; team = nothing) = FaerMatrix(f; team)
+Base.Matrix(f::FaerInPlaceFactorization; team = nothing) =
+    _convert_dense_reconstruction(Matrix, f; team)
+Base.Matrix{T}(f::FaerInPlaceFactorization; team = nothing) where {T} =
+    _convert_dense_reconstruction(Matrix{T}, f; team)
+Base.Array(f::FaerInPlaceFactorization; team = nothing) = Matrix(f; team)
 function Base.inv(f::FaerInPlaceFactorization{T,K}) where {T,K}
     size(f, 1)==size(f, 2) || throw(DimensionMismatch("inverse requires a square factor"))
     LinearAlgebra.issuccess(f) || throw(_cholesky_failure(f))

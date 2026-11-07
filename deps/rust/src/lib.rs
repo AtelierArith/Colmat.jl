@@ -508,82 +508,90 @@ impl OwnedFactor {
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn factor_part(&mut self, source: &OwnedFactor, part: i32) -> Result<(), String> {
+    pub fn factor_part(
+        &mut self,
+        source: &OwnedFactor,
+        part: i32,
+        team: Option<&crate::teams::OwnedTeam>,
+    ) -> Result<(), String> {
         guarded(|| {
             let f = source.get()?;
-            self.matrix = match part {
-                0 => dispatch_factor!(f, x => x.reconstruct(Par::Seq)),
-                1 => match f {
-                    DenseFactor::Lu(x) => x.L().to_owned(),
-                    DenseFactor::FullLu(x) => x.L().to_owned(),
-                    DenseFactor::Llt(x) => x.L().to_owned(),
-                    DenseFactor::Ldlt(x) => x.L().to_owned(),
-                    DenseFactor::Lblt(x) => x.L().to_owned(),
-                    _ => return Err("factorization has no L factor".into()),
-                },
-                2 => match f {
-                    DenseFactor::Lu(x) => x.U().to_owned(),
-                    DenseFactor::FullLu(x) => x.U().to_owned(),
-                    _ => return Err("factorization has no U factor".into()),
-                },
-                3 => match f {
-                    DenseFactor::Qr(x) => x.compute_Q(Par::Seq),
-                    DenseFactor::PivotQr(x) => x.compute_Q(Par::Seq),
-                    _ => return Err("factorization has no Q factor".into()),
-                },
-                4 => match f {
-                    DenseFactor::Qr(x) => x.thin_R().to_owned(),
-                    DenseFactor::PivotQr(x) => x.thin_R().to_owned(),
-                    _ => return Err("factorization has no R factor".into()),
-                },
-                5 => match f {
-                    DenseFactor::Ldlt(x) => {
-                        Mat::from_fn(
-                            x.nrows(),
-                            x.ncols(),
-                            |i, j| if i == j { x.D()[i] } else { 0.0 },
-                        )
-                    }
-                    DenseFactor::Lblt(x) => Mat::from_fn(x.nrows(), x.ncols(), |i, j| {
-                        if i == j {
-                            x.B_diag()[i]
-                        } else if i == j + 1 {
-                            x.B_subdiag()[j]
-                        } else if j == i + 1 {
-                            x.B_subdiag()[i]
-                        } else {
-                            0.0
+            // Reconstruction and explicit Q borrow the team; the other parts are copies.
+            self.matrix = crate::teams::with_team(team, |par| {
+                Ok(match part {
+                    0 => dispatch_factor!(f, x => x.reconstruct(par)),
+                    1 => match f {
+                        DenseFactor::Lu(x) => x.L().to_owned(),
+                        DenseFactor::FullLu(x) => x.L().to_owned(),
+                        DenseFactor::Llt(x) => x.L().to_owned(),
+                        DenseFactor::Ldlt(x) => x.L().to_owned(),
+                        DenseFactor::Lblt(x) => x.L().to_owned(),
+                        _ => return Err("factorization has no L factor".into()),
+                    },
+                    2 => match f {
+                        DenseFactor::Lu(x) => x.U().to_owned(),
+                        DenseFactor::FullLu(x) => x.U().to_owned(),
+                        _ => return Err("factorization has no U factor".into()),
+                    },
+                    3 => match f {
+                        DenseFactor::Qr(x) => x.compute_Q(par),
+                        DenseFactor::PivotQr(x) => x.compute_Q(par),
+                        _ => return Err("factorization has no Q factor".into()),
+                    },
+                    4 => match f {
+                        DenseFactor::Qr(x) => x.thin_R().to_owned(),
+                        DenseFactor::PivotQr(x) => x.thin_R().to_owned(),
+                        _ => return Err("factorization has no R factor".into()),
+                    },
+                    5 => match f {
+                        DenseFactor::Ldlt(x) => {
+                            Mat::from_fn(
+                                x.nrows(),
+                                x.ncols(),
+                                |i, j| if i == j { x.D()[i] } else { 0.0 },
+                            )
                         }
-                    }),
-                    _ => return Err("factorization has no D factor".into()),
-                },
-                6 => match f {
-                    DenseFactor::Qr(x) => x.compute_thin_Q(Par::Seq),
-                    DenseFactor::PivotQr(x) => x.compute_thin_Q(Par::Seq),
-                    _ => return Err("factorization has no Q factor".into()),
-                },
-                7 => match f {
-                    DenseFactor::Lu(x) => typed::packed(x.L(), x.U()),
-                    DenseFactor::FullLu(x) => typed::packed(x.L(), x.U()),
-                    DenseFactor::Qr(x) => typed::packed(x.Q_basis(), x.thin_R()),
-                    DenseFactor::PivotQr(x) => typed::packed(x.Q_basis(), x.thin_R()),
-                    DenseFactor::Llt(x) => x.L().to_owned(),
-                    DenseFactor::Ldlt(x) => typed::packed_diagonal(x.L(), x.D()),
-                    DenseFactor::Lblt(x) => typed::packed_diagonal(x.L(), x.B_diag()),
-                    _ => return Err("no packed storage for factor".into()),
-                },
-                8 => match f {
-                    DenseFactor::Qr(x) => x.Q_basis().to_owned(),
-                    DenseFactor::PivotQr(x) => x.Q_basis().to_owned(),
-                    _ => return Err("no QR basis".into()),
-                },
-                9 => match f {
-                    DenseFactor::Qr(x) => x.Q_coeff().to_owned(),
-                    DenseFactor::PivotQr(x) => x.Q_coeff().to_owned(),
-                    _ => return Err("no QR coefficients".into()),
-                },
-                _ => return Err("unknown factor part".into()),
-            };
+                        DenseFactor::Lblt(x) => Mat::from_fn(x.nrows(), x.ncols(), |i, j| {
+                            if i == j {
+                                x.B_diag()[i]
+                            } else if i == j + 1 {
+                                x.B_subdiag()[j]
+                            } else if j == i + 1 {
+                                x.B_subdiag()[i]
+                            } else {
+                                0.0
+                            }
+                        }),
+                        _ => return Err("factorization has no D factor".into()),
+                    },
+                    6 => match f {
+                        DenseFactor::Qr(x) => x.compute_thin_Q(par),
+                        DenseFactor::PivotQr(x) => x.compute_thin_Q(par),
+                        _ => return Err("factorization has no Q factor".into()),
+                    },
+                    7 => match f {
+                        DenseFactor::Lu(x) => typed::packed(x.L(), x.U()),
+                        DenseFactor::FullLu(x) => typed::packed(x.L(), x.U()),
+                        DenseFactor::Qr(x) => typed::packed(x.Q_basis(), x.thin_R()),
+                        DenseFactor::PivotQr(x) => typed::packed(x.Q_basis(), x.thin_R()),
+                        DenseFactor::Llt(x) => x.L().to_owned(),
+                        DenseFactor::Ldlt(x) => typed::packed_diagonal(x.L(), x.D()),
+                        DenseFactor::Lblt(x) => typed::packed_diagonal(x.L(), x.B_diag()),
+                        _ => return Err("no packed storage for factor".into()),
+                    },
+                    8 => match f {
+                        DenseFactor::Qr(x) => x.Q_basis().to_owned(),
+                        DenseFactor::PivotQr(x) => x.Q_basis().to_owned(),
+                        _ => return Err("no QR basis".into()),
+                    },
+                    9 => match f {
+                        DenseFactor::Qr(x) => x.Q_coeff().to_owned(),
+                        DenseFactor::PivotQr(x) => x.Q_coeff().to_owned(),
+                        _ => return Err("no QR coefficients".into()),
+                    },
+                    _ => return Err("unknown factor part".into()),
+                })
+            })?;
             Ok(())
         })
     }

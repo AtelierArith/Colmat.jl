@@ -615,11 +615,11 @@ fn part<T: ComplexField<Real: crate::measures::Ln>>(
     perm_inv: &[usize],
     coeff: *const u8,
     coeff_rows: usize,
+    par: Par<'_>,
 ) -> Result<Mat<T>, String> {
     let (m, n) = a.shape();
     let size = m.min(n);
     check_aux::<T>(kind, m, n, perm.len(), perm_inv.len(), coeff, coeff_rows)?;
-    let par = Par::Seq;
     let buffer = |req: StackReq| MemBuffer::try_new(req).map_err(|e| format!("{e:?}"));
     let lu_kind = kind == LU || kind == FULL_LU;
     Ok(match (kind, code) {
@@ -633,7 +633,17 @@ fn part<T: ComplexField<Real: crate::measures::Ln>>(
         (LU, 0) => {
             let p = PermRef::new_checked(perm, perm_inv, m);
             let l = unit_lower(a, m, size);
-            let u = part::<T>(a, kind, 2, lower, perm, perm_inv, coeff, coeff_rows)?;
+            let u = part::<T>(
+                a,
+                kind,
+                2,
+                lower,
+                perm,
+                perm_inv,
+                coeff,
+                coeff_rows,
+                Par::Seq,
+            )?;
             let mut out = Mat::zeros(m, n);
             let mut mem = buffer(plu::reconstruct::reconstruct_scratch::<usize, T>(
                 m,
@@ -654,7 +664,17 @@ fn part<T: ComplexField<Real: crate::measures::Ln>>(
             let row = PermRef::new_checked(&perm[..m], &perm_inv[..m], m);
             let col = PermRef::new_checked(&perm[m..], &perm_inv[m..], n);
             let l = unit_lower(a, m, size);
-            let u = part::<T>(a, kind, 2, lower, perm, perm_inv, coeff, coeff_rows)?;
+            let u = part::<T>(
+                a,
+                kind,
+                2,
+                lower,
+                perm,
+                perm_inv,
+                coeff,
+                coeff_rows,
+                Par::Seq,
+            )?;
             let mut out = Mat::zeros(m, n);
             let mut mem = buffer(flu::reconstruct::reconstruct_scratch::<usize, T>(
                 m,
@@ -903,19 +923,23 @@ impl OwnedMatrix {
         perm_inv: &[usize],
         coeff: *const u8,
         coeff_rows: usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             owned_shape(&packed.matrix, tag, m, n)?;
-            self.matrix = part(
-                packed.matrix.as_ref(),
-                kind,
-                code,
-                lower,
-                perm,
-                perm_inv,
-                coeff,
-                coeff_rows,
-            )?;
+            self.matrix = with_team(team, |par| {
+                part(
+                    packed.matrix.as_ref(),
+                    kind,
+                    code,
+                    lower,
+                    perm,
+                    perm_inv,
+                    coeff,
+                    coeff_rows,
+                    par,
+                )
+            })?;
             Ok(())
         })
     }
@@ -1024,22 +1048,26 @@ impl TypedMatrix {
         perm_inv: &[usize],
         coeff: *const u8,
         coeff_rows: usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
             let data = packed.data()?;
             check_typed(data, tag, m, n)?;
             macro_rules! go {
                 ($a:expr) => {
-                    part(
-                        $a.as_ref(),
-                        kind,
-                        code,
-                        lower,
-                        perm,
-                        perm_inv,
-                        coeff,
-                        coeff_rows,
-                    )?
+                    with_team(team, |par| {
+                        part(
+                            $a.as_ref(),
+                            kind,
+                            code,
+                            lower,
+                            perm,
+                            perm_inv,
+                            coeff,
+                            coeff_rows,
+                            par,
+                        )
+                    })?
                 };
             }
             let out = match data {

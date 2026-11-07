@@ -9,10 +9,12 @@ the native call; no borrowed team token is stored in Julia. Close releases the
 reservation immediately; the do-block form always closes it. Copy/deepcopy
 create independent pools, so each copy reserves its own workers.
 
-Explicit multiplication, Pfaffian, SVD, single-matrix EVD and dense LU/QR/
-Cholesky/LDLT/Bunch–Kaufman construction use `team=` (including full/column-pivot
+Explicit multiplication (`team_mul`, dense `mul!(C, A, B[, α, β]; team)` and the
+positional form, both written in place), Pfaffian, SVD, single-matrix EVD and
+dense LU/QR/Cholesky/LDLT/Bunch–Kaufman construction and reconstruction
+(`reconstruct/FaerMatrix/Matrix(F; team)`) use `team=` (including full/column-pivot
 LU/QR and staged bang variants; pivoted Cholesky is separate). Other
-Colmat methods retain sequential execution. Team operations and owner lifecycle
+Colmat methods retain sequential execution; see the resources manual. Team operations and owner lifecycle
 are serialized by Colmat's matrix lock; this is not a Julia task scheduler.
 """
 mutable struct FaerTeam{H}
@@ -98,11 +100,8 @@ function LinearAlgebra.mul!(
             throw(DimensionMismatch("team product inner dimensions must match"))
         size(dest)==(size(a, 1), size(b, 2)) ||
             throw(DimensionMismatch("team product destination size must match"))
-        P=promote_type(eltype(dest), eltype(a), eltype(b), typeof(alpha), typeof(beta))
-        result=iszero(alpha) ? zeros(P, size(dest)) :
-               alpha .* Matrix{P}(team_mul(team, a, b))
-        !iszero(beta) && (result .+= beta .* Matrix(dest))
-        return copyto!(dest, result)
+        # Written in place by the native gemm on the team (see `_dense_mul!`).
+        return _dense_mul!(dest, a, b, alpha, beta; team)
     end
 end
 LinearAlgebra.mul!(

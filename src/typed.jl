@@ -411,9 +411,10 @@ LinearAlgebra.bunchkaufman(
     check::Bool = true,
     team = nothing,
 ) = _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook)
-_factor_part(f::FaerFactorization{T}, code, dims) where {T<:_ExtraScalar} =
-    _typed_result(T, RustCrate.factor_part_from, dims, f, Int32(code))
-FaerMatrix(f::FaerFactorization{T}) where {T<:_ExtraScalar} = _factor_part(f, 0, size(f))
+_factor_part(f::FaerFactorization{T}, code, dims; team = nothing) where {T<:_ExtraScalar} =
+    _typed_result(T, RustCrate.factor_part_from, dims, f, Int32(code), team)
+FaerMatrix(f::FaerFactorization{T}; team = nothing) where {T<:_ExtraScalar} =
+    _factor_part(f, 0, size(f); team)
 function Base.copy(f::FaerFactorization{T,K}) where {T<:_ExtraScalar,K}
     lock(_matrix_lock) do
         h=RustCrate.TypedFactor()

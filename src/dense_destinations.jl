@@ -63,7 +63,7 @@ _gemm_destination(c::StridedVecOrMat{<:_NativeScalar}) =
     _faerview_valid(c) ? FaerBorrowedArray(c) : nothing
 _gemm_destination(::Any) = nothing
 
-function _view_gemm!(c, a, b, alpha::Ref{T}, beta::Ref{T}, alpha_zero, beta_zero) where {T}
+function _view_gemm!(c, a, b, alpha::Ref{T}, beta::Ref{T}, alpha_zero, beta_zero, team) where {T}
     p, d=_view_source(c)
     q, e=_view_source(a)
     r, f=_view_source(b)
@@ -79,6 +79,7 @@ function _view_gemm!(c, a, b, alpha::Ref{T}, beta::Ref{T}, alpha_zero, beta_zero
         Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, beta)),
         alpha_zero,
         beta_zero,
+        team,
     )
     return c
 end
@@ -94,8 +95,12 @@ end
 # cannot hold the promoted type receives the converted result only after it has
 # been completely computed. `beta == 0` never reads `C` and `alpha == 0` never
 # reads `A` or `B`.
-function _dense_mul!(c, a, b, alpha, beta)
+#
+# `team` lends a caller-owned `FaerTeam` to faer's gemm for this call only;
+# faer's cost model keeps products too small to pay for a split on one member.
+function _dense_mul!(c, a, b, alpha, beta; team = nothing)
     lock(_matrix_lock) do
+        isnothing(team) || _handle(team)
         _check_writable(c)
         size(a, 2)==size(b, 1) || throw(DimensionMismatch("inner dimensions must match"))
         size(c, 1)==size(a, 1) && size(c, 2)==size(b, 2) ||
@@ -115,11 +120,11 @@ function _dense_mul!(c, a, b, alpha, beta)
             dims=(size(c, 1), size(c, 2))
             work=iszero(beta) ? FaerMatrix{P}(undef, dims...) :
                  FaerMatrix{P}(reshape(Array{P}(_gemm_materialize(c)), dims))
-            _view_gemm!(work, x, y, al, be, iszero(alpha), iszero(beta))
+            _view_gemm!(work, x, y, al, be, iszero(alpha), iszero(beta), team)
             # Convert completely before writing (InexactError leaves C intact).
             copyto!(c, reshape(Array{T}(Matrix(work)), size(c)))
         else
-            _view_gemm!(dest, x, y, al, be, iszero(alpha), iszero(beta))
+            _view_gemm!(dest, x, y, al, be, iszero(alpha), iszero(beta), team)
         end
         return c
     end
@@ -141,9 +146,16 @@ for (D, A, B) in (
     (:FaerBorrowedVector, :_GemmJuliaMatrix, :_GemmJuliaVector),
 )
     @eval begin
-        LinearAlgebra.mul!(c::$D, a::$A, b::$B, alpha::Number, beta::Number) =
-            _dense_mul!(c, a, b, alpha, beta)
-        LinearAlgebra.mul!(c::$D, a::$A, b::$B) = _dense_mul!(c, a, b, true, false)
+        LinearAlgebra.mul!(
+            c::$D,
+            a::$A,
+            b::$B,
+            alpha::Number,
+            beta::Number;
+            team = nothing,
+        ) = _dense_mul!(c, a, b, alpha, beta; team)
+        LinearAlgebra.mul!(c::$D, a::$A, b::$B; team = nothing) =
+            _dense_mul!(c, a, b, true, false; team)
     end
 end
 
