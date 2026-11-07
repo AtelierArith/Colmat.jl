@@ -1,7 +1,16 @@
 # Direct dense triangular solves and destructive inverses
 # (deps/rust/src/dense_triangular.rs).
 const _DenseTriangularView{T}=FaerView{T,2,<:FaerMatrix{T}}
-const _DenseTriangularBase{T}=Union{FaerMatrix{T},_DenseTriangularView{T}}
+# A `faerview` borrow of Julia memory is read (and, for `inv!`, written) in
+# place. A plain Julia array parent is intentionally left to LinearAlgebra:
+# `LowerTriangular{T,Matrix{T}} \ Matrix{T}` involves only Base types (a
+# method here would be type piracy) and already runs BLAS trsm in place;
+# wrap the parent with `faerview` to opt into the native kernel.
+const _DenseTriangularBase{T}=Union{
+    FaerMatrix{T},
+    _DenseTriangularView{T},
+    FaerBorrowedMatrix{T},
+}
 const _DenseTriangularParent{T}=Union{
     _DenseTriangularBase{T},
     LinearAlgebra.Transpose{T,<:_DenseTriangularBase{T}},
@@ -16,12 +25,11 @@ const _DenseTriangular=Union{
     LinearAlgebra.UnitLowerTriangular{<:Any,<:_DenseTriangularParent},
     LinearAlgebra.UnitUpperTriangular{<:Any,<:_DenseTriangularParent},
 }
-# Parents the destructive inverse overwrites (a conjugated parent would need a
-# second pass, so adjoint parents keep using `inv`).
-const _DenseInvertParent{T}=Union{
-    _DenseTriangularBase{T},
-    LinearAlgebra.Transpose{T,<:_DenseTriangularBase{T}},
-}
+# Parents the destructive inverse overwrites: every native parent. A conjugated
+# parent (adjoint, or the conjugate of a transpose) needs no conjugation pass:
+# inv(conj(X)) = conj(inv(X)), so inverting the stored, unconjugated triangle
+# leaves exactly the inverse when read back through the conjugating wrapper.
+const _DenseInvertParent{T}=_DenseTriangularParent{T}
 # Native destinations written in place through their view descriptor.
 const _DenseTriangularNative=Union{
     FaerMatrix,
@@ -139,9 +147,17 @@ _dense_triangular_copy(b::AbstractVector, ::Type{P}) where {P} = Vector{P}(b)
 # The triangle is read through a raw pointer while the destination owner is
 # borrowed mutably; a destination sharing its owner solves from a snapshot.
 function _dense_triangular_unaliased(a, dest)
-    owner=_dense_triangular_owner(dest)
-    isnothing(owner) && return a
-    first(_view_source(parent(a)))===owner || return a
+    source=first(_view_source(parent(a)))
+    if source isa FaerBorrowedArray
+        # Julia memory: native destinations never share it; Julia ones may.
+        dest isa _DenseTriangularNative && return a
+        target=dest isa FaerBorrowedArray ? parent(dest) : dest
+        Base.mightalias(parent(source), target) || return a
+    else
+        owner=_dense_triangular_owner(dest)
+        isnothing(owner) && return a
+        source===owner || return a
+    end
     return _triangular_wrap(a, copy(parent(a)))
 end
 
@@ -404,11 +420,22 @@ function _dense_invert!(a; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
         _dense_triangular_check_team(team)
         p, d=_view_source(parent(a))
+        p isa FaerBorrowedArray && !_borrowed_writable(p) && throw(
+            ArgumentError("inv! cannot overwrite a read-only borrow; copy it first"),
+        )
+        d[9]=0
         req=_dense_invert_requirements(a; team)
         _with_dense_triangular_scratch(req, scratch) do work
-            code=GC.@preserve d _native_call(
-                RustCrate.dense_triangular_invert,
-                p,
+            # A borrowed parent is written through its rooted Julia pointer
+            # and the descriptor's strides.
+            fun, q=if p isa FaerBorrowedArray
+                RustCrate.dense_triangular_invert_borrowed, _raw_owner_argument(p, p)
+            else
+                RustCrate.dense_triangular_invert, p
+            end
+            code=GC.@preserve p d _native_call(
+                fun,
+                q,
                 pointer(d),
                 _islower(a),
                 _isunit(a),
@@ -448,8 +475,11 @@ end
     LinearAlgebra.inv!(A::Triangular; scratch=nothing, team=nothing)
 
 Overwrite the selected triangle of the native parent of `A` (a `FaerMatrix`, a
-native matrix view or the `transpose` of either) with the triangle of `inv(A)`
-and return `A`, like LinearAlgebra's `inv!` for strided triangles. The opposite
+native matrix view, a `faerview` borrow of Julia memory, or the `transpose`,
+`adjoint` or elementwise conjugate of any of them) with the triangle of
+`inv(A)` and return `A`, like LinearAlgebra's `inv!` for strided triangles. A
+read-only borrow (such as an NPY borrow) throws `ArgumentError`. A conjugated parent needs no extra pass: the
+stored triangle is inverted unconjugated, since inv(Xᴴ) = inv(X)ᴴ. The opposite
 strict triangle is left untouched (and the diagonal for unit wrappers). faer's
 `triangular_inverse::invert_*` kernels write into a separate destination, so the
 triangle is first copied into `scratch`: query with

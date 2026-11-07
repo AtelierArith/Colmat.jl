@@ -453,6 +453,113 @@ _stored(S, uplo) =
         @test full_piv_lu!(FaerMatrix(S)) isa FaerFactorization
     end
 
+    # Right solves and the destructive inverse of every direct factor kind.
+    _direct_cases(T, n) = (
+        (:lu, _sample(T, n, n), A -> lu!(A; scratch = FaerScratch(lu!, A))),
+        (:full_lu, _sample(T, n, n), A -> full_piv_lu!(A; scratch = FaerScratch(full_piv_lu!, A))),
+        (:qr, _sample(T, n, n), A -> qr!(A; scratch = FaerScratch(qr!, A))),
+        (:cholesky_L, _hermitian(T, n),
+            A -> cholesky!(Hermitian(A, :L); scratch = FaerScratch(cholesky!, A))),
+        (:cholesky_U, _hermitian(T, n),
+            A -> cholesky!(Hermitian(A, :U); scratch = FaerScratch(cholesky!, A))),
+        (:ldlt, _hermitian(T, n),
+            A -> ldlt!(Hermitian(A, :U); scratch = FaerScratch(ldlt!, A))),
+        (:bunchkaufman, _indefinite(T, n),
+            A -> bunchkaufman!(Hermitian(A, :U); scratch = FaerScratch(bunchkaufman!, A))),
+        (:bunchkaufman_rook, _indefinite(T, n),
+            A -> bunchkaufman!(Hermitian(A, :L), true;
+                scratch = FaerScratch(bunchkaufman!, A, true))),
+    )
+    @testset "right solves and inv! $name $T" for T in (Float32, Float64, ComplexF32, ComplexF64),
+        n in (0, 5), (name, S, make) in _direct_cases(T, 5)
+
+        S = S[1:n, 1:n]
+        stored =
+            name in (:cholesky_U, :ldlt, :bunchkaufman) ? _stored(S, :U) :
+            name in (:cholesky_L, :bunchkaufman_rook) ? _stored(S, :L) : S
+        A = FaerMatrix(stored)
+        F = make(A)
+        B = T.(reshape(1:(3n), 3, n)) ./ 3
+        for (G, M) in ((F, S), (transpose(F), transpose(S)), (F', S'))
+            X = FaerMatrix(B)
+            work = FaerScratch(rdiv!, X, G)
+            @test scratch_requirements(rdiv!, X, G) ==
+                  scratch_requirements(rdiv!, X, G; team = nothing)
+            @test rdiv!(X, G; scratch = work) === X
+            @test Matrix(X) ≈ B / M rtol = _tol(T) atol = _tol(T)
+            Y = B / G
+            @test Y isa FaerMatrix{T}
+            @test Matrix(Y) ≈ B / M rtol = _tol(T) atol = _tol(T)
+            team = FaerTeam(2)
+            Z = FaerMatrix(B)
+            @test reserve!(work, rdiv!, Z, G; team) === work
+            rdiv!(Z, G; scratch = work, team)
+            @test Matrix(Z) ≈ B / M rtol = _tol(T) atol = _tol(T)
+            close(team)
+            # Without scratch a temporary workspace is used.
+            @test Matrix(rdiv!(FaerMatrix(B), G)) ≈ B / M rtol = _tol(T) atol = _tol(T)
+        end
+        # A right-hand side sharing F's storage or of another eltype is rejected.
+        @test_throws ArgumentError rdiv!(A, F)
+        @test_throws ArgumentError rdiv!(FaerMatrix(zeros(T === Float64 ? Float32 : Float64, 3, n)), F)
+        @test_throws DimensionMismatch rdiv!(FaerMatrix(zeros(T, 2, n + 1)), F)
+        # inv! overwrites F.factors with inv(A) (both triangles for the
+        # self-adjoint kinds, as Julia's inv!(::Cholesky)) and invalidates F.
+        expected = n == 0 ? zeros(T, 0, 0) : inv(S)
+        work = FaerScratch(LinearAlgebra.inv!, F)
+        @test scratch_requirements(LinearAlgebra.inv!, F).bytes >= n * n * sizeof(T)
+        @test LinearAlgebra.inv!(F; scratch = work) === A
+        @test Matrix(A) ≈ expected rtol = _tol(T) atol = _tol(T)
+        @test !isopen(F)
+        @test_throws ArgumentError F \ ones(T, n)
+        @test_throws ArgumentError LinearAlgebra.inv!(F)
+        # The temporary-workspace and team forms.
+        A2 = FaerMatrix(stored)
+        F2 = make(A2)
+        team = FaerTeam(2)
+        reserve!(work, LinearAlgebra.inv!, F2; team)
+        @test LinearAlgebra.inv!(F2; scratch = work, team) === A2
+        @test Matrix(A2) ≈ expected rtol = _tol(T) atol = _tol(T)
+        close(team)
+        A3 = FaerMatrix(Matrix(A2))
+        LinearAlgebra.inv!(A3)
+        @test Matrix(A3) ≈ S rtol = sqrt(_tol(T)) atol = sqrt(_tol(T))
+    end
+    @testset "inv! of a general matrix and failures" begin
+        for T in (Float64, ComplexF32)
+            X = _sample(T, 4, 4)
+            A = FaerMatrix(X)
+            work = FaerScratch(LinearAlgebra.inv!, A)
+            @test scratch_requirements(LinearAlgebra.inv!, A).bytes >=
+                  scratch_requirements(lu!, A).bytes
+            @test LinearAlgebra.inv!(A; scratch = work) === A
+            @test Matrix(A) ≈ inv(X) rtol = _tol(T)
+        end
+        # Singular inputs throw before any write.
+        Z = [1.0 2; 2 4]
+        A = FaerMatrix(Z)
+        @test_throws SingularException LinearAlgebra.inv!(A)
+        G = lu!(FaerMatrix(Z); allowsingular = true, scratch = FaerScratch(lu!, FaerMatrix(Z)))
+        packed = Matrix(G.factors)
+        @test_throws SingularException LinearAlgebra.inv!(G)
+        @test Matrix(G.factors) == packed
+        @test isopen(G)
+        Q = qr!(FaerMatrix(Z); scratch = FaerScratch(qr!, FaerMatrix(Z)))
+        @test_throws SingularException LinearAlgebra.inv!(Q)
+        W = FaerMatrix(rand(3, 4))
+        Fw = lu!(W; scratch = FaerScratch(lu!, W))
+        @test_throws DimensionMismatch LinearAlgebra.inv!(Fw)
+        @test_throws DimensionMismatch rdiv!(FaerMatrix(rand(2, 4)), Fw)
+        @test_throws DimensionMismatch LinearAlgebra.inv!(FaerMatrix(rand(3, 4)))
+        X = _sample(Float64, 4, 4)
+        A = FaerMatrix(X)
+        F = lu!(A; scratch = FaerScratch(lu!, A))
+        @test_throws ArgumentError LinearAlgebra.inv!(F; scratch = FaerScratch(0))
+        @test_throws ArgumentError rdiv!(FaerMatrix(ones(2, 4)), F; scratch = :bad)
+        @test isopen(F)
+        @test Matrix(F) ≈ X
+    end
+
     @test isempty(
         Test.detect_ambiguities(Colmat, Base, LinearAlgebra, SparseArrays; recursive = true),
     )

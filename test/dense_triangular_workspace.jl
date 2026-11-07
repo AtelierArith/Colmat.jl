@@ -17,7 +17,16 @@ function dtw_parents(a)
         (adjoint(s), adjoint(a)),
         (view(big, 2:size(a, 1)+1, 3:size(a, 2)+2), a),
         (transpose(FaerMatrix(a)), transpose(a)),
+        # faerview borrows of Julia memory, also strided and adjoint.
+        (faerview(copy(a)), a),
+        (adjoint(faerview(copy(adjoint(a)))), a),
+        (view(faerview(dtw_padded(a)), 2:size(a, 1)+1, 3:size(a, 2)+2), a),
     )
+end
+function dtw_padded(a)
+    big=zeros(eltype(a), size(a, 1)+1, size(a, 2)+2)
+    big[2:end, 3:end]=a
+    return big
 end
 
 @testset "Direct in-place dense triangular solves" begin
@@ -223,6 +232,21 @@ end
     end
     @test Matrix(rdiv!(A, UpperTriangular(A)))≈a/UpperTriangular(a)
     copyto!(A, a)
+    # A faerview parent sharing Julia memory with the destination, too.
+    J=copy(a)
+    @test ldiv!(LowerTriangular(faerview(J)), J)===J
+    @test J≈LowerTriangular(a)\a
+    J=copy(a)
+    @test ldiv!(LowerTriangular(faerview(J)), view(J, :, 2:3))==view(J, :, 2:3)
+    @test J[:, 2:3]≈LowerTriangular(a)\a[:, 2:3]
+    J=copy(a)
+    @test rdiv!(faerview(J), UpperTriangular(faerview(J))) isa Colmat.FaerBorrowedArray
+    @test J≈a/UpperTriangular(a)
+    # A plain Julia parent stays on LinearAlgebra's (BLAS) path.
+    @test !hasmethod(
+        scratch_requirements,
+        Tuple{typeof(ldiv!),LowerTriangular{Float64,Matrix{Float64}},Matrix{Float64}},
+    )
     # Closed owners and views fail before any write.
     closedrhs=FaerMatrix(zeros(n, 2))
     close(closedrhs)
@@ -264,8 +288,52 @@ end
         At=FaerMatrix(copy(transpose(a)))
         tt=C(transpose(At))
         @test Matrix(LinearAlgebra.inv!(tt))≈gold rtol=tol
+        # Adjoint and elementwise-conjugate parents invert the stored triangle
+        # unconjugated: inv(Xᴴ) = inv(X)ᴴ, inv(conj(X)) = conj(inv(X)).
+        Aa=FaerMatrix(copy(adjoint(a)))
+        ta=C(adjoint(Aa))
+        @test scratch_requirements(LinearAlgebra.inv!, ta).bytes>=n*n*sizeof(T)
+        @test LinearAlgebra.inv!(ta; scratch = work)===ta
+        @test Matrix(ta)≈gold rtol=tol
+        @test all(
+            Matrix(Aa)'[i, j]==a[i, j] for i in 1:n, j in 1:n if i!=j && (i>j)!=lower
+        )
+        tc=C(transpose(adjoint(FaerMatrix(conj(a)))))
+        @test Matrix(LinearAlgebra.inv!(tc))≈gold rtol=tol
+        tr=C(adjoint(transpose(FaerMatrix(conj(a)))))
+        @test Matrix(LinearAlgebra.inv!(tr))≈gold rtol=tol
+        # faerview parents invert the Julia memory in place.
+        J=copy(a)
+        tb=C(faerview(J))
+        @test scratch_requirements(LinearAlgebra.inv!, tb).bytes>=n*n*sizeof(T)
+        @test LinearAlgebra.inv!(tb; scratch = work)===tb
+        @test C(J)≈gold rtol=tol
+        @test all(J[i, j]==a[i, j] for i in 1:n, j in 1:n if i!=j && (i>j)!=lower)
+        Ja=copy(adjoint(a))
+        @test Matrix(LinearAlgebra.inv!(C(adjoint(faerview(Ja)))))≈gold rtol=tol
         close(work)
     end
+    # A read-only borrow (an NPY borrow of a byte buffer) is solved with but
+    # never written by inv!.
+    a=dtw_matrix(rng, Float64, 3)
+    header="{'descr': '<f8', 'fortran_order': True, 'shape': (3, 3), }"
+    header*=" "^(63-mod(10+length(header), 64))*"\n"
+    bytes=vcat(
+        UInt8[0x93],
+        Vector{UInt8}("NUMPY"),
+        UInt8[1, 0],
+        reinterpret(UInt8, [htol(UInt16(length(header)))]),
+        Vector{UInt8}(header),
+        reinterpret(UInt8, htol.(vec(a))),
+    )
+    R=npyborrow(bytes)
+    @test R==a
+    @test_throws ArgumentError LinearAlgebra.inv!(UpperTriangular(R))
+    @test_throws ArgumentError LinearAlgebra.inv!(LowerTriangular(R'))
+    @test R==a
+    rb=ones(3, 2)
+    @test ldiv!(UpperTriangular(R), rb)===rb
+    @test rb≈UpperTriangular(a)\ones(3, 2)
     s=Matrix(Diagonal([1.0, 0, 2]))
     S=FaerMatrix(s)
     @test_throws SingularException(2) LinearAlgebra.inv!(UpperTriangular(S))
