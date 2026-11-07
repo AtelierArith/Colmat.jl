@@ -14,7 +14,7 @@ use faer::linalg::cholesky::lblt::{
 use faer::linalg::solvers::{DenseSolveCore, ShapeCore, SolveCore};
 use faer::perm::{Perm, PermRef};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Auto, Conj, Mat, MatMut, MatRef, Par, Side};
+use faer::{Conj, Mat, MatMut, MatRef, Par, Side};
 
 #[derive(Clone, Debug)]
 pub struct Lblt<T> {
@@ -22,22 +22,21 @@ pub struct Lblt<T> {
     diag: Diag<T>,
     subdiag: Diag<T>,
     perm: Perm<usize>,
-    rook: bool,
+    pivoting: PivotingStrategy,
 }
 
-/// faer's automatic block LDLᴴ parameters with the pivoting strategy Julia's
-/// `bunchkaufman(A, rook)` selects: `Rook`, or faer's default `PartialDiag`.
+/// The block LDLᴴ parameters of the current call: the pivoting strategy Julia's
+/// `bunchkaufman(A, rook; pivoting)` selects (`Rook` for `rook`, otherwise
+/// faer's default `PartialDiag`) with the `with_cholesky_tuning` block size and
+/// parallel floor (see `crate::selfadjoint_tuning`).
 pub(crate) fn params<T: ComplexField>(rook: bool) -> LbltParams {
-    let mut params = <LbltParams as Auto<T>>::auto();
-    if rook {
-        params.pivoting = PivotingStrategy::Rook;
-    }
-    params
+    crate::selfadjoint_tuning::lblt_params::<T>(rook)
 }
 
 impl<T: ComplexField> Lblt<T> {
     /// Factor the `side` triangle of self-adjoint `a`; `rook` selects faer's
-    /// rook strategy, otherwise faer's default partial-diagonal strategy.
+    /// rook strategy, otherwise faer's default partial-diagonal strategy, unless
+    /// the call options select another strategy.
     pub fn new(a: MatRef<'_, T>, side: Side, par: Par<'_>, rook: bool) -> Self {
         assert!(a.nrows() == a.ncols());
         let n = a.nrows();
@@ -78,7 +77,7 @@ impl<T: ComplexField> Lblt<T> {
             diag,
             subdiag,
             perm,
-            rook,
+            pivoting: params.pivoting,
         }
     }
     #[allow(non_snake_case)]
@@ -97,8 +96,15 @@ impl<T: ComplexField> Lblt<T> {
     pub fn P(&self) -> PermRef<'_, usize> {
         self.perm.as_ref()
     }
+    /// Julia's `F.rook`: true for the rook strategies.
     pub fn rook(&self) -> bool {
-        self.rook
+        matches!(
+            self.pivoting,
+            PivotingStrategy::Rook | PivotingStrategy::RookDiag
+        )
+    }
+    pub fn pivoting(&self) -> PivotingStrategy {
+        self.pivoting
     }
     fn solve_with(&self, conj: Conj, rhs: MatMut<'_, T>, par: Par<'_>) {
         let n = self.l.nrows();

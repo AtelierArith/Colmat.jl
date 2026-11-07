@@ -403,8 +403,9 @@ fn check_finite(a: MatRef<'_, f64>) -> Result<(), String> {
     Ok(())
 }
 
+use cholesky_factors::{Ldlt, Llt};
 use faer::linalg::solvers::{
-    ColPivQr, DenseSolveCore, FullPivLu, Ldlt, Llt, PartialPivLu, Qr, ShapeCore, SolveLstsq, Svd,
+    ColPivQr, DenseSolveCore, FullPivLu, PartialPivLu, Qr, ShapeCore, SolveLstsq, Svd,
 };
 use lblt::Lblt;
 
@@ -1241,6 +1242,10 @@ pub mod pivoted_cholesky;
 
 pub mod lblt;
 
+pub mod cholesky_factors;
+
+pub mod selfadjoint_tuning;
+
 pub mod direct_factors;
 
 mod borrowed_factors;
@@ -1322,7 +1327,7 @@ impl OwnedFactor {
             1 => DenseFactor::FullLu(a.full_piv_lu(par)),
             2 => DenseFactor::Qr(a.qr(par)),
             3 => DenseFactor::PivotQr(a.col_piv_qr(par)),
-            4 => match a.llt(side, par) {
+            4 => match Llt::new(a, side, par) {
                 Ok(f) => DenseFactor::Llt(f),
                 Err(faer::linalg::solvers::LltError::NonPositivePivot { index }) => {
                     self.factor = None;
@@ -1330,7 +1335,7 @@ impl OwnedFactor {
                     return Ok(self.info);
                 }
             },
-            5 => match a.ldlt(side, par) {
+            5 => match Ldlt::new(a, side, par)? {
                 Ok(f) => DenseFactor::Ldlt(f),
                 Err(faer::linalg::solvers::LdltError::ZeroPivot { index }) => {
                     self.factor = None;

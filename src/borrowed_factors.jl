@@ -25,6 +25,7 @@ function _borrowed_factor(
     uplo = :L,
     team = nothing,
     rook::Bool = false,
+    options = _NoSelfAdjointOptions,
 ) where {T,K}
     K in (:cholesky, :ldlt, :bunchkaufman) && LinearAlgebra.checksquare(a)
     isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
@@ -32,25 +33,28 @@ function _borrowed_factor(
         isnothing(team) || _handle(team)
         h=_borrowed_factor_handle(T)
         p, d=_view_source(a)
-        info=GC.@preserve d Int(
-            _native_call(
-                RustCrate.initialize_view,
-                h,
-                p,
-                pointer(d),
-                Int32(_construction_code(K, code, rook)),
-                uplo===:L,
-                UInt(size(a, 1)),
-                UInt(size(a, 2)),
-                _tag(T),
-                team,
-            ),
-        )
+        info, count=_with_selfadjoint_options(options) do
+            info=GC.@preserve d Int(
+                _native_call(
+                    RustCrate.initialize_view,
+                    h,
+                    p,
+                    pointer(d),
+                    Int32(_construction_code(K, code, rook)),
+                    uplo===:L,
+                    UInt(size(a, 1)),
+                    UInt(size(a, 2)),
+                    _tag(T),
+                    team,
+                ),
+            )
+            return info, _regularization_count(K, info)
+        end
         if check && info!=0
             K===:cholesky && throw(LinearAlgebra.PosDefException(info))
             throw(LinearAlgebra.SingularException(info))
         end
-        return FaerFactorization{T,K,typeof(h)}(h, size(a), info, uplo, rook)
+        return FaerFactorization{T,K,typeof(h)}(h, size(a), info, uplo, rook, count)
     end
 end
 # Real inputs use the symmetric test of the native Float64 methods, complex
@@ -82,8 +86,14 @@ LinearAlgebra.qr(a::_BorrowedFactorInput, ::LinearAlgebra.NoPivot; team = nothin
     LinearAlgebra.qr(a; team)
 LinearAlgebra.qr(a::_BorrowedFactorInput, ::LinearAlgebra.ColumnNorm; team = nothing) =
     _borrowed_factor(a, Val(:pivoted_qr), 3; team)
-function LinearAlgebra.cholesky(a::_BorrowedFactorInput; check::Bool = true, team = nothing)
+function LinearAlgebra.cholesky(
+    a::_BorrowedFactorInput;
+    check::Bool = true,
+    team = nothing,
+    kwargs...,
+)
     T=eltype(a)
+    options=_cholesky_kw(size(a, 1); kwargs...)
     if !_borrowed_selfadjoint(a)
         # As for native matrices: an unsuccessful factor with `info == -1`.
         LinearAlgebra.checksquare(a)
@@ -91,31 +101,71 @@ function LinearAlgebra.cholesky(a::_BorrowedFactorInput; check::Bool = true, tea
         h=_borrowed_factor_handle(T)
         return FaerFactorization{T,:cholesky,typeof(h)}(h, size(a), -1, :L, false)
     end
-    return _borrowed_factor(a, Val(:cholesky), 4; check, team)
+    return _borrowed_factor(a, Val(:cholesky), 4; check, team, options)
 end
-LinearAlgebra.cholesky(a::_BorrowedSelfAdjointInput; check::Bool = true, team = nothing) =
-    _borrowed_factor(parent(a), Val(:cholesky), 4; check, team, uplo = _uplo(a))
-function LinearAlgebra.ldlt(a::_BorrowedFactorInput; check::Bool = true, team = nothing)
+LinearAlgebra.cholesky(
+    a::_BorrowedSelfAdjointInput;
+    check::Bool = true,
+    team = nothing,
+    kwargs...,
+) = _borrowed_factor(
+    parent(a),
+    Val(:cholesky),
+    4;
+    check,
+    team,
+    uplo = _uplo(a),
+    options = _cholesky_kw(size(a, 1); kwargs...),
+)
+function LinearAlgebra.ldlt(a::_BorrowedFactorInput; check::Bool = true, team = nothing, kwargs...)
+    options=_ldlt_kw(size(a, 1); kwargs...)
     _borrowed_require_selfadjoint(a)
-    return _borrowed_factor(a, Val(:ldlt), 5; check, team)
+    return _borrowed_factor(a, Val(:ldlt), 5; check, team, options)
 end
-LinearAlgebra.ldlt(a::_BorrowedSelfAdjointInput; check::Bool = true, team = nothing) =
-    _borrowed_factor(parent(a), Val(:ldlt), 5; check, team, uplo = _uplo(a))
+LinearAlgebra.ldlt(
+    a::_BorrowedSelfAdjointInput;
+    check::Bool = true,
+    team = nothing,
+    kwargs...,
+) = _borrowed_factor(
+    parent(a),
+    Val(:ldlt),
+    5;
+    check,
+    team,
+    uplo = _uplo(a),
+    options = _ldlt_kw(size(a, 1); kwargs...),
+)
 function LinearAlgebra.bunchkaufman(
     a::_BorrowedFactorInput,
     rook::Bool = false;
     check::Bool = true,
     team = nothing,
+    kwargs...,
 )
+    options, rook=_lblt_kw(rook; kwargs...)
     _borrowed_require_selfadjoint(a)
-    return _borrowed_factor(a, Val(:bunchkaufman), 6; check, team, rook)
+    return _borrowed_factor(a, Val(:bunchkaufman), 6; check, team, rook, options)
 end
-LinearAlgebra.bunchkaufman(
+function LinearAlgebra.bunchkaufman(
     a::_BorrowedSelfAdjointInput,
     rook::Bool = false;
     check::Bool = true,
     team = nothing,
-) = _borrowed_factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook)
+    kwargs...,
+)
+    options, rook=_lblt_kw(rook; kwargs...)
+    return _borrowed_factor(
+        parent(a),
+        Val(:bunchkaufman),
+        6;
+        check,
+        team,
+        uplo = _uplo(a),
+        rook,
+        options,
+    )
+end
 
 # Options without a borrowed-input driver (scratch, team, alg, native results,
 # left/both sides, balancing, active tuning) take one native copy of the input

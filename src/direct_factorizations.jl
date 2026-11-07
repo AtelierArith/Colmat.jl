@@ -30,7 +30,8 @@ and adjoint for square factors, tall QR least squares), right solves of square
 factors (`/`, `rdiv!(B, F)` with optional `scratch=`/`team=`, also transposed
 and adjoint, on B's own storage), the destructive `LinearAlgebra.inv!(F)`
 (which overwrites A with its inverse and closes F), `L/U/p/P/R/Q/Qthin/
-Qbasis/Qcoeff/packed`, `q` (full LU), `D` (LDLᴴ, Bunch–Kaufman), `rook` and
+Qbasis/Qcoeff/packed`, `q` (full LU), `D` (LDLᴴ, Bunch–Kaufman),
+`regularization_count` (Cholesky, LDLᴴ), `rook` and
 `inertia` (Bunch–Kaufman), `reconstruct(F)`/`Matrix(F)`/`FaerMatrix(F)` and their
 typed forms, `inv`, `pinv` (QR), and `det/logabsdet/logdet` (all but QR,
 natively) read A's storage. `copy(F)` copies A and F's buffers into a new direct
@@ -50,7 +51,11 @@ mutable struct FaerInPlaceFactorization{T,K,M<:FaerMatrix{T}} <:
     uplo::Symbol
     rook::Bool
     open::Bool
+    # faer's `dynamic_regularization_count` (LLᴴ/LDLᴴ with regularization).
+    regularization_count::Int
 end
+FaerInPlaceFactorization{T,K,M}(args::Vararg{Any,10}) where {T,K,M} =
+    FaerInPlaceFactorization{T,K,M}(args..., 0)
 
 # Native kind codes (the retained-factor construction codes).
 _direct_kind(::Val{:lu}, rook = false) = Int32(0)
@@ -116,6 +121,7 @@ function _direct_factor!(
     scratch,
     team;
     rook::Bool = false,
+    options = _NoSelfAdjointOptions,
 ) where {T,K}
     lock(_matrix_lock) do
         _handle(a)
@@ -128,7 +134,9 @@ function _direct_factor!(
             m!=n &&
             throw(DimensionMismatch("factorization requires a square matrix"))
         kind=_direct_kind(Val(K), rook)
-        req=_direct_requirements(kind, 0, m, n, 0, T, team)
+        req=_with_selfadjoint_options(options) do
+            return _direct_requirements(kind, 0, m, n, 0, T, team)
+        end
         _direct_scratch_check(scratch, req, "factorization")
         # LU: row permutation; full LU: [row; column]; Bunch–Kaufman: symmetric.
         plen=K===:lu ? m : K===:full_lu ? m+n : K===:bunchkaufman ? n : 0
@@ -140,23 +148,26 @@ function _direct_factor!(
             K===:qr ? req.block : K===:bunchkaufman ? n : 0,
             K===:qr ? min(m, n) : K===:bunchkaufman ? 1 : 0,
         )
-        info=GC.@preserve coeff Int(
-            _native_call(
-                RustCrate.direct_factor,
-                a,
-                kind,
-                lower,
-                UInt(m),
-                UInt(n),
-                _tag(T),
-                perm,
-                perm_inv,
-                _direct_coeff_pointer(kind, coeff),
-                UInt(size(coeff, 1)),
-                scratch,
-                team,
-            ),
-        )
+        info, count=_with_selfadjoint_options(options) do
+            info=GC.@preserve coeff Int(
+                _native_call(
+                    RustCrate.direct_factor,
+                    a,
+                    kind,
+                    lower,
+                    UInt(m),
+                    UInt(n),
+                    _tag(T),
+                    perm,
+                    perm_inv,
+                    _direct_coeff_pointer(kind, coeff),
+                    UInt(size(coeff, 1)),
+                    scratch,
+                    team,
+                ),
+            )
+            return info, _regularization_count(K, info)
+        end
         return FaerInPlaceFactorization{T,K,typeof(a)}(
             a,
             perm,
@@ -168,6 +179,7 @@ function _direct_factor!(
             lower ? :L : :U,
             rook,
             true,
+            count,
         )
     end
 end
@@ -194,11 +206,19 @@ function _direct_lu!(a::FaerMatrix, check, allowsingular, scratch, team)
     return f
 end
 _direct_qr!(a::FaerMatrix, scratch, team) = _direct_factor!(a, Val(:qr), true, scratch, team)
-function _direct_cholesky!(a::FaerMatrix, lower::Bool, hermitian::Bool, check, scratch, team)
+function _direct_cholesky!(
+    a::FaerMatrix,
+    lower::Bool,
+    hermitian::Bool,
+    check,
+    scratch,
+    team,
+    options = _NoSelfAdjointOptions,
+)
     lock(_matrix_lock) do
         _handle(a)
         hermitian || return _direct_non_hermitian(a, check)
-        f=_direct_factor!(a, Val(:cholesky), lower, scratch, team)
+        f=_direct_factor!(a, Val(:cholesky), lower, scratch, team; options)
         check && f.info!=0 && throw(LinearAlgebra.PosDefException(f.info))
         return f
     end
@@ -218,8 +238,9 @@ function _direct_self_adjoint!(
     check,
     scratch,
     team,
+    options = _NoSelfAdjointOptions,
 )
-    f=_direct_factor!(a, Val(K), lower, scratch, team; rook = rook===true)
+    f=_direct_factor!(a, Val(K), lower, scratch, team; rook = rook===true, options)
     check && f.info!=0 && throw(LinearAlgebra.SingularException(f.info))
     return f
 end
@@ -230,7 +251,7 @@ end
     scratch_requirements(cholesky!, A; team=nothing)
     scratch_requirements(full_piv_lu!, A::FaerMatrix; team=nothing)
     scratch_requirements(ldlt!, A; team=nothing)
-    scratch_requirements(bunchkaufman!, A[, rook=false]; team=nothing)
+    scratch_requirements(bunchkaufman!, A[, rook=false]; team=nothing, pivoting=nothing)
 
 Query faer's exact workspace for the direct in-place factorization of A (a
 `FaerMatrix`, or for the self-adjoint factorizations also a `Hermitian`/real
@@ -298,12 +319,20 @@ scratch_requirements(
     a::_DirectCholeskyInput;
     team = nothing,
 ) = _direct_square_requirements(5, a; team)
-scratch_requirements(
+function scratch_requirements(
     ::typeof(LinearAlgebra.bunchkaufman!),
     a::_DirectCholeskyInput,
     rook::Bool = false;
     team = nothing,
-) = _direct_square_requirements(_direct_kind(Val(:bunchkaufman), rook), a; team)
+    pivoting = nothing,
+)
+    # faer's query takes the whole `LbltParams`: the strategy (`:full` keeps
+    # per-thread pivot candidates) and the `with_cholesky_tuning` block size.
+    options, rook=_lblt_options(rook, pivoting)
+    return _with_selfadjoint_options(options) do
+        _direct_square_requirements(_direct_kind(Val(:bunchkaufman), rook), a; team)
+    end
+end
 for (fn, signature, args) in (
     (:(LinearAlgebra.lu!), :(a::FaerMatrix,), :(a,)),
     (:full_piv_lu!, :(a::FaerMatrix,), :(a,)),
@@ -314,8 +343,8 @@ for (fn, signature, args) in (
     (:(LinearAlgebra.qr!), :(a::FaerMatrix, p::LinearAlgebra.NoPivot), :(a, p)),
     (:(LinearAlgebra.cholesky!), :(a::_DirectCholeskyInput,), :(a,)),
 )
-    @eval function FaerScratch(::typeof($fn), $(signature.args...); team = nothing)
-        req=scratch_requirements($fn, $(args.args...); team)
+    @eval function FaerScratch(::typeof($fn), $(signature.args...); team = nothing, kwargs...)
+        req=scratch_requirements($fn, $(args.args...); team, kwargs...)
         return FaerScratch(req.bytes; alignment = req.alignment)
     end
     @eval function reserve!(
@@ -323,8 +352,9 @@ for (fn, signature, args) in (
         ::typeof($fn),
         $(signature.args...);
         team = nothing,
+        kwargs...,
     )
-        req=scratch_requirements($fn, $(args.args...); team)
+        req=scratch_requirements($fn, $(args.args...); team, kwargs...)
         return reserve!(work, req.bytes; alignment = req.alignment)
     end
 end
@@ -439,6 +469,7 @@ function Base.propertynames(f::FaerInPlaceFactorization{T,K}, private::Bool = fa
         K===:qr ? (:Q, :Qthin, :R, :Qbasis, :Qcoeff) :
         K===:ldlt ? (:L, :D) :
         K===:bunchkaufman ? (:L, :D, :p, :P, :rook) : (:L, :U, :UL)
+    K in (:cholesky, :ldlt) && (props=(props..., :regularization_count))
     props=(:factors, props..., :packed, :info, :uplo)
     return private ? (props..., :perm, :perm_inv, :coeff, :dims, :epoch, :open) : props
 end
@@ -512,6 +543,7 @@ function Base.copy(f::FaerInPlaceFactorization{T,K}) where {T,K}
             getfield(f, :uplo),
             getfield(f, :rook),
             true,
+            getfield(f, :regularization_count),
         )
     end
 end

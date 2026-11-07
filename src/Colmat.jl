@@ -123,6 +123,7 @@ export FaerSpectralFactor,
     with_svd_tuning,
     with_schur_tuning,
     with_evd_tuning,
+    with_cholesky_tuning,
     structured_mul!,
     faer_solve,
     faer_svd
@@ -341,6 +342,7 @@ include("mixed_ops.jl")
 include("svd_tuning.jl")
 include("schur_tuning.jl")
 include("evd_tuning.jl")
+include("cholesky_tuning.jl")
 include("selfadjoint_evd_ranges.jl")
 include("balanced_eigen.jl")
 include("pivoted_qr_rank.jl")

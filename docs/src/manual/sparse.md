@@ -433,11 +433,17 @@ kernel 用 workspace を照会します。対象は次の経路です。
   `:simplicial`／`:supernodal` を明示すると追加計算はありません。
 - 横長 QR の既定 COLAMD と、明示 simplicial LU／QR の `ordering=:colamd`: COLAMD kernel の
   必要量です。
-- 恒等・任意 ordering と、正方／縦長の auto／supernodal LU／QR は 0 バイトです。
+- 縦長／正方の明示 simplicial QR（全 ordering）: faer の公開 kernel（列消去木・postorder・
+  列数・simplicial symbolic）と転置パターンの一時領域です。`:colamd` では COLAMD と同じ
+  バッファを順に使い、必要量は大きい方です。
+- 恒等・任意 ordering の Cholesky／LU と、正方／縦長の auto／supernodal LU／QR は 0 バイトです。
   後者の COLAMD は caller stack を受け取らない faer の symbolic API 内で確保されます。
   明示 ordering を渡しても faer の内部要求量に COLAMD 分が残るため、事前計算では減りません
   （[tensor4all/faer#322](https://github.com/tensor4all/faer/issues/322)、
   実行済みの再現例 `docs/reproducers/faer-symbolic-colamd-scratch.md`）。
+  faer の symbolic QR が caller stack・`Par` を受け取らない点は upstream 未起票で、実行済みの再現例は
+  [sparse-symbolic-qr-workspace](https://github.com/AtelierArith/Colmat.jl/tree/main/docs/reproducers/sparse-symbolic-qr-workspace)
+  にあります。
 
 ordering kernel は逐次実行です。容量・alignment 不足や閉じた workspace は拒否します。
 CSC への変換・複製、faer の ordering 後の symbolic 用内部バッファ、保持する置換と
@@ -486,7 +492,9 @@ G = factorize(plan, A)
 `.factor_storage` は確保する数値スロット数（supernodal の padding を含む）を返します。
 コピー・数値更新・混合精度の求解でも symbolic analysis の設定を引き継ぎます。
 
-faer の supernodal 制御も指定できます（疎 Cholesky と、明示 simplicial 以外の疎 LU）。
+faer の supernodal 制御も指定できます（疎 Cholesky と、明示 simplicial 以外の疎 LU／QR）。
+疎 QR では横長入力の head 解析にも適用され、`plan.algorithm`／`F.algorithm` で
+選ばれた方式を確認できます。
 
 - `supernodal_threshold=r`: faer の `supernodal_flop_ratio_threshold`。`algorithm=:auto`
   でのみ有効な非負の実数で、既定は faer と同じ 1.0 です。`0` はほぼ常に supernodal、
@@ -496,6 +504,9 @@ faer の supernodal 制御も指定できます（疎 Cholesky と、明示 simp
   合計列数が `n` 以下で、併合後のゼロの割合が `z`（`0 ≤ z ≤ 1`）未満なら併合します。
   省略時は faer の既定値です。空の配列を渡すと併合しません。`algorithm=:simplicial`
   とは併用できません。
+- `blocking_threshold=b`（疎 QR のみ）: supernodal front の dense QR に使う faer の
+  `QrParams.blocking_threshold`（非負整数、既定 48²）。plan に保持され、symbolic 再利用・
+  `qr!` でも使われます。数値分解の scratch 量は変わりません。
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays

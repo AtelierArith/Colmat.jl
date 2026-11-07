@@ -1,0 +1,6 @@
+[package]
+name = "sparse-symbolic-qr-workspace-mwe"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+faer = { package = "t4a-faer", git = "https://github.com/tensor4all/faer.git", rev = "d374ec022b76bd99089af396964945fa03d8d29c", default-features = false, features = ["std", "linalg"] }

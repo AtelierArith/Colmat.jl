@@ -38,14 +38,19 @@ struct Plan {
     /// factorization keeps a copy to validate refactorizations).
     pattern: Arc<SymbolicSparseColMat<usize>>,
     lower: bool,
+    /// Sparse QR numeric `QrParams.blocking_threshold` override, kept with the
+    /// plan so symbolic reuse and `qr!` updates apply it.
+    qr_blocking: Option<usize>,
 }
 /// Supernodal controls consumed by the next analysis: faer's
 /// `supernodal_flop_ratio_threshold` (auto selection only) and
-/// `SymbolicSupernodalParams::relax` (`None` keeps faer's default).
+/// `SymbolicSupernodalParams::relax` (`None` keeps faer's default), plus the
+/// sparse QR numeric `QrParams.blocking_threshold`.
 #[derive(Clone, Default)]
 struct Tuning {
     ratio: Option<f64>,
     relax: Option<Vec<(usize, f64)>>,
+    qr_blocking: Option<usize>,
 }
 impl Tuning {
     fn supernodal(&self) -> faer::sparse::linalg::SymbolicSupernodalParams<'_> {
@@ -114,7 +119,17 @@ impl SparseSymbolic {
             self.tuning = Tuning {
                 ratio: (!ratio.is_nan()).then_some(ratio),
                 relax,
+                qr_blocking: self.tuning.qr_blocking,
             };
+            Ok(())
+        })
+    }
+    /// Stage the sparse QR numeric `QrParams.blocking_threshold` for the next
+    /// `sparse_analyze*` call (auto/supernodal QR only).
+    #[julia]
+    pub fn sparse_symbolic_qr_blocking(&mut self, blocking: usize) -> Result<(), String> {
+        guarded(|| {
+            self.tuning.qr_blocking = Some(blocking);
             Ok(())
         })
     }
@@ -204,10 +219,14 @@ impl SparseSymbolic {
         let tuning = std::mem::take(&mut self.tuning);
         guarded(|| {
             let tuned = tuning.ratio.is_some() || tuning.relax.is_some();
-            if tuned && (kind == 1 || (kind == 0 && supernodal == 1)) {
+            if tuned && kind != 2 && supernodal == 1 {
                 return Err(
-                    "supernodal tuning requires sparse Cholesky or non-simplicial sparse LU".into(),
+                    "supernodal tuning requires sparse Cholesky or non-simplicial sparse LU/QR"
+                        .into(),
                 );
+            }
+            if tuning.qr_blocking.is_some() && (kind != 1 || supernodal == 1) {
+                return Err("QR blocking threshold requires auto/supernodal sparse QR".into());
             }
             if tuning.ratio.is_some() && supernodal != 0 {
                 return Err("supernodal threshold requires automatic algorithm selection".into());
@@ -317,18 +336,21 @@ impl SparseSymbolic {
                             n,
                         )
                     };
-                    Analysis::WideQr(crate::sparse_qr_wide::Plan::new(
+                    let mut plan = crate::sparse_qr_wide::Plan::new(
                         pattern.as_ref(),
                         columns,
                         faer::sparse::linalg::qr::QrSymbolicParams {
                             supernodal_flop_ratio_threshold: match supernodal {
                                 1 => SupernodalThreshold::FORCE_SIMPLICIAL,
                                 2 => SupernodalThreshold::FORCE_SUPERNODAL,
-                                _ => SupernodalThreshold::AUTO,
+                                _ => tuning.threshold(),
                             },
+                            supernodal_params: tuning.supernodal(),
                             ..Default::default()
                         },
-                    )?)
+                    )?;
+                    plan.blocking = tuning.qr_blocking;
+                    Analysis::WideQr(plan)
                 }
                 1 if supernodal == 1 => {
                     let owned;
@@ -347,10 +369,15 @@ impl SparseSymbolic {
                     if cols.len() != n {
                         return Err("QR column permutation length mismatch".into());
                     }
-                    Analysis::SimplicialQr(crate::sparse_qr_components::Plan::new(
-                        pattern.as_ref(),
-                        cols,
-                    )?)
+                    // Public stack-taking kernels: caller scratch when given.
+                    Analysis::SimplicialQr(match work.as_deref_mut() {
+                        Some(work) => crate::sparse_qr_components::Plan::new_in(
+                            pattern.as_ref(),
+                            cols,
+                            work,
+                        )?,
+                        None => crate::sparse_qr_components::Plan::new(pattern.as_ref(), cols)?,
+                    })
                 }
                 1 => Analysis::Qr(Arc::new(
                     faer::sparse::linalg::qr::factorize_symbolic_qr_with_column_ordering(
@@ -364,9 +391,9 @@ impl SparseSymbolic {
                             supernodal_flop_ratio_threshold: if supernodal == 2 {
                                 SupernodalThreshold::FORCE_SUPERNODAL
                             } else {
-                                SupernodalThreshold::AUTO
+                                tuning.threshold()
                             },
-                            ..Default::default()
+                            supernodal_params: tuning.supernodal(),
                         },
                         explicit_cols.as_ref().map(|p| p.as_ref()),
                     )
@@ -424,6 +451,7 @@ impl SparseSymbolic {
                 analysis,
                 pattern: Arc::new(pattern),
                 lower,
+                qr_blocking: tuning.qr_blocking,
             });
             Ok(())
         })
@@ -561,11 +589,18 @@ fn numeric_with_par<T: ComplexField>(
                 crate::sparse_qr_components::Factors::new(sym, a.as_ref())?
             })
         }
-        Analysis::Qr(sym) => Numeric::Qr(if let Some(s) = scratch {
-            let req = sym.factorize_numeric_qr_scratch::<T>(par.shape(), Default::default());
-            crate::sparse_qr_owned::Factors::new_in_parallel(sym.clone(), a.as_ref(), s.stack(req)?, par)?
-        } else {
-            crate::sparse_qr_owned::Factors::new(sym.clone(), a.as_ref())?
+        Analysis::Qr(sym) => Numeric::Qr({
+            type F<T> = crate::sparse_qr_owned::Factors<T>;
+            let req = F::<T>::numeric_scratch(sym, par.shape(), p.qr_blocking);
+            let mut memory;
+            let stack = match scratch {
+                Some(s) => s.stack(req)?,
+                None => {
+                    memory = MemBuffer::try_new(req).map_err(|e| format!("{e:?}"))?;
+                    MemStack::new(&mut memory)
+                }
+            };
+            F::new_tuned(sym.clone(), a.as_ref(), stack, par, p.qr_blocking)?
         }),
         Analysis::Llt(sym) => {
             // faer's identity-order numeric path can pass the original matrix
@@ -782,6 +817,26 @@ impl OwnedPermutation {
                 ),
             });
             Ok(())
+        })
+    }
+}
+#[julia]
+impl SparseSymbolic {
+    /// Selected sparse QR structure: 1 simplicial, 2 supernodal (wide QR
+    /// reports its square head analysis).
+    #[julia]
+    pub fn sparse_qr_algorithm(&self) -> Result<i32, String> {
+        guarded(|| {
+            let raw = |sym: &faer::sparse::linalg::qr::SymbolicQr<usize>| match sym.raw() {
+                faer::sparse::linalg::qr::SymbolicQrRaw::Simplicial(_) => 1,
+                faer::sparse::linalg::qr::SymbolicQrRaw::Supernodal(_) => 2,
+            };
+            Ok(match &self.plan()?.analysis {
+                Analysis::SimplicialQr(_) => 1,
+                Analysis::Qr(sym) => raw(sym),
+                Analysis::WideQr(plan) => raw(&plan.head()),
+                _ => return Err("algorithm query requires sparse QR".into()),
+            })
         })
     }
 }
@@ -1531,9 +1586,10 @@ mod qr_solve_workspace;
 
 fn qr_construction_req<T: ComplexField>(
     sym: &faer::sparse::linalg::qr::SymbolicQr<usize>,
+    blocking: Option<usize>,
     par: &Par<'_>,
 ) -> faer::dyn_stack::StackReq {
-    sym.factorize_numeric_qr_scratch::<T>(par.shape(), Default::default())
+    crate::sparse_qr_owned::Factors::<T>::numeric_scratch(sym, par.shape(), blocking)
         .or(rank_hint::scratch(sym.ncols()))
 }
 mod rank_hint;

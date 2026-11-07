@@ -321,6 +321,7 @@ function _factor(
     uplo = :L,
     team = nothing,
     rook::Bool = false,
+    options = _NoSelfAdjointOptions,
 ) where {T<:_ExtraScalar,K}
     if K in (:cholesky, :ldlt, :bunchkaufman)
         LinearAlgebra.checksquare(a)
@@ -328,12 +329,15 @@ function _factor(
     lock(_matrix_lock) do
         h=RustCrate.TypedFactor()
         code=_construction_code(K, code, rook)
-        info=Int(_initialize_dense_factor(h, a, code, uplo===:L, team))
+        info, count=_with_selfadjoint_options(options) do
+            info=Int(_initialize_dense_factor(h, a, code, uplo===:L, team))
+            return info, _regularization_count(K, info)
+        end
         if check && info!=0
             K===:cholesky && throw(LinearAlgebra.PosDefException(info))
             throw(LinearAlgebra.SingularException(info))
         end
-        return FaerFactorization{T,K,typeof(h)}(h, size(a), info, uplo, rook)
+        return FaerFactorization{T,K,typeof(h)}(h, size(a), info, uplo, rook, count)
     end
 end
 LinearAlgebra.lu(
@@ -369,13 +373,23 @@ function LinearAlgebra.cholesky(
     a::FaerMatrix{T};
     check::Bool = true,
     team = nothing,
+    kwargs...,
 ) where {T<:_ExtraScalar}
+    options=_cholesky_kw(size(a, 1); kwargs...)
     LinearAlgebra.ishermitian(a) ||
         return _non_hermitian_cholesky(a, check, RustCrate.TypedFactor)
-    return _factor(a, Val(:cholesky), 4; check, team)
+    return _factor(a, Val(:cholesky), 4; check, team, options)
 end
-LinearAlgebra.cholesky(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing) =
-    _factor(parent(a), Val(:cholesky), 4; check, team, uplo = _uplo(a))
+LinearAlgebra.cholesky(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing, kwargs...) =
+    _factor(
+        parent(a),
+        Val(:cholesky),
+        4;
+        check,
+        team,
+        uplo = _uplo(a),
+        options = _cholesky_kw(size(a, 1); kwargs...),
+    )
 function _require_hermitian(a::FaerMatrix)
     LinearAlgebra.ishermitian(a) && return nothing
     message="self-adjoint factorization requires Hermitian input"
@@ -388,27 +402,43 @@ function LinearAlgebra.ldlt(
     a::FaerMatrix{T};
     check::Bool = true,
     team = nothing,
+    kwargs...,
 ) where {T<:_ExtraScalar}
+    options=_ldlt_kw(size(a, 1); kwargs...)
     _require_hermitian(a)
-    return _factor(a, Val(:ldlt), 5; check, team)
+    return _factor(a, Val(:ldlt), 5; check, team, options)
 end
-LinearAlgebra.ldlt(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing) =
-    _factor(parent(a), Val(:ldlt), 5; check, team, uplo = _uplo(a))
+LinearAlgebra.ldlt(a::_ExtraSelfAdjoint; check::Bool = true, team = nothing, kwargs...) =
+    _factor(
+        parent(a),
+        Val(:ldlt),
+        5;
+        check,
+        team,
+        uplo = _uplo(a),
+        options = _ldlt_kw(size(a, 1); kwargs...),
+    )
 function LinearAlgebra.bunchkaufman(
     a::FaerMatrix{T},
     rook::Bool = false;
     check::Bool = true,
     team = nothing,
+    kwargs...,
 ) where {T<:_ExtraScalar}
+    options, rook=_lblt_kw(rook; kwargs...)
     _require_hermitian(a)
-    return _factor(a, Val(:bunchkaufman), 6; check, team, rook)
+    return _factor(a, Val(:bunchkaufman), 6; check, team, rook, options)
 end
-LinearAlgebra.bunchkaufman(
+function LinearAlgebra.bunchkaufman(
     a::_ExtraSelfAdjoint,
     rook::Bool = false;
     check::Bool = true,
     team = nothing,
-) = _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook)
+    kwargs...,
+)
+    options, rook=_lblt_kw(rook; kwargs...)
+    return _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook, options)
+end
 _factor_part(f::FaerFactorization{T}, code, dims; team = nothing) where {T<:_ExtraScalar} =
     _typed_result(T, RustCrate.factor_part_from, dims, f, Int32(code), team)
 FaerMatrix(f::FaerFactorization{T}; team = nothing) where {T<:_ExtraScalar} =
@@ -417,7 +447,14 @@ function Base.copy(f::FaerFactorization{T,K}) where {T<:_ExtraScalar,K}
     lock(_matrix_lock) do
         h=RustCrate.TypedFactor()
         _native_call(RustCrate.clone_factor, h, f)
-        return FaerFactorization{T,K,typeof(h)}(h, size(f), f.info, f.uplo, f.rook)
+        return FaerFactorization{T,K,typeof(h)}(
+            h,
+            size(f),
+            f.info,
+            f.uplo,
+            f.rook,
+            f.regularization_count,
+        )
     end
 end
 function Base.deepcopy_internal(

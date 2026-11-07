@@ -62,9 +62,76 @@ end
     @test_throws ArgumentError cholesky(h; relax = [4])
     @test_throws ArgumentError lu(m; algorithm = :simplicial, relax = [(4, 0.5)])
     @test_throws ArgumentError lu(m; algorithm = :simplicial, supernodal_threshold = 1)
-    @test_throws MethodError qr(m; supernodal_threshold = 1)
-    @test_throws ArgumentError FaerSparseSymbolic(m; kind = :qr, relax = [(4, 0.5)])
+    @test_throws ArgumentError qr(m; algorithm = :simplicial, supernodal_threshold = 1)
+    @test_throws ArgumentError FaerSparseSymbolic(
+        m;
+        kind = :qr,
+        algorithm = :simplicial,
+        relax = [(4, 0.5)],
+    )
     close(m)
+end
+
+function _tuning_qr_pattern(m, n)
+    rows=Int[]
+    cols=Int[]
+    for j in 1:n, r in (j-1, j, j*7+2, j+n÷2)
+        push!(rows, mod(r, m)+1)
+        push!(cols, j)
+    end
+    return sparse(rows, cols, [1.0+mod(3i, 7)/4 for i in eachindex(rows)], m, n)
+end
+
+@testset "Sparse QR supernodal threshold, relaxation and blocking" begin
+    for (m, n) in ((300, 150), (150, 300)), T in (Float32, Float64, ComplexF32, ComplexF64)
+        x=T.(_tuning_qr_pattern(m, n))
+        T<:Complex && (x+=im*T.(_tuning_qr_pattern(m, n)) ./ 3)
+        source=FaerSparseMatrix(x)
+        b=ones(T, m)
+        reference=qr(source)
+        tol=(T<:Union{Float32,ComplexF32} ? 1e3 : 1e2)*eps(real(T))
+        variants=(
+            (; supernodal_threshold = Inf),
+            (; supernodal_threshold = 0),
+            (; supernodal_threshold = 0, relax = Tuple{Int,Float64}[]),
+            (; algorithm = :supernodal, relax = [(typemax(Int), 1.0)]),
+            (; algorithm = :supernodal, blocking_threshold = 0),
+            (; supernodal_threshold = 0, blocking_threshold = typemax(Int)),
+        )
+        algorithms=Symbol[]
+        for kw in variants
+            F=qr(source; kw...)
+            @test F\b ≈ reference\b rtol=tol
+            @test Matrix(F) ≈ Matrix(x) rtol=tol
+            push!(algorithms, F.algorithm)
+            # Symbolic reuse and in-place updates keep the controls.
+            plan=FaerSparseSymbolic(source; kind = :qr, kw...)
+            G=factorize(plan, source)
+            @test plan.algorithm===G.algorithm===F.algorithm
+            qr!(G, source)
+            @test G\b ≈ reference\b rtol=tol
+            r=scratch_requirements(factorize, plan, source)
+            s=FaerScratch(r.bytes; alignment = r.alignment)
+            H=factorize(plan, source; scratch = s)
+            @test H\b ≈ reference\b rtol=tol
+            foreach(close, (F, G, H, plan, s))
+        end
+        # Inf forces the simplicial structure and 0 the supernodal one (wide QR
+        # reports its square head); the native tests check relaxation storage.
+        @test algorithms==[:simplicial; fill(:supernodal, 5)]
+        close(source)
+    end
+    m=FaerSparseMatrix(_tuning_qr_pattern(40, 20))
+    @test_throws ArgumentError qr(m; supernodal_threshold = -1)
+    @test_throws ArgumentError qr(m; algorithm = :supernodal, supernodal_threshold = 1)
+    @test_throws ArgumentError qr(m; algorithm = :simplicial, relax = [(4, 0.5)])
+    @test_throws ArgumentError qr(m; algorithm = :simplicial, blocking_threshold = 16)
+    @test_throws ArgumentError qr(m; blocking_threshold = -1)
+    @test_throws ArgumentError qr(m; blocking_threshold = 1.5)
+    s=FaerSparseMatrix(sparse(4.0I, 6, 6))
+    @test_throws ArgumentError FaerSparseSymbolic(s; kind = :lu, blocking_threshold = 16)
+    @test_throws ArgumentError FaerSparseSymbolic(s; kind = :cholesky, blocking_threshold = 16)
+    foreach(close, (m, s))
 end
 
 @testset "Sparse Cholesky triangle selection shares caller scratch" begin

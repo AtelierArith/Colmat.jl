@@ -148,3 +148,21 @@ reserve control and compile-only getter probe for [faer #284](https://github.com
 [zero-sized-capacity](zero-sized-capacity/README.md) independently reproduces the
 zero-sized-element reservation panic in [faer #286](https://github.com/tensor4all/faer/issues/286);
 this does not affect Colmat's four advertised numeric scalars.
+
+## Self-adjoint factorization parameters
+
+[Standalone Rust reproduction](faer-selfadjoint-factor-params/README.md) (not
+filed upstream) of faer's regularized LLᴴ wrong diagonal, the LDLᴴ
+regularization undercount, the missing parameterized `Llt`/`Ldlt`/`Lblt`
+constructors and the missing transposed-symmetric LBLᵀ. Colmat works around
+the first and documents the others (issue #104).
+
+## Sparse symbolic QR workspace
+
+[sparse-symbolic-qr-workspace](sparse-symbolic-qr-workspace/README.md) shows that
+faer's symbolic QR takes no caller `MemStack` or `Par` and allocates its
+workspace internally (Colmat #116). It was executed against `d374ec0` and exits
+101. The COLAMD term of that buffer is reported in
+[tensor4all/faer#322](https://github.com/tensor4all/faer/issues/322)
+([faer-symbolic-colamd-scratch.md](faer-symbolic-colamd-scratch.md)); the
+caller-stack/`Par` request itself is not filed upstream yet.
