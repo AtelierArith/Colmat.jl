@@ -1,10 +1,10 @@
 //! Typed native storage. Scalar buffers carry the exact Julia primitive layout.
 use super::guarded;
+use crate::cholesky_factors::{Ldlt, Llt};
 use crate::lblt::Lblt;
 use crate::views::Borrowed;
 use faer::linalg::solvers::{
-    ColPivQr, DenseSolveCore, FullPivLu, Ldlt, Llt, PartialPivLu, Qr, ShapeCore, Solve, SolveLstsq,
-    Svd,
+    ColPivQr, DenseSolveCore, FullPivLu, PartialPivLu, Qr, ShapeCore, Solve, SolveLstsq, Svd,
 };
 use faer::traits::{math_utils::*, ComplexField};
 use faer::{c32, c64, Accum, Conj, Mat, MatRef, Par, Side};
@@ -517,13 +517,13 @@ fn factor_new<T: ComplexField>(
         1 => Factor::FullLu(a.full_piv_lu(par)),
         2 => Factor::Qr(a.qr(par)),
         3 => Factor::PivotQr(a.col_piv_qr(par)),
-        4 => match a.llt(side, par) {
+        4 => match Llt::new(a, side, par) {
             Ok(f) => Factor::Llt(f),
             Err(faer::linalg::solvers::LltError::NonPositivePivot { index }) => {
                 return Ok((None, index + 1))
             }
         },
-        5 => match a.ldlt(side, par) {
+        5 => match Ldlt::new(a, side, par)? {
             Ok(f) => Factor::Ldlt(f),
             Err(faer::linalg::solvers::LdltError::ZeroPivot { index }) => {
                 return Ok((None, index + 1))
