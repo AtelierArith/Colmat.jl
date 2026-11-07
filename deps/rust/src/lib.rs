@@ -1456,3 +1456,5 @@ mod evd_tuning;
 mod pivoted_qr_rank;
 pub(crate) mod measures;
 mod diagonal_ops;
+
+mod scalar_convert;

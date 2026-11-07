@@ -30,8 +30,7 @@ function _dop_call(owner, values, h, d, ::Type{P}, args...) where {P}
 end
 _dop_check(info) =
     iszero(info) ? nothing : throw(LinearAlgebra.SingularException(Int(info)))
-_dop_coerce(a, ::Type{P}) where {P} =
-    eltype(a)===P ? a : ndims(a)==1 ? FaerVector{P}(Vector(a)) : FaerMatrix{P}(Matrix(a))
+_dop_coerce(a, ::Type{P}) where {P} = _promote_operand(a, P)
 
 # Modes: 0 D*A, 1 A*D, 2 D\A, 3 A/D, 4 A+D, 5 A-D, 6 D-A.
 function _dop_matrix(d, a, mode)

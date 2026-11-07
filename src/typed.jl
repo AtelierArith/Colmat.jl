@@ -56,7 +56,9 @@ FaerMatrix(a::AbstractMatrix{ComplexF64}) = FaerMatrix{ComplexF64}(a)
 FaerMatrix(a::AbstractMatrix{<:Complex}) = FaerMatrix{ComplexF64}(a)
 FaerMatrix(a::FaerMatrix) = copy(a)
 _coerce(a::FaerMatrix{T}, ::Type{T}) where {T} = a
-_coerce(a::FaerMatrix, ::Type{T}) where {T} = FaerMatrix{T}(a)
+_coerce(a::FaerMatrix, ::Type{T}) where {T} =
+    T<:_NativeScalar && _native_promotable(eltype(a), T) ? _native_convert(a, T) :
+    FaerMatrix{T}(a)
 function _zeros(::Type{T}, dims::Tuple{Int,Int}) where {T<:_NativeScalar}
     all(>=(0), dims) || throw(ArgumentError("matrix dimensions must be nonnegative"))
     T===Float64 &&
