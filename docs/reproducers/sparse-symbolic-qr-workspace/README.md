@@ -36,14 +36,20 @@ The first allocation (18128 B) is the internal workspace; the rest are the
 returned symbolic owner (permutation, `min_col`, structure arrays), which are
 expected outputs. The assertion bounds each returned array by
 `max(m, n + 1, len_idx)` indices. With an explicit ordering COLAMD never runs,
-yet its term still sizes the buffer; see
-[sparse-symbolic-colamd-workspace](../sparse-symbolic-colamd-workspace/README.md).
+yet its term still sizes the buffer (here 18128 B = `colamd::order_scratch`).
+That part is already reported as
+[tensor4all/faer#322](https://github.com/tensor4all/faer/issues/322)
+([../faer-symbolic-colamd-scratch.md](../faer-symbolic-colamd-scratch.md)).
+Even after that fix, the etree/column-count/symbolic workspace would still be
+allocated internally and the analysis would stay sequential; the request below
+covers that remaining part.
 
 Proposed API: `factorize_symbolic_qr_scratch(nrows, ncols, nnz, params,
 has_column_ordering) -> StackReq` and a `*_in` variant taking
-`stack: &mut MemStack` (optionally `par: Par`), so the workspace can live in
-caller scratch and the COLAMD term is only reserved when COLAMD runs. Symbolic
-LU and Cholesky follow the same pattern.
+`stack: &mut MemStack` and `par: Par`, so the workspace can live in caller
+scratch and the analysis can use a caller team. Symbolic LU and Cholesky follow
+the same pattern. tensor4all/faer#322 lists the `_scratch`/`_in` pair only as an
+optional follow-up to its COLAMD fix and does not mention `Par`.
 
 Colmat impact: `FaerSparseSymbolic(A; kind=:qr, scratch)` cannot place this
 workspace in caller scratch for square/tall auto/supernodal QR. Colmat's own
