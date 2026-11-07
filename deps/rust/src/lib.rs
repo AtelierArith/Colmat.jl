@@ -1442,3 +1442,4 @@ mod storage_initializer;
 mod filled_construction;
 
 mod measures;
+mod diagonal_ops;

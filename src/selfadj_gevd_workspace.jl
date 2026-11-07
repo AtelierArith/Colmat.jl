@@ -61,6 +61,18 @@ function reserve!(
     req=scratch_requirements(f, a, b; kwargs...)
     return reserve!(s, req.bytes; alignment = req.alignment)
 end
+# Translate native failures into LinearAlgebra's conventions: a B that is not
+# positive definite throws PosDefException with the one-based failing pivot, and
+# non-finite selected triangles throw ArgumentError. Inputs are never modified.
+function _selfadj_gevd_rethrow(e)
+    e isa RustCall.RustError || rethrow()
+    msg=sprint(showerror, e)
+    m=match(r"generalized EVD B is not positive definite at pivot (\d+)", msg)
+    isnothing(m) || throw(LinearAlgebra.PosDefException(parse(Int, m.captures[1])))
+    occursin("must be finite", msg) &&
+        throw(ArgumentError("generalized eigenproblem matrices contain Infs or NaNs"))
+    rethrow()
+end
 function _selfadj_gevd_workspace_result(
     a::_AnyFaerSelfAdjoint,
     b::_AnyFaerSelfAdjoint;
@@ -103,22 +115,26 @@ function _selfadj_gevd_workspace_result(
                     UInt(n),
                     _tag(T),
                 )
-                isnothing(team) ?
-                _native_call(
-                    RustCrate.selfadj_gevd_workspace,
-                    source,
-                    other,
-                    work,
-                    args...,
-                ) :
-                _native_call(
-                    RustCrate.selfadj_gevd_workspace_team,
-                    source,
-                    other,
-                    work,
-                    team,
-                    args...,
-                )
+                try
+                    isnothing(team) ?
+                    _native_call(
+                        RustCrate.selfadj_gevd_workspace,
+                        source,
+                        other,
+                        work,
+                        args...,
+                    ) :
+                    _native_call(
+                        RustCrate.selfadj_gevd_workspace_team,
+                        source,
+                        other,
+                        work,
+                        team,
+                        args...,
+                    )
+                catch e
+                    _selfadj_gevd_rethrow(e)
+                end
             end
             if !isnothing(sortby)
                 order=sortperm(values; by = sortby)
@@ -131,3 +147,40 @@ function _selfadj_gevd_workspace_result(
         end
     end
 end
+
+# Diagonal right-hand sides follow `eigen(::AbstractMatrix, ::Diagonal)`: a zero
+# entry is singular; a positive diagonal is a Hermitian positive definite B and
+# uses the native self-adjoint driver; other diagonals use LinearAlgebra's
+# general path on `D \ A`.
+const _SelfAdjointDiagonal=Union{FaerDiagonal,LinearAlgebra.Diagonal}
+function _selfadj_diagonal_gevd(a, d, vectors; kwargs...)
+    LinearAlgebra.checksquare(a)==size(d, 1) ||
+        throw(DimensionMismatch("generalized eigen input sizes must match"))
+    v=d isa FaerDiagonal ? Vector(d) : Vector(d.diag)
+    any(iszero, v) && throw(ArgumentError("right-hand side diagonal matrix is singular"))
+    if all(x->isreal(x) && real(x)>0, v)
+        T=promote_type(eltype(a), eltype(v))
+        b=LinearAlgebra.Hermitian(FaerMatrix{T}(Matrix(LinearAlgebra.Diagonal(v))))
+        return vectors ? LinearAlgebra.eigen(a, b; kwargs...) :
+               LinearAlgebra.eigvals(a, b; kwargs...)
+    end
+    dense=Matrix(a)
+    D=LinearAlgebra.Diagonal(v)
+    return vectors ? LinearAlgebra.eigen(dense, D) : LinearAlgebra.eigvals(dense, Matrix(D))
+end
+"""
+    eigen(A::Hermitian{<:Any,<:FaerMatrix}, D::Union{FaerDiagonal,Diagonal}; sortby, scratch, team)
+
+Generalized self-adjoint eigenproblem with a diagonal `B`. A zero diagonal
+entry throws `ArgumentError`; a positive diagonal uses the native self-adjoint
+driver (accepting `sortby`, `scratch` and `team`); other diagonals follow
+LinearAlgebra's general path and return Julia arrays.
+"""
+LinearAlgebra.eigen(a::_AnyFaerSelfAdjoint, d::FaerDiagonal; kwargs...) =
+    _selfadj_diagonal_gevd(a, d, true; kwargs...)
+LinearAlgebra.eigen(a::_AnyFaerSelfAdjoint, d::LinearAlgebra.Diagonal; kwargs...) =
+    _selfadj_diagonal_gevd(a, d, true; kwargs...)
+LinearAlgebra.eigvals(a::_AnyFaerSelfAdjoint, d::FaerDiagonal; kwargs...) =
+    _selfadj_diagonal_gevd(a, d, false; kwargs...)
+LinearAlgebra.eigvals(a::_AnyFaerSelfAdjoint, d::LinearAlgebra.Diagonal; kwargs...) =
+    _selfadj_diagonal_gevd(a, d, false; kwargs...)

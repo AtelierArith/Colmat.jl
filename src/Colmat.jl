@@ -305,5 +305,6 @@ include("storage_initializer.jl")
 include("function_constructors.jl")
 include("filled_constructors.jl")
 include("measures.jl")
+include("diagonal_ops.jl")
 
 end

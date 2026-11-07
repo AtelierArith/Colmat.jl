@@ -298,6 +298,25 @@ Unused triangles and imaginary diagonal parts are ignored independently.
 Output arrays, scalar promotion, sorting and staged bang writeback allocate
 separately. Nonpositive B or sorting failure preserves bang inputs.
 
+A B that is not positive definite throws `PosDefException(i)` whose `info` is
+the one-based failing pivot, matching `cholesky(Hermitian(B); check=false).info`.
+Non-finite values in a selected triangle throw `ArgumentError`. A diagonal B
+(`FaerDiagonal` or `Diagonal`) with positive entries uses the same native
+driver; a zero entry throws `ArgumentError`, and an indefinite diagonal falls
+back to LinearAlgebra's general path.
+
+```julia
+using Colmat, LinearAlgebra
+A = Hermitian(FaerMatrix([4.0 1; 1 3]))
+try
+    eigvals(A, Hermitian(FaerMatrix([1.0 0; 0 -1])))
+catch e
+    @assert e isa PosDefException && e.info == 2
+end
+@assert eigvals(A, FaerDiagonal([1.0, 2.0])) ≈ eigvals(Hermitian([4.0 1; 1 3]), Diagonal([1.0, 2.0]))
+close(parent(A))
+```
+
 ## Generalized EVD for general matrix pairs
 
 ```julia
