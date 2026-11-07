@@ -103,6 +103,85 @@ for (f, code) in (
     end
 end
 
+# `sum!`/`minimum!`/`maximum!`/`extrema!(r, A; init)`: the reduced dimensions
+# are those where `r` has extent 1 (Base's rules); the O(length(r)) result is
+# computed by the kernels above and written into `r` with one `copyto!`
+# (native for native/borrowed destinations), so a destination viewing `A`
+# sees the reduction of the old values. Shapes Base rejects, empty sources,
+# mixed scalar types and complex min/max run Base on one snapshot.
+function _reduction_dims(r, a)
+    ndims(r)<=ndims(a) || return nothing
+    all(d->size(r, d)==1 || size(r, d)==size(a, d), 1:ndims(a)) || return nothing
+    return Tuple(d for d in 1:ndims(a) if size(r, d)==1 && size(a, d)!=1)
+end
+_reduction_values(r::_ReductionArray) = _reduction_snapshot(r)
+_reduction_values(r) = r
+# Base's in-place reduction of a snapshot of `a`; native destinations are
+# updated in one transfer.
+function _julia_reduce!(f!, r, a, init)
+    src=a isa _ReductionArray ? _reduction_snapshot(a) : a
+    r isa FaerBorrowedArray && return (f!(parent(r), src; init); r)
+    r isa _ReductionArray || return f!(r, src; init)
+    work=f!(Array(r), src; init)
+    copyto!(r, work)
+    return r
+end
+function _native_reduce!(f!, reduce, combine, r, a, init, real_only)
+    _check_writable(r)
+    T=eltype(a)
+    dims=a isa _ReductionArray ? _reduction_dims(r, a) : nothing
+    S=f! === extrema! ? Tuple{T,T} : T
+    native=!isnothing(dims) && !isempty(a) && eltype(r)===S && (!real_only || T<:_RealNative)
+    native || return _julia_reduce!(f!, r, a, init)
+    out=reduce(a, dims)
+    init || (out=combine.(reshape(_reduction_values(r), size(out)), out))
+    copyto!(r, reshape(out, size(r)))
+    return r
+end
+_combine_extrema(x, y) = (min(x[1], y[1]), max(x[2], y[2]))
+# Borrowed sources keep Julia's vectorized min/max over the parent.
+_reduce_extremum(f, code) =
+    (a, dims)->a isa FaerBorrowedArray ? f(parent(a); dims) : _native_extremum(a, dims, code)
+for (f!, f, code, combine) in (
+    (:minimum!, :minimum, :_REDUCE_MINIMUM, :min),
+    (:maximum!, :maximum, :_REDUCE_MAXIMUM, :max),
+    (:extrema!, :extrema, :_REDUCE_EXTREMA, :_combine_extrema),
+)
+    for (R, A) in (
+        (:AbstractArray, :_ReductionArray),
+        (:_ReductionArray, :AbstractArray),
+        (:_ReductionArray, :_ReductionArray),
+    )
+        @eval Base.$f!(r::$R, a::$A; init::Bool = true) =
+            _native_reduce!($f!, _reduce_extremum($f, $code), $combine, r, a, init, true)
+    end
+end
+for (R, A) in (
+    (:AbstractArray, :_ReductionArray),
+    (:_ReductionArray, :AbstractArray),
+    (:_ReductionArray, :_ReductionArray),
+)
+    @eval Base.sum!(r::$R, a::$A; init::Bool = true) =
+        _native_reduce!(sum!, _native_sum, +, r, a, init, false)
+end
+"""
+    sum!(r, A; init=true)
+    minimum!(r, A; init=true)
+    maximum!(r, A; init=true)
+    extrema!(r, A; init=true)
+
+In-place reductions with `A` a native owner, view or borrowed Julia array, or
+`r` one of those. Reduced dimensions are those where `r` has extent 1, as in
+Base. faer's kernels compute the `length(r)` results (borrowed sources keep
+Julia's vectorized min/max over the parent), which are written into `r` with
+one native transfer; `init=false` combines them with the current values of `r`
+(`+`, `min`, `max`; NaN propagates). A destination viewing `A` receives the
+reduction of the old values. Shape errors, empty sources, scalar types that
+differ between `r` and `A`, complex min/max and Julia sources run Base's
+method on one snapshot of `A` (writing a native `r` in one transfer).
+"""
+Base.sum!(::AbstractArray, ::_ReductionArray)
+
 function _native_predicate(a, code)
     lock(_matrix_lock) do
         owner, d=_view_source(a)

@@ -164,12 +164,82 @@ end
         @test_throws ArgumentError norm(x, 0)
     end
 
+    @testset "in-place reductions into native and Julia destinations" begin
+        rng=MersenneTwister(970)
+        for T in (Float32, Float64, ComplexF64)
+            pairs, owners=_operands(rng, T, 5, 4)
+            fs=T<:Real ? (sum!, minimum!, maximum!, extrema!) : (sum!,)
+            try
+                for (a, J) in pairs
+                    shapes=ndims(J)==1 ? ((1,), size(J)) :
+                           ((1, size(J, 2)), (size(J, 1), 1), (1, 1), size(J), (size(J, 1),))
+                    for f! in fs, shape in shapes, init in (true, false)
+                        S=f! === extrema! ? Tuple{T,T} : T
+                        start=f! === extrema! ? [(T(-1), T(1)) for _ in 1:prod(shape)] :
+                              randn(rng, T, prod(shape))
+                        start=reshape(start, shape)
+                        expected=f!(copy(start), J; init)
+                        dests=Any[copy(start)]
+                        if S===T
+                            push!(dests, faerview(copy(start)))
+                            push!(dests, length(shape)==1 ? FaerVector(vec(start)) : FaerMatrix(start))
+                        end
+                        for r in dests
+                            try
+                                @test f!(r, a; init)===r
+                                @test _same(Array(r), expected, 512eps(real(T)))
+                            finally
+                                r isa Union{FaerMatrix,FaerVector} && close(r)
+                            end
+                        end
+                    end
+                end
+                native, x=owners
+                # Julia sources into native destinations.
+                J=randn(rng, T, 5, 4)
+                r=FaerMatrix(zeros(T, 1, 4))
+                @test Array(sum!(r, J))≈sum(J; dims = 1)
+                @test Array(sum!(r, J; init = false))≈2sum(J; dims = 1)
+                close(r)
+                # A destination viewing the source sees the reduction of the old values.
+                A=Array(native)
+                @test Array(sum!(view(native, 1:1, :), native))≈sum(A; dims = 1)
+                # Base handles (and reports) shape errors and empty sources.
+                @test_throws DimensionMismatch sum!(zeros(T, 3), native)
+                @test_throws DimensionMismatch sum!(zeros(T, 1, 1, 1), native)
+                @test sum!(zeros(T, 1, 3), faerview(zeros(T, 0, 3)))==zeros(T, 1, 3)
+                @test sum!(zeros(ComplexF64, 1, 4), native)≈sum(Array(native); dims = 1)
+            finally
+                foreach(close, owners)
+            end
+        end
+        for T in (Float32, Float64)
+            J=T[0 -0.0 NaN; -0.0 0 1; 2 -Inf Inf]
+            native=FaerMatrix(zeros(T, size(J)))
+            for i in eachindex(J)
+                native[i]=J[i]
+            end
+            try
+                for f! in (minimum!, maximum!), dims in ((1, 3), (3, 1)), init in (true, false)
+                    start=reshape(T[NaN, -0.0, 0], dims)
+                    @test isequal(f!(copy(start), native; init), f!(copy(start), J; init))
+                end
+            finally
+                close(native)
+            end
+        end
+        @test_throws MethodError minimum!(zeros(ComplexF64, 1, 2), faerview(rand(ComplexF64, 2, 2)))
+    end
+
     @testset "allocations" begin
         n=200
         J=randn(n, n)
         native=FaerMatrix(J)
         x=FaerVector(randn(n*n))
         y=FaerVector(randn(n*n))
+        rows=FaerMatrix(zeros(1, n÷2))
+        cols=zeros(n)
+        pairs=Matrix{Tuple{Float64,Float64}}(undef, 1, n)
         try
             V=view(native, n:-1:1, 1:2:n)
             B=faerview(J)
@@ -193,7 +263,20 @@ end
                 # Descriptors, scalar Refs and the reduced output only.
                 @test @allocated(f())<16*n+4096
             end
+            # In-place forms also stage the O(length(r)) result once (n*n*8
+            # bytes for a copy of the source).
+            for f in (
+                ()->sum!(rows, V),
+                ()->minimum!(rows, V; init = false),
+                ()->maximum!(cols, native),
+                ()->sum!(cols, B),
+                ()->extrema!(pairs, native),
+            )
+                f()
+                @test @allocated(f())<64*n+8192
+            end
         finally
+            close(rows)
             close(native)
             close(x)
             close(y)
