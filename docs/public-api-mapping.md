@@ -55,7 +55,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 行列式 | `MatRef::determinant(par)` | `det`, 関連: `logdet/logabsdet` | R: `det`、分解を使う `logabsdet/logdet`、複素位相対応。範囲ビュー・`transpose`/`adjoint` は借用ビューへの `determinant`、`det(A; team)` で caller team の `Par`。三角ラッパー・`FaerDiagonal` は格納対角の積と native `logabsdet`（ゼロは `(-Inf,0)`）。非正方は `DimensionMismatch`、空は 1、実数の負の行列式の `logdet` は `DomainError` | Hermitian/Symmetric ラッパーは LinearAlgebra の分解経路。ビューの dense `logabsdet` は native copy＋LU |
 | トレース | diagonal ビュー＋集約で構成 | `tr(A)` | R: `tr(A)`、範囲ビュー・随伴の借用対角和、`FaerDiagonal` の格納和、三角ラッパーは親の trace／単位は n | 疎行列の trace は疎の課題で扱う |
 | Kronecker 積 | `MatRef::kron`, `linalg::kron::kron` | `kron(A,B)` | R: 4 型・型 promotion の `kron(A,B)` | 疎行列・ビューの専用経路 |
-| 三角・構造指定の行列積 | `matmul::triangular` | 三角ラッパーとの積、BLAS の構造化積に相当 | R: 下/上/単位三角と native 密行列・三角ペア、4 型・promotion、3/5 引数 `mul!`、alias・無視要素の NaN | 入力 snapshot と出力一時領域を確保。全外部配列・vector 組合せと destination structure の低水準指定 |
+| 三角・構造指定の行列積 | `matmul::triangular` | 三角ラッパーとの積、BLAS の構造化積に相当 | R: 下/上/単位三角と native 密行列・範囲ビュー・`transpose`/`adjoint`・三角ペア・対角、4 型・promotion、3/5 引数 `mul!`、alias・無視要素の NaN。native 親は descriptor で、product 型の strided Julia 親は buffer を直接借用（入力 snapshot なし）。`mul!` は destination（行列・範囲ビュー・`FaerVector`）へ faer の `Accum` で直接書き込み出力一時領域なし。三角×`FaerVector` は `FaerVector`。`structured_mul!(C,A,B,α,β; dest)` で destination block（full/lower/upper/strict）を指定 | 非 strided の Julia 入力と型昇格は1回コピー。昇格型が destination より広い `mul!` は変換経路。team 指定は #124 |
 
 ## 3. 密行列の分解・固有値
 
