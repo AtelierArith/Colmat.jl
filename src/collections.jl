@@ -3,7 +3,8 @@
     FaerVector{T}(v)
 
 A Julia vector owning a Rust `faer::Col<T>`. Construction copies values. Four
-native scalar types are preserved; other real inputs convert to Float64.
+native scalar types are preserved; other real inputs convert to Float64 and other
+complex inputs to ComplexF64. An explicit unsupported `T` throws `ArgumentError`.
 """
 mutable struct FaerVector{T,H} <: AbstractVector{T}
     handle::Union{Nothing,H}
@@ -70,8 +71,8 @@ end
 for C in (:FaerVector, :FaerRow, :FaerDiagonal)
     @eval begin
         $C{T}(v::AbstractVector) where {T<:_NativeScalar} = _collection_load($C, T, v)
-        $C(v::AbstractVector{T}) where {T<:_NativeScalar} = $C{T}(v)
-        $C(v::AbstractVector{<:Real}) = $C{Float64}(v)
+        $C{T}(::AbstractVector) where {T} = _unsupported_scalar(T)
+        $C(v::AbstractVector{T}) where {T<:Number} = $C{_native_input_type(T)}(v)
         function $C{T}(::UndefInitializer, n::Integer) where {T<:_NativeScalar}
             n>=0 || throw(ArgumentError("collection length must be nonnegative"))
             return _collection_result(
@@ -262,7 +263,7 @@ for C in (FaerVector, FaerRow, FaerDiagonal)
 end
 Base.:*(x::FaerDiagonal, y::FaerDiagonal) = _collection_binary(x, y, 2)
 function Base.:*(value::Number, x::_OwnedCollection)
-    P=promote_type(typeof(value), eltype(x))
+    P=_native_promotion(typeof(value), eltype(x))
     v=Ref{P}(value)
     GC.@preserve v return _collection_result(
         _collection_type(x),

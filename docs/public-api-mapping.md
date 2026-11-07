@@ -29,7 +29,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
-| 密行列の所有・構築 | `Mat<T>`, `MatRef/MatMut/MatUninitMut`, `from_fn`, `zeros`, `ones`, `identity`, `full` | `Matrix`, `zeros`, `ones`, `Matrix(I,m,n)`, `fill` | R: 4 型の `FaerMatrix{T}(A)`、変換後の格納型・形状を native load 前に検証、検証済み dense buffer の共通コピー経路、`undef`（ゼロ初期化）、単位行列、`similar/zero/fill!`、1-based の関数を要素ごとに1回評価する `FaerMatrix{T}(f,m,n)`、`FaerMatrix{T}(m,n;fill)` と所有型指定の `zeros/ones` | 非標準スカラー型。低水準の借用・未初期化形式は #92/#93 の対応範囲照合で追跡 |
+| 密行列の所有・構築 | `Mat<T>`, `MatRef/MatMut/MatUninitMut`, `from_fn`, `zeros`, `ones`, `identity`, `full` | `Matrix`, `zeros`, `ones`, `Matrix(I,m,n)`, `fill` | R: 4 型の `FaerMatrix{T}(A)`、変換後の格納型・形状を native load 前に検証、検証済み dense buffer の共通コピー経路、`undef`（ゼロ初期化）、単位行列、`similar/zero/fill!`、1-based の関数を要素ごとに1回評価する `FaerMatrix{T}(f,m,n)`、`FaerMatrix{T}(m,n;fill)` と所有型指定の `zeros/ones` | 低水準の借用・未初期化形式は #92 の対応範囲照合で追跡。非標準スカラー型は行10の意図的な非対応 |
 | 行・列ベクトル | `Row / Col`, `RowRef / ColRef`, `RowMut / ColMut` | `Vector`, 行ベクトル、`view` | R: `FaerVector` / `FaerRow`、4 型の所有・コピー・演算・容量管理、`FaerVector{T}(f,n)` / `FaerRow{T}(f,n)`、定数・zeros/ones 構築 | 全 Row/Col 演算組合せ、任意の借用 Julia バッファ |
 | 対角行列 | `diag::{Diag, DiagRef, DiagMut}` | `Diagonal`, `diag`, `diagind` | R: `FaerDiagonal`、定数・zeros/ones 構築、格納対角の演算・`filldiagonal!`・`diagonalview`、密/三角との左右の native 積 | 全 DiagRef/DiagMut 操作。対角積は現在 dense snapshot 経由 |
 | 読み書き・形状 | `nrows/ncols/shape`, 添字、`row/col` | `size/axes/getindex/setindex!` | R: shape・要素読み書き、行・列の範囲ビュー | 全形状・stride trait の公開 |
@@ -38,14 +38,14 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 転置・共役・随伴 | `transpose/conjugate/adjoint` | `transpose/conj/adjoint`, `A'` | J: 遅延ラッパー。R: `conj`、転置・随伴のコピー、複素演算 | 積や求解で転置ラッパーを一時所有行列へコピーする経路あり |
 | 動的容量・サイズ変更 | `with_capacity/try_reserve/reserve/resize_with/truncate` | `sizehint!` 等に類する容量管理。Matrix に直接同等の公開 API はない | R: `reserve!`、`sizehint!`、`resize!(;fill)`、`truncate!`、所有 Mat/Col/Row/Diag の実容量 `capacity`（padding 含む）、空の Mat/Col/Row を予約容量で構築する `with_capacity`、新規値を事前評価して native resize_with へ渡す `resize_with!` | unsafe set_dims は非公開、Diag は native API に従い次元固定（[#90](https://github.com/AtelierArith/Colmat.jl/issues/90)） |
 | 置換・行列交換 | `Perm/PermRef`, `permute_rows/cols`, `swap_rows/cols` | 置換ベクトル、`A[p,:]`, `A[:,p]` | R: `FaerPermutation`、逆置換・合成、`permute_rows/cols` と `!`、`swap_rows!/swap_cols!`、`A[p,:]/A[:,p]`、疎数値行列・疎パターンの native 置換 | ビューの更新は一時結果を経由。全低水準 PermRef 形式・caller-owned scratch |
-| スカラー型 | `f32/f64`, `c32/c64`、`fx128/cx128` の公開型エイリアス、generic field traits | `Float32/Float64/ComplexF32/ComplexF64` 等 | R: Float32 / Float64 / ComplexF32 / ComplexF64 の所有・演算・分解 | fx128/cx128、任意の field traits |
+| スカラー型 | `f32/f64`, `c32/c64`、`fx128/cx128` の公開型エイリアス、generic field traits | `Float32/Float64/ComplexF32/ComplexF64` 等 | R: Float32 / Float64 / ComplexF32 / ComplexF64 の所有・演算・分解。型指定なしの構築はその他の実数を Float64、その他の複素数を ComplexF64 に変換し、配列からの構築で4型以外の明示型は `ArgumentError` | 意図的な非対応（#93）: `fx128/cx128` は `qd::Quad`（f64 2つの double-double）とその複素数。faer の kernel は generic だが、pinned tree の fx128 テストは matmul・pfaffian のみ。Colmat の native 所有型・分解は4型の列挙で dispatch し、追加には全 native 経路の実体化と Julia 側の型依存（Base に double-double はない）が要る。任意の field traits は Rust のコンパイル時単相化で、Julia 定義型には公開できない |
 
 ## 2. 基本演算・集約・積
 
 | 機能 | t4a-faer public API | Julia / LinearAlgebra 対応 | Colmat 実装済 | Colmat 未実装・制約 |
 |---|---|---|---|---|
 | 加算・減算・符号 | 行列演算、要素操作 | `A+B`, `A-B`, `-A` | R: 4 型の加減算・符号と mixed-type promotion | 全種類の外部配列との組合せの専用最適化 |
-| スカラー倍・除算 | `Scale`、行列スカラー演算 | `α*A`, `A*α`, `A/α` | R: 実数・複素数スカラーと型 promotion | 非標準スカラー型 |
+| スカラー倍・除算 | `Scale`、行列スカラー演算 | `α*A`, `A*α`, `A/α` | R: 実数・複素数スカラーと型 promotion。密・所有コレクション・疎で結果型は `promote_type`、4型以外になる `BigFloat` 等のスカラーは `ArgumentError`（Float64 行列でも暗黙に丸めない） | なし（非標準スカラー型は行10の意図的な非対応） |
 | 行列積 | `linalg::matmul::{matmul,matmul_with_conj}` | `A*B`, `mul!` | R: 4 型の行列積、3/5 引数 `mul!`、alias 対応 | `mul!` は一時結果を割り当てる。構造化積・全 mixed-operand の最適化 |
 | 行列ベクトル積 | 同上、Row/Col ビュー | `A*x`, `mul!(y,A,x)` | R: `FaerMatrix * FaerVector` と範囲ビュー、alias-safe ベクトル `mul!` | 全行ベクトル・構造化型・外部配列との組合せ |
 | 内積 | `matmul::dot::inner_prod` | `dot(x,y)` | R: 行列・所有ベクトル・行・対角の `dot`、複素数の第 1 引数を共役 | 借用ベクトルビューの専用 dot 経路 |
@@ -88,7 +88,7 @@ t4a-faer の公開機能をカテゴリ別に整理し、Julia / LinearAlgebra �
 | 最小二乗 | `SolveLstsq::{solve_lstsq,solve_lstsq_in_place,...}`（QR/SVD 等） | 長方形 `A\b`, `ldiv!` | R: 長方形の求解、QR と広幅・ランク不足時の SVD 経路、保存済み native SVD の `F\B`/3 引数 `ldiv!`（`atol/rtol/team`）。dense 保存 QR の矩形/ランク落ち、矩形 LU/full LU の再構成/SVD 求解 scratch/team、昇格後も元精度のランク判定 | 全アルゴリズム選択・許容誤差設定 |
 | 三角連立方程式 | `solve_{unit_}{lower,upper}_triangular_in_place`, `linalg::triangular_solve` | `LowerTriangular/UpperTriangular/UnitLowerTriangular/UnitUpperTriangular` の `\` | R: lower/upper/unit の三角ラッパーの求解 | 全 mixed-operand と低水準 scratch 公開 |
 | 逆行列 | `DenseSolveCore::inverse`, `triangular_inverse::invert_*` | `inv(A)`, `inv(F)` | R: `inv(A)`、`inv(F)`（保存済み native SVD/EVD・転置/随伴を含む。数値的特異性を検査、scratch/team 照会/reserve）、三角 inverse | 破壊的 inverse・全オプション |
-| 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | R: 4 型の `pinv(A;atol,rtol)`、native SVD 再構成、Hermitian/実 Symmetric の EVD 再構成、保存済み native SVD/EVD の `pinv(F;atol,rtol,team,scratch)`・必要量照会/reserve | 残りの分解形式、非標準スカラー・高度なアルゴリズム制御 |
+| 疑似逆 | `Svd::pseudoinverse`, `SelfAdjointEigen::pseudoinverse`, `pseudoinverse_from_*[_with_tolerance]` | `pinv(A;atol,rtol)` | R: 4 型の `pinv(A;atol,rtol)`、native SVD 再構成、Hermitian/実 Symmetric の EVD 再構成、保存済み native SVD/EVD の `pinv(F;atol,rtol,team,scratch)`・必要量照会/reserve | 残りの分解形式・高度なアルゴリズム制御（非標準スカラーは行10の意図的な非対応） |
 | 分解からの再構成 | `DenseSolveCore::reconstruct`、各分解の accessor | `Matrix(F)`, 因子の積 | R: 所有する LU/QR/Cholesky/LDLT・Schur/Hessenberg・三重/二重対角化の `reconstruct/Matrix/FaerMatrix`・型指定変換、疎 Cholesky/全方式 LU の native 疎再構成、一般化 Schur/Hessenberg の `(A,B)` | その他の残りの形式 |
 | ランク・条件数 | SVD/QR などを組み合わせて構成（同名の高水準 API としては扱わない） | `rank/cond/opnorm` | R: native スペクトル・分解を使う `rank(;atol,rtol)`、`cond(A,1/2/Inf)`、4 型の `opnorm`、保存済み疎 QR の `svdvals/rank`（dense R の native SVD） | 推定条件数・全構造化入力の最適化。faer 同名の高水準 API としての主張ではない |
 

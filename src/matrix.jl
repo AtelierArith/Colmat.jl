@@ -8,7 +8,11 @@ const _matrix_lock = ReentrantLock()
 
 An `AbstractMatrix{T}` owning a t4a-faer matrix in Rust. Float32, Float64,
 ComplexF32 and ComplexF64 inputs preserve their scalar type; other real inputs
-use Float64. The explicit constructor converts to a supported `T`.
+(integers, `Rational`, `Float16`, `BigFloat`, ...) use Float64 and other complex
+inputs use ComplexF64. `FaerMatrix{T}(A)` converts to a supported `T` and
+throws `ArgumentError` for any other `T`. Scalar `*`, `/` and `\\` follow
+`promote_type` and throw `ArgumentError` when the promoted type is not one of the
+four native types; faer's `fx128`/`cx128` and generic field traits are not exposed.
 Construction validates converted storage and shape before copying `A` to Rust.
 Arithmetic stays in Rust. `Matrix(A)` returns an
 independent Julia copy. Operations currently use `Par::Seq`.
@@ -163,10 +167,15 @@ Base.:+(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}) = _add(a, b, 1.0)
 Base.:-(a::FaerMatrix{Float64}, b::FaerMatrix{Float64}) = _add(a, b, -1.0)
 Base.:+(a::FaerMatrix{Float64}) = copy(a)
 Base.:-(a::FaerMatrix{Float64}) = -1.0 * a
-Base.:*(x::Real, a::FaerMatrix{Float64}) =
-    _matrix_result(RustCrate.scale_from, size(a), a, Float64(x))
+function Base.:*(x::Real, a::FaerMatrix{Float64})
+    _native_promotion(typeof(x), Float64)
+    return _matrix_result(RustCrate.scale_from, size(a), a, Float64(x))
+end
 Base.:*(a::FaerMatrix{Float64}, x::Real) = x * a
-Base.:/(a::FaerMatrix{Float64}, x::Real) = inv(Float64(x)) * a
+function Base.:/(a::FaerMatrix{Float64}, x::Real)
+    _native_promotion(typeof(x), Float64)
+    return inv(Float64(x)) * a
+end
 Base.:\(x::Real, a::FaerMatrix{Float64}) = a / x
 
 function Base.:*(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})

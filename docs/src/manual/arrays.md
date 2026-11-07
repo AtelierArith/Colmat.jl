@@ -207,6 +207,45 @@ truncate!(B, 2, 2)
 残る点に注意してください。複素行列の内積は第1引数を共役化し、
 `transpose(A)` と `A'` を区別します。
 
+### 対応スカラー型の範囲
+
+native 所有型（`FaerMatrix`・`FaerVector`・`FaerRow`・`FaerDiagonal`・
+`FaerSparseMatrix`）と分解は Float32・Float64・ComplexF32・ComplexF64 の4型だけを
+扱います。型指定のない構築では、その他の実数入力（整数・`Bool`・`Rational`・
+`Float16`・`BigFloat` など）を Float64 に、その他の複素数入力を ComplexF64 に
+変換します。`BigFloat` などの精度はこの変換で失われます。
+配列からの構築で4型以外を明示した場合（`FaerMatrix{T}(A)`、
+`FaerVector{T}(v)`・`FaerRow{T}(v)`・`FaerDiagonal{T}(v)`、
+`FaerSparseMatrix{T}(A)`）は `ArgumentError` です。`undef`・関数・`fill`・
+三つ組などの他の構築形式も4型だけを定義しています。
+スカラー倍・除算（`x*A`・`A*x`・`A/x`・`x\A`）の結果型は
+`promote_type(typeof(x), eltype(A))` に従い、それが4型以外なら `ArgumentError`
+にします。Float64 行列でも `BigFloat` のスカラーを暗黙に丸めません。
+
+```julia
+using Colmat
+
+@assert eltype(FaerMatrix([1 2; 3 4])) === Float64
+@assert eltype(FaerVector([1+2im, 3])) === ComplexF64
+A = FaerMatrix(Float32[1 2; 3 4])
+@assert eltype(2A) === Float32
+@assert eltype(A / 2.0) === Float64
+@assert eltype(A * im) === ComplexF32
+rejected = try
+    big"0.1" * A
+catch err
+    err
+end
+@assert rejected isa ArgumentError
+```
+
+t4a-faer の `fx128`／`cx128`（`qd::Quad`、2つの f64 による double-double と
+その複素数）と任意の field trait は意図的に接続していません。Rust 側の所有型・
+分解は4型の列挙で dispatch しており、新しいスカラー型ごとにすべての native 経路の
+実体化が要ります。Julia 標準には対応する型がなく、Julia で定義された型を Rust の
+コンパイル時 trait として渡すこともできません。拡張精度が必要な場合は Julia の
+汎用 `Matrix{BigFloat}` などの経路を使ってください。
+
 `size`、`axes`、インデックスによる読み書き、`similar`、`fill!`、`copy`、
 `deepcopy`、ブロードキャストにも対応します。`A'` / `transpose(A)` は Julia の
 遅延ラッパーで、`copy(A')` は Rust 側で転置行列を作ります。汎用の配列演算や

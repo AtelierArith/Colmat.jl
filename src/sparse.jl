@@ -4,7 +4,8 @@
     FaerSparseMatrix(I, J, V, m, n; format=:csc)
 
 A sparse Julia matrix owning faer CSC or CSR storage. Four native scalar types
-are preserved. Triplet duplicates are summed by faer. Construction retains stored zeros; `dropzeros!` removes them. Native
+are preserved; other real inputs convert to Float64 and other complex inputs to
+ComplexF64. An explicit unsupported `T` throws `ArgumentError`. Triplet duplicates are summed by faer. Construction retains stored zeros; `dropzeros!` removes them. Native
 addition, subtraction, products and scalar arithmetic preserve sparse storage; `Matrix(A)` and
 `FaerMatrix(A)` explicitly materialize a dense matrix.
 
@@ -47,9 +48,7 @@ function _sparse_result(::Type{T}, dims, format, f, args...) where {T<:_NativeSc
         return FaerSparseMatrix{T,typeof(h)}(h, dims, k, format, UInt(0))
     end
 end
-_sparse_input_type(::Type{T}) where {T<:_NativeScalar} = T
-_sparse_input_type(::Type{T}) where {T<:Real} = Float64
-_sparse_input_type(::Type{T}) where {T<:Complex} = ComplexF64
+_sparse_input_type(::Type{T}) where {T} = _native_input_type(T)
 function FaerSparseMatrix{T}(
     a::SparseArrays.SparseMatrixCSC;
     format = :csc,
@@ -87,6 +86,7 @@ FaerSparseMatrix(a::SparseArrays.SparseMatrixCSC{T}; kwargs...) where {T} =
     FaerSparseMatrix{_sparse_input_type(T)}(a; kwargs...)
 FaerSparseMatrix{T}(a::AbstractMatrix; kwargs...) where {T<:_NativeScalar} =
     FaerSparseMatrix{T}(SparseArrays.sparse(a); kwargs...)
+FaerSparseMatrix{T}(::AbstractMatrix; kwargs...) where {T} = _unsupported_scalar(T)
 FaerSparseMatrix(a::AbstractMatrix{T}; kwargs...) where {T} =
     FaerSparseMatrix{_sparse_input_type(T)}(a; kwargs...)
 function FaerSparseMatrix{T}(
@@ -448,7 +448,7 @@ Base.:*(a::FaerSparseMatrix, b::FaerSparseMatrix) = _sparse_binary(a, b, 2)
 Base.:+(a::FaerSparseMatrix) = copy(a)
 Base.:-(a::FaerSparseMatrix) = -one(eltype(a))*a
 function Base.:*(x::Number, a::FaerSparseMatrix)
-    P=promote_type(typeof(x), eltype(a))
+    P=_native_promotion(typeof(x), eltype(a))
     v=Ref{P}(x)
     GC.@preserve v return _sparse_result(
         P,
