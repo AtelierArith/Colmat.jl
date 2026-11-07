@@ -81,8 +81,8 @@ function compressed_storage(p::FaerSparsity)
         GC.@preserve ptr idx _native_call(
             RustCrate.sparsity_export,
             p,
-            pointer(ptr),
-            pointer(idx),
+            ptr,
+            idx,
             UInt(length(ptr)),
             UInt(length(idx)),
         )

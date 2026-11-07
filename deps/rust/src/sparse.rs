@@ -448,13 +448,15 @@ impl SparseOwner {
         &mut self,
         m: usize,
         n: usize,
-        ptr: *const usize,
-        idx: *const usize,
+        ptr: &[usize],
+        idx: &[usize],
         val: *const u8,
         k: usize,
         tag: i32,
         csr: bool,
     ) -> Result<(), String> {
+        let ptr = crate::workspace::fixed_in(ptr, n.checked_add(1).ok_or("column pointer overflow")?)?;
+        let idx = crate::workspace::fixed_in(idx, k)?;
         guarded(|| unsafe {
             self.data = Some(match tag {
                 0 => SparseData::F32(load_csc(m, n, ptr, idx, val, k, csr)?),
@@ -471,13 +473,15 @@ impl SparseOwner {
         &mut self,
         m: usize,
         n: usize,
-        rows: *const usize,
-        cols: *const usize,
+        rows: &[usize],
+        cols: &[usize],
         val: *const u8,
         k: usize,
         tag: i32,
         csr: bool,
     ) -> Result<(), String> {
+        let rows = crate::workspace::fixed_in(rows, k)?;
+        let cols = crate::workspace::fixed_in(cols, k)?;
         guarded(|| unsafe {
             self.data = Some(match tag {
                 0 => SparseData::F32(load_triplets(m, n, rows, cols, val, k, csr)?),
@@ -500,12 +504,14 @@ impl SparseOwner {
     #[julia]
     pub fn sparse_export(
         &self,
-        p: *mut usize,
-        i: *mut usize,
+        p: &mut [usize],
+        i: &mut [usize],
         v: *mut u8,
         pn: usize,
         k: usize,
     ) -> Result<(), String> {
+        let p = crate::workspace::fixed_out(p, pn)?;
+        let i = crate::workspace::fixed_out(i, k)?;
         guarded(|| unsafe { dispatch!(self.data()?,a=>export(a,p,i,v,pn,k)) })
     }
     #[julia]

@@ -157,11 +157,13 @@ impl SparsityOwner {
     #[julia]
     pub fn sparsity_export(
         &self,
-        p: *mut usize,
-        i: *mut usize,
+        p: &mut [usize],
+        i: &mut [usize],
         pn: usize,
         k: usize,
     ) -> Result<(), String> {
+        let p = crate::workspace::fixed_out(p, pn)?;
+        let i = crate::workspace::fixed_out(i, k)?;
         guarded(|| {
             let a = self.data()?;
             if a.pointers().len() != pn || a.indices().len() != k {
