@@ -26,11 +26,13 @@ unsafe fn run<T: ComplexField>(
 pub fn balance_data(
     data: *mut u8,
     n: usize,
-    perm: *mut usize,
+    perm: &mut [usize],
     scale: *mut u8,
-    active: *mut usize,
+    active: &mut [usize],
     tag: i32,
 ) -> Result<(), String> {
+    let perm = crate::workspace::fixed_out(perm, n)?;
+    let active = crate::workspace::fixed_out(active, 2)?;
     guarded(|| unsafe {
         match tag {
             0 => run::<f32>(data, n, perm, scale, active),
@@ -61,10 +63,11 @@ pub fn balance_vectors_data(
     data: *mut u8,
     n: usize,
     k: usize,
-    perm: *const usize,
+    perm: &[usize],
     scale: *const u8,
     tag: i32,
 ) -> Result<(), String> {
+    let perm = crate::workspace::fixed_in(perm, n)?;
     guarded(|| unsafe {
         match tag {
             0 => vectors::<f32>(data, n, k, perm, scale),
