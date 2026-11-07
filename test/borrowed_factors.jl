@@ -1,4 +1,4 @@
-using Colmat, LinearAlgebra, Test
+using Colmat, LinearAlgebra, SparseArrays, Statistics, Test
 
 const BF_TYPES=(Float32, Float64, ComplexF32, ComplexF64)
 function _bf_matrix(::Type{T}, n; hermitian = false) where {T}
@@ -183,8 +183,34 @@ end
     N=npyborrow(bytes)
     @test N isa FaerBorrowedMatrix{Float64}
     @test isapprox(Matrix(lu(N)), a; rtol = _bf_tol(Float64))
-    # ... but not written by an in-place solve.
+    # ... but not written by an in-place solve, natively or through a fallback.
     @test_throws ArgumentError ldiv!(F, N)
+    @test_throws ArgumentError ldiv!(N, F, ones(8, 8))
+    @test N==a
+    # A writable NPY borrow is a native in-place destination (bytes in place).
+    W=npyborrow(copy(bytes); writable = true)
+    rhs=Matrix(W)
+    @test ldiv!(F, W)===W
+    @test isapprox(Matrix(W), a\rhs; rtol = _bf_tol(Float64))
+    W2=npyborrow(copy(bytes); writable = true)
+    ldiv!(W2, F, a)
+    @test isapprox(Matrix(W2), Matrix(I, 8, 8); atol = 1e-10)
+end
+
+@testset "Closed native operands keep Julia destinations" begin
+    for T in BF_TYPES
+        a=_bf_matrix(T, 4)
+        F=lu(faerview(a))
+        R=FaerMatrix(ones(T, 4, 2))
+        close(R)
+        Y=fill(T(3), 4, 2)
+        @test_throws ArgumentError ldiv!(Y, F, R)
+        @test Y==fill(T(3), 4, 2)
+        @test_throws ArgumentError ldiv!(F, R)
+        X=FaerMatrix(a)
+        close(X)
+        @test_throws ArgumentError lu(X)
+    end
 end
 
 @testset "Retained-factor solves in place in Julia and borrowed destinations" begin
@@ -283,4 +309,16 @@ end
     @test @allocated(ldiv!(F, v)) < 8192
     copyto!(X, b)
     @test isapprox(ldiv!(F, X), a\b; rtol = 1e-10)
+end
+
+@testset "Borrowed factor methods add no ambiguities" begin
+    ambiguities=Test.detect_ambiguities(
+        Colmat,
+        Base,
+        LinearAlgebra,
+        SparseArrays,
+        Statistics;
+        recursive = true,
+    )
+    @test isempty(filter(a->a[1].module===Colmat||a[2].module===Colmat, ambiguities))
 end
