@@ -61,7 +61,9 @@ close(A)
 bidiagonal implicit QR algorithm below `recursion_threshold` (128) and divide
 and conquer above it; `alg=QRIteration()` uses the implicit QR algorithm at
 every size. `with_svd_tuning(f; recursion_threshold, qr_ratio_threshold,
-bidiag_par_threshold)` overrides faer's `SvdParams` for every SVD, scratch query,
+bidiag_par_threshold, qr_blocking_threshold)` overrides faer's `SvdParams` (the
+last is the blocking threshold of the QR that precedes bidiagonalization for
+tall inputs; faer's QR workspace does not depend on it) for every SVD, scratch query,
 `FaerScratch` and `reserve!` in the scope (unspecified values keep the enclosing
 scope's), and calls without `scratch`/`team` then use the parameterized
 workspace driver. The scope holds Colmat's native-call lock.

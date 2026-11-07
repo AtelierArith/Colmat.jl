@@ -56,14 +56,16 @@ end
         # alg composes with the enclosing settings and restores them.
         svd(A; alg = LinearAlgebra.QRIteration())
         v, r, f=Colmat._svd_state()
-        @test (Int(v[1]), r[1], f) == (16, 1.5, UInt8[1, 1, 1])
+        @test (Int(v[1]), r[1], f) == (16, 1.5, UInt8[1, 1, 1, 0])
     end
     v, r, f=Colmat._svd_state()
-    @test f == zeros(UInt8, 3)
+    @test f == zeros(UInt8, 4)
     @test Colmat._svd_tuning_depth[] == 0
     @test_throws ErrorException with_svd_tuning(()->error("boom"); recursion_threshold = 8)
-    @test Colmat._svd_state()[3] == zeros(UInt8, 3)
+    @test Colmat._svd_state()[3] == zeros(UInt8, 4)
     for bad in (
+        (; qr_blocking_threshold = -1),
+        (; qr_blocking_threshold = 2.5),
         (; recursion_threshold = 1),
         (; qr_ratio_threshold = 0.5),
         (; qr_ratio_threshold = Inf),
@@ -72,4 +74,47 @@ end
         @test_throws ArgumentError with_svd_tuning(()->nothing; bad...)
     end
     close(A)
+end
+
+@testset "with_svd_tuning qr_blocking_threshold reaches the QR stage" begin
+    # m/n above faer's qr_ratio_threshold (11/6) runs the QR stage before
+    # bidiagonalization; its blocking threshold changes no workspace query.
+    team=FaerTeam(2)
+    for T in SVD_TUNING_TYPES, (m, n) in ((300, 40), (90, 7))
+        a=_svd_sample(T, m, n)
+        A=FaerMatrix(a)
+        tol=1000eps(real(T))
+        ref=svdvals(a)
+        base=scratch_requirements(svd, A)
+        for blocking in (0, 16, typemax(Int))
+            with_svd_tuning(; qr_blocking_threshold = blocking) do
+                v, _, f=Colmat._svd_state()
+                @test (v[3], f[4]) == (UInt(blocking), 0x01)
+                @test scratch_requirements(svd, A) == base
+                for kw in ((;), (; team)), full in (false, true)
+                    F=svd(A; full, kw...)
+                    @test _svd_res(a, F) <= tol
+                    @test F.S ≈ ref
+                end
+                work=FaerScratch(svd, A)
+                @test svdvals(A; scratch = work) ≈ ref
+                close(work)
+                B=copy(A)
+                @test svd!(B).S ≈ ref
+                close(B)
+            end
+        end
+        @test Matrix(A) == a
+        close(A)
+    end
+    # Unspecified controls keep the enclosing scope's values.
+    with_svd_tuning(; qr_blocking_threshold = 8) do
+        with_svd_tuning(; recursion_threshold = 16) do
+            v, _, f=Colmat._svd_state()
+            @test (Int(v[1]), Int(v[3]), f) == (16, 8, UInt8[1, 0, 0, 1])
+        end
+        @test Colmat._svd_state()[3] == UInt8[0, 0, 0, 1]
+    end
+    @test Colmat._svd_state()[3] == zeros(UInt8, 4)
+    close(team)
 end

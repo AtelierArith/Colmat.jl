@@ -2,19 +2,24 @@ const _svd_tuning_depth=Ref(0)
 _svd_default_path(scratch, team) =
     isnothing(scratch) && isnothing(team) && iszero(_svd_tuning_depth[])
 function _svd_state()
-    v=zeros(UInt, 2)
+    v=zeros(UInt, 3)
     r=zeros(Float64, 1)
-    f=zeros(UInt8, 3)
+    f=zeros(UInt8, 4)
     _native_call(RustCrate.svd_tuning_state, v, r, f)
     return v, r, f
 end
-function _svd_scope(f, recursion, ratio, par)
+function _svd_scope(f, recursion, ratio, par, qr_blocking = nothing)
     recursion isa Union{Nothing,Integer} ||
         throw(ArgumentError("recursion_threshold must be an integer or nothing"))
     ratio isa Union{Nothing,Real} ||
         throw(ArgumentError("qr_ratio_threshold must be a real number or nothing"))
     par isa Union{Nothing,FaerParThreshold} ||
         throw(ArgumentError("bidiag_par_threshold must be a FaerParThreshold or nothing"))
+    qr_blocking isa Union{Nothing,Integer} ||
+        throw(ArgumentError("qr_blocking_threshold must be an integer or nothing"))
+    isnothing(qr_blocking) ||
+        qr_blocking>=0 ||
+        throw(ArgumentError("qr_blocking_threshold must be nonnegative"))
     isnothing(recursion) ||
         recursion>=2 ||
         throw(ArgumentError("recursion_threshold must be at least two"))
@@ -28,19 +33,28 @@ function _svd_scope(f, recursion, ratio, par)
         isnothing(recursion) || (v[1] = UInt(min(recursion, typemax(Int))); flags[1] = 1)
         isnothing(ratio) || (r[1] = Float64(ratio); flags[2] = 1)
         isnothing(par) || (v[2] = par.value; flags[3] = 1)
-        _native_call(RustCrate.set_svd_tuning, v[1], r[1], v[2], flags)
+        isnothing(qr_blocking) ||
+            (v[3] = UInt(min(qr_blocking, typemax(Int))); flags[4] = 1)
+        _native_call(RustCrate.set_svd_tuning, v[1], r[1], v[2], v[3], flags)
         _svd_tuning_depth[]+=1
         try
             return f()
         finally
             _svd_tuning_depth[]-=1
-            _native_call(RustCrate.set_svd_tuning, old[1][1], old[2][1], old[1][2], old[3])
+            _native_call(
+                RustCrate.set_svd_tuning,
+                old[1][1],
+                old[2][1],
+                old[1][2],
+                old[1][3],
+                old[3],
+            )
         end
     end
 end
 """
     with_svd_tuning(f; recursion_threshold=nothing, qr_ratio_threshold=nothing,
-                    bidiag_par_threshold=nothing)
+                    bidiag_par_threshold=nothing, qr_blocking_threshold=nothing)
 
 Run `f()` with faer's `SvdParams` overridden for every `svd`/`svdvals`/
 `svd!`/`svdvals!` of native matrices in the scope, including scratch queries,
@@ -52,6 +66,10 @@ default) value.
 - `qr_ratio_threshold`: aspect ratio above which a QR factorization precedes
   bidiagonalization (at least one).
 - `bidiag_par_threshold::FaerParThreshold`: bidiagonalization parallel floor.
+- `qr_blocking_threshold`: `QrParams.blocking_threshold` of that preceding QR
+  (nonnegative; while `m*n` is below it the QR factors its panels without
+  sub-blocking or look-ahead, faer's default is 48*48). faer's QR workspace does not depend on it, so
+  it changes execution but not scratch queries.
 
 Inside the scope, calls without `scratch`/`team` use the parameterized
 workspace driver. The scope holds Colmat's native-call lock; `f` must call
@@ -62,7 +80,14 @@ with_svd_tuning(
     recursion_threshold = nothing,
     qr_ratio_threshold = nothing,
     bidiag_par_threshold = nothing,
-) = _svd_scope(f, recursion_threshold, qr_ratio_threshold, bidiag_par_threshold)
+    qr_blocking_threshold = nothing,
+) = _svd_scope(
+    f,
+    recursion_threshold,
+    qr_ratio_threshold,
+    bidiag_par_threshold,
+    qr_blocking_threshold,
+)
 
 # `alg` follows LinearAlgebra: DivideAndConquer() is faer's default driver and
 # QRIteration() forces the bidiagonal implicit QR algorithm at every size.
