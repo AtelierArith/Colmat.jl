@@ -70,8 +70,7 @@ function _sparse_qr_resource_native_query(
         pointer(info),
     )
     GC.@preserve info begin
-        isnothing(team) ? _native_call(RustCrate.sparse_qr_rank_requirements, args...) :
-        _native_call(RustCrate.sparse_qr_rank_requirements_team, args..., team)
+        _native_call(RustCrate.sparse_qr_rank_requirements, args..., team)
     end
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
@@ -159,9 +158,8 @@ function _sparse_qr_resource_result(
                 relative_f32,
                 fast,
             )
-            fun=isnothing(team) ? RustCrate.sparse_qr_rank_workspace :
-                RustCrate.sparse_qr_rank_workspace_team
-            isnothing(team)||(args=(args..., team))
+            fun=RustCrate.sparse_qr_rank_workspace
+            args=(args..., team)
             dims=(size(original, op in (1, 2) ? 1 : 2), columns)
             result=P===Float64 ? _matrix_result(fun, dims, args...) :
                    _typed_result(P, fun, dims, args...)

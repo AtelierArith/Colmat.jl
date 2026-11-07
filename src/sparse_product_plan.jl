@@ -282,44 +282,16 @@ function _plan_mul!(c::_PlanOperand, p, a, b, alpha, beta, scratch, team)
                 yp=Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, y))
                 if !raw
                     args=(p, aa, bb, xp, yp, accumulate, work)
-                    isnothing(team) ? _native_call(RustCrate.sparse_plan_mul, c, args...) :
-                    _native_call(RustCrate.sparse_plan_mul_team, c, args..., team)
+                    _native_call(RustCrate.sparse_plan_mul, c, args..., team)
                 else
                     _with_raw_sparse(aa) do ra...
                         _with_raw_sparse(bb) do rb...
                             tail=(_tag(T), xp, yp, accumulate, work)
                             if c isa FaerSparseMatrix
-                                isnothing(team) ?
-                                _native_call(RustCrate.sparse_plan_mul_borrowed, c, p, ra..., rb..., tail...) :
-                                _native_call(
-                                    RustCrate.sparse_plan_mul_borrowed_team,
-                                    c,
-                                    p,
-                                    ra...,
-                                    rb...,
-                                    tail...,
-                                    team,
-                                )
+                                _native_call(RustCrate.sparse_plan_mul_borrowed, c, p, ra..., rb..., tail..., team)
                             else
                                 _with_raw_sparse(c) do rc...
-                                    isnothing(team) ?
-                                    _native_call(
-                                        RustCrate.sparse_plan_mul_into_borrowed,
-                                        p,
-                                        rc...,
-                                        ra...,
-                                        rb...,
-                                        tail...,
-                                    ) :
-                                    _native_call(
-                                        RustCrate.sparse_plan_mul_into_borrowed_team,
-                                        p,
-                                        rc...,
-                                        ra...,
-                                        rb...,
-                                        tail...,
-                                        team,
-                                    )
+                                    _native_call(RustCrate.sparse_plan_mul_into_borrowed, p, rc..., ra..., rb..., tail..., team)
                                 end
                             end
                         end

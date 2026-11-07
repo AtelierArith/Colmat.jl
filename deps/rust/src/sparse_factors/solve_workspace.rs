@@ -1,6 +1,7 @@
 //! Borrowed sparse LU/LLT solves with caller-owned scratch and execution teams.
 use super::{Factors, Numeric, SparseFactor};
 use crate::permutations::OwnedPermutation;
+use crate::teams::with_team;
 use crate::teams::OwnedTeam;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::workspace::OwnedScratch;
@@ -180,105 +181,20 @@ impl SparseFactor {
         tag: i32,
         kind: i32,
         out: *mut usize,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            let p = Par::Seq;
-            validate(self, m, n, tag, kind)?;
-            query(self, k, op, p.shape(), out)
-        })
-    }
-}
-#[julia]
-impl OwnedMatrix {
-    #[julia]
-    pub fn sparse_direct_workspace(
-        &mut self,
-        f: &SparseFactor,
-        b: &OwnedMatrix,
-        s: &mut OwnedScratch,
-        k: usize,
-        op: i32,
-        m: usize,
-        n: usize,
-        tag: i32,
-        kind: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let p = Par::Seq;
-            validate(f, m, n, tag, kind)?;
-            let Factors::F64(x) = f.factors()? else {
-                return Err("sparse solve scalar mismatch".into());
-            };
-            let result = run(x, b.matrix.as_ref(), s, k, op, p)?;
-            self.matrix = result;
-            Ok(())
-        })
-    }
-}
-#[julia]
-impl TypedMatrix {
-    #[julia]
-    pub fn sparse_direct_workspace(
-        &mut self,
-        f: &SparseFactor,
-        b: &TypedMatrix,
-        s: &mut OwnedScratch,
-        k: usize,
-        op: i32,
-        m: usize,
-        n: usize,
-        tag: i32,
-        kind: i32,
-    ) -> Result<(), String> {
-        guarded(|| {
-            let p = Par::Seq;
-            validate(f, m, n, tag, kind)?;
-            let result = match (f.factors()?, b.data()?) {
-                (Factors::F32(x), MatrixData::F32(b)) => {
-                    MatrixData::F32(run(x, b.as_ref(), s, k, op, p)?)
-                }
-                (Factors::F64(x), MatrixData::F64(b)) => {
-                    MatrixData::F64(run(x, b.as_ref(), s, k, op, p)?)
-                }
-                (Factors::C32(x), MatrixData::C32(b)) => {
-                    MatrixData::C32(run(x, b.as_ref(), s, k, op, p)?)
-                }
-                (Factors::C64(x), MatrixData::C64(b)) => {
-                    MatrixData::C64(run(x, b.as_ref(), s, k, op, p)?)
-                }
-                _ => return Err("sparse solve scalar mismatch".into()),
-            };
-            self.data = Some(result);
-            Ok(())
-        })
-    }
-}
-#[julia]
-impl SparseFactor {
-    #[julia]
-    pub fn sparse_direct_requirements_team(
-        &self,
-        k: usize,
-        op: i32,
-        m: usize,
-        n: usize,
-        tag: i32,
-        kind: i32,
-        out: *mut usize,
-        team: &OwnedTeam,
-    ) -> Result<(), String> {
-        guarded(|| {
-            team.execute(|p| {
+            with_team(team, |p| {
                 validate(self, m, n, tag, kind)?;
                 query(self, k, op, p.shape(), out)
-            })?
+            })
         })
     }
 }
 #[julia]
 impl OwnedMatrix {
     #[julia]
-    pub fn sparse_direct_workspace_team(
+    pub fn sparse_direct_workspace(
         &mut self,
         f: &SparseFactor,
         b: &OwnedMatrix,
@@ -289,10 +205,10 @@ impl OwnedMatrix {
         n: usize,
         tag: i32,
         kind: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            team.execute(|p| {
+            with_team(team, |p| {
                 validate(f, m, n, tag, kind)?;
                 let Factors::F64(x) = f.factors()? else {
                     return Err("sparse solve scalar mismatch".into());
@@ -300,14 +216,14 @@ impl OwnedMatrix {
                 let result = run(x, b.matrix.as_ref(), s, k, op, p)?;
                 self.matrix = result;
                 Ok(())
-            })?
+            })
         })
     }
 }
 #[julia]
 impl TypedMatrix {
     #[julia]
-    pub fn sparse_direct_workspace_team(
+    pub fn sparse_direct_workspace(
         &mut self,
         f: &SparseFactor,
         b: &TypedMatrix,
@@ -318,10 +234,10 @@ impl TypedMatrix {
         n: usize,
         tag: i32,
         kind: i32,
-        team: &OwnedTeam,
+        team: Option<&OwnedTeam>,
     ) -> Result<(), String> {
         guarded(|| {
-            team.execute(|p| {
+            with_team(team, |p| {
                 validate(f, m, n, tag, kind)?;
                 let result = match (f.factors()?, b.data()?) {
                     (Factors::F32(x), MatrixData::F32(b)) => {
@@ -340,10 +256,16 @@ impl TypedMatrix {
                 };
                 self.data = Some(result);
                 Ok(())
-            })?
+            })
         })
     }
 }
+#[julia]
+impl SparseFactor {}
+#[julia]
+impl OwnedMatrix {}
+#[julia]
+impl TypedMatrix {}
 
 // Numeric LLT retains the symbolic permutation independently of its analysis owner.
 fn llt_permutation<T: ComplexField>(f: &Numeric<T>) -> Result<faer::perm::Perm<usize>, String> {
