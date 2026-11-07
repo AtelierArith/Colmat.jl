@@ -230,3 +230,20 @@ end
     # The lower-oriented factor has no Julia `uplo='U'` `F.U`.
     @test :U ∉ propertynames(bunchkaufman(Hermitian(A, :U)))
 end
+
+@testset "Promoted solves of parameterized factors" begin
+    # Mixed-scalar solves re-factor the reconstruction (the regularized matrix)
+    # at the promoted type; the LBLᴴ strategy is not carried, the solution is.
+    n=40
+    b=Float32.(1:n)
+    S=_first_negative(Float32, n)
+    reg=(regularization_delta = 1, regularization_epsilon = 1e-6)
+    for F in (
+        cholesky(FaerMatrix(S); reg...),
+        ldlt(FaerMatrix(S); reg..., regularization_signs = ones(Int, n)),
+        bunchkaufman(FaerMatrix(_hindef(Float32, n)); pivoting = :full),
+    )
+        x=Vector(F\b)
+        @test Vector(F\ComplexF32.(b))≈x rtol=1e-3
+    end
+end
