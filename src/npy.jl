@@ -120,8 +120,9 @@ npyview(source) = loadnpy(source; view = true)
     npyinfo(source)
 
 Return dtype, original shape/order/version/byteorder, matrix_size and alignment
-metadata. Sources can be an existing open FaerNpyMatrix, NPY bytes, an IO or a
-path. Raw bytes are normalized to aligned native byteorder for safe faer views;
+metadata. Sources can be an existing open FaerNpyMatrix, an [`npyborrow`](@ref)
+borrow (metadata recorded when it was borrowed, plus `writable`; the source is
+not reread), NPY bytes, an IO or a path. Raw bytes are normalized to aligned native byteorder for safe faer views;
 byteorder reports the source's order, normalized_byteorder reports storage.
 IO inputs are read from their current position to EOF.
 """
