@@ -14,6 +14,8 @@ pub(crate) use destination::{
     action_into, destination, destination_span, operand, raw_mut, spec_shape, view_mut, Arm,
     BorrowedMut,
 };
+#[cfg(test)]
+pub(crate) use destination::raw_descriptor;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Spec {

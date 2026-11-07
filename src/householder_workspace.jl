@@ -94,16 +94,7 @@ function _householder_mul_requirements(dest, h, a, alpha, beta, right; team = no
         _householder_check(h, dest, right)
         size(dest)==size(a) ||
             throw(DimensionMismatch("Householder destination shape mismatch"))
-        eltype(dest)<:_NativeScalar ||
-            throw(ArgumentError("Householder destination requires native scalar"))
-        P=promote_type(
-            eltype(h),
-            _reflector_type(eltype(a)),
-            eltype(dest),
-            typeof(alpha),
-            typeof(beta),
-        )
-        P<:_NativeScalar || throw(ArgumentError("unsupported Householder product scalar"))
+        P=_householder_mul_scalar(dest, h, a, alpha, beta)
         return _householder_resource_check(h, a, P, right; team)
     end
 end

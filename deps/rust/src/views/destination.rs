@@ -358,6 +358,28 @@ pub fn view_gemm(
     })
 }
 
+/// Descriptor of a whole column-major Julia buffer (owner kind 4) of scalar
+/// `tag` with leading dimension `ld`, for native tests.
+#[cfg(test)]
+pub(crate) fn raw_descriptor(m: usize, n: usize, ld: isize, tag: isize) -> Vec<isize> {
+    vec![
+        super::RAW_KIND as isize,
+        0,
+        1,
+        m as isize,
+        0,
+        1,
+        n as isize,
+        0,
+        0,
+        m as isize,
+        n as isize,
+        1,
+        ld,
+        tag,
+    ]
+}
+
 /// The `(rows, cols)` a descriptor selects.
 pub(crate) fn spec_shape(s: Spec) -> (usize, usize) {
     if s.transpose {

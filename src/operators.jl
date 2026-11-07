@@ -317,14 +317,9 @@ function _operator_mul_prepare(dest, op, a, alpha, beta, right)
     a isa _RotationArray && _rotation_open(a)
     (right ? size(a, 2)==size(op, 1) : size(a, 1)==size(op, 2)) ||
         throw(DimensionMismatch("operator/source product dimensions must match"))
-    P=promote_type(
-        eltype(op),
-        _reflector_type(eltype(a)),
-        _reflector_type(eltype(dest)),
-        typeof(alpha),
-        typeof(beta),
-    )
-    P<:_NativeScalar ||
+    # Coefficients convert to the operands' scalar (as dense `mul!`).
+    P=promote_type(eltype(op), _reflector_type(eltype(a)), _reflector_type(eltype(dest)))
+    P<:_NativeScalar && promote_type(P, typeof(alpha), typeof(beta))<:_NativeScalar ||
         throw(ArgumentError("operator mul! requires native working scalar types"))
     return P
 end

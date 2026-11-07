@@ -662,18 +662,19 @@ unsafe fn mul_into<T: Arm>(
     }
     s.apply_in(u, w.rb_mut(), right, t, c, par, stack)?;
     crate::typed::finite(w.as_ref())?;
+    // Combine in the work block, check it, then copy: C is written only
+    // after the complete result is known to be finite.
+    let mut block = w.submatrix_mut(0, 0, or, oc);
     for j in 0..oc {
         for i in 0..or {
-            if !is_finite(&combine(Some(&w[(i, j)]), &out[(i, j)])) {
-                return Err("compact basis product overflowed the destination scalar".into());
-            }
+            let y = combine(Some(&block[(i, j)]), &out[(i, j)]);
+            block[(i, j)] = y;
         }
     }
-    for j in 0..oc {
-        for i in 0..or {
-            out[(i, j)] = combine(Some(&w[(i, j)]), &out[(i, j)]);
-        }
+    if !block.as_ref().is_all_finite() {
+        return Err("compact basis product overflowed the destination scalar".into());
     }
+    out.copy_from(block.as_ref());
     Ok(())
 }
 #[julia]
@@ -1037,6 +1038,86 @@ mod tests {
         }
         .unwrap();
         Mat::from_fn(or, oc, |i, j| copy(&output[i + j * or]))
+    }
+    #[test]
+    fn mul_into_uses_only_the_declared_scratch() {
+        use crate::allocation_probe::count;
+        use crate::views::raw_descriptor;
+        let (m, n, bs) = (6usize, 4usize, 2usize);
+        let a = Mat::from_fn(m, n, |i, j| ((i * 5 + j * 3) % 7) as f64 - 2.5);
+        let input: Vec<f64> = (0..n)
+            .flat_map(|j| (0..m).map(move |i| (i, j)))
+            .map(|(i, j)| a[(i, j)])
+            .collect();
+        let mut d = vec![0.0f64; n];
+        let mut e = vec![0.0f64; n - 1];
+        let creq = construction_req::<f64>(m, n, bs, ParShape::Seq, 0).unwrap();
+        let mut work = OwnedScratch::new();
+        work.scratch_reserve(creq.size_bytes(), creq.align_bytes())
+            .unwrap();
+        let s = unsafe {
+            build::<f64>(
+                &mut work,
+                input.as_ptr().cast(),
+                m,
+                n,
+                d.as_mut_ptr().cast(),
+                e.as_mut_ptr().cast(),
+                bs,
+                Par::Seq,
+                0,
+            )
+        }
+        .unwrap();
+        let owner = OwnedCompactBidiagonal {
+            data: Data::F64(s.clone()),
+        };
+        // Thin U (m x n) times B (n x 3) into a padded Julia destination.
+        let (u, cols, extent) = (true, n, 3usize);
+        let req = apply_req::<f64>(m, n, bs, u, cols, extent, false, false).unwrap();
+        let mut scratch = OwnedScratch::new();
+        scratch
+            .scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        let b = Mat::from_fn(n, extent, |i, j| (1 + i + 2 * j) as f64);
+        let bd = raw_descriptor(n, extent, b.col_stride(), 1);
+        let dd = raw_descriptor(m, extent, 9, 1);
+        let mut julia = vec![1.0f64; 9 * extent];
+        let expected = action(&s, u, cols, false, false, false, b.as_ref());
+        let (alpha, beta) = (2.0f64, 0.5f64);
+        let meta = [m, n, bs, cols, extent];
+        let mut call = |beta_zero: bool, julia: &mut Vec<f64>| {
+            count(|| {
+                owner
+                    .compact_bidiagonal_mul_into(
+                        &mut scratch,
+                        &meta,
+                        1,
+                        u,
+                        false,
+                        false,
+                        false,
+                        julia.as_mut_ptr().cast(),
+                        dd.as_ptr(),
+                        b.as_ptr().cast(),
+                        bd.as_ptr(),
+                        (&alpha as *const f64).cast(),
+                        (&beta as *const f64).cast(),
+                        false,
+                        beta_zero,
+                        None,
+                    )
+                    .unwrap()
+            })
+        };
+        assert_eq!(call(false, &mut julia), 0);
+        for j in 0..extent {
+            for i in 0..m {
+                assert!((julia[i + 9 * j] - (alpha * expected[(i, j)] + beta)).abs() < 1e-12);
+            }
+        }
+        assert_eq!(call(true, &mut julia), 0);
+        assert_eq!(julia[m], 1.0);
     }
     fn check<T: ComplexField>(a: Mat<T>, bs: usize, tolerance: f64) {
         let (m, n) = (a.nrows(), a.ncols());

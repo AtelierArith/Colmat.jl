@@ -269,3 +269,19 @@ end
     @test_throws ArgumentError mul!(ro, op, [1.0 0; 0 1], 2, 3)
     @test bytes==before
 end
+
+@testset "Destination queries use the operands' working scalar" begin
+    rng=MersenneTwister(97)
+    b, c=randn(rng, Float32, 6, 3), randn(rng, Float32, 6, 3)
+    q=_hd_sequence(rng, Float32, 6, 3)
+    @test scratch_requirements(mul!, c, q, b, 2.0, 3.0)==scratch_requirements(mul!, c, q, b)
+    op=FaerLinearOperator(FaerMatrix(randn(rng, Float32, 6, 6)))
+    @test scratch_requirements(mul!, c, op, b, 2.0, 3.0)==scratch_requirements(mul!, c, op, b)
+    u=bidiagonalize(FaerMatrix(randn(rng, Float32, 6, 6)); compact = true).U
+    @test scratch_requirements(mul!, c, u, b, 2.0, 3.0)==scratch_requirements(mul!, c, u, b)
+    # Float32 data with Float64 coefficients stays on the native path.
+    big=randn(rng, Float32, 128, 128)
+    out=copy(big)
+    long=_hd_sequence(rng, Float32, 128, 4)
+    @test _hd_bytes(()->mul!(out, long, big, 2.0, 0.5)) < sizeof(big)
+end

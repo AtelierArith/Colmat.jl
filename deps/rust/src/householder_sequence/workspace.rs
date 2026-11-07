@@ -407,6 +407,99 @@ mod tests {
         team.team_close().unwrap();
     }
     #[test]
+    fn mul_into_runs_on_caller_scratch_with_only_the_kernel_allocations() {
+        use crate::allocation_probe::count;
+        use crate::views::raw_descriptor;
+        let (m, k) = (7usize, 3usize);
+        let basis = Mat::from_fn(m, k, |i, j| {
+            if i < j {
+                0.0
+            } else if i == j {
+                1.0
+            } else {
+                0.1 * (i + j + 1) as f64
+            }
+        });
+        let tau: Vec<f64> = (0..k)
+            .map(|j| (j..m).map(|i| basis[(i, j)] * basis[(i, j)]).sum::<f64>() / 2.0)
+            .collect();
+        let packed: Vec<f64> = (0..k)
+            .flat_map(|j| (0..m).map(move |i| (i, j)))
+            .map(|(i, j)| basis[(i, j)])
+            .collect();
+        let s = unsafe {
+            load::<f64>(
+                packed.as_ptr().cast(),
+                m,
+                k,
+                tau.as_ptr().cast(),
+                2,
+                std::ptr::null(),
+                Par::Seq,
+            )
+        }
+        .unwrap();
+        let owner = OwnedHouseholderSequence {
+            data: Some(Data::F64(s.clone())),
+        };
+        let req = requirement(&s, 3, false, false);
+        let mut scratch = OwnedScratch::new();
+        scratch
+            .scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        let b = Mat::from_fn(m, 3, |i, j| (1 + i + 2 * j) as f64);
+        let bd = raw_descriptor(m, 3, b.col_stride(), 1);
+        let dd = raw_descriptor(m, 3, 9, 1);
+        let mut julia = vec![0.0f64; 9 * 3];
+        // Bare kernel on the same padded layout.
+        let kernel = {
+            let mut probe = vec![1.0f64; 9 * 3];
+            let view = MatMut::from_column_major_slice_with_stride_mut(&mut probe, m, 3, 9);
+            count(|| {
+                apply_in(
+                    &s,
+                    view,
+                    false,
+                    false,
+                    false,
+                    Par::Seq,
+                    scratch.stack(req).unwrap(),
+                )
+                .unwrap()
+            })
+        };
+        // Previous staged entry: owned result plus its own MemBuffer.
+        let staged = {
+            let mut owned = OwnedMatrix { matrix: b.clone() };
+            count(|| owned.sequence_apply(&owner, false, false, false).unwrap())
+        };
+        let (alpha, beta) = (2.0f64, 0.5f64);
+        let mut call = |beta_zero: bool| {
+            count(|| {
+                sequence_mul_into(
+                    julia.as_mut_ptr().cast(),
+                    dd.as_ptr(),
+                    b.as_ptr().cast(),
+                    bd.as_ptr(),
+                    &owner,
+                    false,
+                    false,
+                    false,
+                    (&alpha as *const f64).cast(),
+                    (&beta as *const f64).cast(),
+                    false,
+                    beta_zero,
+                    Some(&mut scratch),
+                    None,
+                )
+                .unwrap()
+            })
+        };
+        assert_eq!(call(true), kernel);
+        assert_eq!(call(false), kernel + 1);
+        assert!(staged >= kernel + 1);
+    }
+    #[test]
     fn external_scratch_f32() {
         exercise::<f32>();
     }

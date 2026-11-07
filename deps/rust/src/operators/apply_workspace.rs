@@ -342,6 +342,73 @@ mod tests {
     use super::super::{Base, InverseFactors};
     use super::*;
     #[test]
+    fn mul_into_writes_the_destination_with_only_kernel_allocations() {
+        use crate::allocation_probe::count;
+        use crate::views::raw_descriptor;
+        let a = Mat::from_fn(5, 4, |i, j| (i + 2 * j) as f64 - 3.0);
+        let op = OwnedLinearOperator {
+            data: Some(Data::F64(Operator::new(Base::Dense(a.clone())))),
+        };
+        let b = Mat::from_fn(4, 3, |i, j| (1 + i * j) as f64);
+        let rhs = OwnedMatrix { matrix: b.clone() };
+        let bd = raw_descriptor(4, 3, b.col_stride(), 1);
+        let dd = raw_descriptor(5, 3, 8, 1);
+        let mut julia = vec![f64::NAN; 8 * 3];
+        let Some(Data::F64(o)) = op.data.as_ref() else {
+            unreachable!()
+        };
+        let req = o.apply_scratch(3, Par::Seq.shape());
+        let mut scratch = OwnedScratch::new();
+        scratch
+            .scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        let kernel = {
+            let mut probe = vec![0.0f64; 8 * 3];
+            let view = MatMut::from_column_major_slice_with_stride_mut(&mut probe, 5, 3, 8);
+            count(|| o.apply(view, b.as_ref(), Par::Seq, scratch.stack(req).unwrap()))
+        };
+        // Previous entry: an owned result matrix stored into a native owner.
+        let staged = {
+            let mut out = OwnedMatrix {
+                matrix: Mat::zeros(5, 3),
+            };
+            count(|| {
+                out.operator_workspace(&op, &rhs, &mut scratch, 5, 4, 3, 1, None)
+                    .unwrap()
+            })
+        };
+        let (alpha, beta) = (2.0f64, 0.5f64);
+        let mut call = |beta_zero: bool, julia: &mut Vec<f64>| {
+            count(|| {
+                operator_mul_into(
+                    julia.as_mut_ptr().cast(),
+                    dd.as_ptr(),
+                    b.as_ptr().cast(),
+                    bd.as_ptr(),
+                    &op,
+                    false,
+                    (&alpha as *const f64).cast(),
+                    (&beta as *const f64).cast(),
+                    false,
+                    beta_zero,
+                    Some(&mut scratch),
+                    None,
+                )
+                .unwrap()
+            })
+        };
+        assert_eq!(call(true, &mut julia), kernel);
+        let expected = &a * &b * alpha;
+        for j in 0..3 {
+            for i in 0..5 {
+                assert!((julia[i + 8 * j] - expected[(i, j)]).abs() < 1e-12);
+            }
+            assert!(julia[5 + 8 * j].is_nan());
+        }
+        assert_eq!(call(false, &mut julia), kernel + 1);
+        assert_eq!(staged, kernel + 1);
+    }
+    #[test]
     fn query_rejects_bad_metadata_and_output_addresses() {
         let op = OwnedLinearOperator {
             data: Some(Data::F64(Operator::new(Base::Dense(Mat::identity(2, 2))))),

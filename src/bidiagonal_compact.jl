@@ -302,6 +302,14 @@ function _basis_mul_native!(dest, q, a, alpha, beta, right; scratch, team)
     end
     return dest
 end
+# Working scalar of a basis product: operands and destination only; the
+# coefficients convert to it.
+function _basis_mul_scalar(dest, q, a, alpha, beta)
+    P=promote_type(eltype(q), _reflector_type(eltype(a)), eltype(dest))
+    P<:_NativeScalar && promote_type(P, typeof(alpha), typeof(beta))<:_NativeScalar ||
+        throw(ArgumentError("unsupported compact basis product scalar"))
+    return P
+end
 function _basis_mul!(dest, q, a, alpha, beta, right; scratch = nothing, team = nothing)
     lock(_matrix_lock) do
         _check_writable(dest)
@@ -314,13 +322,7 @@ function _basis_mul!(dest, q, a, alpha, beta, right; scratch = nothing, team = n
         )
         native=_basis_mul_native!(dest, q, a, alpha, beta, right; scratch, team)
         isnothing(native)||return dest
-        P=promote_type(
-            eltype(q),
-            _reflector_type(eltype(a)),
-            eltype(dest),
-            typeof(alpha),
-            typeof(beta),
-        )
+        P=_basis_mul_scalar(dest, q, a, alpha, beta)
         out=_basis_apply(q, a, right; T = P, scratch, team)
         result=dest isa AbstractVector ? vec(out) : out
         combined=iszero(beta) ? alpha .* result : alpha .* result .+ beta .* Array(dest)
@@ -456,13 +458,7 @@ function _basis_mul_requirement(dest, q, a, alpha, beta, right; team = nothing)
         size(dest)==expected||throw(
             DimensionMismatch("compact basis destination shape mismatch"),
         )
-        P=promote_type(
-            eltype(q),
-            _reflector_type(eltype(a)),
-            eltype(dest),
-            typeof(alpha),
-            typeof(beta),
-        )
+        P=_basis_mul_scalar(dest, q, a, alpha, beta)
         P<:_NativeScalar||throw(ArgumentError("unsupported compact basis product scalar"))
         return _basis_requirement(
             q,
