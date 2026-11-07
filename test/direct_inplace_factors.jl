@@ -167,7 +167,12 @@ _stored(S, uplo) =
             @test F' \ b ≈ X' \ b rtol = _tol(T)
             @test Matrix(inv(F)) ≈ inv(X) rtol = _tol(T) atol = _tol(T)
         end
-        @test_throws ArgumentError det(F)
+        # Determinants come from R's diagonal and the reflection count.
+        if m == n
+            @test det(F) ≈ det(X) rtol = _tol(T)
+        else
+            @test_throws DimensionMismatch det(F)
+        end
         # Rank-truncated solves run the retained factor's kernel.
         Bm = T.(reshape(1:(2m), m, 2))
         for (atol, rtol) in ((0, 1e-3), (1e3, 0), (0, 0))

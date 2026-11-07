@@ -42,7 +42,7 @@ and adjoint, on B's own storage), the destructive `LinearAlgebra.inv!(F)`
 Qbasis/Qcoeff/packed`, `q` (full LU), `D` (LDLᴴ, Bunch–Kaufman),
 `regularization_count` (Cholesky, LDLᴴ), `rook` and
 `inertia` (Bunch–Kaufman), `reconstruct(F)`/`Matrix(F)`/`FaerMatrix(F)` and their
-typed forms, `inv`, `pinv` (QR), and `det/logabsdet/logdet` (all but QR,
+typed forms, `inv`, `pinv` (QR), and `det/logabsdet/logdet` (QR from R's diagonal and the reflection count,
 natively) read A's storage. `copy(F)` copies A and F's buffers into a new direct
 factor. Other retained-factor operations (linear-operator and
 preconditioner use, mixed-scalar promotion, rectangular-LU or
@@ -535,11 +535,6 @@ end
 # det(A) (U's diagonal, L's twice, D, or B's block determinants) times the
 # permutation signs. A singular LU or Bunch–Kaufman factor gives (-Inf, 0).
 function LinearAlgebra.logabsdet(f::FaerInPlaceFactorization{T,K}) where {T,K}
-    K in (:qr, :pivoted_qr) && throw(
-        ArgumentError(
-            "logabsdet/det are not provided for in-place QR; use the default qr! result",
-        ),
-    )
     LinearAlgebra.checksquare(f)
     LinearAlgebra.issuccess(f) ||
         K in (:lu, :full_lu, :bunchkaufman) ||
