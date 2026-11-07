@@ -216,6 +216,38 @@ split block representation. `F.packed` is always lower-oriented. Failed
 allowed singular full-pivot LU/block LDLT write the available packed factors.
 These entry points allocate factors and writeback buffers.
 
+## 自己随伴分解の Julia 規約
+
+```julia
+using Colmat, LinearAlgebra
+S = [1e-3 1 0; 1 1e-3 100; 0 100 1e-3]
+F = bunchkaufman(Hermitian(FaerMatrix(S)), true)   # rook ピボット
+@assert F.rook && Matrix(F.L * F.D * F.L') ≈ S[F.p, F.p]
+@assert inertia(F) == inertia(bunchkaufman(Hermitian(S), true))
+G = cholesky(FaerMatrix([4.0 1; 2 3]); check = false)  # 非対称入力
+@assert G.info == -1 && !issuccess(G)
+C = FaerMatrix(ComplexF64[4 1+2im; 1+2im 3])
+@assert cholesky(Symmetric(C); check = false).info == -1
+```
+
+- `bunchkaufman[!](A, rook=false; check, team)` は Julia と同じ位置引数 `rook` を受け、
+  `true` で faer の rook ピボット（`PivotingStrategy::Rook`）を使います。`false` は従来どおり
+  faer 既定の `PartialDiag` で、LAPACK の古典的 Bunch–Kaufman（faer の `Partial`）とは
+  ピボット列が異なり得ます。`F.rook` は選んだ戦略を返し、`copy` と昇格求解の再分解でも保持されます。
+- `inertia(F; atol, rtol)` は `F.D` の 1×1/2×2 ブロックから Julia と同じ許容規則で
+  `(正, 負, 零)` 固有値数を数えます。`F.D` を密に取り出すため O(n²) の一時領域を使います。
+- `cholesky(A; check=false)` は非 Hermitian 入力に対して Julia と同様 `info == -1` の
+  失敗因子を返します（`check=true` は `PosDefException(-1)`）。`cholesky!` はこのとき入力を変更しません。
+  失敗因子は数値因子を保持しないため、成分取り出しはエラーになります。`F.UL` は `uplo` 側の三角因子です。
+- 複素 `Symmetric` ラッパーは、格納三角（対角を含む）が実数のとき Hermitian として分解します。
+  それ以外の複素対称（非 Hermitian）行列は、`cholesky` では Julia と同じく `info == -1`、
+  `ldlt`/`bunchkaufman` では `ArgumentError` です。t4a-faer の LDLᴴ/LBLᴴ は自己随伴専用で、
+  LAPACK `zsytrf` 相当の転置対称分解を提供しないためです。
+- `F.uplo` は Julia の `Char` ではなく `Symbol`（`:L`/`:U`）です。LDLT/Bunch–Kaufman は
+  常に下三角向きの `F.L` を返し、Julia の `uplo='U'` における `F.U`（`A[p,p] = U D Uᴴ`）は
+  提供しません。密な `ldlt(A)` は Julia 標準には無く（`SymTridiagonal`・疎のみ）、Colmat では
+  ピボットなし LDLᴴ として Hermitian 入力を受けます。`cholesky[!](A, NoPivot())` も同じ native 経路です。
+
 ## SVD workspace, teams and destructive entry points
 
 ```julia

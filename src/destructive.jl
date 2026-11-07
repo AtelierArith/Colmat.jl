@@ -100,22 +100,31 @@ function full_piv_lu!(a::FaerMatrix; check::Bool = true, team = nothing)
 end
 for fn in (:ldlt, :bunchkaufman)
     bang=Symbol(fn, :!)
-    @eval function LinearAlgebra.$bang(a::FaerMatrix; check::Bool = true, team = nothing)
+    # `bunchkaufman!(A, rook=false)` keeps Julia's positional rook argument.
+    pivot=fn===:bunchkaufman ? (Expr(:kw, :(rook::Bool), false),) : ()
+    forward=fn===:bunchkaufman ? (:rook,) : ()
+    @eval function LinearAlgebra.$bang(
+        a::FaerMatrix,
+        $(pivot...);
+        check::Bool = true,
+        team = nothing,
+    )
         lock(_matrix_lock) do
-            return _factor_writeback!(a, LinearAlgebra.$fn(a; check, team))
+            return _factor_writeback!(a, LinearAlgebra.$fn(a, $(forward...); check, team))
         end
     end
     for W in (:Hermitian, :Symmetric)
         bound=W===:Symmetric ? Real : Any
         @eval function LinearAlgebra.$bang(
-            a::LinearAlgebra.$W{T,<:FaerMatrix};
+            a::LinearAlgebra.$W{T,<:FaerMatrix},
+            $(pivot...);
             check::Bool = true,
             team = nothing,
         ) where {T<:$bound}
             lock(_matrix_lock) do
                 return _factor_writeback!(
                     parent(a),
-                    LinearAlgebra.$fn(a; check, team);
+                    LinearAlgebra.$fn(a, $(forward...); check, team);
                     upper = a.uplo=='U',
                 )
             end

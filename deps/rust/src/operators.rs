@@ -2447,7 +2447,7 @@ impl<T> std::fmt::Debug for InverseLdlt<T> {
     }
 }
 impl<T: ComplexField> InverseLdlt<T> {
-    fn block(f: &faer::linalg::solvers::Lblt<T>) -> Result<Self, String> {
+    fn block(f: &crate::lblt::Lblt<T>) -> Result<Self, String> {
         let n = f.L().nrows();
         let mut diagonal = Diag::zeros(n);
         let mut sub = Diag::zeros(n);

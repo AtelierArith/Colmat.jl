@@ -16,7 +16,10 @@ mutable struct FaerFactorization{T,K,H} <: LinearAlgebra.Factorization{T}
     dims::Tuple{Int,Int}
     info::Int
     uplo::Symbol
+    rook::Bool
 end
+FaerFactorization{T,K,H}(handle, dims, info, uplo) where {T,K,H} =
+    FaerFactorization{T,K,H}(handle, dims, info, uplo, false)
 
 _native_argument(f::FaerFactorization) = _handle(f)
 _is_native_owner(::FaerFactorization) = true
@@ -53,6 +56,7 @@ function _factor(
     check = true,
     uplo = :L,
     team = nothing,
+    rook::Bool = false,
 ) where {K}
     if K in (:cholesky, :ldlt, :bunchkaufman)
         size(a, 1) == size(a, 2) ||
@@ -60,12 +64,26 @@ function _factor(
     end
     lock(_matrix_lock) do
         h = RustCrate.OwnedFactor()
+        code = _construction_code(K, code, rook)
         info = Int(_initialize_dense_factor(h, a, code, uplo === :L, team))
         if check && info != 0
             K === :cholesky && throw(LinearAlgebra.PosDefException(info))
             throw(LinearAlgebra.SingularException(info))
         end
-        return FaerFactorization{Float64,K,typeof(h)}(h, size(a), info, uplo)
+        return FaerFactorization{Float64,K,typeof(h)}(h, size(a), info, uplo, rook)
+    end
+end
+# Native construction code 8 selects faer's rook strategy for block LDLᴴ.
+_construction_code(K, code, rook) = K === :bunchkaufman && rook ? 8 : code
+
+# Julia's `cholesky(A; check=false)` returns an unsuccessful factor with
+# `info == -1` for non-Hermitian input. No numerical factor is stored.
+function _non_hermitian_cholesky(a::FaerMatrix{T}, check::Bool, handle) where {T}
+    LinearAlgebra.checksquare(a)
+    check && throw(LinearAlgebra.PosDefException(-1))
+    lock(_matrix_lock) do
+        h = handle()
+        return FaerFactorization{T,:cholesky,typeof(h)}(h, size(a), -1, :L, false)
     end
 end
 
@@ -101,7 +119,8 @@ const _FaerSelfAdjoint = Union{
 }
 _uplo(a::_FaerSelfAdjoint) = a.uplo == 'L' ? :L : :U
 function LinearAlgebra.cholesky(a::FaerMatrix{Float64}; check::Bool = true, team = nothing)
-    LinearAlgebra.issymmetric(a) || throw(LinearAlgebra.PosDefException(-1))
+    LinearAlgebra.issymmetric(a) ||
+        return _non_hermitian_cholesky(a, check, RustCrate.OwnedFactor)
     return _factor(a, Val(:cholesky), 4; check, team)
 end
 LinearAlgebra.cholesky(a::_FaerSelfAdjoint; check::Bool = true, team = nothing) =
@@ -112,17 +131,31 @@ function LinearAlgebra.ldlt(a::FaerMatrix{Float64}; check::Bool = true, team = n
 end
 LinearAlgebra.ldlt(a::_FaerSelfAdjoint; check::Bool = true, team = nothing) =
     _factor(parent(a), Val(:ldlt), 5; check, team, uplo = _uplo(a))
+"""
+    bunchkaufman(A::FaerMatrix, rook=false; check=true, team=nothing)
+
+Compute t4a-faer's pivoted block LDLᴴ of Hermitian `A` (or a Hermitian/real
+Symmetric wrapper). `rook=true` selects faer's rook pivoting; `false` keeps
+faer's default partial-diagonal Bunch–Kaufman. `check=false` returns a factor
+with `info > 0` for a singular block diagonal. Properties: `L`, `D`, `p`, `P`,
+`packed`, `rook`, `uplo`; `inertia(F)` counts eigenvalue signs.
+"""
 function LinearAlgebra.bunchkaufman(
-    a::FaerMatrix{Float64};
+    a::FaerMatrix{Float64},
+    rook::Bool = false;
     check::Bool = true,
     team = nothing,
 )
     LinearAlgebra.issymmetric(a) ||
         throw(ArgumentError("block LDLT requires self-adjoint input"))
-    return _factor(a, Val(:bunchkaufman), 6; check, team)
+    return _factor(a, Val(:bunchkaufman), 6; check, team, rook)
 end
-LinearAlgebra.bunchkaufman(a::_FaerSelfAdjoint; check::Bool = true, team = nothing) =
-    _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a))
+LinearAlgebra.bunchkaufman(
+    a::_FaerSelfAdjoint,
+    rook::Bool = false;
+    check::Bool = true,
+    team = nothing,
+) = _factor(parent(a), Val(:bunchkaufman), 6; check, team, uplo = _uplo(a), rook)
 
 function _permutation(f::FaerFactorization{T,K}, column::Bool = false) where {T,K}
     n = size(f, column || K === :pivoted_qr ? 2 : 1)
@@ -145,6 +178,8 @@ function Base.getproperty(f::FaerFactorization{T,K}, name::Symbol) where {T,K}
         return _factor_part(f, 9, (rows, k))
     elseif name === :L && K in (:lu, :full_lu, :cholesky, :ldlt, :bunchkaufman)
         return _factor_part(f, 1, (m, k))
+    elseif name === :UL && K === :cholesky
+        return getfield(f, :uplo) === :U ? f.U : f.L
     elseif name === :U
         K === :cholesky && return copy(adjoint(f.L))
         K in (:lu, :full_lu) && return _factor_part(f, 2, (k, n))
@@ -168,13 +203,16 @@ end
 function Base.propertynames(f::FaerFactorization{T,K}, private::Bool = false) where {T,K}
     props =
         K in (:lu, :full_lu) ? (:L, :U, :p, :P) :
-        K in (:qr, :pivoted_qr) ? (:Q, :Qthin, :R) : K === :cholesky ? (:L, :U) : (:L, :D)
+        K in (:qr, :pivoted_qr) ? (:Q, :Qthin, :R) : K === :cholesky ? (:L, :U, :UL) :
+        (:L, :D)
     K in (:lu, :full_lu, :qr, :pivoted_qr, :cholesky, :ldlt, :bunchkaufman) &&
         (props=(props..., :packed))
     K in (:qr, :pivoted_qr) && (props=(props..., :Qbasis, :Qcoeff))
     K === :full_lu && (props = (props..., :q))
     K in (:pivoted_qr, :bunchkaufman) && (props = (props..., :p))
-    return private ? (props..., :handle, :dims, :info, :uplo) : (props..., :info, :uplo)
+    K === :bunchkaufman && (props = (props..., :rook))
+    return private ? (props..., :handle, :dims, :info, :uplo, :rook) :
+           (props..., :info, :uplo)
 end
 
 """Reconstruct a new Rust-owned matrix from a reusable faer factorization."""
@@ -185,7 +223,7 @@ function Base.copy(f::FaerFactorization{Float64,K}) where {K}
     lock(_matrix_lock) do
         h = RustCrate.OwnedFactor()
         _native_call(RustCrate.clone_factor, h, f)
-        return FaerFactorization{Float64,K,typeof(h)}(h, size(f), f.info, f.uplo)
+        return FaerFactorization{Float64,K,typeof(h)}(h, size(f), f.info, f.uplo, f.rook)
     end
 end
 function Base.deepcopy_internal(f::FaerFactorization{Float64}, dict::IdDict)
