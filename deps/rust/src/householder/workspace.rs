@@ -266,6 +266,7 @@ pub fn householder_mul_into(
 mod tests {
     use super::super::make;
     use super::*;
+    use crate::allocation_probe;
     use faer::{c32, c64, Mat};
     fn exercise<T: ComplexField + super::super::RealDivide>() {
         let input = (0..7)
@@ -369,6 +370,121 @@ mod tests {
             }
         }
         team.team_close().unwrap();
+    }
+    // Column-major Julia buffer descriptor (owner kind 4), f64.
+    fn raw(m: usize, n: usize, ld: isize) -> Vec<isize> {
+        vec![4, 0, 1, m as isize, 0, 1, n as isize, 0, 0, m as isize, n as isize, 1, ld, 1]
+    }
+    #[test]
+    fn mul_into_writes_julia_memory_with_caller_scratch_without_allocating() {
+        let input = (0..5).map(|i| (i + 1) as f64).collect::<Vec<_>>();
+        let owner = OwnedHouseholder {
+            data: Some(ReflectionData::F64(make(&input))),
+        };
+        let s = match owner.data().unwrap() {
+            ReflectionData::F64(s) => s.clone(),
+            _ => unreachable!(),
+        };
+        let h = Mat::from_fn(5, 5, |i, j| {
+            (if i == j { 1.0 } else { 0.0 }) - s.basis[(i, 0)] * s.basis[(j, 0)] / s.tau
+        });
+        let b = Mat::from_fn(5, 3, |i, j| (1 + i + 2 * j) as f64);
+        let bd = raw(5, 3, b.col_stride());
+        let mut julia = vec![f64::NAN; 7 * 3];
+        let dd = raw(5, 3, 7);
+        let req = requirement(&s, 3, false, false);
+        let mut scratch = OwnedScratch::new();
+        scratch
+            .scratch_reserve(req.size_bytes(), req.align_bytes())
+            .unwrap();
+        let (alpha, beta) = (2.0f64, 0.5f64);
+        let src = b.as_ptr().cast::<u8>();
+        let call = |julia: &mut Vec<f64>, beta_zero: bool, scratch: &mut OwnedScratch| {
+            householder_mul_into(
+                julia.as_mut_ptr().cast(),
+                dd.as_ptr(),
+                src,
+                bd.as_ptr(),
+                &owner,
+                false,
+                (&alpha as *const f64).cast(),
+                (&beta as *const f64).cast(),
+                false,
+                beta_zero,
+                Some(scratch),
+                None,
+            )
+            .unwrap()
+        };
+        // beta == 0: B is copied into C and reflected there; C (NaN) is not read.
+        let count = allocation_probe::count(|| call(&mut julia, true, &mut scratch));
+        assert_eq!(count, 0);
+        let expected = &h * &b * alpha;
+        for j in 0..3 {
+            for i in 0..5 {
+                assert!((julia[i + 7 * j] - expected[(i, j)]).abs() < 1e-12);
+            }
+            assert!(julia[5 + 7 * j].is_nan() && julia[6 + 7 * j].is_nan());
+        }
+        // beta != 0: exactly one native product buffer.
+        let before = Mat::from_fn(5, 3, |i, j| julia[i + 7 * j]);
+        let count = allocation_probe::count(|| call(&mut julia, false, &mut scratch));
+        assert_eq!(count, 1);
+        let expected = &h * &b * alpha + &before * beta;
+        for j in 0..3 {
+            for i in 0..5 {
+                assert!((julia[i + 7 * j] - expected[(i, j)]).abs() < 1e-10);
+            }
+        }
+        // In place (null source) also runs on the caller scratch only.
+        let mut c = b.clone();
+        let cd = raw(5, 3, c.col_stride());
+        let count = allocation_probe::count(|| {
+            householder_mul_into(
+                c.as_ptr_mut().cast(),
+                cd.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                &owner,
+                false,
+                std::ptr::null(),
+                std::ptr::null(),
+                false,
+                true,
+                Some(&mut scratch),
+                None,
+            )
+            .unwrap()
+        });
+        assert_eq!(count, 0);
+        assert!((&c - &h * &b).norm_max() < 1e-12);
+        // A short scratch fails before the destination is written.
+        if req.size_bytes() > 0 {
+            let mut short = OwnedScratch::new();
+            short
+                .scratch_reserve(req.size_bytes() - 1, req.align_bytes())
+                .unwrap();
+            let saved = julia.clone();
+            assert!(householder_mul_into(
+                julia.as_mut_ptr().cast(),
+                dd.as_ptr(),
+                src,
+                bd.as_ptr(),
+                &owner,
+                false,
+                (&alpha as *const f64).cast(),
+                (&beta as *const f64).cast(),
+                false,
+                true,
+                Some(&mut short),
+                None,
+            )
+            .is_err());
+            assert!(julia
+                .iter()
+                .zip(&saved)
+                .all(|(x, y)| x.to_bits() == y.to_bits()));
+        }
     }
     #[test]
     fn external_scratch_f32() {
