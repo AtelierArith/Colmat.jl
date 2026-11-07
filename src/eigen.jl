@@ -144,6 +144,17 @@ construct scratch with `side=:both` to include both packed real outputs.
 Both modes accept reusable scratch and explicit teams. β=0 denotes an infinite
 eigenvalue when α≠0; α=β=0 is indeterminate. The homogeneous option applies to
 general native matrix pairs; bang routines retain their usual return types.
+
+Conventions compared with `LinearAlgebra.eigen(A, B)` (LAPACK `ggev`):
+- values are always complex, also for real pencils with real spectra (LAPACK
+  returns a real vector when every `alphai` is zero), as for `eigen(A)`;
+- an infinite eigenvalue of a real pencil is `Inf + 0im` (LAPACK: real `Inf`);
+  complex pencils give `NaN + NaN*im`, the same complex quotient as Julia;
+- eigenvectors have unit 2-norm (LAPACK scales `max |re| + |im|` to one);
+- `sortby` defaults to the same `(real, imag)` order;
+- faer's generalized driver does not balance (LAPACK `ggev` permutes with
+  `ggbal`); its QZ and generalized Hessenberg controls are set with
+  [`with_schur_tuning`](@ref).
 """
 function LinearAlgebra.eigen(
     a::FaerMatrix{Float64},
