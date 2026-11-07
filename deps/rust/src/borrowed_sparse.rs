@@ -17,19 +17,19 @@ use rustcall_julia_macros::julia;
 
 /// Raw CSC parts: `n + 1` column pointers, `k` row indices and `k` values.
 #[derive(Clone, Copy)]
-struct Raw {
-    m: usize,
-    n: usize,
-    ptr: *const usize,
-    idx: *const usize,
-    val: *const u8,
-    k: usize,
+pub(crate) struct Raw {
+    pub(crate) m: usize,
+    pub(crate) n: usize,
+    pub(crate) ptr: *const usize,
+    pub(crate) idx: *const usize,
+    pub(crate) val: *const u8,
+    pub(crate) k: usize,
 }
 
 // SAFETY: `ptr` addresses `n + 1` and `idx` `k` initialized `usize` values
 // that Julia keeps alive for this call. The structure is fully validated here,
 // so faer's unchecked invariants hold.
-unsafe fn symbolic<'a>(r: Raw) -> Result<SymbolicSparseColMatRef<'a, usize>, String> {
+pub(crate) unsafe fn symbolic<'a>(r: Raw) -> Result<SymbolicSparseColMatRef<'a, usize>, String> {
     let len = r.n.checked_add(1).ok_or("column pointer overflow")?;
     if r.ptr.is_null() {
         return Err("missing column pointers".into());
@@ -58,7 +58,7 @@ unsafe fn symbolic<'a>(r: Raw) -> Result<SymbolicSparseColMatRef<'a, usize>, Str
 }
 
 // SAFETY: as `symbolic`, and `val` addresses `k` initialized `T` values.
-unsafe fn numeric<'a, T>(r: Raw) -> Result<SparseColMatRef<'a, usize, T>, String> {
+pub(crate) unsafe fn numeric<'a, T>(r: Raw) -> Result<SparseColMatRef<'a, usize, T>, String> {
     let s = symbolic(r)?;
     let val: &[T] = if r.k == 0 {
         &[]

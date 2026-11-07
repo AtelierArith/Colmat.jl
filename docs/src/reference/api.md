@@ -15,7 +15,7 @@ Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArray
 | SVD | `svd`, `svd!`, `svdvals`, `svdvals!` | [SVD](../manual/dense.md) |
 | 固有値問題 | `eigen`, `eigvals`, `eigvecs`, `hessenberg`, `schur`, `ordschur`, `balance` | [スペクトル](../manual/spectral.md) |
 | 部分スペクトル | `partial_eigen`, `partial_self_adjoint_eigen`, `partial_svd` | [部分スペクトル](../manual/spectral.md) |
-| 疎配列・構造 | `FaerSparseMatrix`, `FaerSparsity`, `compressed_storage`, `pattern_union`, `nonzeros` | [疎行列](../manual/sparse.md) |
+| 疎配列・構造 | `FaerSparseMatrix`, `FaerSparsity`, `compressed_storage`, `pattern_union`, `nonzeros`, `FaerSparseProductPlan` | [疎行列](../manual/sparse.md) |
 | 疎分解・ordering | `FaerSparseSymbolic`, `FaerSparseFactorization`, `amd`, `colamd`, `factorize` | [疎直接法](../manual/sparse.md) |
 | 疎 QR | `qr`, `qr!`, `ldiv!`, `rdiv!`, `svdvals`, `rank`, `pinv` | [疎 QR](../manual/sparse-qr.md) |
 | 反復法 | `cg`, `bicgstab`, `lsmr` と対応する `!` 形式 | [反復法](../manual/operators.md) |
