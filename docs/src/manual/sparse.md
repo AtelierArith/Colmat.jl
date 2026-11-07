@@ -176,6 +176,48 @@ ldiv!(UpperTriangular(transpose(L)), B; scratch=work)   # Lᵀ x = B を B 上�
 
 疎行列の `lu`・`cholesky`・`qr` は再利用可能な `FaerSparseFactorization` を返します。
 
+### 疎行列全体の broadcast・`map`
+
+`FaerSparseMatrix` を含む broadcast と `map`／`map!` は、SparseArrays と同じ結果規約に従います。
+結果は疎行列で、`f` が生成したゼロは格納しません（入力の格納ゼロも同様です）。
+結果の数値型が4型のいずれかなら `FaerSparseMatrix` を返し、CSC／CSR 形式は最初の疎入力に合わせます。
+
+```julia
+S = FaerSparseMatrix(sparse([1.0 0 -2; 0 0 3]); format=:csr)
+A = abs.(S)                       # 値だけを変換。構造は S のコピー
+B = 2 .* S .^ 2                   # 融合した式も同じ経路
+C = map(x -> x / 4, S)
+v = nonzeros(S)
+S .*= 0.5                         # 構造が変わらなければ値を一括で書き戻す
+@assert isopen(v)                 # 既存の値ビューも有効なまま
+D = S .+ 1                        # f(0) ≠ 0。SparseArrays と同じく全要素を格納
+mask = S .> 0                     # Bool は native 型ではないため SparseMatrixCSC
+```
+
+次の条件をすべて満たす場合は、native の高速経路で計算します。
+
+- 疎入力が1つの `FaerSparseMatrix` だけ（同じ行列の複数回参照は可）
+- ほかの引数が `Number`／`Ref`／0次元配列のスカラー
+- `f(0, スカラー...)` がゼロ（`S .* Inf` は `0*Inf` が NaN になるため対象外）
+- 結果の数値型が native 型
+
+この経路では、格納値を Julia に1回だけ転送し、Julia 側で `f` を適用します。
+その値を元の疎構造のコピーに付けて新しい owner を作ります。
+出力先が入力自身の `S .= f.(S)`／`S .*= α` では値を一括で書き戻します。
+このとき nnz・格納順・値ビューは維持されます。
+ゼロが生じた場合は `dropzeros!` 相当の処理で構造を変え、以前の値ビューを失効させます。
+出力の型への変換に失敗した場合（実数行列に複素数を書く等）は、書き込み前に例外を投げます。
+400×400・密度 2% の `abs.(S)` では、Julia ヒープの割り当てが約 230 MB から約 33 KB になりました。
+
+上記以外（`f(0)≠0`、複数の疎入力、密配列・`SparseMatrixCSC` との混在）では、
+各 native 入力を `SparseMatrixCSC` に1回変換して SparseArrays の broadcast を使います。
+結果の数値型が native なら `FaerSparseMatrix` に戻し、それ以外（`Bool`・`BigFloat` 等）は `SparseMatrixCSC` のまま返します。
+`S .= x` のようなスカラー代入は Base の規約どおり `fill!` になります。
+`x == 0` では構造を保ち、非ゼロでは暗黙のゼロ位置を埋めることになるため `ArgumentError` です。
+密な出力先への `D .+= S` は、疎入力を変換してから Julia の broadcast で計算します。
+`map(f, A, B...)` は全引数が同じサイズである必要があり、異なると `DimensionMismatch` です。
+疎行列の転置／随伴ラッパーの broadcast は、この経路の対象外です。
+
 ## symbolic analysis と数値分解
 
 `A \ b` は正方行列なら LU、縦長なら QR による最小二乗求解を選びます。
@@ -374,7 +416,7 @@ sub_into!(D, D, S)                # 入出力の共有にも対応
 入力は出力の数値型と CSC／CSR 形式にコピー・変換してから native カーネルで計算し、
 出力の型・構造・格納数を維持します。値ビューも失効しません。
 通常の Julia CSC と native の転置／随伴を入力に使えます。
-一般の `D .+= S` などの broadcast は、この専用 API と同一の実装ではありません。
+一般の broadcast（`D .+= S` 等）はこの専用 API とは別の実装で、SparseArrays と同じくゼロを除去し構造を変えることがあります。
 
 native 配列に対する `givens` は faer で係数を計算し、Julia 標準の
 
@@ -387,8 +429,8 @@ native 配列に対する `givens` は faer で係数を計算し、Julia 標準
 
 `rowvals`・`getcolptr` は CSC のみ対応し、返す添字配列は独立したコピーです。
 CSR の行ポインタ・列添字には `compressed_storage` を使ってください。
-疎分解の残りの機能・低水準制御は引き続き実装対象です。汎用 broadcast/map は
-専用の疎 native 経路ではなく、Julia の汎用処理や密配列の結果になる場合があります。
+疎分解の残りの機能・低水準制御は引き続き実装対象です。broadcast/`map` の結果規約は
+「疎行列全体の broadcast・`map`」を参照してください。
 
 `full_piv_lu`、`ldlt`、`bunchkaufman`、一般・自己随伴・一般化の
 `eigen`／`eigvals`、三角行列の求解・逆行列、`det`／`logabsdet`／`logdet`、
