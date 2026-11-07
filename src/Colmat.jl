@@ -103,6 +103,7 @@ export FaerSpectralFactor,
     filldiagonal!,
     FaerMatrix,
     FaerFactorization,
+    FaerInPlaceFactorization,
     reserve!,
     capacity,
     with_capacity,
@@ -289,6 +290,7 @@ include("sparse_construction_workspace.jl")
 include("spectral_solve.jl")
 include("dense_solve_team.jl")
 include("dense_solve_workspace.jl")
+include("direct_factorizations.jl")
 include("sparse_direct_workspace.jl")
 include("sparse_triangular_workspace.jl")
 include("sparse_product_plan.jl")

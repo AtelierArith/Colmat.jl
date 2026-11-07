@@ -1192,6 +1192,8 @@ pub mod pivoted_cholesky;
 
 pub mod lblt;
 
+pub mod direct_factors;
+
 mod sparse_lu_components;
 mod sparse_lu_owned;
 
