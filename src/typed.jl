@@ -719,32 +719,42 @@ LinearAlgebra.eigvals(
     _balanced_check(permute, scale) ? _balanced_eigen(a, false; sortby, scratch, team) :
     _general_evd_default_path(scratch, team) ? _typed_eigen(a; vectors = false, sortby) :
     _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
-LinearAlgebra.eigen(
+function LinearAlgebra.eigen(
     a::_ExtraSelfAdjoint;
     native::Bool = false,
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
-) =
-    native ?
+    alg = nothing,
+)
+    alg===nothing || return _selfadjoint_alg(alg; native) do
+        LinearAlgebra.eigen(a; native, sortby, scratch, team)
+    end
+    return native ?
     _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
     _evd_default_path(scratch, team) ?
     _typed_eigen(parent(a); hermitian = true, lower = _uplo(a)===:L, sortby) :
     _evd_workspace_result(a; sortby, scratch, team)
-LinearAlgebra.eigvals(
+end
+function LinearAlgebra.eigvals(
     a::_ExtraSelfAdjoint;
     sortby = _eigensort,
     scratch = nothing,
     team = nothing,
-) =
-    _evd_default_path(scratch, team) ?
-    _typed_eigen(
+    alg = nothing,
+)
+    alg===nothing || return _selfadjoint_alg(alg) do
+        LinearAlgebra.eigvals(a; sortby, scratch, team)
+    end
+    return _evd_default_path(scratch, team) ?
+           _typed_eigen(
         parent(a);
         vectors = false,
         hermitian = true,
         lower = _uplo(a)===:L,
         sortby,
     ) : _evd_workspace_result(a; vectors = false, sortby, scratch, team)
+end
 function LinearAlgebra.eigen(
     a::FaerMatrix{T},
     b::FaerMatrix{T};
