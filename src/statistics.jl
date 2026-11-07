@@ -1,46 +1,51 @@
 # Native mean/variance accept NaNs, unlike constructors used for factorizations.
-# Snapshot to exact primitive buffers without re-entering a finite-only loader.
+# The kernels borrow the owner storage (or view) directly; no Julia snapshot.
+# Reduction axes of the borrowed m x n matrix (vectors borrow as n x 1).
+const _STATS_NONE=Int32(0)
+const _STATS_ROWS=Int32(1)
+const _STATS_COLS=Int32(2)
+const _STATS_ALL=Int32(3)
 function _statistics_layout(a, dims)
-    _rotation_open(a)
-    data=a isa AbstractVector ? Vector(a) : Matrix(a)
     scalar=dims isa Colon
     axes=scalar ? ntuple(identity, ndims(a)) : dims isa Integer ? (dims,) : dims
     axes isa Tuple && all(d->d isa Integer && d>0, axes) ||
         throw(ArgumentError("statistics dims must be positive integers"))
     shape=ntuple(d->d in axes ? 1 : size(a, d), ndims(a))
-    if all(d->d in axes, 1:ndims(a))
-        return reshape(data, length(data), 1), 1, shape, scalar
+    m, n=ndims(a)==1 ? (length(a), 1) : size(a)
+    axis=if all(d->d in axes, 1:ndims(a))
+        _STATS_ALL
     elseif ndims(a)==2 && 1 in axes
-        return data, 1, shape, scalar
+        _STATS_ROWS
     elseif ndims(a)==2 && 2 in axes
-        return data, 2, shape, scalar
+        _STATS_COLS
+    else
+        _STATS_NONE
     end
-    return reshape(data, 1, length(data)), 1, shape, scalar
+    len=axis==_STATS_ALL ? 1 : axis==_STATS_ROWS ? n : axis==_STATS_COLS ? m : m*n
+    return axis, len, shape, scalar
 end
 function _statistics_policy(nan)
     nan in (:propagate, :ignore) ||
         throw(ArgumentError("nan must be :propagate or :ignore"))
     return nan===:ignore
 end
-function _statistics_native(
-    data::AbstractMatrix{T},
-    axis,
-    ignore,
-    means = nothing,
-) where {T}
-    variance=!isnothing(means)
-    output=zeros(variance ? _realtype(T) : T, size(data, axis==1 ? 2 : 1))
-    meanptr=variance ? Ptr{UInt8}(pointer(means)) : Ptr{UInt8}(C_NULL)
-    GC.@preserve data output means _native_call(
-        RustCrate.statistics_reduce,
-        Ptr{UInt8}(pointer(data)),
-        UInt(size(data, 1)),
-        UInt(size(data, 2)),
+# W is the working scalar; means, when supplied, hold W values.
+function _statistics_native(a, ::Type{W}, axis, len, ignore, corrected, means) where {W}
+    variance=!isnothing(corrected)
+    output=Vector{variance ? _realtype(W) : W}(undef, len)
+    p, d=_view_source(a)
+    meanptr=isnothing(means) ? Ptr{UInt8}(C_NULL) : Ptr{UInt8}(pointer(means))
+    GC.@preserve d output means _native_call(
+        RustCrate.statistics_view_reduce,
+        p,
+        pointer(d),
         Ptr{UInt8}(pointer(output)),
+        UInt(len),
         meanptr,
-        _tag(T),
-        Int32(axis),
+        _tag(W),
+        axis,
         variance,
+        something(corrected, true),
         ignore,
     )
     return output
@@ -52,53 +57,52 @@ _statistics_output(result, shape, scalar) = scalar ? only(result) : reshape(resu
 Compute native faer row/column means. `dims` and return shapes follow Statistics;
 complex inputs retain their scalar type. `nan=:ignore` excludes entries with a
 NaN component; default `:propagate` keeps Julia's arithmetic behavior. Empty
-or entirely excluded slices give NaN. Native arrays/views are snapshotted to
-primitive buffers; outputs are ordinary Julia arrays or a scalar.
+or entirely excluded slices give NaN. faer's kernels read native arrays and
+strided/reversed views in place (a full reduction of a view whose entries are
+not one strided column stages one contiguous column in Rust); outputs are
+ordinary Julia arrays or a scalar.
 """
 function Statistics.mean(a::_RotationArray; dims = :, nan::Symbol = :propagate)
     lock(_matrix_lock) do
         ignore=_statistics_policy(nan)
-        data, axis, shape, scalar=_statistics_layout(a, dims)
-        return _statistics_output(_statistics_native(data, axis, ignore), shape, scalar)
+        _rotation_open(a)
+        axis, len, shape, scalar=_statistics_layout(a, dims)
+        T=eltype(a)
+        result=_statistics_native(a, T, axis, len, ignore, nothing, nothing)
+        return _statistics_output(result, shape, scalar)
     end
 end
+# Statistics.varm promotes each `x - mean` difference: full reductions return
+# the promoted real type (the data's for empty input), dims reductions store
+# into the data's real type. Promotion beyond the data scalar stages a
+# converted copy in Rust because faer's kernels take one scalar type.
 function _statistics_variance(a, m, dims, corrected, nan)
     lock(_matrix_lock) do
         ignore=_statistics_policy(nan)
+        _rotation_open(a)
         m isa _RotationArray && _rotation_open(m)
-        data, axis, shape, scalar=_statistics_layout(a, dims)
-        T=isnothing(m) ? eltype(a) :
-          promote_type(eltype(a), _reflector_type(m isa Number ? typeof(m) : eltype(m)))
-        eltype(data)===T || (data=Matrix{T}(data))
+        axis, len, shape, scalar=_statistics_layout(a, dims)
+        S=eltype(a)
+        W=promote_type(S, isnothing(m) ? S : m isa Number ? typeof(m) : eltype(m))
+        W<:_NativeScalar || throw(
+            ArgumentError("mean scalar type must promote with $S to a native scalar type"),
+        )
         means=if isnothing(m)
-            _statistics_native(data, axis, ignore)
+            nothing
         elseif scalar
             m isa Number ||
                 throw(DimensionMismatch("full-array variance requires a scalar mean"))
-            T[m]
+            W[m]
         else
             m isa AbstractArray && all(
                 d->size(m, d)==(d<=length(shape) ? shape[d] : 1),
                 1:max(ndims(m), length(shape)),
             ) || throw(DimensionMismatch("mean shape must match the reduced output shape"))
-            vec(Array{T}(m))
+            vec(Array{W}(m))
         end
-        result=_statistics_native(data, axis, ignore, means)
-        R=_realtype(T)
-        # Native varm divides by N-1 and returns 0 for singleton slices.
-        # Match Statistics and its supplied-mean arithmetic at N=0/1.
-        for i in eachindex(result)
-            slice=axis==1 ? view(data, :, i) : view(data, i, :)
-            count=ignore ? Base.count(x->!isnan(x), slice) : length(slice)
-            if count==0
-                result[i]=R(NaN)
-            elseif count==1
-                x=ignore ? first(Iterators.filter(x->!isnan(x), slice)) : only(slice)
-                result[i]=abs2(x-means[i])/R(corrected ? 0 : 1)
-            elseif !corrected
-                result[i]*=R(count-1)/R(count)
-            end
-        end
+        result=_statistics_native(a, W, axis, len, ignore, corrected, means)
+        R=scalar && !isempty(a) ? _realtype(W) : _realtype(S)
+        eltype(result)===R || (result=Vector{R}(result))
         return _statistics_output(result, shape, scalar)
     end
 end
@@ -110,8 +114,14 @@ Native faer variance with Julia's sample/population correction and real output
 for complex inputs. `nan=:ignore` counts only included entries per slice.
 Means and dimension shapes follow [`Statistics.mean`](@ref); an explicitly
 supplied mean must be scalar for a full reduction, otherwise match output shape
-(with optional trailing singleton dimensions). Supplied means promote the native
-working scalar type; variance uses its real type.
+(with optional trailing singleton dimensions). Result types follow
+`Statistics.varm`: a full reduction returns the real type of
+`promote_type(eltype(A), typeof(mean))` (the data's real type when `A` is
+empty), and a `dims` reduction keeps the data's real type. A mean that promotes
+the data scalar (for example a Float64 or complex mean for Float32 data) makes
+Rust stage one converted copy of the data; other calls read it in place. The
+promoted type must be one of the four native scalars, otherwise an
+`ArgumentError` is thrown (e.g. `BigFloat` means).
 """
 Statistics.var(
     a::_RotationArray;
