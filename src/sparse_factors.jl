@@ -19,14 +19,18 @@ factors. Explicit simplicial LU/QR additionally accept `ordering=:colamd` with
 stored pattern and retained by symbolic reuse and numeric updates. AMD tuning
 remains Cholesky-only. Auto/supernodal LU/QR accepts default/COLAMD, identity or custom column ordering.
 COLAMD accepts `dense_row`, `dense_col`, `aggressive`. QR exposes `F.p/F.pcol`.
-Cholesky and auto/supernodal LU accept faer's supernodal controls:
+Cholesky and auto/supernodal LU/QR accept faer's supernodal controls:
 `supernodal_threshold` (`supernodal_flop_ratio_threshold`, nonnegative, `algorithm=:auto`
 only; default 1.0) and `relax=[(n, z), ...]` (`SymbolicSupernodalParams.relax`, `0 ≤ z ≤ 1`;
-omitted keeps faer's default, empty disables relaxation).
+omitted keeps faer's default, empty disables relaxation). Auto/supernodal QR also
+accepts `blocking_threshold` (nonnegative integer, the dense front
+`QrParams.blocking_threshold`, default 48²), kept by the plan for reuse and `qr!`;
+QR plans and factors report `algorithm` (wide QR: its square head analysis).
 
 `scratch=FaerScratch(FaerSparseSymbolic, P; kwargs...)` supplies the ordering
-kernel workspace for Cholesky AMD, wide QR COLAMD and explicit simplicial
-`ordering=:colamd`, with the same analysis as omitting it; see
+kernel workspace for Cholesky AMD, wide QR COLAMD, explicit simplicial
+`ordering=:colamd` and the explicit simplicial QR symbolic kernels, with the
+same analysis as omitting it; see
 `scratch_requirements(FaerSparseSymbolic, P; kwargs...)` for what stays allocated.
 """
 mutable struct FaerSparseSymbolic{K,H}

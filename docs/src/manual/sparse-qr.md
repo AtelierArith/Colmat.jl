@@ -429,14 +429,25 @@ permutation and `F.Q*F.R ≈ A[F.prow,F.pcol]` holds as in SPQR.
 `F.R` is assembled directly as a sorted CSC matrix from the saved factor. No
 triplet list or extra sort pass is used.
 
-The following faer sparse QR controls are not exposed yet:
-- an arbitrary `supernodal_flop_ratio_threshold` (only `algorithm=:auto`,
-  `:simplicial` and `:supernodal` are available);
-- the supernodal `relax` amalgamation thresholds;
-- the numeric `blocking_threshold` for dense front QR.
+Auto/supernodal sparse QR (including the square head analysis of wide inputs)
+accepts faer's `supernodal_threshold` (auto only), `relax` and the numeric
+`blocking_threshold` for dense front QR, as in
+`qr(A; supernodal_threshold=0, relax=[(64, 0.8)], blocking_threshold=0)`. The
+plan keeps them for symbolic reuse and `qr!`; `plan.algorithm`/`F.algorithm`
+report the selected structure. Explicit `algorithm=:simplicial` has no supernodes
+and rejects them.
 
-faer's symbolic QR analysis takes neither a `Par` nor a caller stack. It always
-runs sequentially and allocates its own workspace.
+The explicit simplicial symbolic analysis runs faer's public kernels in
+`FaerSparseSymbolic(A; kind=:qr, algorithm=:simplicial, scratch)`. Its dense
+`F.Q`/`F.Qfull` extraction writes the implicit identity basis directly, and its
+transpose/adjoint solve uses the saved R without a transposed copy. For caller
+scratch, use `mul!(Y, F.Qoperator, X; scratch)` or
+`ldiv!(X, adjoint(F), B; scratch)`.
+
+faer's symbolic QR analysis (auto/supernodal) takes neither a `Par` nor a caller
+stack. It always runs sequentially and allocates its own workspace. This is not
+yet filed upstream; an executed reproducer is in
+[sparse-symbolic-qr-workspace](https://github.com/AtelierArith/Colmat.jl/tree/main/docs/reproducers/sparse-symbolic-qr-workspace).
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
