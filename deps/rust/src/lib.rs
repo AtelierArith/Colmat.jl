@@ -630,7 +630,13 @@ impl OwnedMatrix {
                 0 => a.sum(),
                 1 => a.norm_l2(),
                 2 => a.norm_l1(),
-                3 => a.norm_max(),
+                3 => {
+                    if a.has_nan() {
+                        f64::NAN
+                    } else {
+                        a.norm_max()
+                    }
+                }
                 4 => a.squared_norm_l2(),
                 5 => {
                     if a.nrows() != a.ncols() {
@@ -1163,6 +1169,8 @@ pub mod householder_sequence;
 pub mod operators;
 
 pub mod statistics;
+
+pub mod view_reductions;
 
 pub mod balance;
 

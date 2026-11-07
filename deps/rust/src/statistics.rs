@@ -9,7 +9,7 @@ use faer::{Mat, MatRef, Row, RowMut, RowRef};
 use rustcall_julia_macros::julia;
 
 /// Exact scalar conversions between the four native scalar types.
-trait Native: ComplexField + Copy {
+pub(crate) trait Native: ComplexField + Copy {
     const TAG: i32;
     fn parts(&self) -> (f64, f64);
     fn from_parts(re: f64, im: f64) -> Self;
@@ -60,17 +60,17 @@ complex_native!(faer::c32, f32, 2);
 complex_native!(faer::c64, f64, 3);
 
 /// Lossless promotion pairs, as produced by Julia's `promote_type`.
-fn widens(from: i32, to: i32) -> bool {
+pub(crate) fn widens(from: i32, to: i32) -> bool {
     from == to || matches!((from, to), (0, 1) | (0, 2) | (0, 3) | (1, 3) | (2, 3))
 }
 
 /// Reduction axis of the borrowed `m x n` matrix.
-const NONE: i32 = 0;
-const ROWS: i32 = 1;
-const COLS: i32 = 2;
-const ALL: i32 = 3;
+pub(crate) const NONE: i32 = 0;
+pub(crate) const ROWS: i32 = 1;
+pub(crate) const COLS: i32 = 2;
+pub(crate) const ALL: i32 = 3;
 
-fn expected_len(m: usize, n: usize, axis: i32) -> Result<usize, String> {
+pub(crate) fn expected_len(m: usize, n: usize, axis: i32) -> Result<usize, String> {
     Ok(match axis {
         NONE => m.checked_mul(n).ok_or("statistics size overflow")?,
         ROWS => n,

@@ -120,7 +120,8 @@ close(native_full)
 要素型は Float32 / Float64 / ComplexF32 / ComplexF64、親は `Array` / `Memory` に
 限り、stride 0 や重なる stride は `ArgumentError` です。`copy` / `FaerMatrix`、
 `+` / `-` / `*`（転置・随伴、native 行列やビューとの混在、型昇格を含む）、
-`FaerVector` への `mul!`、`mean` / `var`、`copyto!` の入力が借用のまま動作し、
+`FaerVector` への `mul!`、`mean` / `var`、`dot` / `norm(A,1/2/Inf)` / `sum` /
+`all(isfinite,·)` / `any(isnan,·)`、`copyto!` の入力が借用のまま動作し、
 `view` も借用を保ちます。添字・`strides`・`pointer` は親へ転送します。
 
 ```julia
