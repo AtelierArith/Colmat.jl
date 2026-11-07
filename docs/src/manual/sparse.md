@@ -362,6 +362,35 @@ G = factorize(plan, A)
 `:supernodal` です。`F.p`／`plan.p` は独立した置換、`.algorithm` は実際の分解方式、
 `.factor_storage` は確保する数値スロット数（supernodal の padding を含む）を返します。
 コピー・数値更新・混合精度の求解でも symbolic analysis の設定を引き継ぎます。
+
+faer の supernodal 制御も指定できます（疎 Cholesky と、明示 simplicial 以外の疎 LU）。
+
+- `supernodal_threshold=r`: faer の `supernodal_flop_ratio_threshold`。`algorithm=:auto`
+  でのみ有効な非負の実数で、既定は faer と同じ 1.0 です。`0` はほぼ常に supernodal、
+  `Inf` は常に simplicial を選びます。`FaerSparseSymbolic(A; scratch)` の AMD 経路でも
+  同じ選択になります。
+- `relax=[(n, z), ...]`: faer の `SymbolicSupernodalParams.relax`。隣接 supernode の
+  合計列数が `n` 以下で、併合後のゼロの割合が `z`（`0 ≤ z ≤ 1`）未満なら併合します。
+  省略時は faer の既定値です。空の配列を渡すと併合しません。`algorithm=:simplicial`
+  とは併用できません。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+A = FaerSparseMatrix(sparse([4.0 1 0; 1 4 1; 0 1 4]))
+F = cholesky(Hermitian(A); supernodal_threshold=0)
+@assert F.algorithm == :supernodal
+G = cholesky(Hermitian(A); algorithm=:supernodal, relax=Tuple{Int,Float64}[])
+@assert G.factor_storage <= F.factor_storage
+```
+
+疎 Cholesky の数値分解は、CSC 入力をコピーせずに借用します（CSR 入力は CSC への変換が
+1 回必要です）。入力が選択した三角部分だけを格納していれば、そのまま faer に渡します。
+両方の三角部分を格納している場合は、選択した三角部分を faer の数値分解用 workspace と
+同じ stack 上に組み直します。`scratch` を渡したときの割当は返却する数値バッファ 1 つだけで、
+`scratch_requirements(factorize, plan, A)` はこの組み直し分を含みます。
+`F.L`・`F.U` は triplet を経由せず、直接ソート済み CSC として組み立てます。
+
 LU／QR の ordering と数値分解の `scratch`・`team` については、このページおよび [疎 QR](sparse-qr.md) を参照してください。
 
 疎 Cholesky の `F.L`・`F.U` は独立した Rust 所有の CSC 行列です。
@@ -461,6 +490,33 @@ The default `algorithm=:auto` uses faer's fill-reducing selection;
 and accept default/COLAMD ordering with `dense_row`, `dense_col`, `aggressive`.
 Every LU algorithm accepts `ordering=:identity` or a supplied column permutation.
 Sparse component extraction allocates independent CSC storage.
+
+The auto and supernodal LU paths also accept faer's supernodal controls, with
+the same meaning as for sparse Cholesky. `supernodal_threshold` applies only with
+`algorithm=:auto`, and `relax=[(n, z), ...]` sets the supernode relaxation.
+Neither applies to explicit `algorithm=:simplicial`, which is Colmat's own
+column-by-column kernel and has no supernodes.
+
+Construction temporaries:
+
+- Numeric construction borrows CSC inputs instead of copying them; CSR inputs
+  are converted once.
+- Explicit simplicial `F.L`/`F.U` are copied directly into sorted CSC. faer
+  leaves those columns unsorted, so each column is ordered while it is copied,
+  with no triplet buffer.
+- For the auto and supernodal algorithms, `F.L`/`F.U` come from faer's public
+  `LuRef::factors`, which still assembles through triplets internally. faer
+  keeps the supernodal buffers private, so this cannot be removed on the
+  Colmat side.
+
+Sparse LU is square-only by design. faer's symbolic and numeric sparse LU
+(`factorize_symbolic_lu*`, `factorize_simplicial_numeric_lu`) assert
+`nrows == ncols`. Use sparse QR (`qr`, or `A \ b`, which selects QR for tall
+matrices) for rectangular systems. Explicit `algorithm=:simplicial` keeps
+identity as its default column ordering, so it factors the matrix exactly as
+supplied, like faer's explicit simplicial kernel. Fill-reducing ordering is
+one keyword away (`ordering=:colamd`), and changing the default would silently
+change existing factors.
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
