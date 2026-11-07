@@ -78,6 +78,11 @@ B = reshape([1.0, 2, 3, 4], 4, 1)
 B, r = ldiv!(F, B, 1e-10)               # minimum-norm, rank-truncated
 @assert r == 2
 @assert B[1:3, :] ≈ pinv(a) * [1.0, 2, 3, 4]
+X = zeros(3, 1)
+ldiv!(X, F, [1.0 2 3 4]'; rtol=1e-10)   # keyword form, same kernel
+@assert X == B[1:3, :]
+x = ldiv!(zeros(3), F, [1.0, 2, 3, 4]; atol=1e3)
+@assert iszero(x)                       # rank zero writes zeros
 close(F)
 ```
 
@@ -90,6 +95,17 @@ returned. The rank is decided with `rtol=rcond`, whereas LAPACK `xgelsy`
 estimates it incrementally, so the two can differ for pivots near the
 threshold. The leading rank rows of R are completed orthogonally on the
 native side. faer's `ColPivQr` has no rank or tolerance API of its own.
+
+`ldiv!(X, F, B; atol, rtol, team)` (vector or matrix `B` with `m` rows, `X` of
+size `(n, size(B, 2))`) and the square `ldiv!(F, B; atol, rtol, team)` truncate to
+`rank(F; atol, rtol)` and run the same kernel, so `atol=0, rtol=rcond` reproduces
+the positional result exactly. Defaults follow `pinv` and the sparse-QR
+minimum-norm solve: `atol=nothing` is zero and `rtol=nothing` is
+`min(m,n)*eps(real(T))` when `atol` is zero. The rank uses the source precision;
+a real factor solves a complex `B` (both forms) by parts. `X` may alias `B`, and
+validation errors, including a non-finite `B`, leave the destination unchanged.
+Without `atol`/`rtol` the ordinary dense solve runs. Tolerances are rejected
+with `scratch=` and on transposed or adjoint factors.
 ## Determinant and trace
 
 ```julia
