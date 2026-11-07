@@ -482,7 +482,10 @@ never copies the retained input snapshot. Its default output is CSC. All sparse 
 algorithms reconstruct a dense native matrix from their saved Q/R factors.
 
 `Matrix{T}(F)` and `FaerMatrix{T}(F)` also support the dense owned decompositions
-above; sparse LU adds these conversions and typed sparse CSC output.
+above; sparse LU adds these conversions and typed sparse CSC output. The in-place
+`lu!/qr!/cholesky!(A; scratch)` results (`FaerInPlaceFactorization`) also support
+`reconstruct(F)` and the typed conversions; they read A's packed storage and
+throw `ArgumentError` once F is closed or A is closed, resized or truncated.
 Numeric conversion follows Julia rules, including errors for nonrepresentable
 complex-to-real values. Conversion temporaries are closed on errors. Reconstructed
 owners remain valid after the original factors are updated or closed.

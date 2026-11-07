@@ -133,3 +133,52 @@ end
     @test_throws DimensionMismatch reconstruct(F)
     close(F)
 end
+@testset "In-place direct factor reconstruction and typed conversion" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64), dims in ((0, 0), (3, 3), (4, 2))
+        m, n=dims
+        X=T[i==j ? 6 : (i+2j)/4 for i = 1:m, j = 1:n]
+        T<:Complex && (X.+=T(0.1im).*T[i-j for i = 1:m, j = 1:n])
+        S=m==n ? X'*X+I : X
+        factories=Any[(A->qr!(A; scratch = FaerScratch(qr!, A)), X)]
+        m==n && push!(factories, (A->lu!(A; scratch = FaerScratch(lu!, A)), X))
+        m==n && push!(
+            factories,
+            (A->cholesky!(Hermitian(A); scratch = FaerScratch(cholesky!, A)), S),
+        )
+        for (factory, expected) in factories
+            A=FaerMatrix(expected)
+            F=factory(A)
+            @test F isa FaerInPlaceFactorization{T}
+            R=reconstruct(F)
+            @test R isa FaerMatrix{T}
+            @test Matrix(R)≈expected rtol=sqrt(eps(real(T))) atol=sqrt(eps(real(T)))
+            C=FaerMatrix{ComplexF64}(F)
+            @test C isa FaerMatrix{ComplexF64}
+            @test Matrix(C)≈expected rtol=sqrt(eps(real(T))) atol=sqrt(eps(real(T)))
+            @test Matrix{ComplexF64}(F) isa Matrix{ComplexF64}
+            @test Matrix{ComplexF64}(F)≈expected rtol=sqrt(eps(real(T))) atol=sqrt(
+                eps(real(T)),
+            )
+            # The reconstruction is independent of the packed storage in A.
+            m>0 && (R[1, 1]+=one(T))
+            @test Matrix(F)≈expected rtol=sqrt(eps(real(T))) atol=sqrt(eps(real(T)))
+            close(C)
+            close(R)
+            close(F)
+            @test_throws ArgumentError reconstruct(F)
+            @test_throws ArgumentError FaerMatrix{ComplexF64}(F)
+            @test_throws ArgumentError Matrix{ComplexF64}(F)
+            close(A)
+        end
+    end
+    X=ComplexF64[2+1im 0; 0 3]
+    A=FaerMatrix(X)
+    F=lu!(A; scratch = FaerScratch(lu!, A))
+    @test_throws InexactError FaerMatrix{Float64}(F)
+    @test_throws InexactError Matrix{Float64}(F)
+    @test isopen(F)
+    @test Matrix(F)≈X
+    resize!(A, 3, 3)
+    @test_throws ArgumentError reconstruct(F)
+    @test_throws ArgumentError Matrix{ComplexF64}(F)
+end
