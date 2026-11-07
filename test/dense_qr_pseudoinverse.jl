@@ -209,3 +209,75 @@ end
         close(op)
     end
 end
+
+@testset "pinv of saved dense QR factors matches pinv(A; atol, rtol)" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        kind in (:qr, :pivoted, :inplace),
+        (m, n, deficient) in (
+            (0, 3, false),
+            (3, 0, false),
+            (0, 0, false),
+            (1, 4, false),
+            (4, 1, false),
+            (7, 3, false),
+            (3, 7, false),
+            (7, 3, true),
+            (3, 7, true),
+            (4, 4, false),
+            (4, 4, true),
+        )
+
+        a=dqp_fixture(T, m, n, deficient)
+        source=FaerMatrix(a)
+        f=kind===:qr ? qr(source) :
+          kind===:pivoted ? qr(source, ColumnNorm()) :
+          qr!(source; scratch = FaerScratch(qr!, source))
+        tol=dqp_tol(T, max(m, n))
+        for kw in (
+            (;),
+            (; rtol = sqrt(eps(real(T)))),
+            (; atol = real(T)(0.5)),
+            (; atol = 0.1, rtol = 0.2),
+            (; rtol = Inf),
+        )
+            reference=pinv(a; kw...)
+            p=pinv(f; kw...)
+            @test p isa FaerMatrix{T}
+            @test size(p)==(n, m)
+            @test Matrix(p)≈reference atol=tol*max(norm(reference), 1) rtol=tol
+            close(p)
+        end
+        if kind!==:inplace
+            team=FaerTeam(2)
+            req=scratch_requirements(pinv, f; team)
+            work=FaerScratch(pinv, f; team)
+            reference=pinv(a)
+            for _ = 1:2
+                p=pinv(f; scratch = work, team)
+                @test Matrix(p)≈reference atol=tol*max(norm(reference), 1) rtol=tol
+                close(p)
+            end
+            if req.bytes>0
+                short=FaerScratch(req.bytes-1; alignment = req.alignment)
+                @test_throws ArgumentError pinv(f; scratch = short, team)
+                reserve!(short, pinv, f; team)
+                p=pinv(f; scratch = short, team)
+                @test Matrix(p)≈reference atol=tol*max(norm(reference), 1) rtol=tol
+                close(p)
+                close(short)
+            end
+            close(work)
+            close(team)
+        else
+            team=FaerTeam(2)
+            p=pinv(f; team)
+            @test Matrix(p)≈pinv(a) atol=tol*max(norm(pinv(a)), 1) rtol=tol
+            close(p)
+            close(team)
+        end
+        @test_throws ArgumentError pinv(f; atol = -1)
+        @test_throws ArgumentError pinv(f; rtol = NaN)
+        close(f)
+        close(source)
+    end
+end
