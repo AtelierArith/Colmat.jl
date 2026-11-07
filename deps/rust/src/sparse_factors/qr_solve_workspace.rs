@@ -1111,6 +1111,7 @@ mod borrowed_tests {
             qr::factorize_symbolic_qr(a.symbolic(), Default::default()).unwrap(),
         );
         let plan = SparseSymbolic {
+            tuning: Default::default(),
             plan: Some(Plan {
                 analysis: Analysis::Qr(symbolic),
                 pattern: a.symbolic().to_owned().unwrap(),
