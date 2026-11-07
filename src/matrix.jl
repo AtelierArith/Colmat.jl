@@ -51,12 +51,16 @@ const _raw_owner_arguments = (
     (RustCrate.permute_from_view, (2,)),
     (RustCrate.qz_from, (10, 11)),
     (RustCrate.sparse_analyze, (6,)),
+    (RustCrate.sparse_analyze_workspace, (9,)),
     (RustCrate.statistics_view_reduce, (1,)),
     (RustCrate.vector_binary_views, (2, 4)),
     (RustCrate.vector_from_view, (2,)),
     (RustCrate.view_assign, (3,)),
     (RustCrate.view_binary, (2, 4)),
     (RustCrate.view_copy, (2,)),
+    (RustCrate.view_dot, (1, 3)),
+    (RustCrate.view_predicate, (1,)),
+    (RustCrate.view_reduce, (1,)),
 )
 function _raw_owner_positions(f)
     for (member, positions) in _raw_owner_arguments

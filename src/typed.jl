@@ -290,13 +290,14 @@ function _typed_scalar(a::FaerMatrix{T}, code) where {T<:_ExtraScalar}
     )
     return value[]
 end
-function Base.sum(a::FaerMatrix{T}; dims = :) where {T<:_ExtraScalar}
+function Base.sum(a::FaerMatrix{T}; dims = :, kw...) where {T<:_ExtraScalar}
+    isempty(kw) || return sum(Matrix(a); dims, kw...)
     dims isa Colon && return _typed_scalar(a, 0)
     dims==1 &&
         return _typed_result(T, RustCrate.axis_sum_from, (1, size(a, 2)), a, Int32(1))
     dims==2 &&
         return _typed_result(T, RustCrate.axis_sum_from, (size(a, 1), 1), a, Int32(2))
-    return sum(Matrix(a); dims)
+    return _native_sum(a, dims)
 end
 function LinearAlgebra.det(a::FaerMatrix{T}) where {T<:_ExtraScalar}
     LinearAlgebra.checksquare(a)
@@ -307,7 +308,7 @@ function LinearAlgebra.tr(a::FaerMatrix{T}) where {T<:_ExtraScalar}
     return _typed_scalar(a, 2)
 end
 function LinearAlgebra.norm(a::FaerMatrix{T}, p::Real = 2) where {T<:_ExtraScalar}
-    p in (1, 2, Inf) || return LinearAlgebra.norm(Matrix(a), p)
+    p in (1, 2, Inf) || return _native_norm(a, p)
     R=_realtype(T)
     value=Ref{R}()
     code=p==2 ? 0 : p==1 ? 1 : 2

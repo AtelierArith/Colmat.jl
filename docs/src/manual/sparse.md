@@ -190,7 +190,7 @@ AMD の `statistics=true` は置換と faer の演算数見積もりを返しま
 query は格納パターン（格納ゼロを含む）から必要量を計算し、数値には依存しません。
 容量・alignment 不足や閉じた workspace は拒否し、自動拡張はしません。
 CSC の複製／CSR 変換、Julia からのパターン構築、返却する置換は別途確保します。
-分解の symbolic analysis 内での ordering 用 scratch は別の残項目です。
+symbolic analysis 内の ordering 用 scratch は `FaerSparseSymbolic(A; scratch=s)` に渡します（下記）。
 
 ```julia
 using Colmat, SparseArrays
@@ -202,6 +202,40 @@ reserve!(work, colamd, A)
 q = colamd(A; scratch=work)
 @assert Vector(q) == Vector(colamd(A))
 close(work)
+```
+
+`scratch_requirements(FaerSparseSymbolic, A; kwargs...)`・`FaerScratch`・`reserve!` は
+`FaerSparseSymbolic` と同じキーワード（`kind`・`uplo`・`ordering`・`algorithm`・
+`dense`・`dense_row`・`dense_col`・`aggressive`）で、symbolic analysis 内の ordering
+kernel 用 workspace を照会します。対象は次の経路です。
+
+- Cholesky の `:default`／`:amd`: faer の symbolic analysis と同じ入力・設定の AMD を
+  caller scratch で実行し、得た置換を faer に明示指定します。`algorithm=:auto` では
+  simplicial／supernodal の選択を scratch なしの場合と一致させるため、因子の列数も
+  同じ scratch で計算します。置換・方式・`factor_storage` は scratch なしと同一です。
+  この列数計算の分だけ `:auto` は scratch なしより遅くなります（測定例で約 15–30%）。
+  `:simplicial`／`:supernodal` を明示すると追加計算はありません。
+- 横長 QR の既定 COLAMD と、明示 simplicial LU／QR の `ordering=:colamd`: COLAMD kernel の
+  必要量です。
+- 恒等・任意 ordering と、正方／縦長の auto／supernodal LU／QR は 0 バイトです。
+  後者の COLAMD は caller stack を受け取らない faer の symbolic API 内で確保されます。
+  明示 ordering を渡しても faer の内部要求量に COLAMD 分が残るため、事前計算では減りません。
+
+ordering kernel は逐次実行です。容量・alignment 不足や閉じた workspace は拒否します。
+CSC への変換・複製、faer の ordering 後の symbolic 用内部バッファ、保持する置換と
+symbolic 構造は必要な出力として別途確保します。一括の `cholesky`／`lu`／`qr` の
+`scratch` は数値分解用のままです。symbolic 側の workspace も管理する場合は
+`FaerSparseSymbolic` と `factorize(plan, A)` の二段階で呼び出します。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+A = FaerSparseMatrix(sparse([4.0 0 1; 0 3 1; 1 1 5]))
+s = FaerScratch(FaerSparseSymbolic, A; kind=:cholesky)
+plan = FaerSparseSymbolic(A; kind=:cholesky, scratch=s)
+@assert Vector(plan.p) == Vector(FaerSparseSymbolic(A; kind=:cholesky).p)
+F = factorize(plan, A)
+@assert F \ ones(3) ≈ [4.0 0 1; 0 3 1; 1 1 5] \ ones(3)
+close(s)
 ```
 
 ## 疎 Cholesky と分解成分
