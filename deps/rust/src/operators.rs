@@ -2008,7 +2008,7 @@ impl<T: ComplexField> InverseFactors<T> {
         })
     }
 
-    fn cholesky(f: &faer::linalg::solvers::Llt<T>) -> Result<Self, String> {
+    fn cholesky(f: &crate::cholesky_factors::Llt<T>) -> Result<Self, String> {
         let n = f.L().nrows();
         if (0..n).any(|i| abs(&f.L()[(i, i)]) == zero::<T::Real>()) {
             return Err("Cholesky preconditioner must be nonsingular".into());

@@ -19,9 +19,15 @@ Hermitian (its stored triangle is real). Otherwise `check=true` throws
 `PosDefException(-1)` and `check=false` returns an unsuccessful factor with
 `info == -1`. `cholesky!` leaves the input unchanged in that case.
 """
-function LinearAlgebra.cholesky(a::_ComplexSymmetric; check::Bool = true, team = nothing)
+function LinearAlgebra.cholesky(
+    a::_ComplexSymmetric;
+    check::Bool = true,
+    team = nothing,
+    kwargs...,
+)
+    _cholesky_kw(size(a, 1); kwargs...)
     _real_triangle(a) &&
-        return LinearAlgebra.cholesky(_hermitian_wrapper(a); check, team)
+        return LinearAlgebra.cholesky(_hermitian_wrapper(a); check, team, kwargs...)
     return _non_hermitian_cholesky(parent(a), check, RustCrate.TypedFactor)
 end
 function LinearAlgebra.cholesky!(
@@ -29,10 +35,13 @@ function LinearAlgebra.cholesky!(
     check::Bool = true,
     team = nothing,
     scratch = nothing,
+    kwargs...,
 )
+    options=_cholesky_kw(size(a, 1); kwargs...)
     _real_triangle(a) &&
-        return LinearAlgebra.cholesky!(_hermitian_wrapper(a); check, team, scratch)
-    isnothing(scratch) || return _direct_cholesky!(parent(a), true, false, check, scratch, team)
+        return LinearAlgebra.cholesky!(_hermitian_wrapper(a); check, team, scratch, kwargs...)
+    isnothing(scratch) ||
+        return _direct_cholesky!(parent(a), true, false, check, scratch, team, options)
     return _non_hermitian_cholesky(parent(a), check, RustCrate.TypedFactor)
 end
 
@@ -96,27 +105,29 @@ function _complex_symmetric_unsupported(a::_ComplexSymmetric)
         ),
     )
 end
-function LinearAlgebra.ldlt(a::_ComplexSymmetric; check::Bool = true, team = nothing)
+function LinearAlgebra.ldlt(a::_ComplexSymmetric; check::Bool = true, team = nothing, kwargs...)
     _complex_symmetric_unsupported(a)
-    return LinearAlgebra.ldlt(_hermitian_wrapper(a); check, team)
+    return LinearAlgebra.ldlt(_hermitian_wrapper(a); check, team, kwargs...)
 end
 function LinearAlgebra.ldlt!(
     a::_ComplexSymmetric;
     check::Bool = true,
     team = nothing,
     scratch = nothing,
+    kwargs...,
 )
     _complex_symmetric_unsupported(a)
-    return LinearAlgebra.ldlt!(_hermitian_wrapper(a); check, team, scratch)
+    return LinearAlgebra.ldlt!(_hermitian_wrapper(a); check, team, scratch, kwargs...)
 end
 function LinearAlgebra.bunchkaufman(
     a::_ComplexSymmetric,
     rook::Bool = false;
     check::Bool = true,
     team = nothing,
+    kwargs...,
 )
     _complex_symmetric_unsupported(a)
-    return LinearAlgebra.bunchkaufman(_hermitian_wrapper(a), rook; check, team)
+    return LinearAlgebra.bunchkaufman(_hermitian_wrapper(a), rook; check, team, kwargs...)
 end
 function LinearAlgebra.bunchkaufman!(
     a::_ComplexSymmetric,
@@ -124,9 +135,17 @@ function LinearAlgebra.bunchkaufman!(
     check::Bool = true,
     team = nothing,
     scratch = nothing,
+    kwargs...,
 )
     _complex_symmetric_unsupported(a)
-    return LinearAlgebra.bunchkaufman!(_hermitian_wrapper(a), rook; check, team, scratch)
+    return LinearAlgebra.bunchkaufman!(
+        _hermitian_wrapper(a),
+        rook;
+        check,
+        team,
+        scratch,
+        kwargs...,
+    )
 end
 
 """

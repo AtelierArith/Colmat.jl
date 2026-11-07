@@ -24,8 +24,8 @@ enum Saved<'a, T: ComplexField> {
     FullLu(&'a solvers::FullPivLu<T>),
     Qr(&'a solvers::Qr<T>),
     PivotQr(&'a solvers::ColPivQr<T>),
-    Llt(&'a solvers::Llt<T>),
-    Ldlt(&'a solvers::Ldlt<T>),
+    Llt(&'a crate::cholesky_factors::Llt<T>),
+    Ldlt(&'a crate::cholesky_factors::Ldlt<T>),
     Lblt(&'a crate::lblt::Lblt<T>),
     Svd(&'a solvers::Svd<T>),
 }
@@ -1079,8 +1079,14 @@ mod tests {
                 1 => Factor::FullLu(a.full_piv_lu(Par::Seq)),
                 2 => Factor::Qr(a.qr(Par::Seq)),
                 3 => Factor::PivotQr(a.col_piv_qr(Par::Seq)),
-                4 => Factor::Llt(a.llt(Side::Lower, Par::Seq).unwrap()),
-                5 => Factor::Ldlt(a.ldlt(Side::Lower, Par::Seq).unwrap()),
+                4 => Factor::Llt(
+                    crate::cholesky_factors::Llt::new(a.as_ref(), Side::Lower, Par::Seq).unwrap(),
+                ),
+                5 => Factor::Ldlt(
+                    crate::cholesky_factors::Ldlt::new(a.as_ref(), Side::Lower, Par::Seq)
+                        .unwrap()
+                        .unwrap(),
+                ),
                 6 => Factor::Lblt(crate::lblt::Lblt::new(
                     a.as_ref(),
                     Side::Lower,

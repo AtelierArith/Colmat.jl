@@ -13,6 +13,7 @@
 //! holds the symmetric permutation (n) and uses the coefficient buffer as an
 //! n×1 column with the block diagonal's subdiagonal (lower storage) or its
 //! superdiagonal, the conjugate (upper storage).
+use crate::selfadjoint_tuning as tuning;
 use crate::teams::{with_team, OwnedTeam};
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::workspace::OwnedScratch;
@@ -115,9 +116,17 @@ fn requirement<T: ComplexField>(
         (QR, TRANSPOSE | ADJOINT) => {
             nqr::solve::solve_transpose_in_place_scratch::<T>(n, bs, k, par)
         }
-        (LLT, FACTOR) => llt::factor::cholesky_in_place_scratch::<T>(n, par, Default::default()),
+        (LLT, FACTOR) => llt::factor::cholesky_in_place_scratch::<T>(
+            n,
+            par,
+            crate::selfadjoint_tuning::llt_params::<T>().into(),
+        ),
         (LLT, op) if solve.contains(&op) => llt::solve::solve_in_place_scratch::<T>(n, k, par),
-        (LDLT, FACTOR) => ldlt::factor::cholesky_in_place_scratch::<T>(n, par, Default::default()),
+        (LDLT, FACTOR) => ldlt::factor::cholesky_in_place_scratch::<T>(
+            n,
+            par,
+            crate::selfadjoint_tuning::ldlt_params::<T>().into(),
+        ),
         (LDLT, op) if solve.contains(&op) => ldlt::solve::solve_in_place_scratch::<T>(n, k, par),
         // The same parameters as the factorization itself: the blocked
         // variant's workspace depends on the block size.
@@ -361,7 +370,7 @@ fn factor<T: ComplexField>(
     coeff: *mut u8,
     coeff_rows: usize,
     scratch: &mut OwnedScratch,
-    par: Par<'_>,
+    mut par: Par<'_>,
 ) -> Result<usize, String> {
     let (m, n) = a.shape();
     check_aux::<T>(kind, m, n, perm.len(), perm_inv.len(), coeff, coeff_rows)?;
@@ -405,31 +414,45 @@ fn factor<T: ComplexField>(
         }
         LLT => {
             lower_hermitian_in_place(a.as_mut(), lower);
-            match llt::factor::cholesky_in_place(
-                a.as_mut(),
-                Default::default(),
-                par,
-                stack,
-                Default::default(),
-            ) {
-                Ok(_) => {
+            tuning::reset_regularization_count();
+            let result = match tuning::regularized_llt_in_place(a.as_mut(), par.reborrow(), stack) {
+                Some(r) => r,
+                None => llt::factor::cholesky_in_place(
+                    a.as_mut(),
+                    tuning::llt_regularization::<T>(),
+                    par,
+                    stack,
+                    tuning::llt_params::<T>().into(),
+                )
+                .map(|info| info.dynamic_regularization_count)
+                .map_err(|llt::factor::LltError::NonPositivePivot { index }| index),
+            };
+            match result {
+                Ok(count) => {
+                    tuning::record_regularization_count(count);
                     store_factor_triangle(a, lower);
                     0
                 }
-                Err(llt::factor::LltError::NonPositivePivot { index }) => index + 1,
+                Err(index) => index + 1,
             }
         }
         LDLT => {
+            // Signs are validated before the first write to the matrix.
+            tuning::with_ldlt_regularization::<T, _>(n, |_| ())?;
             lower_hermitian_in_place(a.as_mut(), lower);
+            tuning::reset_regularization_count();
             // faer stores D on the diagonal and the unit-lower L below it.
-            match ldlt::factor::cholesky_in_place(
-                a.as_mut(),
-                Default::default(),
-                par,
-                stack,
-                Default::default(),
-            ) {
-                Ok(_) => {
+            match tuning::with_ldlt_regularization::<T, _>(n, |reg| {
+                ldlt::factor::cholesky_in_place(
+                    a.as_mut(),
+                    reg,
+                    par,
+                    stack,
+                    tuning::ldlt_params::<T>().into(),
+                )
+            })? {
+                Ok(info) => {
+                    tuning::record_regularization_count(info.dynamic_regularization_count);
                     store_factor_triangle(a, lower);
                     0
                 }
