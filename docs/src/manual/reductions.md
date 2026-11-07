@@ -68,8 +68,13 @@ rmul!(R, H)
 `H'`・`transpose(H)`・`conj(H)`・`inv(H)`・コピーは独立した所有者を返します。
 `H * A`・`A * H`・`H \ b`、左右の in-place 適用、3引数・5引数の `mul!` に対応します。
 通常の Julia strided 配列も使え、in-place の出力は4数値型に限定します。
-係数・生成情報を出力型に変換できない場合は更新前に失敗します。ビューは一時結果を
-書き戻します。`Matrix(H)` と反射同士の積は密行列を作ります。
+係数・生成情報を出力型に変換できない場合は更新前に失敗します。単一反射・
+`FaerHouseholderSequence`・compact な Hessenberg／三重対角 Q の `lmul!`・`rmul!`・
+`mul!(C, H, B[, α, β])` は、要素型が同じなら native 所有型・ビュー・`faerview`・
+Julia strided 配列の C に faer が直接書き込みます（一時結果・書き戻しなし。B が C と
+重なる場合だけ snapshot、`β == 0` では C を、`α == 0` では B を読みません。`β ≠ 0`
+は C と同形の native 積バッファを1つ使います）。compact な二重対角 U/V の `mul!` も
+宣言済み scratch の作業行列だけで C に直接書き込みます。`Matrix(H)` と反射同士の積は密行列を作ります。
 単一反射・block／sequence の左右適用は `scratch=` と `team=` に対応します。
 必要量照会・reserve は以下の API を使います。block／sequence は次の所有型で扱います。
 

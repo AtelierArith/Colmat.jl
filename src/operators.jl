@@ -14,8 +14,12 @@ with `.transposed/.conjugated` describing its orientation.
 Native composition is available with operator * operator. Application supports
 `mul!(X, op, B[, alpha,beta]; scratch,team)` and explicit `*(op,B; scratch,team)`
 with scratch queries/reserve, including prepared owned/wide sparse-QR inverse
-actions. Julia callback operators retain function state by reference and marshal
-independent Julia arrays around native trait applications.
+actions. With one scalar type, `mul!` (left and right) and square `lmul!`/`rmul!`
+write native owners/views, `faerview` arrays and injective Julia strided arrays
+directly from the native operator (a source overlapping the destination is
+snapshot; `beta != 0` uses one native product buffer). Julia callback operators
+retain function state by reference and marshal independent Julia arrays around
+native trait applications.
 """
 mutable struct FaerLinearOperator{T,H} <: AbstractMatrix{T}
     handle::Union{Nothing,H}

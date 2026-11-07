@@ -14,18 +14,23 @@ Four native scalars are preserved; other real/complex inputs convert to
 Float64/ComplexF64. Inputs must be finite. Construction copies the input and
 scales it before calling faer. Empty input produces a 0-by-0 identity.
 Native and Julia strided arrays support `*`, `lmul!`, `rmul!` and left solve.
-Three/five-argument `mul!` stages the result, supports aliases and alpha/beta,
-and completes scalar conversion before writing the destination.
 In-place Julia arrays must use one of the four native scalar types.
 Application to arrays does not form H as a dense matrix; `Matrix(H)` explicitly
 does. Composing two reflections returns a dense native product.
-`lmul!`/`rmul!` apply the reflection directly in native views, borrowed
-arrays (`faerview`) and injective Julia strided arrays of the reflection's
-converted scalar; repeated-index views stage a native result instead. In-place calls
+`lmul!`/`rmul!` and three/five-argument `mul!(C, H, B[, α, β])` write native
+owners and views, borrowed arrays (`faerview`) and injective Julia strided
+arrays of the working scalar directly through faer (no staged result): a `B`
+overlapping `C` is snapshot natively, `β == 0` copies `B` into `C` and reflects
+there without reading `C`, `α == 0` never reads `B`, and `β ≠ 0` uses one
+native product buffer. Coefficients convert to the operands' scalar (Float32
+data with Float64 literals stays native). Mixed scalar types and repeated-index
+destinations stage a result and complete conversion before writing. The same
+rules hold for `FaerHouseholderSequence` and compact Hessenberg/tridiagonal Q.
+Read-only borrowed destinations are rejected before any write. In-place calls
 convert the reflection's stored coefficients/metadata to the destination type
 before mutation. Adjoint/copy/conjugate/transpose return independent owners.
 `lmul!/rmul!/mul!/ldiv!/rdiv!` accept caller-owned `scratch=` and `team=`;
-see `scratch_requirements`. Result staging and conversions allocate separately.
+see `scratch_requirements`. Staged (mixed-scalar) results and conversions allocate separately.
 """
 mutable struct FaerHouseholder{T,H} <: AbstractFaerHouseholder{T}
     handle::Union{Nothing,H}

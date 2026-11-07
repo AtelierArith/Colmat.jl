@@ -60,8 +60,10 @@ Right products use `(X,A,H)`. `ldiv!`/`rdiv!` query the adjoint action.
 `FaerScratch(fun,args...;team)` and `reserve!(work,fun,args...;team)` use these
 queries. Applying functions accept `scratch=` and `team=`; insufficient or closed
 resources fail before destination writes. Arrays, views, aliasing, scalar
-promotion and transformed sequences keep their existing contracts. Result
-staging, coefficient promotion and Julia conversions allocate outside this query;
+promotion and transformed sequences keep their existing contracts. Same-scalar
+products write the destination directly; `β ≠ 0` adds one native product
+buffer, and mixed-scalar staging, coefficient promotion and Julia conversions
+allocate outside this query;
 native application borrows the team and does not retain its token.
 """
 function scratch_requirements(
