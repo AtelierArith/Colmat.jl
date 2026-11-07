@@ -232,6 +232,61 @@ solves. Those need the default result without `scratch=`. Full-pivot LU,
 LDLT, Bunch–Kaufman, pivoted Cholesky and column-pivoted QR have no direct
 path yet.
 
+## Direct triangular solves and destructive triangular inverses
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([2.0 0; 1 4])
+B = FaerMatrix([2.0 4; 9 8])
+ldiv!(LowerTriangular(A), B)            # solved in B's own storage
+@assert Matrix(B) ≈ LowerTriangular([2.0 0; 1 4]) \ [2.0 4; 9 8]
+X = [1.0 2; 3 4]
+rdiv!(X, UpperTriangular(transpose(A))) # X / transpose(L), in place in X
+Z = FaerMatrix(ComplexF64[1 2; 3 4])
+work = FaerScratch(ldiv!, LowerTriangular(A), Z) # promoted triangle copy
+ldiv!(LowerTriangular(A), Z; scratch = work)
+T = UpperTriangular(FaerMatrix([2.0 1; 0 4]))
+LinearAlgebra.inv!(T; scratch = FaerScratch(LinearAlgebra.inv!, T))
+```
+
+Lower/upper/unit triangular wrappers of a `FaerMatrix`, a native matrix view or
+the `transpose`/`adjoint` (or elementwise conjugate) of either solve with faer's
+`solve_{unit_}{lower,upper}_triangular_in_place_with_conj`. The triangle is
+borrowed through its view descriptor, so transposed, adjoint and strided parents
+are never copied. `ldiv!(A, B)`, `ldiv!(Y, A, B)` and `rdiv!(B, A)` run the
+kernel directly on the destination when it is a `FaerMatrix`/`FaerVector`, a
+native view, a `faerview` borrow or an injective Julia strided array holding
+`promote_type(eltype(A), eltype(B))`. `rdiv!` solves `transpose(op(A)) *
+transpose(X) = transpose(B)` on the same memory. Narrower or non-strided
+destinations stage one promoted copy. A destination that shares the triangle's
+owner solves from a snapshot of the triangle. `A \ B` and `B / A` return a
+`FaerMatrix` (a vector RHS returns a vector, and a row vector stays a row
+vector).
+
+faer's dense triangular kernels need no workspace. `scratch` holds only the
+promoted copy of a triangle whose scalar is narrower than the promoted type
+(for example, a real triangle with a complex RHS), so
+`scratch_requirements(ldiv!, A, B)` is zero without promotion. It is also
+defined for `\`, `rdiv!` and `ldiv!(Y, A, B)`, with `FaerScratch` and
+`reserve!` for each. `team=` runs the kernel on a caller-owned `FaerTeam`.
+Zero diagonals throw `SingularException(i)`. Closed owners, closed teams and
+undersized scratch throw before any write.
+
+`LinearAlgebra.inv!(A; scratch, team)` overwrites the selected triangle of the
+parent (a `FaerMatrix`, a native view or a `transpose` of either) with the
+inverse triangle and returns `A`, as Julia's `inv!` does for strided triangles.
+The opposite strict triangle is untouched, and so is the diagonal of a unit
+wrapper. faer's `triangular_inverse::invert_*` kernels write into a separate
+destination, so the source triangle is first copied into scratch, sized by
+`scratch_requirements(inv!, A)`. Adjoint parents keep using `inv(A)`.
+
+With caller scratch, Colmat allocates no native memory on these paths. The
+direct solve made no native allocation through n = 70 (aarch64, `Par::Seq`).
+At n = 300, faer's blocked kernel allocates matmul packing buffers: 12 per
+solve. The in-place inverse is allocation-free at n = 5, but faer's matrix
+products allocate at n = 70. See t4a-faer `upstream-reports/gemm-001`.
+Allocations under a team were not measured.
+
 ## Destructive indefinite and full-pivot LU decompositions
 
 ```julia
