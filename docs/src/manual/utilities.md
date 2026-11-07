@@ -22,9 +22,25 @@ A[1, 1] = NaN
 The default `nan=:propagate` retains NaNs; `nan=:ignore` excludes entries with
 any NaN component and adjusts each slice's count. `corrected=false` uses
 population variance. Complex variances are real, empty slices return NaN, and
-singleton sample variances follow Julia's NaN convention. Supplied means promote
-the working scalar type. Calls snapshot native data to primitive buffers before
-running faer's kernels; they leave the input unchanged.
+singleton sample variances follow Julia's NaN convention. faer's kernels read
+native arrays and strided or reversed views in place, so no Julia copy of the
+data is made; inputs are left unchanged.
+
+Supplied means follow `Statistics.varm` result types: a full reduction returns
+the real type of the promoted scalar, while a `dims` reduction keeps the data's
+real type. A mean that widens the data scalar (for example a `Float64` or
+complex mean for `Float32` data) makes Rust stage one converted copy, as does a
+full reduction of a view whose entries do not form one strided column. Means
+whose promotion is not a native scalar, such as `BigFloat`, throw an
+`ArgumentError`:
+
+```julia
+using Colmat, Statistics
+A = FaerMatrix(Float32[1 2; 3 5])
+@assert varm(A, 2.0) isa Float64
+@assert eltype(varm(A, [2.0 3.0]; dims=1)) === Float32
+@assert var(view(A, 2:-1:1, :); dims=2) ≈ var(Float32[3 5; 1 2]; dims=2)
+```
 
 ## Native random matrices and unitary samples
 

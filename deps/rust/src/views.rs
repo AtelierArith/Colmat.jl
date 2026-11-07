@@ -8,7 +8,7 @@ use faer::{Accum, Col, Conj, Mat, MatMut, MatRef, Par};
 use rustcall_julia_macros::julia;
 
 #[derive(Clone, Copy)]
-struct Spec {
+pub(crate) struct Spec {
     kind: i32,
     r: isize,
     rs: isize,
@@ -17,11 +17,11 @@ struct Spec {
     cs: isize,
     n: usize,
     transpose: bool,
-    conjugate: bool,
+    pub(crate) conjugate: bool,
 }
 impl Spec {
     // SAFETY: the Julia layer preserves a nine-word descriptor for this call.
-    unsafe fn read(p: *const isize) -> Result<Self, String> {
+    pub(crate) unsafe fn read(p: *const isize) -> Result<Self, String> {
         let a = std::slice::from_raw_parts(p, 9);
         Ok(Self {
             kind: i32::try_from(a[0]).map_err(|_| "invalid owner kind")?,
@@ -80,13 +80,13 @@ fn borrowed<'a, T>(a: MatRef<'a, T>, s: Spec) -> Result<MatRef<'a, T>, String> {
     let view = unsafe { MatRef::from_raw_parts(a.as_ptr().offset(offset), s.m, s.n, rs, cs) };
     Ok(if s.transpose { view.transpose() } else { view })
 }
-enum Borrowed<'a> {
+pub(crate) enum Borrowed<'a> {
     F32(MatRef<'a, f32>),
     F64(MatRef<'a, f64>),
     C32(MatRef<'a, faer::c32>),
     C64(MatRef<'a, faer::c64>),
 }
-unsafe fn source<'a>(p: *const u8, s: Spec) -> Result<Borrowed<'a>, String> {
+pub(crate) unsafe fn source<'a>(p: *const u8, s: Spec) -> Result<Borrowed<'a>, String> {
     Ok(match s.kind {
         0 => Borrowed::F64(borrowed((&*p.cast::<OwnedMatrix>()).matrix.as_ref(), s)?),
         1 => match (&*p.cast::<TypedMatrix>()).data()? {
