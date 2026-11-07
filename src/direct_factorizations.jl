@@ -43,10 +43,13 @@ Qbasis/Qcoeff/packed`, `q` (full LU), `D` (LDLᴴ, Bunch–Kaufman),
 `regularization_count` (Cholesky, LDLᴴ), `rook` and
 `inertia` (Bunch–Kaufman), `reconstruct(F)`/`Matrix(F)`/`FaerMatrix(F)` and their
 typed forms, `inv`, `pinv` (QR), and `det/logabsdet/logdet` (QR from R's diagonal and the reflection count,
-natively) read A's storage. `copy(F)` copies A and F's buffers into a new direct
-factor. Other retained-factor operations (linear-operator and
-preconditioner use, mixed-scalar promotion, rectangular-LU or
-wide-QR solves) require the default `lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
+natively) read A's storage. `ldiv!(F, b)` also overwrites Julia strided arrays
+and `FaerVector`s of a square factor (one native copy solved in place and
+written back); a real factor solves a complex `b` as two real solves.
+`copy(F)` copies A and F's buffers into a new direct factor. Other
+retained-factor operations (linear-operator and preconditioner use, factor
+promotion to another scalar type, rectangular-LU or wide-QR solves) require the
+default `lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
 """
 mutable struct FaerInPlaceFactorization{T,K,M<:FaerMatrix{T}} <:
                LinearAlgebra.Factorization{T}
@@ -782,6 +785,56 @@ for W in (:TransposeFactorization, :AdjointFactorization)
     ) = _direct_ldiv!(f, b, scratch, team)
 end
 
+# ldiv! on Julia arrays and native vectors overwrites b with the solution of
+# a square factor: one native copy is solved in place and written back. A real
+# factor solves a complex b as two real solves (real and imaginary parts),
+# like LinearAlgebra. Rectangular factors use `F \ b` (the solution has a
+# different number of rows).
+function _direct_ldiv_array!(g::_DirectSolveFactor, b::AbstractVecOrMat; scratch, team)
+    f=_direct_parent(g)
+    T=eltype(f)
+    lock(_matrix_lock) do
+        _direct_source(f)
+        rows=_direct_solve_rows(f, _direct_op(g))
+        rows==size(f, 2) || throw(
+            ArgumentError("in-place ldiv! needs a square factor; use F \\ b for least squares"),
+        )
+        size(b, 1)==rows || throw(DimensionMismatch("factor and RHS rows do not match"))
+    end
+    if eltype(b)<:Complex && T<:Real
+        parts=(real.(b), imag.(b))
+        for p in parts
+            _direct_ldiv_array!(g, p; scratch, team)
+        end
+        b.=complex.(parts[1], parts[2])
+        return b
+    end
+    eltype(b)===T ||
+        throw(ArgumentError("ldiv! right-hand side must have the factor's scalar type (or its complex type)"))
+    x=FaerMatrix{T}(b isa AbstractVector ? reshape(collect(b), :, 1) : b)
+    try
+        _direct_ldiv!(g, x, scratch, team)
+        copyto!(b, b isa AbstractVector ? vec(Matrix(x)) : Matrix(x))
+    finally
+        close(x)
+    end
+    return b
+end
+const _DirectArrayRhs=Union{StridedVecOrMat{<:_NativeScalar},FaerVector}
+LinearAlgebra.ldiv!(
+    f::FaerInPlaceFactorization,
+    b::_DirectArrayRhs;
+    scratch = nothing,
+    team = nothing,
+) = _direct_ldiv_array!(f, b; scratch, team)
+for W in (:TransposeFactorization, :AdjointFactorization)
+    @eval LinearAlgebra.ldiv!(
+        f::LinearAlgebra.$W{<:Any,<:FaerInPlaceFactorization},
+        b::_DirectArrayRhs;
+        scratch = nothing,
+        team = nothing,
+    ) = _direct_ldiv_array!(f, b; scratch, team)
+end
 function _direct_backslash(g::_DirectSolveFactor, b::AbstractVecOrMat)
     f=_direct_parent(g)
     T=eltype(f)

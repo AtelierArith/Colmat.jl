@@ -541,8 +541,10 @@ storage triangles) at n = 6 and n = 70 (complex double, aarch64, `Par::Seq`).
 The zero-pivot check of a QR factor runs natively before any write, so it does
 not allocate either.
 
+`ldiv!(F, b)` of a square direct factor also overwrites Julia strided arrays
+and `FaerVector`s, and a real factor solves a complex `b` as two real solves.
 The direct factor does not support operator or preconditioner use,
-mixed-scalar promotion of factors, rectangular LU or wide-QR solves (`pinv(F;
+promotion of the factor to another scalar type, rectangular LU or wide-QR solves (`pinv(F;
 atol, rtol, team)` of a direct QR is supported, see below). Those need the
 default result without `scratch=`. Pivoted Cholesky
 has no direct path yet. `cholesky!(A, RowMaximum();
