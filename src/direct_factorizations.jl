@@ -26,13 +26,16 @@ factor keeps `info > 0`; an LDLᴴ zero pivot leaves A partially factored.
 F aliases A: later writes to A change F, and closing, resizing or truncating A
 invalidates F (its operations then throw `ArgumentError`). `close(F)` only
 invalidates F. Solves (`\\`, `ldiv!` with optional `scratch=`/`team=`, transpose
-and adjoint for square factors, tall QR least squares), `L/U/p/P/R/Q/Qthin/
+and adjoint for square factors, tall QR least squares), right solves of square
+factors (`/`, `rdiv!(B, F)` with optional `scratch=`/`team=`, also transposed
+and adjoint, on B's own storage), the destructive `LinearAlgebra.inv!(F)`
+(which overwrites A with its inverse and closes F), `L/U/p/P/R/Q/Qthin/
 Qbasis/Qcoeff/packed`, `q` (full LU), `D` (LDLᴴ, Bunch–Kaufman),
 `regularization_count` (Cholesky, LDLᴴ), `rook` and
 `inertia` (Bunch–Kaufman), `reconstruct(F)`/`Matrix(F)`/`FaerMatrix(F)` and their
 typed forms, `inv`, `pinv` (QR), and `det/logabsdet/logdet` (all but QR,
 natively) read A's storage. `copy(F)` copies A and F's buffers into a new direct
-factor. Other retained-factor operations (`rdiv!`, linear-operator and
+factor. Other retained-factor operations (linear-operator and
 preconditioner use, mixed-scalar promotion, rectangular-LU or
 wide-QR solves) require the default `lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
 """
@@ -619,11 +622,73 @@ function reserve!(
     return reserve!(work, req.bytes; alignment = req.alignment)
 end
 
-function _direct_ldiv!(g::_DirectSolveFactor, b::FaerMatrix, scratch, team)
+# Right solves `X op(A) = B` run natively on the transposed view of B
+# (operation codes 4–6); they need a square factor.
+function _direct_rdiv_shape(f::FaerInPlaceFactorization, b)
+    size(f, 1)==size(f, 2) ||
+        throw(DimensionMismatch("in-place right solves require a square factor"))
+    size(b, 2)==size(f, 1) ||
+        throw(DimensionMismatch("factor and right-hand side columns do not match"))
+    return size(b, 1)
+end
+
+"""
+    scratch_requirements(rdiv!, B::FaerMatrix, F::FaerInPlaceFactorization; team=nothing)
+
+Query the workspace of `rdiv!(B, F; scratch, team)` (also for `transpose(F)` and
+`adjoint(F)`, square factors only). The right solve `X op(A) = B` runs faer's
+in-place left solve on the transposed view of B's own storage (`X A = B` as
+`Aᵀ Xᵀ = Bᵀ`; `X Aᴴ = B` as the conjugate-only solve `conj(A) Xᵀ = Bᵀ`), so B is
+overwritten with X without native allocation of its own.
+"""
+function scratch_requirements(
+    ::typeof(LinearAlgebra.rdiv!),
+    b::FaerMatrix,
+    g::_DirectSolveFactor;
+    team = nothing,
+)
+    lock(_matrix_lock) do
+        f=_direct_parent(g)
+        _direct_source(f)
+        _handle(b)
+        columns=_direct_rdiv_shape(f, b)
+        req=_direct_requirements(
+            _direct_kind(f),
+            _direct_op(g)+3,
+            size(f)...,
+            columns,
+            eltype(f),
+            team,
+        )
+        return (bytes = req.bytes, alignment = req.alignment)
+    end
+end
+function FaerScratch(
+    ::typeof(LinearAlgebra.rdiv!),
+    b::FaerMatrix,
+    g::_DirectSolveFactor;
+    team = nothing,
+)
+    req=scratch_requirements(LinearAlgebra.rdiv!, b, g; team)
+    return FaerScratch(req.bytes; alignment = req.alignment)
+end
+function reserve!(
+    work::FaerScratch,
+    ::typeof(LinearAlgebra.rdiv!),
+    b::FaerMatrix,
+    g::_DirectSolveFactor;
+    team = nothing,
+)
+    req=scratch_requirements(LinearAlgebra.rdiv!, b, g; team)
+    return reserve!(work, req.bytes; alignment = req.alignment)
+end
+
+function _direct_ldiv!(g::_DirectSolveFactor, b::FaerMatrix, scratch, team; right = false)
     lock(_matrix_lock) do
         f=_direct_parent(g)
         T=eltype(f)
         a=_direct_source(f)
+        _handle(b)
         eltype(b)===T || throw(
             ArgumentError("in-place factor solves require a right-hand side of eltype $T"),
         )
@@ -638,10 +703,16 @@ function _direct_ldiv!(g::_DirectSolveFactor, b::FaerMatrix, scratch, team)
         isnothing(team) || _handle(team)
         LinearAlgebra.issuccess(f) || throw(_cholesky_failure(f))
         op=_direct_op(g)
-        rows=_direct_solve_rows(f, op)
-        size(b, 1)==rows || throw(DimensionMismatch("factor and RHS rows do not match"))
+        if right
+            columns=_direct_rdiv_shape(f, b)
+            op+=3
+        else
+            rows=_direct_solve_rows(f, op)
+            size(b, 1)==rows || throw(DimensionMismatch("factor and RHS rows do not match"))
+            columns=size(b, 2)
+        end
         kind=_direct_kind(f)
-        req=_direct_requirements(kind, op, size(f)..., size(b, 2), T, team)
+        req=_direct_requirements(kind, op, size(f)..., columns, T, team)
         temporary=isnothing(scratch)
         work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
         try
@@ -713,4 +784,185 @@ for W in (:TransposeFactorization, :AdjointFactorization)
         f::LinearAlgebra.$W{T,<:FaerInPlaceFactorization},
         b::VecOrMat{Complex{T}},
     ) where {T<:Union{Float32,Float64}} = _direct_backslash_complex(f, b)
+end
+
+LinearAlgebra.rdiv!(
+    b::FaerMatrix,
+    f::FaerInPlaceFactorization;
+    scratch = nothing,
+    team = nothing,
+) = _direct_ldiv!(f, b, scratch, team; right = true)
+for W in (:TransposeFactorization, :AdjointFactorization)
+    @eval LinearAlgebra.rdiv!(
+        b::FaerMatrix,
+        f::LinearAlgebra.$W{<:Any,<:FaerInPlaceFactorization};
+        scratch = nothing,
+        team = nothing,
+    ) = _direct_ldiv!(f, b, scratch, team; right = true)
+end
+
+# `B / F` solves one native copy of B in place.
+function _direct_slash(b::AbstractMatrix, g::_DirectSolveFactor)
+    f=_direct_parent(g)
+    lock(() -> (_direct_source(f); _direct_rdiv_shape(f, b)), _matrix_lock)
+    x=FaerMatrix{eltype(f)}(b)
+    return _direct_ldiv!(g, x, nothing, nothing; right = true)
+end
+# A real factor solves a complex RHS as two real solves, like `\`.
+_direct_slash_complex(b, f) =
+    Matrix(_direct_slash(real.(b), f)) .+ im .* Matrix(_direct_slash(imag.(b), f))
+Base.:/(b::AbstractMatrix, f::FaerInPlaceFactorization) = _direct_slash(b, f)
+for W in (:TransposeFactorization, :AdjointFactorization)
+    @eval Base.:/(
+        b::AbstractMatrix,
+        f::LinearAlgebra.$W{<:Any,<:FaerInPlaceFactorization},
+    ) = _direct_slash(b, f)
+end
+# The complex-RHS signatures of LinearAlgebra's real-factor `/` methods.
+for B in (
+        :(Union{
+            Matrix{Complex{T}},
+            LinearAlgebra.Adjoint{Complex{T},Vector{Complex{T}}},
+            LinearAlgebra.Transpose{Complex{T},Vector{Complex{T}}},
+        }),
+        :(Matrix{Complex{T}}),
+        :(LinearAlgebra.Adjoint{Complex{T},Vector{Complex{T}}}),
+        :(LinearAlgebra.Transpose{Complex{T},Vector{Complex{T}}}),
+    ),
+    F in (
+        :(FaerInPlaceFactorization{T}),
+        :(LinearAlgebra.TransposeFactorization{T,<:FaerInPlaceFactorization}),
+        :(LinearAlgebra.AdjointFactorization{T,<:FaerInPlaceFactorization}),
+    )
+
+    @eval Base.:/(b::$B, f::$F) where {T<:Union{Float32,Float64}} =
+        _direct_slash_complex(b, f)
+end
+
+# Destructive inverse (native operation code 7): faer's inverse kernels read
+# the factor while writing their output, so the packed factor is copied into
+# the caller scratch and A itself receives inv(A).
+function _direct_inverse_requirements(f::FaerInPlaceFactorization, team)
+    _direct_source(f)
+    size(f, 1)==size(f, 2) || throw(DimensionMismatch("inverse requires a square factor"))
+    return _direct_requirements(_direct_kind(f), 7, size(f)..., 0, eltype(f), team)
+end
+"""
+    scratch_requirements(inv!, F::FaerInPlaceFactorization; team=nothing)
+    scratch_requirements(inv!, A::FaerMatrix; team=nothing)
+
+Query the workspace of `LinearAlgebra.inv!(F; scratch, team)`: a copy of the
+packed factor (plus Bunch–Kaufman's off-diagonal) and faer's inverse
+workspace. For a square `FaerMatrix` A it also covers the direct LU of
+`inv!(A)`.
+"""
+function scratch_requirements(
+    ::typeof(LinearAlgebra.inv!),
+    f::FaerInPlaceFactorization;
+    team = nothing,
+)
+    lock(_matrix_lock) do
+        req=_direct_inverse_requirements(f, team)
+        return (bytes = req.bytes, alignment = req.alignment)
+    end
+end
+function scratch_requirements(::typeof(LinearAlgebra.inv!), a::FaerMatrix; team = nothing)
+    lock(_matrix_lock) do
+        _handle(a)
+        n=LinearAlgebra.checksquare(a)
+        factor=_direct_requirements(0, 0, n, n, 0, eltype(a), team)
+        inverse=_direct_requirements(0, 7, n, n, 0, eltype(a), team)
+        return (
+            bytes = max(factor.bytes, inverse.bytes),
+            alignment = max(factor.alignment, inverse.alignment),
+        )
+    end
+end
+for X in (:FaerInPlaceFactorization, :FaerMatrix)
+    @eval function FaerScratch(fun::typeof(LinearAlgebra.inv!), x::$X; team = nothing)
+        req=scratch_requirements(fun, x; team)
+        return FaerScratch(req.bytes; alignment = req.alignment)
+    end
+    @eval function reserve!(
+        work::FaerScratch,
+        fun::typeof(LinearAlgebra.inv!),
+        x::$X;
+        team = nothing,
+    )
+        req=scratch_requirements(fun, x; team)
+        return reserve!(work, req.bytes; alignment = req.alignment)
+    end
+end
+
+"""
+    LinearAlgebra.inv!(F::FaerInPlaceFactorization; scratch=nothing, team=nothing)
+
+Overwrite `F.factors` (the matrix A that `lu!`, `full_piv_lu!`, `qr!`,
+`cholesky!`, `ldlt!` or `bunchkaufman!` factored in place) with `inv(A)` and
+return it, like Julia's `inv!(::LU)` and `inv!(::Cholesky)`; for the
+self-adjoint kinds both triangles hold the Hermitian inverse. F no longer holds
+a factor afterwards, so it is closed. Singular or failed factors throw before
+any write. The kernel uses only the caller scratch
+([`scratch_requirements`](@ref)`(inv!, F)`), with no native allocation of its
+own; `team` lends a caller-owned [`FaerTeam`](@ref).
+
+    LinearAlgebra.inv!(A::FaerMatrix; scratch=nothing, team=nothing)
+
+Invert a square `FaerMatrix` in place through its direct LU, as
+`inv!(lu!(A; scratch); scratch)` with one workspace
+(`scratch_requirements(inv!, A)`). A singular A throws `SingularException`
+after the factorization has overwritten A.
+"""
+function LinearAlgebra.inv!(
+    f::FaerInPlaceFactorization{T,K};
+    scratch = nothing,
+    team = nothing,
+) where {T,K}
+    lock(_matrix_lock) do
+        a=_direct_source(f)
+        isnothing(team) ||
+            team isa FaerTeam ||
+            throw(ArgumentError("team must be a FaerTeam"))
+        isnothing(team) || _handle(team)
+        req=_direct_inverse_requirements(f, team)
+        LinearAlgebra.issuccess(f) || throw(_cholesky_failure(f))
+        temporary=isnothing(scratch)
+        work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+        try
+            _direct_scratch_check(work, req, "inverse")
+            kind=_direct_kind(f)
+            coeff=getfield(f, :coeff)
+            # QR returns the index of a zero R pivot, found before any write.
+            code=GC.@preserve coeff _native_call(
+                RustCrate.direct_inverse,
+                a,
+                kind,
+                getfield(f, :uplo)===:L,
+                UInt.(size(f))...,
+                _tag(T),
+                getfield(f, :perm),
+                getfield(f, :perm_inv),
+                _direct_coeff_pointer(kind, coeff),
+                UInt(size(coeff, 1)),
+                work,
+                team,
+            )
+            iszero(code) || throw(LinearAlgebra.SingularException(Int(code)))
+        finally
+            temporary && close(work)
+        end
+        f.open=false
+        return a
+    end
+end
+function LinearAlgebra.inv!(a::FaerMatrix; scratch = nothing, team = nothing)
+    LinearAlgebra.checksquare(a)
+    temporary=isnothing(scratch)
+    work=temporary ? FaerScratch(LinearAlgebra.inv!, a; team) : scratch
+    try
+        f=_direct_lu!(a, true, false, work, team)
+        return LinearAlgebra.inv!(f; scratch = work, team)
+    finally
+        temporary && close(work)
+    end
 end

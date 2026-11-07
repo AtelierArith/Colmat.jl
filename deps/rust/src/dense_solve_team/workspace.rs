@@ -1,6 +1,7 @@
 //! Workspace-backed retained-factor solves. Results alone own a new allocation.
 use super::{validate_owned, validate_typed};
 use crate::typed::{Factor, FactorData, MatrixData, TypedFactor, TypedMatrix};
+use crate::views::{destination, Arm, Spec};
 use crate::{guarded, DenseFactor, OwnedFactor, OwnedMatrix};
 use crate::{
     teams::{with_team, OwnedTeam},
@@ -561,6 +562,19 @@ fn run_precision<T: ComplexField>(
         return Ok(out);
     }
     out.as_mut().copy_from(b);
+    square_in_place(f, out.as_mut(), t, c, p, stack);
+    Ok(out)
+}
+/// Solve `op(A) X = X` in place with a square factor that is neither a
+/// retained SVD nor a rank-deficient QR: faer's per-kind `solve_in_place`.
+fn square_in_place<T: ComplexField>(
+    f: &Saved<'_, T>,
+    out: MatMut<'_, T>,
+    t: bool,
+    c: bool,
+    p: Par,
+    stack: &mut MemStack,
+) {
     let conj = if c { Conj::Yes } else { Conj::No };
     match f {
         Saved::Lu(x) => {
@@ -570,7 +584,7 @@ fn run_precision<T: ComplexField>(
                     x.U(),
                     x.P(),
                     conj,
-                    out.as_mut(),
+                    out,
                     p,
                     stack,
                 )
@@ -580,7 +594,7 @@ fn run_precision<T: ComplexField>(
                     x.U(),
                     x.P(),
                     conj,
-                    out.as_mut(),
+                    out,
                     p,
                     stack,
                 )
@@ -594,7 +608,7 @@ fn run_precision<T: ComplexField>(
                     x.P(),
                     x.Q(),
                     conj,
-                    out.as_mut(),
+                    out,
                     p,
                     stack,
                 )
@@ -605,7 +619,7 @@ fn run_precision<T: ComplexField>(
                     x.P(),
                     x.Q(),
                     conj,
-                    out.as_mut(),
+                    out,
                     p,
                     stack,
                 )
@@ -618,7 +632,7 @@ fn run_precision<T: ComplexField>(
                     x.Q_coeff(),
                     x.R(),
                     conj,
-                    out.as_mut(),
+                    out,
                     p,
                     stack,
                 )
@@ -628,7 +642,7 @@ fn run_precision<T: ComplexField>(
                     x.Q_coeff(),
                     x.R(),
                     conj,
-                    out.as_mut(),
+                    out,
                     p,
                     stack,
                 )
@@ -642,7 +656,7 @@ fn run_precision<T: ComplexField>(
                     x.R(),
                     x.P(),
                     conj,
-                    out.as_mut(),
+                    out,
                     p,
                     stack,
                 )
@@ -653,7 +667,7 @@ fn run_precision<T: ComplexField>(
                     x.R(),
                     x.P(),
                     conj,
-                    out.as_mut(),
+                    out,
                     p,
                     stack,
                 )
@@ -663,7 +677,7 @@ fn run_precision<T: ComplexField>(
         Saved::Llt(x) => linalg::cholesky::llt::solve::solve_in_place_with_conj(
             x.L(),
             if t { conj.compose(Conj::Yes) } else { conj },
-            out.as_mut(),
+            out,
             p,
             stack,
         ),
@@ -671,7 +685,7 @@ fn run_precision<T: ComplexField>(
             x.L(),
             x.D(),
             if t { conj.compose(Conj::Yes) } else { conj },
-            out.as_mut(),
+            out,
             p,
             stack,
         ),
@@ -681,13 +695,47 @@ fn run_precision<T: ComplexField>(
             x.B_subdiag(),
             if t { conj.compose(Conj::Yes) } else { conj },
             x.P(),
-            out.as_mut(),
+            out,
             p,
             stack,
         ),
         Saved::Svd(_) => unreachable!(),
     }
-    Ok(out)
+}
+/// Solve `op(A) X = B` directly in B's storage (`x`, or for a right solve the
+/// transposed view of B) when the factor is square, not a retained SVD and not
+/// a rank-deficient QR. Returns `false`, without touching `x`, when the solve
+/// needs the out-of-place spectral or least-squares path instead.
+fn run_in_place<T: ComplexField>(
+    f: &Saved<'_, T>,
+    x: MatMut<'_, T>,
+    scratch: &mut OwnedScratch,
+    op: i32,
+    columns: usize,
+    p: Par,
+    precision: f64,
+) -> Result<bool, String> {
+    let (m, n) = (
+        dispatch_saved!(f,x=>x.nrows()),
+        dispatch_saved!(f,x=>x.ncols()),
+    );
+    let t = op == 1 || op == 2;
+    let c = op == 2 || op == 3;
+    if m != n || matches!(f, Saved::Svd(_)) || spectral_qr(f, t, precision) {
+        return Ok(false);
+    }
+    if x.shape() != (n, columns) {
+        return Err("factor RHS native dimensions do not match requested metadata".into());
+    }
+    if !x.rb().is_all_finite() {
+        return Err("solve RHS must be finite".into());
+    }
+    let stack = scratch.stack(requirement_precision(f, columns, op, p.shape(), precision)?)?;
+    if n == 0 || columns == 0 {
+        return Ok(true);
+    }
+    square_in_place(f, x, t, c, p, stack);
+    Ok(true)
 }
 fn write_req(req: StackReq, out: *mut usize) -> Result<(), String> {
     if out.is_null()
@@ -808,8 +856,104 @@ impl OwnedMatrix {
         })
     }
 }
+/// Borrow the destination `p`/`desc` (a native owner, native view or rooted
+/// Julia buffer, already oriented for the solve) and solve in it.
+///
+/// # Safety
+/// Julia roots the owner/buffer for this call; it is not the factor.
+unsafe fn solve_into_destination<T: ComplexField + Arm>(
+    f: &Saved<'_, T>,
+    p: *mut u8,
+    desc: *const isize,
+    scratch: &mut OwnedScratch,
+    op: i32,
+    columns: usize,
+    par: Par,
+    precision: f64,
+) -> Result<bool, String> {
+    let s = Spec::read(desc)?;
+    let x = T::pick_mut(destination(p, s)?).ok_or("factor/RHS native scalar types must match")?;
+    run_in_place(f, x, scratch, op, columns, par, precision)
+}
 #[julia]
-impl OwnedMatrix {}
+impl OwnedFactor {
+    /// Solve in place in the right-hand side `p`/`desc` (for `X op(A) = B`
+    /// the descriptor of `transpose(B)`); `false` when the factor needs the
+    /// out-of-place path, with the right-hand side untouched.
+    #[julia]
+    pub fn factor_solve_into(
+        &self,
+        p: *mut u8,
+        desc: *const isize,
+        scratch: &mut OwnedScratch,
+        op: i32,
+        m: usize,
+        n: usize,
+        columns: usize,
+        tag: i32,
+        kind: i32,
+        precision: f64,
+        team: Option<&OwnedTeam>,
+    ) -> Result<bool, String> {
+        guarded(|| {
+            with_team(team, |par| {
+                validate_owned(self, m, n, tag, kind)?;
+                let f = owned(self)?;
+                // SAFETY: see `solve_into_destination`.
+                unsafe { solve_into_destination(&f, p, desc, scratch, op, columns, par, precision) }
+            })
+        })
+    }
+}
+#[julia]
+impl TypedFactor {
+    /// Typed form of `OwnedFactor::factor_solve_into`.
+    #[julia]
+    pub fn factor_solve_into(
+        &self,
+        p: *mut u8,
+        desc: *const isize,
+        scratch: &mut OwnedScratch,
+        op: i32,
+        m: usize,
+        n: usize,
+        columns: usize,
+        tag: i32,
+        kind: i32,
+        precision: f64,
+        team: Option<&OwnedTeam>,
+    ) -> Result<bool, String> {
+        guarded(|| {
+            with_team(team, |par| {
+                validate_typed(self, m, n, tag, kind)?;
+                self.solve_ready()?;
+                macro_rules! go {
+                    ($f:expr) => {
+                        // SAFETY: see `solve_into_destination`.
+                        unsafe {
+                            solve_into_destination(
+                                &Saved::from($f),
+                                p,
+                                desc,
+                                scratch,
+                                op,
+                                columns,
+                                par,
+                                precision,
+                            )
+                        }
+                    };
+                }
+                match self.data()? {
+                    FactorData::F32(f) => go!(f),
+                    FactorData::F64(f) => go!(f),
+                    FactorData::C32(f) => go!(f),
+                    FactorData::C64(f) => go!(f),
+                }
+            })
+        })
+    }
+}
 #[julia]
 impl TypedMatrix {
     #[julia]
@@ -1079,6 +1223,129 @@ mod tests {
         assert!((x[(0, 0)] - 1.0).abs() < 1e-12);
         assert_eq!(x[(1, 0)], 0.0);
         assert!(requirement_precision(&saved, 1, 0, ParShape::Seq, f64::NAN).is_err());
+    }
+    /// Square retained factors solve in B's own storage (left, or right on
+    /// B's transposed view) with faer's per-kind `solve_in_place` and no native
+    /// allocation once the workspace is reserved; SVD and rank-deficient QR
+    /// report `false` and leave B untouched.
+    #[test]
+    fn square_factors_solve_in_place_without_allocation() {
+        fn go<T: ComplexField>(n: usize) {
+            let a = Mat::from_fn(n, n, |i, j| {
+                let re = if i == j {
+                    2.0 * n as f64 + i as f64
+                } else {
+                    ((i * 7 + j * 3) % 5) as f64 / 10.0
+                };
+                from_f64::<T>(re)
+            });
+            let h = &a * a.adjoint() + Mat::<T>::identity(n, n);
+            for kind in 0..8 {
+                let src = if (4..7).contains(&kind) { &h } else { &a };
+                let f = match kind {
+                    0 => Factor::Lu(src.partial_piv_lu(Par::Seq)),
+                    1 => Factor::FullLu(src.full_piv_lu(Par::Seq)),
+                    2 => Factor::Qr(src.qr(Par::Seq)),
+                    3 => Factor::PivotQr(src.col_piv_qr(Par::Seq)),
+                    4 => Factor::Llt(src.llt(Side::Lower, Par::Seq).unwrap()),
+                    5 => Factor::Ldlt(src.ldlt(Side::Lower, Par::Seq).unwrap()),
+                    6 => Factor::Lblt(crate::lblt::Lblt::new(
+                        src.as_ref(),
+                        Side::Lower,
+                        Par::Seq,
+                        false,
+                    )),
+                    _ => Factor::Svd(src.thin_svd(Par::Seq).unwrap()),
+                };
+                let saved = Saved::from(&f);
+                for op in 0..4 {
+                    for right in [false, true] {
+                        let precision = if eps::<T::Real>() > from_f64::<T::Real>(1e-10) {
+                            f32::EPSILON as f64
+                        } else {
+                            f64::EPSILON
+                        };
+                        let req =
+                            requirement_precision(&saved, 3, op, ParShape::Seq, precision).unwrap();
+                        let mut scratch = OwnedScratch::new();
+                        scratch
+                            .scratch_reserve(req.size_bytes(), req.align_bytes())
+                            .unwrap();
+                        let b = Mat::from_fn(
+                            if right { 3 } else { n },
+                            if right { n } else { 3 },
+                            |i, j| from_f64::<T>((1 + i + 2 * j) as f64),
+                        );
+                        let mut x = b.clone();
+                        let mut solve = |x: &mut Mat<T>| {
+                            let v = x.as_mut();
+                            let v = if right { v.transpose_mut() } else { v };
+                            run_in_place(&saved, v, &mut scratch, op, 3, Par::Seq, precision)
+                                .unwrap()
+                        };
+                        let mut warm = b.clone();
+                        let done = solve(&mut warm);
+                        let allocations = crate::allocation_probe::count(|| {
+                            assert_eq!(solve(&mut x), done);
+                        });
+                        if kind == 7 {
+                            assert!(!done);
+                            assert!(x == b, "SVD must leave B untouched");
+                            continue;
+                        }
+                        assert!(done, "kind {kind} op {op} right {right}");
+                        eprintln!(
+                            "retained kind {kind} n {n} op {op} right {right}: {allocations} native allocations"
+                        );
+                        if n <= 8 {
+                            assert_eq!(allocations, 0, "kind {kind} op {op} right {right}");
+                        }
+                        // The same solve through the out-of-place path.
+                        let rhs = if right {
+                            b.transpose().to_owned()
+                        } else {
+                            b.clone()
+                        };
+                        let expected =
+                            run(&saved, rhs.as_ref(), &mut scratch, op, 3, Par::Seq).unwrap();
+                        let got = if right {
+                            x.transpose().to_owned()
+                        } else {
+                            x.clone()
+                        };
+                        let scale = expected.norm_max() + one::<T::Real>();
+                        let tol = from_f64::<T::Real>(1e-4);
+                        assert!((&got - &expected).norm_max() <= tol * scale);
+                    }
+                }
+            }
+            // A rank-deficient QR keeps the out-of-place spectral path.
+            let mut d = a.clone();
+            for i in 0..n {
+                d[(i, n - 1)] = copy(&d[(i, 0)]);
+            }
+            let f = Factor::Qr(d.qr(Par::Seq));
+            let mut scratch = OwnedScratch::new();
+            let mut x = Mat::<T>::zeros(n, 1);
+            assert!(!run_in_place(
+                &Saved::from(&f),
+                x.as_mut(),
+                &mut scratch,
+                0,
+                1,
+                Par::Seq,
+                if eps::<T::Real>() > from_f64::<T::Real>(1e-10) {
+                    f32::EPSILON as f64
+                } else {
+                    f64::EPSILON
+                }
+            )
+            .unwrap());
+        }
+        go::<f64>(6);
+        go::<f64>(70);
+        go::<c64>(6);
+        go::<c32>(6);
     }
     #[test]
     fn workspace_f32() {

@@ -65,8 +65,10 @@ faer の `solve_in_place` を `B` の記憶域で直接実行し、右辺のコ�
 書き戻しを作りません。`ldiv!(X, F, B)` は `B` を `X` へ native に1回代入して
 （重なる入力は snapshot）から `X` で同じ in-place 求解をします。`F \ B`
 （`B` が Julia strided 配列・`faerview`）は右辺の native コピー1つで解いて返します。
-長方形・ランク落ちした QR・SVD 因子、型昇格、`scratch=` は従来の新規結果の経路で、
-Julia の書き込み先へは結果を native に1回代入します。
+2引数 `rdiv!(B, F)` も同じ条件で `transpose(B)` に在位置求解します。`scratch=` を
+渡すと因子種別ごとの低水準 kernel が caller scratch 上で動き、在位置求解は native
+割当なしになります。長方形・ランク落ちした QR・SVD 因子、型昇格は従来の新規結果の
+経路で、Julia の書き込み先へは結果を native に1回代入します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -479,9 +481,43 @@ A lone faer 70×35×70 product allocates twice and a lone 140×140 unit-triangul
 solve four times (t4a-faer `upstream-reports/gemm-001`). Allocations under a team
 were not measured.
 
-The direct factor does not support `rdiv!`, operator or preconditioner use,
+Square factors also solve from the right in B's own storage:
+`rdiv!(B, F; scratch, team)` (and `transpose(F)`, `adjoint(F)`) runs faer's
+in-place left solve on the transposed view of B, as `Aᵀ Xᵀ = Bᵀ` for `X A = B`
+and as the conjugate-only solve `conj(A) Xᵀ = Bᵀ` for `X Aᴴ = B`. Size its
+workspace with `scratch_requirements(rdiv!, B, F)`. `B / F` returns a
+`FaerMatrix` solved in one native copy of B.
+
+`LinearAlgebra.inv!(F; scratch, team)` overwrites A (`F.factors`) with `inv(A)`
+and returns it, like Julia's `inv!(::LU)` and `inv!(::Cholesky)`. For LDLᴴ,
+Bunch–Kaufman and Cholesky both triangles hold the Hermitian inverse. faer's
+inverse kernels read the factor while they write their output, so the packed
+factor (and Bunch–Kaufman's off-diagonal) is first copied into scratch
+(`scratch_requirements(inv!, F)`). F no longer holds a factor afterwards, so
+`inv!` closes it. Singular, failed or non-square factors throw before any
+write. `LinearAlgebra.inv!(A::FaerMatrix; scratch, team)` inverts a square
+matrix in place through its direct LU, with one workspace sized by
+`scratch_requirements(inv!, A)`.
+
+```julia
+A = FaerMatrix([4.0 1; 2 3])
+F = lu!(A; scratch = FaerScratch(lu!, A))
+X = FaerMatrix([1.0 2; 3 4])
+rdiv!(X, F; scratch = FaerScratch(rdiv!, X, F))   # X / A, in X's storage
+LinearAlgebra.inv!(F; scratch = FaerScratch(LinearAlgebra.inv!, F))
+@assert Matrix(A) ≈ inv([4.0 1; 2 3]) && !isopen(F)
+```
+
+With caller scratch, right solves and `inv!` made no native allocation for any
+kind (LU, full LU, QR, Cholesky, LDLᴴ, both Bunch–Kaufman pivotings, both
+storage triangles) at n = 6 and n = 70 (complex double, aarch64, `Par::Seq`).
+The zero-pivot check of a QR factor runs natively before any write, so it does
+not allocate either.
+
+The direct factor does not support operator or preconditioner use,
 mixed-scalar promotion of factors, rectangular LU or wide-QR solves (`pinv(F;
-atol, rtol, team)` of a direct QR is supported, see below). Those need the default result without `scratch=`. Pivoted Cholesky
+atol, rtol, team)` of a direct QR is supported, see below). Those need the
+default result without `scratch=`. Pivoted Cholesky
 and column-pivoted QR have no direct path yet. `cholesky!(A, RowMaximum();
 scratch)` keeps its existing meaning (caller scratch for the independent
 `CholeskyPivoted` factor), and faer's in-place pivoted kernel covers only the
@@ -504,8 +540,9 @@ T = UpperTriangular(FaerMatrix([2.0 1; 0 4]))
 LinearAlgebra.inv!(T; scratch = FaerScratch(LinearAlgebra.inv!, T))
 ```
 
-Lower/upper/unit triangular wrappers of a `FaerMatrix`, a native matrix view or
-the `transpose`/`adjoint` (or elementwise conjugate) of either solve with faer's
+Lower/upper/unit triangular wrappers of a `FaerMatrix`, a native matrix view, a
+`faerview` borrow of Julia memory (including its strided views) or the
+`transpose`/`adjoint` (or elementwise conjugate) of any of them solve with faer's
 `solve_{unit_}{lower,upper}_triangular_in_place_with_conj`. The triangle is
 borrowed through its view descriptor, so transposed, adjoint and strided parents
 are never copied. `ldiv!(A, B)`, `ldiv!(Y, A, B)` and `rdiv!(B, A)` run the
@@ -514,9 +551,15 @@ native view, a `faerview` borrow or an injective Julia strided array holding
 `promote_type(eltype(A), eltype(B))`. `rdiv!` solves `transpose(op(A)) *
 transpose(X) = transpose(B)` on the same memory. Narrower or non-strided
 destinations stage one promoted copy. A destination that shares the triangle's
-owner solves from a snapshot of the triangle. `A \ B` and `B / A` return a
-`FaerMatrix` (a vector RHS returns a vector, and a row vector stays a row
-vector).
+owner, or for a `faerview` parent the same Julia memory, solves from a
+snapshot of the triangle. `A \ B` and `B / A` return a `FaerMatrix` (a vector
+RHS returns a vector, and a row vector stays a row vector).
+
+A plain Julia array parent (`LowerTriangular(::Matrix)`) intentionally keeps
+LinearAlgebra's path: with a Julia RHS every type involved belongs to Base, so a
+Colmat method would be type piracy, and LinearAlgebra already solves strided
+`BLAS` triangles in place with `trsm`/`trsv`. Wrap the parent with `faerview(A)`
+to select the native kernel without copying it.
 
 faer's dense triangular kernels need no workspace. `scratch` holds only the
 promoted copy of a triangle whose scalar is narrower than the promoted type
@@ -528,19 +571,23 @@ Zero diagonals throw `SingularException(i)`. Closed owners, closed teams and
 undersized scratch throw before any write.
 
 `LinearAlgebra.inv!(A; scratch, team)` overwrites the selected triangle of the
-parent (a `FaerMatrix`, a native view or a `transpose` of either) with the
-inverse triangle and returns `A`, as Julia's `inv!` does for strided triangles.
-The opposite strict triangle is untouched, and so is the diagonal of a unit
+parent (any of the parents above, including `adjoint`, conjugated and
+`faerview` parents) with the inverse triangle and returns `A`, as Julia's
+`inv!` does for strided triangles. A conjugated parent needs no extra pass:
+the stored triangle is inverted unconjugated, since `inv(Xᴴ) = inv(X)ᴴ`. The
+opposite strict triangle is untouched, and so is the diagonal of a unit
 wrapper. faer's `triangular_inverse::invert_*` kernels write into a separate
 destination, so the source triangle is first copied into scratch, sized by
-`scratch_requirements(inv!, A)`. Adjoint parents keep using `inv(A)`.
+`scratch_requirements(inv!, A)`.
 
 With caller scratch, Colmat allocates no native memory on these paths. The
 direct solve made no native allocation through n = 70 (aarch64, `Par::Seq`).
-At n = 300, faer's blocked kernel allocates matmul packing buffers: 12 per
-solve. The in-place inverse is allocation-free at n = 5, but faer's matrix
-products allocate at n = 70. See t4a-faer `upstream-reports/gemm-001`.
-Allocations under a team were not measured.
+At n = 300, faer's blocked kernel can allocate matmul packing buffers: from 0
+to 12 per solve, depending on warm-up. The in-place inverse is allocation-free at n = 5, but faer's matrix
+products allocate at n = 70. See t4a-faer `upstream-reports/gemm-001`. Under a
+two-worker `FaerTeam`, the calling thread made no native allocation for left or
+right solves at n = 6, 70 and 300. The allocation probe observes only the
+calling thread, so allocations on the team's workers are not counted.
 
 `cond(A, 1)` and `cond(A, Inf)` of these wrappers are estimates, as Julia's
 LAPACK `trcon` path is for strided triangles. `opnorm(A, p)` is exact, and
@@ -745,7 +792,18 @@ owners remain valid after the original factors are updated or closed.
 `ldiv!(X,F,B; scratch,team)` and `rdiv!(X,B,F; scratch,team)` borrow native resources for
 retained LU/full LU/QR/pivoted QR/Cholesky/LDLT/Bunch–Kaufman solves, including
 transpose/adjoint, rectangular LU/full LU/QR and rank-deficient QR minimum-norm paths.
-Two-argument forms require square factors. Solve teams are independent of the
+Two-argument forms require square factors. When B holds the factor's scalar in
+writable memory (a `FaerMatrix`/`FaerVector`, a native view, a writable
+`faerview` borrow or an injective Julia strided array), `ldiv!(F, B)` and
+`rdiv!(B, F)` (also through `transpose(F)` and `adjoint(F)`) run faer's
+per-kind `solve_in_place` directly in B's storage through its view descriptor
+(a right solve on B's transposed view). No RHS copy or native result is made.
+With caller scratch the solve makes no native allocation of its own (all seven
+kinds; Float64 at n = 6 and 70, complex at n = 6; aarch64, `Par::Seq`).
+Retained SVDs and rank-deficient QR (whose minimum-norm solution needs work
+matrices), scalar promotion, read-only or non-strided B and three-argument
+`rdiv!` keep the out-of-place path below; three-argument `ldiv!(X, F, B)`
+first assigns B into X natively and then solves in X. Solve teams are independent of the
 team used to construct the factor; the factor remains usable after either team
 closes. Native solve work, including the QR fallback R SVD and projections,
 uses caller scratch; the result and Julia staging allocate separately. Mixed
