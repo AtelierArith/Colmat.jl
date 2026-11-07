@@ -87,6 +87,20 @@ end
     end
 end
 
+@testset "Borrowed Julia CSC symbolic scratch" begin
+    a=sparse([4.0 1 0 1; 1 4 1 0; 0 1 4 1; 1 0 1 4])
+    b=faerview(a)
+    for kind in (:cholesky, :lu)
+        s=FaerScratch(FaerSparseSymbolic, b; kind)
+        @test scratch_capacity(s)==scratch_requirements(FaerSparseSymbolic, b; kind)
+        plan=FaerSparseSymbolic(b; kind, scratch = s)
+        F=factorize(plan, b)
+        @test F\ones(4)≈Matrix(a)\ones(4)
+        close(s)
+    end
+    @test a==sparse([4.0 1 0 1; 1 4 1 0; 0 1 4 1; 1 0 1 4])
+end
+
 @testset "Explicit Cholesky orderings need no symbolic ordering scratch" begin
     a=FaerSparseMatrix(sparse([4.0 1 0; 1 4 1; 0 1 4]))
     for ordering in (:identity, [3, 1, 2])

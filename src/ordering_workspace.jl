@@ -110,13 +110,15 @@ function _ordering_options(a, symmetric, row, col, aggressive, statistics, scrat
         end
     end
 end
-const _SymbolicOrderingInput=Union{FaerSparsity,FaerSparseMatrix}
+const _SymbolicOrderingInput=Union{FaerSparsity,FaerSparseMatrix,FaerBorrowedSparseMatrix}
+_ordering_pattern(a::FaerBorrowedSparseMatrix) = FaerSparsity(a)
 """
     scratch_requirements(FaerSparseSymbolic, A; kind=:lu, uplo=:L, ordering=:default, algorithm=:auto, dense=10.0, dense_row=0.5, dense_col=0.5, aggressive=true)
 
 Return `(bytes, alignment)` for the fill-reducing ordering workspace used inside
 `FaerSparseSymbolic(A; scratch=s, kwargs...)`, with the same keywords. A is a
-`FaerSparsity` or `FaerSparseMatrix` (CSC/CSR, stored zeros included).
+`FaerSparsity`, `FaerSparseMatrix` (CSC/CSR) or borrowed Julia CSC (one pattern
+copy); stored zeros are included.
 Cholesky `:default`/`:amd` runs faer's AMD (same input and controls as faer's
 symbolic analysis) in the caller buffer, plus exact factor column counts for
 `algorithm=:auto` so the simplicial/supernodal choice matches the no-scratch
