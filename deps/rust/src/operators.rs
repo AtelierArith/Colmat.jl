@@ -2,6 +2,7 @@
 use crate::collections::{VectorData, VectorOwner, VectorStore};
 use crate::sparse::{SparseData, SparseOwner, Storage};
 use crate::typed::{MatrixData, TypedMatrix};
+use crate::sparse_factors::SparseFactor;
 use crate::{guarded, OwnedMatrix};
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
 use faer::mat::{AsMatMut, AsMatRef};
@@ -2990,62 +2991,132 @@ impl<T: ComplexField> BiLinOp<T> for crate::sparse_qr_components::Factors<T> {
         sparse_qr_action(self, o, b, p, s, true, true)
     }
 }
+/// Construction scratch of a sparse QR inverse action: nonempty only for wide
+/// QR, whose dense `pinv(R)` is built from an SVD in caller scratch.
+fn sparse_qr_inverse_requirement(
+    factor: &crate::sparse_factors::SparseFactor,
+    p: ParShape,
+) -> Result<StackReq, String> {
+    Ok(match factor.wide_qr_shape()? {
+        None => StackReq::EMPTY,
+        Some((m, n, 0)) => WideQrInverse::<f32>::construction_scratch(m, n, p),
+        Some((m, n, 1)) => WideQrInverse::<f64>::construction_scratch(m, n, p),
+        Some((m, n, 2)) => WideQrInverse::<c32>::construction_scratch(m, n, p),
+        Some((m, n, _)) => WideQrInverse::<c64>::construction_scratch(m, n, p),
+    })
+}
+fn sparse_qr_inverse(
+    factor: &crate::sparse_factors::SparseFactor,
+    scratch: &mut crate::workspace::OwnedScratch,
+    par: Par<'_>,
+) -> Result<Data, String> {
+    use crate::sparse_factors::QrComponents;
+    fn wrap<T: ComplexField>(
+        f: crate::sparse_qr_components::Factors<T>,
+    ) -> Result<Operator<T>, String> {
+        for j in 0..f.r.ncols() {
+            if f.r.as_ref().row_idx_of_col_raw(j).last() != Some(&j) {
+                return Err("sparse QR inverse action requires stored R pivots".into());
+            }
+            if f.r
+                .as_ref()
+                .val_of_col(j)
+                .last()
+                .is_none_or(|x| abs(x) == zero::<T::Real>())
+            {
+                return Err("sparse QR inverse action requires full column rank".into());
+            }
+        }
+        Ok(Operator::new(Base::InverseSparseQr(Box::new(f))))
+    }
+    fn wrap_owned<T: ComplexField>(
+        f: crate::sparse_qr_owned::Factors<T>,
+    ) -> Result<Operator<T>, String> {
+        Ok(Operator::new(Base::InverseOwnedSparseQr(Box::new(
+            OwnedQrInverse::new(f)?,
+        ))))
+    }
+    fn wrap_wide<T: ComplexField>(
+        f: &crate::sparse_qr_wide::Factors<T>,
+        scratch: &mut crate::workspace::OwnedScratch,
+        par: Par<'_>,
+    ) -> Result<Operator<T>, String> {
+        let (m, n) = f.dimensions();
+        let stack = scratch.stack(WideQrInverse::<T>::construction_scratch(m, n, par.shape()))?;
+        Ok(Operator::new(Base::InverseWideSparseQr(Box::new(
+            WideQrInverse::new_in(f, par, stack)?,
+        ))))
+    }
+    Ok(match factor.simplicial_qr_components()? {
+        QrComponents::WideF32(f) => Data::F32(wrap_wide(f, scratch, par)?),
+        QrComponents::WideF64(f) => Data::F64(wrap_wide(f, scratch, par)?),
+        QrComponents::WideC32(f) => Data::C32(wrap_wide(f, scratch, par)?),
+        QrComponents::WideC64(f) => Data::C64(wrap_wide(f, scratch, par)?),
+        QrComponents::OwnedF32(f) => Data::F32(wrap_owned(f)?),
+        QrComponents::OwnedF64(f) => Data::F64(wrap_owned(f)?),
+        QrComponents::OwnedC32(f) => Data::C32(wrap_owned(f)?),
+        QrComponents::OwnedC64(f) => Data::C64(wrap_owned(f)?),
+        QrComponents::F32(f) => Data::F32(wrap(f)?),
+        QrComponents::F64(f) => Data::F64(wrap(f)?),
+        QrComponents::C32(f) => Data::C32(wrap(f)?),
+        QrComponents::C64(f) => Data::C64(wrap(f)?),
+    })
+}
+fn write_requirement(req: StackReq, out: *mut usize) {
+    // SAFETY: Julia passes a live two-element UInt buffer.
+    unsafe {
+        out.write(req.size_bytes());
+        out.add(1).write(req.align_bytes());
+    }
+}
+#[julia]
+impl SparseFactor {
+    /// Query construction scratch for `FaerLinearOperator(F)` of sparse QR.
+    #[julia]
+    pub fn operator_sparse_qr_inverse_requirements(&self, out: *mut usize) -> Result<(), String> {
+        guarded(|| {
+            write_requirement(sparse_qr_inverse_requirement(self, ParShape::Seq)?, out);
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn operator_sparse_qr_inverse_requirements_team(
+        &self,
+        out: *mut usize,
+        team: &crate::teams::OwnedTeam,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let req = team.execute(|p| sparse_qr_inverse_requirement(self, p.shape()))??;
+            write_requirement(req, out);
+            Ok(())
+        })
+    }
+}
 #[julia]
 impl OwnedLinearOperator {
+    /// Build a sparse QR inverse action; wide `pinv(R)` uses caller scratch.
     #[julia]
     pub fn operator_sparse_qr_inverse(
         &mut self,
         factor: &crate::sparse_factors::SparseFactor,
+        scratch: &mut crate::workspace::OwnedScratch,
     ) -> Result<(), String> {
         guarded(|| {
-            use crate::sparse_factors::QrComponents;
-            fn wrap<T: ComplexField>(
-                f: crate::sparse_qr_components::Factors<T>,
-            ) -> Result<Operator<T>, String> {
-                for j in 0..f.r.ncols() {
-                    if f.r.as_ref().row_idx_of_col_raw(j).last() != Some(&j) {
-                        return Err("sparse QR inverse action requires stored R pivots".into());
-                    }
-                    if f.r
-                        .as_ref()
-                        .val_of_col(j)
-                        .last()
-                        .is_none_or(|x| abs(x) == zero::<T::Real>())
-                    {
-                        return Err("sparse QR inverse action requires full column rank".into());
-                    }
-                }
-                Ok(Operator::new(Base::InverseSparseQr(Box::new(f))))
-            }
-            fn wrap_owned<T: ComplexField>(
-                f: crate::sparse_qr_owned::Factors<T>,
-            ) -> Result<Operator<T>, String> {
-                Ok(Operator::new(Base::InverseOwnedSparseQr(Box::new(
-                    OwnedQrInverse::new(f)?,
-                ))))
-            }
-            self.data = Some(match factor.simplicial_qr_components()? {
-                QrComponents::WideF32(f) => Data::F32(Operator::new(Base::InverseWideSparseQr(
-                    Box::new(WideQrInverse::new(f)?),
-                ))),
-                QrComponents::WideF64(f) => Data::F64(Operator::new(Base::InverseWideSparseQr(
-                    Box::new(WideQrInverse::new(f)?),
-                ))),
-                QrComponents::WideC32(f) => Data::C32(Operator::new(Base::InverseWideSparseQr(
-                    Box::new(WideQrInverse::new(f)?),
-                ))),
-                QrComponents::WideC64(f) => Data::C64(Operator::new(Base::InverseWideSparseQr(
-                    Box::new(WideQrInverse::new(f)?),
-                ))),
-                QrComponents::OwnedF32(f) => Data::F32(wrap_owned(f)?),
-                QrComponents::OwnedF64(f) => Data::F64(wrap_owned(f)?),
-                QrComponents::OwnedC32(f) => Data::C32(wrap_owned(f)?),
-                QrComponents::OwnedC64(f) => Data::C64(wrap_owned(f)?),
-                QrComponents::F32(f) => Data::F32(wrap(f)?),
-                QrComponents::F64(f) => Data::F64(wrap(f)?),
-                QrComponents::C32(f) => Data::C32(wrap(f)?),
-                QrComponents::C64(f) => Data::C64(wrap(f)?),
-            });
+            let data = sparse_qr_inverse(factor, scratch, Par::Seq)?;
+            self.data = Some(data);
+            Ok(())
+        })
+    }
+    #[julia]
+    pub fn operator_sparse_qr_inverse_team(
+        &mut self,
+        factor: &crate::sparse_factors::SparseFactor,
+        scratch: &mut crate::workspace::OwnedScratch,
+        team: &crate::teams::OwnedTeam,
+    ) -> Result<(), String> {
+        guarded(|| {
+            let data = team.execute(|p| sparse_qr_inverse(factor, scratch, p))??;
+            self.data = Some(data);
             Ok(())
         })
     }

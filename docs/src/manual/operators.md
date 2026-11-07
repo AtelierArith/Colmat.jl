@@ -124,8 +124,9 @@ factor inverse-action intermediates where implemented. Result staging, Julia
 scaling/conversion buffers and promoted operator snapshots allocate separately.
 Prepared auto/supernodal and wide sparse-QR inverse actions use this buffer and
 propagate the team to their kernels. Wide inverse construction caches the dense
-pseudoinverse of R once; construction and direct factor solves have separate
-allocation costs. Invalid/closed resources and insufficient
+pseudoinverse of R once; its dense R, SVD and reconstruction temporaries come from
+caller scratch (`FaerLinearOperator(F; scratch, team)`, see below). Direct factor
+solves have separate allocation costs. Invalid/closed resources and insufficient
 capacity/alignment reject before destination writeback. Shared use is serialized
 by the owner lock.
 
@@ -249,10 +250,36 @@ including rank-deficient inputs. `atol`/`rtol` select singular values of saved R
 using `max(atol,rtol*maximum(svdvals(R)))`. The default rtol is
 `min(size(F)...)*eps(real(eltype(F)))` when atol is zero, and zero otherwise.
 Nonzero atol or explicit rtol also select this truncated action for square QR.
-Construction computes an SVD of R once and stores its singular factors, compact
-Householder factors and column permutation. Applications form neither dense Q
-nor a pseudoinverse of A and reuse native scratch/team. Promotion converts the
-cache without recomputing rank; construction and result staging allocate.
+Construction computes an SVD of R once and stores only the singular columns
+above the cutoff, compact Householder factors and column permutation. Applications
+form neither dense Q nor a pseudoinverse of A and reuse native scratch/team.
+Promotion converts the cache without recomputing rank; result staging allocates.
+
+The SVD temporaries of construction come from caller-owned scratch:
+`scratch_requirements(FaerLinearOperator, F; atol, rtol, team)`,
+`FaerScratch(FaerLinearOperator, F; ...)` and `reserve!(scratch, FaerLinearOperator, F; ...)`
+declare them, and `FaerLinearOperator(F; atol, rtol, scratch, team)` uses them
+(a temporary buffer when omitted). Pass the same tolerances and team to the query.
+The same keywords build sparse QR inverse actions; only wide QR needs bytes, for
+dense R, its SVD and the cached `pinv(R)` reconstruction. The cached `pinv(R)` is
+kept dense: retained rank-r `U` and `V` would be smaller and cheaper to apply only
+when `r*(m+n) < m*n`; at full rank they need more storage and an extra product. Retained factors are operator
+output; faer's matrix products inside the SVD can still allocate their own packing
+buffers above small sizes (t4a-faer upstream-reports/gemm-001).
+
+```julia
+using Colmat, LinearAlgebra
+A0=[1.0 2 0;0 1 1]
+F=qr(FaerMatrix(A0))
+FaerTeam(2) do team
+    scratch=FaerScratch(FaerLinearOperator,F;team)
+    M=FaerLinearOperator(F;scratch,team)
+    @assert Matrix(M)≈pinv(A0)
+    close(M)
+    close(scratch)
+end
+close(F)
+```
 
 ```julia
 using Colmat, LinearAlgebra

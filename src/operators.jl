@@ -1148,19 +1148,29 @@ rtol of `min(size(F)...)*eps(real(T))` when atol is zero (otherwise zero).
 Nonzero atol or explicit rtol also select this rank-truncated action for square QR.
 Square QR without tolerances keeps its existing nonsingular inverse contract.
 
-Construction computes an SVD of saved R and retains its singular factors plus
-compact Householder factors and column permutation. No dense Q, pseudoinverse
-of the original matrix or source refactorization is formed. Applications use
-native scratch/team; construction and result staging allocate separately.
+Construction computes the SVD of saved R in caller-owned `scratch` (queried by
+`scratch_requirements(FaerLinearOperator, F; atol, rtol, team)`; a temporary
+workspace when omitted) on the optional `team`, and retains only the singular
+columns above the cutoff plus compact Householder factors and column
+permutation. No dense Q, pseudoinverse of the original matrix or source
+refactorization is formed. Applications use native scratch/team; the retained
+factors and result staging allocate as operator output.
 Promotion converts saved data and preserves the original cutoff decisions.
 """
-function FaerLinearOperator(f::_DenseQrFactor; atol::Real = 0, rtol = nothing)
+function FaerLinearOperator(
+    f::_DenseQrFactor;
+    atol::Real = 0,
+    rtol = nothing,
+    scratch = nothing,
+    team = nothing,
+)
     lock(_matrix_lock) do
         _handle(f)
         at, rt=_spectral_tolerances(
             atol,
             isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol,
         )
+        _construction_options(scratch, team)
         if size(f, 1)==size(f, 2) && iszero(atol) && isnothing(rtol)
             return _dense_factor_operator(f)
         end
@@ -1169,19 +1179,29 @@ function FaerLinearOperator(f::_DenseQrFactor; atol::Real = 0, rtol = nothing)
         relative=isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol
         T=eltype(f)
         h=RustCrate.OwnedLinearOperator()
-        fun=T===Float64 ? RustCrate.operator_qr_pseudoinverse :
-            RustCrate.operator_qr_pseudoinverse_typed
-        _native_call(
-            fun,
-            h,
-            f,
-            at,
-            rt,
-            promote_type(typeof(relative), _realtype(T))===Float32,
-            UInt(size(f, 1)),
-            UInt(size(f, 2)),
-            _tag(T),
-        )
+        fun=if T===Float64
+            isnothing(team) ? RustCrate.operator_qr_pseudoinverse :
+            RustCrate.operator_qr_pseudoinverse_team
+        else
+            isnothing(team) ? RustCrate.operator_qr_pseudoinverse_typed :
+            RustCrate.operator_qr_pseudoinverse_typed_team
+        end
+        req=_qr_pseudoinverse_requirement(f, team)
+        _with_construction_scratch(req, scratch) do work
+            _native_call(
+                fun,
+                h,
+                f,
+                work,
+                at,
+                rt,
+                promote_type(typeof(relative), _realtype(T))===Float32,
+                UInt(size(f, 1)),
+                UInt(size(f, 2)),
+                _tag(T),
+                (isnothing(team) ? () : (team,))...,
+            )
+        end
         return FaerLinearOperator{T,typeof(h)}(
             h,
             reverse(size(f)),
@@ -1200,12 +1220,20 @@ CSC L/U and row/column permutations are retained independently; mixed scalar
 promotion converts these factors without refactorizing the stored input.
 Application uses saved factors and sparse triangular solves. Prepared
 auto/supernodal and wide QR actions use declared native scratch and caller teams.
+Wide QR construction stores a dense pseudoinverse of R, computed from an SVD in
+caller-owned `scratch` (`scratch_requirements(FaerLinearOperator, F; team)`) on
+the optional `team`. Other kinds only copy factors and need zero bytes.
 """
-function FaerLinearOperator(f::FaerSparseFactorization{T,K}) where {T,K}
+function FaerLinearOperator(
+    f::FaerSparseFactorization{T,K};
+    scratch = nothing,
+    team = nothing,
+) where {T,K}
     K in (:lu, :cholesky, :qr) ||
         throw(ArgumentError("sparse inverse operator requires LU/QR or Cholesky"))
     lock(_matrix_lock) do
         _handle(f)
+        _construction_options(scratch, team)
         LinearAlgebra.issuccess(f) || (
             K===:cholesky ? throw(LinearAlgebra.PosDefException(f.info)) :
             throw(LinearAlgebra.SingularException(f.info))
@@ -1220,7 +1248,12 @@ function FaerLinearOperator(f::FaerSparseFactorization{T,K}) where {T,K}
         end
         if K===:qr
             h=RustCrate.OwnedLinearOperator()
-            _native_call(RustCrate.operator_sparse_qr_inverse, h, f)
+            req=_sparse_qr_inverse_requirement(f, team)
+            _with_construction_scratch(req, scratch) do work
+                isnothing(team) ?
+                _native_call(RustCrate.operator_sparse_qr_inverse, h, f, work) :
+                _native_call(RustCrate.operator_sparse_qr_inverse_team, h, f, work, team)
+            end
             return FaerLinearOperator{T,typeof(h)}(
                 h,
                 reverse(size(f)),

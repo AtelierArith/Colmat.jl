@@ -167,19 +167,19 @@ fn direct_kernels_match_retained_factors_without_native_allocation() {
         }
         assert!(allocations < retained);
         let mut expected = OwnedMatrix::new();
-        expected.factor_part(&old, 7).unwrap();
+        expected.factor_part(&old, 7, None).unwrap();
         assert_eq!(a.matrix, expected.matrix, "kind {kind} {m}x{n} packed");
         let mut rebuilt = OwnedMatrix::new();
         rebuilt
-            .direct_part(&a, kind, 0, true, m, n, 1, &perm, &perm_inv, p, bs)
+            .direct_part(&a, kind, 0, true, m, n, 1, &perm, &perm_inv, p, bs, None)
             .unwrap();
         assert!((&rebuilt.matrix - &src).norm_max() < 1e-9);
         if kind == LDLT || is_lblt(kind) {
             let mut d = OwnedMatrix::new();
-            d.direct_part(&a, kind, 5, true, m, n, 1, &perm, &perm_inv, p, bs)
+            d.direct_part(&a, kind, 5, true, m, n, 1, &perm, &perm_inv, p, bs, None)
                 .unwrap();
             let mut expected = OwnedMatrix::new();
-            expected.factor_part(&old, 5).unwrap();
+            expected.factor_part(&old, 5, None).unwrap();
             assert_eq!(d.matrix, expected.matrix, "kind {kind} {m}x{n} D");
         }
         if (kind == QR && m < n) || (kind != QR && m != n) {
@@ -315,6 +315,7 @@ fn complex_self_adjoint_kinds_in_both_triangles() {
                     &inv,
                     off.as_ptr().cast(),
                     rows,
+                    Par::Seq,
                 )
                 .unwrap()
             };

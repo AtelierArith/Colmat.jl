@@ -9,6 +9,7 @@ use faer::{Accum, Col, Conj, Mat, MatMut, MatRef, Par};
 use rustcall_julia_macros::julia;
 
 mod destination;
+mod gather;
 pub(crate) use destination::{destination, raw_mut, view_mut, BorrowedMut};
 
 #[derive(Clone, Copy)]
