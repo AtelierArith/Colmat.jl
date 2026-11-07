@@ -2,6 +2,28 @@
 # use TypedMatrix/TypedFactor. No raw pointer crosses between those owner ABIs.
 const _NativeScalar = Union{Float32,Float64,ComplexF32,ComplexF64}
 const _ExtraScalar = Union{Float32,ComplexF32,ComplexF64}
+# faer's fx128/cx128 and its generic field traits are intentionally not exposed:
+# every native owner and factor dispatches over exactly these four types.
+_unsupported_scalar(::Type{T}) where {T} = throw(
+    ArgumentError(
+        "unsupported scalar type $T: native owners support Float32, Float64, ComplexF32 and ComplexF64",
+    ),
+)
+# Untyped constructors keep native inputs and convert other real/complex inputs.
+_native_input_type(::Type{T}) where {T<:_NativeScalar} = T
+_native_input_type(::Type{<:Real}) = Float64
+_native_input_type(::Type{<:Complex}) = ComplexF64
+_native_input_type(::Type{T}) where {T} = _unsupported_scalar(T)
+# Scalar arithmetic follows promote_type and never rounds to a narrower native type.
+function _native_promotion(::Type{S}, ::Type{T}) where {S,T}
+    P=promote_type(S, T)
+    P<:_NativeScalar || throw(
+        ArgumentError(
+            "unsupported promoted scalar type $P: native owners support Float32, Float64, ComplexF32 and ComplexF64",
+        ),
+    )
+    return P
+end
 _tag(::Type{Float32}) = Int32(0)
 _tag(::Type{Float64}) = Int32(1)
 _tag(::Type{ComplexF32}) = Int32(2)
@@ -27,9 +49,11 @@ function _matrix_from_dense(data::Matrix{T}) where {T<:_ExtraScalar}
 end
 FaerMatrix{T}(a::AbstractMatrix) where {T<:_NativeScalar} =
     _matrix_from_dense(_checked_dense(T, a))
+FaerMatrix{T}(::AbstractMatrix) where {T} = _unsupported_scalar(T)
 FaerMatrix(a::AbstractMatrix{Float32}) = FaerMatrix{Float32}(a)
 FaerMatrix(a::AbstractMatrix{ComplexF32}) = FaerMatrix{ComplexF32}(a)
 FaerMatrix(a::AbstractMatrix{ComplexF64}) = FaerMatrix{ComplexF64}(a)
+FaerMatrix(a::AbstractMatrix{<:Complex}) = FaerMatrix{ComplexF64}(a)
 FaerMatrix(a::FaerMatrix) = copy(a)
 _coerce(a::FaerMatrix{T}, ::Type{T}) where {T} = a
 _coerce(a::FaerMatrix, ::Type{T}) where {T} = FaerMatrix{T}(a)
@@ -137,8 +161,7 @@ end
 Base.:+(a::FaerMatrix{T}) where {T<:_ExtraScalar} = copy(a)
 Base.:-(a::FaerMatrix{T}) where {T<:_ExtraScalar} = (-one(T))*a
 function Base.:*(x::Number, a::FaerMatrix{T}) where {T}
-    P=promote_type(typeof(x), T)
-    P<:_NativeScalar || throw(ArgumentError("unsupported promoted scalar type: $P"))
+    P=_native_promotion(typeof(x), T)
     converted=_coerce(a, P)
     P===Float64 && return Float64(x)*converted
     factor=Ref{P}(x)
@@ -153,7 +176,7 @@ end
 Base.:*(a::FaerMatrix{T}, x::Number) where {T} = x*a
 Base.:/(a::FaerMatrix{T}, x::Number) where {T<:_ExtraScalar} = (one(T)/x)*a
 Base.:/(a::FaerMatrix{Float64}, x::Complex) = (1.0/x)*a
-Base.:\(x::Number, a::FaerMatrix{T}) where {T<:_ExtraScalar} = a/x
+Base.:\(x::Number, a::FaerMatrix) = a/x
 Base.conj(a::FaerMatrix{T}) where {T<:_ExtraScalar} =
     _typed_result(T, RustCrate.transform_from, size(a), a, Int32(3))
 Base.conj(a::FaerMatrix{Float64}) = copy(a)
