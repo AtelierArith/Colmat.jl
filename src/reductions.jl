@@ -39,10 +39,3 @@ function LinearAlgebra.opnorm(a::FaerMatrix{Float64}, p::Real = 2)
     end
     throw(ArgumentError("operator norm supports p=1, 2 or Inf"))
 end
-function LinearAlgebra.kron(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
-    dims=(
-        Base.checked_mul(size(a, 1), size(b, 1)),
-        Base.checked_mul(size(a, 2), size(b, 2)),
-    )
-    return _matrix_result(RustCrate.kron_from, dims, a, b)
-end

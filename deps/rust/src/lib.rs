@@ -1147,6 +1147,8 @@ pub mod collections;
 
 pub mod views;
 
+pub mod kron;
+
 pub mod permutations;
 
 pub mod pseudoinverse;

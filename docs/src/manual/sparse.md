@@ -37,6 +37,23 @@ julia_csc = SparseMatrixCSC(S)    # Julia CSC への明示変換
 `FaerSparseMatrix(I,J,V,m,n)` では重複する triplet を加算し、格納ゼロを保持します。
 `Matrix(S)`・`FaerMatrix(S)` は明示的に密行列を作ります。
 
+`kron` は `FaerSparseMatrix`・借用 `faerview(::SparseMatrixCSC)`・それらの転置／随伴の
+いずれかを含むと、CSC（または転置した被演算子を通じて CSR）の圧縮構造を Rust で
+直接組み立てた `FaerSparseMatrix` を返します（格納数 `nnz(A)*nnz(B)`、各列は整列済み）。
+形式は最初の疎被演算子の実効 layout（CSC の転置は CSR）に従い、形式の異なる
+被演算子だけを変換します。SparseArrays と同じく、密な被演算子（native・ビュー・
+ベクトル・Julia 配列）は疎化して非ゼロだけを格納し、疎被演算子の格納ゼロは保持します。
+
+```julia
+using Colmat, LinearAlgebra, SparseArrays
+
+s = sparse([1.0 0; 2 3])
+K = kron(FaerSparseMatrix(s), faerview(s))
+@assert K isa FaerSparseMatrix && nnz(K) == nnz(s)^2
+@assert SparseMatrixCSC(K) == kron(s, s)
+@assert SparseMatrixCSC(kron(FaerSparseMatrix(s), [1.0 0; 0 2])) == kron(s, sparse([1.0 0; 0 2]))
+```
+
 ### Julia CSC の借用 (`faerview`)
 
 `faerview(S::SparseMatrixCSC{T,Ti})`（`T` は 4 型、`Ti` は任意の整数型）は
