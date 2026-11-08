@@ -906,6 +906,7 @@ function bicgstab(
             :nonpositive_preconditioner,
             :residual_mismatch,
             :stopped,
+            :breakdown,
         )[status+1]
         result=FaerBicgstabResult(
             x,

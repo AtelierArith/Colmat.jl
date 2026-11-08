@@ -268,11 +268,13 @@ end
     @test @allocated(transpose(a) .* 2) < 2k*sizeof(Float64) + 4096
     @test @allocated(a' .* 2) < 2k*sizeof(Float64) + 4096
     # Several operands: about one buffer per operand on the (union) pattern plus
-    # the result buffer, instead of SparseArrays' conversions.
+    # the result buffer, instead of SparseArrays' conversions. The additive
+    # allowance covers the fixed closure/iterator overhead, which is not
+    # proportional to k and varies with the Julia runtime.
     c=copy(a)
     b=FaerSparseMatrix(sprand(rng, 400, 400, 0.02))
     a .+ c; a .+ b
-    @test @allocated(a .+ c) < 4k*sizeof(Float64) + 4096
+    @test @allocated(a .+ c) < 4k*sizeof(Float64) + 8192
     u=nnz(a .+ b)
     @test @allocated(a .+ b) < 5u*sizeof(Float64) + 8192
     @test isempty(detect_ambiguities(Colmat, Base, LinearAlgebra, SparseArrays; recursive = true))

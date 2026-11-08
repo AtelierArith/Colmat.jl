@@ -52,6 +52,18 @@ using Test, Colmat, LinearAlgebra, SparseArrays
         @test_throws ArgumentError bicgstab(A, b; maxiter = -1)
         @test_throws ArgumentError bicgstab(A, fill(T(NaN), 3))
     end
+    @testset "Numerical breakdown is reported" begin
+        A = zeros(2, 2)
+        b = ones(2)
+        result = bicgstab(A, b; check = false)
+        @test !issuccess(result)
+        @test result.reason === :breakdown
+        @test result.iterations == 1
+        @test result.abs_residual ≈ norm(b)
+        @test result.rel_residual ≈ 1.0
+        @test iszero(result.x)
+        @test_throws FaerBicgstabError bicgstab(A, b)
+    end
     mixed = bicgstab(Float32[4 1; -1 3], ComplexF64[1+im, 2])
     @test eltype(mixed.x) === ComplexF64
     @test mixed.x ≈ Float32[4 1; -1 3] \ ComplexF64[1+im, 2]
