@@ -547,9 +547,10 @@ and `FaerVector`s, and a real factor solves a complex `b` as two real solves.
 inverse-action operator over an independent copy of the direct factor.
 `F \ b` of a rectangular LU or wide-QR direct factor (or a transposed rectangular
 one) returns the minimum-norm least-squares solution through the pseudoinverse.
-`pinv(F; atol, rtol, team)` of a direct QR is supported (see below). The
-direct factor does not support promotion of the factor to another scalar type;
-that needs the default result without `scratch=`. Pivoted Cholesky
+`pinv(F; atol, rtol, team)` of a direct QR is supported (see below). A
+right-hand side of a wider scalar type promotes as for retained factors (two
+real solves for a complex `b` of a real factor's precision, otherwise one
+refactorization of `reconstruct(F)` in the promoted type). Pivoted Cholesky
 has no direct path yet. `cholesky!(A, RowMaximum();
 scratch)` keeps its existing meaning (caller scratch for the independent
 `CholeskyPivoted` factor), and faer's in-place pivoted kernel covers only the

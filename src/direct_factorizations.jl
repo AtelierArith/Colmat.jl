@@ -51,8 +51,10 @@ written back); a real factor solves a complex `b` as two real solves.
 inverse-action operator. `F \\ b` of a rectangular LU/full LU, a wide QR or a
 transposed rectangular factor returns the minimum-norm least-squares solution
 through the pseudoinverse (`pinv(F)` for QR, `pinv(reconstruct(F))` for LU),
-as the retained factor does. Promotion of the factor to another scalar type
-requires the default `lu!(A)`/`qr!(A)`/`cholesky!(A)` result.
+as the retained factor does. A right-hand side of a wider scalar type promotes
+like the retained factor: a real factor splits a complex `b` of its precision
+into two real solves, and otherwise `reconstruct(F)` is refactored once in the
+promoted type (the in-place storage is left unchanged).
 """
 mutable struct FaerInPlaceFactorization{T,K,M<:FaerMatrix{T}} <:
                LinearAlgebra.Factorization{T}
@@ -860,10 +862,34 @@ function _direct_pinv_solve(g::_DirectSolveFactor, b::AbstractVecOrMat)
     return b isa AbstractVector ? vec(Matrix(x)) : x
 end
 _direct_kind_symbol(::FaerInPlaceFactorization{T,K}) where {T,K} = K
+# Mixed scalar types follow the retained factor's policy: the factor is
+# reconstructed natively in the promoted type and refactored once as a
+# retained factor of the same kind (the in-place storage is left untouched).
+function _direct_promoted(f::FaerInPlaceFactorization{T,K}, ::Type{P}) where {T,K,P}
+    a=FaerMatrix{P}(reconstruct(f))
+    K===:lu && return LinearAlgebra.lu(a)
+    K===:full_lu && return full_piv_lu(a)
+    K===:qr && return LinearAlgebra.qr(a)
+    K===:pivoted_qr && return LinearAlgebra.qr(a, LinearAlgebra.ColumnNorm())
+    h=LinearAlgebra.Hermitian(a, getfield(f, :uplo))
+    K===:cholesky && return LinearAlgebra.cholesky(h)
+    K===:ldlt && return LinearAlgebra.ldlt(h)
+    return LinearAlgebra.bunchkaufman(h, getfield(f, :rook)===true)
+end
 function _direct_backslash(g::_DirectSolveFactor, b::AbstractVecOrMat)
     f=_direct_parent(g)
     T=eltype(f)
     op=_direct_op(g)
+    P=promote_type(T, eltype(b))
+    if P!==T
+        P<:_NativeScalar ||
+            throw(ArgumentError("direct factor solves require native scalar types"))
+        # Same precision, complex RHS of a real factor: two real solves.
+        T<:Real && P===Complex{T} && return _direct_backslash_complex(g, b)
+        G=_direct_promoted(f, P)
+        H=op==1 ? G : op==2 ? transpose(G) : adjoint(G)
+        return H\b
+    end
     native=lock(() -> (_direct_source(f); _direct_native_shape(f, op)), _matrix_lock)
     native || return _direct_pinv_solve(g, b)
     rows=lock(() -> (_direct_source(f); _direct_solve_rows(f, op)), _matrix_lock)
