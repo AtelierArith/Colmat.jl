@@ -125,7 +125,68 @@ for W in (:Hermitian, :Symmetric)
         end
     end
 end
-function _pivoted_writeback!(a; kwargs...)
+# `inplace=true`: the returned CholeskyPivoted's factors are A itself. With
+# faer's automatic threshold (tol < 0) faer factors A's storage directly on the
+# caller's scratch (`pivoted_llt_into`); an explicit tol >= 0 runs the panel
+# algorithm (faer's in-place kernel has no absolute cutoff), which builds its
+# own L before L is written into A. The lower triangle is read.
+function _pivoted_inplace!(
+    a;
+    tol::Real = 0.0,
+    check::Bool = true,
+    block_size::Integer = 128,
+    scratch = nothing,
+    team = nothing,
+)
+    lock(_matrix_lock) do
+        a isa Union{FaerMatrix,FaerMatrixView} || a.uplo=='L' || throw(
+            ArgumentError("inplace=true reads the lower triangle; wrap A as Hermitian(A, :L)"),
+        )
+        source=a isa Union{FaerMatrix,FaerMatrixView} ? a : parent(a)
+        _iterative_resource_check(scratch, team)
+        _, n, ftol, block=_pivoted_input_plan(a, tol, block_size, team)
+        T=eltype(source)
+        if ftol<0
+            req=_pivoted_construction_requirement(n, T, ftol, block, team)
+            p=zeros(UInt, n)
+            rank=_pivoted_with_scratch(req, scratch) do work
+                q, d=_view_source(source)
+                GC.@preserve d Int(
+                    _native_call(
+                        RustCrate.pivoted_llt_into,
+                        q,
+                        pointer(d),
+                        p,
+                        UInt(block),
+                        work,
+                        team,
+                    ),
+                )
+            end
+            piv=Int.(p) .+ 1
+        else
+            f=LinearAlgebra.cholesky(
+                a,
+                LinearAlgebra.RowMaximum();
+                tol,
+                check = false,
+                block_size,
+                scratch,
+                team,
+            )
+            try
+                copyto!(source, f.factors)
+            finally
+                close(f.factors)
+            end
+            rank, piv=f.rank, f.p
+        end
+        check && rank<n && throw(LinearAlgebra.RankDeficientException(rank))
+        return LinearAlgebra.CholeskyPivoted(source, 'L', piv, rank, tol, rank==n ? 0 : 1)
+    end
+end
+function _pivoted_writeback!(a; inplace::Bool = false, kwargs...)
+    inplace && return _pivoted_inplace!(a; kwargs...)
     lock(_matrix_lock) do
         source=a isa Union{FaerMatrix,FaerMatrixView} ? a : parent(a)
         f=LinearAlgebra.cholesky(a, LinearAlgebra.RowMaximum(); kwargs...)

@@ -63,6 +63,7 @@ const _raw_owner_arguments = (
     (RustCrate.operator_mul_into, (1, 3)),
     (RustCrate.operator_bicgstab, (3, 4)),
     (RustCrate.operator_cg, (3,)),
+    (RustCrate.pivoted_llt_into, (1,)),
     (RustCrate.operator_load, (2,)),
     (RustCrate.operator_lsmr, (3,)),
     (RustCrate.partial_workspace, (7,)),
