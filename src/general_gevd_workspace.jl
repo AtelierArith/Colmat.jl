@@ -64,6 +64,9 @@ function _normalize_columns!(vectors::AbstractMatrix)
     end
     return vectors
 end
+_gevd_narrow(r::LinearAlgebra.GeneralizedEigen) =
+    LinearAlgebra.GeneralizedEigen(ComplexF32.(r.values), ComplexF32.(r.vectors))
+_gevd_narrow(r::NamedTuple) = map(x->ComplexF32.(x), r)
 function _general_gevd_workspace_result(
     a::FaerMatrix,
     b::FaerMatrix;
@@ -94,6 +97,22 @@ function _general_gevd_workspace_result(
             cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
                 ArgumentError("general EVD scratch capacity/alignment is insufficient"),
             )
+            # tensor4all/faer#324: faer's c32 left eigenvectors can be wrong for
+            # pencils with an (almost) infinite eigenvalue (#239). Left vectors
+            # of ComplexF32 pencils are computed in ComplexF64 and rounded; the
+            # caller's scratch was validated above and is not needed there.
+            if T===ComplexF32 && vectors && side!==:right
+                result=_general_gevd_workspace_result(
+                    _coerce(a, ComplexF64),
+                    _coerce(b, ComplexF64);
+                    vectors,
+                    homogeneous,
+                    side,
+                    sortby,
+                    team,
+                )
+                return _gevd_narrow(result)
+            end
             C=Complex{_realtype(T)}
             alpha=zeros(C, n)
             beta=zeros(T, n)
