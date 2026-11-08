@@ -228,12 +228,14 @@ end
 
 
 @testset "Histories preserve nonfinite failure diagnostics" begin
-    # LSMR on this finite, tiny-scaled system returns a nonfinite failed iterate.
-    # Observing it must preserve the unchecked result instead of constructing a
-    # new finite-only input matrix and masking it with an input-validation error.
-    A=Diagonal(fill(1e-300, 4))
-    plain=lsmr(A, ones(4); check = false, maxiter = 2)
-    observed=lsmr(A, ones(4); check = false, maxiter = 2, history = true)
+    # LSMR overflows on this finite system and returns a nonfinite failed
+    # iterate. Observing it must preserve the unchecked result instead of
+    # constructing a new finite-only input matrix and masking it with an
+    # input-validation error.
+    A=Diagonal(fill(1e-308, 2))
+    b=fill(1e308, 2)
+    plain=lsmr(A, b; check = false, maxiter = 2)
+    observed=lsmr(A, b; check = false, maxiter = 2, history = true)
     @test observed.reason===plain.reason
     @test isequal(observed.x, plain.x)
     @test isequal(observed.abs_residual, plain.abs_residual)
