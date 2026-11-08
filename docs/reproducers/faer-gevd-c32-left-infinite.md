@@ -17,5 +17,6 @@ c32: max relative residual left 1.962e-1, right 1.889e-7
 c64 (same pencil): max relative residual left 3.903e-16, right 2.810e-16
 ```
 
-`test/gevd_conventions.jl` skips the left check for `ComplexF32` with an exactly or nearly singular
-`B` until a faer revision fixes #324.
+Until a faer revision fixes #324, Colmat computes the left (and both-side) eigenvectors of
+`ComplexF32` pencils in `ComplexF64` and rounds the results back to `ComplexF32`. Right-only and
+values-only calls are unchanged.
