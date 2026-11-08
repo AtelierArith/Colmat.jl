@@ -736,3 +736,77 @@ mod apply_tests {
         check::<faer::c64>(faer::c64::new(0.0, 1.0), 2e-12);
     }
 }
+
+/// faer's pivoted LLᴴ (automatic threshold, negative `tol`) directly in the
+/// destination's storage: the lower triangle is read (made Hermitian in place
+/// with a real diagonal), L overwrites it, and the strict upper triangle and
+/// columns beyond the rank are zeroed, as in the retained factor.
+fn factor_into<T: ComplexField>(
+    mut a: MatMut<'_, T>,
+    work: &mut OwnedScratch,
+    permutation: &mut [usize],
+    block_size: usize,
+    par: Par,
+) -> Result<usize, String> {
+    let n = a.nrows();
+    if a.ncols() != n || permutation.len() != n {
+        return Err("pivoted Cholesky dimensions/permutation length mismatch".into());
+    }
+    for j in 0..n {
+        for i in j..n {
+            if !is_finite(&a[(i, j)]) {
+                return Err("pivoted Cholesky input must be finite".into());
+            }
+        }
+    }
+    let params = params::<T>(block_size)?;
+    let stack = work.stack(requirement::<T>(n, -1.0, block_size, par.shape())?)?;
+    for j in 0..n {
+        a[(j, j)] = from_real::<T>(&real(&a[(j, j)]));
+        for i in j + 1..n {
+            a[(j, i)] = conj(&a[(i, j)]);
+        }
+    }
+    let (mut forward, stack) = stack.make_with::<usize>(n, |i| i);
+    let (mut inverse, stack) = stack.make_with::<usize>(n, |_| 0);
+    let (info, _) =
+        factor::cholesky_in_place(a.rb_mut(), &mut forward, &mut inverse, par, stack, params)
+            .map_err(|e| format!("pivoted Cholesky: {e:?}"))?;
+    for j in 0..n {
+        for i in 0..n {
+            if i < j || j >= info.rank {
+                a[(i, j)] = zero();
+            }
+        }
+    }
+    crate::typed::finite(a.rb())?;
+    permutation.copy_from_slice(&forward);
+    Ok(info.rank)
+}
+
+/// Pivoted LLᴴ with faer's automatic threshold written into any destination
+/// descriptor (native owner, view, `faerview` or Julia strided array) on the
+/// caller's scratch. Returns the numerical rank.
+///
+/// # Safety
+/// Julia roots the destination owner (or Julia array) and descriptor.
+#[julia]
+pub fn pivoted_llt_into(
+    dest: *mut u8,
+    dd: *const isize,
+    permutation: &mut [usize],
+    block_size: usize,
+    work: &mut OwnedScratch,
+    team: Option<&OwnedTeam>,
+) -> Result<usize, String> {
+    use crate::views::{destination, BorrowedMut, Spec};
+    guarded(|| {
+        let spec = unsafe { Spec::read(dd)? };
+        with_team(team, |par| match unsafe { destination(dest, spec)? } {
+            BorrowedMut::F32(a) => factor_into(a, work, permutation, block_size, par),
+            BorrowedMut::F64(a) => factor_into(a, work, permutation, block_size, par),
+            BorrowedMut::C32(a) => factor_into(a, work, permutation, block_size, par),
+            BorrowedMut::C64(a) => factor_into(a, work, permutation, block_size, par),
+        })
+    })
+}

@@ -550,11 +550,17 @@ one) returns the minimum-norm least-squares solution through the pseudoinverse.
 `pinv(F; atol, rtol, team)` of a direct QR is supported (see below). A
 right-hand side of a wider scalar type promotes as for retained factors (two
 real solves for a complex `b` of a real factor's precision, otherwise one
-refactorization of `reconstruct(F)` in the promoted type). Pivoted Cholesky
-has no direct path yet. `cholesky!(A, RowMaximum();
-scratch)` keeps its existing meaning (caller scratch for the independent
-`CholeskyPivoted` factor), and faer's in-place pivoted kernel covers only the
-negative-tolerance path.
+refactorization of `reconstruct(F)` in the promoted type).
+
+Pivoted Cholesky factors A itself with `cholesky!(A, RowMaximum(); inplace=true)`
+(`A` a `FaerMatrix`/view or `Hermitian(A, :L)`; the lower triangle is read). The
+returned `CholeskyPivoted` has `F.factors === A`. With faer's automatic
+threshold (`tol < 0`) faer factors A's storage directly on caller `scratch`
+(`FaerScratch(cholesky!, A, RowMaximum(); tol)`) and `team`; an explicit
+`tol >= 0` runs the panel algorithm, which builds its own L before writing it
+into A, because faer's in-place kernel has no absolute cutoff. Without
+`inplace=true`, `cholesky!(A, RowMaximum(); scratch)` keeps its existing meaning
+(caller scratch for an independent factor, then writeback).
 
 ## Direct triangular solves and destructive triangular inverses
 

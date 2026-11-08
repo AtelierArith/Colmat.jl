@@ -16,7 +16,9 @@ includes permutation/kernel temporaries and the explicit-tolerance working
 matrix. Returned factors, view snapshots, promotion and output arrays allocate
 separately. Saved `ldiv!`, `rdiv!`, native `\`/`/`, `inv` and `reconstruct` accept
 `scratch`/`team`; use factor-first ordering for their workspace queries.
-Bang methods stage writeback; in-place solves reject factor-storage aliases and
+`cholesky!(A, RowMaximum(); inplace=true)` returns a factor whose `factors`
+is A itself (lower triangle read; faer's in-place kernel for `tol < 0`, the
+panel algorithm written into A for `tol >= 0`). Other bang methods stage writeback; in-place solves reject factor-storage aliases and
 publish the destination only after successful computation and conversion.
 """
 _pivoted_cholesky(a; kwargs...) = _pivoted_cholesky_workspace(a; kwargs...)
