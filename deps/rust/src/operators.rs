@@ -1013,6 +1013,13 @@ fn solve_bicg_resources<T: ComplexField>(
             abs_residual,
             rel_residual,
         }) => (1, abs_residual, rel_residual, callbacks),
+        Err(faer::matrix_free::bicgstab::BicgError::Breakdown {
+            abs_residual,
+            rel_residual,
+            iter_count,
+        }) => (6, abs_residual, rel_residual, iter_count),
+        // BicgError is #[non_exhaustive]; keep later variants additive.
+        Err(_) => (6, nan::<T::Real>(), nan::<T::Real>(), callbacks),
     };
     let (actual,_normal)=iterative_workspace::residual_norms(a,m,out.as_ref(),b,1,par,stack);
     let bnorm = b.norm_l2();
