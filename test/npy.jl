@@ -2,34 +2,36 @@ using Test, Colmat, LinearAlgebra, SparseArrays, Statistics
 
 # An independent NPY fixture encoder: writes IEEE component bits explicitly.
 function _npy_bytes(
-    A::Matrix{T};
-    shape = size(A),
-    fortran = false,
-    big = false,
-    version = 1,
-    descr = nothing,
-    extra = 0,
+    A::Matrix{T}; shape=size(A), fortran=false, big=false, version=1, descr=nothing, extra=0
 ) where {T}
-    R=typeof(real(zero(T)))
-    U=R===Float32 ? UInt32 : UInt64
-    kind=T<:Complex ? "c" : "f"
-    descr=isnothing(descr) ? string(big ? '>' : '<', kind, sizeof(T)) : descr
-    shaped=isempty(shape) ? "()" :
-           length(shape)==1 ? "($(shape[1]),)" : "("*join(shape, ", ")*")"
-    header="{'descr': '$descr', 'fortran_order': $(fortran ? "True" : "False"), 'shape': $shaped, }"
-    prefix=version==1 ? 10 : 12
-    header*=repeat(" ", mod(-prefix-ncodeunits(header)-1, 64)+extra)*"\n"
-    bytes=UInt8[0x93, 0x4e, 0x55, 0x4d, 0x50, 0x59, version, 0]
+    R = typeof(real(zero(T)))
+    U = R === Float32 ? UInt32 : UInt64
+    kind = T <: Complex ? "c" : "f"
+    descr = isnothing(descr) ? string(big ? '>' : '<', kind, sizeof(T)) : descr
+    shaped = if isempty(shape)
+        "()"
+    elseif length(shape) == 1
+        "($(shape[1]),)"
+    else
+        "(" * join(shape, ", ") * ")"
+    end
+    header = "{'descr': '$descr', 'fortran_order': $(fortran ? "True" : "False"), 'shape': $shaped, }"
+    prefix = version == 1 ? 10 : 12
+    header *= repeat(" ", mod(-prefix - ncodeunits(header) - 1, 64) + extra) * "\n"
+    bytes = UInt8[0x93, 0x4e, 0x55, 0x4d, 0x50, 0x59, version, 0]
     append!(
         bytes,
-        [UInt8((UInt32(ncodeunits(header))>>(8j))&0xff) for j = 0:(version==1 ? 1 : 3)],
+        [
+            UInt8((UInt32(ncodeunits(header)) >> (8j)) & 0xff) for
+            j in 0:(version == 1 ? 1 : 3)
+        ],
     )
     append!(bytes, codeunits(header))
-    values=fortran ? vec(A) : vec(permutedims(A))
-    for x in values, part in (T<:Complex ? (real(x), imag(x)) : (x,))
-        word=reinterpret(U, part)
-        for j in (big ? reverse(0:(sizeof(R)-1)) : (0:(sizeof(R)-1)))
-            push!(bytes, UInt8((word>>(8j))&0xff))
+    values = fortran ? vec(A) : vec(permutedims(A))
+    for x in values, part in (T <: Complex ? (real(x), imag(x)) : (x,))
+        word = reinterpret(U, part)
+        for j in (big ? reverse(0:(sizeof(R) - 1)) : (0:(sizeof(R) - 1)))
+            push!(bytes, UInt8((word >> (8j)) & 0xff))
         end
     end
     return bytes
@@ -38,304 +40,299 @@ _bits(A) = collect(reinterpret(UInt8, vec(A)))
 @testset "Native NPY import and owned views" begin
     for T in (Float32, Float64, ComplexF32, ComplexF64)
         for dims in ((1, 1), (0, 0), (0, 3), (3, 0), (3, 4)),
-            fortran in (false, true),
-            big in (false, true),
+            fortran in (false, true), big in (false, true),
             version in (1, 2, 3)
 
-            m, n=dims
-            A=reshape(T.(1:(m*n)), m, n)
-            T<:Complex && (A .+= T(0.25im))
-            bytes=_npy_bytes(A; fortran, big, version)
-            loaded=loadnpy(bytes)
+            m, n = dims
+            A = reshape(T.(1:(m * n)), m, n)
+            T <: Complex && (A .+= T(0.25im))
+            bytes = _npy_bytes(A; fortran, big, version)
+            loaded = loadnpy(bytes)
             @test loaded isa FaerMatrix{T}
-            @test Matrix(loaded)==A
-            V=npyview(bytes)
+            @test Matrix(loaded) == A
+            V = npyview(bytes)
             @test V isa FaerNpyMatrix{T}
-            @test size(V)==dims
-            @test _bits(Matrix(V))==_bits(A)
-            info=npyinfo(V)
-            @test info.dtype===T
-            @test info.shape==dims
-            @test info.fortran_order==fortran
-            @test info.version==(version, 0)
-            @test info.byteorder==(big ? :big : :little)
+            @test size(V) == dims
+            @test _bits(Matrix(V)) == _bits(A)
+            info = npyinfo(V)
+            @test info.dtype === T
+            @test info.shape == dims
+            @test info.fortran_order == fortran
+            @test info.version == (version, 0)
+            @test info.byteorder == (big ? :big : :little)
             @test info.aligned
-            @test info.normalized_byteorder==(Base.ENDIAN_BOM==0x04030201 ? :little : :big)
+            @test info.normalized_byteorder ==
+                (Base.ENDIAN_BOM == 0x04030201 ? :little : :big)
             if !isempty(A)
-                @test V[1, 1]==A[1, 1]
-                @test V[end, end]==A[end, end]
-                @test V[1]==A[1]
-                @test_throws ArgumentError V[1, 1]=zero(T)
+                @test V[1, 1] == A[1, 1]
+                @test V[end, end] == A[end, end]
+                @test V[1] == A[1]
+                @test_throws ArgumentError V[1, 1] = zero(T)
             end
             @test_throws BoundsError V[0, 1]
-            copied=copy(V)
+            copied = copy(V)
             @test copied isa FaerMatrix{T}
-            @test Matrix(copied)==A
-            @test Matrix(FaerMatrix{T}(V))==A
+            @test Matrix(copied) == A
+            @test Matrix(FaerMatrix{T}(V)) == A
             # Input mutation cannot invalidate the owned normalized byte view.
             fill!(bytes, 0x00)
             GC.gc(false)
-            @test Matrix(V)==A
+            @test Matrix(V) == A
             close(V)
             @test !isopen(V)
             @test_throws ArgumentError Matrix(V)
             @test_throws ArgumentError copy(V)
             @test_throws ArgumentError npyinfo(V)
-            @test Matrix(copied)==A
+            @test Matrix(copied) == A
         end
         # faer's to_mat reads unaligned and foreign-endian sources in place
         # (tensor4all/faer#210/#211 fixed by tensor4all/faer#215).
-        A=reshape(T.(1:6), 2, 3)
-        T<:Complex && (A .-= T(0.5im))
+        A = reshape(T.(1:6), 2, 3)
+        T <: Complex && (A .-= T(0.5im))
         for fortran in (false, true), big in (false, true), version in (1, 2, 3)
-            bytes=_npy_bytes(A; fortran, big, version)
-            for offset = 1:9
-                padded=vcat(zeros(UInt8, offset), bytes, UInt8[0x7f])
-                source=view(padded, (offset+1):(offset+length(bytes)))
-                loaded=loadnpy(source)
+            bytes = _npy_bytes(A; fortran, big, version)
+            for offset in 1:9
+                padded = vcat(zeros(UInt8, offset), bytes, UInt8[0x7f])
+                source = view(padded, (offset + 1):(offset + length(bytes)))
+                loaded = loadnpy(source)
                 @test loaded isa FaerMatrix{T}
-                @test _bits(Matrix(loaded))==_bits(A)
+                @test _bits(Matrix(loaded)) == _bits(A)
                 fill!(padded, 0x00)
-                @test _bits(Matrix(loaded))==_bits(A)
+                @test _bits(Matrix(loaded)) == _bits(A)
             end
-            strided=view(repeat(bytes; inner = 2), 1:2:(2*length(bytes)))
-            @test _bits(Matrix(loadnpy(strided)))==_bits(A)
+            strided = view(repeat(bytes; inner=2), 1:2:(2 * length(bytes)))
+            @test _bits(Matrix(loadnpy(strided))) == _bits(A)
         end
         for shape in ((), (0,), (3,))
-            A=reshape(T.(1:(isempty(shape) ? 1 : only(shape))), :, 1)
-            bytes=_npy_bytes(A; shape, big = true, version = 3)
-            @test Matrix(loadnpy(bytes))==A
-            @test npyinfo(bytes).shape==shape
+            A = reshape(T.(1:(isempty(shape) ? 1 : only(shape))), :, 1)
+            bytes = _npy_bytes(A; shape, big=true, version=3)
+            @test Matrix(loadnpy(bytes)) == A
+            @test npyinfo(bytes).shape == shape
         end
         # NaN payloads, infinities and signed zero survive endian normalization.
-        R=typeof(real(zero(T)))
-        payload_nan=reinterpret(
-            R,
-            R===Float32 ? UInt32(0x7fc00001) : UInt64(0x7ff8000000000001),
+        R = typeof(real(zero(T)))
+        payload_nan = reinterpret(
+            R, R === Float32 ? UInt32(0x7fc00001) : UInt64(0x7ff8000000000001)
         )
-        values=T<:Complex ?
-               T[
-            complex(payload_nan, -zero(R)),
-            complex(-zero(R), payload_nan),
-            complex(R(Inf), R(-Inf)),
-            complex(R(1.25), R(-2.5)),
-        ] : R[payload_nan, Inf, -Inf, -zero(R)]
-        A=reshape(values, 2, 2)
+        values = if T <: Complex
+            T[
+                complex(payload_nan, -zero(R)),
+                complex(-zero(R), payload_nan),
+                complex(R(Inf), R(-Inf)),
+                complex(R(1.25), R(-2.5)),
+            ]
+        else
+            R[payload_nan, Inf, -Inf, -zero(R)]
+        end
+        A = reshape(values, 2, 2)
         for big in (false, true), fortran in (false, true)
-            bytes=_npy_bytes(A; big, fortran)
-            @test _bits(Matrix(loadnpy(bytes)))==_bits(A)
-            @test _bits(Matrix(npyview(bytes)))==_bits(A)
+            bytes = _npy_bytes(A; big, fortran)
+            @test _bits(Matrix(loadnpy(bytes))) == _bits(A)
+            @test _bits(Matrix(npyview(bytes))) == _bits(A)
         end
     end
-    A=[1.0 2 3; 4 5 6]
-    @test Matrix(loadnpy(joinpath(@__DIR__, "fixtures", "npy_c_f64.npy")))==A
-    @test fetch(@async Matrix(loadnpy(joinpath(@__DIR__, "fixtures", "npy_c_f64.npy"))))==A
-    bytes=_npy_bytes(A)
-    io=IOBuffer(bytes)
-    @test Matrix(loadnpy(io))==A
+    A = [1.0 2 3; 4 5 6]
+    @test Matrix(loadnpy(joinpath(@__DIR__, "fixtures", "npy_c_f64.npy"))) == A
+    @test fetch(@async Matrix(loadnpy(joinpath(@__DIR__, "fixtures", "npy_c_f64.npy")))) ==
+        A
+    bytes = _npy_bytes(A)
+    io = IOBuffer(bytes)
+    @test Matrix(loadnpy(io)) == A
     @test eof(io)
-    padded=vcat(UInt8[0], bytes, UInt8[0])
-    V=npyview(view(padded, 2:(length(padded)-1)))
-    @test Matrix(V)==A
-    copiedview=deepcopy(V)
-    @test typeof(copiedview)===typeof(V)
-    @test copiedview.handle.ptr!=V.handle.ptr
+    padded = vcat(UInt8[0], bytes, UInt8[0])
+    V = npyview(view(padded, 2:(length(padded) - 1)))
+    @test Matrix(V) == A
+    copiedview = deepcopy(V)
+    @test typeof(copiedview) === typeof(V)
+    @test copiedview.handle.ptr != V.handle.ptr
     close(V)
-    @test Matrix(copiedview)==A
+    @test Matrix(copiedview) == A
     mktemp() do path, io
         write(io, bytes)
         close(io)
-        @test Matrix(loadnpy(path))==A
-        @test Matrix(loadnpy(path; view = true))==A
-        @test npyinfo(path).shape==size(A)
+        @test Matrix(loadnpy(path)) == A
+        @test Matrix(loadnpy(path; view=true)) == A
+        @test npyinfo(path).shape == size(A)
     end
     for bad in (
         UInt8[],
         UInt8[1, 2, 3],
         bytes[1:9],
-        bytes[1:(end-1)],
+        bytes[1:(end - 1)],
         vcat(bytes, UInt8[0]),
-        _npy_bytes(A; descr = "<i8"),
-        _npy_bytes(A; shape = (2, 3, 1)),
-        _npy_bytes(A; shape = (-1, 6)),
-        _npy_bytes(A; shape = (typemax(UInt64), 0)),
-        _npy_bytes(A; shape = (2^62, 4)),
+        _npy_bytes(A; descr="<i8"),
+        _npy_bytes(A; shape=(2, 3, 1)),
+        _npy_bytes(A; shape=(-1, 6)),
+        _npy_bytes(A; shape=(typemax(UInt64), 0)),
+        _npy_bytes(A; shape=(2^62, 4)),
     )
         @test_throws ArgumentError loadnpy(bad)
     end
-    bad=copy(bytes)
-    bad[7]=4
+    bad = copy(bytes)
+    bad[7] = 4
     @test_throws ArgumentError loadnpy(bad)
-    bad=copy(bytes)
-    bad[11]=0x00
+    bad = copy(bytes)
+    bad[11] = 0x00
     @test_throws ArgumentError loadnpy(bad)
-    bad=UInt8[0x93, 0x4e, 0x55, 0x4d, 0x50, 0x59, 2, 0, 0xff, 0xff, 0xff, 0xff]
+    bad = UInt8[0x93, 0x4e, 0x55, 0x4d, 0x50, 0x59, 2, 0, 0xff, 0xff, 0xff, 0xff]
     @test_throws ArgumentError loadnpy(bad)
-    bad=copy(bytes)
-    bad[8]=1
+    bad = copy(bytes)
+    bad[8] = 1
     @test_throws ArgumentError loadnpy(bad)
     # A stale wrapper must never export using reloaded dtype/shape metadata.
     for replacement in
         (_npy_bytes(reshape(collect(1.0:6), 3, 2)), _npy_bytes(zeros(Float32, 2, 3)))
-        V=npyview(bytes)
+        V = npyview(bytes)
         GC.@preserve replacement Colmat._native_call(
-            Colmat.RustCrate.npy_load,
-            V,
-            pointer(replacement),
-            UInt(length(replacement)),
+            Colmat.RustCrate.npy_load, V, pointer(replacement), UInt(length(replacement))
         )
         @test_throws Colmat.RustCall.RustError Matrix(V)
         @test_throws Colmat.RustCall.RustError V[1, 1]
         @test_throws Colmat.RustCall.RustError copy(V)
     end
     @test isempty(
-        Test.detect_ambiguities(
-            Colmat,
-            Base,
-            LinearAlgebra,
-            SparseArrays;
-            recursive = true,
-        ),
+        Test.detect_ambiguities(Colmat, Base, LinearAlgebra, SparseArrays; recursive=true)
     )
 end
 
 # Byte offset of element (i, j) inside an NPY payload of an m×n matrix.
-_npy_offset(T, m, n, i, j, fortran) =
-    (fortran ? (j-1)*m+(i-1) : (i-1)*n+(j-1))*sizeof(T)
-_poke!(bytes, at, x) = copyto!(bytes, at+1, reinterpret(UInt8, [x]), 1, sizeof(x))
+function _npy_offset(T, m, n, i, j, fortran)
+    return (fortran ? (j - 1) * m + (i - 1) : (i - 1) * n + (j - 1)) * sizeof(T)
+end
+_poke!(bytes, at, x) = copyto!(bytes, at + 1, reinterpret(UInt8, [x]), 1, sizeof(x))
 @testset "Zero-copy NPY borrows of mapped files and byte vectors" begin
-    nativebig=Base.ENDIAN_BOM!=0x04030201
+    nativebig = Base.ENDIAN_BOM != 0x04030201
     for T in (Float32, Float64, ComplexF32, ComplexF64),
         fortran in (false, true),
         version in (1, 2, 3)
 
-        m, n=3, 4
-        A=reshape(T.(1:(m*n)), m, n)
-        T<:Complex && (A .+= T(0.5im))
-        bytes=_npy_bytes(A; fortran, version, big = nativebig)
-        off=length(bytes)-sizeof(A)
+        m, n = 3, 4
+        A = reshape(T.(1:(m * n)), m, n)
+        T <: Complex && (A .+= T(0.5im))
+        bytes = _npy_bytes(A; fortran, version, big=nativebig)
+        off = length(bytes) - sizeof(A)
         # In-memory bytes are aliased, not copied.
-        B=npyborrow(bytes)
+        B = npyborrow(bytes)
         @test B isa FaerBorrowedMatrix{T}
-        @test size(B)==(m, n)
-        @test B==A
-        @test strides(B)==(fortran ? (1, m) : (n, 1))
-        @test pointer(B)==Ptr{T}(pointer(bytes, off+1))
-        _poke!(bytes, off+_npy_offset(T, m, n, 2, 3, fortran), T(42))
-        A[2, 3]=T(42)
-        @test B[2, 3]==T(42)
+        @test size(B) == (m, n)
+        @test B == A
+        @test strides(B) == (fortran ? (1, m) : (n, 1))
+        @test pointer(B) == Ptr{T}(pointer(bytes, off + 1))
+        _poke!(bytes, off + _npy_offset(T, m, n, 2, 3, fortran), T(42))
+        A[2, 3] = T(42)
+        @test B[2, 3] == T(42)
         # Native consumers read the aliased payload in place.
-        C=copy(B)
+        C = copy(B)
         @test C isa FaerMatrix{T}
-        @test Matrix(C)==A
-        @test Matrix(B*faerview(Matrix(A')))≈A*A'
-        @test Matrix(transpose(B)*C)≈transpose(A)*A
-        @test Matrix(B+C)==2A
-        @test sum(B)≈sum(A)
-        @test mean(B)≈mean(A)
-        @test Matrix(B*FaerVector(T.(1:n)))≈A*T.(1:n)
+        @test Matrix(C) == A
+        @test Matrix(B * faerview(Matrix(A'))) ≈ A * A'
+        @test Matrix(transpose(B) * C) ≈ transpose(A) * A
+        @test Matrix(B + C) == 2A
+        @test sum(B) ≈ sum(A)
+        @test mean(B) ≈ mean(A)
+        @test Matrix(B * FaerVector(T.(1:n))) ≈ A * T.(1:n)
         # Read-only: every mutation throws instead of writing the source.
-        @test_throws ArgumentError B[1, 1]=zero(T)
-        @test_throws ArgumentError B.=zero(T)
+        @test_throws ArgumentError B[1, 1] = zero(T)
+        @test_throws ArgumentError B .= zero(T)
         @test_throws ArgumentError copyto!(B, zeros(T, m, n))
         @test_throws ArgumentError fill!(B, one(T))
         @test_throws ArgumentError mul!(B, A, Matrix{T}(I, n, n))
-        U=UpperTriangular(FaerMatrix(Matrix{T}(I, m, m)+triu(ones(T, m, m))))
+        U = UpperTriangular(FaerMatrix(Matrix{T}(I, m, m) + triu(ones(T, m, m))))
         @test_throws ArgumentError ldiv!(U, B)
         @test_throws ArgumentError ldiv!(B, U, FaerMatrix(A))
-        S=UpperTriangular(FaerSparseMatrix(sparse(Matrix{T}(2I, m, m))))
+        S = UpperTriangular(FaerSparseMatrix(sparse(Matrix{T}(2I, m, m))))
         @test_throws ArgumentError ldiv!(S, B)
-        Z=FaerMatrix(zeros(T, m, n))
+        Z = FaerMatrix(zeros(T, m, n))
         @test_throws ArgumentError copyto!(B, Z)
         @test_throws ArgumentError copyto!(B, view(Z, :, :))
-        @test_throws ArgumentError B.=Z
-        @test_throws ArgumentError B.+=one(T)
+        @test_throws ArgumentError B .= Z
+        @test_throws ArgumentError B .+= one(T)
         @test_throws ArgumentError mul!(B, FaerMatrix(A), FaerMatrix(Matrix{T}(I, n, n)))
-        Un=UpperTriangular(FaerMatrix(Matrix{T}(I, n, n)+triu(ones(T, n, n))))
+        Un = UpperTriangular(FaerMatrix(Matrix{T}(I, n, n) + triu(ones(T, n, n))))
         @test_throws ArgumentError rdiv!(B, Un)
-        F=lu(FaerMatrix(Matrix{T}(I, m, m)+triu(ones(T, m, m))))
+        F = lu(FaerMatrix(Matrix{T}(I, m, m) + triu(ones(T, m, m))))
         @test_throws ArgumentError ldiv!(F, B)
         @test_throws ArgumentError ldiv!(B, F, FaerMatrix(A))
-        @test B==A
+        @test B == A
         # Mapped files alias the file pages.
         mktemp() do path, io
             write(io, bytes)
             flush(io)
-            M=npyborrow(path)
+            M = npyborrow(path)
             @test M isa FaerBorrowedMatrix{T}
-            @test M==A
-            @test strides(M)==strides(B)
-            seek(io, off+_npy_offset(T, m, n, 1, 2, fortran))
+            @test M == A
+            @test strides(M) == strides(B)
+            seek(io, off + _npy_offset(T, m, n, 1, 2, fortran))
             write(io, T(7))
             flush(io)
-            @test M[1, 2]==T(7)
-            A=copy(A)
-            A[1, 2]=T(7)
-            @test Matrix(copy(M))==A
-            @test sum(M)≈sum(A)
-            @test_throws ArgumentError M[1, 1]=zero(T)
+            @test M[1, 2] == T(7)
+            A = copy(A)
+            A[1, 2] = T(7)
+            @test Matrix(copy(M)) == A
+            @test sum(M) ≈ sum(A)
+            @test_throws ArgumentError M[1, 1] = zero(T)
             @test_throws ArgumentError copyto!(M, zeros(T, m, n))
             close(io)
             # The mapping outlives the closed handle and the unlinked path.
             rm(path)
             GC.gc()
             GC.gc()
-            @test M==A
-            @test Matrix(transpose(M)*copy(M))≈transpose(A)*A
+            @test M == A
+            @test Matrix(transpose(M) * copy(M)) ≈ transpose(A) * A
         end
         # Foreign endian and misaligned payloads fall back to the copying loadnpy.
-        big=_npy_bytes(A; fortran, version, big = !nativebig)
+        big = _npy_bytes(A; fortran, version, big=(!nativebig))
         @test npyborrow(big) isa FaerMatrix{T}
-        @test Matrix(npyborrow(big))==A
-        @test_throws ArgumentError npyborrow(big; fallback = false)
-        odd=_npy_bytes(A; fortran, version, big = nativebig, extra = 1)
-        @test (length(odd)-sizeof(A))%Base.datatype_alignment(T)!=0
+        @test Matrix(npyborrow(big)) == A
+        @test_throws ArgumentError npyborrow(big; fallback=false)
+        odd = _npy_bytes(A; fortran, version, big=nativebig, extra=1)
+        @test (length(odd) - sizeof(A)) % Base.datatype_alignment(T) != 0
         @test npyborrow(odd) isa FaerMatrix{T}
-        @test Matrix(npyborrow(odd))==A
-        @test_throws ArgumentError npyborrow(odd; fallback = false)
+        @test Matrix(npyborrow(odd)) == A
+        @test_throws ArgumentError npyborrow(odd; fallback=false)
         mktemp() do path, io
             write(io, odd)
             close(io)
-            @test Matrix(npyborrow(path))==A
-            @test_throws ArgumentError npyborrow(path; fallback = false)
+            @test Matrix(npyborrow(path)) == A
+            @test_throws ArgumentError npyborrow(path; fallback=false)
         end
         # Non-Vector byte sources cannot be aliased.
-        @test Matrix(npyborrow(view(bytes, 1:length(bytes))))==B
-        @test_throws ArgumentError npyborrow(view(bytes, 1:length(bytes)); fallback = false)
+        @test Matrix(npyborrow(view(bytes, 1:length(bytes)))) == B
+        @test_throws ArgumentError npyborrow(view(bytes, 1:length(bytes)); fallback=false)
     end
     # Scalars, vectors and empty payloads.
     for (shape, dims) in (((), (1, 1)), ((3,), (3, 1)), ((0, 3), (0, 3)), ((3, 0), (3, 0)))
-        A=reshape(collect(1.0:prod(dims)), dims)
-        B=npyborrow(_npy_bytes(A; shape, big = nativebig))
+        A = reshape(collect(1.0:prod(dims)), dims)
+        B = npyborrow(_npy_bytes(A; shape, big=nativebig))
         @test B isa FaerBorrowedMatrix{Float64}
-        @test size(B)==dims
-        @test B==A
-        @test Matrix(copy(B))==A
+        @test size(B) == dims
+        @test B == A
+        @test Matrix(copy(B)) == A
     end
     # A shrunk source vector is detected before any read.
-    bytes=_npy_bytes([1.0 2; 3 4]; big = nativebig)
-    B=npyborrow(bytes)
+    bytes = _npy_bytes([1.0 2; 3 4]; big=nativebig)
+    B = npyborrow(bytes)
     resize!(bytes, 16)
     @test_throws ArgumentError B[1, 1]
     @test_throws ArgumentError copy(B)
     @test_throws ArgumentError sum(B)
     # Derived wrappers keep the mapping alive after the path is unlinked.
     mktemp() do path, io
-        write(io, _npy_bytes([1.0 2; 3 4]; big = nativebig))
+        write(io, _npy_bytes([1.0 2; 3 4]; big=nativebig))
         close(io)
-        T2=(p->transpose(npyborrow(p)))(path)
+        T2 = (p -> transpose(npyborrow(p)))(path)
         rm(path)
         GC.gc()
         GC.gc()
-        @test T2==[1.0 3; 2 4]
-        @test Matrix(copy(parent(T2)))==[1.0 2; 3 4]
+        @test T2 == [1.0 3; 2 4]
+        @test Matrix(copy(parent(T2))) == [1.0 2; 3 4]
     end
     # The borrow keeps the source alive.
-    B=npyborrow(_npy_bytes([1.0 2; 3 4]; big = nativebig))
+    B = npyborrow(_npy_bytes([1.0 2; 3 4]; big=nativebig))
     GC.gc()
     GC.gc()
-    @test B==[1.0 2; 3 4]
-    for bad in (UInt8[], UInt8[1, 2, 3], _npy_bytes([1.0 2]; descr = "<i8"))
+    @test B == [1.0 2; 3 4]
+    for bad in (UInt8[], UInt8[1, 2, 3], _npy_bytes([1.0 2]; descr="<i8"))
         @test_throws ArgumentError npyborrow(bad)
     end
     mktemp() do path, io
@@ -343,141 +340,141 @@ _poke!(bytes, at, x) = copyto!(bytes, at+1, reinterpret(UInt8, [x]), 1, sizeof(x
         @test_throws ArgumentError npyborrow(path)
     end
     # Mapping and aliasing keep Julia-side allocations independent of payload size.
-    small=_npy_bytes(rand(8, 8); big = nativebig)
-    large=_npy_bytes(rand(512, 512); big = nativebig)
+    small = _npy_bytes(rand(8, 8); big=nativebig)
+    large = _npy_bytes(rand(512, 512); big=nativebig)
     npyborrow(small)
     npyborrow(large)
-    @test (@allocated npyborrow(large))<4096
-    @test (@allocated npyborrow(large))<=(@allocated npyborrow(small))+256
+    @test (@allocated npyborrow(large)) < 4096
+    @test (@allocated npyborrow(large)) <= (@allocated npyborrow(small)) + 256
 end
 
 @testset "Writable NPY mappings, shared same-file mappings and stream borrows" begin
-    nativebig=Base.ENDIAN_BOM!=0x04030201
-    native=nativebig ? :big : :little
+    nativebig = Base.ENDIAN_BOM != 0x04030201
+    native = nativebig ? :big : :little
     for T in (Float32, Float64, ComplexF32, ComplexF64), fortran in (false, true)
-        n=4
-        A=reshape(T.(1:(n*n)), n, n)
-        T<:Complex && (A .+= T(0.5im))
-        X=T.(reshape(n*n:-1:1, n, n))
+        n = 4
+        A = reshape(T.(1:(n * n)), n, n)
+        T <: Complex && (A .+= T(0.5im))
+        X = T.(reshape((n * n):-1:1, n, n))
         mktemp() do path, io
-            write(io, _npy_bytes(A; fortran, big = nativebig))
+            write(io, _npy_bytes(A; fortran, big=nativebig))
             close(io)
-            W=npyborrow(path; writable = true)
+            W = npyborrow(path; writable=true)
             @test W isa FaerBorrowedMatrix{T}
-            @test W==A
-            @test npyinfo(W)==(
-                dtype = T,
-                shape = (n, n),
-                matrix_size = (n, n),
-                fortran_order = fortran,
-                version = (1, 0),
-                byteorder = native,
-                aligned = true,
-                normalized_byteorder = native,
-                writable = true,
+            @test W == A
+            @test npyinfo(W) == (
+                dtype=T,
+                shape=(n, n),
+                matrix_size=(n, n),
+                fortran_order=fortran,
+                version=(1, 0),
+                byteorder=native,
+                aligned=true,
+                normalized_byteorder=native,
+                writable=true,
             )
             # Every native write goes to the file pages.
-            W[1, 1]=T(-1)
-            E=copy(A)
-            E[1, 1]=T(-1)
-            @test W==E
+            W[1, 1] = T(-1)
+            E = copy(A)
+            E[1, 1] = T(-1)
+            @test W == E
             copyto!(W, FaerMatrix(X))
-            E=copy(X)
-            @test W==E
+            E = copy(X)
+            @test W == E
             mul!(W, FaerMatrix(A), FaerMatrix(X), 2, 1)
-            E=2*A*X+E
-            @test W≈E
-            W.=FaerMatrix(A).+1
-            E=A.+1
-            @test W≈E
-            U=UpperTriangular(FaerMatrix(Matrix{T}(I, n, n)+triu(ones(T, n, n))))
+            E = 2 * A * X + E
+            @test W ≈ E
+            W .= FaerMatrix(A) .+ 1
+            E = A .+ 1
+            @test W ≈ E
+            U = UpperTriangular(FaerMatrix(Matrix{T}(I, n, n) + triu(ones(T, n, n))))
             ldiv!(U, W)
-            E=Matrix(U)\E
-            @test W≈E
+            E = Matrix(U) \ E
+            @test W ≈ E
             Colmat.Mmap.sync!(W)
-            @test loadnpy(path)≈E
+            @test loadnpy(path) ≈ E
             # A second mapping of the same file shares the pages and addresses,
             # so the native overlap checks see the alias.
-            R=npyborrow(path)
-            W2=npyborrow(path; writable = true)
-            @test pointer(R)==pointer(W)==pointer(W2)
-            @test npyinfo(R).writable===false
-            Rj=Matrix(R)
+            R = npyborrow(path)
+            W2 = npyborrow(path; writable=true)
+            @test pointer(R) == pointer(W) == pointer(W2)
+            @test npyinfo(R).writable === false
+            Rj = Matrix(R)
             mul!(W, R, R)
-            E=Rj*Rj
-            @test W≈E
-            @test R≈E
-            Rj=Matrix(R)
+            E = Rj * Rj
+            @test W ≈ E
+            @test R ≈ E
+            Rj = Matrix(R)
             mul!(W2, W, transpose(R), 1, 1)
-            E=Rj*transpose(Rj)+Rj
-            @test W≈E
-            Rj=Matrix(R)
+            E = Rj * transpose(Rj) + Rj
+            @test W ≈ E
+            Rj = Matrix(R)
             copyto!(W, transpose(R))
-            E=transpose(Rj)
-            @test W≈E
-            Rj=Matrix(R)
-            W2.=transpose(R).+R
-            E=transpose(Rj)+Rj
-            @test W≈E
+            E = transpose(Rj)
+            @test W ≈ E
+            Rj = Matrix(R)
+            W2 .= transpose(R) .+ R
+            E = transpose(Rj) + Rj
+            @test W ≈ E
             # The read-only borrow still rejects writes.
-            @test_throws ArgumentError R[1, 1]=zero(T)
+            @test_throws ArgumentError R[1, 1] = zero(T)
             @test_throws ArgumentError copyto!(R, FaerMatrix(X))
             @test_throws ArgumentError mul!(R, FaerMatrix(A), FaerMatrix(X))
-            @test_throws ArgumentError R.=zero(T)
-            @test R≈E
+            @test_throws ArgumentError R .= zero(T)
+            @test R ≈ E
             # Writes persist once the borrows are finalized.
-            W=W2=R=nothing
+            W = W2 = R = nothing
             GC.gc()
             GC.gc()
-            @test loadnpy(path)≈E
+            @test loadnpy(path) ≈ E
         end
     end
-    A=[1.0 2; 3 4]
-    bytes=_npy_bytes(A; big = nativebig)
+    A = [1.0 2; 3 4]
+    bytes = _npy_bytes(A; big=nativebig)
     mktemp() do path, io
         write(io, bytes)
         close(io)
         # Hard links share the inode and therefore the mapping; copies do not.
-        link=path*".link"
+        link = path * ".link"
         hardlink(path, link)
-        copied=path*".copy"
+        copied = path * ".copy"
         cp(path, copied)
         try
-            W=npyborrow(path; writable = true)
-            @test pointer(npyborrow(link))==pointer(W)
-            C=npyborrow(copied; writable = true)
-            @test pointer(C)!=pointer(W)
+            W = npyborrow(path; writable=true)
+            @test pointer(npyborrow(link)) == pointer(W)
+            C = npyborrow(copied; writable=true)
+            @test pointer(C) != pointer(W)
             mul!(C, W, W)
-            @test C==A*A
-            @test W==A
+            @test C == A * A
+            @test W == A
         finally
             rm(link)
             rm(copied)
         end
         # Mapping directly from an open stream at its current position.
         open(path) do s
-            B=npyborrow(s)
-            @test B==A
-            @test_throws ArgumentError B[1, 1]=0.0
-            @test_throws ArgumentError npyborrow(s; writable = true)
+            B = npyborrow(s)
+            @test B == A
+            @test_throws ArgumentError B[1, 1] = 0.0
+            @test_throws ArgumentError npyborrow(s; writable=true)
         end
         open(path, "r+") do s
-            B=npyborrow(s; writable = true)
-            B[2, 1]=30.0
+            B = npyborrow(s; writable=true)
+            B[2, 1] = 30.0
         end
         GC.gc()
-        @test loadnpy(path)==[1.0 2; 30 4]
+        @test loadnpy(path) == [1.0 2; 30 4]
     end
     mktemp() do path, io
         # NPY data after an 8-byte prefix stays element-aligned in the mapping.
         write(io, zeros(UInt8, 8))
         write(io, bytes)
         seek(io, 8)
-        B=npyborrow(io)
+        B = npyborrow(io)
         @test B isa FaerBorrowedMatrix{Float64}
-        @test B==A
-        @test npyinfo(B).shape==(2, 2)
-        @test position(io)==8
+        @test B == A
+        @test npyinfo(B).shape == (2, 2)
+        @test position(io) == 8
         close(io)
     end
     # An odd prefix misaligns the payload: the copying fallback applies.
@@ -487,9 +484,9 @@ end
         seek(io, 3)
         @test npyborrow(io) isa FaerMatrix{Float64}
         seek(io, 3)
-        @test Matrix(npyborrow(io))==A
+        @test Matrix(npyborrow(io)) == A
         seek(io, 3)
-        @test_throws ArgumentError npyborrow(io; fallback = false)
+        @test_throws ArgumentError npyborrow(io; fallback=false)
         close(io)
     end
     # Read-only first, then writable: the read-only borrow moves to the
@@ -497,70 +494,70 @@ end
     mktemp() do path, io
         write(io, bytes)
         close(io)
-        R=npyborrow(path)
-        W=npyborrow(path; writable = true)
-        @test pointer(R)==pointer(W)
+        R = npyborrow(path)
+        W = npyborrow(path; writable=true)
+        @test pointer(R) == pointer(W)
         mul!(W, R, R)
-        @test W==A*A
-        @test R==A*A
-        W[1, 1]=-7.0
-        @test R[1, 1]==-7.0
-        @test_throws ArgumentError R[1, 1]=0.0
+        @test W == A * A
+        @test R == A * A
+        W[1, 1] = -7.0
+        @test R[1, 1] == -7.0
+        @test_throws ArgumentError R[1, 1] = 0.0
         @test_throws ArgumentError copyto!(R, FaerMatrix(A))
-        E=Matrix(W)
+        E = Matrix(W)
         # Other writable destinations.
         fill!(W, 3.0)
-        @test R==fill(3.0, 2, 2)
+        @test R == fill(3.0, 2, 2)
         copyto!(W, FaerMatrix(A))
-        Un=UpperTriangular(FaerMatrix([2.0 1; 0 4]))
+        Un = UpperTriangular(FaerMatrix([2.0 1; 0 4]))
         rdiv!(W, Un)
-        E=A/Matrix(Un)
-        @test W≈E
-        F=lu(FaerMatrix([4.0 1; 2 3]))
+        E = A / Matrix(Un)
+        @test W ≈ E
+        F = lu(FaerMatrix([4.0 1; 2 3]))
         ldiv!(F, W)
-        E=[4.0 1; 2 3]\E
-        @test W≈E
-        W=R=nothing
+        E = [4.0 1; 2 3] \ E
+        @test W ≈ E
+        W = R = nothing
         GC.gc()
         GC.gc()
-        @test loadnpy(path)≈E
+        @test loadnpy(path) ≈ E
     end
     # A resized file is remapped and existing borrows of it move along.
     mktemp() do path, io
         write(io, bytes)
         close(io)
-        B1=npyborrow(path; writable = true)
-        A2=[5.0 6; 7 8]
-        open(io->write(io, _npy_bytes(A2; big = nativebig)), path, "a")
+        B1 = npyborrow(path; writable=true)
+        A2 = [5.0 6; 7 8]
+        open(io -> write(io, _npy_bytes(A2; big=nativebig)), path, "a")
         # The writable mapping cannot be remapped through a read-only stream.
-        @test_throws ArgumentError open(s->(seek(s, length(bytes)); npyborrow(s)), path)
-        B2=open(s->(seek(s, length(bytes)); npyborrow(s)), path, "r+")
+        @test_throws ArgumentError open(s -> (seek(s, length(bytes)); npyborrow(s)), path)
+        B2 = open(s -> (seek(s, length(bytes)); npyborrow(s)), path, "r+")
         @test !npyinfo(B2).writable
-        @test B2==A2
-        @test B1==A
-        @test pointer(B2)==pointer(B1)+length(bytes)
-        B1[1, 1]=-1.0
-        @test loadnpy(read(path)[1:length(bytes)])==[-1.0 2; 3 4]
+        @test B2 == A2
+        @test B1 == A
+        @test pointer(B2) == pointer(B1) + length(bytes)
+        B1[1, 1] = -1.0
+        @test loadnpy(read(path)[1:length(bytes)]) == [-1.0 2; 3 4]
         # Shrinking the file below a borrowed payload is reported on access
         # once the file is remapped.
-        open(io->truncate(io, length(bytes)), path, "r+")
-        @test npyborrow(path)==[-1.0 2; 3 4]
+        open(io -> truncate(io, length(bytes)), path, "r+")
+        @test npyborrow(path) == [-1.0 2; 3 4]
         @test_throws ArgumentError B2[1, 1]
         @test_throws ArgumentError copy(B2)
-        @test B1==[-1.0 2; 3 4]
+        @test B1 == [-1.0 2; 3 4]
     end
     # A writable borrow never falls back to an independent copy.
-    big=_npy_bytes(A; big = !nativebig)
-    @test_throws ArgumentError npyborrow(big; writable = true)
-    @test_throws ArgumentError npyborrow(big; writable = true, fallback = true)
+    big = _npy_bytes(A; big=(!nativebig))
+    @test_throws ArgumentError npyborrow(big; writable=true)
+    @test_throws ArgumentError npyborrow(big; writable=true, fallback=true)
     # Byte vectors may be borrowed writable; writes alias the vector.
-    v=copy(bytes)
-    B=npyborrow(v; writable = true)
-    B[1, 2]=20.0
-    @test loadnpy(v)==[1.0 20; 3 4]
-    @test npyinfo(npyborrow(v))==merge(npyinfo(loadnpy(v; view = true)), (writable = false,))
+    v = copy(bytes)
+    B = npyborrow(v; writable=true)
+    B[1, 2] = 20.0
+    @test loadnpy(v) == [1.0 20; 3 4]
+    @test npyinfo(npyborrow(v)) == merge(npyinfo(loadnpy(v; view=true)), (writable=false,))
     # Two borrows of one vector are seen as aliased by Julia broadcasts.
-    R=npyborrow(v)
-    B.=transpose(R)
-    @test B==[1.0 3; 20 4]
+    R = npyborrow(v)
+    B .= transpose(R)
+    @test B == [1.0 3; 20 4]
 end

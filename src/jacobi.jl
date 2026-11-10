@@ -10,28 +10,35 @@ struct FaerJacobiRotation{T<:_NativeScalar} <: AbstractMatrix{T}
     c::T
     s::T
     function FaerJacobiRotation{T}(c, s) where {T<:_NativeScalar}
-        c, s=T(c), T(s)
+        c, s = T(c), T(s)
         all(isfinite, (c, s)) && isreal(c) ||
             throw(ArgumentError("Jacobi coefficients must be finite and cosine real"))
-        R=_realtype(T)
-        isapprox(abs2(c)+abs2(s), one(R); rtol = 128eps(R), atol = 128eps(R)) ||
+        R = _realtype(T)
+        isapprox(abs2(c) + abs2(s), one(R); rtol=128eps(R), atol=128eps(R)) ||
             throw(ArgumentError("Jacobi coefficients must have unit norm"))
-        new{T}(c, s)
+        return new{T}(c, s)
     end
 end
-FaerJacobiRotation(c::Number, s::Number) =
-    FaerJacobiRotation{_reflector_type(promote_type(typeof(c), typeof(s)))}(c, s)
+function FaerJacobiRotation(c::Number, s::Number)
+    return FaerJacobiRotation{_reflector_type(promote_type(typeof(c), typeof(s)))}(c, s)
+end
 Base.size(::FaerJacobiRotation) = (2, 2)
 function Base.getindex(j::FaerJacobiRotation, i::Int, k::Int)
     checkbounds(j, i, k)
-    return i==k ? j.c : i==1 ? -conj(j.s) : j.s
+    return if i == k
+        j.c
+    elseif i == 1
+        -conj(j.s)
+    else
+        j.s
+    end
 end
 Base.Matrix(j::FaerJacobiRotation) = [j.c -conj(j.s); j.s j.c]
 Base.copy(j::FaerJacobiRotation) = j
 function _jacobi_parameters(p::T, q::T, kind) where {T<:_NativeScalar}
     all(isfinite, (p, q)) || throw(ArgumentError("Jacobi parameters must be finite"))
-    input=T[p, q]
-    out=zeros(T, 3)
+    input = T[p, q]
+    out = zeros(T, 3)
     GC.@preserve input out _native_call(
         RustCrate.jacobi_parameters,
         Ptr{UInt8}(pointer(input)),
@@ -50,15 +57,15 @@ The bridge corrects faer's complex zero-q returned r and scales real inputs to
 preserve unit coefficients for subnormal inputs. Supports all native scalar types.
 """
 function rotg(p::Number, q::Number)
-    T=_reflector_type(promote_type(typeof(p), typeof(q)))
+    T = _reflector_type(promote_type(typeof(p), typeof(q)))
     return _jacobi_parameters(T(p), T(q), 0)
 end
 """Return faer's real make_givens rotation J annihilating q in `J*[p,q]`."""
 function make_givens(p::Real, q::Real)
-    T=_reflector_type(promote_type(typeof(p), typeof(q)))
-    input=T[p, q]
+    T = _reflector_type(promote_type(typeof(p), typeof(q)))
+    input = T[p, q]
     all(isfinite, input) || throw(ArgumentError("make_givens parameters must be finite"))
-    out=zeros(T, 2)
+    out = zeros(T, 2)
     GC.@preserve input out _native_call(
         RustCrate.jacobi_make_givens,
         Ptr{UInt8}(pointer(input)),
@@ -71,14 +78,14 @@ Base.transpose(j::FaerJacobiRotation) = first(_jacobi_parameters(j.c, j.s, 2))
 Base.conj(j::FaerJacobiRotation) = first(_jacobi_parameters(j.c, j.s, 3))
 Base.adjoint(j::FaerJacobiRotation) = first(_jacobi_parameters(j.c, j.s, 4))
 Base.inv(j::FaerJacobiRotation) = adjoint(j)
-function LinearAlgebra.Givens(j::FaerJacobiRotation, i1::Integer = 1, i2::Integer = 2)
-    i1>0 && i2>0 && i1!=i2 ||
+function LinearAlgebra.Givens(j::FaerJacobiRotation, i1::Integer=1, i2::Integer=2)
+    i1 > 0 && i2 > 0 && i1 != i2 ||
         throw(ArgumentError("Givens indices must be positive and distinct"))
     return LinearAlgebra.Givens(Int(i1), Int(i2), j.c, -conj(j.s))
 end
 function _jacobi_shape(j, a, right)
     a isa _RotationArray && _rotation_open(a)
-    size(a, right ? 2 : 1)==2 || throw(
+    return size(a, right ? 2 : 1) == 2 || throw(
         DimensionMismatch(
             "standalone Jacobi rotation requires an axis of length two; use Givens(J,i,j) for embedding",
         ),
@@ -87,19 +94,23 @@ end
 function Base.:*(j::FaerJacobiRotation, a::_HouseholderArray)
     lock(_matrix_lock) do
         _jacobi_shape(j, a, false)
-        T=promote_type(eltype(j), _reflector_type(eltype(a)))
-        result=_householder_matrix_source(a, T)
+        T = promote_type(eltype(j), _reflector_type(eltype(a)))
+        result = _householder_matrix_source(a, T)
         LinearAlgebra.lmul!(LinearAlgebra.Givens(j), result)
-        return a isa _BorrowVector ? _vector_from_source(result) :
-               a isa AbstractVector ? vec(Matrix(result)) : result
+        return if a isa _BorrowVector
+            _vector_from_source(result)
+        elseif a isa AbstractVector
+            vec(Matrix(result))
+        else
+            result
+        end
     end
 end
 function Base.:*(a::_HouseholderMatrix, j::FaerJacobiRotation)
     lock(_matrix_lock) do
         _jacobi_shape(j, a, true)
-        result=_householder_matrix_source(
-            a,
-            promote_type(eltype(j), _reflector_type(eltype(a))),
+        result = _householder_matrix_source(
+            a, promote_type(eltype(j), _reflector_type(eltype(a)))
         )
         LinearAlgebra.rmul!(result, LinearAlgebra.Givens(j))
         return result
@@ -108,22 +119,21 @@ end
 function LinearAlgebra.lmul!(j::FaerJacobiRotation, a::_HouseholderArray)
     lock(_matrix_lock) do
         _jacobi_shape(j, a, false)
-        return _operator_copy_result!(a, j*a)
+        return _operator_copy_result!(a, j * a)
     end
 end
 function LinearAlgebra.rmul!(a::_HouseholderMatrix, j::FaerJacobiRotation)
     lock(_matrix_lock) do
         _jacobi_shape(j, a, true)
-        return _operator_copy_result!(a, a*j)
+        return _operator_copy_result!(a, a * j)
     end
 end
 function _jacobi_2x2(j, a, b, c, d, right)
-    T=promote_type(
-        eltype(j),
-        _reflector_type(promote_type(typeof(a), typeof(b), typeof(c), typeof(d))),
+    T = promote_type(
+        eltype(j), _reflector_type(promote_type(typeof(a), typeof(b), typeof(c), typeof(d)))
     )
-    input=T[j.c, j.s, a, b, c, d]
-    out=zeros(T, 4)
+    input = T[j.c, j.s, a, b, c, d]
+    out = zeros(T, 4)
     all(isfinite, input) || throw(ArgumentError("Jacobi 2x2 entries must be finite"))
     GC.@preserve input out _native_call(
         RustCrate.jacobi_apply_2x2,
@@ -135,8 +145,14 @@ function _jacobi_2x2(j, a, b, c, d, right)
     return Tuple(out)
 end
 """Apply J on the left to a 2×2 block; return `(m00,m01,m10,m11)` in row order."""
-apply_on_the_left_2x2(j::FaerJacobiRotation, a::Number, b::Number, c::Number, d::Number) =
-    _jacobi_2x2(j, a, b, c, d, false)
+function apply_on_the_left_2x2(
+    j::FaerJacobiRotation, a::Number, b::Number, c::Number, d::Number
+)
+    return _jacobi_2x2(j, a, b, c, d, false)
+end
 """Apply J on the right to a 2×2 block; return `(m00,m01,m10,m11)` in row order."""
-apply_on_the_right_2x2(j::FaerJacobiRotation, a::Number, b::Number, c::Number, d::Number) =
-    _jacobi_2x2(j, a, b, c, d, true)
+function apply_on_the_right_2x2(
+    j::FaerJacobiRotation, a::Number, b::Number, c::Number, d::Number
+)
+    return _jacobi_2x2(j, a, b, c, d, true)
+end

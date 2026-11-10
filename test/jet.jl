@@ -36,10 +36,7 @@ _kind_field_fallback(r) = r isa JET.BuiltinErrorReport && r.f === getfield
 
 @testset "JET: package-wide undefined names" begin
     result = JET.report_package(
-        Colmat;
-        target_modules = _jet_modules,
-        mode = :typo,
-        toplevel_logger = nothing,
+        Colmat; target_modules=_jet_modules, mode=:typo, toplevel_logger=nothing
     )
     reports = filter(!_kind_field_fallback, JET.get_reports(result))
     isempty(reports) || show(stdout, result)

@@ -1,32 +1,34 @@
-const _BidiagonalReductionFunction=Union{typeof(bidiagonalize),typeof(bidiagonalize!)}
+const _BidiagonalReductionFunction = Union{typeof(bidiagonalize),typeof(bidiagonalize!)}
 function _bidiagonalize_plan(a, blocksize)
     _tridiagonal_open(a)
     _qz_validate_operand(a)
-    m, n=size(a)
-    T=_reflector_type(eltype(a))
-    bs=Int(blocksize)
-    0<=bs<=max(1, min(m, n)) || throw(
+    m, n = size(a)
+    T = _reflector_type(eltype(a))
+    bs = Int(blocksize)
+    0 <= bs <= max(1, min(m, n)) || throw(
         ArgumentError(
-            "blocksize must be zero (automatic) or between 1 and max(1,min(size(A)...))",
+            "blocksize must be zero (automatic) or between 1 and max(1,min(size(A)...))"
         ),
     )
     return m, n, T, bs
 end
-function _bidiagonalize_requirement(m, n, T, full, bs, team, policy; compact = false)
-    info=zeros(UInt, 2)
+function _bidiagonalize_requirement(m, n, T, full, bs, team, policy; compact=false)
+    info = zeros(UInt, 2)
     GC.@preserve info begin
-        args=compact ? (UInt(m), UInt(n), _tag(T), UInt(bs), policy.value, info) :
-             (UInt(m), UInt(n), _tag(T), full, UInt(bs), policy.value, info)
-        _native_call(
-            (
-                compact ? RustCrate.compact_bidiagonal_requirements :
+        args = if compact
+            (UInt(m), UInt(n), _tag(T), UInt(bs), policy.value, info)
+        else
+            (UInt(m), UInt(n), _tag(T), full, UInt(bs), policy.value, info)
+        end
+        _native_call((
+            if compact
+                RustCrate.compact_bidiagonal_requirements
+            else
                 RustCrate.bidiagonalize_tuned_requirements
-            ),
-            args...,
-            team,
-        )
+            end
+        ), args..., team)
     end
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 """
     scratch_requirements(bidiagonalize, A; compact=false, full=false, blocksize=0, team=nothing, par_threshold=FaerParThreshold())
@@ -44,33 +46,28 @@ storage, and preserves the requested thin/full basis shapes.
 function scratch_requirements(
     ::_BidiagonalReductionFunction,
     a::AbstractMatrix{<:Number};
-    full::Bool = false,
-    blocksize::Integer = 0,
-    team = nothing,
-    par_threshold = FaerParThreshold(),
-    compact::Bool = false,
+    full::Bool=false,
+    blocksize::Integer=0,
+    team=nothing,
+    par_threshold=FaerParThreshold(),
+    compact::Bool=false,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(nothing, team)
-        policy=_par_threshold(par_threshold)
-        m, n, T, bs=_bidiagonalize_plan(a, blocksize)
+        policy = _par_threshold(par_threshold)
+        m, n, T, bs = _bidiagonalize_plan(a, blocksize)
         return _bidiagonalize_requirement(m, n, T, full, bs, team, policy; compact)
     end
 end
 function FaerScratch(
-    f::_BidiagonalReductionFunction,
-    a::AbstractMatrix{<:Number};
-    kwargs...,
+    f::_BidiagonalReductionFunction, a::AbstractMatrix{<:Number}; kwargs...
 )
-    req=scratch_requirements(f, a; kwargs...)
-    return FaerScratch(req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a; kwargs...)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
 function reserve!(
-    s::FaerScratch,
-    f::_BidiagonalReductionFunction,
-    a::AbstractMatrix{<:Number};
-    kwargs...,
+    s::FaerScratch, f::_BidiagonalReductionFunction, a::AbstractMatrix{<:Number}; kwargs...
 )
-    req=scratch_requirements(f, a; kwargs...)
-    return reserve!(s, req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a; kwargs...)
+    return reserve!(s, req.bytes; alignment=req.alignment)
 end

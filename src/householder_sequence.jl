@@ -32,20 +32,28 @@ mutable struct FaerHouseholderSequence{T,H} <: AbstractFaerHouseholder{T}
     conjugated::Bool
 end
 function _handle(q::FaerHouseholderSequence)
-    h=getfield(q, :handle)
+    h = getfield(q, :handle)
     isnothing(h) && throw(ArgumentError("Householder sequence has been closed"))
     return h
 end
 _native_argument(q::FaerHouseholderSequence) = _handle(q)
 _is_native_owner(::FaerHouseholderSequence) = true
 Base.size(q::FaerHouseholderSequence) = (q.n, q.n)
-Base.size(q::FaerHouseholderSequence, d::Integer) =
-    d<1 ? throw(ArgumentError("dimension must be positive")) : d<=2 ? q.n : 1
-Base.isopen(q::FaerHouseholderSequence) =
-    lock(()->!isnothing(getfield(q, :handle)), _matrix_lock)
+function Base.size(q::FaerHouseholderSequence, d::Integer)
+    if d < 1
+        throw(ArgumentError("dimension must be positive"))
+    elseif d <= 2
+        q.n
+    else
+        1
+    end
+end
+function Base.isopen(q::FaerHouseholderSequence)
+    return lock(() -> !isnothing(getfield(q, :handle)), _matrix_lock)
+end
 function Base.close(q::FaerHouseholderSequence)
     lock(_matrix_lock) do ;
-        q.handle=nothing
+        return q.handle = nothing
     end
     return nothing
 end
@@ -54,60 +62,68 @@ function _sequence_build(
     source,
     tau,
     blocksize;
-    check = true,
-    provided = nothing,
-    transposed = false,
-    conjugated = false,
-    team = nothing,
+    check=true,
+    provided=nothing,
+    transposed=false,
+    conjugated=false,
+    team=nothing,
 ) where {T<:_NativeScalar}
     lock(_matrix_lock) do
         _iterative_resource_check(nothing, team)
         _dense_rhs_validate(source)
         _dense_rhs_validate(tau)
-        isnothing(provided)||_dense_rhs_validate(provided)
-        m, k=size(source)
-        k<=m || throw(DimensionMismatch("Householder basis requires rows >= columns"))
-        length(tau)==k || throw(
-            DimensionMismatch("Householder denominator count must match basis columns"),
+        isnothing(provided) || _dense_rhs_validate(provided)
+        m, k = size(source)
+        k <= m || throw(DimensionMismatch("Householder basis requires rows >= columns"))
+        length(tau) == k || throw(
+            DimensionMismatch("Householder denominator count must match basis columns")
         )
-        b=Int(blocksize)
-        b>0 || throw(ArgumentError("Householder blocksize must be positive"))
+        b = Int(blocksize)
+        b > 0 || throw(ArgumentError("Householder blocksize must be positive"))
         Base.checked_mul(m, k)
         Base.checked_mul(b, k)
-        R=_realtype(T)
-        original=Matrix(source)
-        basis=Matrix{T}(undef, m, k)
-        denominators=Vector{T}(undef, k)
-        for j = 1:k
+        R = _realtype(T)
+        original = Matrix(source)
+        basis = Matrix{T}(undef, m, k)
+        denominators = Vector{T}(undef, k)
+        for j in 1:k
             isreal(tau[j]) || throw(ArgumentError("Householder denominators must be real"))
-            t=convert(R, real(tau[j]))
-            t>0 || throw(ArgumentError("Householder denominators must be positive or Inf"))
-            denominators[j]=t
-            for i = 1:m
-                basis[i, j]=i<j ? zero(T) :
-                            i==j ? one(T) : isinf(t) ? zero(T) : convert(T, original[i, j])
+            t = convert(R, real(tau[j]))
+            t > 0 ||
+                throw(ArgumentError("Householder denominators must be positive or Inf"))
+            denominators[j] = t
+            for i in 1:m
+                basis[i, j] = if i < j
+                    zero(T)
+                elseif i == j
+                    one(T)
+                elseif isinf(t)
+                    zero(T)
+                else
+                    convert(T, original[i, j])
+                end
                 isfinite(basis[i, j]) ||
                     throw(ArgumentError("Householder essentials must be finite"))
             end
             if check && isfinite(t)
                 isapprox(
-                    LinearAlgebra.norm(view(basis, j:m, j))/sqrt(t),
+                    LinearAlgebra.norm(view(basis, j:m, j)) / sqrt(t),
                     sqrt(R(2));
-                    rtol = sqrt(eps(R)),
+                    rtol=sqrt(eps(R)),
                 ) || throw(
                     ArgumentError(
-                        "Householder denominator must equal the squared basis norm / 2",
+                        "Householder denominator must equal the squared basis norm / 2"
                     ),
                 )
             end
         end
-        factor=isnothing(provided) ? nothing : Matrix{T}(provided)
+        factor = isnothing(provided) ? nothing : Matrix{T}(provided)
         isnothing(factor) ||
-            size(factor)==(b, k) ||
+            size(factor) == (b, k) ||
             throw(DimensionMismatch("provided Householder factor shape mismatch"))
-        h=RustCrate.OwnedHouseholderSequence()
-        ptr=isnothing(factor) ? Ptr{UInt8}(C_NULL) : Ptr{UInt8}(pointer(factor))
-        args=(
+        h = RustCrate.OwnedHouseholderSequence()
+        ptr = isnothing(factor) ? Ptr{UInt8}(C_NULL) : Ptr{UInt8}(pointer(factor))
+        args = (
             h,
             Ptr{UInt8}(pointer(basis)),
             UInt(m),
@@ -126,136 +142,129 @@ end
 function FaerHouseholderSequence{T}(
     basis::AbstractMatrix,
     tau::AbstractVector;
-    blocksize = min(32, max(1, size(basis, 2))),
-    team = nothing,
+    blocksize=min(32, max(1, size(basis, 2))),
+    team=nothing,
 ) where {T<:_NativeScalar}
     return _sequence_build(T, basis, tau, blocksize; team)
 end
 function FaerHouseholderSequence(basis::AbstractMatrix, tau::AbstractVector; kwargs...)
-    T=promote_type(
-        _reflector_type(eltype(basis)),
-        _reflector_type(typeof(real(zero(eltype(tau))))),
+    T = promote_type(
+        _reflector_type(eltype(basis)), _reflector_type(typeof(real(zero(eltype(tau)))))
     )
     return FaerHouseholderSequence{T}(basis, tau; kwargs...)
 end
 function FaerHouseholderSequence{T}(
     basis::AbstractMatrix,
     factor::AbstractMatrix;
-    blocksize = size(factor, 1),
-    prev_block_size = nothing,
-    team = nothing,
+    blocksize=size(factor, 1),
+    prev_block_size=nothing,
+    team=nothing,
 ) where {T<:_NativeScalar}
     lock(_matrix_lock) do
         _iterative_resource_check(nothing, team)
         _dense_rhs_validate(basis)
         _dense_rhs_validate(factor)
-        old, k=size(factor)
-        old>0 || throw(ArgumentError("Householder factor must have at least one row"))
-        size(basis, 2)==k ||
+        old, k = size(factor)
+        old > 0 || throw(ArgumentError("Householder factor must have at least one row"))
+        size(basis, 2) == k ||
             throw(DimensionMismatch("Householder factor and basis columns must match"))
-        b, prev=_sequence_reblock_sizes(old, blocksize, prev_block_size)
-        tau=[factor[mod1(j, old), j] for j = 1:k]
-        generated=_sequence_build(T, basis, tau, old; team)
-        canonical=zeros(T, old, k)
+        b, prev = _sequence_reblock_sizes(old, blocksize, prev_block_size)
+        tau = [factor[mod1(j, old), j] for j in 1:k]
+        generated = _sequence_build(T, basis, tau, old; team)
+        canonical = zeros(T, old, k)
         try
-            expected=Matrix(generated.factor)
-            for j = 1:k, i = 1:mod1(j, old)
-                value=convert(T, factor[i, j])
+            expected = Matrix(generated.factor)
+            for j in 1:k, i in 1:mod1(j, old)
+                value = convert(T, factor[i, j])
                 (
-                    value==expected[i, j] || isapprox(
+                    value == expected[i, j] || isapprox(
                         value,
                         expected[i, j];
-                        rtol = sqrt(eps(_realtype(T))),
-                        atol = 10eps(_realtype(T)),
+                        rtol=sqrt(eps(_realtype(T))),
+                        atol=10eps(_realtype(T)),
                     )
                 ) || throw(
                     ArgumentError(
-                        "Householder factor is inconsistent with the basis/denominators",
+                        "Householder factor is inconsistent with the basis/denominators"
                     ),
                 )
-                canonical[i, j]=value
+                canonical[i, j] = value
             end
         finally
             close(generated)
         end
-        prepared=_sequence_build(
-            T,
-            basis,
-            tau,
-            old;
-            check = false,
-            provided = canonical,
-            team,
+        prepared = _sequence_build(
+            T, basis, tau, old; check=false, provided=canonical, team
         )
         try
-            return reblock(prepared, b; prev_block_size = prev, team)
+            return reblock(prepared, b; prev_block_size=prev, team)
         finally
             close(prepared)
         end
     end
 end
 function FaerHouseholderSequence(basis::AbstractMatrix, factor::AbstractMatrix; kwargs...)
-    T=promote_type(_reflector_type(eltype(basis)), _reflector_type(eltype(factor)))
+    T = promote_type(_reflector_type(eltype(basis)), _reflector_type(eltype(factor)))
     return FaerHouseholderSequence{T}(basis, factor; kwargs...)
 end
 function _sequence_copy(
-    q::FaerHouseholderSequence{T};
-    transposed = q.transposed,
-    conjugated = q.conjugated,
+    q::FaerHouseholderSequence{T}; transposed=q.transposed, conjugated=q.conjugated
 ) where {T}
     lock(_matrix_lock) do
-        h=RustCrate.OwnedHouseholderSequence()
+        h = RustCrate.OwnedHouseholderSequence()
         _native_call(RustCrate.sequence_clone, h, q)
         return FaerHouseholderSequence{T,typeof(h)}(
-            h,
-            q.n,
-            q.k,
-            q.blocksize,
-            transposed,
-            conjugated,
+            h, q.n, q.k, q.blocksize, transposed, conjugated
         )
     end
 end
 Base.copy(q::FaerHouseholderSequence) = _sequence_copy(q)
 Base.deepcopy_internal(q::FaerHouseholderSequence, d::IdDict) = get!(() -> copy(q), d, q)
-Base.transpose(q::FaerHouseholderSequence) = _sequence_copy(q; transposed = !q.transposed)
-Base.conj(q::FaerHouseholderSequence) = _sequence_copy(q; conjugated = !q.conjugated)
-Base.adjoint(q::FaerHouseholderSequence) =
-    _sequence_copy(q; transposed = !q.transposed, conjugated = !q.conjugated)
+Base.transpose(q::FaerHouseholderSequence) = _sequence_copy(q; transposed=(!q.transposed))
+Base.conj(q::FaerHouseholderSequence) = _sequence_copy(q; conjugated=(!q.conjugated))
+function Base.adjoint(q::FaerHouseholderSequence)
+    return _sequence_copy(q; transposed=(!q.transposed), conjugated=(!q.conjugated))
+end
 Base.inv(q::FaerHouseholderSequence) = adjoint(q)
 function Base.getproperty(q::FaerHouseholderSequence{T}, name::Symbol) where {T}
     if name in (:basis, :factor)
-        factor=name===:factor
-        dims=factor ? (q.blocksize, q.k) : (q.n, q.k)
-        return T===Float64 ? _matrix_result(RustCrate.sequence_component, dims, q, factor) :
-               _typed_result(T, RustCrate.sequence_component, dims, q, factor)
-    elseif name===:tau
-        out=Vector{T}(undef, q.k)
+        factor = name === :factor
+        dims = factor ? (q.blocksize, q.k) : (q.n, q.k)
+        return if T === Float64
+            _matrix_result(RustCrate.sequence_component, dims, q, factor)
+        else
+            _typed_result(T, RustCrate.sequence_component, dims, q, factor)
+        end
+    elseif name === :tau
+        out = Vector{T}(undef, q.k)
         GC.@preserve out _native_call(
-            RustCrate.sequence_taus,
-            q,
-            Ptr{UInt8}(pointer(out)),
-            UInt(length(out)),
+            RustCrate.sequence_taus, q, Ptr{UInt8}(pointer(out)), UInt(length(out))
         )
         return real.(out)
-    elseif name===:nreflections
+    elseif name === :nreflections
         return getfield(q, :k)
     end
     return getfield(q, name)
 end
-Base.propertynames(q::FaerHouseholderSequence, private::Bool = false) =
-    private ? (fieldnames(typeof(q))..., :basis, :factor, :tau, :nreflections) :
-    (:basis, :factor, :tau, :blocksize, :nreflections, :transposed, :conjugated)
+function Base.propertynames(q::FaerHouseholderSequence, private::Bool=false)
+    return if private
+        (fieldnames(typeof(q))..., :basis, :factor, :tau, :nreflections)
+    else
+        (:basis, :factor, :tau, :blocksize, :nreflections, :transposed, :conjugated)
+    end
+end
 function Base.getindex(q::FaerHouseholderSequence{T}, i::Int, j::Int) where {T}
     checkbounds(q, i, j)
     lock(_matrix_lock) do
         _handle(q)
-        unit=zeros(T, q.n)
-        unit[j]=one(T)
-        return (q*unit)[i]
+        unit = zeros(T, q.n)
+        unit[j] = one(T)
+        return (q * unit)[i]
     end
 end
-function _householder_coerce(q::FaerHouseholderSequence{T}, ::Type{T}) where {T<:_NativeScalar}
+function _householder_coerce(
+    q::FaerHouseholderSequence{T}, ::Type{T}
+) where {T<:_NativeScalar}
     _handle(q)
     return q
 end
@@ -265,19 +274,20 @@ function _householder_coerce(q::FaerHouseholderSequence, ::Type{T}) where {T<:_N
         q.basis,
         q.tau,
         q.blocksize;
-        check = false,
-        transposed = q.transposed,
-        conjugated = q.conjugated,
+        check=false,
+        transposed=q.transposed,
+        conjugated=q.conjugated,
     )
 end
-_householder_native_apply!(q::FaerHouseholderSequence, a, right) =
-    _native_call(RustCrate.sequence_apply, a, q, right, q.transposed, q.conjugated)
-Base.:\(q::FaerHouseholderSequence, a::_HouseholderArray) = q'*a
+function _householder_native_apply!(q::FaerHouseholderSequence, a, right)
+    return _native_call(RustCrate.sequence_apply, a, q, right, q.transposed, q.conjugated)
+end
+Base.:\(q::FaerHouseholderSequence, a::_HouseholderArray) = q' * a
 function _sequence_reblock_sizes(old, b, prev)
-    b=Int(b)
-    b>0 || throw(ArgumentError("Householder blocksize must be positive"))
-    p=isnothing(prev) ? gcd(old, b) : Int(prev)
-    p>0 && old%p==0 && b%p==0 ||
+    b = Int(b)
+    b > 0 || throw(ArgumentError("Householder blocksize must be positive"))
+    p = isnothing(prev) ? gcd(old, b) : Int(prev)
+    p > 0 && old % p == 0 && b % p == 0 ||
         throw(ArgumentError("prev_block_size must positively divide old and new blocksize"))
     return b, p
 end
@@ -290,10 +300,7 @@ and basis stay native; orientation is preserved. The native upgrade may allocate
 internal reduction buffers; it has no external scratch API.
 """
 function reblock(
-    q::FaerHouseholderSequence,
-    b::Integer;
-    prev_block_size = nothing,
-    team = nothing,
+    q::FaerHouseholderSequence, b::Integer; prev_block_size=nothing, team=nothing
 )
     lock(_matrix_lock) do
         _iterative_resource_check(nothing, team)
@@ -306,10 +313,10 @@ function reblock(
             UInt(q.blocksize),
             _tag(eltype(q)),
         )
-        b, prev=_sequence_reblock_sizes(q.blocksize, b, prev_block_size)
+        b, prev = _sequence_reblock_sizes(q.blocksize, b, prev_block_size)
         Base.checked_mul(b, q.k)
-        h=RustCrate.OwnedHouseholderSequence()
-        args=(
+        h = RustCrate.OwnedHouseholderSequence()
+        args = (
             h,
             q,
             UInt(b),
@@ -321,40 +328,24 @@ function reblock(
         )
         _native_call(RustCrate.sequence_reblock_from, args..., team)
         return FaerHouseholderSequence{eltype(q),typeof(h)}(
-            h,
-            q.n,
-            q.k,
-            b,
-            q.transposed,
-            q.conjugated,
+            h, q.n, q.k, b, q.transposed, q.conjugated
         )
     end
 end
 """Rebuild the compact factors transactionally; previously exported basis/factor matrices remain independent."""
 function reblock!(q::FaerHouseholderSequence, b::Integer; kwargs...)
     lock(_matrix_lock) do
-        replacement=reblock(q, b; kwargs...)
-        q.handle=replacement.handle
-        q.blocksize=replacement.blocksize
+        replacement = reblock(q, b; kwargs...)
+        q.handle = replacement.handle
+        q.blocksize = replacement.blocksize
         return q
     end
 end
 # Native destination action; see `_householder_into!`.
 function _householder_into_native!(
-    h::FaerHouseholderSequence,
-    p,
-    d,
-    q,
-    e,
-    right,
-    al,
-    be,
-    az,
-    bz;
-    scratch,
-    team,
+    h::FaerHouseholderSequence, p, d, q, e, right, al, be, az, bz; scratch, team
 )
-    _native_call(
+    return _native_call(
         RustCrate.sequence_mul_into,
         p,
         d,

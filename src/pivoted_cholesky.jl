@@ -1,4 +1,4 @@
-const _PivotedNativeCholesky=LinearAlgebra.CholeskyPivoted{T,<:FaerMatrix} where {T}
+const _PivotedNativeCholesky = LinearAlgebra.CholeskyPivoted{T,<:FaerMatrix} where {T}
 """
     cholesky(A, RowMaximum(); tol=0.0, check=true, block_size=128, scratch=nothing, team=nothing)
 
@@ -22,19 +22,18 @@ panel algorithm written into A for `tol >= 0`). Other bang methods stage writeba
 publish the destination only after successful computation and conversion.
 """
 _pivoted_cholesky(a; kwargs...) = _pivoted_cholesky_workspace(a; kwargs...)
-LinearAlgebra.cholesky(a::FaerMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
-    _pivoted_cholesky(a; kwargs...)
+function LinearAlgebra.cholesky(a::FaerMatrix, ::LinearAlgebra.RowMaximum; kwargs...)
+    return _pivoted_cholesky(a; kwargs...)
+end
 for W in (:Hermitian, :Symmetric)
     @eval LinearAlgebra.cholesky(
-        a::LinearAlgebra.$W{T,<:FaerMatrix},
-        ::LinearAlgebra.RowMaximum;
-        kwargs...,
+        a::LinearAlgebra.$W{T,<:FaerMatrix}, ::LinearAlgebra.RowMaximum; kwargs...
     ) where {T} = _pivoted_cholesky(a; kwargs...)
 end
 function _pivoted_apply(F::_PivotedNativeCholesky, b, op::Int32; kwargs...)
-    result=_pivoted_native_apply(F, op in (0, 3) ? b : nothing, op; kwargs...)
+    result = _pivoted_native_apply(F, op in (0, 3) ? b : nothing, op; kwargs...)
     try
-        array=Matrix(result)
+        array = Matrix(result)
         return b isa AbstractVector ? vec(array) : array
     finally
         close(result)
@@ -44,53 +43,58 @@ function _pivoted_divide_into!(dest, F, b, op; kwargs...)
     lock(_matrix_lock) do
         _pivoted_destination_check(F, dest)
         Base.require_one_based_indexing(dest, b)
-        size(dest)==size(b)||throw(
-            DimensionMismatch("pivoted Cholesky destination and RHS shapes must match"),
+        size(dest) == size(b) || throw(
+            DimensionMismatch("pivoted Cholesky destination and RHS shapes must match")
         )
-        result=_pivoted_apply(F, b, Int32(op); kwargs...)
-        staged=eltype(dest)===eltype(result) ? result : Array{eltype(dest)}(result)
-        all(isfinite, staged)||throw(
+        result = _pivoted_apply(F, b, Int32(op); kwargs...)
+        staged = eltype(dest) === eltype(result) ? result : Array{eltype(dest)}(result)
+        all(isfinite, staged) || throw(
             ArgumentError(
                 "pivoted Cholesky result cannot be represented finitely in the destination",
             ),
         )
         _pivoted_destination_check(F, dest)
-        size(dest)==size(staged)||throw(
+        size(dest) == size(staged) || throw(
             DimensionMismatch(
-                "pivoted Cholesky destination changed shape during conversion",
+                "pivoted Cholesky destination changed shape during conversion"
             ),
         )
-        copyto!(dest, staged)
+        return copyto!(dest, staged)
     end
 end
-LinearAlgebra.ldiv!(F::_PivotedNativeCholesky, b::AbstractVector; kwargs...) =
-    _pivoted_divide_into!(b, F, b, 0; kwargs...)
-LinearAlgebra.ldiv!(F::_PivotedNativeCholesky, b::AbstractMatrix; kwargs...) =
-    _pivoted_divide_into!(b, F, b, 0; kwargs...)
-LinearAlgebra.ldiv!(
-    dest::AbstractVector,
-    F::_PivotedNativeCholesky,
-    b::AbstractVector;
-    kwargs...,
-) = _pivoted_divide_into!(dest, F, b, 0; kwargs...)
-LinearAlgebra.ldiv!(
-    dest::AbstractMatrix,
-    F::_PivotedNativeCholesky,
-    b::AbstractMatrix;
-    kwargs...,
-) = _pivoted_divide_into!(dest, F, b, 0; kwargs...)
-LinearAlgebra.rdiv!(b::AbstractMatrix, F::_PivotedNativeCholesky; kwargs...) =
-    _pivoted_divide_into!(b, F, b, 3; kwargs...)
-Base.:/(b::FaerMatrix, F::_PivotedNativeCholesky; kwargs...) =
-    _pivoted_native_apply(F, b, Int32(3); kwargs...)
-Base.:\(F::_PivotedNativeCholesky, b::FaerMatrix; kwargs...) =
-    _pivoted_native_apply(F, b, Int32(0); kwargs...)
-Base.inv(F::_PivotedNativeCholesky; kwargs...) =
-    _pivoted_native_apply(F, nothing, Int32(1); kwargs...)
-reconstruct(F::_PivotedNativeCholesky; kwargs...) =
-    _pivoted_native_apply(F, nothing, Int32(2); kwargs...)
+function LinearAlgebra.ldiv!(F::_PivotedNativeCholesky, b::AbstractVector; kwargs...)
+    return _pivoted_divide_into!(b, F, b, 0; kwargs...)
+end
+function LinearAlgebra.ldiv!(F::_PivotedNativeCholesky, b::AbstractMatrix; kwargs...)
+    return _pivoted_divide_into!(b, F, b, 0; kwargs...)
+end
+function LinearAlgebra.ldiv!(
+    dest::AbstractVector, F::_PivotedNativeCholesky, b::AbstractVector; kwargs...
+)
+    return _pivoted_divide_into!(dest, F, b, 0; kwargs...)
+end
+function LinearAlgebra.ldiv!(
+    dest::AbstractMatrix, F::_PivotedNativeCholesky, b::AbstractMatrix; kwargs...
+)
+    return _pivoted_divide_into!(dest, F, b, 0; kwargs...)
+end
+function LinearAlgebra.rdiv!(b::AbstractMatrix, F::_PivotedNativeCholesky; kwargs...)
+    return _pivoted_divide_into!(b, F, b, 3; kwargs...)
+end
+function Base.:/(b::FaerMatrix, F::_PivotedNativeCholesky; kwargs...)
+    return _pivoted_native_apply(F, b, Int32(3); kwargs...)
+end
+function Base.:\(F::_PivotedNativeCholesky, b::FaerMatrix; kwargs...)
+    return _pivoted_native_apply(F, b, Int32(0); kwargs...)
+end
+function Base.inv(F::_PivotedNativeCholesky; kwargs...)
+    return _pivoted_native_apply(F, nothing, Int32(1); kwargs...)
+end
+function reconstruct(F::_PivotedNativeCholesky; kwargs...)
+    return _pivoted_native_apply(F, nothing, Int32(2); kwargs...)
+end
 function Base.Matrix(F::_PivotedNativeCholesky; kwargs...)
-    result=reconstruct(F; kwargs...)
+    result = reconstruct(F; kwargs...)
     try
         return Matrix(result)
     finally

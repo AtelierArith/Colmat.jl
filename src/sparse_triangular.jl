@@ -1,4 +1,4 @@
-const _SparseTriangularParent{T}=Union{
+const _SparseTriangularParent{T} = Union{
     FaerSparseMatrix{T},
     LinearAlgebra.Transpose{T,<:FaerSparseMatrix{T}},
     LinearAlgebra.Adjoint{T,<:FaerSparseMatrix{T}},
@@ -6,7 +6,7 @@ const _SparseTriangularParent{T}=Union{
     LinearAlgebra.Transpose{T,<:FaerBorrowedSparseMatrix{T}},
     LinearAlgebra.Adjoint{T,<:FaerBorrowedSparseMatrix{T}},
 }
-const _SparseTriangular=Union{
+const _SparseTriangular = Union{
     LinearAlgebra.LowerTriangular{<:Any,<:_SparseTriangularParent},
     LinearAlgebra.UpperTriangular{<:Any,<:_SparseTriangularParent},
     LinearAlgebra.UnitLowerTriangular{<:Any,<:_SparseTriangularParent},
@@ -22,41 +22,44 @@ _sparse_triangular_open(::FaerBorrowedSparseMatrix) = nothing
 # Rust reads the borrowed sparse arrays while solving in the destination.
 _sparse_triangular_alias(dest, ::FaerSparseMatrix) = nothing
 function _sparse_triangular_alias(dest, source::FaerBorrowedSparseMatrix)
-    y=dest isa FaerBorrowedArray ? parent(dest) : dest
-    y isa AbstractArray && Base.mightalias(y, source) && throw(
-        ArgumentError("sparse triangular destination must not alias the borrowed sparse matrix"),
-    )
+    y = dest isa FaerBorrowedArray ? parent(dest) : dest
+    y isa AbstractArray &&
+        Base.mightalias(y, source) &&
+        throw(
+            ArgumentError(
+                "sparse triangular destination must not alias the borrowed sparse matrix"
+            ),
+        )
     return nothing
 end
 _sparse_triangular_owner(p::LinearAlgebra.Transpose) = (parent(p), Int32(1))
 _sparse_triangular_owner(p::LinearAlgebra.Adjoint) = (parent(p), Int32(2))
 # Destinations the native kernel writes into directly.
-const _SparseTriangularNative=Union{FaerMatrix,FaerVector,FaerView}
-_sparse_triangular_direct(x::_SparseTriangularNative, ::Type{P}) where {P} = eltype(x)===P
-_sparse_triangular_direct(x::FaerBorrowedArray, ::Type{P}) where {P} =
-    eltype(x)===P && _borrowed_writable(x)
-_sparse_triangular_direct(x::StridedVecOrMat, ::Type{P}) where {P} =
-    eltype(x)===P && _faerview_valid(x)
+const _SparseTriangularNative = Union{FaerMatrix,FaerVector,FaerView}
+_sparse_triangular_direct(x::_SparseTriangularNative, ::Type{P}) where {P} = eltype(x) === P
+function _sparse_triangular_direct(x::FaerBorrowedArray, ::Type{P}) where {P}
+    return eltype(x) === P && _borrowed_writable(x)
+end
+function _sparse_triangular_direct(x::StridedVecOrMat, ::Type{P}) where {P}
+    return eltype(x) === P && _faerview_valid(x)
+end
 _sparse_triangular_direct(x, ::Type) = false
 
 function _sparse_triangular_prepare(a, b, team)
     isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
     isnothing(team) || _handle(team)
-    source, op=_sparse_triangular_owner(parent(a))
+    source, op = _sparse_triangular_owner(parent(a))
     _sparse_triangular_open(source)
     b isa Union{_SparseTriangularNative,FaerBorrowedArray} && _spectral_rhs_open(b)
-    size(a, 1)==size(b, 1) ||
+    size(a, 1) == size(b, 1) ||
         throw(DimensionMismatch("sparse triangular solve dimensions must match"))
-    P=promote_type(eltype(a), _sparse_input_type(eltype(b)))
+    P = promote_type(eltype(a), _sparse_input_type(eltype(b)))
     return source, op, P
 end
 function _sparse_triangular_query(
-    source::FaerBorrowedSparseMatrix,
-    a,
-    op,
-    ::Type{P},
+    source::FaerBorrowedSparseMatrix, a, op, ::Type{P}
 ) where {P}
-    info=zeros(UInt, 2)
+    info = zeros(UInt, 2)
     GC.@preserve info _with_borrowed_sparse(source) do raw...
         _native_call(
             RustCrate.borrowed_sparse_triangular_requirements,
@@ -68,10 +71,10 @@ function _sparse_triangular_query(
             info,
         )
     end
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 function _sparse_triangular_query(source, a, op, ::Type{P}) where {P}
-    info=zeros(UInt, 2)
+    info = zeros(UInt, 2)
     GC.@preserve info _native_call(
         RustCrate.sparse_triangular_requirements,
         source,
@@ -81,24 +84,29 @@ function _sparse_triangular_query(source, a, op, ::Type{P}) where {P}
         _tag(P),
         info,
     )
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 function _sparse_triangular_check_singular(source, a)
     _isunit(a) && return nothing
-    i=Int(
-        source isa FaerBorrowedSparseMatrix ?
-        _with_borrowed_sparse((raw...) -> _native_call(RustCrate.borrowed_sparse_zero_diagonal, raw...), source) :
-        _native_call(RustCrate.sparse_zero_diagonal, source),
+    i = Int(
+        if source isa FaerBorrowedSparseMatrix
+            _with_borrowed_sparse(
+                (raw...) -> _native_call(RustCrate.borrowed_sparse_zero_diagonal, raw...),
+                source,
+            )
+        else
+            _native_call(RustCrate.sparse_zero_diagonal, source)
+        end,
     )
     iszero(i) || throw(LinearAlgebra.SingularException(i))
     return nothing
 end
 # Solve in place in `x`, which already holds the RHS in scalar type P.
 function _sparse_triangular_native!(x, source::FaerBorrowedSparseMatrix, a, op, work)
-    lower, unit=_islower(a), _isunit(a)
-    code=_with_borrowed_sparse(source) do raw...
+    lower, unit = _islower(a), _isunit(a)
+    code = _with_borrowed_sparse(source) do raw...
         if x isa _SparseTriangularNative
-            p, d=_view_source(x)
+            p, d = _view_source(x)
             GC.@preserve d _native_call(
                 RustCrate.borrowed_sparse_triangular_into,
                 p,
@@ -110,11 +118,11 @@ function _sparse_triangular_native!(x, source::FaerBorrowedSparseMatrix, a, op, 
                 work,
             )
         else
-            y=x isa FaerBorrowedArray ? parent(x) : x
-            m=size(y, 1)
-            n=ndims(y)==1 ? 1 : size(y, 2)
-            rs=stride(y, 1)
-            cs=ndims(y)==1 ? m*rs : stride(y, 2)
+            y = x isa FaerBorrowedArray ? parent(x) : x
+            m = size(y, 1)
+            n = ndims(y) == 1 ? 1 : size(y, 2)
+            rs = stride(y, 1)
+            cs = ndims(y) == 1 ? m * rs : stride(y, 2)
             GC.@preserve y _native_call(
                 RustCrate.borrowed_sparse_triangular_raw,
                 raw...,
@@ -135,9 +143,9 @@ function _sparse_triangular_native!(x, source::FaerBorrowedSparseMatrix, a, op, 
     return x
 end
 function _sparse_triangular_native!(x, source, a, op, work)
-    lower, unit=_islower(a), _isunit(a)
-    code=if x isa _SparseTriangularNative
-        p, d=_view_source(x)
+    lower, unit = _islower(a), _isunit(a)
+    code = if x isa _SparseTriangularNative
+        p, d = _view_source(x)
         GC.@preserve d _native_call(
             RustCrate.sparse_triangular_into,
             p,
@@ -149,11 +157,11 @@ function _sparse_triangular_native!(x, source, a, op, work)
             work,
         )
     else
-        y=x isa FaerBorrowedArray ? parent(x) : x
-        m=size(y, 1)
-        n=ndims(y)==1 ? 1 : size(y, 2)
-        rs=stride(y, 1)
-        cs=ndims(y)==1 ? m*rs : stride(y, 2)
+        y = x isa FaerBorrowedArray ? parent(x) : x
+        m = size(y, 1)
+        n = ndims(y) == 1 ? 1 : size(y, 2)
+        rs = stride(y, 1)
+        cs = ndims(y) == 1 ? m * rs : stride(y, 2)
         GC.@preserve y _native_call(
             RustCrate.sparse_triangular_raw,
             source,
@@ -174,25 +182,24 @@ function _sparse_triangular_native!(x, source, a, op, work)
 end
 # Solves borrowing a conforming owner need no workspace. Without caller scratch
 # they share one empty native workspace; every use holds `_matrix_lock`.
-const _SPARSE_TRIANGULAR_EMPTY=Ref{Any}(nothing)
+const _SPARSE_TRIANGULAR_EMPTY = Ref{Any}(nothing)
 function _sparse_triangular_empty()
-    work=_SPARSE_TRIANGULAR_EMPTY[]
+    work = _SPARSE_TRIANGULAR_EMPTY[]
     if isnothing(work) || !isopen(work)
-        work=FaerScratch(0)
-        _SPARSE_TRIANGULAR_EMPTY[]=work
+        work = FaerScratch(0)
+        _SPARSE_TRIANGULAR_EMPTY[] = work
     end
     return work
 end
 function _with_sparse_triangular_scratch(fun, req, scratch)
     isnothing(scratch) && iszero(req.bytes) && return fun(_sparse_triangular_empty())
-    temporary=isnothing(scratch)
-    work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+    temporary = isnothing(scratch)
+    work = temporary ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
     work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
     try
-        cap=scratch_capacity(work)
-        cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
-            ArgumentError("insufficient sparse triangular scratch; call reserve!"),
-        )
+        cap = scratch_capacity(work)
+        cap.bytes >= req.bytes && cap.alignment >= req.alignment ||
+            throw(ArgumentError("insufficient sparse triangular scratch; call reserve!"))
         return fun(work)
     finally
         temporary && close(work)
@@ -200,25 +207,23 @@ function _with_sparse_triangular_scratch(fun, req, scratch)
 end
 # A fresh native RHS copy in the promoted type; it never aliases `b`.
 function _sparse_triangular_copy(b::AbstractMatrix, ::Type{P}) where {P}
-    b isa FaerMatrix && return eltype(b)===P ? copy(b) : FaerMatrix{P}(b)
+    b isa FaerMatrix && return eltype(b) === P ? copy(b) : FaerMatrix{P}(b)
     return FaerMatrix{P}(b)
 end
-_sparse_triangular_copy(b::_BorrowVector, ::Type{P}) where {P} =
-    eltype(b)===P ? copy(b) : FaerVector{P}(b)
+function _sparse_triangular_copy(b::_BorrowVector, ::Type{P}) where {P}
+    return eltype(b) === P ? copy(b) : FaerVector{P}(b)
+end
 _sparse_triangular_copy(b::AbstractVector, ::Type{P}) where {P} = Vector{P}(b)
 
 function _sparse_triangular_solve(
-    a::_SparseTriangular,
-    b::AbstractVecOrMat;
-    scratch = nothing,
-    team = nothing,
+    a::_SparseTriangular, b::AbstractVecOrMat; scratch=nothing, team=nothing
 )
     lock(_matrix_lock) do
-        source, op, P=_sparse_triangular_prepare(a, b, team)
-        req=_sparse_triangular_query(source, a, op, P)
+        source, op, P = _sparse_triangular_prepare(a, b, team)
+        req = _sparse_triangular_query(source, a, op, P)
         _with_sparse_triangular_scratch(req, scratch) do work
             # Rust rejects a zero diagonal before writing the fresh copy.
-            x=_sparse_triangular_copy(b, P)
+            x = _sparse_triangular_copy(b, P)
             try
                 return _sparse_triangular_native!(x, source, a, op, work)
             catch
@@ -237,22 +242,23 @@ _sparse_triangular_vector(a, b; kwargs...) = _sparse_triangular_solve(a, b; kwar
 # including the singularity check and scratch capacity, precedes the first write
 # to dest: Rust checks the diagonal before solving, so only a copy into dest
 # needs the separate check first.
-function _sparse_triangular_write!(dest, a, b; scratch = nothing, team = nothing)
+function _sparse_triangular_write!(dest, a, b; scratch=nothing, team=nothing)
     lock(_matrix_lock) do
-        source, op, P=_sparse_triangular_prepare(a, b, team)
-        dest isa Union{_SparseTriangularNative,FaerBorrowedArray} && _spectral_rhs_open(dest)
-        size(dest)==size(b) ||
+        source, op, P = _sparse_triangular_prepare(a, b, team)
+        dest isa Union{_SparseTriangularNative,FaerBorrowedArray} &&
+            _spectral_rhs_open(dest)
+        size(dest) == size(b) ||
             throw(DimensionMismatch("triangular output size must match RHS"))
         _sparse_triangular_alias(dest, source)
-        direct=_sparse_triangular_direct(dest, P)
-        direct && dest!==b && _sparse_triangular_check_singular(source, a)
-        req=_sparse_triangular_query(source, a, op, P)
+        direct = _sparse_triangular_direct(dest, P)
+        direct && dest !== b && _sparse_triangular_check_singular(source, a)
+        req = _sparse_triangular_query(source, a, op, P)
         _with_sparse_triangular_scratch(req, scratch) do work
             if direct
-                dest===b || copyto!(dest, b)
+                dest === b || copyto!(dest, b)
                 _sparse_triangular_native!(dest, source, a, op, work)
             else
-                x=_sparse_triangular_copy(b, P)
+                x = _sparse_triangular_copy(b, P)
                 try
                     _sparse_triangular_native!(x, source, a, op, work)
                     copyto!(dest, x)
@@ -310,9 +316,7 @@ sequential. Zero diagonals throw `SingularException` and closed or undersized
 resources throw before any write.
 """
 function LinearAlgebra.ldiv!(
-    a::_SparseTriangular,
-    b::Union{AbstractVector,AbstractMatrix};
-    kwargs...,
+    a::_SparseTriangular, b::Union{AbstractVector,AbstractMatrix}; kwargs...
 )
     return _sparse_triangular_write!(b, a, b; kwargs...)
 end
@@ -336,9 +340,7 @@ for C in (:LowerTriangular, :UpperTriangular, :UnitLowerTriangular, :UnitUpperTr
         SparseArrays.AbstractSparseMatrixCSC,
     )
         @eval Base.:\(
-            a::LinearAlgebra.$C{T,<:_SparseTriangularParent{T}},
-            b::$R{<:Number};
-            kwargs...,
+            a::LinearAlgebra.$C{T,<:_SparseTriangularParent{T}}, b::$R{<:Number}; kwargs...
         ) where {T<:_NativeScalar} = _sparse_triangular_solve(a, b; kwargs...)
     end
 end

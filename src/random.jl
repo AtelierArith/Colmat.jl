@@ -13,35 +13,35 @@ mutable struct FaerRNG{H} <: Random.AbstractRNG
     handle::Union{Nothing,H}
 end
 function _handle(rng::FaerRNG)
-    h=rng.handle
+    h = rng.handle
     isnothing(h) && throw(ArgumentError("FaerRNG has been closed"))
     return h
 end
 _native_argument(rng::FaerRNG) = _handle(rng)
 _is_native_owner(::FaerRNG) = true
 function _random_seed(seed::Integer)
-    0<=seed<=typemax(UInt64) || throw(ArgumentError("native RNG seed must fit UInt64"))
+    0 <= seed <= typemax(UInt64) || throw(ArgumentError("native RNG seed must fit UInt64"))
     return UInt64(seed)
 end
-function FaerRNG(seed::Integer = Random.rand(Random.default_rng(), UInt64))
-    seed=_random_seed(seed)
+function FaerRNG(seed::Integer=Random.rand(Random.default_rng(), UInt64))
+    seed = _random_seed(seed)
     lock(_matrix_lock) do
-        h=RustCrate.OwnedRandom()
-        rng=FaerRNG{typeof(h)}(h)
+        h = RustCrate.OwnedRandom()
+        rng = FaerRNG{typeof(h)}(h)
         _native_call(RustCrate.rng_seed, rng, seed)
         return rng
     end
 end
-Base.isopen(rng::FaerRNG) = lock(()->!isnothing(rng.handle), _matrix_lock)
+Base.isopen(rng::FaerRNG) = lock(() -> !isnothing(rng.handle), _matrix_lock)
 function Base.close(rng::FaerRNG)
     lock(_matrix_lock) do ;
-        rng.handle=nothing
+        return rng.handle = nothing
     end
     return nothing
 end
 function Base.copy(rng::FaerRNG)
     lock(_matrix_lock) do
-        h=_native_call(RustCrate.duplicate, rng)
+        h = _native_call(RustCrate.duplicate, rng)
         return FaerRNG{typeof(h)}(h)
     end
 end
@@ -59,41 +59,40 @@ function Random.seed!(rng::FaerRNG)
     end
 end
 Random.rng_native_52(::FaerRNG) = UInt64
-Random.rand(rng::FaerRNG, ::Random.SamplerType{UInt64}) =
-    _native_call(RustCrate.rng_next, rng)
-Random.rand(
-    rng::FaerRNG,
-    ::Random.SamplerType{T},
-) where {T<:Union{Bool,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64}} =
-    Random.rand(rng, UInt64) % T
+function Random.rand(rng::FaerRNG, ::Random.SamplerType{UInt64})
+    return _native_call(RustCrate.rng_next, rng)
+end
+function Random.rand(
+    rng::FaerRNG, ::Random.SamplerType{T}
+) where {T<:Union{Bool,Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64}}
+    return Random.rand(rng, UInt64) % T
+end
 function Random.rand(rng::FaerRNG, ::Random.SamplerType{T}) where {T<:Union{Int128,UInt128}}
-    hi=Random.rand(rng, UInt64)
+    hi = Random.rand(rng, UInt64)
     return ((UInt128(hi) << 64) | Random.rand(rng, UInt64)) % T
 end
 _random_owner(rng::FaerRNG, nonempty) = (_handle(rng); rng)
-_random_owner(rng::Random.AbstractRNG, nonempty) =
-    FaerRNG(nonempty ? Random.rand(rng, UInt64) : UInt64(0))
+function _random_owner(rng::Random.AbstractRNG, nonempty)
+    return FaerRNG(nonempty ? Random.rand(rng, UInt64) : UInt64(0))
+end
 function _native_random(
-    rng::Random.AbstractRNG,
-    ::Type{T},
-    m::Integer,
-    n::Integer,
-    kind,
-    normal;
-    unitary = false,
+    rng::Random.AbstractRNG, ::Type{T}, m::Integer, n::Integer, kind, normal; unitary=false
 ) where {T<:_NativeScalar}
     lock(_matrix_lock) do
-        m, n=Int(m), Int(n)
-        m>=0&&n>=0 || throw(ArgumentError("random dimensions must be nonnegative"))
+        m, n = Int(m), Int(n)
+        m >= 0 && n >= 0 || throw(ArgumentError("random dimensions must be nonnegative"))
         Base.checked_mul(Base.checked_mul(m, n), sizeof(T))
-        source=_random_owner(rng, m>0&&n>0)
-        if kind==0
-            args=(source, UInt(m), UInt(n), normal, unitary)
-            return T===Float64 ? _matrix_result(RustCrate.random_from, (m, n), args...) :
-                   _typed_result(T, RustCrate.random_from, (m, n), args..., _tag(T))
+        source = _random_owner(rng, m > 0 && n > 0)
+        if kind == 0
+            args = (source, UInt(m), UInt(n), normal, unitary)
+            return if T === Float64
+                _matrix_result(RustCrate.random_from, (m, n), args...)
+            else
+                _typed_result(T, RustCrate.random_from, (m, n), args..., _tag(T))
+            end
         end
-        C=kind==1 ? FaerVector : FaerRow
-        len=kind==1 ? m : n
+        C = kind == 1 ? FaerVector : FaerRow
+        len = kind == 1 ? m : n
         return _collection_result(
             C,
             T,
@@ -111,44 +110,29 @@ end
 for (fn, normal) in ((:rand, false), (:randn, true))
     @eval begin
         Random.$fn(
-            rng::Random.AbstractRNG,
-            ::Type{<:FaerMatrix{T}},
-            m::Integer,
-            n::Integer,
+            rng::Random.AbstractRNG, ::Type{<:FaerMatrix{T}}, m::Integer, n::Integer
         ) where {T<:_NativeScalar} = _native_random(rng, T, m, n, 0, $normal)
         Random.$fn(
-            rng::Random.AbstractRNG,
-            ::Type{<:FaerVector{T}},
-            n::Integer,
+            rng::Random.AbstractRNG, ::Type{<:FaerVector{T}}, n::Integer
         ) where {T<:_NativeScalar} = _native_random(rng, T, n, 1, 1, $normal)
         Random.$fn(
-            rng::Random.AbstractRNG,
-            ::Type{<:FaerRow{T}},
-            n::Integer,
+            rng::Random.AbstractRNG, ::Type{<:FaerRow{T}}, n::Integer
         ) where {T<:_NativeScalar} = _native_random(rng, T, 1, n, 2, $normal)
         Random.$fn(
-            ::Type{C},
-            dims::Integer...,
+            ::Type{C}, dims::Integer...
         ) where {T<:_NativeScalar,C<:Union{FaerMatrix{T},FaerVector{T},FaerRow{T}}} =
             Random.$fn(Random.default_rng(), C, dims...)
         Random.$fn(
-            rng::Random.AbstractRNG,
-            ::Type{<:FaerMatrix{T}},
-            dims::Dims{2},
+            rng::Random.AbstractRNG, ::Type{<:FaerMatrix{T}}, dims::Dims{2}
         ) where {T<:_NativeScalar} = Random.$fn(rng, FaerMatrix{T}, dims...)
         Random.$fn(
-            rng::Random.AbstractRNG,
-            ::Type{<:FaerVector{T}},
-            dims::Dims{1},
+            rng::Random.AbstractRNG, ::Type{<:FaerVector{T}}, dims::Dims{1}
         ) where {T<:_NativeScalar} = Random.$fn(rng, FaerVector{T}, dims...)
         Random.$fn(
-            rng::Random.AbstractRNG,
-            ::Type{<:FaerRow{T}},
-            dims::Dims{1},
+            rng::Random.AbstractRNG, ::Type{<:FaerRow{T}}, dims::Dims{1}
         ) where {T<:_NativeScalar} = Random.$fn(rng, FaerRow{T}, dims...)
         Random.$fn(
-            ::Type{C},
-            dims::Dims,
+            ::Type{C}, dims::Dims
         ) where {T<:_NativeScalar,C<:Union{FaerMatrix{T},FaerVector{T},FaerRow{T}}} =
             Random.$fn(Random.default_rng(), C, dims)
         Random.$fn(rng::Random.AbstractRNG, ::Type{FaerMatrix}, m::Integer, n::Integer) =
@@ -180,8 +164,14 @@ end
 function _native_random!(rng, a, normal)
     lock(_matrix_lock) do
         _rotation_open(a)
-        kind=a isa AbstractVector ? 1 : a isa FaerRow ? 2 : 0
-        result=_native_random(rng, eltype(a), size(a, 1), size(a, 2), kind, normal)
+        kind = if a isa AbstractVector
+            1
+        elseif a isa FaerRow
+            2
+        else
+            0
+        end
+        result = _native_random(rng, eltype(a), size(a, 1), size(a, 2), kind, normal)
         return copyto!(a, result)
     end
 end
@@ -191,7 +181,7 @@ Random.rand!(a::_RotationArray) = Random.rand!(Random.default_rng(), a)
 function _julia_sampler!(rng, a, X)
     lock(_matrix_lock) do
         _rotation_open(a)
-        staged=Random.rand!(rng, Array{eltype(a)}(undef, size(a)), X)
+        staged = Random.rand!(rng, Array{eltype(a)}(undef, size(a)), X)
         return copyto!(a, staged)
     end
 end
@@ -207,14 +197,17 @@ native stream. Unlike `rand!(rng, A)`, this path uses Julia's algorithms, not
 faer's distributions. Target validation precedes sampling, and sampling and
 conversion finish before one bulk native update, so failures leave `A` unchanged.
 """
-Random.rand!(rng::Random.AbstractRNG, a::_RotationArray, sp::Random.Sampler) =
-    _julia_sampler!(rng, a, sp)
+function Random.rand!(rng::Random.AbstractRNG, a::_RotationArray, sp::Random.Sampler)
+    return _julia_sampler!(rng, a, sp)
+end
 # Resolves the intersection with MersenneTwister's bulk Float64 array method.
-Random.rand!(
+function Random.rand!(
     rng::Random.MersenneTwister,
     a::typeintersect(_RotationArray, AbstractArray{Float64}),
     sp::Random.SamplerTrivial{<:Random.FloatInterval{Float64}},
-) = _julia_sampler!(rng, a, sp)
+)
+    return _julia_sampler!(rng, a, sp)
+end
 """Fill a native array/view with standard normal values; complex components have variance 1/2."""
 Random.randn!(rng::Random.AbstractRNG, a::_RotationArray) = _native_random!(rng, a, true)
 Random.randn!(a::_RotationArray) = Random.randn!(Random.default_rng(), a)
@@ -231,9 +224,13 @@ nonempty call (empty calls do not consume a seed). rand/randn on FaerMatrix,
 FaerVector and FaerRow follow the same rule. Complex normal components have
 variance 1/2, giving unit expected squared modulus as in Julia.
 """
-randunitary(rng::Random.AbstractRNG, ::Type{T}, n::Integer) where {T<:_NativeScalar} =
-    _native_random(rng, T, n, n, 0, true; unitary = true)
-randunitary(::Type{T}, n::Integer) where {T<:_NativeScalar} =
-    randunitary(Random.default_rng(), T, n)
+function randunitary(
+    rng::Random.AbstractRNG, ::Type{T}, n::Integer
+) where {T<:_NativeScalar}
+    return _native_random(rng, T, n, n, 0, true; unitary=true)
+end
+function randunitary(::Type{T}, n::Integer) where {T<:_NativeScalar}
+    return randunitary(Random.default_rng(), T, n)
+end
 randunitary(rng::Random.AbstractRNG, n::Integer) = randunitary(rng, Float64, n)
 randunitary(n::Integer) = randunitary(Random.default_rng(), Float64, n)

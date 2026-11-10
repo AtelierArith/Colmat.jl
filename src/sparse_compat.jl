@@ -5,27 +5,37 @@ for C in (:LowerTriangular, :UpperTriangular, :UnitLowerTriangular, :UnitUpperTr
         Base.:\(
             a::LinearAlgebra.$C{Float64,<:FaerMatrix{Float64}},
             b::SparseArrays.AbstractCompressedVector{<:Real},
-        ) = a\Vector(b)
+        ) = a \ Vector(b)
         Base.:\(
             a::LinearAlgebra.$C{T,<:FaerMatrix{T}},
             b::SparseArrays.AbstractCompressedVector{<:Number},
-        ) where {T<:_ExtraScalar} = a\Vector(b)
+        ) where {T<:_ExtraScalar} = a \ Vector(b)
     end
 end
-Base.copyto!(v::FaerMatrixView, src::SparseArrays.AbstractSparseMatrixCSC) =
-    _copyto_faer_view!(v, src)
+function Base.copyto!(v::FaerMatrixView, src::SparseArrays.AbstractSparseMatrixCSC)
+    return _copyto_faer_view!(v, src)
+end
 Base.copyto!(v::FaerView, src::SparseArrays.CHOLMOD.Dense) = _copyto_faer_view!(v, src)
-Base.copyto!(v::FaerView{T}, src::SparseArrays.CHOLMOD.Dense{T}) where {T<:_NativeScalar} =
-    _copyto_faer_view!(v, src)
-Base.copyto!(
-    v::FaerMatrixView{T},
-    src::SparseArrays.CHOLMOD.Dense{T},
-) where {T<:_NativeScalar} = _copyto_faer_view!(v, src)
-Base.copyto!(dest::Union{FaerMatrix,FaerRow}, src::SparseArrays.AbstractSparseMatrixCSC) =
-    _copyto_native_owner!(dest, src)
-Base.copyto!(dest::Union{FaerMatrix,FaerRow}, src::SparseArrays.CHOLMOD.Dense) =
-    _copyto_native_owner!(dest, src)
-Base.copyto!(
-    dest::Union{FaerMatrix{T},FaerRow{T}},
-    src::SparseArrays.CHOLMOD.Dense{T},
-) where {T<:_NativeScalar} = _copyto_native_owner!(dest, src)
+function Base.copyto!(
+    v::FaerView{T}, src::SparseArrays.CHOLMOD.Dense{T}
+) where {T<:_NativeScalar}
+    return _copyto_faer_view!(v, src)
+end
+function Base.copyto!(
+    v::FaerMatrixView{T}, src::SparseArrays.CHOLMOD.Dense{T}
+) where {T<:_NativeScalar}
+    return _copyto_faer_view!(v, src)
+end
+function Base.copyto!(
+    dest::Union{FaerMatrix,FaerRow}, src::SparseArrays.AbstractSparseMatrixCSC
+)
+    return _copyto_native_owner!(dest, src)
+end
+function Base.copyto!(dest::Union{FaerMatrix,FaerRow}, src::SparseArrays.CHOLMOD.Dense)
+    return _copyto_native_owner!(dest, src)
+end
+function Base.copyto!(
+    dest::Union{FaerMatrix{T},FaerRow{T}}, src::SparseArrays.CHOLMOD.Dense{T}
+) where {T<:_NativeScalar}
+    return _copyto_native_owner!(dest, src)
+end

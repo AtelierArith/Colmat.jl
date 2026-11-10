@@ -1,7 +1,7 @@
 _ordering_pattern(a::FaerSparsity) = a
 _ordering_pattern(a::FaerSparseMatrix) = FaerSparsity(a)
 function _ordering_pattern(a::_SparseTransform)
-    source=FaerSparsity(parent(a))
+    source = FaerSparsity(parent(a))
     try
         return copy(transpose(source))
     finally
@@ -9,7 +9,7 @@ function _ordering_pattern(a::_SparseTransform)
     end
 end
 function _ordering_pattern(a::SparseArrays.AbstractSparseMatrixCSC)
-    source=FaerSparseMatrix(a)
+    source = FaerSparseMatrix(a)
     try
         return FaerSparsity(source)
     finally
@@ -17,20 +17,16 @@ function _ordering_pattern(a::SparseArrays.AbstractSparseMatrixCSC)
     end
 end
 function _ordering_pattern(a::Union{LinearAlgebra.Hermitian,LinearAlgebra.Symmetric})
-    source=FaerSparsity(parent(a))
+    source = FaerSparsity(parent(a))
     try
         return _sparsity_result(
-            size(a),
-            source.format,
-            RustCrate.sparsity_selfadjoint,
-            source,
-            a.uplo=='L',
+            size(a), source.format, RustCrate.sparsity_selfadjoint, source, a.uplo == 'L'
         )
     finally
         close(source)
     end
 end
-const _OrderingInput=Union{
+const _OrderingInput = Union{
     FaerSparsity,
     FaerSparseMatrix,
     _SparseTransform,
@@ -53,14 +49,14 @@ Pattern conversion and the returned permutation allocate separately.
 """
 function amd(
     a::_OrderingInput;
-    dense::Real = 10.0,
-    aggressive::Bool = true,
-    statistics::Bool = false,
-    scratch = nothing,
+    dense::Real=10.0,
+    aggressive::Bool=true,
+    statistics::Bool=false,
+    scratch=nothing,
 )
-    size(a, 1)==size(a, 2) ||
+    size(a, 1) == size(a, 2) ||
         throw(DimensionMismatch("AMD requires a square sparse pattern"))
-    threshold=Float64(dense)
+    threshold = Float64(dense)
     isfinite(threshold) || throw(ArgumentError("dense must be finite"))
     return _ordering_options(a, true, threshold, 0.5, aggressive, statistics, scratch)
 end
@@ -78,27 +74,22 @@ pattern conversion and the returned permutation allocate separately.
 """
 function colamd(
     a::_OrderingInput;
-    dense_row::Real = 0.5,
-    dense_col::Real = 0.5,
-    aggressive::Bool = true,
-    scratch = nothing,
+    dense_row::Real=0.5,
+    dense_col::Real=0.5,
+    aggressive::Bool=true,
+    scratch=nothing,
 )
-    row, col=Float64(dense_row), Float64(dense_col)
-    isfinite(row)&&isfinite(col) || throw(ArgumentError("COLAMD thresholds must be finite"))
+    row, col = Float64(dense_row), Float64(dense_col)
+    isfinite(row) && isfinite(col) ||
+        throw(ArgumentError("COLAMD thresholds must be finite"))
     return _ordering_options(a, false, row, col, aggressive, false, scratch)
 end
-const _SparsePermutable=Union{FaerSparseMatrix,FaerSparsity}
+const _SparsePermutable = Union{FaerSparseMatrix,FaerSparsity}
 function _permute(a::FaerSparseMatrix, p::FaerPermutation, columns)
     lock(_matrix_lock) do
         _check_permutation(a, p, columns)
         return _sparse_result(
-            eltype(a),
-            size(a),
-            a.format,
-            RustCrate.sparse_permute,
-            a,
-            p,
-            columns,
+            eltype(a), size(a), a.format, RustCrate.sparse_permute, a, p, columns
         )
     end
 end
@@ -106,29 +97,29 @@ function _permute(a::FaerSparsity, p::FaerPermutation, columns)
     lock(_matrix_lock) do
         _check_permutation(a, p, columns)
         return _sparsity_result(
-            size(a),
-            a.format,
-            RustCrate.sparsity_permute,
-            a,
-            p,
-            columns,
+            size(a), a.format, RustCrate.sparsity_permute, a, p, columns
         )
     end
 end
-permute_rows(a::_SparsePermutable, p::AbstractVector{<:Integer}) =
-    _permute(a, _as_permutation(p), false)
-permute_cols(a::_SparsePermutable, p::AbstractVector{<:Integer}) =
-    _permute(a, _as_permutation(p), true)
+function permute_rows(a::_SparsePermutable, p::AbstractVector{<:Integer})
+    return _permute(a, _as_permutation(p), false)
+end
+function permute_cols(a::_SparsePermutable, p::AbstractVector{<:Integer})
+    return _permute(a, _as_permutation(p), true)
+end
 Base.getindex(a::_SparsePermutable, p::FaerPermutation, ::Colon) = permute_rows(a, p)
 Base.getindex(a::_SparsePermutable, ::Colon, p::FaerPermutation) = permute_cols(a, p)
-Base.getindex(a::_SparsePermutable, p::FaerPermutation, q::FaerPermutation) =
-    permute_cols(permute_rows(a, p), q)
+function Base.getindex(a::_SparsePermutable, p::FaerPermutation, q::FaerPermutation)
+    return permute_cols(permute_rows(a, p), q)
+end
 function _permute!(a::FaerSparseMatrix, p::FaerPermutation, columns)
     lock(_matrix_lock) do
         return copyto!(a, _permute(a, p, columns))
     end
 end
-permute_rows!(a::FaerSparseMatrix, p::AbstractVector{<:Integer}) =
-    _permute!(a, _as_permutation(p), false)
-permute_cols!(a::FaerSparseMatrix, p::AbstractVector{<:Integer}) =
-    _permute!(a, _as_permutation(p), true)
+function permute_rows!(a::FaerSparseMatrix, p::AbstractVector{<:Integer})
+    return _permute!(a, _as_permutation(p), false)
+end
+function permute_cols!(a::FaerSparseMatrix, p::AbstractVector{<:Integer})
+    return _permute!(a, _as_permutation(p), true)
+end

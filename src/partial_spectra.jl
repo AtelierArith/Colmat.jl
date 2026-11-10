@@ -50,54 +50,50 @@ function _partial_spectrum(
     op::FaerLinearOperator{T},
     k::Integer,
     kind::Int32;
-    v0 = nothing,
-    tol = sqrt(eps(_realtype(T))),
-    min_dim::Integer = 0,
-    max_dim::Integer = 0,
-    max_restarts::Integer = 1000,
-    scratch = nothing,
-    team = nothing,
+    v0=nothing,
+    tol=sqrt(eps(_realtype(T))),
+    min_dim::Integer=0,
+    max_dim::Integer=0,
+    max_restarts::Integer=1000,
+    scratch=nothing,
+    team=nothing,
 ) where {T}
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
-        m, n, k, tolerance, start=_partial_validate(
-            op,
-            k,
-            kind;
-            v0,
-            tol,
-            min_dim,
-            max_dim,
-            max_restarts,
+        m, n, k, tolerance, start = _partial_validate(
+            op, k, kind; v0, tol, min_dim, max_dim, max_restarts
         )
-        req=_partial_workspace_query(op, kind, k; min_dim, max_dim, max_restarts, team)
+        req = _partial_workspace_query(op, kind, k; min_dim, max_dim, max_restarts, team)
         if !isnothing(scratch)
-            capacity=scratch_capacity(scratch)
-            capacity.bytes>=req.bytes && capacity.alignment>=req.alignment ||
+            capacity = scratch_capacity(scratch)
+            capacity.bytes >= req.bytes && capacity.alignment >= req.alignment ||
                 throw(ArgumentError("insufficient partial spectrum scratch; call reserve!"))
         end
-        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
-             scratch
+        work =
+            isnothing(scratch) ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
         try
-            R=_realtype(T)
-            E=kind==0 ? Complex{R} : T
+            R = _realtype(T)
+            E = kind == 0 ? Complex{R} : T
             # Rust writes sorted results, residuals and (for SVD) the conjugated,
             # compacted Vt rows straight into these buffers; truncating to the
             # converged count is an in-place resize, not a copy.
-            vectors=Vector{E}(undef, m*k)
-            values=Vector{E}(undef, k)
-            right=Vector{T}(undef, kind==2 ? n*k : 0)
-            residuals=Vector{R}(undef, k)
-            algorithm=:partial
-            count=0
-            if k>0 && max_restarts>0
+            vectors = Vector{E}(undef, m * k)
+            values = Vector{E}(undef, k)
+            right = Vector{T}(undef, kind == 2 ? n * k : 0)
+            residuals = Vector{R}(undef, k)
+            algorithm = :partial
+            count = 0
+            if k > 0 && max_restarts > 0
                 # Mirrors faer's full-subspace trigger max(max_dim, 2MIN_DIM, 2k) >= limit.
-                algorithm=kind in (1, 2) && max(Int(max_dim), 64, 2k)>=min(m, n) ?
-                          :dense_fallback : :partial
-                source, desc=isnothing(start) ? (Ptr{UInt8}(C_NULL), nothing) :
-                             _view_source(start)
+                algorithm = if kind in (1, 2) && max(Int(max_dim), 64, 2k) >= min(m, n)
+                    :dense_fallback
+                else
+                    :partial
+                end
+                source, desc =
+                    isnothing(start) ? (Ptr{UInt8}(C_NULL), nothing) : _view_source(start)
                 GC.@preserve start desc vectors values right residuals begin
-                    args=(
+                    args = (
                         kind,
                         UInt(k),
                         UInt(m),
@@ -114,28 +110,28 @@ function _partial_spectrum(
                         Ptr{UInt8}(pointer(right)),
                         Ptr{UInt8}(pointer(residuals)),
                     )
-                    count=Int(_partial_native(op, args, work, team))
+                    count = Int(_partial_native(op, args, work, team))
                 end
             end
-            vectors=reshape(resize!(vectors, m*count), m, count)
+            vectors = reshape(resize!(vectors, m * count), m, count)
             resize!(values, count)
             resize!(residuals, count)
-            if kind==2
+            if kind == 2
                 return (
-                    U = vectors,
-                    S = T<:Real ? values : real.(values),
-                    Vt = reshape(resize!(right, count*n), count, n),
-                    nconverged = count,
-                    requested = k,
+                    U=vectors,
+                    S=T <: Real ? values : real.(values),
+                    Vt=reshape(resize!(right, count * n), count, n),
+                    nconverged=count,
+                    requested=k,
                     residuals,
                     algorithm,
                 )
             end
             return (
-                values = kind==1 && T<:Complex ? real.(values) : values,
+                values=kind == 1 && T <: Complex ? real.(values) : values,
                 vectors,
-                nconverged = count,
-                requested = k,
+                nconverged=count,
+                requested=k,
                 residuals,
                 algorithm,
             )
@@ -144,9 +140,12 @@ function _partial_spectrum(
         end
     end
 end
-partial_eigen(op::FaerLinearOperator, k::Integer; kwargs...) =
-    _partial_spectrum(op, k, Int32(0); kwargs...)
-partial_self_adjoint_eigen(op::FaerLinearOperator, k::Integer; kwargs...) =
-    _partial_spectrum(op, k, Int32(1); kwargs...)
-partial_svd(op::FaerLinearOperator, k::Integer; kwargs...) =
-    _partial_spectrum(op, k, Int32(2); kwargs...)
+function partial_eigen(op::FaerLinearOperator, k::Integer; kwargs...)
+    return _partial_spectrum(op, k, Int32(0); kwargs...)
+end
+function partial_self_adjoint_eigen(op::FaerLinearOperator, k::Integer; kwargs...)
+    return _partial_spectrum(op, k, Int32(1); kwargs...)
+end
+function partial_svd(op::FaerLinearOperator, k::Integer; kwargs...)
+    return _partial_spectrum(op, k, Int32(2); kwargs...)
+end

@@ -15,8 +15,8 @@
 # `_JuliaConcatArg`, keeps Base's element-wise path.
 
 # Julia arrays that may precede the first native argument.
-const _JuliaArrayStorage=Union{Array,SubArray{<:Any,<:Any,<:Array}}
-const _JuliaArrayArg=Union{
+const _JuliaArrayStorage = Union{Array,SubArray{<:Any,<:Any,<:Array}}
+const _JuliaArrayArg = Union{
     Array{<:Number},
     BitArray,
     AbstractRange{<:Number},
@@ -28,11 +28,11 @@ const _JuliaArrayArg=Union{
     FaerBorrowedArray{<:Number},
     LinearAlgebra.Diagonal{<:Number,<:Vector},
 }
-const _JuliaConcatArg=Union{Number,_JuliaArrayArg}
+const _JuliaConcatArg = Union{Number,_JuliaArrayArg}
 # Native arguments. Native vector adjoints are excluded because LinearAlgebra
 # owns `hcat` of adjoint vectors (it concatenates their parents, which is
 # native already).
-const _NativeConcatArg=Union{
+const _NativeConcatArg = Union{
     FaerMatrix{<:Number},
     FaerVector{<:Number},
     FaerRow{<:Number},
@@ -43,30 +43,30 @@ const _NativeConcatArg=Union{
     FaerSparseMatrix{<:Number},
     FaerDiagonal{<:Number},
 }
-const _NativeTypedConcatFirst=Union{
+const _NativeTypedConcatFirst = Union{
     FaerRow{<:Number},
     LinearAlgebra.Adjoint{<:Number,<:Union{FaerMatrix,FaerView{<:Any,2}}},
     LinearAlgebra.Transpose{<:Number,<:Union{FaerMatrix,FaerView{<:Any,2}}},
     FaerSparseMatrix{<:Number},
 }
-const _DenseConcatRest=Union{Number,AbstractVecOrMat{<:Number}}
-const _NDConcatRest=Union{Number,AbstractArray{<:Number}}
+const _DenseConcatRest = Union{Number,AbstractVecOrMat{<:Number}}
+const _NDConcatRest = Union{Number,AbstractArray{<:Number}}
 # 15 leading Julia arguments cover every position of a 4x4 block literal.
-const _MAX_JULIA_PREFIX=15
+const _MAX_JULIA_PREFIX = 15
 
 function _native_concat(f, args)
-    s=_DenseSnapshots()
-    julia=_julia_leaves(s, args)
+    s = _DenseSnapshots()
+    julia = _julia_leaves(s, args)
     return _native_dense_result(s, f(julia...))
 end
 
-for k = 0:_MAX_JULIA_PREFIX
-    pre=[Symbol(:x, i) for i = 1:k]
-    decl=[:($p::_JuliaConcatArg) for p in pre]
-    args=:(($(pre...), n, rest...))
+for k in 0:_MAX_JULIA_PREFIX
+    pre = [Symbol(:x, i) for i in 1:k]
+    decl = [:($p::_JuliaConcatArg) for p in pre]
+    args = :(($(pre...), n, rest...))
     # `T[A B]` and `T[A; B]` with a native matrix, vector or view first already
     # concatenate straight into `similar(A, T, ...)` with bulk block writes.
-    typedfirst=k==0 ? :_NativeTypedConcatFirst : :_NativeConcatArg
+    typedfirst = k == 0 ? :_NativeTypedConcatFirst : :_NativeConcatArg
     @eval begin
         Base.hcat($(decl...), n::_NativeConcatArg, rest::_DenseConcatRest...) =
             _native_concat(hcat, $args)
@@ -78,10 +78,12 @@ for k = 0:_MAX_JULIA_PREFIX
             n::_NativeConcatArg,
             rest::_DenseConcatRest...,
         ) = _native_concat((xs...) -> hvcat(rows, xs...), $args)
-        Base.typed_hcat(::Type{T}, $(decl...), n::$typedfirst, rest::_DenseConcatRest...) where {T} =
-            _native_concat((xs...) -> Base.typed_hcat(T, xs...), $args)
-        Base.typed_vcat(::Type{T}, $(decl...), n::$typedfirst, rest::_DenseConcatRest...) where {T} =
-            _native_concat((xs...) -> Base.typed_vcat(T, xs...), $args)
+        Base.typed_hcat(
+            ::Type{T}, $(decl...), n::$typedfirst, rest::_DenseConcatRest...
+        ) where {T} = _native_concat((xs...) -> Base.typed_hcat(T, xs...), $args)
+        Base.typed_vcat(
+            ::Type{T}, $(decl...), n::$typedfirst, rest::_DenseConcatRest...
+        ) where {T} = _native_concat((xs...) -> Base.typed_vcat(T, xs...), $args)
         Base.typed_hvcat(
             ::Type{T},
             rows::Tuple{Vararg{Int}},
@@ -101,11 +103,7 @@ for k = 0:_MAX_JULIA_PREFIX
             rest::_NDConcatRest...,
         ) = _native_concat((xs...) -> hvncat(shape, row_first, xs...), $args)
         Base.typed_hvncat(
-            ::Type{T},
-            dim::Int,
-            $(decl...),
-            n::_NativeConcatArg,
-            rest::_NDConcatRest...,
+            ::Type{T}, dim::Int, $(decl...), n::_NativeConcatArg, rest::_NDConcatRest...
         ) where {T} = _native_concat((xs...) -> Base.typed_hvncat(T, dim, xs...), $args)
         Base.typed_hvncat(
             ::Type{T},
@@ -151,30 +149,26 @@ path. Borrowed arrays alone keep Julia results.
 """
 Base.hcat(::_NativeConcatArg, ::_DenseConcatRest...)
 
-const _JuliaMapArg=_JuliaArrayArg
-const _JuliaMapDest=Union{_JuliaArrayStorage,BitArray,FaerBorrowedArray}
-const _MAX_JULIA_MAP_PREFIX=3
-for k = 1:_MAX_JULIA_MAP_PREFIX
-    pre=[Symbol(:x, i) for i = 1:k]
-    decl=[:($p::_JuliaMapArg) for p in pre]
+const _JuliaMapArg = _JuliaArrayArg
+const _JuliaMapDest = Union{_JuliaArrayStorage,BitArray,FaerBorrowedArray}
+const _MAX_JULIA_MAP_PREFIX = 3
+for k in 1:_MAX_JULIA_MAP_PREFIX
+    pre = [Symbol(:x, i) for i in 1:k]
+    decl = [:($p::_JuliaMapArg) for p in pre]
     @eval function Base.map(f, $(decl...), n::_DenseNativeArray, rest::AbstractArray...)
-        s=_DenseSnapshots()
-        args=_julia_leaves(s, ($(pre...), n, rest...))
+        s = _DenseSnapshots()
+        args = _julia_leaves(s, ($(pre...), n, rest...))
         return _native_dense_result(s, map(f, args...))
     end
 end
-for k = 0:_MAX_JULIA_MAP_PREFIX-1
-    pre=[Symbol(:x, i) for i = 1:k]
-    decl=[:($p::_JuliaMapArg) for p in pre]
+for k in 0:(_MAX_JULIA_MAP_PREFIX - 1)
+    pre = [Symbol(:x, i) for i in 1:k]
+    decl = [:($p::_JuliaMapArg) for p in pre]
     @eval function Base.map!(
-        f,
-        dest::_JuliaMapDest,
-        $(decl...),
-        n::_DenseNativeArray,
-        rest::AbstractArray...,
+        f, dest::_JuliaMapDest, $(decl...), n::_DenseNativeArray, rest::AbstractArray...
     )
-        s=_DenseSnapshots()
-        args=_julia_leaves(s, ($(pre...), n, rest...))
+        s = _DenseSnapshots()
+        args = _julia_leaves(s, ($(pre...), n, rest...))
         map!(f, dest isa FaerBorrowedArray ? parent(dest) : dest, args...)
         return dest
     end
@@ -188,8 +182,8 @@ argument is snapshotted once in bulk before the loop, so `f` sees the values
 at the call and changes that `f` makes to `A` do not affect the iteration.
 """
 function Base.foreach(f, a::_DenseNativeLeaf, rest...)
-    s=_DenseSnapshots()
-    args=_julia_leaves(s, (a, rest...))
+    s = _DenseSnapshots()
+    args = _julia_leaves(s, (a, rest...))
     foreach(f, args...)
     return nothing
 end
@@ -204,7 +198,7 @@ with `dims` return native owners for native scalars. Colmat's native `sum`,
 `norm` and `sum(abs2, A)` methods are unchanged.
 """
 function Base.mapreduce(f, op, a::_DenseNativeLeaf; kw...)
-    s=_DenseSnapshots()
-    julia=_julia_leaves(s, (a,))[1]
+    s = _DenseSnapshots()
+    julia = _julia_leaves(s, (a,))[1]
     return _native_dense_result(s, mapreduce(f, op, julia; kw...))
 end

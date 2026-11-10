@@ -46,34 +46,38 @@ Previous settings, including those of an enclosing scope, are restored even if
 """
 function with_cholesky_tuning(
     f;
-    llt_recursion_threshold = nothing,
-    llt_block_size = nothing,
-    ldlt_recursion_threshold = nothing,
-    ldlt_block_size = nothing,
-    lblt_block_size = nothing,
-    lblt_par_threshold = nothing,
+    llt_recursion_threshold=nothing,
+    llt_block_size=nothing,
+    ldlt_recursion_threshold=nothing,
+    ldlt_block_size=nothing,
+    lblt_block_size=nothing,
+    lblt_par_threshold=nothing,
 )
-    positive=(llt_recursion_threshold, llt_block_size, ldlt_recursion_threshold, ldlt_block_size)
+    positive = (
+        llt_recursion_threshold, llt_block_size, ldlt_recursion_threshold, ldlt_block_size
+    )
     for (name, x) in zip(_cholesky_tuning_names, positive)
-        x isa Union{Nothing,Integer} && (isnothing(x) || 1<=x<=typemax(UInt)) || throw(
-            ArgumentError("$name must be nothing or an integer between one and typemax(UInt)"),
+        x isa Union{Nothing,Integer} && (isnothing(x) || 1 <= x <= typemax(UInt)) || throw(
+            ArgumentError(
+                "$name must be nothing or an integer between one and typemax(UInt)"
+            ),
         )
     end
     lblt_block_size isa Union{Nothing,Integer} &&
-        (isnothing(lblt_block_size) || 0<=lblt_block_size<=typemax(UInt)) ||
+    (isnothing(lblt_block_size) || 0 <= lblt_block_size <= typemax(UInt)) ||
         throw(ArgumentError("lblt_block_size must be nothing or a nonnegative integer"))
     lblt_par_threshold isa Union{Nothing,FaerParThreshold} ||
         throw(ArgumentError("lblt_par_threshold must be a FaerParThreshold or nothing"))
-    settings=(
+    settings = (
         positive...,
         lblt_block_size,
         isnothing(lblt_par_threshold) ? nothing : lblt_par_threshold.value,
     )
-    values=UInt[isnothing(x) ? 0 : x for x in settings]
-    flags=UInt8[isnothing(x) ? 0 : 1 for x in settings]
+    values = UInt[isnothing(x) ? 0 : x for x in settings]
+    flags = UInt8[isnothing(x) ? 0 : 1 for x in settings]
     lock(_matrix_lock) do
-        old_values=zeros(UInt, 6)
-        old_flags=zeros(UInt8, 6)
+        old_values = zeros(UInt, 6)
+        old_flags = zeros(UInt8, 6)
         _native_call(RustCrate.selfadjoint_tuning_state, old_values, old_flags)
         _native_call(RustCrate.set_selfadjoint_tuning, values, flags)
         try
@@ -87,27 +91,28 @@ end
 # Per-call options: `pivoting` is the native LBLᴴ strategy code (0 keeps the
 # kind's default), `delta`/`epsilon` faer's dynamic regularization (both zero:
 # off), `signs` LDLᴴ's expected pivot signs or `nothing`.
-const _NoSelfAdjointOptions = (pivoting = Int32(0), delta = 0.0, epsilon = 0.0, signs = nothing)
+const _NoSelfAdjointOptions = (pivoting=Int32(0), delta=0.0, epsilon=0.0, signs=nothing)
 
-const _lblt_strategies =
-    (partial = 1, partial_diag = 2, rook = 3, rook_diag = 4, full = 5)
+const _lblt_strategies = (partial=1, partial_diag=2, rook=3, rook_diag=4, full=5)
 
 function _regularization_options(n, delta, epsilon, signs)
     (delta isa Real && epsilon isa Real) ||
         throw(ArgumentError("regularization_delta and regularization_epsilon must be real"))
-    (isfinite(delta) && isfinite(epsilon) && delta>=0 && epsilon>=0) || throw(
+    (isfinite(delta) && isfinite(epsilon) && delta >= 0 && epsilon >= 0) || throw(
         ArgumentError(
             "regularization_delta and regularization_epsilon must be finite and nonnegative",
         ),
     )
-    active=delta>0 || epsilon>0
+    active = delta > 0 || epsilon > 0
     # faer silently skips the regularization unless both are positive.
-    active && !(delta>0 && epsilon>0) && throw(
-        ArgumentError(
-            "dynamic regularization needs both regularization_delta and " *
-            "regularization_epsilon to be positive",
-        ),
-    )
+    active &&
+        !(delta > 0 && epsilon > 0) &&
+        throw(
+            ArgumentError(
+                "dynamic regularization needs both regularization_delta and " *
+                "regularization_epsilon to be positive",
+            ),
+        )
     if !isnothing(signs)
         active || throw(
             ArgumentError(
@@ -116,13 +121,13 @@ function _regularization_options(n, delta, epsilon, signs)
         )
         signs isa AbstractVector{<:Integer} ||
             throw(ArgumentError("regularization_signs must be a vector of -1, 0 or 1"))
-        length(signs)==n ||
+        length(signs) == n ||
             throw(DimensionMismatch("regularization_signs must have one entry per row"))
-        all(s -> -1<=s<=1, signs) ||
+        all(s -> -1 <= s <= 1, signs) ||
             throw(ArgumentError("regularization_signs entries must be -1, 0 or 1"))
-        signs=Int8.(signs)
+        signs = Int8.(signs)
     end
-    return (pivoting = Int32(0), delta = Float64(delta), epsilon = Float64(epsilon), signs)
+    return (pivoting=Int32(0), delta=Float64(delta), epsilon=Float64(epsilon), signs)
 end
 _cholesky_options(n, delta, epsilon) = _regularization_options(n, delta, epsilon, nothing)
 _ldlt_options(n, delta, epsilon, signs) = _regularization_options(n, delta, epsilon, signs)
@@ -137,18 +142,22 @@ function _lblt_options(rook::Bool, pivoting)
     rook &&
         !(pivoting in (:rook, :rook_diag)) &&
         throw(ArgumentError("rook=true conflicts with pivoting=:$pivoting"))
-    options=(_NoSelfAdjointOptions..., pivoting = Int32(_lblt_strategies[pivoting]))
+    options = (_NoSelfAdjointOptions..., pivoting=Int32(_lblt_strategies[pivoting]))
     return options, pivoting in (:rook, :rook_diag)
 end
 
-_default_options(options) =
-    options.pivoting==0 && options.delta==0 && options.epsilon==0 && isnothing(options.signs)
+function _default_options(options)
+    return options.pivoting == 0 &&
+           options.delta == 0 &&
+           options.epsilon == 0 &&
+           isnothing(options.signs)
+end
 # Install `options` natively for `f()` (one factorization or scratch query)
 # under the native-call lock, and clear them afterwards.
 function _with_selfadjoint_options(f, options)
     _default_options(options) && return f()
     lock(_matrix_lock) do
-        signs=isnothing(options.signs) ? UInt8[] : reinterpret(UInt8, options.signs)
+        signs = isnothing(options.signs) ? UInt8[] : reinterpret(UInt8, options.signs)
         _native_call(
             RustCrate.set_selfadjoint_call_options,
             options.pivoting,
@@ -160,22 +169,33 @@ function _with_selfadjoint_options(f, options)
         try
             return f()
         finally
-            _native_call(RustCrate.set_selfadjoint_call_options, Int32(0), 0.0, 0.0, UInt8[], false)
+            _native_call(
+                RustCrate.set_selfadjoint_call_options, Int32(0), 0.0, 0.0, UInt8[], false
+            )
         end
     end
 end
 # faer's `dynamic_regularization_count` of the construction that just ran.
-_regularization_count(K, info) =
-    K in (:cholesky, :ldlt) && info==0 ?
-    Int(_native_call(RustCrate.selfadjoint_regularization_count)) : 0
+function _regularization_count(K, info)
+    return if K in (:cholesky, :ldlt) && info == 0
+        Int(_native_call(RustCrate.selfadjoint_regularization_count))
+    else
+        0
+    end
+end
 # Keyword forms shared by the typed, borrowed, wrapper and destructive methods;
 # an unsupported keyword is a MethodError here.
-_cholesky_kw(n; regularization_delta::Real = 0, regularization_epsilon::Real = 0) =
-    _cholesky_options(n, regularization_delta, regularization_epsilon)
-_ldlt_kw(
+function _cholesky_kw(n; regularization_delta::Real=0, regularization_epsilon::Real=0)
+    return _cholesky_options(n, regularization_delta, regularization_epsilon)
+end
+function _ldlt_kw(
     n;
-    regularization_delta::Real = 0,
-    regularization_epsilon::Real = 0,
-    regularization_signs = nothing,
-) = _ldlt_options(n, regularization_delta, regularization_epsilon, regularization_signs)
-_lblt_kw(rook::Bool; pivoting = nothing) = _lblt_options(rook, pivoting)
+    regularization_delta::Real=0,
+    regularization_epsilon::Real=0,
+    regularization_signs=nothing,
+)
+    return _ldlt_options(
+        n, regularization_delta, regularization_epsilon, regularization_signs
+    )
+end
+_lblt_kw(rook::Bool; pivoting=nothing) = _lblt_options(rook, pivoting)

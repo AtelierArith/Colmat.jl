@@ -1,4 +1,4 @@
-const _schur_tuning_depth=Ref(0)
+const _schur_tuning_depth = Ref(0)
 """
     with_schur_tuning(f; shift_count=0, deflation_window=0, blocking_threshold=0,
                       nibble_threshold=0, shift_chase_cost=0,
@@ -46,15 +46,15 @@ throws.
 """
 function with_schur_tuning(
     f;
-    shift_count::Integer = 0,
-    deflation_window::Integer = 0,
-    blocking_threshold::Integer = 0,
-    nibble_threshold::Integer = 0,
-    shift_chase_cost::Integer = 0,
-    generalized_hessenberg_block_size::Integer = 0,
-    generalized_hessenberg_blocking_threshold::Integer = 0,
+    shift_count::Integer=0,
+    deflation_window::Integer=0,
+    blocking_threshold::Integer=0,
+    nibble_threshold::Integer=0,
+    shift_chase_cost::Integer=0,
+    generalized_hessenberg_block_size::Integer=0,
+    generalized_hessenberg_blocking_threshold::Integer=0,
 )
-    values=(
+    values = (
         shift_count,
         deflation_window,
         blocking_threshold,
@@ -64,21 +64,21 @@ function with_schur_tuning(
         generalized_hessenberg_blocking_threshold,
     )
     all(>=(0), values) || throw(ArgumentError("Schur tuning values must be nonnegative"))
-    shift_count==1 &&
+    shift_count == 1 &&
         throw(ArgumentError("shift_count must be zero (default) or at least two"))
-    deflation_window==1 &&
+    deflation_window == 1 &&
         throw(ArgumentError("deflation_window must be zero (default) or at least two"))
-    nibble_threshold<=100 ||
+    nibble_threshold <= 100 ||
         throw(ArgumentError("nibble_threshold is a percentage between 0 and 100"))
     lock(_matrix_lock) do
-        previous=zeros(UInt, 7)
+        previous = zeros(UInt, 7)
         _native_call(RustCrate.schur_tuning_state, previous)
         _native_call(RustCrate.set_schur_tuning, map(UInt, values)...)
-        _schur_tuning_depth[]+=1
+        _schur_tuning_depth[] += 1
         try
             return f()
         finally
-            _schur_tuning_depth[]-=1
+            _schur_tuning_depth[] -= 1
             _native_call(RustCrate.set_schur_tuning, previous...)
         end
     end

@@ -16,37 +16,45 @@ using Colmat, LinearAlgebra, SparseArrays, Test
         ),
         n in (0, 3)
 
-        A=n==0 ? zeros(T, 0, 0) :
-          kind===:lu ? T[0 2 1; 3 1 0; 0 1 4] :
-          kind===:qr ? T[2 0 0; 1 3 0; 0 1 4] : T[5 1 0; 1 4 1; 0 1 3]
-        if T<:Complex && n>0
-            if kind===:cholesky
-                A[1, 2]+=T(0.2im)
-                A[2, 1]-=T(0.2im)
+        A = if n == 0
+            zeros(T, 0, 0)
+        elseif kind === :lu
+            T[0 2 1; 3 1 0; 0 1 4]
+        elseif kind === :qr
+            T[2 0 0; 1 3 0; 0 1 4]
+        else
+            T[5 1 0; 1 4 1; 0 1 3]
+        end
+        if T <: Complex && n > 0
+            if kind === :cholesky
+                A[1, 2] += T(0.2im)
+                A[2, 1] -= T(0.2im)
             else
-                A[n, n]+=T(0.3im)
+                A[n, n] += T(0.3im)
             end
         end
-        a=FaerSparseMatrix(sparse(A); format)
-        order=reverse(collect(1:n))
-        F=kind===:lu ?
-          lu(a; algorithm, ordering = algorithm===:simplicial ? order : :default) :
-          kind===:qr ?
-          qr(a; algorithm, ordering = algorithm===:simplicial ? order : :default) :
-          cholesky(Hermitian(a); algorithm, ordering = order)
+        a = FaerSparseMatrix(sparse(A); format)
+        order = reverse(collect(1:n))
+        F = if kind === :lu
+            lu(a; algorithm, ordering=algorithm === :simplicial ? order : :default)
+        elseif kind === :qr
+            qr(a; algorithm, ordering=algorithm === :simplicial ? order : :default)
+        else
+            cholesky(Hermitian(a); algorithm, ordering=order)
+        end
         close(a)
         close(F.source)
-        P=promote_type(T, R)
+        P = promote_type(T, R)
         for (f, ref) in ((F, A), (transpose(F), transpose(A)), (adjoint(F), adjoint(A)))
-            B=ones(R, size(ref, 1), 2)
-            expected=P.(ref)\P.(B)
-            X=f\B
-            @test eltype(X)===P
-            @test Matrix(X)≈expected atol=1e-3 rtol=1e-3
-            @test f\B[:, 1]≈expected[:, 1] atol=1e-3 rtol=1e-3
-            dest=zeros(P, size(ref, 2), 2)
-            @test ldiv!(dest, f, B)===dest
-            @test dest≈expected atol=1e-3 rtol=1e-3
+            B = ones(R, size(ref, 1), 2)
+            expected = P.(ref) \ P.(B)
+            X = f \ B
+            @test eltype(X) === P
+            @test Matrix(X) ≈ expected atol = 1e-3 rtol = 1e-3
+            @test f \ B[:, 1] ≈ expected[:, 1] atol = 1e-3 rtol = 1e-3
+            dest = zeros(P, size(ref, 2), 2)
+            @test ldiv!(dest, f, B) === dest
+            @test dest ≈ expected atol = 1e-3 rtol = 1e-3
             close(X)
         end
         close(F)
@@ -56,14 +64,14 @@ end
     for T in (Float32, Float64, ComplexF32, ComplexF64),
         R in (Float32, Float64, ComplexF32, ComplexF64)
 
-        A=T[2 0; 1 3; 0 1]
-        T<:Complex && (A[2, 1]+=T(0.3im))
-        F=qr(FaerSparseMatrix(sparse(A)); algorithm = :simplicial, ordering = [2, 1])
+        A = T[2 0; 1 3; 0 1]
+        T <: Complex && (A[2, 1] += T(0.3im))
+        F = qr(FaerSparseMatrix(sparse(A)); algorithm=:simplicial, ordering=[2, 1])
         close(F.source)
-        P=promote_type(T, R)
+        P = promote_type(T, R)
         for (f, ref) in ((F, A), (transpose(F), transpose(A)), (adjoint(F), adjoint(A)))
-            B=ones(R, size(ref, 1), 2)
-            @test Matrix(f\B)≈pinv(P.(ref))*P.(B) atol=1e-3 rtol=1e-3
+            B = ones(R, size(ref, 1), 2)
+            @test Matrix(f \ B) ≈ pinv(P.(ref)) * P.(B) atol = 1e-3 rtol = 1e-3
         end
         close(F)
     end

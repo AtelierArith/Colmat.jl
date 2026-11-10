@@ -2,15 +2,16 @@
 # estimates (as LinearAlgebra's LAPACK `trcon` path) and Hermitian 2-norm
 # condition numbers from native self-adjoint eigenvalues.
 
-_cond_p_check(p) =
-    p==1 ||
-    p==2 ||
-    p==Inf ||
-    throw(ArgumentError("p-norm must be 1, 2 or Inf, got $p"))
+function _cond_p_check(p)
+    return p == 1 ||
+           p == 2 ||
+           p == Inf ||
+           throw(ArgumentError("p-norm must be 1, 2 or Inf, got $p"))
+end
 
 # The same triangular wrapper over a Julia copy of the native parent.
 function _julia_triangular(w)
-    parent_copy=Matrix(parent(w))
+    parent_copy = Matrix(parent(w))
     return Base.typename(typeof(w)).wrapper(parent_copy)
 end
 
@@ -26,22 +27,22 @@ from a few native triangular solves with A and Aᴴ, so A⁻¹ is never formed. 
 estimate is deterministic. A zero diagonal gives `Inf`, empty input zero.
 `p=2` uses the singular values of the triangle.
 """
-function LinearAlgebra.cond(w::_DenseTriangular, p::Real = 2)
+function LinearAlgebra.cond(w::_DenseTriangular, p::Real=2)
     _cond_p_check(p)
-    p==2 && return invoke(LinearAlgebra.cond, Tuple{AbstractMatrix,Real}, w, p)
-    T=eltype(w)
-    R=_realtype(T)
-    n=LinearAlgebra.checksquare(w)
-    n==0 && return zero(R)
-    inverse=try
+    p == 2 && return invoke(LinearAlgebra.cond, Tuple{AbstractMatrix,Real}, w, p)
+    T = eltype(w)
+    R = _realtype(T)
+    n = LinearAlgebra.checksquare(w)
+    n == 0 && return zero(R)
+    inverse = try
         # ‖A⁻¹‖_∞ = ‖A⁻ᴴ‖₁, so Inf swaps the roles of the two solves.
-        _opnormestinv(w, n, T, p==Inf)
+        _opnormestinv(w, n, T, p == Inf)
     catch e
         e isa LinearAlgebra.SingularException || rethrow()
         return R(Inf)
     end
     isfinite(inverse) || return R(Inf)
-    return R(LinearAlgebra.opnorm(_julia_triangular(w), p)*inverse)
+    return R(LinearAlgebra.opnorm(_julia_triangular(w), p) * inverse)
 end
 
 """
@@ -52,15 +53,15 @@ value is `maximum(abs.(λ))/minimum(abs.(λ))` from faer's self-adjoint
 eigenvalues of the selected triangle, without an SVD; a zero eigenvalue gives
 `Inf` and empty input zero. `p=1` and `p=Inf` use the generic exact path.
 """
-function LinearAlgebra.cond(a::_PinvSelfAdjoint, p::Real = 2)
+function LinearAlgebra.cond(a::_PinvSelfAdjoint, p::Real=2)
     _cond_p_check(p)
-    p==2 || return invoke(LinearAlgebra.cond, Tuple{AbstractMatrix,Real}, a, p)
-    R=_realtype(eltype(a))
+    p == 2 || return invoke(LinearAlgebra.cond, Tuple{AbstractMatrix,Real}, a, p)
+    R = _realtype(eltype(a))
     if isempty(a)
         LinearAlgebra.checksquare(a)
         return zero(R)
     end
-    values=abs.(LinearAlgebra.eigvals(a))
-    largest=maximum(values)
-    return iszero(largest) ? R(Inf) : R(largest/minimum(values))
+    values = abs.(LinearAlgebra.eigvals(a))
+    largest = maximum(values)
+    return iszero(largest) ? R(Inf) : R(largest / minimum(values))
 end

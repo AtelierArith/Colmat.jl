@@ -1,33 +1,36 @@
-const _FixedSparseInput=Union{
+const _FixedSparseInput = Union{
     FaerSparseMatrix,
     _SparseTransform,
     SparseArrays.AbstractSparseMatrixCSC,
     FaerBorrowedSparseMatrix,
 }
-const _FixedSparseDestination=Union{FaerSparseMatrix,FaerBorrowedSparseMatrix}
-_fixed_sparse_input(a::FaerSparseMatrix, ::Type{T}, format) where {T} =
-    FaerSparseMatrix{T}(a; format)
-_fixed_sparse_input(a::_SparseTransform, ::Type{T}, format) where {T} =
-    FaerSparseMatrix{T}(copy(a); format)
-_fixed_sparse_input(a::SparseArrays.AbstractSparseMatrixCSC, ::Type{T}, format) where {T} =
-    FaerSparseMatrix{T}(a; format)
-_fixed_sparse_input(a::FaerBorrowedSparseMatrix, ::Type{T}, format) where {T} =
-    FaerSparseMatrix{T}(a; format)
+const _FixedSparseDestination = Union{FaerSparseMatrix,FaerBorrowedSparseMatrix}
+function _fixed_sparse_input(a::FaerSparseMatrix, ::Type{T}, format) where {T}
+    return FaerSparseMatrix{T}(a; format)
+end
+function _fixed_sparse_input(a::_SparseTransform, ::Type{T}, format) where {T}
+    return FaerSparseMatrix{T}(copy(a); format)
+end
+function _fixed_sparse_input(
+    a::SparseArrays.AbstractSparseMatrixCSC, ::Type{T}, format
+) where {T}
+    return FaerSparseMatrix{T}(a; format)
+end
+function _fixed_sparse_input(a::FaerBorrowedSparseMatrix, ::Type{T}, format) where {T}
+    return FaerSparseMatrix{T}(a; format)
+end
 function _sparse_fixed_update!(
-    dest::FaerSparseMatrix{T},
-    lhs::_FixedSparseInput,
-    rhs::_FixedSparseInput,
-    op,
+    dest::FaerSparseMatrix{T}, lhs::_FixedSparseInput, rhs::_FixedSparseInput, op
 ) where {T}
     lock(_matrix_lock) do
         _handle(dest)
-        size(dest)==size(lhs)==size(rhs) ||
+        size(dest) == size(lhs) == size(rhs) ||
             throw(DimensionMismatch("fixed sparse update dimensions must match"))
         # Independent snapshots make every destination/source alias safe and
         # finish all conversions before mutating the destination's values.
-        a=_fixed_sparse_input(lhs, T, dest.format)
-        b=op<2 || lhs===rhs ? a : _fixed_sparse_input(rhs, T, dest.format)
-        valid=_native_call(RustCrate.sparse_fixed_update, dest, a, b, Int32(op))
+        a = _fixed_sparse_input(lhs, T, dest.format)
+        b = op < 2 || lhs === rhs ? a : _fixed_sparse_input(rhs, T, dest.format)
+        valid = _native_call(RustCrate.sparse_fixed_update, dest, a, b, Int32(op))
         valid || throw(
             ArgumentError(
                 "source stored positions must be contained in the destination pattern, including stored zeros",
@@ -37,20 +40,17 @@ function _sparse_fixed_update!(
     end
 end
 function _sparse_fixed_update!(
-    dest::FaerBorrowedSparseMatrix{T},
-    lhs::_FixedSparseInput,
-    rhs::_FixedSparseInput,
-    op,
+    dest::FaerBorrowedSparseMatrix{T}, lhs::_FixedSparseInput, rhs::_FixedSparseInput, op
 ) where {T}
     lock(_matrix_lock) do
-        size(dest)==size(lhs)==size(rhs) ||
+        size(dest) == size(lhs) == size(rhs) ||
             throw(DimensionMismatch("fixed sparse update dimensions must match"))
         # CSC snapshots, as for native destinations; values of the parent are
         # then written in place through a faer `SparseColMatMut`.
-        a=_fixed_sparse_input(lhs, T, :csc)
-        b=op<2 || lhs===rhs ? a : _fixed_sparse_input(rhs, T, :csc)
-        valid=_with_borrowed_sparse(dest) do m, n, p, i, v, k, tag
-            _native_call(
+        a = _fixed_sparse_input(lhs, T, :csc)
+        b = op < 2 || lhs === rhs ? a : _fixed_sparse_input(rhs, T, :csc)
+        valid = _with_borrowed_sparse(dest) do m, n, p, i, v, k, tag
+            return _native_call(
                 RustCrate.sparse_fixed_update_into_borrowed,
                 a,
                 b,
@@ -86,16 +86,18 @@ CSC or borrowed `faerview(S)` sources. No coefficient matrix is densified.
 `dest` may also be a borrowed Julia CSC matrix `faerview(S)`: `nonzeros(S)` is
 updated in place (same vector, same pattern) through a faer `SparseColMatMut`.
 """
-add_assign!(dest::_FixedSparseDestination, src::_FixedSparseInput) =
-    _sparse_fixed_update!(dest, src, src, 0)
+function add_assign!(dest::_FixedSparseDestination, src::_FixedSparseInput)
+    return _sparse_fixed_update!(dest, src, src, 0)
+end
 """
     sub_assign!(dest::FaerSparseMatrix, src)
 
 Compute `dest -= src` using faer's fixed-pattern kernel. The conversion,
 validation, aliasing and value-view contract is the same as `add_assign!`.
 """
-sub_assign!(dest::_FixedSparseDestination, src::_FixedSparseInput) =
-    _sparse_fixed_update!(dest, src, src, 1)
+function sub_assign!(dest::_FixedSparseDestination, src::_FixedSparseInput)
+    return _sparse_fixed_update!(dest, src, src, 1)
+end
 """
     add_into!(dest::FaerSparseMatrix, lhs, rhs)
 
@@ -104,13 +106,19 @@ its pattern. Both input patterns must be contained in dest, even when values
 cancel. Unused destination positions are set to zero and retained. Other
 conversion and aliasing rules are the same as `add_assign!`.
 """
-add_into!(dest::_FixedSparseDestination, lhs::_FixedSparseInput, rhs::_FixedSparseInput) =
-    _sparse_fixed_update!(dest, lhs, rhs, 2)
+function add_into!(
+    dest::_FixedSparseDestination, lhs::_FixedSparseInput, rhs::_FixedSparseInput
+)
+    return _sparse_fixed_update!(dest, lhs, rhs, 2)
+end
 """
     sub_into!(dest::FaerSparseMatrix, lhs, rhs)
 
 Overwrite existing destination values with `lhs - rhs` through faer's
 fixed-pattern kernel. The contract is the same as `add_into!`.
 """
-sub_into!(dest::_FixedSparseDestination, lhs::_FixedSparseInput, rhs::_FixedSparseInput) =
-    _sparse_fixed_update!(dest, lhs, rhs, 3)
+function sub_into!(
+    dest::_FixedSparseDestination, lhs::_FixedSparseInput, rhs::_FixedSparseInput
+)
+    return _sparse_fixed_update!(dest, lhs, rhs, 3)
+end

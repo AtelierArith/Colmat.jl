@@ -5,7 +5,7 @@
 # selection is copied; the cost is that of the full `eigen`/`eigvals`.
 
 function _selfadjoint_irange(n, irange::UnitRange)
-    1<=first(irange)<=last(irange)<=n || throw(
+    1 <= first(irange) <= last(irange) <= n || throw(
         ArgumentError(
             "illegal choice of eigenvalue indices (il = $(first(irange)), " *
             "iu = $(last(irange))), which must be between 1 and n = $n",
@@ -14,17 +14,19 @@ function _selfadjoint_irange(n, irange::UnitRange)
     return irange
 end
 function _selfadjoint_interval(vl::Real, vu::Real)
-    vl<vu ||
+    vl < vu ||
         throw(ArgumentError("lower boundary, $vl, must be less than upper boundary, $vu"))
-    return values->findall(x->vl<x<=vu, values)
+    return values -> findall(x -> vl < x <= vu, values)
 end
-_selfadjoint_select(result::LinearAlgebra.Eigen, select) =
-    let k=select(result.values)
+function _selfadjoint_select(result::LinearAlgebra.Eigen, select)
+    let k = select(result.values)
         LinearAlgebra.Eigen(result.values[k], result.vectors[:, k])
     end
+end
 _selfadjoint_select(values::AbstractVector, select) = values[select(values)]
-_irange_selector(a, irange) =
-    (_selfadjoint_irange(LinearAlgebra.checksquare(a), irange); _->irange)
+function _irange_selector(a, irange)
+    return (_selfadjoint_irange(LinearAlgebra.checksquare(a), irange); _ -> irange)
+end
 
 """
     eigen(A::Union{Hermitian,Symmetric}, irange::UnitRange)
@@ -44,30 +46,32 @@ full `eigen!`/`eigvals!` do (all eigenvectors or the diagonal eigenvalue
 matrix; LinearAlgebra leaves it unspecified) and return the selection.
 """
 function LinearAlgebra.eigen(a::_AnyFaerSelfAdjoint, irange::UnitRange)
-    select=_irange_selector(a, irange)
+    select = _irange_selector(a, irange)
     return _selfadjoint_select(LinearAlgebra.eigen(a), select)
 end
 function LinearAlgebra.eigvals(a::_AnyFaerSelfAdjoint, irange::UnitRange)
-    select=_irange_selector(a, irange)
+    select = _irange_selector(a, irange)
     return _selfadjoint_select(LinearAlgebra.eigvals(a), select)
 end
-LinearAlgebra.eigen(a::_AnyFaerSelfAdjoint, vl::Real, vu::Real) =
-    _selfadjoint_select(LinearAlgebra.eigen(a), _selfadjoint_interval(vl, vu))
-LinearAlgebra.eigvals(a::_AnyFaerSelfAdjoint, vl::Real, vu::Real) =
-    _selfadjoint_select(LinearAlgebra.eigvals(a), _selfadjoint_interval(vl, vu))
+function LinearAlgebra.eigen(a::_AnyFaerSelfAdjoint, vl::Real, vu::Real)
+    return _selfadjoint_select(LinearAlgebra.eigen(a), _selfadjoint_interval(vl, vu))
+end
+function LinearAlgebra.eigvals(a::_AnyFaerSelfAdjoint, vl::Real, vu::Real)
+    return _selfadjoint_select(LinearAlgebra.eigvals(a), _selfadjoint_interval(vl, vu))
+end
 function LinearAlgebra.eigen!(a::_AnyFaerSelfAdjoint, irange::UnitRange)
-    select=_irange_selector(a, irange)
+    select = _irange_selector(a, irange)
     return _selfadjoint_select(LinearAlgebra.eigen!(a), select)
 end
 function LinearAlgebra.eigvals!(a::_AnyFaerSelfAdjoint, irange::UnitRange)
-    select=_irange_selector(a, irange)
+    select = _irange_selector(a, irange)
     return _selfadjoint_select(LinearAlgebra.eigvals!(a), select)
 end
 function LinearAlgebra.eigen!(a::_AnyFaerSelfAdjoint, vl::Real, vu::Real)
-    select=_selfadjoint_interval(vl, vu)
+    select = _selfadjoint_interval(vl, vu)
     return _selfadjoint_select(LinearAlgebra.eigen!(a), select)
 end
 function LinearAlgebra.eigvals!(a::_AnyFaerSelfAdjoint, vl::Real, vu::Real)
-    select=_selfadjoint_interval(vl, vu)
+    select = _selfadjoint_interval(vl, vu)
     return _selfadjoint_select(LinearAlgebra.eigvals!(a), select)
 end

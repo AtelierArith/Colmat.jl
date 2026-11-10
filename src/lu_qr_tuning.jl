@@ -9,14 +9,14 @@ const _lu_qr_tuning_len = 5
 # faer's default) for `f()`, keeping the other fields of an enclosing scope.
 function _with_lu_qr_tuning(f, indices, settings)
     lock(_matrix_lock) do
-        old_values=zeros(UInt, _lu_qr_tuning_len)
-        old_flags=zeros(UInt8, _lu_qr_tuning_len)
+        old_values = zeros(UInt, _lu_qr_tuning_len)
+        old_flags = zeros(UInt8, _lu_qr_tuning_len)
         _native_call(RustCrate.lu_qr_tuning_state, old_values, old_flags)
-        values=copy(old_values)
-        flags=copy(old_flags)
+        values = copy(old_values)
+        flags = copy(old_flags)
         for (i, x) in zip(indices, settings)
-            values[i]=isnothing(x) ? 0 : x
-            flags[i]=isnothing(x) ? 0 : 1
+            values[i] = isnothing(x) ? 0 : x
+            flags[i] = isnothing(x) ? 0 : 1
         end
         _native_call(RustCrate.set_lu_qr_tuning, values, flags)
         try
@@ -26,10 +26,13 @@ function _with_lu_qr_tuning(f, indices, settings)
         end
     end
 end
-_par_threshold_value(name, x) =
-    x isa Union{Nothing,FaerParThreshold} ?
-    (isnothing(x) ? nothing : x.value) :
-    throw(ArgumentError("$name must be a FaerParThreshold or nothing"))
+function _par_threshold_value(name, x)
+    return if x isa Union{Nothing,FaerParThreshold}
+        (isnothing(x) ? nothing : x.value)
+    else
+        throw(ArgumentError("$name must be a FaerParThreshold or nothing"))
+    end
+end
 
 """
     with_lu_tuning(f; partial_recursion_threshold=nothing, partial_par_threshold=nothing,
@@ -65,17 +68,17 @@ if `f` throws.
 """
 function with_lu_tuning(
     f;
-    partial_recursion_threshold = nothing,
-    partial_par_threshold = nothing,
-    full_par_threshold = nothing,
+    partial_recursion_threshold=nothing,
+    partial_par_threshold=nothing,
+    full_par_threshold=nothing,
 )
-    r=partial_recursion_threshold
-    r isa Union{Nothing,Integer} && (isnothing(r) || 1<=r<=typemax(UInt)) || throw(
+    r = partial_recursion_threshold
+    r isa Union{Nothing,Integer} && (isnothing(r) || 1 <= r <= typemax(UInt)) || throw(
         ArgumentError(
             "partial_recursion_threshold must be nothing or an integer between one and typemax(UInt)",
         ),
     )
-    settings=(
+    settings = (
         r,
         _par_threshold_value("partial_par_threshold", partial_par_threshold),
         _par_threshold_value("full_par_threshold", full_par_threshold),
@@ -108,10 +111,10 @@ holds Colmat's native-call lock; previous settings, including those of an
 enclosing scope (and the LU fields of an enclosing [`with_lu_tuning`](@ref)),
 are restored even if `f` throws.
 """
-function with_qr_tuning(f; blocking_threshold = nothing, pivoted_par_threshold = nothing)
-    b=blocking_threshold
-    b isa Union{Nothing,Integer} && (isnothing(b) || 0<=b<=typemax(UInt)) ||
+function with_qr_tuning(f; blocking_threshold=nothing, pivoted_par_threshold=nothing)
+    b = blocking_threshold
+    b isa Union{Nothing,Integer} && (isnothing(b) || 0 <= b <= typemax(UInt)) ||
         throw(ArgumentError("blocking_threshold must be nothing or a nonnegative integer"))
-    settings=(b, _par_threshold_value("pivoted_par_threshold", pivoted_par_threshold))
+    settings = (b, _par_threshold_value("pivoted_par_threshold", pivoted_par_threshold))
     return _with_lu_qr_tuning(f, (4, 5), settings)
 end

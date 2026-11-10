@@ -1,12 +1,12 @@
 module Colmat
 
-import LinearAlgebra
+using LinearAlgebra: LinearAlgebra
 using LinearAlgebra: SVD
-import Mmap
-import Random
+using Mmap: Mmap
+using Random: Random
 using RustCall
-import SparseArrays
-import Statistics
+using SparseArrays: SparseArrays
+using Statistics: Statistics
 
 export FaerSpectralFactor,
     reconstruct,
@@ -139,17 +139,17 @@ const RustCrate = @rust_crate joinpath(@__DIR__, "..", "deps", "rust")
 # again and takes the memo's hit branch. In a fresh process, the first such hit
 # JIT-compiled `getindex` and `Some` for these types, about 170 KB, inside an
 # arbitrary user call (#186). Compiling them into Colmat's image removes that cost.
-precompile(getindex, (Dict{Tuple{Ptr{Cvoid}, String}, Ptr{Cvoid}}, Tuple{Ptr{Cvoid}, String}))
-precompile(haskey, (Dict{Tuple{Ptr{Cvoid}, String}, Ptr{Cvoid}}, Tuple{Ptr{Cvoid}, String}))
+precompile(getindex, (Dict{Tuple{Ptr{Cvoid},String},Ptr{Cvoid}}, Tuple{Ptr{Cvoid},String}))
+precompile(haskey, (Dict{Tuple{Ptr{Cvoid},String},Ptr{Cvoid}}, Tuple{Ptr{Cvoid},String}))
 precompile(Some, (Ptr{Cvoid},))
 
 # Materialize views, transposes and other element types into owned column-major
 # buffers. All native calls are synchronous and preserve their Julia owners.
 function _checked_dense(::Type{T}, a::AbstractMatrix) where {T}
-    dims=size(a)
-    data=Matrix{T}(a)
-    data isa Matrix{T}||throw(ArgumentError("matrix conversion changed scalar storage"))
-    size(data)==dims||throw(DimensionMismatch("matrix conversion changed shape"))
+    dims = size(a)
+    data = Matrix{T}(a)
+    data isa Matrix{T} || throw(ArgumentError("matrix conversion changed scalar storage"))
+    size(data) == dims || throw(DimensionMismatch("matrix conversion changed shape"))
     return data
 end
 _dense(a::AbstractMatrix{<:Real}) = _checked_dense(Float64, a)
@@ -193,18 +193,15 @@ function faer_solve(a::AbstractMatrix{<:Real}, b::AbstractMatrix{<:Real})
     GC.@preserve aa bb x begin
         RustCall.result_to_exception(
             RustCrate.solve_f64(
-                vec(aa),
-                vec(bb),
-                vec(x),
-                UInt(size(aa, 1)),
-                UInt(size(bb, 2)),
+                vec(aa), vec(bb), vec(x), UInt(size(aa, 1)), UInt(size(bb, 2))
             ),
         )
     end
     return x
 end
-faer_solve(a::AbstractMatrix{<:Real}, b::AbstractVector{<:Real}) =
-    vec(faer_solve(a, reshape(b, :, 1)))
+function faer_solve(a::AbstractMatrix{<:Real}, b::AbstractVector{<:Real})
+    return vec(faer_solve(a, reshape(b, :, 1)))
+end
 
 """
     faer_svd(A::AbstractMatrix{<:Real})
@@ -222,14 +219,7 @@ function faer_svd(a::AbstractMatrix{<:Real})
     if k > 0
         GC.@preserve aa u s v begin
             RustCall.result_to_exception(
-                RustCrate.svd_f64(
-                    vec(aa),
-                    vec(u),
-                    s,
-                    vec(v),
-                    UInt(m),
-                    UInt(n),
-                ),
+                RustCrate.svd_f64(vec(aa), vec(u), s, vec(v), UInt(m), UInt(n))
             )
         end
     end

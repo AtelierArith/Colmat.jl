@@ -21,57 +21,62 @@ mutable struct FaerTeam{H}
     handle::Union{Nothing,H}
     const width::Int
     const options::NamedTuple
-    FaerTeam{H}(handle::H, width::Int, options::NamedTuple = (;)) where {H} =
-        new{H}(handle, width, options)
+    function FaerTeam{H}(handle::H, width::Int, options::NamedTuple=(;)) where {H}
+        return new{H}(handle, width, options)
+    end
 end
 function _handle(t::FaerTeam)
-    h=t.handle
+    h = t.handle
     isnothing(h) && throw(ArgumentError("faer team has been closed"))
     return h
 end
 _native_argument(t::FaerTeam) = _handle(t)
 _is_native_owner(::FaerTeam) = true
-const _TEAM_QOS=(default = 0, utility = 1, user_initiated = 2, user_interactive = 3)
-const _TEAM_DISPATCH_ANCHORS=12  # threadteam WidthCosts::MAX_ANCHORS
+const _TEAM_QOS = (default=0, utility=1, user_initiated=2, user_interactive=3)
+const _TEAM_DISPATCH_ANCHORS = 12  # threadteam WidthCosts::MAX_ANCHORS
 # A single time is threadteam's `WidthCosts::flat` (anchors at widths 2, 4, 6).
 _team_dispatch(::Nothing) = nothing
-_team_dispatch(t::Real) = _team_dispatch([2=>t, 4=>t, 6=>t])
+_team_dispatch(t::Real) = _team_dispatch([2 => t, 4 => t, 6 => t])
 function _team_dispatch(pairs::AbstractVector{<:Pair})
-    isempty(pairs) && throw(ArgumentError("dispatch_cost needs at least one width => seconds pair"))
-    length(pairs)<=_TEAM_DISPATCH_ANCHORS || throw(
-        ArgumentError("dispatch_cost takes at most $(_TEAM_DISPATCH_ANCHORS) width => seconds pairs"),
+    isempty(pairs) &&
+        throw(ArgumentError("dispatch_cost needs at least one width => seconds pair"))
+    length(pairs) <= _TEAM_DISPATCH_ANCHORS || throw(
+        ArgumentError(
+            "dispatch_cost takes at most $(_TEAM_DISPATCH_ANCHORS) width => seconds pairs",
+        ),
     )
-    w=[first(p) for p in pairs]
-    t=[Float64(last(p)) for p in pairs]
-    all(x->x isa Integer && 2<=x<=typemax(UInt16), w) ||
-        throw(ArgumentError("dispatch_cost widths must be integers in 2:$(typemax(UInt16))"))
-    issorted(w; lt = <=) ||
+    w = [first(p) for p in pairs]
+    t = [Float64(last(p)) for p in pairs]
+    all(x -> x isa Integer && 2 <= x <= typemax(UInt16), w) || throw(
+        ArgumentError("dispatch_cost widths must be integers in 2:$(typemax(UInt16))")
+    )
+    issorted(w; lt=(<=)) ||
         throw(ArgumentError("dispatch_cost widths must be strictly increasing"))
-    all(x->isfinite(x) && x>=0, t) ||
+    all(x -> isfinite(x) && x >= 0, t) ||
         throw(ArgumentError("dispatch_cost times must be finite and nonnegative seconds"))
     return [Pair{Int,Float64}(Int(a), b) for (a, b) in zip(w, t)]
 end
-_team_dispatch(x) = throw(
-    ArgumentError("dispatch_cost must be nothing, seconds, or a vector of width => seconds pairs"),
-)
+function _team_dispatch(x)
+    return throw(
+        ArgumentError(
+            "dispatch_cost must be nothing, seconds, or a vector of width => seconds pairs"
+        ),
+    )
+end
 function _team_options(;
-    acquire_timeout = 30,
-    spin_polls = nothing,
-    qos = nothing,
-    pin = true,
-    dispatch_cost = nothing,
+    acquire_timeout=30, spin_polls=nothing, qos=nothing, pin=true, dispatch_cost=nothing
 )
-    t=Float64(acquire_timeout)
-    isfinite(t) && t>0 ||
+    t = Float64(acquire_timeout)
+    isfinite(t) && t > 0 ||
         throw(ArgumentError("acquire_timeout must be a positive finite number of seconds"))
     isnothing(spin_polls) ||
-        0<=spin_polls<=typemax(UInt32) ||
+        0 <= spin_polls <= typemax(UInt32) ||
         throw(ArgumentError("spin_polls must be in 0:$(typemax(UInt32))"))
     isnothing(qos) ||
         haskey(_TEAM_QOS, qos) ||
         throw(ArgumentError("qos must be one of $(keys(_TEAM_QOS)) or nothing"))
-    d=_team_dispatch(dispatch_cost)
-    return (; acquire_timeout = t, spin_polls, qos, pin = Bool(pin), dispatch_cost = d)
+    d = _team_dispatch(dispatch_cost)
+    return (; acquire_timeout=t, spin_polls, qos, pin=Bool(pin), dispatch_cost=d)
 end
 """
     FaerTeam(width=Threads.nthreads(); acquire_timeout=30, spin_polls=nothing,
@@ -102,12 +107,12 @@ except the 30 s acquisition timeout used before):
 A width-one team runs sequentially and builds no pool. `copy` reuses the
 options. See [`team_diagnostics`](@ref).
 """
-function FaerTeam(width::Integer = Threads.nthreads(); kwargs...)
-    n=Int(width)
-    n>0 || throw(ArgumentError("team width must be positive"))
-    o=_team_options(; kwargs...)
+function FaerTeam(width::Integer=Threads.nthreads(); kwargs...)
+    n = Int(width)
+    n > 0 || throw(ArgumentError("team width must be positive"))
+    o = _team_options(; kwargs...)
     lock(_matrix_lock) do
-        h=RustCrate.OwnedTeam()
+        h = RustCrate.OwnedTeam()
         _native_call(
             RustCrate.team_initialize_with,
             h,
@@ -117,33 +122,36 @@ function FaerTeam(width::Integer = Threads.nthreads(); kwargs...)
             Int32(isnothing(o.qos) ? 0 : _TEAM_QOS[o.qos]),
             UInt8(o.pin),
             UInt8[!isnothing(o.spin_polls), !isnothing(o.qos)],
-            isnothing(o.dispatch_cost) ? Float64[] :
-            Float64[x for (w, t) in o.dispatch_cost for x in (w, t)],
+            if isnothing(o.dispatch_cost)
+                Float64[]
+            else
+                Float64[x for (w, t) in o.dispatch_cost for x in (w, t)]
+            end,
         )
         return FaerTeam{typeof(h)}(h, n, o)
     end
 end
-function FaerTeam(f::Function, width::Integer = Threads.nthreads(); kwargs...)
-    team=FaerTeam(width; kwargs...)
+function FaerTeam(f::Function, width::Integer=Threads.nthreads(); kwargs...)
+    team = FaerTeam(width; kwargs...)
     try
         return f(team)
     finally
         close(team)
     end
 end
-Base.isopen(t::FaerTeam) = lock(()->!isnothing(t.handle), _matrix_lock)
+Base.isopen(t::FaerTeam) = lock(() -> !isnothing(t.handle), _matrix_lock)
 function Base.close(t::FaerTeam)
     lock(_matrix_lock) do
         if !isnothing(t.handle)
             _native_call(RustCrate.team_close, t)
-            t.handle=nothing
+            t.handle = nothing
         end
     end
     return nothing
 end
 Base.copy(t::FaerTeam) = lock(_matrix_lock) do
     _handle(t)
-    FaerTeam(t.width; t.options...)
+    return FaerTeam(t.width; t.options...)
 end
 """
     team_diagnostics(team::FaerTeam)
@@ -158,18 +166,18 @@ spun), and `dispatch_cost` (seconds of one team section at `width`). A width-one
 """
 function team_diagnostics(t::FaerTeam)
     lock(_matrix_lock) do
-        v=zeros(UInt64, 9)
+        v = zeros(UInt64, 9)
         _native_call(RustCrate.team_state, t, v)
         return (
-            width = Int(v[1]),
-            spin_polls = Int(v[2]),
-            pin = !iszero(v[3]),
-            resident_members = Int(v[4]),
-            pin_skips = Int(v[5]),
-            join_sleeps = Int(v[6]),
-            barrier_sleeps = Int(v[7]),
-            member_parks = Int(v[8]),
-            dispatch_cost = v[9]/1e9,
+            width=Int(v[1]),
+            spin_polls=Int(v[2]),
+            pin=(!iszero(v[3])),
+            resident_members=Int(v[4]),
+            pin_skips=Int(v[5]),
+            join_sleeps=Int(v[6]),
+            barrier_sleeps=Int(v[7]),
+            member_parks=Int(v[8]),
+            dispatch_cost=v[9] / 1e9,
         )
     end
 end
@@ -186,14 +194,17 @@ function team_mul(team::FaerTeam, a::AbstractMatrix, b::AbstractMatrix)
         _handle(team)
         a isa _RotationArray && _rotation_open(a)
         b isa _RotationArray && _rotation_open(b)
-        size(a, 2)==size(b, 1) ||
+        size(a, 2) == size(b, 1) ||
             throw(DimensionMismatch("team product inner dimensions must match"))
-        T=promote_type(_reflector_type(eltype(a)), _reflector_type(eltype(b)))
-        x=a isa FaerMatrix ? _coerce(a, T) : FaerMatrix{T}(a)
-        y=b isa FaerMatrix ? _coerce(b, T) : FaerMatrix{T}(b)
-        dims=(size(a, 1), size(b, 2))
-        return T===Float64 ? _matrix_result(RustCrate.team_product, dims, team, x, y) :
-               _typed_result(T, RustCrate.team_product, dims, team, x, y)
+        T = promote_type(_reflector_type(eltype(a)), _reflector_type(eltype(b)))
+        x = a isa FaerMatrix ? _coerce(a, T) : FaerMatrix{T}(a)
+        y = b isa FaerMatrix ? _coerce(b, T) : FaerMatrix{T}(b)
+        dims = (size(a, 1), size(b, 2))
+        return if T === Float64
+            _matrix_result(RustCrate.team_product, dims, team, x, y)
+        else
+            _typed_result(T, RustCrate.team_product, dims, team, x, y)
+        end
     end
 end
 function LinearAlgebra.mul!(
@@ -209,17 +220,16 @@ function LinearAlgebra.mul!(
         for x in (dest, a, b)
             x isa _RotationArray && _rotation_open(x)
         end
-        size(a, 2)==size(b, 1) ||
+        size(a, 2) == size(b, 1) ||
             throw(DimensionMismatch("team product inner dimensions must match"))
-        size(dest)==(size(a, 1), size(b, 2)) ||
+        size(dest) == (size(a, 1), size(b, 2)) ||
             throw(DimensionMismatch("team product destination size must match"))
         # Written in place by the native gemm on the team (see `_dense_mul!`).
         return _dense_mul!(dest, a, b, alpha, beta; team)
     end
 end
-LinearAlgebra.mul!(
-    dest::_ProductDense,
-    team::FaerTeam,
-    a::AbstractMatrix,
-    b::AbstractMatrix,
-) = LinearAlgebra.mul!(dest, team, a, b, 1, 0)
+function LinearAlgebra.mul!(
+    dest::_ProductDense, team::FaerTeam, a::AbstractMatrix, b::AbstractMatrix
+)
+    return LinearAlgebra.mul!(dest, team, a, b, 1, 0)
+end

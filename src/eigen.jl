@@ -5,20 +5,20 @@ _eigensort(x::Complex) = (real(x), imag(x))
 function _eigen(
     a::FaerMatrix{Float64},
     mode;
-    vectors = true,
-    lower = true,
-    b = nothing,
-    other_lower = true,
-    sortby = _eigensort,
+    vectors=true,
+    lower=true,
+    b=nothing,
+    other_lower=true,
+    sortby=_eigensort,
 )
-    n=LinearAlgebra.checksquare(a)
+    n = LinearAlgebra.checksquare(a)
     if !isnothing(b)
-        size(b)==size(a) ||
+        size(b) == size(a) ||
             throw(DimensionMismatch("generalized eigen inputs must have the same shape"))
     end
-    T=mode in (1, 3) ? Float64 : ComplexF64
-    values=Vector{T}(undef, n)
-    eigenvectors=Matrix{T}(undef, n, vectors ? n : 0)
+    T = mode in (1, 3) ? Float64 : ComplexF64
+    values = Vector{T}(undef, n)
+    eigenvectors = Matrix{T}(undef, n, vectors ? n : 0)
     lock(_matrix_lock) do
         other = isnothing(b) ? a : b
         GC.@preserve values eigenvectors begin
@@ -36,9 +36,9 @@ function _eigen(
         end
     end
     if !isnothing(sortby)
-        order=sortperm(values; by = sortby)
-        values=values[order]
-        vectors && (eigenvectors=eigenvectors[:, order])
+        order = sortperm(values; by=sortby)
+        values = values[order]
+        vectors && (eigenvectors = eigenvectors[:, order])
     end
     return vectors ? LinearAlgebra.Eigen(values, eigenvectors) : values
 end
@@ -70,59 +70,69 @@ natively first, runs the EVD on the balanced matrix with the same `side`,
 unit 2-norm. The default `false` keeps the unbalanced native driver; unlike
 LinearAlgebra's LAPACK default, balancing is opt-in.
 """
-LinearAlgebra.eigen(
-    a::FaerMatrix{Float64};
-    side::Symbol = :right,
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-    permute::Bool = false,
-    scale::Bool = false,
-) =
-    _balanced_check(permute, scale) ?
-    _balanced_eigen(a, true; side, sortby, scratch, team) :
-    side===:right && _general_evd_default_path(scratch, team) ? _eigen(a, 0; sortby) :
-    _general_evd_workspace_result(a; sortby, scratch, team, side)
-LinearAlgebra.eigvals(
-    a::FaerMatrix{Float64};
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-    permute::Bool = false,
-    scale::Bool = false,
-) =
-    _balanced_check(permute, scale) ? _balanced_eigen(a, false; sortby, scratch, team) :
-    _general_evd_default_path(scratch, team) ? _eigen(a, 0; vectors = false, sortby) :
-    _general_evd_workspace_result(a; vectors = false, sortby, scratch, team)
 function LinearAlgebra.eigen(
-    a::_FaerSelfAdjoint;
-    native::Bool = false,
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
+    a::FaerMatrix{Float64};
+    side::Symbol=:right,
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
+    permute::Bool=false,
+    scale::Bool=false,
 )
-    isnothing(alg) || return _selfadjoint_alg(alg; native) do
-        LinearAlgebra.eigen(a; native, sortby, scratch, team)
+    if _balanced_check(permute, scale)
+        _balanced_eigen(a, true; side, sortby, scratch, team)
+    elseif side === :right && _general_evd_default_path(scratch, team)
+        _eigen(a, 0; sortby)
+    else
+        _general_evd_workspace_result(a; sortby, scratch, team, side)
     end
-    return native ?
-    _owned_spectral(parent(a); eigen = true, lower = _uplo(a)===:L, sortby, scratch, team) :
-    _evd_default_path(scratch, team) ? _eigen(parent(a), 1; lower = _uplo(a)===:L, sortby) :
-    _evd_workspace_result(a; sortby, scratch, team)
 end
 function LinearAlgebra.eigvals(
+    a::FaerMatrix{Float64};
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
+    permute::Bool=false,
+    scale::Bool=false,
+)
+    if _balanced_check(permute, scale)
+        _balanced_eigen(a, false; sortby, scratch, team)
+    elseif _general_evd_default_path(scratch, team)
+        _eigen(a, 0; vectors=false, sortby)
+    else
+        _general_evd_workspace_result(a; vectors=false, sortby, scratch, team)
+    end
+end
+function LinearAlgebra.eigen(
     a::_FaerSelfAdjoint;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
+    native::Bool=false,
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
+    alg=nothing,
+)
+    isnothing(alg) || return _selfadjoint_alg(alg; native) do
+        return LinearAlgebra.eigen(a; native, sortby, scratch, team)
+    end
+    return if native
+        _owned_spectral(parent(a); eigen=true, lower=_uplo(a) === :L, sortby, scratch, team)
+    elseif _evd_default_path(scratch, team)
+        _eigen(parent(a), 1; lower=_uplo(a) === :L, sortby)
+    else
+        _evd_workspace_result(a; sortby, scratch, team)
+    end
+end
+function LinearAlgebra.eigvals(
+    a::_FaerSelfAdjoint; sortby=_eigensort, scratch=nothing, team=nothing, alg=nothing
 )
     isnothing(alg) || return _selfadjoint_alg(alg) do
-        LinearAlgebra.eigvals(a; sortby, scratch, team)
+        return LinearAlgebra.eigvals(a; sortby, scratch, team)
     end
-    return _evd_default_path(scratch, team) ?
-           _eigen(parent(a), 1; vectors = false, lower = _uplo(a)===:L, sortby) :
-           _evd_workspace_result(a; vectors = false, sortby, scratch, team)
+    return if _evd_default_path(scratch, team)
+        _eigen(parent(a), 1; vectors=false, lower=_uplo(a) === :L, sortby)
+    else
+        _evd_workspace_result(a; vectors=false, sortby, scratch, team)
+    end
 end
 
 """
@@ -164,49 +174,43 @@ Conventions compared with `LinearAlgebra.eigen(A, B)` (LAPACK `ggev`):
 function LinearAlgebra.eigen(
     a::FaerMatrix{Float64},
     b::FaerMatrix{Float64};
-    homogeneous::Bool = false,
-    side::Symbol = :right,
-    sortby = homogeneous ? nothing : _eigensort,
-    scratch = nothing,
-    team = nothing,
+    homogeneous::Bool=false,
+    side::Symbol=:right,
+    sortby=homogeneous ? nothing : _eigensort,
+    scratch=nothing,
+    team=nothing,
 )
     return _general_gevd_workspace_result(a, b; sortby, scratch, team, homogeneous, side)
 end
 function LinearAlgebra.eigvals(
     a::FaerMatrix{Float64},
     b::FaerMatrix{Float64};
-    homogeneous::Bool = false,
-    sortby = homogeneous ? nothing : _eigensort,
-    scratch = nothing,
-    team = nothing,
+    homogeneous::Bool=false,
+    sortby=homogeneous ? nothing : _eigensort,
+    scratch=nothing,
+    team=nothing,
 )
     return _general_gevd_workspace_result(
-        a,
-        b;
-        vectors = false,
-        sortby,
-        scratch,
-        team,
-        homogeneous,
+        a, b; vectors=false, sortby, scratch, team, homogeneous
     )
 end
 function LinearAlgebra.eigen(
     a::_FaerSelfAdjoint,
     b::_FaerSelfAdjoint;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
 )
     return _selfadj_gevd_workspace_result(a, b; sortby, scratch, team)
 end
 function LinearAlgebra.eigvals(
     a::_FaerSelfAdjoint,
     b::_FaerSelfAdjoint;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
 )
-    return _selfadj_gevd_workspace_result(a, b; vectors = false, sortby, scratch, team)
+    return _selfadj_gevd_workspace_result(a, b; vectors=false, sortby, scratch, team)
 end
 
 """
@@ -215,6 +219,10 @@ end
 Compute the Pfaffian of an even-dimensional skew-symmetric matrix with
  t4a-faer. Non-square, odd-dimensional and invalid inputs raise an exception.
 """
-pfaffian(a::FaerMatrix{Float64}; scratch = nothing, team = nothing) =
-    isnothing(scratch) && isnothing(team) ? _native_call(RustCrate.pfaffian_value, a) :
-    _pfaffian_options(a, scratch, team)
+function pfaffian(a::FaerMatrix{Float64}; scratch=nothing, team=nothing)
+    return if isnothing(scratch) && isnothing(team)
+        _native_call(RustCrate.pfaffian_value, a)
+    else
+        _pfaffian_options(a, scratch, team)
+    end
+end

@@ -4,7 +4,7 @@ _dense_rhs_layout(::FaerVector) = 0
 _dense_rhs_layout(::FaerRow) = 1
 _dense_rhs_layout(::FaerDiagonal) = 2
 function _dense_rhs_validate(a::_ViewOwner)
-    _native_call(
+    return _native_call(
         RustCrate.factor_rhs_validate,
         a,
         UInt(size(a, 1)),
@@ -14,34 +14,26 @@ function _dense_rhs_validate(a::_ViewOwner)
     )
 end
 function _dense_rhs_validate(a::FaerView)
-    owner=_view_owner(a)
-    eltype(a)===eltype(owner) ||
+    owner = _view_owner(a)
+    eltype(a) === eltype(owner) ||
         throw(ArgumentError("dense solve view scalar metadata mismatch"))
     return _dense_rhs_validate(owner)
 end
 function _dense_rhs_validate(a::Union{LinearAlgebra.Transpose,LinearAlgebra.Adjoint})
-    eltype(a)===eltype(parent(a)) ||
+    eltype(a) === eltype(parent(a)) ||
         throw(ArgumentError("dense solve array scalar metadata mismatch"))
     return _dense_rhs_validate(parent(a))
 end
-function _dense_workspace_promote(f::FaerFactorization{T,K}, P; team = nothing) where {T,K}
+function _dense_workspace_promote(f::FaerFactorization{T,K}, P; team=nothing) where {T,K}
     return _factor(
-        _promoted_factor_matrix(f, P; team),
-        Val(K),
-        _dense_kind(f);
-        uplo = f.uplo,
-        team,
+        _promoted_factor_matrix(f, P; team), Val(K), _dense_kind(f); uplo=f.uplo, team
     )
 end
 function _dense_native_requirements(
-    f,
-    columns,
-    op;
-    team = nothing,
-    precision = Float64(eps(_realtype(eltype(f)))),
+    f, columns, op; team=nothing, precision=Float64(eps(_realtype(eltype(f))))
 )
-    info=zeros(UInt, 2)
-    args=(
+    info = zeros(UInt, 2)
+    args = (
         f,
         UInt(columns),
         Int32(op),
@@ -56,29 +48,24 @@ function _dense_native_requirements(
         # `nothing` crosses as RustCall 0.10's checked optional owner.
         _native_call(RustCrate.factor_solve_requirements, args..., team)
     end
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 function _dense_workspace_native_result(
-    f,
-    b,
-    op,
-    scratch,
-    team;
-    precision = Float64(eps(_realtype(eltype(f)))),
+    f, b, op, scratch, team; precision=Float64(eps(_realtype(eltype(f))))
 )
-    req=_dense_native_requirements(f, size(b, 2), op; team, precision)
-    temporary=isnothing(scratch)
-    work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+    req = _dense_native_requirements(f, size(b, 2), op; team, precision)
+    temporary = isnothing(scratch)
+    work = temporary ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
     work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
     try
-        cap=scratch_capacity(work)
-        cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+        cap = scratch_capacity(work)
+        cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
             ArgumentError(
-                "dense solve scratch capacity/alignment is insufficient; call reserve!",
+                "dense solve scratch capacity/alignment is insufficient; call reserve!"
             ),
         )
-        dims=(size(f, op in (1, 2) ? 1 : 2), size(b, 2))
-        args=(
+        dims = (size(f, op in (1, 2) ? 1 : 2), size(b, 2))
+        args = (
             f,
             b,
             work,
@@ -90,18 +77,21 @@ function _dense_workspace_native_result(
             _dense_kind(f),
             Float64(precision),
         )
-        fun=RustCrate.factor_solve_workspace
-        args=(args..., team)
-        return eltype(f)===Float64 ? _matrix_result(fun, dims, args...) :
-               _typed_result(eltype(f), fun, dims, args...)
+        fun = RustCrate.factor_solve_workspace
+        args = (args..., team)
+        return if eltype(f) === Float64
+            _matrix_result(fun, dims, args...)
+        else
+            _typed_result(eltype(f), fun, dims, args...)
+        end
     finally
         temporary && close(work)
     end
 end
 
-function _dense_solve_requirements(f, b; team = nothing, right = false)
+function _dense_solve_requirements(f, b; team=nothing, right=false)
     lock(_matrix_lock) do
-        original=_dense_parent(f)
+        original = _dense_parent(f)
         _handle(original)
         _spectral_rhs_open(b)
         _dense_rhs_validate(b)
@@ -113,24 +103,26 @@ function _dense_solve_requirements(f, b; team = nothing, right = false)
         LinearAlgebra.issuccess(original) ||
             throw(LinearAlgebra.SingularException(original.info))
         _dense_solve_validate(original)
-        (right ? size(b, 2)==size(f, 2) : size(b, 1)==size(f, 1)) ||
+        (right ? size(b, 2) == size(f, 2) : size(b, 1) == size(f, 1)) ||
             throw(DimensionMismatch("factor and RHS dimensions do not match"))
-        op=_dense_op(f)
-        right && (op=(2, 3, 0)[op+1])
-        columns=right ? size(b, 1) : ndims(b)==1 ? 1 : size(b, 2)
-        T=eltype(original)
-        P=promote_type(T, _reflector_type(eltype(b)))
+        op = _dense_op(f)
+        right && (op = (2, 3, 0)[op + 1])
+        columns = if right
+            size(b, 1)
+        elseif ndims(b) == 1
+            1
+        else
+            size(b, 2)
+        end
+        T = eltype(original)
+        P = promote_type(T, _reflector_type(eltype(b)))
         # Float64 factors solve complex RHS by two real solves with the same buffer.
-        (T===Float64 || P===T) &&
+        (T === Float64 || P === T) &&
             return _dense_native_requirements(original, columns, op; team)
-        promoted=_dense_workspace_promote(original, P; team)
+        promoted = _dense_workspace_promote(original, P; team)
         try
             return _dense_native_requirements(
-                promoted,
-                columns,
-                op;
-                team,
-                precision = Float64(eps(_realtype(T))),
+                promoted, columns, op; team, precision=Float64(eps(_realtype(T)))
             )
         finally
             close(promoted)
@@ -162,12 +154,12 @@ function scratch_requirements(
     dest::AbstractVecOrMat,
     f::_DenseSolveFactor,
     b::AbstractVecOrMat;
-    team = nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         _spectral_rhs_open(dest)
         _dense_rhs_validate(dest)
-        size(dest)==(ndims(b)==1 ? (size(f, 2),) : (size(f, 2), size(b, 2))) ||
+        size(dest) == (ndims(b) == 1 ? (size(f, 2),) : (size(f, 2), size(b, 2))) ||
             throw(DimensionMismatch("factor solve destination shape mismatch"))
         return _dense_solve_requirements(f, b; team)
     end
@@ -177,33 +169,27 @@ function scratch_requirements(
     dest::AbstractMatrix,
     b::AbstractMatrix,
     f::_DenseSolveFactor;
-    team = nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         _spectral_rhs_open(dest)
         _dense_rhs_validate(dest)
-        size(dest)==(size(b, 1), size(f, 1)) ||
+        size(dest) == (size(b, 1), size(f, 1)) ||
             throw(DimensionMismatch("right factor solve destination shape mismatch"))
-        return _dense_solve_requirements(f, b; team, right = true)
+        return _dense_solve_requirements(f, b; team, right=true)
     end
 end
 function scratch_requirements(
-    ::typeof(LinearAlgebra.ldiv!),
-    f::_DenseSolveFactor,
-    b::AbstractVecOrMat;
-    team = nothing,
+    ::typeof(LinearAlgebra.ldiv!), f::_DenseSolveFactor, b::AbstractVecOrMat; team=nothing
 )
-    size(f, 1)==size(f, 2) ||
+    size(f, 1) == size(f, 2) ||
         throw(DimensionMismatch("two-argument ldiv! requires square factors"))
     return scratch_requirements(LinearAlgebra.ldiv!, b, f, b; team)
 end
 function scratch_requirements(
-    ::typeof(LinearAlgebra.rdiv!),
-    b::AbstractMatrix,
-    f::_DenseSolveFactor;
-    team = nothing,
+    ::typeof(LinearAlgebra.rdiv!), b::AbstractMatrix, f::_DenseSolveFactor; team=nothing
 )
-    size(f, 1)==size(f, 2) ||
+    size(f, 1) == size(f, 2) ||
         throw(DimensionMismatch("two-argument rdiv! requires square factors"))
     return scratch_requirements(LinearAlgebra.rdiv!, b, b, f; team)
 end
@@ -221,17 +207,14 @@ for (fn, signature, args) in (
     ),
     (:(LinearAlgebra.rdiv!), :(b::AbstractMatrix, f::_DenseSolveFactor), :(b, f)),
 )
-    @eval function FaerScratch(::typeof($fn), $(signature.args...); team = nothing)
-        req=scratch_requirements($fn, $(args.args...); team)
-        return FaerScratch(req.bytes; alignment = req.alignment)
+    @eval function FaerScratch(::typeof($fn), $(signature.args...); team=nothing)
+        req = scratch_requirements($fn, $(args.args...); team)
+        return FaerScratch(req.bytes; alignment=req.alignment)
     end
     @eval function reserve!(
-        work::FaerScratch,
-        ::typeof($fn),
-        $(signature.args...);
-        team = nothing,
+        work::FaerScratch, ::typeof($fn), $(signature.args...); team=nothing
     )
-        req=scratch_requirements($fn, $(args.args...); team)
-        return reserve!(work, req.bytes; alignment = req.alignment)
+        req = scratch_requirements($fn, $(args.args...); team)
+        return reserve!(work, req.bytes; alignment=req.alignment)
     end
 end

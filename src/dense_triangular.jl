@@ -1,17 +1,15 @@
 # Direct dense triangular solves and destructive inverses
 # (deps/rust/src/dense_triangular.rs).
-const _DenseTriangularView{T}=FaerView{T,2,<:FaerMatrix{T}}
+const _DenseTriangularView{T} = FaerView{T,2,<:FaerMatrix{T}}
 # A `faerview` borrow of Julia memory is read (and, for `inv!`, written) in
 # place. A plain Julia array parent is intentionally left to LinearAlgebra:
 # `LowerTriangular{T,Matrix{T}} \ Matrix{T}` involves only Base types (a
 # method here would be type piracy) and already runs BLAS trsm in place;
 # wrap the parent with `faerview` to opt into the native kernel.
-const _DenseTriangularBase{T}=Union{
-    FaerMatrix{T},
-    _DenseTriangularView{T},
-    FaerBorrowedMatrix{T},
+const _DenseTriangularBase{T} = Union{
+    FaerMatrix{T},_DenseTriangularView{T},FaerBorrowedMatrix{T}
 }
-const _DenseTriangularParent{T}=Union{
+const _DenseTriangularParent{T} = Union{
     _DenseTriangularBase{T},
     LinearAlgebra.Transpose{T,<:_DenseTriangularBase{T}},
     LinearAlgebra.Adjoint{T,<:_DenseTriangularBase{T}},
@@ -19,7 +17,7 @@ const _DenseTriangularParent{T}=Union{
     LinearAlgebra.Transpose{T,<:LinearAlgebra.Adjoint{T,<:_DenseTriangularBase{T}}},
     LinearAlgebra.Adjoint{T,<:LinearAlgebra.Transpose{T,<:_DenseTriangularBase{T}}},
 }
-const _DenseTriangular=Union{
+const _DenseTriangular = Union{
     LinearAlgebra.LowerTriangular{<:Any,<:_DenseTriangularParent},
     LinearAlgebra.UpperTriangular{<:Any,<:_DenseTriangularParent},
     LinearAlgebra.UnitLowerTriangular{<:Any,<:_DenseTriangularParent},
@@ -29,18 +27,18 @@ const _DenseTriangular=Union{
 # parent (adjoint, or the conjugate of a transpose) needs no conjugation pass:
 # inv(conj(X)) = conj(inv(X)), so inverting the stored, unconjugated triangle
 # leaves exactly the inverse when read back through the conjugating wrapper.
-const _DenseInvertParent{T}=_DenseTriangularParent{T}
+const _DenseInvertParent{T} = _DenseTriangularParent{T}
 # Native destinations written in place through their view descriptor.
-const _DenseTriangularNative=Union{
-    FaerMatrix,
-    FaerVector,
-    FaerView{<:Any,<:Any,<:Union{FaerMatrix,FaerVector}},
+const _DenseTriangularNative = Union{
+    FaerMatrix,FaerVector,FaerView{<:Any,<:Any,<:Union{FaerMatrix,FaerVector}}
 }
-_dense_triangular_direct(x::_DenseTriangularNative, ::Type{P}) where {P} = eltype(x)===P
-_dense_triangular_direct(x::FaerBorrowedArray, ::Type{P}) where {P} =
-    eltype(x)===P && _borrowed_writable(x)
-_dense_triangular_direct(x::StridedVecOrMat, ::Type{P}) where {P} =
-    eltype(x)===P && _faerview_valid(x)
+_dense_triangular_direct(x::_DenseTriangularNative, ::Type{P}) where {P} = eltype(x) === P
+function _dense_triangular_direct(x::FaerBorrowedArray, ::Type{P}) where {P}
+    return eltype(x) === P && _borrowed_writable(x)
+end
+function _dense_triangular_direct(x::StridedVecOrMat, ::Type{P}) where {P}
+    return eltype(x) === P && _faerview_valid(x)
+end
 _dense_triangular_direct(x, ::Type) = false
 
 _dense_triangular_owner(x::_DenseTriangularNative) = first(_view_source(x))
@@ -55,40 +53,37 @@ function _dense_triangular_prepare(a, b, right::Bool, team)
     _dense_triangular_check_team(team)
     _view_source(parent(a))
     b isa Union{_DenseTriangularNative,FaerBorrowedArray} && _spectral_rhs_open(b)
-    right && ndims(b)!=2 && throw(ArgumentError("right triangular solves need a matrix"))
-    size(a, 1)==size(b, right ? 2 : 1) ||
+    right && ndims(b) != 2 && throw(ArgumentError("right triangular solves need a matrix"))
+    size(a, 1) == size(b, right ? 2 : 1) ||
         throw(DimensionMismatch("triangular solve dimensions must match"))
     return promote_type(eltype(a), _native_input_type(eltype(b)))
 end
 function _dense_triangular_query(a, ::Type{P}) where {P}
-    p, d=_view_source(parent(a))
-    info=zeros(UInt, 2)
+    p, d = _view_source(parent(a))
+    info = zeros(UInt, 2)
     GC.@preserve d info _native_call(
-        RustCrate.dense_triangular_requirements,
-        p,
-        pointer(d),
-        _tag(P),
-        info,
+        RustCrate.dense_triangular_requirements, p, pointer(d), _tag(P), info
     )
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 function _dense_triangular_check_singular(a)
     _isunit(a) && return nothing
-    p, d=_view_source(parent(a))
-    i=GC.@preserve d Int(_native_call(RustCrate.dense_triangular_zero_diagonal, p, pointer(d)))
+    p, d = _view_source(parent(a))
+    i = GC.@preserve d Int(
+        _native_call(RustCrate.dense_triangular_zero_diagonal, p, pointer(d))
+    )
     iszero(i) || throw(LinearAlgebra.SingularException(i))
     return nothing
 end
 function _with_dense_triangular_scratch(fun, req, scratch)
     isnothing(scratch) && iszero(req.bytes) && return fun(_sparse_triangular_empty())
-    temporary=isnothing(scratch)
-    work=temporary ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+    temporary = isnothing(scratch)
+    work = temporary ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
     work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
     try
-        cap=scratch_capacity(work)
-        cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
-            ArgumentError("insufficient dense triangular scratch; call reserve!"),
-        )
+        cap = scratch_capacity(work)
+        cap.bytes >= req.bytes && cap.alignment >= req.alignment ||
+            throw(ArgumentError("insufficient dense triangular scratch; call reserve!"))
         return fun(work)
     finally
         temporary && close(work)
@@ -96,10 +91,10 @@ function _with_dense_triangular_scratch(fun, req, scratch)
 end
 # Solve op(A) x = x (or x op(A) = x) in place in `x`, which holds P values.
 function _dense_triangular_native!(x, a, right::Bool, work, team)
-    p, d=_view_source(parent(a))
-    lower, unit=_islower(a), _isunit(a)
-    code=if x isa _DenseTriangularNative
-        q, e=_view_source(x)
+    p, d = _view_source(parent(a))
+    lower, unit = _islower(a), _isunit(a)
+    code = if x isa _DenseTriangularNative
+        q, e = _view_source(x)
         GC.@preserve d e _native_call(
             RustCrate.dense_triangular_into,
             q,
@@ -113,11 +108,11 @@ function _dense_triangular_native!(x, a, right::Bool, work, team)
             team,
         )
     else
-        y=x isa FaerBorrowedArray ? parent(x) : x
-        m=size(y, 1)
-        n=ndims(y)==1 ? 1 : size(y, 2)
-        rs=stride(y, 1)
-        cs=ndims(y)==1 ? m*rs : stride(y, 2)
+        y = x isa FaerBorrowedArray ? parent(x) : x
+        m = size(y, 1)
+        n = ndims(y) == 1 ? 1 : size(y, 2)
+        rs = stride(y, 1)
+        cs = ndims(y) == 1 ? m * rs : stride(y, 2)
         GC.@preserve d y _native_call(
             RustCrate.dense_triangular_raw,
             p,
@@ -139,34 +134,36 @@ function _dense_triangular_native!(x, a, right::Bool, work, team)
     return x
 end
 # A fresh RHS copy in the promoted type; it never aliases `b`.
-_dense_triangular_copy(b::AbstractMatrix, ::Type{P}) where {P} =
-    b isa FaerMatrix && eltype(b)===P ? copy(b) : FaerMatrix{P}(b)
-_dense_triangular_copy(b::_BorrowVector, ::Type{P}) where {P} =
-    eltype(b)===P ? copy(b) : FaerVector{P}(b)
+function _dense_triangular_copy(b::AbstractMatrix, ::Type{P}) where {P}
+    return b isa FaerMatrix && eltype(b) === P ? copy(b) : FaerMatrix{P}(b)
+end
+function _dense_triangular_copy(b::_BorrowVector, ::Type{P}) where {P}
+    return eltype(b) === P ? copy(b) : FaerVector{P}(b)
+end
 _dense_triangular_copy(b::AbstractVector, ::Type{P}) where {P} = Vector{P}(b)
 # The triangle is read through a raw pointer while the destination owner is
 # borrowed mutably; a destination sharing its owner solves from a snapshot.
 function _dense_triangular_unaliased(a, dest)
-    source=first(_view_source(parent(a)))
+    source = first(_view_source(parent(a)))
     if source isa FaerBorrowedArray
         # Julia memory: native destinations never share it; Julia ones may.
         dest isa _DenseTriangularNative && return a
-        target=dest isa FaerBorrowedArray ? parent(dest) : dest
+        target = dest isa FaerBorrowedArray ? parent(dest) : dest
         Base.mightalias(parent(source), target) || return a
     else
-        owner=_dense_triangular_owner(dest)
+        owner = _dense_triangular_owner(dest)
         isnothing(owner) && return a
-        source===owner || return a
+        source === owner || return a
     end
     return _triangular_wrap(a, copy(parent(a)))
 end
 
-function _dense_triangular_solve(a, b, right::Bool; scratch = nothing, team = nothing)
+function _dense_triangular_solve(a, b, right::Bool; scratch=nothing, team=nothing)
     lock(_matrix_lock) do
-        P=_dense_triangular_prepare(a, b, right, team)
-        req=_dense_triangular_query(a, P)
+        P = _dense_triangular_prepare(a, b, right, team)
+        req = _dense_triangular_query(a, P)
         _with_dense_triangular_scratch(req, scratch) do work
-            x=_dense_triangular_copy(b, P)
+            x = _dense_triangular_copy(b, P)
             try
                 return _dense_triangular_native!(x, a, right, work, team)
             catch
@@ -181,33 +178,26 @@ end
 # solved in place; with dest === b nothing else is copied. Other destinations
 # stage one promoted native copy. All validation (singularity, scratch, team,
 # closed resources) precedes the first write to dest.
-function _dense_triangular_write!(
-    dest,
-    a,
-    b,
-    right::Bool;
-    scratch = nothing,
-    team = nothing,
-)
+function _dense_triangular_write!(dest, a, b, right::Bool; scratch=nothing, team=nothing)
     lock(_matrix_lock) do
-        P=_dense_triangular_prepare(a, b, right, team)
+        P = _dense_triangular_prepare(a, b, right, team)
         dest isa Union{_DenseTriangularNative,FaerBorrowedArray} && _spectral_rhs_open(dest)
-        size(dest)==size(b) ||
+        size(dest) == size(b) ||
             throw(DimensionMismatch("triangular output size must match RHS"))
-        direct=_dense_triangular_direct(dest, P)
-        req=_dense_triangular_query(a, P)
+        direct = _dense_triangular_direct(dest, P)
+        req = _dense_triangular_query(a, P)
         _with_dense_triangular_scratch(req, scratch) do work
             if direct
                 _dense_triangular_check_singular(a)
-                src=_dense_triangular_unaliased(a, dest)
+                src = _dense_triangular_unaliased(a, dest)
                 try
-                    dest===b || copyto!(dest, b)
+                    dest === b || copyto!(dest, b)
                     _dense_triangular_native!(dest, src, right, work, team)
                 finally
-                    src===a || close(parent(src))
+                    src === a || close(parent(src))
                 end
             else
-                x=_dense_triangular_copy(b, P)
+                x = _dense_triangular_copy(b, P)
                 try
                     _dense_triangular_native!(x, a, right, work, team)
                     copyto!(dest, x)
@@ -244,9 +234,7 @@ for C in (:LowerTriangular, :UpperTriangular, :UnitLowerTriangular, :UnitUpperTr
             kwargs...,
         ) where {T<:_NativeScalar} = _dense_triangular_write!(dest, a, b, false; kwargs...)
         LinearAlgebra.rdiv!(
-            b::AbstractMatrix,
-            a::LinearAlgebra.$C{T,<:_DenseTriangularParent{T}};
-            kwargs...,
+            b::AbstractMatrix, a::LinearAlgebra.$C{T,<:_DenseTriangularParent{T}}; kwargs...
         ) where {T<:_NativeScalar} = _dense_triangular_write!(b, a, b, true; kwargs...)
     end
 end
@@ -264,9 +252,7 @@ for C in (:LowerTriangular, :UpperTriangular, :UnitLowerTriangular, :UnitUpperTr
         SparseArrays.AbstractCompressedVector,
     )
         @eval Base.:\(
-            a::LinearAlgebra.$C{T,<:_DenseTriangularParent{T}},
-            b::$R{<:Number};
-            kwargs...,
+            a::LinearAlgebra.$C{T,<:_DenseTriangularParent{T}}, b::$R{<:Number}; kwargs...
         ) where {T<:_NativeScalar} = _dense_triangular_solve(a, b, false; kwargs...)
     end
     for R in (
@@ -278,9 +264,7 @@ for C in (:LowerTriangular, :UpperTriangular, :UnitLowerTriangular, :UnitUpperTr
         LinearAlgebra.UpperHessenberg,
     )
         @eval Base.:/(
-            b::$R{<:Number},
-            a::LinearAlgebra.$C{T,<:_DenseTriangularParent{T}};
-            kwargs...,
+            b::$R{<:Number}, a::LinearAlgebra.$C{T,<:_DenseTriangularParent{T}}; kwargs...
         ) where {T<:_NativeScalar} = _dense_triangular_solve(a, b, true; kwargs...)
     end
     # Row vectors keep LinearAlgebra's wrapped-vector result.
@@ -288,11 +272,11 @@ for C in (:LowerTriangular, :UpperTriangular, :UnitLowerTriangular, :UnitUpperTr
         Base.:/(
             u::LinearAlgebra.Transpose{<:Number,<:AbstractVector},
             a::LinearAlgebra.$C{T,<:_DenseTriangularParent{T}},
-        ) where {T<:_NativeScalar} = transpose(transpose(a)\parent(u))
+        ) where {T<:_NativeScalar} = transpose(transpose(a) \ parent(u))
         Base.:/(
             u::LinearAlgebra.Adjoint{<:Number,<:AbstractVector},
             a::LinearAlgebra.$C{T,<:_DenseTriangularParent{T}},
-        ) where {T<:_NativeScalar} = adjoint(adjoint(a)\parent(u))
+        ) where {T<:_NativeScalar} = adjoint(adjoint(a) \ parent(u))
     end
 end
 
@@ -326,121 +310,110 @@ triangle's native owner is solved from a snapshot of the triangle. Zero
 diagonals throw `SingularException` and closed or undersized resources throw
 before any write.
 """ LinearAlgebra.ldiv!(
-    ::LinearAlgebra.LowerTriangular{T,<:_DenseTriangularParent{T}},
-    ::AbstractVecOrMat,
+    ::LinearAlgebra.LowerTriangular{T,<:_DenseTriangularParent{T}}, ::AbstractVecOrMat
 ) where {T<:_NativeScalar}
 
-function _dense_triangular_requirements(a, b, right::Bool; team = nothing)
+function _dense_triangular_requirements(a, b, right::Bool; team=nothing)
     lock(_matrix_lock) do
-        P=_dense_triangular_prepare(a, b, right, team)
+        P = _dense_triangular_prepare(a, b, right, team)
         return _dense_triangular_query(a, P)
     end
 end
 for (F, right) in ((:(typeof(LinearAlgebra.ldiv!)), false), (:(typeof(\)), false))
     @eval begin
-        scratch_requirements(
-            ::$F,
-            a::_DenseTriangular,
-            b::AbstractVecOrMat;
-            team = nothing,
-        ) = _dense_triangular_requirements(a, b, $right; team)
-        FaerScratch(fun::$F, a::_DenseTriangular, b::AbstractVecOrMat; team = nothing) =
+        scratch_requirements(::$F, a::_DenseTriangular, b::AbstractVecOrMat; team=nothing) =
+            _dense_triangular_requirements(a, b, $right; team)
+        FaerScratch(fun::$F, a::_DenseTriangular, b::AbstractVecOrMat; team=nothing) =
             _new_operator_workspace(fun, a, b; team)
         reserve!(
-            s::FaerScratch,
-            fun::$F,
-            a::_DenseTriangular,
-            b::AbstractVecOrMat;
-            team = nothing,
+            s::FaerScratch, fun::$F, a::_DenseTriangular, b::AbstractVecOrMat; team=nothing
         ) = _reserve_operator_workspace(s, fun, a, b; team)
     end
 end
-scratch_requirements(
-    ::typeof(LinearAlgebra.rdiv!),
-    b::AbstractMatrix,
-    a::_DenseTriangular;
-    team = nothing,
-) = _dense_triangular_requirements(a, b, true; team)
-FaerScratch(
-    fun::typeof(LinearAlgebra.rdiv!),
-    b::AbstractMatrix,
-    a::_DenseTriangular;
-    team = nothing,
-) = _new_operator_workspace(fun, b, a; team)
-reserve!(
+function scratch_requirements(
+    ::typeof(LinearAlgebra.rdiv!), b::AbstractMatrix, a::_DenseTriangular; team=nothing
+)
+    return _dense_triangular_requirements(a, b, true; team)
+end
+function FaerScratch(
+    fun::typeof(LinearAlgebra.rdiv!), b::AbstractMatrix, a::_DenseTriangular; team=nothing
+)
+    return _new_operator_workspace(fun, b, a; team)
+end
+function reserve!(
     s::FaerScratch,
     fun::typeof(LinearAlgebra.rdiv!),
     b::AbstractMatrix,
     a::_DenseTriangular;
-    team = nothing,
-) = _reserve_operator_workspace(s, fun, b, a; team)
+    team=nothing,
+)
+    return _reserve_operator_workspace(s, fun, b, a; team)
+end
 function scratch_requirements(
     ::typeof(LinearAlgebra.ldiv!),
     dest::AbstractVecOrMat,
     a::_DenseTriangular,
     b::AbstractVecOrMat;
-    team = nothing,
+    team=nothing,
 )
-    size(dest)==size(b) ||
+    size(dest) == size(b) ||
         throw(DimensionMismatch("triangular output size must match RHS"))
     return _dense_triangular_requirements(a, b, false; team)
 end
-FaerScratch(
+function FaerScratch(
     fun::typeof(LinearAlgebra.ldiv!),
     dest::AbstractVecOrMat,
     a::_DenseTriangular,
     b::AbstractVecOrMat;
-    team = nothing,
-) = _new_operator_workspace(fun, dest, a, b; team)
-reserve!(
+    team=nothing,
+)
+    return _new_operator_workspace(fun, dest, a, b; team)
+end
+function reserve!(
     s::FaerScratch,
     fun::typeof(LinearAlgebra.ldiv!),
     dest::AbstractVecOrMat,
     a::_DenseTriangular,
     b::AbstractVecOrMat;
-    team = nothing,
-) = _reserve_operator_workspace(s, fun, dest, a, b; team)
+    team=nothing,
+)
+    return _reserve_operator_workspace(s, fun, dest, a, b; team)
+end
 
 # Destructive inverse: faer's `invert_*` take a separate source, staged in scratch.
-function _dense_invert_requirements(a; team = nothing)
+function _dense_invert_requirements(a; team=nothing)
     lock(_matrix_lock) do
         _dense_triangular_check_team(team)
         _view_source(parent(a))
-        info=zeros(UInt, 2)
+        info = zeros(UInt, 2)
         GC.@preserve info _native_call(
             RustCrate.dense_triangular_invert_requirements,
             UInt(size(a, 1)),
             _tag(eltype(a)),
             info,
         )
-        return (bytes = Int(info[1]), alignment = Int(info[2]))
+        return (bytes=Int(info[1]), alignment=Int(info[2]))
     end
 end
-function _dense_invert!(a; scratch = nothing, team = nothing)
+function _dense_invert!(a; scratch=nothing, team=nothing)
     lock(_matrix_lock) do
         _dense_triangular_check_team(team)
-        p, d=_view_source(parent(a))
-        p isa FaerBorrowedArray && !_borrowed_writable(p) && throw(
-            ArgumentError("inv! cannot overwrite a read-only borrow; copy it first"),
-        )
-        d[9]=0
-        req=_dense_invert_requirements(a; team)
+        p, d = _view_source(parent(a))
+        p isa FaerBorrowedArray &&
+            !_borrowed_writable(p) &&
+            throw(ArgumentError("inv! cannot overwrite a read-only borrow; copy it first"))
+        d[9] = 0
+        req = _dense_invert_requirements(a; team)
         _with_dense_triangular_scratch(req, scratch) do work
             # A borrowed parent is written through its rooted Julia pointer
             # and the descriptor's strides.
-            fun, q=if p isa FaerBorrowedArray
+            fun, q = if p isa FaerBorrowedArray
                 RustCrate.dense_triangular_invert_borrowed, _raw_owner_argument(p, p)
             else
                 RustCrate.dense_triangular_invert, p
             end
-            code=GC.@preserve p d _native_call(
-                fun,
-                q,
-                pointer(d),
-                _islower(a),
-                _isunit(a),
-                work,
-                team,
+            code = GC.@preserve p d _native_call(
+                fun, q, pointer(d), _islower(a), _isunit(a), work, team
             )
             iszero(code) || throw(LinearAlgebra.SingularException(Int(code)))
             return a
@@ -450,24 +423,23 @@ end
 for C in (:LowerTriangular, :UpperTriangular, :UnitLowerTriangular, :UnitUpperTriangular)
     @eval begin
         LinearAlgebra.inv!(
-            a::LinearAlgebra.$C{T,<:_DenseInvertParent{T}};
-            kwargs...,
+            a::LinearAlgebra.$C{T,<:_DenseInvertParent{T}}; kwargs...
         ) where {T<:_NativeScalar} = _dense_invert!(a; kwargs...)
         scratch_requirements(
             ::typeof(LinearAlgebra.inv!),
             a::LinearAlgebra.$C{T,<:_DenseInvertParent{T}};
-            team = nothing,
+            team=nothing,
         ) where {T<:_NativeScalar} = _dense_invert_requirements(a; team)
         FaerScratch(
             fun::typeof(LinearAlgebra.inv!),
             a::LinearAlgebra.$C{T,<:_DenseInvertParent{T}};
-            team = nothing,
+            team=nothing,
         ) where {T<:_NativeScalar} = _new_operator_workspace(fun, a; team)
         reserve!(
             s::FaerScratch,
             fun::typeof(LinearAlgebra.inv!),
             a::LinearAlgebra.$C{T,<:_DenseInvertParent{T}};
-            team = nothing,
+            team=nothing,
         ) where {T<:_NativeScalar} = _reserve_operator_workspace(s, fun, a; team)
     end
 end
@@ -488,5 +460,5 @@ triangle is first copied into `scratch`: query with
 any write. `team` runs the kernel on a caller-owned [`FaerTeam`](@ref).
 """
 LinearAlgebra.inv!(
-    ::LinearAlgebra.LowerTriangular{T,<:_DenseInvertParent{T}},
+    ::LinearAlgebra.LowerTriangular{T,<:_DenseInvertParent{T}}
 ) where {T<:_NativeScalar}

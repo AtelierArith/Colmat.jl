@@ -8,26 +8,26 @@ _islower(::Union{LinearAlgebra.LowerTriangular,LinearAlgebra.UnitLowerTriangular
 _islower(::Union{LinearAlgebra.UpperTriangular,LinearAlgebra.UnitUpperTriangular}) = false
 _isunit(::Union{LinearAlgebra.UnitLowerTriangular,LinearAlgebra.UnitUpperTriangular}) = true
 _isunit(::Union{LinearAlgebra.LowerTriangular,LinearAlgebra.UpperTriangular}) = false
-Base.inv(a::_FaerTriangular) = _matrix_result(
-    RustCrate.triangular_inverse_from,
-    size(a),
-    parent(a),
-    _islower(a),
-    _isunit(a),
-)
+function Base.inv(a::_FaerTriangular)
+    return _matrix_result(
+        RustCrate.triangular_inverse_from, size(a), parent(a), _islower(a), _isunit(a)
+    )
+end
 
-const _FaerTransposedMatrix=Union{
+const _FaerTransposedMatrix = Union{
     LinearAlgebra.Transpose{Float64,<:FaerMatrix{Float64}},
     LinearAlgebra.Adjoint{Float64,<:FaerMatrix{Float64}},
 }
-Base.:\(a::_FaerTransposedMatrix, b::FaerMatrix{Float64}) = copy(a)\b
-Base.:\(a::_FaerTransposedMatrix, b::AbstractMatrix{<:Real}) = copy(a)\b
-Base.:\(a::_FaerTransposedMatrix, b::AbstractVector{<:Real}) = copy(a)\b
-Base.:/(b::FaerMatrix{Float64}, a::FaerMatrix{Float64}) =
-    copy(adjoint(copy(adjoint(a))\copy(adjoint(b))))
-Base.:/(b::FaerMatrix{Float64}, f::FaerFactorization{Float64}) =
-    copy(adjoint(f'\copy(adjoint(b))))
+Base.:\(a::_FaerTransposedMatrix, b::FaerMatrix{Float64}) = copy(a) \ b
+Base.:\(a::_FaerTransposedMatrix, b::AbstractMatrix{<:Real}) = copy(a) \ b
+Base.:\(a::_FaerTransposedMatrix, b::AbstractVector{<:Real}) = copy(a) \ b
+function Base.:/(b::FaerMatrix{Float64}, a::FaerMatrix{Float64})
+    return copy(adjoint(copy(adjoint(a)) \ copy(adjoint(b))))
+end
+function Base.:/(b::FaerMatrix{Float64}, f::FaerFactorization{Float64})
+    return copy(adjoint(f' \ copy(adjoint(b))))
+end
 
-Base.:/(b::_FaerTransposedMatrix, a::FaerMatrix{Float64}) = copy(b)/a
-Base.:/(b::FaerMatrix{Float64}, a::_FaerTransposedMatrix) = b/copy(a)
-Base.:/(b::_FaerTransposedMatrix, a::_FaerTransposedMatrix) = copy(b)/copy(a)
+Base.:/(b::_FaerTransposedMatrix, a::FaerMatrix{Float64}) = copy(b) / a
+Base.:/(b::FaerMatrix{Float64}, a::_FaerTransposedMatrix) = b / copy(a)
+Base.:/(b::_FaerTransposedMatrix, a::_FaerTransposedMatrix) = copy(b) / copy(a)

@@ -1,4 +1,4 @@
-const _EvdFunction=Union{
+const _EvdFunction = Union{
     typeof(LinearAlgebra.eigen),
     typeof(LinearAlgebra.eigvals),
     typeof(LinearAlgebra.eigen!),
@@ -13,76 +13,74 @@ or real Symmetric wrappers. Requirement includes a canonical selected-triangle
 copy and temporary eigenvalues. With a team, actual execution conditions are
 queried. Eigenvector output arrays and sorting allocate separately.
 """
-function scratch_requirements(f::_EvdFunction, a::_AnyFaerSelfAdjoint; team = nothing)
+function scratch_requirements(f::_EvdFunction, a::_AnyFaerSelfAdjoint; team=nothing)
     lock(_matrix_lock) do
-        source=parent(a)
+        source = parent(a)
         _handle(source)
-        n=LinearAlgebra.checksquare(source)
+        n = LinearAlgebra.checksquare(source)
         isnothing(team) ||
             team isa FaerTeam ||
             throw(ArgumentError("team must be a FaerTeam"))
         !isnothing(team) && _handle(team)
-        info=zeros(UInt, 2)
-        args=(
-            UInt(n),
-            _tag(eltype(a)),
-            f in (LinearAlgebra.eigvals, LinearAlgebra.eigvals!),
+        info = zeros(UInt, 2)
+        args = (
+            UInt(n), _tag(eltype(a)), f in (LinearAlgebra.eigvals, LinearAlgebra.eigvals!)
         )
         GC.@preserve info begin
             _native_call(RustCrate.evd_requirements, args..., info, team)
         end
-        return (bytes = Int(info[1]), alignment = Int(info[2]))
+        return (bytes=Int(info[1]), alignment=Int(info[2]))
     end
 end
 function FaerScratch(f::_EvdFunction, a::_AnyFaerSelfAdjoint; kwargs...)
-    req=scratch_requirements(f, a; kwargs...)
-    return FaerScratch(req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a; kwargs...)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
 function reserve!(s::FaerScratch, f::_EvdFunction, a::_AnyFaerSelfAdjoint; kwargs...)
-    req=scratch_requirements(f, a; kwargs...)
-    return reserve!(s, req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a; kwargs...)
+    return reserve!(s, req.bytes; alignment=req.alignment)
 end
 function _evd_workspace_result(
     a::_AnyFaerSelfAdjoint;
-    vectors::Bool = true,
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
+    vectors::Bool=true,
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
-        source=parent(a)
+        source = parent(a)
         _handle(source)
-        T=eltype(a)
-        n=LinearAlgebra.checksquare(source)
-        f=vectors ? LinearAlgebra.eigen : LinearAlgebra.eigvals
-        req=scratch_requirements(f, a; team)
-        temp=isnothing(scratch)
-        work=temp ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+        T = eltype(a)
+        n = LinearAlgebra.checksquare(source)
+        f = vectors ? LinearAlgebra.eigen : LinearAlgebra.eigvals
+        req = scratch_requirements(f, a; team)
+        temp = isnothing(scratch)
+        work = temp ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
         work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
         try
-            cap=scratch_capacity(work)
-            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+            cap = scratch_capacity(work)
+            cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
                 ArgumentError(
                     "EVD scratch capacity/alignment is insufficient; reserve for the selected mode/team",
                 ),
             )
-            values=zeros(_realtype(T), n)
-            eigenvectors=zeros(T, n, vectors ? n : 0)
+            values = zeros(_realtype(T), n)
+            eigenvectors = zeros(T, n, vectors ? n : 0)
             GC.@preserve values eigenvectors begin
-                args=(
+                args = (
                     Ptr{UInt8}(pointer(eigenvectors)),
                     Ptr{UInt8}(pointer(values)),
                     !vectors,
-                    _uplo(a)===:L,
+                    _uplo(a) === :L,
                     UInt(n),
                     _tag(T),
                 )
                 _native_call(RustCrate.evd_workspace, source, work, team, args...)
             end
             if !isnothing(sortby)
-                order=sortperm(values; by = sortby)
-                values=values[order]
-                vectors && (eigenvectors=eigenvectors[:, order])
+                order = sortperm(values; by=sortby)
+                values = values[order]
+                vectors && (eigenvectors = eigenvectors[:, order])
             end
             return vectors ? LinearAlgebra.Eigen(values, eigenvectors) : values
         finally

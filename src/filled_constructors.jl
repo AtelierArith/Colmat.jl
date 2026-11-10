@@ -15,26 +15,24 @@ Construct native matrix storage directly with a constant value. No dense Julia
 array is materialized. The default scalar type is Float64. Tuple dimensions are
 also accepted. Values are converted to T before constructing the native owner.
 """
-function FaerMatrix{T}(
-    rows::Integer,
-    cols::Integer;
-    fill = zero(T),
-) where {T<:_NativeScalar}
-    m, n=Int(rows), Int(cols)
-    m>=0&&n>=0 || throw(ArgumentError("matrix dimensions must be nonnegative"))
+function FaerMatrix{T}(rows::Integer, cols::Integer; fill=zero(T)) where {T<:_NativeScalar}
+    m, n = Int(rows), Int(cols)
+    m >= 0 && n >= 0 || throw(ArgumentError("matrix dimensions must be nonnegative"))
     Base.checked_mul(m, n)
-    values=_constant_components(T(fill))
-    f=_filled_matrix_function(real(T))
-    if T===Float64
+    values = _constant_components(T(fill))
+    f = _filled_matrix_function(real(T))
+    if T === Float64
         return _matrix_result(f, (m, n), UInt(m), UInt(n), _tag(T), values)
     end
     return _typed_result(T, f, (m, n), UInt(m), UInt(n), _tag(T), values)
 end
 FaerMatrix(m::Integer, n::Integer; kwargs...) = FaerMatrix{Float64}(m, n; kwargs...)
-FaerMatrix{T}(dims::Tuple{Integer,Integer}; kwargs...) where {T<:_NativeScalar} =
-    FaerMatrix{T}(dims...; kwargs...)
-FaerMatrix(dims::Tuple{Integer,Integer}; kwargs...) =
-    FaerMatrix{Float64}(dims...; kwargs...)
+function FaerMatrix{T}(dims::Tuple{Integer,Integer}; kwargs...) where {T<:_NativeScalar}
+    return FaerMatrix{T}(dims...; kwargs...)
+end
+function FaerMatrix(dims::Tuple{Integer,Integer}; kwargs...)
+    return FaerMatrix{Float64}(dims...; kwargs...)
+end
 
 for C in (:FaerVector, :FaerRow, :FaerDiagonal)
     @eval begin
@@ -47,10 +45,10 @@ for C in (:FaerVector, :FaerRow, :FaerDiagonal)
         storage. The unparameterized form defaults to Float64. Diagonal
         off-diagonal entries remain implicit zeros.
         """
-        function $C{T}(length::Integer; fill = zero(T)) where {T<:_NativeScalar}
-            n=Int(length)
-            n>=0 || throw(ArgumentError("length must be nonnegative"))
-            values=_constant_components(T(fill))
+        function $C{T}(length::Integer; fill=zero(T)) where {T<:_NativeScalar}
+            n = Int(length)
+            n >= 0 || throw(ArgumentError("length must be nonnegative"))
+            values = _constant_components(T(fill))
             return _collection_result(
                 $C,
                 T,
@@ -65,28 +63,34 @@ for C in (:FaerVector, :FaerRow, :FaerDiagonal)
         $C(n::Integer; kwargs...) = $C{Float64}(n; kwargs...)
         Base.zeros(::Type{$C{T}}, n::Integer) where {T<:_NativeScalar} = $C{T}(n)
         Base.ones(::Type{$C{T}}, n::Integer) where {T<:_NativeScalar} =
-            $C{T}(n; fill = one(T))
+            $C{T}(n; fill=one(T))
         Base.zeros(::Type{$C}, n::Integer) = $C{Float64}(n)
-        Base.ones(::Type{$C}, n::Integer) = $C{Float64}(n; fill = 1.0)
+        Base.ones(::Type{$C}, n::Integer) = $C{Float64}(n; fill=1.0)
         Base.zeros(::Type{$C{T}}, dims::Tuple{Integer}) where {T<:_NativeScalar} =
             zeros($C{T}, dims...)
         Base.ones(::Type{$C{T}}, dims::Tuple{Integer}) where {T<:_NativeScalar} =
             ones($C{T}, dims...)
         Base.zeros(::Type{$C}, dims::Tuple{Integer}) = zeros($C, dims...)
         Base.ones(::Type{$C}, dims::Tuple{Integer}) = ones($C, dims...)
-
     end
 end
-Base.zeros(::Type{FaerMatrix{T}}, m::Integer, n::Integer) where {T<:_NativeScalar} =
-    FaerMatrix{T}(m, n)
-Base.ones(::Type{FaerMatrix{T}}, m::Integer, n::Integer) where {T<:_NativeScalar} =
-    FaerMatrix{T}(m, n; fill = one(T))
+function Base.zeros(::Type{FaerMatrix{T}}, m::Integer, n::Integer) where {T<:_NativeScalar}
+    return FaerMatrix{T}(m, n)
+end
+function Base.ones(::Type{FaerMatrix{T}}, m::Integer, n::Integer) where {T<:_NativeScalar}
+    return FaerMatrix{T}(m, n; fill=one(T))
+end
 Base.zeros(::Type{FaerMatrix}, m::Integer, n::Integer) = FaerMatrix{Float64}(m, n)
-Base.ones(::Type{FaerMatrix}, m::Integer, n::Integer) =
-    FaerMatrix{Float64}(m, n; fill = 1.0)
-Base.zeros(::Type{FaerMatrix{T}}, dims::Tuple{Integer,Integer}) where {T<:_NativeScalar} =
-    zeros(FaerMatrix{T}, dims...)
-Base.ones(::Type{FaerMatrix{T}}, dims::Tuple{Integer,Integer}) where {T<:_NativeScalar} =
-    ones(FaerMatrix{T}, dims...)
+Base.ones(::Type{FaerMatrix}, m::Integer, n::Integer) = FaerMatrix{Float64}(m, n; fill=1.0)
+function Base.zeros(
+    ::Type{FaerMatrix{T}}, dims::Tuple{Integer,Integer}
+) where {T<:_NativeScalar}
+    return zeros(FaerMatrix{T}, dims...)
+end
+function Base.ones(
+    ::Type{FaerMatrix{T}}, dims::Tuple{Integer,Integer}
+) where {T<:_NativeScalar}
+    return ones(FaerMatrix{T}, dims...)
+end
 Base.zeros(::Type{FaerMatrix}, dims::Tuple{Integer,Integer}) = zeros(FaerMatrix, dims...)
 Base.ones(::Type{FaerMatrix}, dims::Tuple{Integer,Integer}) = ones(FaerMatrix, dims...)

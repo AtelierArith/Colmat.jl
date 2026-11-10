@@ -1,7 +1,5 @@
-const _PartialSpectrumFunction=Union{
-    typeof(partial_eigen),
-    typeof(partial_self_adjoint_eigen),
-    typeof(partial_svd),
+const _PartialSpectrumFunction = Union{
+    typeof(partial_eigen),typeof(partial_self_adjoint_eigen),typeof(partial_svd)
 }
 _partial_kind(::typeof(partial_eigen)) = Int32(0)
 _partial_kind(::typeof(partial_self_adjoint_eigen)) = Int32(1)
@@ -10,17 +8,17 @@ function _partial_validate(
     op::FaerLinearOperator{T},
     k,
     kind;
-    v0 = nothing,
-    tol = sqrt(eps(_realtype(T))),
-    min_dim = 0,
-    max_dim = 0,
-    max_restarts = 1000,
+    v0=nothing,
+    tol=sqrt(eps(_realtype(T))),
+    min_dim=0,
+    max_dim=0,
+    max_restarts=1000,
 ) where {T}
     _handle(op)
-    m, n=size(op)
-    kind!=2 && m!=n && throw(DimensionMismatch("eigen operator must be square"))
+    m, n = size(op)
+    kind != 2 && m != n && throw(DimensionMismatch("eigen operator must be square"))
     # Check the current native owner before sizing or reading Julia start buffers.
-    info=zeros(UInt, 2)
+    info = zeros(UInt, 2)
     GC.@preserve info _native_call(
         RustCrate.partial_requirements,
         op,
@@ -35,28 +33,30 @@ function _partial_validate(
         info,
         nothing,
     )
-    0<=k<=min(m, n) || throw(ArgumentError("requested count must be in 0:min(size(op)...)"))
-    min_dim>=0 && max_dim>=0 && max_restarts>=0 ||
+    0 <= k <= min(m, n) ||
+        throw(ArgumentError("requested count must be in 0:min(size(op)...)"))
+    min_dim >= 0 && max_dim >= 0 && max_restarts >= 0 ||
         throw(ArgumentError("subspace dimensions and restarts must be nonnegative"))
-    isfinite(tol) && tol>=0 || throw(ArgumentError("tol must be finite and nonnegative"))
-    tolerance=convert(_realtype(T), tol)
+    isfinite(tol) && tol >= 0 || throw(ArgumentError("tol must be finite and nonnegative"))
+    tolerance = convert(_realtype(T), tol)
     isfinite(tolerance) || throw(ArgumentError("tol exceeds native precision range"))
-    k=Int(k)
-    limit=kind==2 ? min(m, n) : n
-    effective_min=min(max(min_dim, 32, k), limit)
-    effective_max=min(max(max_dim, 64, 2k), limit)
-    effective_min<=effective_max ||
+    k = Int(k)
+    limit = kind == 2 ? min(m, n) : n
+    effective_min = min(max(min_dim, 32, k), limit)
+    effective_max = min(max(max_dim, 64, 2k), limit)
+    effective_min <= effective_max ||
         throw(ArgumentError("min_dim exceeds the effective maximum projection dimension"))
-    isnothing(v0)||_dense_rhs_validate(v0)
-    start=_partial_start(T, v0)
+    isnothing(v0) || _dense_rhs_validate(v0)
+    start = _partial_start(T, v0)
     if !isnothing(start)
-        length(start)==n ||
+        length(start) == n ||
             throw(DimensionMismatch("v0 length must equal operator column count"))
         # A nonfinite entry makes the norm nonfinite; Rust normalizes the start.
-        startnorm=n>0 ? LinearAlgebra.norm(start) : zero(_realtype(T))
-        isfinite(startnorm) ||
-            throw(ArgumentError("v0 must be finite with a finite norm"))
-        n>0 && iszero(startnorm) && throw(ArgumentError("v0 must have finite nonzero norm"))
+        startnorm = n > 0 ? LinearAlgebra.norm(start) : zero(_realtype(T))
+        isfinite(startnorm) || throw(ArgumentError("v0 must be finite with a finite norm"))
+        n > 0 &&
+            iszero(startnorm) &&
+            throw(ArgumentError("v0 must have finite nonzero norm"))
     end
     return m, n, k, tolerance, start
 end
@@ -64,17 +64,17 @@ end
 # vectors are read in place by Rust; other start vectors are converted once.
 _partial_start(::Type, ::Nothing) = nothing
 function _partial_start(::Type{T}, v0) where {T}
-    if eltype(v0)===T
+    if eltype(v0) === T
         v0 isa Union{FaerVector,FaerBorrowedVector} && return v0
-        v0 isa FaerView && ndims(v0)==1 && return v0
+        v0 isa FaerView && ndims(v0) == 1 && return v0
         v0 isa StridedVector && _julia_borrowable(v0) && return FaerBorrowedArray(v0)
     end
     return FaerBorrowedArray(Vector{T}(v0))
 end
 function _partial_workspace_query(op, kind, k; min_dim, max_dim, max_restarts, team)
     _iterative_resource_check(nothing, team)
-    info=zeros(UInt, 2)
-    args=(
+    info = zeros(UInt, 2)
+    args = (
         op,
         kind,
         UInt(k),
@@ -90,7 +90,7 @@ function _partial_workspace_query(op, kind, k; min_dim, max_dim, max_restarts, t
         _native_call(RustCrate.partial_requirements, args..., team)
     end
     # The native requirement includes the independent residual applications.
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 """
     scratch_requirements(partial_eigen|partial_self_adjoint_eigen|partial_svd, op, k; min_dim=0, max_dim=0, max_restarts=1000, team=nothing)
@@ -106,27 +106,26 @@ function scratch_requirements(
     fun::_PartialSpectrumFunction,
     op::FaerLinearOperator,
     k::Integer;
-    v0 = nothing,
-    tol = sqrt(eps(_realtype(eltype(op)))),
-    min_dim::Integer = 0,
-    max_dim::Integer = 0,
-    max_restarts::Integer = 1000,
-    team = nothing,
+    v0=nothing,
+    tol=sqrt(eps(_realtype(eltype(op)))),
+    min_dim::Integer=0,
+    max_dim::Integer=0,
+    max_restarts::Integer=1000,
+    team=nothing,
 )
     lock(_matrix_lock) do
-        kind=_partial_kind(fun)
+        kind = _partial_kind(fun)
         _partial_validate(op, k, kind; v0, tol, min_dim, max_dim, max_restarts)
-        _partial_workspace_query(op, kind, Int(k); min_dim, max_dim, max_restarts, team)
+        return _partial_workspace_query(
+            op, kind, Int(k); min_dim, max_dim, max_restarts, team
+        )
     end
 end
 function FaerScratch(
-    fun::_PartialSpectrumFunction,
-    op::FaerLinearOperator,
-    k::Integer;
-    kwargs...,
+    fun::_PartialSpectrumFunction, op::FaerLinearOperator, k::Integer; kwargs...
 )
-    req=scratch_requirements(fun, op, k; kwargs...)
-    FaerScratch(req.bytes; alignment = req.alignment)
+    req = scratch_requirements(fun, op, k; kwargs...)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
 function reserve!(
     scratch::FaerScratch,
@@ -135,16 +134,16 @@ function reserve!(
     k::Integer;
     kwargs...,
 )
-    req=scratch_requirements(fun, op, k; kwargs...)
-    reserve!(scratch, req.bytes; alignment = req.alignment)
+    req = scratch_requirements(fun, op, k; kwargs...)
+    return reserve!(scratch, req.bytes; alignment=req.alignment)
 end
 function _partial_native(op, args, work, team)
-    task=current_task()
-    sticky=task.sticky
-    task.sticky=true
+    task = current_task()
+    sticky = task.sticky
+    task.sticky = true
     try
         _native_call(RustCrate.partial_workspace, op, args..., work, team)
     finally
-        task.sticky=sticky
+        task.sticky = sticky
     end
 end

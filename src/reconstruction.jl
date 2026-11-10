@@ -1,4 +1,4 @@
-const _ReconstructableDense=Union{
+const _ReconstructableDense = Union{
     FaerFactorization,
     FaerHessenberg,
     FaerCompactHessenberg,
@@ -6,14 +6,14 @@ const _ReconstructableDense=Union{
     FaerTridiagonalization,
     FaerBidiagonalization,
 }
-const _SparseLU=FaerSparseFactorization{T,:lu} where {T}
-const _ReconstructableSparse=Union{_SparseLU,_SparseCholesky}
+const _SparseLU = FaerSparseFactorization{T,:lu} where {T}
+const _ReconstructableSparse = Union{_SparseLU,_SparseCholesky}
 
 # Typed reconstruction goes through one independent native reconstruction,
 # which is closed unless it is already the requested result.
 function _typed_dense_reconstruction(::Type{T}, f; kwargs...) where {T<:_NativeScalar}
-    native=FaerMatrix(f; kwargs...)
-    T===eltype(native) && return native
+    native = FaerMatrix(f; kwargs...)
+    T === eltype(native) && return native
     try
         return FaerMatrix{T}(native)
     finally
@@ -21,7 +21,7 @@ function _typed_dense_reconstruction(::Type{T}, f; kwargs...) where {T<:_NativeS
     end
 end
 function _convert_dense_reconstruction(convert_result, f; kwargs...)
-    native=FaerMatrix(f; kwargs...)
+    native = FaerMatrix(f; kwargs...)
     try
         return convert_result(native)
     finally
@@ -29,10 +29,12 @@ function _convert_dense_reconstruction(convert_result, f; kwargs...)
     end
 end
 # `kwargs` (dense direct factors: `team`) reach the native reconstruction.
-FaerMatrix{T}(f::_ReconstructableDense; kwargs...) where {T<:_NativeScalar} =
-    _typed_dense_reconstruction(T, f; kwargs...)
-Base.Matrix{T}(f::_ReconstructableDense; kwargs...) where {T} =
-    _convert_dense_reconstruction(Matrix{T}, f; kwargs...)
+function FaerMatrix{T}(f::_ReconstructableDense; kwargs...) where {T<:_NativeScalar}
+    return _typed_dense_reconstruction(T, f; kwargs...)
+end
+function Base.Matrix{T}(f::_ReconstructableDense; kwargs...) where {T}
+    return _convert_dense_reconstruction(Matrix{T}, f; kwargs...)
+end
 Base.Array(f::_NativeSchur) = Matrix(f)
 
 """
@@ -46,16 +48,16 @@ function FaerSparseMatrix(f::_SparseLU)
     lock(_matrix_lock) do
         _handle(f)
         LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
-        L=U=p=q=pi=qi=product=rows=nothing
+        L = U = p = q = pi = qi = product = rows = nothing
         try
-            L=f.L
-            U=f.U
-            p=f.p
-            q=f.q
-            pi=invperm(p)
-            qi=invperm(q)
-            product=L*U
-            rows=permute_rows(product, pi)
+            L = f.L
+            U = f.U
+            p = f.p
+            q = f.q
+            pi = invperm(p)
+            qi = invperm(q)
+            product = L * U
+            rows = permute_rows(product, pi)
             return permute_cols(rows, qi)
         finally
             for value in (L, U, p, q, pi, qi, product, rows)
@@ -65,33 +67,38 @@ function FaerSparseMatrix(f::_SparseLU)
     end
 end
 function _convert_sparse_reconstruction(convert_result, f)
-    native=FaerSparseMatrix(f)
+    native = FaerSparseMatrix(f)
     try
         return convert_result(native)
     finally
         close(native)
     end
 end
-FaerSparseMatrix{T}(f::_SparseLU) where {T<:_NativeScalar} =
-    _convert_sparse_reconstruction(FaerSparseMatrix{T}, f)
+function FaerSparseMatrix{T}(f::_SparseLU) where {T<:_NativeScalar}
+    return _convert_sparse_reconstruction(FaerSparseMatrix{T}, f)
+end
 FaerMatrix(f::_SparseLU) = _convert_sparse_reconstruction(FaerMatrix, f)
-FaerMatrix{T}(f::_SparseLU) where {T<:_NativeScalar} =
-    _convert_sparse_reconstruction(FaerMatrix{T}, f)
+function FaerMatrix{T}(f::_SparseLU) where {T<:_NativeScalar}
+    return _convert_sparse_reconstruction(FaerMatrix{T}, f)
+end
 Base.Matrix(f::_SparseLU) = _convert_sparse_reconstruction(Matrix, f)
 Base.Matrix{T}(f::_SparseLU) where {T} = _convert_sparse_reconstruction(Matrix{T}, f)
 Base.Array(f::_SparseLU) = Matrix(f)
-SparseArrays.SparseMatrixCSC(f::_SparseLU) =
-    _convert_sparse_reconstruction(SparseArrays.SparseMatrixCSC, f)
-SparseArrays.SparseMatrixCSC{T,I}(f::_ReconstructableSparse) where {T,I<:Integer} =
-    _convert_sparse_reconstruction(SparseArrays.SparseMatrixCSC{T,I}, f)
-SparseArrays.SparseMatrixCSC{T}(f::_ReconstructableSparse) where {T} =
-    SparseArrays.SparseMatrixCSC{T,Int}(f)
+function SparseArrays.SparseMatrixCSC(f::_SparseLU)
+    return _convert_sparse_reconstruction(SparseArrays.SparseMatrixCSC, f)
+end
+function SparseArrays.SparseMatrixCSC{T,I}(f::_ReconstructableSparse) where {T,I<:Integer}
+    return _convert_sparse_reconstruction(SparseArrays.SparseMatrixCSC{T,I}, f)
+end
+function SparseArrays.SparseMatrixCSC{T}(f::_ReconstructableSparse) where {T}
+    return SparseArrays.SparseMatrixCSC{T,Int}(f)
+end
 SparseArrays.sparse(f::_SparseLU) = SparseArrays.SparseMatrixCSC(f)
 
 function _reconstruct_product(left, middle, right)
-    temp=left*middle
+    temp = left * middle
     try
-        return temp*right'
+        return temp * right'
     finally
         close(temp)
     end
@@ -116,13 +123,13 @@ reconstruct(f::_ReconstructableSparse) = FaerSparseMatrix(f)
 function reconstruct(f::_NativePairFactor)
     lock(_matrix_lock) do
         _check_pair_factor(f)
-        A=_reconstruct_product(f.Q, _pair_first(f), f.Z)
-        B=try
+        A = _reconstruct_product(f.Q, _pair_first(f), f.Z)
+        B = try
             _reconstruct_product(f.Q, f.T, f.Z)
         catch
             close(A)
             rethrow()
         end
-        return (A = A, B = B)
+        return (A=A, B=B)
     end
 end
