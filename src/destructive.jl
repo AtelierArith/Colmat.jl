@@ -29,36 +29,35 @@ finiteness checks precede any write, but after a numerical failure (singular
 `check=true` LU, non-positive-definite Cholesky) A holds partially factored
 data, as with LAPACK.
 """
-function _factor_writeback!(a::FaerMatrix, f::FaerFactorization; upper = false)
-    if getfield(f, :info)!=0 &&
-       (f isa FaerFactorization{<:Any,:cholesky} || f isa FaerFactorization{<:Any,:ldlt})
+function _factor_writeback!(a::FaerMatrix, f::FaerFactorization; upper=false)
+    if getfield(f, :info) != 0 &&
+        (f isa FaerFactorization{<:Any,:cholesky} || f isa FaerFactorization{<:Any,:ldlt})
         return f
     end
-    packed=f.packed
+    packed = f.packed
     copyto!(a, upper ? copy(adjoint(packed)) : packed)
     return f
 end
 function LinearAlgebra.lu!(
     a::FaerMatrix;
-    check::Bool = true,
-    allowsingular::Bool = false,
-    team = nothing,
-    scratch = nothing,
+    check::Bool=true,
+    allowsingular::Bool=false,
+    team=nothing,
+    scratch=nothing,
 )
     isnothing(scratch) || return _direct_lu!(a, check, allowsingular, scratch, team)
     lock(_matrix_lock) do
         return _factor_writeback!(a, LinearAlgebra.lu(a; check, allowsingular, team))
     end
 end
-LinearAlgebra.lu!(a::FaerMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
-    LinearAlgebra.lu!(a; kwargs...)
-LinearAlgebra.qr!(a::FaerMatrix; team = nothing, scratch = nothing) =
-    LinearAlgebra.qr!(a, LinearAlgebra.NoPivot(); team, scratch)
+function LinearAlgebra.lu!(a::FaerMatrix, ::LinearAlgebra.RowMaximum; kwargs...)
+    return LinearAlgebra.lu!(a; kwargs...)
+end
+function LinearAlgebra.qr!(a::FaerMatrix; team=nothing, scratch=nothing)
+    return LinearAlgebra.qr!(a, LinearAlgebra.NoPivot(); team, scratch)
+end
 function LinearAlgebra.qr!(
-    a::FaerMatrix,
-    pivot::LinearAlgebra.NoPivot;
-    team = nothing,
-    scratch = nothing,
+    a::FaerMatrix, pivot::LinearAlgebra.NoPivot; team=nothing, scratch=nothing
 )
     isnothing(scratch) || return _direct_qr!(a, scratch, team)
     lock(_matrix_lock) do
@@ -66,10 +65,7 @@ function LinearAlgebra.qr!(
     end
 end
 function LinearAlgebra.qr!(
-    a::FaerMatrix,
-    pivot::LinearAlgebra.ColumnNorm;
-    team = nothing,
-    scratch = nothing,
+    a::FaerMatrix, pivot::LinearAlgebra.ColumnNorm; team=nothing, scratch=nothing
 )
     isnothing(scratch) || return _direct_pivoted_qr!(a, scratch, team)
     lock(_matrix_lock) do
@@ -77,50 +73,34 @@ function LinearAlgebra.qr!(
     end
 end
 function LinearAlgebra.cholesky!(
-    a::FaerMatrix;
-    check::Bool = true,
-    team = nothing,
-    scratch = nothing,
-    kwargs...,
+    a::FaerMatrix; check::Bool=true, team=nothing, scratch=nothing, kwargs...
 )
-    options=_cholesky_kw(size(a, 1); kwargs...)
+    options = _cholesky_kw(size(a, 1); kwargs...)
     isnothing(scratch) || return _direct_cholesky!(
-        a,
-        true,
-        LinearAlgebra.ishermitian(a),
-        check,
-        scratch,
-        team,
-        options,
+        a, true, LinearAlgebra.ishermitian(a), check, scratch, team, options
     )
     lock(_matrix_lock) do
         return _factor_writeback!(a, LinearAlgebra.cholesky(a; check, team, kwargs...))
     end
 end
 for W in (:Hermitian, :Symmetric)
-    bound=W===:Symmetric ? Real : Any
+    bound = W === :Symmetric ? Real : Any
     @eval function LinearAlgebra.cholesky!(
         a::LinearAlgebra.$W{T,<:FaerMatrix};
-        check::Bool = true,
-        team = nothing,
-        scratch = nothing,
+        check::Bool=true,
+        team=nothing,
+        scratch=nothing,
         kwargs...,
     ) where {T<:$bound}
-        options=_cholesky_kw(size(a, 1); kwargs...)
+        options = _cholesky_kw(size(a, 1); kwargs...)
         isnothing(scratch) || return _direct_cholesky!(
-            parent(a),
-            a.uplo=='L',
-            true,
-            check,
-            scratch,
-            team,
-            options,
+            parent(a), a.uplo == 'L', true, check, scratch, team, options
         )
         lock(_matrix_lock) do
             return _factor_writeback!(
                 parent(a),
                 LinearAlgebra.cholesky(a; check, team, kwargs...);
-                upper = a.uplo=='U',
+                upper=a.uplo == 'U',
             )
         end
     end
@@ -132,25 +112,29 @@ end
 # own L before L is written into A. The lower triangle is read.
 function _pivoted_inplace!(
     a;
-    tol::Real = 0.0,
-    check::Bool = true,
-    block_size::Integer = 128,
-    scratch = nothing,
-    team = nothing,
+    tol::Real=0.0,
+    check::Bool=true,
+    block_size::Integer=128,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
-        a isa Union{FaerMatrix,FaerMatrixView} || a.uplo=='L' || throw(
-            ArgumentError("inplace=true reads the lower triangle; wrap A as Hermitian(A, :L)"),
-        )
-        source=a isa Union{FaerMatrix,FaerMatrixView} ? a : parent(a)
+        a isa Union{FaerMatrix,FaerMatrixView} ||
+            a.uplo == 'L' ||
+            throw(
+                ArgumentError(
+                    "inplace=true reads the lower triangle; wrap A as Hermitian(A, :L)"
+                ),
+            )
+        source = a isa Union{FaerMatrix,FaerMatrixView} ? a : parent(a)
         _iterative_resource_check(scratch, team)
-        _, n, ftol, block=_pivoted_input_plan(a, tol, block_size, team)
-        T=eltype(source)
-        if ftol<0
-            req=_pivoted_construction_requirement(n, T, ftol, block, team)
-            p=zeros(UInt, n)
-            rank=_pivoted_with_scratch(req, scratch) do work
-                q, d=_view_source(source)
+        _, n, ftol, block = _pivoted_input_plan(a, tol, block_size, team)
+        T = eltype(source)
+        if ftol < 0
+            req = _pivoted_construction_requirement(n, T, ftol, block, team)
+            p = zeros(UInt, n)
+            rank = _pivoted_with_scratch(req, scratch) do work
+                q, d = _view_source(source)
                 GC.@preserve d Int(
                     _native_call(
                         RustCrate.pivoted_llt_into,
@@ -163,46 +147,39 @@ function _pivoted_inplace!(
                     ),
                 )
             end
-            piv=Int.(p) .+ 1
+            piv = Int.(p) .+ 1
         else
-            f=LinearAlgebra.cholesky(
-                a,
-                LinearAlgebra.RowMaximum();
-                tol,
-                check = false,
-                block_size,
-                scratch,
-                team,
+            f = LinearAlgebra.cholesky(
+                a, LinearAlgebra.RowMaximum(); tol, check=false, block_size, scratch, team
             )
             try
                 copyto!(source, f.factors)
             finally
                 close(f.factors)
             end
-            rank, piv=f.rank, f.p
+            rank, piv = f.rank, f.p
         end
-        check && rank<n && throw(LinearAlgebra.RankDeficientException(rank))
-        return LinearAlgebra.CholeskyPivoted(source, 'L', piv, rank, tol, rank==n ? 0 : 1)
+        check && rank < n && throw(LinearAlgebra.RankDeficientException(rank))
+        return LinearAlgebra.CholeskyPivoted(source, 'L', piv, rank, tol, rank == n ? 0 : 1)
     end
 end
-function _pivoted_writeback!(a; inplace::Bool = false, kwargs...)
+function _pivoted_writeback!(a; inplace::Bool=false, kwargs...)
     inplace && return _pivoted_inplace!(a; kwargs...)
     lock(_matrix_lock) do
-        source=a isa Union{FaerMatrix,FaerMatrixView} ? a : parent(a)
-        f=LinearAlgebra.cholesky(a, LinearAlgebra.RowMaximum(); kwargs...)
-        upper=!(a isa Union{FaerMatrix,FaerMatrixView}) && a.uplo=='U'
+        source = a isa Union{FaerMatrix,FaerMatrixView} ? a : parent(a)
+        f = LinearAlgebra.cholesky(a, LinearAlgebra.RowMaximum(); kwargs...)
+        upper = !(a isa Union{FaerMatrix,FaerMatrixView}) && a.uplo == 'U'
         copyto!(source, upper ? copy(adjoint(f.factors)) : f.factors)
         return f
     end
 end
-LinearAlgebra.cholesky!(a::FaerMatrix, ::LinearAlgebra.RowMaximum; kwargs...) =
-    _pivoted_writeback!(a; kwargs...)
+function LinearAlgebra.cholesky!(a::FaerMatrix, ::LinearAlgebra.RowMaximum; kwargs...)
+    return _pivoted_writeback!(a; kwargs...)
+end
 for W in (:Hermitian, :Symmetric)
-    bound=W===:Symmetric ? Real : Any
+    bound = W === :Symmetric ? Real : Any
     @eval LinearAlgebra.cholesky!(
-        a::LinearAlgebra.$W{T,<:FaerMatrix},
-        ::LinearAlgebra.RowMaximum;
-        kwargs...,
+        a::LinearAlgebra.$W{T,<:FaerMatrix}, ::LinearAlgebra.RowMaximum; kwargs...
     ) where {T<:$bound} = _pivoted_writeback!(a; kwargs...)
 end
 
@@ -229,66 +206,61 @@ to `scratch_requirements(bunchkaufman!, A, rook; pivoting)`). Direct factors
 report `F.regularization_count` like retained ones; parameters set by
 [`with_cholesky_tuning`](@ref) apply to both paths and their queries.
 """
-function full_piv_lu!(a::FaerMatrix; check::Bool = true, team = nothing, scratch = nothing)
+function full_piv_lu!(a::FaerMatrix; check::Bool=true, team=nothing, scratch=nothing)
     isnothing(scratch) || return _direct_full_piv_lu!(a, check, scratch, team)
     lock(_matrix_lock) do
         return _factor_writeback!(a, full_piv_lu(a; check, team))
     end
 end
 for fn in (:ldlt, :bunchkaufman)
-    bang=Symbol(fn, :!)
+    bang = Symbol(fn, :!)
     # `bunchkaufman!(A, rook=false)` keeps Julia's positional rook argument.
-    pivot=fn===:bunchkaufman ? (Expr(:kw, :(rook::Bool), false),) : ()
-    forward=fn===:bunchkaufman ? (:rook,) : ()
+    pivot = fn === :bunchkaufman ? (Expr(:kw, :(rook::Bool), false),) : ()
+    forward = fn === :bunchkaufman ? (:rook,) : ()
     # Regularization (`ldlt!`) or `pivoting` (`bunchkaufman!`) keywords.
-    options=fn===:bunchkaufman ? :(_lblt_kw(rook; kwargs...)) :
-            :((_ldlt_kw(size(a, 1); kwargs...), false))
+    options = if fn === :bunchkaufman
+        :(_lblt_kw(rook; kwargs...))
+    else
+        :((_ldlt_kw(size(a, 1); kwargs...), false))
+    end
     @eval function LinearAlgebra.$bang(
         a::FaerMatrix,
         $(pivot...);
-        check::Bool = true,
-        team = nothing,
-        scratch = nothing,
+        check::Bool=true,
+        team=nothing,
+        scratch=nothing,
         kwargs...,
     )
-        options, direct_rook=$options
+        options, direct_rook = $options
         if !isnothing(scratch)
             # Like the default path: plain input must be Hermitian (checked
             # before any write).
             _require_hermitian(a)
             return _direct_self_adjoint!(
-                a,
-                $(QuoteNode(fn)),
-                true,
-                direct_rook,
-                check,
-                scratch,
-                team,
-                options,
+                a, $(QuoteNode(fn)), true, direct_rook, check, scratch, team, options
             )
         end
         lock(_matrix_lock) do
             return _factor_writeback!(
-                a,
-                LinearAlgebra.$fn(a, $(forward...); check, team, kwargs...),
+                a, LinearAlgebra.$fn(a, $(forward...); check, team, kwargs...)
             )
         end
     end
     for W in (:Hermitian, :Symmetric)
-        bound=W===:Symmetric ? Real : Any
+        bound = W === :Symmetric ? Real : Any
         @eval function LinearAlgebra.$bang(
             a::LinearAlgebra.$W{T,<:FaerMatrix},
             $(pivot...);
-            check::Bool = true,
-            team = nothing,
-            scratch = nothing,
+            check::Bool=true,
+            team=nothing,
+            scratch=nothing,
             kwargs...,
         ) where {T<:$bound}
-            options, direct_rook=$options
+            options, direct_rook = $options
             isnothing(scratch) || return _direct_self_adjoint!(
                 parent(a),
                 $(QuoteNode(fn)),
-                a.uplo=='L',
+                a.uplo == 'L',
                 direct_rook,
                 check,
                 scratch,
@@ -299,7 +271,7 @@ for fn in (:ldlt, :bunchkaufman)
                 return _factor_writeback!(
                     parent(a),
                     LinearAlgebra.$fn(a, $(forward...); check, team, kwargs...);
-                    upper = a.uplo=='U',
+                    upper=a.uplo == 'U',
                 )
             end
         end

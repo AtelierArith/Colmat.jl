@@ -1,4 +1,4 @@
-const _QzConstructionFunction=Union{
+const _QzConstructionFunction = Union{
     typeof(LinearAlgebra.schur),
     typeof(LinearAlgebra.schur!),
     typeof(LinearAlgebra.hessenberg),
@@ -6,17 +6,13 @@ const _QzConstructionFunction=Union{
 }
 _qz_validate_operand(a) = _dense_rhs_validate(a)
 function _qz_validate_operand(a::FaerMatrix)
-    _native_call(
-        RustCrate.qz_input_validate,
-        a,
-        UInt(size(a, 1)),
-        UInt(size(a, 2)),
-        _tag(eltype(a)),
+    return _native_call(
+        RustCrate.qz_input_validate, a, UInt(size(a, 1)), UInt(size(a, 2)), _tag(eltype(a))
     )
 end
 function _qz_validate_operand(a::FaerView)
-    owner=_view_owner(a)
-    eltype(a)===eltype(owner) || throw(ArgumentError("QZ view scalar metadata mismatch"))
+    owner = _view_owner(a)
+    eltype(a) === eltype(owner) || throw(ArgumentError("QZ view scalar metadata mismatch"))
     return _qz_validate_operand(owner)
 end
 function _qz_validate_operand(
@@ -28,26 +24,26 @@ function _qz_validate_operand(
         LinearAlgebra.AbstractTriangular,
     },
 )
-    eltype(a)===eltype(parent(a)) ||
+    eltype(a) === eltype(parent(a)) ||
         throw(ArgumentError("QZ wrapper scalar metadata mismatch"))
-    _qz_validate_operand(parent(a))
+    return _qz_validate_operand(parent(a))
 end
 function _qz_validate_operand(a::LinearAlgebra.Diagonal)
-    _qz_validate_operand(a.diag)
+    return _qz_validate_operand(a.diag)
 end
 function _qz_validate_operand(
-    a::Union{LinearAlgebra.Bidiagonal,LinearAlgebra.SymTridiagonal},
+    a::Union{LinearAlgebra.Bidiagonal,LinearAlgebra.SymTridiagonal}
 )
     _qz_validate_operand(a.dv)
-    _qz_validate_operand(a.ev)
+    return _qz_validate_operand(a.ev)
 end
 function _qz_validate_operand(a::LinearAlgebra.Tridiagonal)
     _qz_validate_operand(a.dl)
     _qz_validate_operand(a.d)
-    _qz_validate_operand(a.du)
+    return _qz_validate_operand(a.du)
 end
 function _qz_validate_operand(a::FaerSparseMatrix{T}) where {T}
-    _native_call(
+    return _native_call(
         RustCrate.sparse_factor_matrix_validate,
         a,
         UInt(size(a, 1)),
@@ -58,7 +54,7 @@ function _qz_validate_operand(a::FaerSparseMatrix{T}) where {T}
     )
 end
 function _qz_validate_operand(a::FaerSparsity)
-    _native_call(
+    return _native_call(
         RustCrate.qz_pattern_validate,
         a,
         UInt(size(a, 1)),
@@ -68,12 +64,12 @@ function _qz_validate_operand(a::FaerSparsity)
     )
 end
 function _qz_plan(a, b, initial, team)
-    isnothing(team)||team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
-    isnothing(team)||_handle(team)
+    isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
+    isnothing(team) || _handle(team)
     _qz_validate_operand(a)
     _qz_validate_operand(b)
-    n=LinearAlgebra.checksquare(a)
-    size(b)==(n, n) ||
+    n = LinearAlgebra.checksquare(a)
+    size(b) == (n, n) ||
         throw(DimensionMismatch("QZ inputs must have matching square shapes"))
     if !isnothing(initial)
         _check_pair_factor(initial)
@@ -81,18 +77,18 @@ function _qz_plan(a, b, initial, team)
             _qz_validate_operand(m)
         end
     end
-    P=promote_type(eltype(a), eltype(b))
-    P<:_NativeScalar ||
+    P = promote_type(eltype(a), eltype(b))
+    P <: _NativeScalar ||
         throw(ArgumentError("QZ requires a supported native promoted scalar type"))
     return n, P
 end
 function _qz_native_requirement(n, P, stage, team)
-    info=zeros(UInt, 2)
+    info = zeros(UInt, 2)
     GC.@preserve info begin
-        args=(UInt(n), _tag(P), Int32(stage), info)
+        args = (UInt(n), _tag(P), Int32(stage), info)
         _native_call(RustCrate.qz_construction_requirements, args..., team)
     end
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 """
     scratch_requirements(schur, A, B; team=nothing)
@@ -111,48 +107,53 @@ function scratch_requirements(
     fun::_QzConstructionFunction,
     a::AbstractMatrix{<:Number},
     b::AbstractMatrix{<:Number};
-    team = nothing,
+    team=nothing,
 )
-    a isa _BorrowMatrix||b isa _BorrowMatrix ||
+    a isa _BorrowMatrix ||
+        b isa _BorrowMatrix ||
         throw(ArgumentError("QZ workspace requires a native matrix or view input"))
     lock(_matrix_lock) do
-        n, P=_qz_plan(a, b, nothing, team)
-        _qz_native_requirement(
-            n,
-            P,
-            fun in (LinearAlgebra.hessenberg, LinearAlgebra.hessenberg!) ? 1 : 0,
-            team,
+        n, P = _qz_plan(a, b, nothing, team)
+        return _qz_native_requirement(
+            n, P, fun in (LinearAlgebra.hessenberg, LinearAlgebra.hessenberg!) ? 1 : 0, team
         )
     end
 end
 function scratch_requirements(
     fun::Union{typeof(LinearAlgebra.schur),typeof(LinearAlgebra.schur!)},
     f::FaerGeneralizedHessenberg;
-    team = nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
-        n, P=_qz_plan(f.H, f.T, f, team)
-        _qz_native_requirement(n, P, 2, team)
+        n, P = _qz_plan(f.H, f.T, f, team)
+        return _qz_native_requirement(n, P, 2, team)
     end
 end
-function FaerScratch(fun::_QzConstructionFunction, args...; team = nothing)
-    req=scratch_requirements(fun, args...; team)
-    FaerScratch(req.bytes; alignment = req.alignment)
+function FaerScratch(fun::_QzConstructionFunction, args...; team=nothing)
+    req = scratch_requirements(fun, args...; team)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
-function reserve!(s::FaerScratch, fun::_QzConstructionFunction, args...; team = nothing)
-    req=scratch_requirements(fun, args...; team)
-    reserve!(s, req.bytes; alignment = req.alignment)
+function reserve!(s::FaerScratch, fun::_QzConstructionFunction, args...; team=nothing)
+    req = scratch_requirements(fun, args...; team)
+    return reserve!(s, req.bytes; alignment=req.alignment)
 end
 function _qz_with_workspace(f, a, b, initial, only_hessenberg, scratch, team)
-    isnothing(scratch)||scratch isa FaerScratch ||
+    isnothing(scratch) ||
+        scratch isa FaerScratch ||
         throw(ArgumentError("scratch must be a FaerScratch"))
-    n, P=_qz_plan(a, b, initial, team)
-    stage=only_hessenberg ? 1 : isnothing(initial) ? 0 : 2
-    req=_qz_native_requirement(n, P, stage, team)
-    work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+    n, P = _qz_plan(a, b, initial, team)
+    stage = if only_hessenberg
+        1
+    elseif isnothing(initial)
+        0
+    else
+        2
+    end
+    req = _qz_native_requirement(n, P, stage, team)
+    work = isnothing(scratch) ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
     try
-        cap=scratch_capacity(work)
-        cap.bytes>=req.bytes&&cap.alignment>=req.alignment || throw(
+        cap = scratch_capacity(work)
+        cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
             ArgumentError(
                 "QZ construction scratch capacity/alignment is insufficient; call reserve! before computing",
             ),
@@ -166,8 +167,8 @@ function _qz_materialize(a, P)
     if a isa FaerMatrix
         return _coerce(a, P)
     elseif a isa FaerMatrixView
-        x=copy(a)
-        eltype(x)===P && return x
+        x = copy(a)
+        eltype(x) === P && return x
         try
             return _coerce(x, P)
         finally
@@ -177,15 +178,15 @@ function _qz_materialize(a, P)
     return FaerMatrix{P}(a)
 end
 function _with_qz_inputs(f, a, b, P)
-    aa=_qz_materialize(a, P)
+    aa = _qz_materialize(a, P)
     try
-        bb=_qz_materialize(b, P)
+        bb = _qz_materialize(b, P)
         try
             f(aa, bb)
         finally
-            bb===b || close(bb)
+            bb === b || close(bb)
         end
     finally
-        aa===a || close(aa)
+        aa === a || close(aa)
     end
 end

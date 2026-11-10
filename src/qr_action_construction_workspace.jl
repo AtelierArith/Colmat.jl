@@ -9,10 +9,10 @@ function _construction_options(scratch, team)
     return nothing
 end
 function _with_construction_scratch(f, req, scratch)
-    work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+    work = isnothing(scratch) ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
     try
-        cap=scratch_capacity(work)
-        cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+        cap = scratch_capacity(work)
+        cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
             ArgumentError(
                 "operator construction scratch capacity/alignment is insufficient; call reserve!(scratch, FaerLinearOperator, F)",
             ),
@@ -23,21 +23,21 @@ function _with_construction_scratch(f, req, scratch)
     end
 end
 function _qr_pseudoinverse_requirement(f, team)
-    info=zeros(UInt, 2)
-    args=(UInt(size(f, 1)), UInt(size(f, 2)), _tag(eltype(f)), info)
+    info = zeros(UInt, 2)
+    args = (UInt(size(f, 1)), UInt(size(f, 2)), _tag(eltype(f)), info)
     GC.@preserve info begin
         _native_call(RustCrate.operator_qr_pseudoinverse_requirements, args..., team)
     end
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 function _sparse_qr_inverse_requirement(f, team)
-    info=zeros(UInt, 2)
+    info = zeros(UInt, 2)
     GC.@preserve info begin
         _native_call(RustCrate.operator_sparse_qr_inverse_requirements, f, info, team)
     end
-    return (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
-const _NoConstructionScratch = (bytes = 0, alignment = 1)
+const _NoConstructionScratch = (bytes=0, alignment=1)
 
 """
     scratch_requirements(FaerLinearOperator, F::FaerFactorization{T,:qr}; atol=0, rtol=nothing, team=nothing)
@@ -62,15 +62,15 @@ buffers above small sizes (t4a-faer upstream-reports/gemm-001).
 function scratch_requirements(
     ::Type{<:FaerLinearOperator},
     f::_DenseQrFactor;
-    atol::Real = 0,
-    rtol = nothing,
-    team = nothing,
+    atol::Real=0,
+    rtol=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         _handle(f)
         _spectral_tolerances(atol, isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol)
         _construction_options(nothing, team)
-        size(f, 1)==size(f, 2) &&
+        size(f, 1) == size(f, 2) &&
             iszero(atol) &&
             isnothing(rtol) &&
             return _NoConstructionScratch
@@ -78,16 +78,14 @@ function scratch_requirements(
     end
 end
 function scratch_requirements(
-    ::Type{<:FaerLinearOperator},
-    f::FaerSparseFactorization{T,K};
-    team = nothing,
+    ::Type{<:FaerLinearOperator}, f::FaerSparseFactorization{T,K}; team=nothing
 ) where {T,K}
     K in (:lu, :cholesky, :qr) ||
         throw(ArgumentError("sparse inverse operator requires LU/QR or Cholesky"))
     lock(_matrix_lock) do
         _handle(f)
         _construction_options(nothing, team)
-        K===:qr || return _NoConstructionScratch
+        K === :qr || return _NoConstructionScratch
         LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
         _native_call(RustCrate.sparse_qr_needs_spectral_solve, f) &&
             return _NoConstructionScratch
@@ -95,16 +93,15 @@ function scratch_requirements(
     end
 end
 const _OperatorConstructionSource = Union{_DenseQrFactor,FaerSparseFactorization}
-function FaerScratch(t::Type{<:FaerLinearOperator}, f::_OperatorConstructionSource; kwargs...)
-    req=scratch_requirements(t, f; kwargs...)
-    return FaerScratch(req.bytes; alignment = req.alignment)
+function FaerScratch(
+    t::Type{<:FaerLinearOperator}, f::_OperatorConstructionSource; kwargs...
+)
+    req = scratch_requirements(t, f; kwargs...)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
 function reserve!(
-    s::FaerScratch,
-    t::Type{<:FaerLinearOperator},
-    f::_OperatorConstructionSource;
-    kwargs...,
+    s::FaerScratch, t::Type{<:FaerLinearOperator}, f::_OperatorConstructionSource; kwargs...
 )
-    req=scratch_requirements(t, f; kwargs...)
-    return reserve!(s, req.bytes; alignment = req.alignment)
+    req = scratch_requirements(t, f; kwargs...)
+    return reserve!(s, req.bytes; alignment=req.alignment)
 end

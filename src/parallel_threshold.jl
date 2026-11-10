@@ -20,26 +20,31 @@ still be open.
 """
 struct FaerParThreshold
     value::UInt
-    function FaerParThreshold(mode::Symbol = :derived)
-        mode===:derived && return new(UInt(0))
-        mode===:never && return new(typemax(UInt))
-        throw(
+    function FaerParThreshold(mode::Symbol=:derived)
+        mode === :derived && return new(UInt(0))
+        mode === :never && return new(typemax(UInt))
+        return throw(
             ArgumentError(
-                "parallel policy must be :derived, :never, or a nonnegative integer floor",
+                "parallel policy must be :derived, :never, or a nonnegative integer floor"
             ),
         )
     end
     function FaerParThreshold(n::Integer)
-        0<=n<typemax(UInt) ||
+        0 <= n < typemax(UInt) ||
             throw(ArgumentError("parallel floor must be between zero and typemax(UInt)-1"))
         return new(max(UInt(1), UInt(n)))
     end
 end
 function Base.show(io::IO, p::FaerParThreshold)
     print(io, "FaerParThreshold(")
-    p.value==0 ? print(io, ":derived") :
-    p.value==typemax(UInt) ? print(io, ":never") : print(io, p.value)
-    print(io, ")")
+    if p.value == 0
+        print(io, ":derived")
+    elseif p.value == typemax(UInt)
+        print(io, ":never")
+    else
+        print(io, p.value)
+    end
+    return print(io, ")")
 end
 _par_threshold(p::FaerParThreshold) = p
 _par_threshold(p) = throw(ArgumentError("par_threshold must be a FaerParThreshold"))

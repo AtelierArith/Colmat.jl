@@ -1,5 +1,5 @@
 function _from_initializer(f, C, dims...)
-    a=with_capacity(C, dims...)
+    a = with_capacity(C, dims...)
     try
         return resize_with!(f, a, dims...)
     catch
@@ -17,8 +17,9 @@ one-based indices in column-major order. The default scalar type is Float64;
 specify a native `T` for other real/complex results. Empty dimensions do not
 invoke `f`. Evaluation and conversion precede the native bulk initialization.
 """
-FaerMatrix{T}(f, m::Integer, n::Integer) where {T<:_NativeScalar} =
-    _from_initializer(f, FaerMatrix{T}, m, n)
+function FaerMatrix{T}(f, m::Integer, n::Integer) where {T<:_NativeScalar}
+    return _from_initializer(f, FaerMatrix{T}, m, n)
+end
 FaerMatrix(f, m::Integer, n::Integer) = FaerMatrix{Float64}(f, m, n)
 
 for C in (:FaerVector, :FaerRow)

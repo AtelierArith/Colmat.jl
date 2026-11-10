@@ -1,14 +1,15 @@
-const _svd_tuning_depth=Ref(0)
-_svd_default_path(scratch, team) =
-    isnothing(scratch) && isnothing(team) && iszero(_svd_tuning_depth[])
+const _svd_tuning_depth = Ref(0)
+function _svd_default_path(scratch, team)
+    return isnothing(scratch) && isnothing(team) && iszero(_svd_tuning_depth[])
+end
 function _svd_state()
-    v=zeros(UInt, 3)
-    r=zeros(Float64, 1)
-    f=zeros(UInt8, 4)
+    v = zeros(UInt, 3)
+    r = zeros(Float64, 1)
+    f = zeros(UInt8, 4)
     _native_call(RustCrate.svd_tuning_state, v, r, f)
     return v, r, f
 end
-function _svd_scope(f, recursion, ratio, par, qr_blocking = nothing)
+function _svd_scope(f, recursion, ratio, par, qr_blocking=nothing)
     recursion isa Union{Nothing,Integer} ||
         throw(ArgumentError("recursion_threshold must be an integer or nothing"))
     ratio isa Union{Nothing,Real} ||
@@ -18,47 +19,42 @@ function _svd_scope(f, recursion, ratio, par, qr_blocking = nothing)
     qr_blocking isa Union{Nothing,Integer} ||
         throw(ArgumentError("qr_blocking_threshold must be an integer or nothing"))
     isnothing(qr_blocking) ||
-        qr_blocking>=0 ||
+        qr_blocking >= 0 ||
         throw(ArgumentError("qr_blocking_threshold must be nonnegative"))
     isnothing(recursion) ||
-        recursion>=2 ||
+        recursion >= 2 ||
         throw(ArgumentError("recursion_threshold must be at least two"))
     isnothing(ratio) ||
-        (isfinite(ratio) && ratio>=1) ||
+        (isfinite(ratio) && ratio >= 1) ||
         throw(ArgumentError("qr_ratio_threshold must be finite and at least one"))
     lock(_matrix_lock) do
-        old=_svd_state()
+        old = _svd_state()
         # Unspecified controls keep the enclosing scope's values.
-        v, r, flags=deepcopy(old)
+        v, r, flags = deepcopy(old)
         if !isnothing(recursion)
-            v[1]=UInt(min(recursion, typemax(Int)))
-            flags[1]=1
+            v[1] = UInt(min(recursion, typemax(Int)))
+            flags[1] = 1
         end
         if !isnothing(ratio)
-            r[1]=Float64(ratio)
-            flags[2]=1
+            r[1] = Float64(ratio)
+            flags[2] = 1
         end
         if !isnothing(par)
-            v[2]=par.value
-            flags[3]=1
+            v[2] = par.value
+            flags[3] = 1
         end
         if !isnothing(qr_blocking)
-            v[3]=UInt(min(qr_blocking, typemax(Int)))
-            flags[4]=1
+            v[3] = UInt(min(qr_blocking, typemax(Int)))
+            flags[4] = 1
         end
         _native_call(RustCrate.set_svd_tuning, v[1], r[1], v[2], v[3], flags)
-        _svd_tuning_depth[]+=1
+        _svd_tuning_depth[] += 1
         try
             return f()
         finally
-            _svd_tuning_depth[]-=1
+            _svd_tuning_depth[] -= 1
             _native_call(
-                RustCrate.set_svd_tuning,
-                old[1][1],
-                old[2][1],
-                old[1][2],
-                old[1][3],
-                old[3],
+                RustCrate.set_svd_tuning, old[1][1], old[2][1], old[1][2], old[1][3], old[3]
             )
         end
     end
@@ -86,24 +82,29 @@ Inside the scope, calls without `scratch`/`team` use the parameterized
 workspace driver. The scope holds Colmat's native-call lock; `f` must call
 Colmat on the current task; previous settings return even if `f` throws.
 """
-with_svd_tuning(
+function with_svd_tuning(
     f;
-    recursion_threshold = nothing,
-    qr_ratio_threshold = nothing,
-    bidiag_par_threshold = nothing,
-    qr_blocking_threshold = nothing,
-) = _svd_scope(
-    f,
-    recursion_threshold,
-    qr_ratio_threshold,
-    bidiag_par_threshold,
-    qr_blocking_threshold,
+    recursion_threshold=nothing,
+    qr_ratio_threshold=nothing,
+    bidiag_par_threshold=nothing,
+    qr_blocking_threshold=nothing,
 )
+    return _svd_scope(
+        f,
+        recursion_threshold,
+        qr_ratio_threshold,
+        bidiag_par_threshold,
+        qr_blocking_threshold,
+    )
+end
 
 # `alg` follows LinearAlgebra: DivideAndConquer() is faer's default driver and
 # QRIteration() forces the bidiagonal implicit QR algorithm at every size.
 _svd_alg(f, ::Nothing) = f()
 _svd_alg(f, ::LinearAlgebra.DivideAndConquer) = f()
 _svd_alg(f, ::LinearAlgebra.QRIteration) = _svd_scope(f, typemax(Int), nothing, nothing)
-_svd_alg(f, alg) =
-    throw(ArgumentError("alg must be LinearAlgebra.DivideAndConquer() or QRIteration()"))
+function _svd_alg(f, alg)
+    return throw(
+        ArgumentError("alg must be LinearAlgebra.DivideAndConquer() or QRIteration()")
+    )
+end

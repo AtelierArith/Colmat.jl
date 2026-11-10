@@ -21,12 +21,12 @@ Base.isopen(f::FaerBalance) = isopen(f.B)
 Base.close(f::FaerBalance) = close(f.B)
 function _balance_check(f::FaerBalance)
     _handle(f.B)
-    n=size(f.B, 1)
-    length(f.perm)==length(f.scale)==n ||
+    n = size(f.B, 1)
+    length(f.perm) == length(f.scale) == n ||
         throw(DimensionMismatch("balance metadata lengths must match B"))
-    sort(f.perm)==collect(1:n) ||
+    sort(f.perm) == collect(1:n) ||
         throw(ArgumentError("balance indices must be a permutation of 1:n"))
-    all(x->isfinite(x)&&x>0, f.scale) ||
+    all(x -> isfinite(x) && x > 0, f.scale) ||
         throw(ArgumentError("balance scales must be finite and positive"))
     return nothing
 end
@@ -40,16 +40,16 @@ Base.deepcopy_internal(f::FaerBalance, d::IdDict) = get!(() -> copy(f), d, f)
 function balance(a::AbstractMatrix{<:Number})
     lock(_matrix_lock) do
         a isa _RotationArray && _rotation_open(a)
-        size(a, 1)==size(a, 2) ||
+        size(a, 1) == size(a, 2) ||
             throw(DimensionMismatch("balancing requires a square matrix"))
-        T=_reflector_type(eltype(a))
-        R=_realtype(T)
-        data=Matrix{T}(a)
+        T = _reflector_type(eltype(a))
+        R = _realtype(T)
+        data = Matrix{T}(a)
         all(isfinite, data) || throw(ArgumentError("balance input must be finite"))
-        n=size(a, 1)
-        perm=zeros(UInt, n)
-        scale=zeros(R, n)
-        active=zeros(UInt, 2)
+        n = size(a, 1)
+        perm = zeros(UInt, n)
+        scale = zeros(R, n)
+        active = zeros(UInt, 2)
         GC.@preserve data perm scale active _native_call(
             RustCrate.balance_data,
             Ptr{UInt8}(pointer(data)),
@@ -60,10 +60,7 @@ function balance(a::AbstractMatrix{<:Number})
             _tag(T),
         )
         return FaerBalance(
-            FaerMatrix(data),
-            Int.(perm) .+ 1,
-            scale,
-            (Int(active[1])+1):Int(active[2]),
+            FaerMatrix(data), Int.(perm) .+ 1, scale, (Int(active[1]) + 1):Int(active[2])
         )
     end
 end
@@ -76,7 +73,7 @@ an independent matrix; invalid inputs leave A unchanged.
 """
 function balance!(a::FaerMatrix)
     lock(_matrix_lock) do
-        result=balance(a)
+        result = balance(a)
         copyto!(a, result.B)
         return FaerBalance(a, result.perm, result.scale, result.active)
     end
@@ -94,16 +91,16 @@ function balance_eigenvectors(f::FaerBalance, x::AbstractVecOrMat{<:Number})
     lock(_matrix_lock) do
         _balance_check(f)
         x isa _RotationArray && _rotation_open(x)
-        size(x, 1)==size(f, 1) ||
+        size(x, 1) == size(f, 1) ||
             throw(DimensionMismatch("eigenvector rows must match balanced matrix"))
-        T=promote_type(eltype(f.B), _reflector_type(eltype(x)))
-        R=_realtype(T)
-        data=x isa AbstractVector ? reshape(Vector{T}(x), length(x), 1) : Matrix{T}(x)
+        T = promote_type(eltype(f.B), _reflector_type(eltype(x)))
+        R = _realtype(T)
+        data = x isa AbstractVector ? reshape(Vector{T}(x), length(x), 1) : Matrix{T}(x)
         all(isfinite, data) || throw(ArgumentError("eigenvector inputs must be finite"))
-        perm=UInt.(f.perm .- 1)
-        scale=Vector{R}(f.scale)
-        all(x->isfinite(x)&&x>0, scale) || throw(
-            ArgumentError("scales must remain finite and positive in the working type"),
+        perm = UInt.(f.perm .- 1)
+        scale = Vector{R}(f.scale)
+        all(x -> isfinite(x) && x > 0, scale) || throw(
+            ArgumentError("scales must remain finite and positive in the working type")
         )
         GC.@preserve data perm scale _native_call(
             RustCrate.balance_vectors_data,
@@ -115,7 +112,7 @@ function balance_eigenvectors(f::FaerBalance, x::AbstractVecOrMat{<:Number})
             _tag(T),
         )
         all(isfinite, data) || throw(
-            ArgumentError("back-transformed eigenvectors overflowed the working type"),
+            ArgumentError("back-transformed eigenvectors overflowed the working type")
         )
         if x isa _BorrowVector
             return _vector_from_source(FaerMatrix(data))

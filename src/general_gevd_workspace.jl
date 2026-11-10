@@ -8,101 +8,98 @@ eigen pass; the separate
 QZ writeback uses its own sequential workspace. Output and sorting allocate.
 """
 function scratch_requirements(
-    f::_EvdFunction,
-    a::FaerMatrix,
-    b::FaerMatrix;
-    team = nothing,
-    side::Symbol = :right,
+    f::_EvdFunction, a::FaerMatrix, b::FaerMatrix; team=nothing, side::Symbol=:right
 )
     lock(_matrix_lock) do
         side in (:left, :right, :both) ||
             throw(ArgumentError("side must be :left, :right or :both"))
         _handle(a)
         _handle(b)
-        size(a)==size(b) ||
+        size(a) == size(b) ||
             throw(DimensionMismatch("generalized eigen input sizes must match"))
-        n=LinearAlgebra.checksquare(a)
+        n = LinearAlgebra.checksquare(a)
         isnothing(team) ||
             team isa FaerTeam ||
             throw(ArgumentError("team must be a FaerTeam"))
         !isnothing(team) && _handle(team)
-        info=zeros(UInt, 2)
-        args=(
+        info = zeros(UInt, 2)
+        args = (
             UInt(n),
             _tag(promote_type(eltype(a), eltype(b))),
             f in (LinearAlgebra.eigvals, LinearAlgebra.eigvals!),
-            side===:both,
+            side === :both,
         )
         GC.@preserve info begin
             _native_call(RustCrate.general_gevd_requirements, args..., info, team)
         end
-        return (bytes = Int(info[1]), alignment = Int(info[2]))
+        return (bytes=Int(info[1]), alignment=Int(info[2]))
     end
 end
 function FaerScratch(f::_EvdFunction, a::FaerMatrix, b::FaerMatrix; kwargs...)
-    req=scratch_requirements(f, a, b; kwargs...)
-    return FaerScratch(req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a, b; kwargs...)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
 function reserve!(s::FaerScratch, f::_EvdFunction, a::FaerMatrix, b::FaerMatrix; kwargs...)
-    req=scratch_requirements(f, a, b; kwargs...)
-    return reserve!(s, req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a, b; kwargs...)
+    return reserve!(s, req.bytes; alignment=req.alignment)
 end
 # Quotient eigenvalues α/β. For a real pencil a real α (zero imaginary part)
 # divides as a real number, so β=0 gives Inf+0im where LAPACK's real
 # `alphar ./ beta` gives Inf (rather than Inf+NaN*im from 0/0 in the imaginary
 # part). Complex pencils keep Julia's complex quotient, NaN+NaN*im for β=0, as
 # `eigvals(A, B)` of LinearAlgebra returns.
-_gevd_quotient(α::Complex, β::Real) = iszero(imag(α)) ? complex(real(α)/β) : α/β
-_gevd_quotient(α, β) = α/β
+_gevd_quotient(α::Complex, β::Real) = iszero(imag(α)) ? complex(real(α) / β) : α / β
+_gevd_quotient(α, β) = α / β
 # Unit 2-norm columns (zero columns stay zero). A function barrier keeps the
 # loop type-stable, so it does not allocate per column.
 function _normalize_columns!(vectors::AbstractMatrix)
     for j in axes(vectors, 2)
-        v=view(vectors, :, j)
-        scale=LinearAlgebra.norm(v)
+        v = view(vectors, :, j)
+        scale = LinearAlgebra.norm(v)
         iszero(scale) || (v ./= scale)
     end
     return vectors
 end
-_gevd_narrow(r::LinearAlgebra.GeneralizedEigen) =
-    LinearAlgebra.GeneralizedEigen(ComplexF32.(r.values), ComplexF32.(r.vectors))
-_gevd_narrow(r::NamedTuple) = map(x->ComplexF32.(x), r)
+function _gevd_narrow(r::LinearAlgebra.GeneralizedEigen)
+    return LinearAlgebra.GeneralizedEigen(ComplexF32.(r.values), ComplexF32.(r.vectors))
+end
+_gevd_narrow(r::NamedTuple) = map(x -> ComplexF32.(x), r)
 function _general_gevd_workspace_result(
     a::FaerMatrix,
     b::FaerMatrix;
-    vectors::Bool = true,
-    homogeneous::Bool = false,
-    side::Symbol = :right,
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
+    vectors::Bool=true,
+    homogeneous::Bool=false,
+    side::Symbol=:right,
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         side in (:left, :right, :both) ||
             throw(ArgumentError("side must be :left, :right or :both"))
         _handle(a)
         _handle(b)
-        size(a)==size(b) ||
+        size(a) == size(b) ||
             throw(DimensionMismatch("generalized eigen input sizes must match"))
-        T=promote_type(eltype(a), eltype(b))
-        a, b=_coerce(a, T), _coerce(b, T)
-        n=LinearAlgebra.checksquare(a)
-        f=vectors ? LinearAlgebra.eigen : LinearAlgebra.eigvals
-        req=scratch_requirements(f, a, b; team, side)
-        temp=isnothing(scratch)
-        work=temp ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+        T = promote_type(eltype(a), eltype(b))
+        a, b = _coerce(a, T), _coerce(b, T)
+        n = LinearAlgebra.checksquare(a)
+        f = vectors ? LinearAlgebra.eigen : LinearAlgebra.eigvals
+        req = scratch_requirements(f, a, b; team, side)
+        temp = isnothing(scratch)
+        work = temp ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
         work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
         try
-            cap=scratch_capacity(work)
-            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
-                ArgumentError("general EVD scratch capacity/alignment is insufficient"),
+            cap = scratch_capacity(work)
+            cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
+                ArgumentError("general EVD scratch capacity/alignment is insufficient")
             )
             # tensor4all/faer#324: faer's c32 left eigenvectors can be wrong for
             # pencils with an (almost) infinite eigenvalue (#239). Left vectors
             # of ComplexF32 pencils are computed in ComplexF64 and rounded; the
             # caller's scratch was validated above and is not needed there.
-            if T===ComplexF32 && vectors && side!==:right
-                result=_general_gevd_workspace_result(
+            if T === ComplexF32 && vectors && side !== :right
+                result = _general_gevd_workspace_result(
                     _coerce(a, ComplexF64),
                     _coerce(b, ComplexF64);
                     vectors,
@@ -113,46 +110,48 @@ function _general_gevd_workspace_result(
                 )
                 return _gevd_narrow(result)
             end
-            C=Complex{_realtype(T)}
-            alpha=zeros(C, n)
-            beta=zeros(T, n)
-            eigenvectors=zeros(C, n, vectors ? n : 0)
-            rightvectors=zeros(C, n, vectors && side===:both ? n : 0)
+            C = Complex{_realtype(T)}
+            alpha = zeros(C, n)
+            beta = zeros(T, n)
+            eigenvectors = zeros(C, n, vectors ? n : 0)
+            rightvectors = zeros(C, n, vectors && side === :both ? n : 0)
             GC.@preserve alpha beta eigenvectors rightvectors begin
-                args=(
+                args = (
                     Ptr{UInt8}(pointer(eigenvectors)),
                     Ptr{UInt8}(pointer(rightvectors)),
                     Ptr{UInt8}(pointer(alpha)),
                     Ptr{UInt8}(pointer(beta)),
                     !vectors,
-                    side===:left,
-                    side===:both,
+                    side === :left,
+                    side === :both,
                     UInt(n),
                     _tag(T),
                 )
                 _native_call(RustCrate.general_gevd_workspace, a, b, work, team, args...)
             end
             vectors && _normalize_columns!(eigenvectors)
-            vectors && side===:both && _normalize_columns!(rightvectors)
-            values=homogeneous && isnothing(sortby) ? nothing : _gevd_quotient.(alpha, beta)
+            vectors && side === :both && _normalize_columns!(rightvectors)
+            values =
+                homogeneous && isnothing(sortby) ? nothing : _gevd_quotient.(alpha, beta)
             if !isnothing(sortby)
-                order=sortperm(values; by = sortby)
-                values=values[order]
-                alpha, beta=alpha[order], beta[order]
+                order = sortperm(values; by=sortby)
+                values = values[order]
+                alpha, beta = alpha[order], beta[order]
                 # Columns are permuted in place (cycle swaps), not copied.
                 vectors && Base.permutecols!!(eigenvectors, copy(order))
-                vectors && side===:both && Base.permutecols!!(rightvectors, copy(order))
+                vectors && side === :both && Base.permutecols!!(rightvectors, copy(order))
             end
-            if vectors && side===:both
-                return homogeneous ?
-                       (α = alpha, β = beta, left = eigenvectors, right = rightvectors) :
-                       (values = values, left = eigenvectors, right = rightvectors)
+            if vectors && side === :both
+                return if homogeneous
+                    (α=alpha, β=beta, left=eigenvectors, right=rightvectors)
+                else
+                    (values=values, left=eigenvectors, right=rightvectors)
+                end
             end
             if homogeneous
-                return vectors ? (α = alpha, β = beta, vectors = eigenvectors) :
-                       (α = alpha, β = beta)
+                return vectors ? (α=alpha, β=beta, vectors=eigenvectors) : (α=alpha, β=beta)
             end
-            vectors && side===:left && return (values = values, vectors = eigenvectors)
+            vectors && side === :left && return (values=values, vectors=eigenvectors)
             return vectors ? LinearAlgebra.GeneralizedEigen(values, eigenvectors) : values
         finally
             temp && close(work)

@@ -29,30 +29,39 @@ mutable struct FaerLinearOperator{T,H} <: AbstractMatrix{T}
     conjugated::Bool
     callbacks::Union{Nothing,Dict{UInt,Any}}
 end
-FaerLinearOperator{T,H}(h, dims, storage, tr, cj) where {T,H} =
-    FaerLinearOperator{T,H}(h, dims, storage, tr, cj, nothing)
+function FaerLinearOperator{T,H}(h, dims, storage, tr, cj) where {T,H}
+    return FaerLinearOperator{T,H}(h, dims, storage, tr, cj, nothing)
+end
 function _handle(op::FaerLinearOperator)
-    h=getfield(op, :handle)
+    h = getfield(op, :handle)
     isnothing(h) && throw(ArgumentError("linear operator has been closed"))
     return h
 end
 _native_argument(op::FaerLinearOperator) = _handle(op)
 _is_native_owner(::FaerLinearOperator) = true
 Base.size(op::FaerLinearOperator) = getfield(op, :dims)
-Base.size(op::FaerLinearOperator, d::Integer) =
-    d<1 ? throw(ArgumentError("dimension must be positive")) : d<=2 ? size(op)[d] : 1
-Base.isopen(op::FaerLinearOperator) =
-    lock(()->!isnothing(getfield(op, :handle)), _matrix_lock)
+function Base.size(op::FaerLinearOperator, d::Integer)
+    if d < 1
+        throw(ArgumentError("dimension must be positive"))
+    elseif d <= 2
+        size(op)[d]
+    else
+        1
+    end
+end
+function Base.isopen(op::FaerLinearOperator)
+    return lock(() -> !isnothing(getfield(op, :handle)), _matrix_lock)
+end
 function Base.close(op::FaerLinearOperator)
     lock(_matrix_lock) do ;
-        op.handle=nothing
-        op.callbacks=nothing
+        op.handle = nothing
+        return op.callbacks = nothing
     end
     return nothing
 end
 function _operator_create(a, kind, storage)
     lock(_matrix_lock) do
-        h=RustCrate.OwnedLinearOperator()
+        h = RustCrate.OwnedLinearOperator()
         _native_call(RustCrate.operator_load, h, a, Int32(kind))
         return FaerLinearOperator{eltype(a),typeof(h)}(h, size(a), storage, false, false)
     end
@@ -61,7 +70,7 @@ function FaerLinearOperator(a::FaerMatrix)
     lock(_matrix_lock) do
         all(isfinite, Matrix(a)) ||
             throw(ArgumentError("operator coefficients must be finite"))
-        return _operator_create(a, eltype(a)===Float64 ? 0 : 1, :dense)
+        return _operator_create(a, eltype(a) === Float64 ? 0 : 1, :dense)
     end
 end
 function FaerLinearOperator(a::FaerSparseMatrix)
@@ -77,85 +86,89 @@ function FaerLinearOperator(a::FaerDiagonal)
         return _operator_create(a, 3, :diagonal)
     end
 end
-FaerLinearOperator(a::SparseArrays.AbstractSparseMatrixCSC) =
-    FaerLinearOperator(FaerSparseMatrix(a))
+function FaerLinearOperator(a::SparseArrays.AbstractSparseMatrixCSC)
+    return FaerLinearOperator(FaerSparseMatrix(a))
+end
 # A borrowed Julia CSC matrix (or its transpose/adjoint, stored as CSR) is
 # snapshotted once at construction: native applies, compositions and iterative
 # solvers run inside Rust and may outlive one call, so they never read the
 # parent's arrays. Later writes to the parent do not change the operator.
 function FaerLinearOperator(a::_BorrowedSparseOperand)
     lock(_matrix_lock) do
-        b=_sparse_stored(a)
-        s=b.parent
+        b = _sparse_stored(a)
+        s = b.parent
         all(isfinite, view(SparseArrays.nonzeros(s), 1:SparseArrays.nnz(s))) ||
             throw(ArgumentError("operator stored coefficients must be finite"))
-        T=eltype(b)
-        h=RustCrate.OwnedLinearOperator()
-        trans=_sparse_orientation(a)
+        T = eltype(b)
+        h = RustCrate.OwnedLinearOperator()
+        trans = _sparse_orientation(a)
         _with_borrowed_sparse(b) do raw...
-            _native_call(RustCrate.operator_load_borrowed, h, raw..., trans)
+            return _native_call(RustCrate.operator_load_borrowed, h, raw..., trans)
         end
-        storage=iszero(trans) ? :csc : :csr
+        storage = iszero(trans) ? :csc : :csr
         return FaerLinearOperator{T,typeof(h)}(h, size(a), storage, false, false)
     end
 end
-FaerLinearOperator(a::LinearAlgebra.Diagonal) =
-    FaerLinearOperator(FaerDiagonal{_reflector_type(eltype(a))}(a.diag))
+function FaerLinearOperator(a::LinearAlgebra.Diagonal)
+    return FaerLinearOperator(FaerDiagonal{_reflector_type(eltype(a))}(a.diag))
+end
 function FaerLinearOperator(a::Union{LinearAlgebra.Hermitian,LinearAlgebra.Symmetric})
-    source=parent(a)
+    source = parent(a)
     if source isa FaerSparseMatrix
-        coefficients=SparseArrays.SparseMatrixCSC(source)
-        wrapped=a isa LinearAlgebra.Hermitian ?
-                LinearAlgebra.Hermitian(coefficients, a.uplo=='L' ? :L : :U) :
-                LinearAlgebra.Symmetric(coefficients, a.uplo=='L' ? :L : :U)
+        coefficients = SparseArrays.SparseMatrixCSC(source)
+        wrapped = if a isa LinearAlgebra.Hermitian
+            LinearAlgebra.Hermitian(coefficients, a.uplo == 'L' ? :L : :U)
+        else
+            LinearAlgebra.Symmetric(coefficients, a.uplo == 'L' ? :L : :U)
+        end
         return FaerLinearOperator(
-            FaerSparseMatrix(SparseArrays.sparse(wrapped); format = source.format),
+            FaerSparseMatrix(SparseArrays.sparse(wrapped); format=source.format)
         )
     elseif source isa SparseArrays.AbstractSparseMatrixCSC
         return FaerLinearOperator(SparseArrays.sparse(a))
     elseif source isa FaerBorrowedSparseMatrix
-        uplo=a.uplo=='L' ? :L : :U
-        p=source.parent
-        wrapped=a isa LinearAlgebra.Hermitian ? LinearAlgebra.Hermitian(p, uplo) :
-                LinearAlgebra.Symmetric(p, uplo)
+        uplo = a.uplo == 'L' ? :L : :U
+        p = source.parent
+        wrapped = if a isa LinearAlgebra.Hermitian
+            LinearAlgebra.Hermitian(p, uplo)
+        else
+            LinearAlgebra.Symmetric(p, uplo)
+        end
         return FaerLinearOperator(SparseArrays.sparse(wrapped))
     end
     return FaerLinearOperator(FaerMatrix(a))
 end
-FaerLinearOperator(a::AbstractMatrix) =
-    FaerLinearOperator(FaerMatrix{_reflector_type(eltype(a))}(a))
+function FaerLinearOperator(a::AbstractMatrix)
+    return FaerLinearOperator(FaerMatrix{_reflector_type(eltype(a))}(a))
+end
 FaerLinearOperator(a::FaerMatrixView) = FaerLinearOperator(copy(a))
 function FaerLinearOperator(
-    identity::LinearAlgebra.UniformScaling,
-    n::Integer;
-    T::Type = Float64,
+    identity::LinearAlgebra.UniformScaling, n::Integer; T::Type=Float64
 )
-    identity.λ==1 || throw(ArgumentError("only unit identity scaling is supported"))
-    T<:_NativeScalar ||
+    identity.λ == 1 || throw(ArgumentError("only unit identity scaling is supported"))
+    T <: _NativeScalar ||
         throw(ArgumentError("identity operator requires a native scalar type"))
-    n=Int(n)
-    n>=0 || throw(ArgumentError("identity dimension must be nonnegative"))
+    n = Int(n)
+    n >= 0 || throw(ArgumentError("identity dimension must be nonnegative"))
     lock(_matrix_lock) do
-        h=RustCrate.OwnedLinearOperator()
+        h = RustCrate.OwnedLinearOperator()
         _native_call(RustCrate.operator_identity, h, UInt(n), _tag(T))
         return FaerLinearOperator{T,typeof(h)}(h, (n, n), :identity, false, false)
     end
 end
 function _operator_copy(
-    op::FaerLinearOperator{T},
-    transpose = false,
-    conjugate = false,
+    op::FaerLinearOperator{T}, transpose=false, conjugate=false
 ) where {T}
     lock(_matrix_lock) do
-        h=RustCrate.OwnedLinearOperator()
+        h = RustCrate.OwnedLinearOperator()
         _native_call(RustCrate.operator_clone, h, op, transpose, conjugate)
-        dims=transpose ? reverse(size(op)) : size(op)
+        dims = transpose ? reverse(size(op)) : size(op)
         return FaerLinearOperator{T,typeof(h)}(
             h,
             dims,
             op.storage,
-            op.transposed⊻transpose,
-            op.conjugated⊻conjugate,
+            op.transposed ⊻ transpose,
+            op.conjugated ⊻ conjugate,
             op.callbacks,
         )
     end
@@ -169,42 +182,45 @@ Base.adjoint(op::FaerLinearOperator) = _operator_copy(op, true, true)
 function _operator_coefficients(op::FaerLinearOperator{T}) where {T}
     lock(_matrix_lock) do
         _handle(op)
-        dims=op.transposed ? reverse(size(op)) : size(op)
+        dims = op.transposed ? reverse(size(op)) : size(op)
         op.storage in (:composition, :factorization, :callback) && throw(
-            ArgumentError("operator has no single coefficient storage; use Matrix(op)"),
+            ArgumentError("operator has no single coefficient storage; use Matrix(op)")
         )
-        if op.storage===:dense
-            return T===Float64 ? _matrix_result(RustCrate.operator_dense_from, dims, op) :
-                   _typed_result(T, RustCrate.operator_dense_from, dims, op)
+        if op.storage === :dense
+            return if T === Float64
+                _matrix_result(RustCrate.operator_dense_from, dims, op)
+            else
+                _typed_result(T, RustCrate.operator_dense_from, dims, op)
+            end
         elseif op.storage in (:csc, :csr)
             return _sparse_result(T, dims, op.storage, RustCrate.operator_sparse_from, op)
-        elseif op.storage===:diagonal
+        elseif op.storage === :diagonal
             return _collection_result(
-                FaerDiagonal,
-                T,
-                dims[1],
-                RustCrate.operator_diagonal_from,
-                op,
+                FaerDiagonal, T, dims[1], RustCrate.operator_diagonal_from, op
             )
         end
         return LinearAlgebra.I
     end
 end
 function Base.getproperty(op::FaerLinearOperator, name::Symbol)
-    name===:coefficients && return _operator_coefficients(op)
+    name === :coefficients && return _operator_coefficients(op)
     return getfield(op, name)
 end
-Base.propertynames(op::FaerLinearOperator, private::Bool = false) =
-    private ? (fieldnames(typeof(op))..., :coefficients) :
-    (:coefficients, :storage, :transposed, :conjugated)
+function Base.propertynames(op::FaerLinearOperator, private::Bool=false)
+    return if private
+        (fieldnames(typeof(op))..., :coefficients)
+    else
+        (:coefficients, :storage, :transposed, :conjugated)
+    end
+end
 function _operator_coerce(op::FaerLinearOperator{T}, ::Type{T}) where {T}
     _handle(op)
     return op
 end
 function _operator_coerce(op::FaerLinearOperator, ::Type{T}) where {T<:_NativeScalar}
     _handle(op)
-    eltype(op)===T && return op
-    h=RustCrate.OwnedLinearOperator()
+    eltype(op) === T && return op
+    h = RustCrate.OwnedLinearOperator()
     _native_call(
         RustCrate.operator_promote,
         h,
@@ -215,111 +231,110 @@ function _operator_coerce(op::FaerLinearOperator, ::Type{T}) where {T<:_NativeSc
         _tag(eltype(op)),
     )
     return FaerLinearOperator{T,typeof(h)}(
-        h,
-        size(op),
-        op.storage,
-        op.transposed,
-        op.conjugated,
-        op.callbacks,
+        h, size(op), op.storage, op.transposed, op.conjugated, op.callbacks
     )
 end
-const _OperatorMatrix=_HouseholderMatrix
-const _OperatorVector=_HouseholderVector
+const _OperatorMatrix = _HouseholderMatrix
+const _OperatorVector = _HouseholderVector
 function _operator_product(
     op::FaerLinearOperator,
     a::Union{_OperatorMatrix,_OperatorVector};
-    scratch = nothing,
-    team = nothing,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         _handle(op)
         a isa _RotationArray && _rotation_open(a)
-        size(op, 2)==size(a, 1) ||
+        size(op, 2) == size(a, 1) ||
             throw(DimensionMismatch("operator and RHS dimensions must match"))
-        P=promote_type(eltype(op), _reflector_type(eltype(a)))
-        rhs=_householder_matrix_source(a, P)
-        dims=(size(op, 1), size(rhs, 2))
-        working=_operator_coerce(op, P)
-        args=(
-            working,
-            rhs,
-            UInt(size(op, 1)),
-            UInt(size(op, 2)),
-            UInt(size(rhs, 2)),
-            _tag(P),
+        P = promote_type(eltype(op), _reflector_type(eltype(a)))
+        rhs = _householder_matrix_source(a, P)
+        dims = (size(op, 1), size(rhs, 2))
+        working = _operator_coerce(op, P)
+        args = (
+            working, rhs, UInt(size(op, 1)), UInt(size(op, 2)), UInt(size(rhs, 2)), _tag(P)
         )
-        result=if isnothing(scratch) && isnothing(team)
-            P===Float64 ? _matrix_result(RustCrate.operator_product, dims, args...) :
-            _typed_result(P, RustCrate.operator_product, dims, args...)
+        result = if isnothing(scratch) && isnothing(team)
+            if P === Float64
+                _matrix_result(RustCrate.operator_product, dims, args...)
+            else
+                _typed_result(P, RustCrate.operator_product, dims, args...)
+            end
         else
             _operator_workspace_result(working, rhs; scratch, team)
         end
-        return a isa _BorrowVector ? _vector_from_source(result) :
-               a isa AbstractVector ? vec(Matrix(result)) : result
+        return if a isa _BorrowVector
+            _vector_from_source(result)
+        elseif a isa AbstractVector
+            vec(Matrix(result))
+        else
+            result
+        end
     end
 end
-Base.:*(
+function Base.:*(
     op::FaerLinearOperator,
     a::Union{_OperatorMatrix,_OperatorVector};
-    scratch = nothing,
-    team = nothing,
-) = _operator_product(op, a; scratch, team)
-function Base.:*(
-    a::_OperatorMatrix,
-    op::FaerLinearOperator;
-    scratch = nothing,
-    team = nothing,
+    scratch=nothing,
+    team=nothing,
 )
+    return _operator_product(op, a; scratch, team)
+end
+function Base.:*(a::_OperatorMatrix, op::FaerLinearOperator; scratch=nothing, team=nothing)
     lock(_matrix_lock) do
-        work=_householder_matrix_source(
-            a,
-            promote_type(eltype(op), _reflector_type(eltype(a))),
+        work = _householder_matrix_source(
+            a, promote_type(eltype(op), _reflector_type(eltype(a)))
         )
         return copy(adjoint(_operator_product(op', copy(adjoint(work)); scratch, team)))
     end
 end
 function FaerMatrix(op::FaerLinearOperator{T}) where {T}
     _handle(op)
-    return op*FaerMatrix{T}(Matrix{T}(LinearAlgebra.I, size(op, 2), size(op, 2)))
+    return op * FaerMatrix{T}(Matrix{T}(LinearAlgebra.I, size(op, 2), size(op, 2)))
 end
 Base.Matrix(op::FaerLinearOperator) = Matrix(FaerMatrix(op))
 Base.Matrix{T}(op::FaerLinearOperator) where {T} = Matrix{T}(Matrix(op))
 function Base.getindex(op::FaerLinearOperator{T}, i::Int, j::Int) where {T}
     checkbounds(op, i, j)
-    unit=zeros(T, size(op, 2))
-    unit[j]=1
-    return (op*unit)[i]
+    unit = zeros(T, size(op, 2))
+    unit[j] = 1
+    return (op * unit)[i]
 end
 function _operator_copy_result!(dest, result)
-    T=eltype(dest)
-    T<:_NativeScalar ||
+    T = eltype(dest)
+    T <: _NativeScalar ||
         throw(ArgumentError("operator destinations require native scalar types"))
     # Native results are assigned natively, also straight into Julia memory.
     if result isa Union{_BorrowMatrix,_BorrowVector} &&
-       eltype(result)===T &&
-       (
-           dest isa Union{_BorrowMatrix,_BorrowVector} ||
-           dest isa Union{FaerBorrowedArray,StridedArray} && size(result)==size(dest)
-       )
+        eltype(result) === T &&
+        (
+            dest isa Union{_BorrowMatrix,_BorrowVector} ||
+            dest isa Union{FaerBorrowedArray,StridedArray} && size(result) == size(dest)
+        )
         return copyto!(dest, result)
     end
-    buffer=ndims(dest)==1 ? Vector{T}(result) : Matrix{T}(result)
+    buffer = ndims(dest) == 1 ? Vector{T}(result) : Matrix{T}(result)
     copyto!(dest, buffer)
     return dest
 end
 function _operator_mul_prepare(dest, op, a, alpha, beta, right)
-    size(dest)==(
-        ndims(a)==1 ? (size(op, 1),) :
-        right ? (size(a, 1), size(op, 2)) : (size(op, 1), size(a, 2))
+    size(dest) == (
+        if ndims(a) == 1
+            (size(op, 1),)
+        elseif right
+            (size(a, 1), size(op, 2))
+        else
+            (size(op, 1), size(a, 2))
+        end
     ) || throw(DimensionMismatch("operator product destination shape mismatch"))
     dest isa _RotationArray && _rotation_open(dest)
     _handle(op)
     a isa _RotationArray && _rotation_open(a)
-    (right ? size(a, 2)==size(op, 1) : size(a, 1)==size(op, 2)) ||
+    (right ? size(a, 2) == size(op, 1) : size(a, 1) == size(op, 2)) ||
         throw(DimensionMismatch("operator/source product dimensions must match"))
     # Coefficients convert to the operands' scalar (as dense `mul!`).
-    P=promote_type(eltype(op), _reflector_type(eltype(a)), _reflector_type(eltype(dest)))
-    P<:_NativeScalar && promote_type(P, typeof(alpha), typeof(beta))<:_NativeScalar ||
+    P = promote_type(eltype(op), _reflector_type(eltype(a)), _reflector_type(eltype(dest)))
+    P <: _NativeScalar && promote_type(P, typeof(alpha), typeof(beta)) <: _NativeScalar ||
         throw(ArgumentError("operator mul! requires native working scalar types"))
     return P
 end
@@ -331,20 +346,19 @@ end
 # native product buffer precedes the axpby. A source overlapping `dest` is
 # snapshot natively. Returns `nothing` when the operands need conversion.
 function _operator_mul_native!(dest, op, a, alpha, beta, right; scratch, team)
-    P=promote_type(eltype(op), eltype(a), eltype(dest))
-    eltype(dest)===eltype(a)===P &&
-        promote_type(P, typeof(alpha), typeof(beta))<:_NativeScalar ||
-        return nothing
-    target=_gemm_destination(dest)
-    src=_gemm_input(a)
+    P = promote_type(eltype(op), eltype(a), eltype(dest))
+    eltype(dest) === eltype(a) === P &&
+    promote_type(P, typeof(alpha), typeof(beta)) <: _NativeScalar || return nothing
+    target = _gemm_destination(dest)
+    src = _gemm_input(a)
     (isnothing(target) || isnothing(src)) && return nothing
     # Native owners must still have the shape/scalar Julia records.
     _dense_rhs_validate(a)
     _dense_rhs_validate(dest)
-    working=_operator_coerce(op, P)
-    al, be=Ref{P}(P(alpha)), Ref{P}(P(beta))
-    p, d=_view_source(right ? transpose(target) : target)
-    q, e=_view_source(right ? transpose(src) : src)
+    working = _operator_coerce(op, P)
+    al, be = Ref{P}(P(alpha)), Ref{P}(P(beta))
+    p, d = _view_source(right ? transpose(target) : target)
+    q, e = _view_source(right ? transpose(src) : src)
     run(work) = GC.@preserve d e al be _native_call(
         RustCrate.operator_mul_into,
         p,
@@ -363,101 +377,129 @@ function _operator_mul_native!(dest, op, a, alpha, beta, right; scratch, team)
     if right && isnothing(scratch)
         # Without caller scratch the kernel reserves its own; skip the
         # transposed-operator clone a Julia-side query would need.
-        isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
+        isnothing(team) ||
+            team isa FaerTeam ||
+            throw(ArgumentError("team must be a FaerTeam"))
         isnothing(team) || _handle(team)
         _operator_workspace_query(working, 0)  # native operator metadata
         run(nothing)
     else
-        effective=right ? transpose(working) : working
-        columns=right ? size(a, 1) : ndims(a)==1 ? 1 : size(a, 2)
+        effective = right ? transpose(working) : working
+        columns = if right
+            size(a, 1)
+        elseif ndims(a) == 1
+            1
+        else
+            size(a, 2)
+        end
         _with_operator_workspace(run, effective, columns; scratch, team)
     end
     return dest
 end
-function _operator_mul!(dest, op, a, alpha, beta, right; scratch = nothing, team = nothing)
+function _operator_mul!(dest, op, a, alpha, beta, right; scratch=nothing, team=nothing)
     lock(_matrix_lock) do
         _check_writable(dest)
-        P=_operator_mul_prepare(dest, op, a, alpha, beta, right)
-        native=_operator_mul_native!(dest, op, a, alpha, beta, right; scratch, team)
+        P = _operator_mul_prepare(dest, op, a, alpha, beta, right)
+        native = _operator_mul_native!(dest, op, a, alpha, beta, right; scratch, team)
         isnothing(native) || return dest
         if iszero(alpha) && (!isnothing(scratch) || !isnothing(team))
-            working=_operator_coerce(op, P)
-            effective=right ? adjoint(working) : working
-            columns=right ? size(a, 1) : ndims(a)==1 ? 1 : size(a, 2)
+            working = _operator_coerce(op, P)
+            effective = right ? adjoint(working) : working
+            columns = if right
+                size(a, 1)
+            elseif ndims(a) == 1
+                1
+            else
+                size(a, 2)
+            end
             _with_operator_workspace(effective, columns; scratch, team) do _
-                nothing
+                return nothing
             end
         end
-        scaled=if iszero(alpha)
+        scaled = if iszero(alpha)
             zeros(P, size(dest))
         else
-            source=_householder_matrix_source(a, P)
-            working=_operator_coerce(op, P)
-            result=right ? *(source, working; scratch, team) :
-                   _operator_product(working, source; scratch, team)
-            alpha .* (ndims(dest)==1 ? vec(Matrix(result)) : Matrix(result))
+            source = _householder_matrix_source(a, P)
+            working = _operator_coerce(op, P)
+            result = if right
+                *(source, working; scratch, team)
+            else
+                _operator_product(working, source; scratch, team)
+            end
+            alpha .* (ndims(dest) == 1 ? vec(Matrix(result)) : Matrix(result))
         end
         !iszero(beta) &&
-            (scaled=scaled+beta .* (ndims(dest)==1 ? Vector(dest) : Matrix(dest)))
+            (scaled = scaled + beta .* (ndims(dest) == 1 ? Vector(dest) : Matrix(dest)))
         return _operator_copy_result!(dest, scaled)
     end
 end
-LinearAlgebra.mul!(
+function LinearAlgebra.mul!(
     dest::_OperatorMatrix,
     op::FaerLinearOperator,
     a::_OperatorMatrix,
     alpha::Number,
     beta::Number;
-    scratch = nothing,
-    team = nothing,
-) = _operator_mul!(dest, op, a, alpha, beta, false; scratch, team)
-LinearAlgebra.mul!(
+    scratch=nothing,
+    team=nothing,
+)
+    return _operator_mul!(dest, op, a, alpha, beta, false; scratch, team)
+end
+function LinearAlgebra.mul!(
     dest::_OperatorVector,
     op::FaerLinearOperator,
     a::_OperatorVector,
     alpha::Number,
     beta::Number;
-    scratch = nothing,
-    team = nothing,
-) = _operator_mul!(dest, op, a, alpha, beta, false; scratch, team)
-LinearAlgebra.mul!(
+    scratch=nothing,
+    team=nothing,
+)
+    return _operator_mul!(dest, op, a, alpha, beta, false; scratch, team)
+end
+function LinearAlgebra.mul!(
     dest::_OperatorMatrix,
     a::_OperatorMatrix,
     op::FaerLinearOperator,
     alpha::Number,
     beta::Number;
-    scratch = nothing,
-    team = nothing,
-) = _operator_mul!(dest, op, a, alpha, beta, true; scratch, team)
-LinearAlgebra.mul!(
+    scratch=nothing,
+    team=nothing,
+)
+    return _operator_mul!(dest, op, a, alpha, beta, true; scratch, team)
+end
+function LinearAlgebra.mul!(
     dest::_OperatorMatrix,
     op::FaerLinearOperator,
     a::_OperatorMatrix;
-    scratch = nothing,
-    team = nothing,
-) = _operator_mul!(dest, op, a, 1, 0, false; scratch, team)
-LinearAlgebra.mul!(
+    scratch=nothing,
+    team=nothing,
+)
+    return _operator_mul!(dest, op, a, 1, 0, false; scratch, team)
+end
+function LinearAlgebra.mul!(
     dest::_OperatorVector,
     op::FaerLinearOperator,
     a::_OperatorVector;
-    scratch = nothing,
-    team = nothing,
-) = _operator_mul!(dest, op, a, 1, 0, false; scratch, team)
-LinearAlgebra.mul!(
+    scratch=nothing,
+    team=nothing,
+)
+    return _operator_mul!(dest, op, a, 1, 0, false; scratch, team)
+end
+function LinearAlgebra.mul!(
     dest::_OperatorMatrix,
     a::_OperatorMatrix,
     op::FaerLinearOperator;
-    scratch = nothing,
-    team = nothing,
-) = _operator_mul!(dest, op, a, 1, 0, true; scratch, team)
+    scratch=nothing,
+    team=nothing,
+)
+    return _operator_mul!(dest, op, a, 1, 0, true; scratch, team)
+end
 function LinearAlgebra.lmul!(
-    op::FaerLinearOperator,
-    a::Union{FaerMatrix,FaerVector,FaerRow},
+    op::FaerLinearOperator, a::Union{FaerMatrix,FaerVector,FaerRow}
 )
     lock(_matrix_lock) do
         _handle(op)
         _rotation_open(a)
-        size(op, 1)==size(op, 2)==size(a, 1) ||
+        size(op, 1) == size(op, 2) == size(a, 1) ||
             throw(DimensionMismatch("preconditioner dimensions must match"))
         _native_call(RustCrate.operator_precondition, a, _operator_coerce(op, eltype(a)))
         return a
@@ -466,26 +508,26 @@ end
 # In-place products on views and Julia arrays write the destination natively
 # (the source, which is the destination, is snapshot first).
 function LinearAlgebra.lmul!(
-    op::FaerLinearOperator,
-    a::Union{FaerView,StridedVector,StridedMatrix,FaerBorrowedArray},
+    op::FaerLinearOperator, a::Union{FaerView,StridedVector,StridedMatrix,FaerBorrowedArray}
 )
     lock(_matrix_lock) do
         a isa FaerView && _rotation_open(a)
-        size(op, 1)==size(op, 2) ||
+        size(op, 1) == size(op, 2) ||
             throw(DimensionMismatch("in-place preconditioner must be square"))
         return _operator_mul!(a, op, a, true, false, false)
     end
 end
 function LinearAlgebra.rmul!(a::_OperatorMatrix, op::FaerLinearOperator)
     lock(_matrix_lock) do
-        size(op, 1)==size(op, 2) ||
+        size(op, 1) == size(op, 2) ||
             throw(DimensionMismatch("in-place operator product must be square"))
         return _operator_mul!(a, op, a, true, false, true)
     end
 end
 """Create an implicit native identity preconditioner (an action approximating inv(A), not A)."""
-identity_preconditioner(n::Integer; T::Type = Float64) =
-    FaerLinearOperator(LinearAlgebra.I, n; T)
+function identity_preconditioner(n::Integer; T::Type=Float64)
+    return FaerLinearOperator(LinearAlgebra.I, n; T)
+end
 """
     diagonal_preconditioner(d)
 
@@ -494,11 +536,11 @@ Entries d must be finite and nonzero, and their reciprocals must be finite.
 CG requires the resulting preconditioner action to be Hermitian positive definite.
 """
 function diagonal_preconditioner(d::AbstractVector)
-    T=_reflector_type(eltype(d))
-    values=Vector{T}(d)
-    all(x->isfinite(x)&&!iszero(x), values) ||
+    T = _reflector_type(eltype(d))
+    values = Vector{T}(d)
+    all(x -> isfinite(x) && !iszero(x), values) ||
         throw(ArgumentError("preconditioner diagonal entries must be finite and nonzero"))
-    inverse=one(T) ./ values
+    inverse = one(T) ./ values
     all(isfinite, inverse) ||
         throw(ArgumentError("preconditioner inverse entries must be finite"))
     return FaerLinearOperator(FaerDiagonal(inverse))
@@ -519,27 +561,29 @@ end
 struct FaerCgError{R} <: Exception
     result::R
 end
-Base.showerror(io::IO, e::FaerCgError) = print(
-    io,
-    "CG stopped: ",
-    e.result.reason,
-    " after ",
-    e.result.iterations,
-    " updates (true residual ",
-    e.result.abs_residual,
-    ")",
-)
+function Base.showerror(io::IO, e::FaerCgError)
+    return print(
+        io,
+        "CG stopped: ",
+        e.result.reason,
+        " after ",
+        e.result.iterations,
+        " updates (true residual ",
+        e.result.abs_residual,
+        ")",
+    )
+end
 LinearAlgebra.issuccess(result::FaerCgResult) = result.converged
 # Native inputs are copied once into the native solver operand and checked
 # natively; Julia arrays are checked in place. No Julia staging copy is made.
 function _cg_matrix(a, ::Type{T}) where {T}
     _dense_rhs_validate(a)
     a isa _RotationArray && _rotation_open(a)
-    native=a isa Union{_BorrowMatrix,_BorrowVector}
+    native = a isa Union{_BorrowMatrix,_BorrowVector}
     native ||
         all(isfinite, a) ||
         throw(ArgumentError("iterative solver RHS/initial guess must be finite"))
-    m=_householder_matrix_source(a, T)
+    m = _householder_matrix_source(a, T)
     if native && !all(isfinite, m)
         close(m)
         throw(ArgumentError("iterative solver RHS/initial guess must be finite"))
@@ -596,72 +640,66 @@ they may retain/mutate their copy of `x` and make nested Colmat calls.
 function cg(
     A,
     b::Union{AbstractVector{<:Number},AbstractMatrix{<:Number}};
-    M = nothing,
-    x0 = nothing,
-    atol::Real = 0,
-    rtol = nothing,
-    maxiter::Integer = max(1, size(A, 1)),
-    check::Bool = true,
-    callback = nothing,
-    history::Bool = false,
-    scratch = nothing,
-    team = nothing,
+    M=nothing,
+    x0=nothing,
+    atol::Real=0,
+    rtol=nothing,
+    maxiter::Integer=max(1, size(A, 1)),
+    check::Bool=true,
+    callback=nothing,
+    history::Bool=false,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
-        op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
+        op = A isa FaerLinearOperator ? A : FaerLinearOperator(A)
         _handle(op)
-        size(op, 1)==size(op, 2) || throw(DimensionMismatch("CG operator must be square"))
-        size(b, 1)==size(op, 1) ||
+        size(op, 1) == size(op, 2) || throw(DimensionMismatch("CG operator must be square"))
+        size(b, 1) == size(op, 1) ||
             throw(DimensionMismatch("CG RHS rows must match operator"))
-        precond=isnothing(M) ? nothing :
-                M isa FaerLinearOperator ? M : FaerLinearOperator(M)
+        precond = if isnothing(M)
+            nothing
+        elseif M isa FaerLinearOperator
+            M
+        else
+            FaerLinearOperator(M)
+        end
         !isnothing(precond) && (
             _handle(precond);
-            size(precond)==size(op) ||
+            size(precond) == size(op) ||
                 throw(DimensionMismatch("CG preconditioner shape must match operator"))
         )
         !isnothing(x0) &&
-            size(x0)!=size(b) &&
+            size(x0) != size(b) &&
             throw(DimensionMismatch("CG initial guess shape must match RHS"))
-        P=promote_type(
+        P = promote_type(
             eltype(op),
             _reflector_type(eltype(b)),
             isnothing(x0) ? eltype(op) : _reflector_type(eltype(x0)),
             isnothing(precond) ? eltype(op) : eltype(precond),
         )
-        R=_realtype(P)
-        abs_tol=R(atol)
-        rel_tol=isnothing(rtol) ? R(128)*eps(R) : R(rtol)
-        isfinite(abs_tol)&&isfinite(rel_tol)&&abs_tol>=0&&rel_tol>=0 ||
+        R = _realtype(P)
+        abs_tol = R(atol)
+        rel_tol = isnothing(rtol) ? R(128) * eps(R) : R(rtol)
+        isfinite(abs_tol) && isfinite(rel_tol) && abs_tol >= 0 && rel_tol >= 0 ||
             throw(ArgumentError("CG tolerances must be finite and nonnegative"))
-        limit=Int(maxiter)
-        limit>=0 || throw(ArgumentError("CG maxiter must be nonnegative"))
-        rhs=_cg_matrix(b, P)
-        initial=isnothing(x0) ? _zeros(P, size(rhs)) : _cg_matrix(x0, P)
-        operator=_operator_coerce(op, P)
-        preconditioner=isnothing(precond) ? Ptr{UInt8}(C_NULL) :
-                       _operator_coerce(precond, P)
-        resources=_iterative_resource_prepare(
-            0,
-            operator,
-            preconditioner,
-            nothing,
-            size(rhs, 2),
-            scratch,
-            team,
+        limit = Int(maxiter)
+        limit >= 0 || throw(ArgumentError("CG maxiter must be nonnegative"))
+        rhs = _cg_matrix(b, P)
+        initial = isnothing(x0) ? _zeros(P, size(rhs)) : _cg_matrix(x0, P)
+        operator = _operator_coerce(op, P)
+        preconditioner =
+            isnothing(precond) ? Ptr{UInt8}(C_NULL) : _operator_coerce(precond, P)
+        resources = _iterative_resource_prepare(
+            0, operator, preconditioner, nothing, size(rhs, 2), scratch, team
         )
-        stats=Vector{P}(undef, 5)
-        iterations=zeros(UInt, 1)
-        log, observing, observer, normalop=_iteration_observer(
-            P,
-            operator,
-            rhs,
-            callback,
-            history;
-            vector = b isa AbstractVector,
+        stats = Vector{P}(undef, 5)
+        iterations = zeros(UInt, 1)
+        log, observing, observer, normalop = _iteration_observer(
+            P, operator, rhs, callback, history; vector=b isa AbstractVector
         )
-        args=(
+        args = (
             operator,
             preconditioner,
             rhs,
@@ -674,34 +712,32 @@ function cg(
             observing,
             observer,
         )
-        solution=try
+        solution = try
             GC.@preserve stats iterations _iterative_solution(
-                resources,
-                0,
-                P,
-                RustCrate.operator_cg,
-                size(rhs),
-                args,
-                scratch,
-                team,
+                resources, 0, P, RustCrate.operator_cg, size(rhs), args, scratch, team
             )
         finally
             isnothing(normalop) || close(normalop)
         end
-        status=Int(real(stats[1]))
-        x=b isa _BorrowVector ? _vector_from_source(solution) :
-          b isa AbstractVector ? vec(Matrix(solution)) : solution
-        reason=(
+        status = Int(real(stats[1]))
+        x = if b isa _BorrowVector
+            _vector_from_source(solution)
+        elseif b isa AbstractVector
+            vec(Matrix(solution))
+        else
+            solution
+        end
+        reason = (
             :converged,
             :no_convergence,
             :nonpositive_operator,
             :nonpositive_preconditioner,
             :residual_mismatch,
             :stopped,
-        )[status+1]
-        result=FaerCgResult(
+        )[status + 1]
+        result = FaerCgResult(
             x,
-            status==0,
+            status == 0,
             Int(iterations[1]),
             R(real(stats[2])),
             R(real(stats[3])),
@@ -710,7 +746,10 @@ function cg(
             reason,
             log,
         )
-        check && !result.converged && result.reason!==:stopped && throw(FaerCgError(result))
+        check &&
+            !result.converged &&
+            result.reason !== :stopped &&
+            throw(FaerCgError(result))
         return result
     end
 end
@@ -722,13 +761,14 @@ check=false, copy the last iterate even on nonconvergence. The destination
 scalar type must equal the promoted solver type, and the full result is staged
 before mutation. Returns FaerCgResult whose x is the destination itself.
 """
-function cg!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
+function cg!(x::_HouseholderArray, A, b; check::Bool=true, kwargs...)
     lock(_matrix_lock) do
-        size(x)==size(b) || throw(DimensionMismatch("CG destination shape must match RHS"))
+        size(x) == size(b) ||
+            throw(DimensionMismatch("CG destination shape must match RHS"))
         x isa _RotationArray && _rotation_open(x)
-        result=cg(A, b; x0 = x, check, kwargs...)
-        eltype(x)===eltype(result.x) || throw(
-            ArgumentError("cg! destination must match the promoted solver scalar type"),
+        result = cg(A, b; x0=x, check, kwargs...)
+        eltype(x) === eltype(result.x) || throw(
+            ArgumentError("cg! destination must match the promoted solver scalar type")
         )
         _operator_copy_result!(x, result.x)
         return FaerCgResult(
@@ -761,16 +801,18 @@ end
 struct FaerBicgstabError{R} <: Exception
     result::R
 end
-Base.showerror(io::IO, e::FaerBicgstabError) = print(
-    io,
-    "BiCGSTAB stopped: ",
-    e.result.reason,
-    " after ",
-    e.result.iterations,
-    " updates (true residual ",
-    e.result.abs_residual,
-    ")",
-)
+function Base.showerror(io::IO, e::FaerBicgstabError)
+    return print(
+        io,
+        "BiCGSTAB stopped: ",
+        e.result.reason,
+        " after ",
+        e.result.iterations,
+        " updates (true residual ",
+        e.result.abs_residual,
+        ")",
+    )
+end
 LinearAlgebra.issuccess(result::FaerBicgstabResult) = result.converged
 
 """
@@ -788,87 +830,87 @@ the last iterate. No Hermitian or positive definite assumption is required.
 function bicgstab(
     A,
     b::Union{AbstractVector{<:Number},AbstractMatrix{<:Number}};
-    M = nothing,
-    N = nothing,
-    x0 = nothing,
-    atol::Real = 0,
-    rtol = nothing,
-    maxiter::Integer = max(1, size(A, 1)),
-    check::Bool = true,
-    callback = nothing,
-    history::Bool = false,
-    scratch = nothing,
-    team = nothing,
+    M=nothing,
+    N=nothing,
+    x0=nothing,
+    atol::Real=0,
+    rtol=nothing,
+    maxiter::Integer=max(1, size(A, 1)),
+    check::Bool=true,
+    callback=nothing,
+    history::Bool=false,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
-        op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
+        op = A isa FaerLinearOperator ? A : FaerLinearOperator(A)
         _handle(op)
-        size(op, 1)==size(op, 2) ||
+        size(op, 1) == size(op, 2) ||
             throw(DimensionMismatch("BiCGSTAB operator must be square"))
-        size(b, 1)==size(op, 1) ||
+        size(b, 1) == size(op, 1) ||
             throw(DimensionMismatch("BiCGSTAB RHS rows must match operator"))
-        precond=isnothing(M) ? nothing :
-                M isa FaerLinearOperator ? M : FaerLinearOperator(M)
+        precond = if isnothing(M)
+            nothing
+        elseif M isa FaerLinearOperator
+            M
+        else
+            FaerLinearOperator(M)
+        end
         !isnothing(precond) && (
             _handle(precond);
-            size(precond)==size(op) || throw(
+            size(precond) == size(op) || throw(
                 DimensionMismatch("BiCGSTAB preconditioner shape must match operator"),
             )
         )
-        right=isnothing(N) ? nothing : N isa FaerLinearOperator ? N : FaerLinearOperator(N)
+        right = if isnothing(N)
+            nothing
+        elseif N isa FaerLinearOperator
+            N
+        else
+            FaerLinearOperator(N)
+        end
         !isnothing(right) && (
             _handle(right);
-            size(right)==size(op) || throw(
+            size(right) == size(op) || throw(
                 DimensionMismatch(
-                    "BiCGSTAB right preconditioner shape must match operator",
+                    "BiCGSTAB right preconditioner shape must match operator"
                 ),
             )
         )
         !isnothing(x0) &&
-            size(x0)!=size(b) &&
+            size(x0) != size(b) &&
             throw(DimensionMismatch("BiCGSTAB initial guess shape must match RHS"))
-        P=promote_type(
+        P = promote_type(
             eltype(op),
             _reflector_type(eltype(b)),
             isnothing(x0) ? eltype(op) : _reflector_type(eltype(x0)),
             isnothing(precond) ? eltype(op) : eltype(precond),
             isnothing(right) ? eltype(op) : eltype(right),
         )
-        R=_realtype(P)
-        abs_tol=R(atol)
-        rel_tol=isnothing(rtol) ? R(128)*eps(R) : R(rtol)
-        isfinite(abs_tol)&&isfinite(rel_tol)&&abs_tol>=0&&rel_tol>=0 ||
+        R = _realtype(P)
+        abs_tol = R(atol)
+        rel_tol = isnothing(rtol) ? R(128) * eps(R) : R(rtol)
+        isfinite(abs_tol) && isfinite(rel_tol) && abs_tol >= 0 && rel_tol >= 0 ||
             throw(ArgumentError("BiCGSTAB tolerances must be finite and nonnegative"))
-        limit=Int(maxiter)
-        limit>=0 || throw(ArgumentError("BiCGSTAB maxiter must be nonnegative"))
-        rhs=_cg_matrix(b, P)
-        initial=isnothing(x0) ? _zeros(P, size(rhs)) : _cg_matrix(x0, P)
-        operator=_operator_coerce(op, P)
-        preconditioner=isnothing(precond) ? Ptr{UInt8}(C_NULL) :
-                       _operator_coerce(precond, P)
-        right_preconditioner=isnothing(right) ? Ptr{UInt8}(C_NULL) :
-                             _operator_coerce(right, P)
-        resources=_iterative_resource_prepare(
-            1,
-            operator,
-            preconditioner,
-            right_preconditioner,
-            size(rhs, 2),
-            scratch,
-            team,
+        limit = Int(maxiter)
+        limit >= 0 || throw(ArgumentError("BiCGSTAB maxiter must be nonnegative"))
+        rhs = _cg_matrix(b, P)
+        initial = isnothing(x0) ? _zeros(P, size(rhs)) : _cg_matrix(x0, P)
+        operator = _operator_coerce(op, P)
+        preconditioner =
+            isnothing(precond) ? Ptr{UInt8}(C_NULL) : _operator_coerce(precond, P)
+        right_preconditioner =
+            isnothing(right) ? Ptr{UInt8}(C_NULL) : _operator_coerce(right, P)
+        resources = _iterative_resource_prepare(
+            1, operator, preconditioner, right_preconditioner, size(rhs, 2), scratch, team
         )
-        stats=Vector{P}(undef, 5)
-        iterations=zeros(UInt, 1)
-        log, observing, observer, normalop=_iteration_observer(
-            P,
-            operator,
-            rhs,
-            callback,
-            history;
-            vector = b isa AbstractVector,
+        stats = Vector{P}(undef, 5)
+        iterations = zeros(UInt, 1)
+        log, observing, observer, normalop = _iteration_observer(
+            P, operator, rhs, callback, history; vector=b isa AbstractVector
         )
-        args=(
+        args = (
             operator,
             preconditioner,
             right_preconditioner,
@@ -882,7 +924,7 @@ function bicgstab(
             observing,
             observer,
         )
-        solution=try
+        solution = try
             GC.@preserve stats iterations _iterative_solution(
                 resources,
                 1,
@@ -896,10 +938,15 @@ function bicgstab(
         finally
             isnothing(normalop) || close(normalop)
         end
-        status=Int(real(stats[1]))
-        x=b isa _BorrowVector ? _vector_from_source(solution) :
-          b isa AbstractVector ? vec(Matrix(solution)) : solution
-        reason=(
+        status = Int(real(stats[1]))
+        x = if b isa _BorrowVector
+            _vector_from_source(solution)
+        elseif b isa AbstractVector
+            vec(Matrix(solution))
+        else
+            solution
+        end
+        reason = (
             :converged,
             :no_convergence,
             :nonpositive_operator,
@@ -907,10 +954,10 @@ function bicgstab(
             :residual_mismatch,
             :stopped,
             :breakdown,
-        )[status+1]
-        result=FaerBicgstabResult(
+        )[status + 1]
+        result = FaerBicgstabResult(
             x,
-            status==0,
+            status == 0,
             Int(iterations[1]),
             R(real(stats[2])),
             R(real(stats[3])),
@@ -921,22 +968,22 @@ function bicgstab(
         )
         check &&
             !result.converged &&
-            result.reason!==:stopped &&
+            result.reason !== :stopped &&
             throw(FaerBicgstabError(result))
         return result
     end
 end
 
 """Use x as the initial guess for BiCGSTAB; checked failures leave x unchanged. See [`cg!`](@ref)."""
-function bicgstab!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
+function bicgstab!(x::_HouseholderArray, A, b; check::Bool=true, kwargs...)
     lock(_matrix_lock) do
-        size(x)==size(b) ||
+        size(x) == size(b) ||
             throw(DimensionMismatch("BiCGSTAB destination shape must match RHS"))
         x isa _RotationArray && _rotation_open(x)
-        result=bicgstab(A, b; x0 = x, check, kwargs...)
-        eltype(x)===eltype(result.x) || throw(
+        result = bicgstab(A, b; x0=x, check, kwargs...)
+        eltype(x) === eltype(result.x) || throw(
             ArgumentError(
-                "bicgstab! destination must match the promoted solver scalar type",
+                "bicgstab! destination must match the promoted solver scalar type"
             ),
         )
         _operator_copy_result!(x, result.x)
@@ -972,16 +1019,18 @@ end
 struct FaerLsmrError{R} <: Exception
     result::R
 end
-Base.showerror(io::IO, e::FaerLsmrError) = print(
-    io,
-    "LSMR stopped: ",
-    e.result.reason,
-    " after ",
-    e.result.iterations,
-    " updates (true residual ",
-    e.result.abs_residual,
-    ")",
-)
+function Base.showerror(io::IO, e::FaerLsmrError)
+    return print(
+        io,
+        "LSMR stopped: ",
+        e.result.reason,
+        " after ",
+        e.result.iterations,
+        " updates (true residual ",
+        e.result.abs_residual,
+        ")",
+    )
+end
 LinearAlgebra.issuccess(result::FaerLsmrResult) = result.converged
 
 """
@@ -1009,75 +1058,75 @@ the minimum-norm metric. Storage, scalar promotion and ownership follow [`cg`](@
 function lsmr(
     A,
     b::Union{AbstractVector{<:Number},AbstractMatrix{<:Number}};
-    M = nothing,
-    x0 = nothing,
-    atol::Real = 0,
-    rtol = nothing,
-    maxiter::Integer = max(1, 4 * min(size(A)...)),
-    check::Bool = true,
-    callback = nothing,
-    history::Bool = false,
-    scratch = nothing,
-    team = nothing,
+    M=nothing,
+    x0=nothing,
+    atol::Real=0,
+    rtol=nothing,
+    maxiter::Integer=max(1, 4 * min(size(A)...)),
+    check::Bool=true,
+    callback=nothing,
+    history::Bool=false,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
-        op=A isa FaerLinearOperator ? A : FaerLinearOperator(A)
+        op = A isa FaerLinearOperator ? A : FaerLinearOperator(A)
         _handle(op)
-        size(b, 1)==size(op, 1) ||
+        size(b, 1) == size(op, 1) ||
             throw(DimensionMismatch("LSMR RHS rows must match operator"))
-        precond=isnothing(M) ? nothing :
-                M isa FaerLinearOperator ? M : FaerLinearOperator(M)
+        precond = if isnothing(M)
+            nothing
+        elseif M isa FaerLinearOperator
+            M
+        else
+            FaerLinearOperator(M)
+        end
         !isnothing(precond) && (
             _handle(precond);
-            size(precond)==(size(op, 2), size(op, 2)) || throw(
-                DimensionMismatch("LSMR preconditioner shape must match operator"),
+            size(precond) == (size(op, 2), size(op, 2)) || throw(
+                DimensionMismatch("LSMR preconditioner shape must match operator")
             )
         )
         !isnothing(x0) &&
-            size(x0)!=(b isa AbstractVector ? (size(op, 2),) : (size(op, 2), size(b, 2))) &&
+            size(x0) !=
+            (b isa AbstractVector ? (size(op, 2),) : (size(op, 2), size(b, 2))) &&
             throw(DimensionMismatch("LSMR initial guess shape must match RHS"))
-        P=promote_type(
+        P = promote_type(
             eltype(op),
             _reflector_type(eltype(b)),
             isnothing(x0) ? eltype(op) : _reflector_type(eltype(x0)),
             isnothing(precond) ? eltype(op) : eltype(precond),
         )
-        R=_realtype(P)
-        abs_tol=R(atol)
-        rel_tol=isnothing(rtol) ? R(128)*eps(R) : R(rtol)
-        isfinite(abs_tol)&&isfinite(rel_tol)&&abs_tol>=0&&rel_tol>=0 ||
+        R = _realtype(P)
+        abs_tol = R(atol)
+        rel_tol = isnothing(rtol) ? R(128) * eps(R) : R(rtol)
+        isfinite(abs_tol) && isfinite(rel_tol) && abs_tol >= 0 && rel_tol >= 0 ||
             throw(ArgumentError("LSMR tolerances must be finite and nonnegative"))
-        limit=Int(maxiter)
-        limit>=0 || throw(ArgumentError("LSMR maxiter must be nonnegative"))
-        rhs=_cg_matrix(b, P)
-        dims=(size(op, 2), size(rhs, 2))
-        initial=isnothing(x0) ? _zeros(P, dims) : _cg_matrix(x0, P)
-        operator=_operator_coerce(op, P)
-        preconditioner=isnothing(precond) ? Ptr{UInt8}(C_NULL) :
-                       _operator_coerce(precond, P)
-        resources=_iterative_resource_prepare(
-            2,
-            operator,
-            preconditioner,
-            nothing,
-            size(rhs, 2),
-            scratch,
-            team,
+        limit = Int(maxiter)
+        limit >= 0 || throw(ArgumentError("LSMR maxiter must be nonnegative"))
+        rhs = _cg_matrix(b, P)
+        dims = (size(op, 2), size(rhs, 2))
+        initial = isnothing(x0) ? _zeros(P, dims) : _cg_matrix(x0, P)
+        operator = _operator_coerce(op, P)
+        preconditioner =
+            isnothing(precond) ? Ptr{UInt8}(C_NULL) : _operator_coerce(precond, P)
+        resources = _iterative_resource_prepare(
+            2, operator, preconditioner, nothing, size(rhs, 2), scratch, team
         )
-        stats=Vector{P}(undef, 7)
-        iterations=zeros(UInt, 1)
-        log, observing, observer, normalop=_iteration_observer(
+        stats = Vector{P}(undef, 7)
+        iterations = zeros(UInt, 1)
+        log, observing, observer, normalop = _iteration_observer(
             P,
             operator,
             rhs,
             callback,
             history;
-            vector = b isa AbstractVector,
-            normal = true,
-            preconditioner = isnothing(precond) ? nothing : preconditioner,
+            vector=b isa AbstractVector,
+            normal=true,
+            preconditioner=isnothing(precond) ? nothing : preconditioner,
         )
-        args=(
+        args = (
             operator,
             preconditioner,
             rhs,
@@ -1090,34 +1139,32 @@ function lsmr(
             observing,
             observer,
         )
-        solution=try
+        solution = try
             GC.@preserve stats iterations _iterative_solution(
-                resources,
-                2,
-                P,
-                RustCrate.operator_lsmr,
-                dims,
-                args,
-                scratch,
-                team,
+                resources, 2, P, RustCrate.operator_lsmr, dims, args, scratch, team
             )
         finally
             isnothing(normalop) || close(normalop)
         end
-        status=Int(real(stats[1]))
-        x=b isa _BorrowVector ? _vector_from_source(solution) :
-          b isa AbstractVector ? vec(Matrix(solution)) : solution
-        reason=(
+        status = Int(real(stats[1]))
+        x = if b isa _BorrowVector
+            _vector_from_source(solution)
+        elseif b isa AbstractVector
+            vec(Matrix(solution))
+        else
+            solution
+        end
+        reason = (
             :converged,
             :no_convergence,
             :nonpositive_operator,
             :nonpositive_preconditioner,
             :residual_mismatch,
             :stopped,
-        )[status+1]
-        result=FaerLsmrResult(
+        )[status + 1]
+        result = FaerLsmrResult(
             x,
-            status==0,
+            status == 0,
             Int(iterations[1]),
             R(real(stats[2])),
             R(real(stats[3])),
@@ -1130,20 +1177,20 @@ function lsmr(
         )
         check &&
             !result.converged &&
-            result.reason!==:stopped &&
+            result.reason !== :stopped &&
             throw(FaerLsmrError(result))
         return result
     end
 end
 
 """Use x as LSMR initial guess/output; checked failure leaves x unchanged. See [`lsmr`](@ref)."""
-function lsmr!(x::_HouseholderArray, A, b; check::Bool = true, kwargs...)
+function lsmr!(x::_HouseholderArray, A, b; check::Bool=true, kwargs...)
     lock(_matrix_lock) do
-        size(x)==(b isa AbstractVector ? (size(A, 2),) : (size(A, 2), size(b, 2))) ||
+        size(x) == (b isa AbstractVector ? (size(A, 2),) : (size(A, 2), size(b, 2))) ||
             throw(DimensionMismatch("LSMR destination shape must match solution"))
         x isa _RotationArray && _rotation_open(x)
-        result=lsmr(A, b; x0 = x, check, kwargs...)
-        eltype(x)===eltype(result.x) || throw(
+        result = lsmr(A, b; x0=x, check, kwargs...)
+        eltype(x) === eltype(result.x) || throw(
             ArgumentError("lsmr! destination must match the promoted solver scalar type"),
         )
         _operator_copy_result!(x, result.x)
@@ -1175,13 +1222,13 @@ function Base.:*(a::FaerLinearOperator, b::FaerLinearOperator)
     lock(_matrix_lock) do
         _handle(a)
         _handle(b)
-        size(a, 2)==size(b, 1) ||
+        size(a, 2) == size(b, 1) ||
             throw(DimensionMismatch("operator composition dimensions must match"))
-        T=promote_type(eltype(a), eltype(b))
-        left, right=_operator_coerce(a, T), _operator_coerce(b, T)
-        h=RustCrate.OwnedLinearOperator()
+        T = promote_type(eltype(a), eltype(b))
+        left, right = _operator_coerce(a, T), _operator_coerce(b, T)
+        h = RustCrate.OwnedLinearOperator()
         _native_call(RustCrate.operator_compose, h, left, right)
-        FaerLinearOperator{T,typeof(h)}(
+        return FaerLinearOperator{T,typeof(h)}(
             h,
             (size(a, 1), size(b, 2)),
             :composition,
@@ -1210,18 +1257,24 @@ function _dense_factor_operator(f::FaerFactorization{T,K}) where {T,K}
     )
     lock(_matrix_lock) do
         _handle(f)
-        size(f, 1)==size(f, 2) ||
+        size(f, 1) == size(f, 2) ||
             throw(DimensionMismatch("factor preconditioner must be square"))
         LinearAlgebra.issuccess(f) || (
-            K===:cholesky ? throw(LinearAlgebra.PosDefException(f.info)) :
-            throw(LinearAlgebra.SingularException(f.info))
+            if K === :cholesky
+                throw(LinearAlgebra.PosDefException(f.info))
+            else
+                throw(LinearAlgebra.SingularException(f.info))
+            end
         )
         _dense_solve_validate(f)
-        h=RustCrate.OwnedLinearOperator()
-        fun=T===Float64 ? RustCrate.operator_factor_preconditioner :
+        h = RustCrate.OwnedLinearOperator()
+        fun = if T === Float64
+            RustCrate.operator_factor_preconditioner
+        else
             RustCrate.operator_typed_factor_preconditioner
+        end
         _native_call(fun, h, f)
-        FaerLinearOperator{T,typeof(h)}(h, size(f), :factorization, false, false)
+        return FaerLinearOperator{T,typeof(h)}(h, size(f), :factorization, false, false)
     end
 end
 
@@ -1247,39 +1300,37 @@ factors and result staging allocate as operator output.
 Promotion converts saved data and preserves the original cutoff decisions.
 """
 function FaerLinearOperator(
-    f::_DenseQrFactor;
-    atol::Real = 0,
-    rtol = nothing,
-    scratch = nothing,
-    team = nothing,
+    f::_DenseQrFactor; atol::Real=0, rtol=nothing, scratch=nothing, team=nothing
 )
     lock(_matrix_lock) do
         _handle(f)
-        at, rt=_spectral_tolerances(
-            atol,
-            isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol,
+        at, rt = _spectral_tolerances(
+            atol, isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol
         )
         _construction_options(scratch, team)
-        if size(f, 1)==size(f, 2) && iszero(atol) && isnothing(rtol)
+        if size(f, 1) == size(f, 2) && iszero(atol) && isnothing(rtol)
             return _dense_factor_operator(f)
         end
         _dense_solve_validate(f)
         LinearAlgebra.issuccess(f) || throw(LinearAlgebra.SingularException(f.info))
-        relative=isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol
-        T=eltype(f)
-        h=RustCrate.OwnedLinearOperator()
-        fun=T===Float64 ? RustCrate.operator_qr_pseudoinverse :
+        relative = isnothing(rtol) ? _default_spectral_rtol(f, atol) : rtol
+        T = eltype(f)
+        h = RustCrate.OwnedLinearOperator()
+        fun = if T === Float64
+            RustCrate.operator_qr_pseudoinverse
+        else
             RustCrate.operator_qr_pseudoinverse_typed
-        req=_qr_pseudoinverse_requirement(f, team)
+        end
+        req = _qr_pseudoinverse_requirement(f, team)
         _with_construction_scratch(req, scratch) do work
-            _native_call(
+            return _native_call(
                 fun,
                 h,
                 f,
                 work,
                 at,
                 rt,
-                promote_type(typeof(relative), _realtype(T))===Float32,
+                promote_type(typeof(relative), _realtype(T)) === Float32,
                 UInt(size(f, 1)),
                 UInt(size(f, 2)),
                 _tag(T),
@@ -1287,11 +1338,7 @@ function FaerLinearOperator(
             )
         end
         return FaerLinearOperator{T,typeof(h)}(
-            h,
-            reverse(size(f)),
-            :factorization,
-            false,
-            false,
+            h, reverse(size(f)), :factorization, false, false
         )
     end
 end
@@ -1309,9 +1356,7 @@ caller-owned `scratch` (`scratch_requirements(FaerLinearOperator, F; team)`) on
 the optional `team`. Other kinds only copy factors and need zero bytes.
 """
 function FaerLinearOperator(
-    f::FaerSparseFactorization{T,K};
-    scratch = nothing,
-    team = nothing,
+    f::FaerSparseFactorization{T,K}; scratch=nothing, team=nothing
 ) where {T,K}
     K in (:lu, :cholesky, :qr) ||
         throw(ArgumentError("sparse inverse operator requires LU/QR or Cholesky"))
@@ -1319,43 +1364,36 @@ function FaerLinearOperator(
         _handle(f)
         _construction_options(scratch, team)
         LinearAlgebra.issuccess(f) || (
-            K===:cholesky ? throw(LinearAlgebra.PosDefException(f.info)) :
-            throw(LinearAlgebra.SingularException(f.info))
+            if K === :cholesky
+                throw(LinearAlgebra.PosDefException(f.info))
+            else
+                throw(LinearAlgebra.SingularException(f.info))
+            end
         )
-        if K===:qr && _native_call(RustCrate.sparse_qr_needs_spectral_solve, f)
-            inverse=LinearAlgebra.pinv(f)
+        if K === :qr && _native_call(RustCrate.sparse_qr_needs_spectral_solve, f)
+            inverse = LinearAlgebra.pinv(f)
             try
                 return FaerLinearOperator(inverse)
             finally
                 close(inverse)
             end
         end
-        if K===:qr
-            h=RustCrate.OwnedLinearOperator()
-            req=_sparse_qr_inverse_requirement(f, team)
+        if K === :qr
+            h = RustCrate.OwnedLinearOperator()
+            req = _sparse_qr_inverse_requirement(f, team)
             _with_construction_scratch(req, scratch) do work
-                _native_call(RustCrate.operator_sparse_qr_inverse, h, f, work, team)
+                return _native_call(RustCrate.operator_sparse_qr_inverse, h, f, work, team)
             end
             return FaerLinearOperator{T,typeof(h)}(
-                h,
-                reverse(size(f)),
-                :factorization,
-                false,
-                false,
+                h, reverse(size(f)), :factorization, false, false
             )
         end
-        l, u, rows=f.L, f.U, f.p
-        cols=K===:lu ? f.q : copy(rows)
+        l, u, rows = f.L, f.U, f.p
+        cols = K === :lu ? f.q : copy(rows)
         try
-            h=RustCrate.OwnedLinearOperator()
+            h = RustCrate.OwnedLinearOperator()
             _native_call(
-                RustCrate.operator_sparse_factor_inverse,
-                h,
-                l,
-                u,
-                rows,
-                cols,
-                K===:lu,
+                RustCrate.operator_sparse_factor_inverse, h, l, u, rows, cols, K === :lu
             )
             FaerLinearOperator{T,typeof(h)}(h, size(f), :factorization, false, false)
         finally

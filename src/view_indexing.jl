@@ -8,21 +8,21 @@
 # Integer-vector views stay Julia `SubArray`s over the native array; their
 # bulk copies and assignments use the same native gather/scatter.
 
-const _NativeIndexed2=Union{FaerMatrix,FaerRow,FaerMatrixView}
-const _NativeIndexed1=Union{FaerVector,FaerVectorView}
-const _NativeIndexed=Union{_NativeIndexed2,_NativeIndexed1}
-const _ArrayIndex=Union{Colon,AbstractVector}
+const _NativeIndexed2 = Union{FaerMatrix,FaerRow,FaerMatrixView}
+const _NativeIndexed1 = Union{FaerVector,FaerVectorView}
+const _NativeIndexed = Union{_NativeIndexed2,_NativeIndexed1}
+const _ArrayIndex = Union{Colon,AbstractVector}
 
 # Index forms the native kernels take after `to_indices` (masks become
 # `LogicalIndex`, `:` a `Slice`); others keep Base's generic path.
 _gatherable(i::Integer) = true
-_gatherable(i::AbstractVector) = eltype(i)<:Integer
+_gatherable(i::AbstractVector) = eltype(i) <: Integer
 _gatherable(::Any) = false
-_zero_based(i::Integer) = UInt[i-1]
+_zero_based(i::Integer) = UInt[i - 1]
 function _zero_based(I::AbstractVector)
-    out=Vector{UInt}(undef, length(I))
+    out = Vector{UInt}(undef, length(I))
     for (k, i) in enumerate(I)
-        out[k]=i-1
+        out[k] = i - 1
     end
     return out
 end
@@ -33,51 +33,47 @@ _index_lists(::_NativeIndexed2, idx) = (_zero_based(idx[1]), _zero_based(idx[2])
 # A 1-d native/Julia descriptor is a column; a selection with one row and
 # several columns needs it transposed.
 function _oriented(d, target, nr, nc)
-    ndims(target)==1 && nr==1 && nc!=1 && (d[8]=1-d[8])
+    ndims(target) == 1 && nr == 1 && nc != 1 && (d[8] = 1 - d[8])
     return d
 end
 
 function _gather_into!(dest, a, rows, cols)
-    target=_gemm_destination(dest)
-    staged=isnothing(target)
-    staged && (target=FaerMatrix{eltype(a)}(undef, length(rows), length(cols)))
-    p, d=_view_source(target)
+    target = _gemm_destination(dest)
+    staged = isnothing(target)
+    staged && (target = FaerMatrix{eltype(a)}(undef, length(rows), length(cols)))
+    p, d = _view_source(target)
     _oriented(d, target, length(rows), length(cols))
-    q, e=_view_source(a)
+    q, e = _view_source(a)
     GC.@preserve d e rows cols _native_call(
-        RustCrate.view_gather_into,
-        p,
-        pointer(d),
-        q,
-        pointer(e),
-        rows,
-        cols,
+        RustCrate.view_gather_into, p, pointer(d), q, pointer(e), rows, cols
     )
     staged && copyto!(dest, reshape(Matrix(target), size(dest)))
     return dest
 end
 
 function _native_getindex(a, I...)
-    idx=to_indices(a, I)
+    idx = to_indices(a, I)
     all(_gatherable, idx) ||
         return invoke(getindex, Tuple{AbstractArray,Vararg{Any}}, a, I...)
     lock(_matrix_lock) do
         _view_source(a)  # Throws for closed or invalidated arrays.
         checkbounds(a, idx...)
-        rows, cols=_index_lists(a, idx)
-        dest=similar(a, eltype(a), Base.index_shape(idx...))
+        rows, cols = _index_lists(a, idx)
+        dest = similar(a, eltype(a), Base.index_shape(idx...))
         return _gather_into!(dest, a, rows, cols)
     end
 end
-Base.getindex(a::_NativeIndexed2, I::_ArrayIndex, J::_ArrayIndex) = _native_getindex(a, I, J)
+function Base.getindex(a::_NativeIndexed2, I::_ArrayIndex, J::_ArrayIndex)
+    return _native_getindex(a, I, J)
+end
 Base.getindex(a::_NativeIndexed2, i::Integer, J::_ArrayIndex) = _native_getindex(a, i, J)
 Base.getindex(a::_NativeIndexed2, I::_ArrayIndex, j::Integer) = _native_getindex(a, I, j)
 Base.getindex(a::_NativeIndexed1, I::_ArrayIndex) = _native_getindex(a, I)
 # Linear indexing of matrices (`A[mask]`, `A[[1, 5]]`, `A[:]`): one bulk read,
 # Julia's indexing, then one bulk write into Base's result container.
 function Base.getindex(a::_NativeIndexed2, I::Union{Colon,AbstractArray})
-    x=Array(a)[I]
-    dest=similar(a, eltype(a), size(x))
+    x = Array(a)[I]
+    dest = similar(a, eltype(a), size(x))
     return dest isa Array ? x : copyto!(dest, x)
 end
 
@@ -86,78 +82,80 @@ end
 # anything else is converted into a Julia buffer first, so conversion errors
 # leave the destination untouched.
 function _scatter_source(x, ::Type{T}, nr, nc) where {T}
-    if eltype(x)===T
-        y=_gemm_input(x)
+    if eltype(x) === T
+        y = _gemm_input(x)
         if !isnothing(y)
-            q, e=_view_source(y)
-            m, n=e[8]==0 ? (e[4], e[7]) : (e[7], e[4])
-            (m, n)==(nr, nc) && return y, q, e
-            if (n, m)==(nr, nc) && min(m, n)==1
-                e[8]=1-e[8]
+            q, e = _view_source(y)
+            m, n = e[8] == 0 ? (e[4], e[7]) : (e[7], e[4])
+            (m, n) == (nr, nc) && return y, q, e
+            if (n, m) == (nr, nc) && min(m, n) == 1
+                e[8] = 1 - e[8]
                 return y, q, e
             end
         end
     end
-    staged=copyto!(Matrix{T}(undef, nr, nc), x)
-    y=FaerBorrowedArray(staged)
-    q, e=_view_source(y)
+    staged = copyto!(Matrix{T}(undef, nr, nc), x)
+    y = FaerBorrowedArray(staged)
+    q, e = _view_source(y)
     return y, q, e
 end
 
 function _native_setindex!(a, x::AbstractArray, I...)
     lock(_matrix_lock) do
-        p, d=_view_source(a)
-        idx=to_indices(a, I)
-        if !(all(_gatherable, idx) && _injective_descriptor(d) && d[9]==0)
+        p, d = _view_source(a)
+        idx = to_indices(a, I)
+        if !(all(_gatherable, idx) && _injective_descriptor(d) && d[9] == 0)
             invoke(setindex!, Tuple{AbstractArray,Any,Vararg{Any}}, a, x, I...)
             return a
         end
         checkbounds(a, idx...)
         Base.setindex_shape_check(x, map(length, idx)...)
-        rows, cols=_index_lists(a, idx)
-        y, q, e=_scatter_source(x, eltype(a), length(rows), length(cols))
+        rows, cols = _index_lists(a, idx)
+        y, q, e = _scatter_source(x, eltype(a), length(rows), length(cols))
         GC.@preserve d e rows cols y _native_call(
-            RustCrate.view_scatter_into,
-            p,
-            pointer(d),
-            rows,
-            cols,
-            q,
-            pointer(e),
+            RustCrate.view_scatter_into, p, pointer(d), rows, cols, q, pointer(e)
         )
         return a
     end
 end
-Base.setindex!(a::_NativeIndexed2, x::AbstractArray, I::_ArrayIndex, J::_ArrayIndex) =
-    _native_setindex!(a, x, I, J)
-Base.setindex!(a::_NativeIndexed2, x::AbstractArray, i::Integer, J::_ArrayIndex) =
-    _native_setindex!(a, x, i, J)
-Base.setindex!(a::_NativeIndexed2, x::AbstractArray, I::_ArrayIndex, j::Integer) =
-    _native_setindex!(a, x, I, j)
-Base.setindex!(a::_NativeIndexed1, x::AbstractArray, I::_ArrayIndex) =
-    _native_setindex!(a, x, I)
+function Base.setindex!(
+    a::_NativeIndexed2, x::AbstractArray, I::_ArrayIndex, J::_ArrayIndex
+)
+    return _native_setindex!(a, x, I, J)
+end
+function Base.setindex!(a::_NativeIndexed2, x::AbstractArray, i::Integer, J::_ArrayIndex)
+    return _native_setindex!(a, x, i, J)
+end
+function Base.setindex!(a::_NativeIndexed2, x::AbstractArray, I::_ArrayIndex, j::Integer)
+    return _native_setindex!(a, x, I, j)
+end
+function Base.setindex!(a::_NativeIndexed1, x::AbstractArray, I::_ArrayIndex)
+    return _native_setindex!(a, x, I)
+end
 
 # `view(A, I, J)` with integer vectors or masks is a Julia SubArray over the
 # native array (`copy` already uses `getindex`). Bulk conversions gather into
 # Julia memory, and bulk writes (`copyto!`, `S .= B`, `fill!`, `S .= x`)
 # scatter natively.
-const _NativeSubArray{T,N}=SubArray{T,N,<:_NativeIndexed}
+const _NativeSubArray{T,N} = SubArray{T,N,<:_NativeIndexed}
 function Base.Array{T,N}(s::_NativeSubArray{T,N}) where {T,N}
-    idx=parentindices(s)
-    a=parent(s)
+    idx = parentindices(s)
+    a = parent(s)
     all(_gatherable, idx) || return copyto!(Array{T,N}(undef, size(s)), s)
     lock(_matrix_lock) do
         _view_source(a)
-        rows, cols=_index_lists(a, idx)
+        rows, cols = _index_lists(a, idx)
         return _gather_into!(Array{T,N}(undef, size(s)), a, rows, cols)
     end
 end
 # Dense sources only: sparse and CHOLMOD sources keep their own methods.
-const _ScatterSource=Union{Array,SubArray,FaerMatrix,FaerVector,FaerRow,FaerView,FaerBorrowedArray}
+const _ScatterSource = Union{
+    Array,SubArray,FaerMatrix,FaerVector,FaerRow,FaerView,FaerBorrowedArray
+}
 function Base.copyto!(s::_NativeSubArray, src::_ScatterSource)
-    length(src)==length(s) ||
+    length(src) == length(s) ||
         return invoke(copyto!, Tuple{AbstractArray,AbstractArray}, s, src)
-    x=size(src)==size(s) ? src : reshape(src, size(s))
+    x = size(src) == size(s) ? src : reshape(src, size(s))
     _native_setindex!(parent(s), x, parentindices(s)...)
     return s
 end
@@ -182,27 +180,28 @@ function split_at_row end
 @doc (@doc split_at_row) split_at
 
 function _split_point(a, d, k)
-    0<=k<=size(a, d) || throw(BoundsError(a, d==1 ? (k, :) : (:, k)))
+    0 <= k <= size(a, d) || throw(BoundsError(a, d == 1 ? (k, :) : (:, k)))
     return Int(k)
 end
 function split_at_row(a::_NativeIndexed2, k::Integer)
-    k=_split_point(a, 1, k)
-    return view(a, 1:k, :), view(a, (k+1):size(a, 1), :)
+    k = _split_point(a, 1, k)
+    return view(a, 1:k, :), view(a, (k + 1):size(a, 1), :)
 end
 function split_at_col(a::_NativeIndexed2, k::Integer)
-    k=_split_point(a, 2, k)
-    return view(a, :, 1:k), view(a, :, (k+1):size(a, 2))
+    k = _split_point(a, 2, k)
+    return view(a, :, 1:k), view(a, :, (k + 1):size(a, 2))
 end
 function split_at(a::_NativeIndexed2, i::Integer, j::Integer)
-    i=_split_point(a, 1, i)
-    j=_split_point(a, 2, j)
-    m, n=size(a)
-    return view(a, 1:i, 1:j), view(a, 1:i, (j+1):n), view(a, (i+1):m, 1:j),
-    view(a, (i+1):m, (j+1):n)
+    i = _split_point(a, 1, i)
+    j = _split_point(a, 2, j)
+    m, n = size(a)
+    return view(a, 1:i, 1:j),
+    view(a, 1:i, (j + 1):n), view(a, (i + 1):m, 1:j),
+    view(a, (i + 1):m, (j + 1):n)
 end
 function split_at_row(v::_NativeIndexed1, k::Integer)
-    k=_split_point(v, 1, k)
-    return view(v, 1:k), view(v, (k+1):length(v))
+    k = _split_point(v, 1, k)
+    return view(v, 1:k), view(v, (k + 1):length(v))
 end
 
 # Effective element strides reported by faer for the live storage: owners are
@@ -211,10 +210,10 @@ end
 # `pointer`/`elsize`: native storage is not addressable from Julia code.
 function _native_strides(a)
     lock(_matrix_lock) do
-        p, d=_view_source(a)
-        out=zeros(Int, 2)
+        p, d = _view_source(a)
+        out = zeros(Int, 2)
         GC.@preserve d _native_call(RustCrate.view_strides, p, pointer(d), out)
-        return ndims(a)==1 ? (out[1],) : (out[1], out[2])
+        return ndims(a) == 1 ? (out[1],) : (out[1], out[2])
     end
 end
 Base.strides(a::Union{FaerMatrix,FaerVector,FaerRow,FaerView}) = _native_strides(a)

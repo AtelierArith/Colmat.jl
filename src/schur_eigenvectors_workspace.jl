@@ -1,11 +1,11 @@
-const _SchurEigenFunction=Union{typeof(LinearAlgebra.eigen),typeof(LinearAlgebra.eigvecs)}
+const _SchurEigenFunction = Union{typeof(LinearAlgebra.eigen),typeof(LinearAlgebra.eigvecs)}
 function _schur_eigen_requirement(n, T, team)
-    info=zeros(UInt, 2)
+    info = zeros(UInt, 2)
     GC.@preserve info begin
-        args=(UInt(n), _tag(T), info)
+        args = (UInt(n), _tag(T), info)
         _native_call(RustCrate.schur_eigenvectors_requirements, args..., team)
     end
-    (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 """
     scratch_requirements(eigvecs, F::Schur{T,<:FaerMatrix}; team=nothing)
@@ -18,43 +18,44 @@ are width-independent; execution passes the actual token to back substitution
 and back transformation. Owned output and Julia eigenvalue copies allocate
 separately. Selected faer's internal extreme-scale Schur copy can still allocate.
 """
-function scratch_requirements(::_SchurEigenFunction, f::_NativeSchur; team = nothing)
+function scratch_requirements(::_SchurEigenFunction, f::_NativeSchur; team=nothing)
     lock(_matrix_lock) do
-        n=_schur_order_plan(f, team)
-        _schur_eigen_requirement(n, eltype(f), team)
+        n = _schur_order_plan(f, team)
+        return _schur_eigen_requirement(n, eltype(f), team)
     end
 end
-function FaerScratch(fun::_SchurEigenFunction, f::_NativeSchur; team = nothing)
-    req=scratch_requirements(fun, f; team)
-    FaerScratch(req.bytes; alignment = req.alignment)
+function FaerScratch(fun::_SchurEigenFunction, f::_NativeSchur; team=nothing)
+    req = scratch_requirements(fun, f; team)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
-function reserve!(s::FaerScratch, fun::_SchurEigenFunction, f::_NativeSchur; team = nothing)
-    req=scratch_requirements(fun, f; team)
-    reserve!(s, req.bytes; alignment = req.alignment)
+function reserve!(s::FaerScratch, fun::_SchurEigenFunction, f::_NativeSchur; team=nothing)
+    req = scratch_requirements(fun, f; team)
+    return reserve!(s, req.bytes; alignment=req.alignment)
 end
-function _saved_schur_eigenvectors(f::_NativeSchur; scratch = nothing, team = nothing)
+function _saved_schur_eigenvectors(f::_NativeSchur; scratch=nothing, team=nothing)
     lock(_matrix_lock) do
-        isnothing(scratch)||scratch isa FaerScratch ||
+        isnothing(scratch) ||
+            scratch isa FaerScratch ||
             throw(ArgumentError("scratch must be a FaerScratch"))
-        n=_schur_order_plan(f, team)
-        T=eltype(f)
-        req=_schur_eigen_requirement(n, T, team)
-        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
-             scratch
+        n = _schur_order_plan(f, team)
+        T = eltype(f)
+        req = _schur_eigen_requirement(n, T, team)
+        work =
+            isnothing(scratch) ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
         try
-            cap=scratch_capacity(work)
-            cap.bytes>=req.bytes&&cap.alignment>=req.alignment || throw(
+            cap = scratch_capacity(work)
+            cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
                 ArgumentError(
                     "Saved Schur eigenvectors scratch capacity/alignment is insufficient; call reserve! before computing",
                 ),
             )
-            fn=if T===Float64
+            fn = if T === Float64
                 RustCrate.schur_eigenvectors_owned_workspace
             else
                 RustCrate.schur_eigenvectors_typed_workspace
             end
-            args=(f.T, f.Z, work, UInt(n), _tag(T))
-            args=(args..., team)
+            args = (f.T, f.Z, work, UInt(n), _tag(T))
+            args = (args..., team)
             _typed_result(Complex{_realtype(T)}, fn, (n, n), args...)
         finally
             isnothing(scratch) && close(work)

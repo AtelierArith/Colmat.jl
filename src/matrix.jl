@@ -22,8 +22,9 @@ mutable struct FaerMatrix{T,H} <: AbstractMatrix{T}
     dims::Tuple{Int,Int}
     epoch::UInt
 end
-FaerMatrix{T,H}(handle, dims::Tuple{Int,Int}) where {T,H} =
-    FaerMatrix{T,H}(handle, dims, UInt(0))
+function FaerMatrix{T,H}(handle, dims::Tuple{Int,Int}) where {T,H}
+    return FaerMatrix{T,H}(handle, dims, UInt(0))
+end
 
 _owned(handle::H, dims) where {H} = FaerMatrix{Float64,H}(handle, dims)
 function _handle(a::FaerMatrix)
@@ -116,14 +117,17 @@ function _native_call_plain(f, args...)
     native = map(_native_argument, args)
     raw_positions = _raw_owner_positions(f)
     ffi_args = ntuple(length(args)) do i
-        i in raw_positions ? _raw_owner_argument(native[i], args[i]) : native[i]
+        return i in raw_positions ? _raw_owner_argument(native[i], args[i]) : native[i]
     end
     return GC.@preserve native RustCall.result_to_exception(f(ffi_args...))
 end
 function _native_call(f, args...)
     lock(_matrix_lock) do
-        any(x -> !isnothing(_operator_callback_owners(x)), args) ?
-        _native_call_with_callbacks(f, args...) : _native_call_plain(f, args...)
+        return if any(x -> !isnothing(_operator_callback_owners(x)), args)
+            _native_call_with_callbacks(f, args...)
+        else
+            _native_call_plain(f, args...)
+        end
     end
 end
 
@@ -175,12 +179,12 @@ function Base.copy(a::FaerMatrix{T}) where {T}
 end
 function Base.deepcopy_internal(a::FaerMatrix{Float64}, dict::IdDict)
     return get!(dict, a) do
-        copy(a)
+        return copy(a)
     end
 end
 
 function Base.similar(a::FaerMatrix{Float64}, ::Type{T}, dims::Dims) where {T}
-    if T <: _NativeScalar && length(dims)==2
+    if T <: _NativeScalar && length(dims) == 2
         return _zeros(T, dims)
     end
     return Array{T}(undef, dims)
@@ -197,7 +201,7 @@ function Base.copyto!(dest::FaerMatrix{Float64}, src::FaerMatrix{Float64})
         _handle(dest)
         _handle(src)
         # Avoid passing aliased &mut and & references through the Rust ABI.
-        dest === src || _native_call(RustCrate.assign, dest, src)
+        return dest === src || _native_call(RustCrate.assign, dest, src)
     end
     return dest
 end
@@ -206,7 +210,7 @@ end
 function Base.close(a::FaerMatrix)
     lock(_matrix_lock) do
         a.handle = nothing
-        a.epoch += 1
+        return a.epoch += 1
     end
     return nothing
 end
@@ -239,8 +243,9 @@ function Base.:\(a::FaerMatrix{Float64}, b::FaerMatrix{Float64})
     return LinearAlgebra.factorize(a) \ b
 end
 Base.:\(a::FaerMatrix{Float64}, b::AbstractMatrix{<:Real}) = a \ FaerMatrix{Float64}(b)
-Base.:\(a::FaerMatrix{Float64}, b::AbstractVector{<:Real}) =
-    vec(Matrix(a \ FaerMatrix(reshape(b, :, 1))))
+function Base.:\(a::FaerMatrix{Float64}, b::AbstractVector{<:Real})
+    return vec(Matrix(a \ FaerMatrix(reshape(b, :, 1))))
+end
 
 # Julia's transpose/adjoint wrappers remain lazy; copying materializes in Rust.
 function Base.copy(a::LinearAlgebra.Transpose{Float64,<:FaerMatrix{Float64}})
@@ -271,14 +276,14 @@ are not supported.
 """
 function LinearAlgebra.svd(
     a::FaerMatrix{Float64};
-    full::Bool = false,
-    native::Bool = false,
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
+    full::Bool=false,
+    native::Bool=false,
+    scratch=nothing,
+    team=nothing,
+    alg=nothing,
 )
     isnothing(alg) || return _svd_alg(alg) do
-        LinearAlgebra.svd(a; full, native, scratch, team)
+        return LinearAlgebra.svd(a; full, native, scratch, team)
     end
     native && return _owned_spectral(a; full, scratch, team)
     _svd_default_path(scratch, team) || return _svd_workspace_result(a; full, scratch, team)
@@ -300,14 +305,11 @@ Compute singular values directly from Rust-owned storage, without singular
 vectors. Values are nonnegative and sorted in descending order.
 """
 function LinearAlgebra.svdvals(
-    a::FaerMatrix{Float64};
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
+    a::FaerMatrix{Float64}; scratch=nothing, team=nothing, alg=nothing
 )
-    isnothing(alg) || return _svd_alg(()->LinearAlgebra.svdvals(a; scratch, team), alg)
+    isnothing(alg) || return _svd_alg(() -> LinearAlgebra.svdvals(a; scratch, team), alg)
     _svd_default_path(scratch, team) ||
-        return _svd_workspace_result(a; values_only = true, scratch, team)
+        return _svd_workspace_result(a; values_only=true, scratch, team)
     s = Vector{Float64}(undef, min(size(a)...))
     GC.@preserve s _native_call(RustCrate.singular_values_buffer, a, s)
     return s

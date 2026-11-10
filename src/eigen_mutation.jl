@@ -3,13 +3,18 @@
 # follows `with_schur_tuning` in either case.
 function _writeback_schur(a)
     iszero(_evd_tuning_depth[]) && return LinearAlgebra.schur(a)
-    values=zeros(UInt, 5)
-    flags=zeros(UInt8, 5)
+    values = zeros(UInt, 5)
+    flags = zeros(UInt8, 5)
     _native_call(RustCrate.evd_tuning_state, values, flags)
-    par=iszero(flags[1]) || iszero(values[1]) ? FaerParThreshold() :
-        values[1]==typemax(UInt) ? FaerParThreshold(:never) : FaerParThreshold(values[1])
-    blocking=iszero(flags[2]) ? 256*256 : values[2]
-    h=LinearAlgebra.hessenberg(a; par_threshold = par, blocking_threshold = blocking)
+    par = if iszero(flags[1]) || iszero(values[1])
+        FaerParThreshold()
+    elseif values[1] == typemax(UInt)
+        FaerParThreshold(:never)
+    else
+        FaerParThreshold(values[1])
+    end
+    blocking = iszero(flags[2]) ? 256 * 256 : values[2]
+    h = LinearAlgebra.hessenberg(a; par_threshold=par, blocking_threshold=blocking)
     try
         return LinearAlgebra.schur(h)
     finally
@@ -17,19 +22,18 @@ function _writeback_schur(a)
     end
 end
 function _general_eigen_writeback!(
-    a::FaerMatrix,
-    vectors::Bool,
-    sortby;
-    scratch = nothing,
-    team = nothing,
+    a::FaerMatrix, vectors::Bool, sortby; scratch=nothing, team=nothing
 )
     lock(_matrix_lock) do
         _handle(a)
         LinearAlgebra.checksquare(a)
         if !_general_evd_default_path(scratch, team)
-            result=vectors ? LinearAlgebra.eigen(a; sortby, scratch, team) :
-                   LinearAlgebra.eigvals(a; sortby, scratch, team)
-            form=_writeback_schur(a)
+            result = if vectors
+                LinearAlgebra.eigen(a; sortby, scratch, team)
+            else
+                LinearAlgebra.eigvals(a; sortby, scratch, team)
+            end
+            form = _writeback_schur(a)
             try
                 copyto!(a, form.T)
                 return result
@@ -37,31 +41,31 @@ function _general_eigen_writeback!(
                 close(form)
             end
         end
-        schur=LinearAlgebra.schur(a)
+        schur = LinearAlgebra.schur(a)
         try
-            values=copy(schur.values)
-            eigenvectors=nothing
+            values = copy(schur.values)
+            eigenvectors = nothing
             if vectors
-                native=LinearAlgebra.eigvecs(schur)
+                native = LinearAlgebra.eigvecs(schur)
                 try
-                    eigenvectors=Matrix(native)
+                    eigenvectors = Matrix(native)
                 finally
                     close(native)
                 end
                 for j in axes(eigenvectors, 2)
-                    column=view(eigenvectors, :, j)
-                    length=LinearAlgebra.norm(column)
-                    isfinite(length) && length>0 ||
+                    column = view(eigenvectors, :, j)
+                    length = LinearAlgebra.norm(column)
+                    isfinite(length) && length > 0 ||
                         throw(ArgumentError("native eigenvector has invalid norm"))
                     column ./= length
                 end
             end
             if !isnothing(sortby)
-                order=sortperm(values; by = sortby)
-                values=values[order]
-                vectors && (eigenvectors=eigenvectors[:, order])
+                order = sortperm(values; by=sortby)
+                values = values[order]
+                vectors && (eigenvectors = eigenvectors[:, order])
             end
-            result=vectors ? LinearAlgebra.Eigen(values, eigenvectors) : values
+            result = vectors ? LinearAlgebra.Eigen(values, eigenvectors) : values
             copyto!(a, schur.T)
             return result
         finally
@@ -92,75 +96,74 @@ triangle is read. Generalized pairs use QZ S/T writeback, or eigenvectors and a
 diagonal eigenvalue matrix for self-adjoint pairs. Pair scalar types must match
 and their parents must have distinct storage.
 """
-LinearAlgebra.eigen!(
-    a::FaerMatrix;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-) = _general_eigen_writeback!(a, true, sortby; scratch, team)
-LinearAlgebra.eigvals!(
-    a::FaerMatrix;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-) = _general_eigen_writeback!(a, false, sortby; scratch, team)
+function LinearAlgebra.eigen!(
+    a::FaerMatrix; sortby=_eigensort, scratch=nothing, team=nothing
+)
+    return _general_eigen_writeback!(a, true, sortby; scratch, team)
+end
+function LinearAlgebra.eigvals!(
+    a::FaerMatrix; sortby=_eigensort, scratch=nothing, team=nothing
+)
+    return _general_eigen_writeback!(a, false, sortby; scratch, team)
+end
 function _selfadjoint_eigen_writeback!(
     a::_AnyFaerSelfAdjoint,
     vectors::Bool,
     sortby;
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
+    scratch=nothing,
+    team=nothing,
+    alg=nothing,
 )
     lock(_matrix_lock) do
-        source=parent(a)
+        source = parent(a)
         _handle(source)
-        result=vectors ? LinearAlgebra.eigen(a; sortby, scratch, team, alg) :
-               LinearAlgebra.eigvals(a; sortby, scratch, team, alg)
-        packed=vectors ? FaerMatrix(result.vectors) :
-               FaerMatrix(Matrix{eltype(source)}(LinearAlgebra.Diagonal(result)))
+        result = if vectors
+            LinearAlgebra.eigen(a; sortby, scratch, team, alg)
+        else
+            LinearAlgebra.eigvals(a; sortby, scratch, team, alg)
+        end
+        packed = if vectors
+            FaerMatrix(result.vectors)
+        else
+            FaerMatrix(Matrix{eltype(source)}(LinearAlgebra.Diagonal(result)))
+        end
         copyto!(source, packed)
         return result
     end
 end
-LinearAlgebra.eigen!(
-    a::_AnyFaerSelfAdjoint;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
-) = _selfadjoint_eigen_writeback!(a, true, sortby; scratch, team, alg)
-LinearAlgebra.eigvals!(
-    a::_AnyFaerSelfAdjoint;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
-) = _selfadjoint_eigen_writeback!(a, false, sortby; scratch, team, alg)
+function LinearAlgebra.eigen!(
+    a::_AnyFaerSelfAdjoint; sortby=_eigensort, scratch=nothing, team=nothing, alg=nothing
+)
+    return _selfadjoint_eigen_writeback!(a, true, sortby; scratch, team, alg)
+end
+function LinearAlgebra.eigvals!(
+    a::_AnyFaerSelfAdjoint; sortby=_eigensort, scratch=nothing, team=nothing, alg=nothing
+)
+    return _selfadjoint_eigen_writeback!(a, false, sortby; scratch, team, alg)
+end
 function _eigen_pair_check(a, b)
-    a===b && throw(ArgumentError("generalized eigen inputs must have distinct storage"))
-    eltype(a)===eltype(b) || throw(
+    a === b && throw(ArgumentError("generalized eigen inputs must have distinct storage"))
+    eltype(a) === eltype(b) || throw(
         ArgumentError("destructive generalized eigen inputs require matching scalar types"),
     )
-    size(a)==size(b) || throw(DimensionMismatch("generalized eigen input sizes must match"))
+    size(a) == size(b) ||
+        throw(DimensionMismatch("generalized eigen input sizes must match"))
     LinearAlgebra.checksquare(a)
     _handle(a)
     _handle(b)
     return nothing
 end
 function _generalized_eigen_writeback!(
-    a::FaerMatrix,
-    b::FaerMatrix,
-    vectors::Bool,
-    sortby;
-    scratch = nothing,
-    team = nothing,
+    a::FaerMatrix, b::FaerMatrix, vectors::Bool, sortby; scratch=nothing, team=nothing
 )
     lock(_matrix_lock) do
         _eigen_pair_check(a, b)
-        result=vectors ? LinearAlgebra.eigen(a, b; sortby, scratch, team) :
-               LinearAlgebra.eigvals(a, b; sortby, scratch, team)
-        qz=LinearAlgebra.schur(a, b)
+        result = if vectors
+            LinearAlgebra.eigen(a, b; sortby, scratch, team)
+        else
+            LinearAlgebra.eigvals(a, b; sortby, scratch, team)
+        end
+        qz = LinearAlgebra.schur(a, b)
         try
             copyto!(a, qz.S)
             copyto!(b, qz.T)
@@ -170,52 +173,55 @@ function _generalized_eigen_writeback!(
         end
     end
 end
-LinearAlgebra.eigen!(
-    a::FaerMatrix,
-    b::FaerMatrix;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-) = _generalized_eigen_writeback!(a, b, true, sortby; scratch, team)
-LinearAlgebra.eigvals!(
-    a::FaerMatrix,
-    b::FaerMatrix;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-) = _generalized_eigen_writeback!(a, b, false, sortby; scratch, team)
+function LinearAlgebra.eigen!(
+    a::FaerMatrix, b::FaerMatrix; sortby=_eigensort, scratch=nothing, team=nothing
+)
+    return _generalized_eigen_writeback!(a, b, true, sortby; scratch, team)
+end
+function LinearAlgebra.eigvals!(
+    a::FaerMatrix, b::FaerMatrix; sortby=_eigensort, scratch=nothing, team=nothing
+)
+    return _generalized_eigen_writeback!(a, b, false, sortby; scratch, team)
+end
 function _selfadjoint_pair_writeback!(
     a::_AnyFaerSelfAdjoint,
     b::_AnyFaerSelfAdjoint,
     vectors::Bool,
     sortby;
-    scratch = nothing,
-    team = nothing,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
-        x, y=parent(a), parent(b)
+        x, y = parent(a), parent(b)
         _eigen_pair_check(x, y)
-        result=vectors ? LinearAlgebra.eigen(a, b; sortby, scratch, team) :
-               LinearAlgebra.eigvals(a, b; sortby, scratch, team)
-        values=vectors ? result.values : result
-        diagonal=FaerMatrix(Matrix{eltype(y)}(LinearAlgebra.Diagonal(values)))
-        left=vectors ? FaerMatrix(result.vectors) : copy(diagonal)
+        result = if vectors
+            LinearAlgebra.eigen(a, b; sortby, scratch, team)
+        else
+            LinearAlgebra.eigvals(a, b; sortby, scratch, team)
+        end
+        values = vectors ? result.values : result
+        diagonal = FaerMatrix(Matrix{eltype(y)}(LinearAlgebra.Diagonal(values)))
+        left = vectors ? FaerMatrix(result.vectors) : copy(diagonal)
         copyto!(x, left)
         copyto!(y, diagonal)
         return result
     end
 end
-LinearAlgebra.eigen!(
+function LinearAlgebra.eigen!(
     a::_AnyFaerSelfAdjoint,
     b::_AnyFaerSelfAdjoint;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-) = _selfadjoint_pair_writeback!(a, b, true, sortby; scratch, team)
-LinearAlgebra.eigvals!(
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
+)
+    return _selfadjoint_pair_writeback!(a, b, true, sortby; scratch, team)
+end
+function LinearAlgebra.eigvals!(
     a::_AnyFaerSelfAdjoint,
     b::_AnyFaerSelfAdjoint;
-    sortby = _eigensort,
-    scratch = nothing,
-    team = nothing,
-) = _selfadjoint_pair_writeback!(a, b, false, sortby; scratch, team)
+    sortby=_eigensort,
+    scratch=nothing,
+    team=nothing,
+)
+    return _selfadjoint_pair_writeback!(a, b, false, sortby; scratch, team)
+end

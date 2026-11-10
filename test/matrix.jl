@@ -5,7 +5,7 @@ using Test, LinearAlgebra, Random, Colmat
     b = [1.0 2 3; 0 2 1; 3 1 4]
     A, B = FaerMatrix(a), FaerMatrix(b)
     @test A isa AbstractMatrix{Float64}
-    @test isempty(Test.detect_ambiguities(Colmat; recursive = true))
+    @test isempty(Test.detect_ambiguities(Colmat; recursive=true))
     @test size(A) == size(a)
     @test axes(A) == axes(a)
     @test eltype(A) === Float64
@@ -58,27 +58,27 @@ using Test, LinearAlgebra, Random, Colmat
 
     @testset "vector space operations" begin
         for (actual, expected) in (
-            (A+B, a+b),
-            (A-B, a-b),
+            (A + B, a + b),
+            (A - B, a - b),
             (-A, -a),
             (+A, a),
             (2A, 2a),
-            (A*3, a*3),
-            (A/2, a/2),
-            (2\A, a/2),
+            (A * 3, a * 3),
+            (A / 2, a / 2),
+            (2 \ A, a / 2),
             (zero(A), zero(a)),
-            (A+A, 2a),
+            (A + A, 2a),
         )
             @test actual isa FaerMatrix
             @test Matrix(actual) ≈ expected
         end
-        C = FaerMatrix(reverse(a; dims = 1))
-        @test Matrix((A+B)+C) ≈ Matrix(A+(B+C))
-        @test Matrix(A+B) ≈ Matrix(B+A)
-        @test Matrix(A+zero(A)) ≈ a
-        @test Matrix(A+(-A)) ≈ zero(a)
-        @test Matrix(2*(A+B)) ≈ Matrix(2A+2B)
-        @test Matrix((2+3)*A) ≈ Matrix(2A+3A)
+        C = FaerMatrix(reverse(a; dims=1))
+        @test Matrix((A + B) + C) ≈ Matrix(A + (B + C))
+        @test Matrix(A + B) ≈ Matrix(B + A)
+        @test Matrix(A + zero(A)) ≈ a
+        @test Matrix(A + (-A)) ≈ zero(a)
+        @test Matrix(2 * (A + B)) ≈ Matrix(2A + 2B)
+        @test Matrix((2 + 3) * A) ≈ Matrix(2A + 3A)
         @test Matrix(A) == a
         @test Matrix(B) == b
         @test_throws DimensionMismatch A + FaerMatrix(ones(2, 3))
@@ -89,44 +89,44 @@ using Test, LinearAlgebra, Random, Colmat
     end
 
     @testset "products and solves" begin
-        @test A*B isa FaerMatrix
-        @test Matrix(A*B) ≈ a*b
-        @test Matrix(A*A) ≈ a*a
-        @test A*[1, 2, 3] ≈ a*[1, 2, 3]
-        @test_throws DimensionMismatch A*FaerMatrix(ones(2, 3))
-        @test_throws DimensionMismatch A*ones(2)
-        @test A\B isa FaerMatrix
-        @test Matrix(A\B) ≈ a\b
-        @test Matrix(A\b) ≈ a\b
-        @test A\[1, 2, 3] ≈ a\[1, 2, 3]
-        @test Matrix(A\A) ≈ Matrix{Float64}(I, 3, 3)
-        @test_throws DimensionMismatch A\ones(2)
-        @test FaerMatrix(ones(2, 3))\ones(2) ≈ fill(1/3, 3)
-        @test_throws Exception FaerMatrix([1.0 2; 2 4])\ones(2)
-        @test Matrix(faer_mul(A, B)) ≈ a*b
-        @test Matrix(faer_solve(A, B)) ≈ a\b
+        @test A * B isa FaerMatrix
+        @test Matrix(A * B) ≈ a * b
+        @test Matrix(A * A) ≈ a * a
+        @test A * [1, 2, 3] ≈ a * [1, 2, 3]
+        @test_throws DimensionMismatch A * FaerMatrix(ones(2, 3))
+        @test_throws DimensionMismatch A * ones(2)
+        @test A \ B isa FaerMatrix
+        @test Matrix(A \ B) ≈ a \ b
+        @test Matrix(A \ b) ≈ a \ b
+        @test A \ [1, 2, 3] ≈ a \ [1, 2, 3]
+        @test Matrix(A \ A) ≈ Matrix{Float64}(I, 3, 3)
+        @test_throws DimensionMismatch A \ ones(2)
+        @test FaerMatrix(ones(2, 3)) \ ones(2) ≈ fill(1 / 3, 3)
+        @test_throws Exception FaerMatrix([1.0 2; 2 4]) \ ones(2)
+        @test Matrix(faer_mul(A, B)) ≈ a * b
+        @test Matrix(faer_solve(A, B)) ≈ a \ b
         @test faer_svd(A).S ≈ svdvals(a)
     end
 
     @testset "mul! and aliasing" begin
         C = copy(A)
         @test mul!(C, A, B) === C
-        @test Matrix(C) ≈ a*b
+        @test Matrix(C) ≈ a * b
         fill!(C, NaN)
         mul!(C, A, B, 2.0, 0.0)
-        @test Matrix(C) ≈ 2a*b
+        @test Matrix(C) ≈ 2a * b
         C = copy(A)
         mul!(C, A, B, 2.0, 3.0)
-        @test Matrix(C) ≈ 2a*b+3a
+        @test Matrix(C) ≈ 2a * b + 3a
         C = copy(A)
         mul!(C, C, B)
-        @test Matrix(C) ≈ a*b
+        @test Matrix(C) ≈ a * b
         C = copy(B)
         mul!(C, A, C, 2.0, 3.0)
-        @test Matrix(C) ≈ 2a*b+3b
+        @test Matrix(C) ≈ 2a * b + 3b
         C = copy(A)
         mul!(C, C, C, 2.0, 3.0)
-        @test Matrix(C) ≈ 2a*a+3a
+        @test Matrix(C) ≈ 2a * a + 3a
         N = fill!(copy(A), NaN)
         C = copy(B)
         mul!(C, N, N, 0.0, 2.0)
@@ -140,11 +140,11 @@ using Test, LinearAlgebra, Random, Colmat
         for (m, k, n) in ((0, 3, 2), (3, 0, 2), (3, 2, 0))
             x, y = zeros(m, k), zeros(k, n)
             X, Y = FaerMatrix(x), FaerMatrix(y)
-            @test Matrix(X+X) == x+x
+            @test Matrix(X + X) == x + x
             @test Matrix(2X) == 2x
-            @test Matrix(X*Y) == x*y
+            @test Matrix(X * Y) == x * y
         end
-        @test size(FaerMatrix(zeros(0, 0))\FaerMatrix(zeros(0, 2))) == (0, 2)
+        @test size(FaerMatrix(zeros(0, 0)) \ FaerMatrix(zeros(0, 2))) == (0, 2)
     end
 
     @testset "lifecycle and concurrent access" begin
@@ -158,18 +158,18 @@ using Test, LinearAlgebra, Random, Colmat
         @test_throws ArgumentError C[1, 1]
         @test_throws ArgumentError (C[1, 1] = 1)
         @test_throws ArgumentError copy(C)
-        @test_throws ArgumentError C+A
-        @test_throws ArgumentError A+C
+        @test_throws ArgumentError C + A
+        @test_throws ArgumentError A + C
         @test_throws ArgumentError copyto!(C, C)
         @test Matrix(D) == a
         # Temporary native owners must stay alive for nested operations and GC.
-        for _ = 1:10
-            R = (FaerMatrix(a)+FaerMatrix(b))*FaerMatrix(a)
+        for _ in 1:10
+            R = (FaerMatrix(a) + FaerMatrix(b)) * FaerMatrix(a)
             GC.gc()
-            @test Matrix(R) ≈ (a+b)*a
+            @test Matrix(R) ≈ (a + b) * a
         end
-        tasks = [Threads.@spawn Matrix(A*B+2A) for _ = 1:8]
-        @test all(r -> r ≈ a*b+2a, fetch.(tasks))
+        tasks = [Threads.@spawn Matrix(A * B + 2A) for _ in 1:8]
+        @test all(r -> r ≈ a * b + 2a, fetch.(tasks))
     end
 end
 
@@ -204,5 +204,5 @@ end
     fill!(A, NaN)
     @test_throws Exception svd(A)
     @test_throws Exception svdvals(A)
-    @test isempty(Test.detect_ambiguities(Colmat; recursive = true))
+    @test isempty(Test.detect_ambiguities(Colmat; recursive=true))
 end

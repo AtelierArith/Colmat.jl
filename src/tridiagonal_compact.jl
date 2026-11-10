@@ -24,42 +24,33 @@ end
 _compact_q_wrapper(::FaerTridiagonalQ) = FaerTridiagonalQ
 
 function _compact_tridiagonal_eigen(
-    f;
-    recursion_threshold::Integer = 128,
-    sortby = nothing,
-    scratch = nothing,
-    team = nothing,
+    f; recursion_threshold::Integer=128, sortby=nothing, scratch=nothing, team=nothing
 )
     _iterative_resource_check(scratch, team)
     _compact_q_validate(f.Q)
-    req=scratch_requirements(LinearAlgebra.eigen, f; recursion_threshold, team)
-    work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
-    original=nothing
-    vectors=nothing
-    success=false
+    req = scratch_requirements(LinearAlgebra.eigen, f; recursion_threshold, team)
+    work = isnothing(scratch) ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
+    original = nothing
+    vectors = nothing
+    success = false
     try
-        cap=scratch_capacity(work)
-        cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+        cap = scratch_capacity(work)
+        cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
             ArgumentError(
                 "saved compact tridiagonal eigen scratch capacity/alignment is insufficient; call reserve!",
             ),
         )
-        E=tridiagonal_eigen(
-            f.H.dv,
-            f.H.ev;
-            recursion_threshold,
-            sortby,
-            scratch = work,
-            team,
+        E = tridiagonal_eigen(
+            f.H.dv, f.H.ev; recursion_threshold, sortby, scratch=work, team
         )
-        original=E.vectors
-        vectors=_coerce(original, eltype(f.Q))
-        LinearAlgebra.lmul!(f.Q, vectors; scratch = work, team)
-        success=true
+        original = E.vectors
+        vectors = _coerce(original, eltype(f.Q))
+        LinearAlgebra.lmul!(f.Q, vectors; scratch=work, team)
+        success = true
         return LinearAlgebra.Eigen(E.values, vectors)
     finally
-        isnothing(original) || (success && original===vectors) || close(original)
-        success || isnothing(vectors) || vectors===original || close(vectors)
+        isnothing(original) || (success && original === vectors) || close(original)
+        success || isnothing(vectors) || vectors === original || close(vectors)
         isnothing(scratch) && close(work)
     end
 end

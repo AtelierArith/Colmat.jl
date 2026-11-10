@@ -1,6 +1,6 @@
 _schur_validate(a::_OwnedCollection) = _dense_rhs_validate(a)
 function _schur_validate(a::FaerMatrix)
-    _native_call(
+    return _native_call(
         RustCrate.schur_input_validate,
         a,
         UInt(size(a, 1)),
@@ -9,28 +9,30 @@ function _schur_validate(a::FaerMatrix)
     )
 end
 function _schur_validate(a::FaerMatrixView)
-    owner=_view_owner(a)
-    eltype(a)===eltype(owner) || throw(ArgumentError("Schur view scalar metadata mismatch"))
-    _schur_validate(owner)
+    owner = _view_owner(a)
+    eltype(a) === eltype(owner) ||
+        throw(ArgumentError("Schur view scalar metadata mismatch"))
+    return _schur_validate(owner)
 end
 function _schur_plan(a, initial, team)
-    isnothing(team)||team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
-    isnothing(team)||_handle(team)
+    isnothing(team) || team isa FaerTeam || throw(ArgumentError("team must be a FaerTeam"))
+    isnothing(team) || _handle(team)
     _schur_validate(a)
-    n=LinearAlgebra.checksquare(a)
+    n = LinearAlgebra.checksquare(a)
     if !isnothing(initial)
         _schur_validate(initial.Q)
-        size(initial.Q)==(n, n) || throw(DimensionMismatch("H and Q dimensions must match"))
+        size(initial.Q) == (n, n) ||
+            throw(DimensionMismatch("H and Q dimensions must match"))
     end
-    n
+    return n
 end
 function _schur_requirement(n, T, stage, team)
-    info=zeros(UInt, 2)
+    info = zeros(UInt, 2)
     GC.@preserve info begin
-        args=(UInt(n), _tag(T), Int32(stage), info)
+        args = (UInt(n), _tag(T), Int32(stage), info)
         _native_call(RustCrate.schur_construction_requirements, args..., team)
     end
-    (bytes = Int(info[1]), alignment = Int(info[2]))
+    return (bytes=Int(info[1]), alignment=Int(info[2]))
 end
 """
     scratch_requirements(schur, A::Union{FaerMatrix,FaerMatrixView}; team=nothing)
@@ -55,57 +57,54 @@ is rejected for direct `schur` queries.
 function scratch_requirements(
     fun::_QzConstructionFunction,
     a::_BorrowMatrix;
-    team = nothing,
-    compact::Bool = false,
-    par_threshold = FaerParThreshold(),
-    blocking_threshold::Integer = 256*256,
+    team=nothing,
+    compact::Bool=false,
+    par_threshold=FaerParThreshold(),
+    blocking_threshold::Integer=256 * 256,
 )
     lock(_matrix_lock) do
-        n=_schur_plan(a, nothing, team)
-        stage=fun in (LinearAlgebra.hessenberg, LinearAlgebra.hessenberg!) ? 1 : 0
+        n = _schur_plan(a, nothing, team)
+        stage = fun in (LinearAlgebra.hessenberg, LinearAlgebra.hessenberg!) ? 1 : 0
         policy, blocking = _hessenberg_options(par_threshold, blocking_threshold)
-        if stage==1
+        if stage == 1
             return _hessenberg_requirement(n, eltype(a), team, compact, policy, blocking)
         end
-        compact&&throw(ArgumentError("compact is supported for Hessenberg reduction"))
-        (policy.value==0&&blocking==256*256)||throw(
-            ArgumentError("Hessenberg tuning is supported for hessenberg[!] queries"),
-        )
-        _schur_requirement(n, eltype(a), stage, team)
+        compact && throw(ArgumentError("compact is supported for Hessenberg reduction"))
+        (policy.value == 0 && blocking == 256 * 256) ||
+            throw(ArgumentError("Hessenberg tuning is supported for hessenberg[!] queries"))
+        return _schur_requirement(n, eltype(a), stage, team)
     end
 end
 function scratch_requirements(
     fun::Union{typeof(LinearAlgebra.schur),typeof(LinearAlgebra.schur!)},
     f::FaerHessenberg;
-    team = nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
-        n=_schur_plan(f.H, f, team)
-        _schur_requirement(n, eltype(f.H), 2, team)
+        n = _schur_plan(f.H, f, team)
+        return _schur_requirement(n, eltype(f.H), 2, team)
     end
 end
 function FaerScratch(fun::_QzConstructionFunction, a::_BorrowMatrix; kwargs...)
-    req=scratch_requirements(fun, a; kwargs...)
-    return FaerScratch(req.bytes; alignment = req.alignment)
+    req = scratch_requirements(fun, a; kwargs...)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
 function reserve!(
-    work::FaerScratch,
-    fun::_QzConstructionFunction,
-    a::_BorrowMatrix;
-    kwargs...,
+    work::FaerScratch, fun::_QzConstructionFunction, a::_BorrowMatrix; kwargs...
 )
-    req=scratch_requirements(fun, a; kwargs...)
-    return reserve!(work, req.bytes; alignment = req.alignment)
+    req = scratch_requirements(fun, a; kwargs...)
+    return reserve!(work, req.bytes; alignment=req.alignment)
 end
 function _schur_with_workspace(f, a, initial, stage, scratch, team)
-    isnothing(scratch)||scratch isa FaerScratch ||
+    isnothing(scratch) ||
+        scratch isa FaerScratch ||
         throw(ArgumentError("scratch must be a FaerScratch"))
-    n=_schur_plan(a, initial, team)
-    req=_schur_requirement(n, eltype(a), stage, team)
-    work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+    n = _schur_plan(a, initial, team)
+    req = _schur_requirement(n, eltype(a), stage, team)
+    work = isnothing(scratch) ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
     try
-        cap=scratch_capacity(work)
-        cap.bytes>=req.bytes&&cap.alignment>=req.alignment || throw(
+        cap = scratch_capacity(work)
+        cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
             ArgumentError(
                 "Schur construction scratch capacity/alignment is insufficient; call reserve! before computing",
             ),
@@ -116,54 +115,47 @@ function _schur_with_workspace(f, a, initial, stage, scratch, team)
     end
 end
 function _schur_native_result(a::FaerMatrix{T}, initial, stage, n, work, team) where {T}
-    q=_zeros(T, (n, n))
-    values=Vector{Complex{_realtype(T)}}(undef, stage==1 ? 0 : n)
-    iq=isnothing(initial) ? a : initial.Q
-    fn=RustCrate.schur_construction_workspace
+    q = _zeros(T, (n, n))
+    values = Vector{Complex{_realtype(T)}}(undef, stage == 1 ? 0 : n)
+    iq = isnothing(initial) ? a : initial.Q
+    fn = RustCrate.schur_construction_workspace
     try
-        h=GC.@preserve values begin
-            args=(
-                a,
-                iq,
-                q,
-                work,
-                Ptr{UInt8}(pointer(values)),
-                Int32(stage),
-                UInt(n),
-                _tag(T),
+        h = GC.@preserve values begin
+            args = (
+                a, iq, q, work, Ptr{UInt8}(pointer(values)), Int32(stage), UInt(n), _tag(T)
             )
-            args=(args..., team)
-            T===Float64 ? _matrix_result(fn, (n, n), args...) :
-            _typed_result(T, fn, (n, n), args...)
+            args = (args..., team)
+            if T === Float64
+                _matrix_result(fn, (n, n), args...)
+            else
+                _typed_result(T, fn, (n, n), args...)
+            end
         end
-        stage==1 ? FaerHessenberg(h, q) : LinearAlgebra.Schur(h, q, values)
+        stage == 1 ? FaerHessenberg(h, q) : LinearAlgebra.Schur(h, q, values)
     catch
         close(q)
         rethrow()
     end
 end
 function _native_schur(
-    a::_BorrowMatrix,
-    only_hessenberg = false;
-    scratch = nothing,
-    team = nothing,
+    a::_BorrowMatrix, only_hessenberg=false; scratch=nothing, team=nothing
 )
     lock(_matrix_lock) do
-        stage=only_hessenberg ? 1 : 0
+        stage = only_hessenberg ? 1 : 0
         _schur_with_workspace(a, nothing, stage, scratch, team) do n, work
-            source=a isa FaerMatrixView ? copy(a) : a
+            source = a isa FaerMatrixView ? copy(a) : a
             try
                 _schur_native_result(source, nothing, stage, n, work, team)
             finally
-                source===a || close(source)
+                source === a || close(source)
             end
         end
     end
 end
-function _saved_schur(f::FaerHessenberg; scratch = nothing, team = nothing)
+function _saved_schur(f::FaerHessenberg; scratch=nothing, team=nothing)
     lock(_matrix_lock) do
         _schur_with_workspace(f.H, f, 2, scratch, team) do n, work
-            _schur_native_result(f.H, f, 2, n, work, team)
+            return _schur_native_result(f.H, f, 2, n, work, team)
         end
     end
 end

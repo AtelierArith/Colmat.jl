@@ -1,4 +1,4 @@
-const _SvdFunction=Union{
+const _SvdFunction = Union{
     typeof(LinearAlgebra.svd),
     typeof(LinearAlgebra.svdvals),
     typeof(LinearAlgebra.svd!),
@@ -13,10 +13,7 @@ options for the computation. The requirement includes temporary singular-value
 storage for complex inputs. Factor output arrays are separate Julia allocations.
 """
 function scratch_requirements(
-    f::_SvdFunction,
-    a::FaerMatrix{T};
-    full::Bool = false,
-    team = nothing,
+    f::_SvdFunction, a::FaerMatrix{T}; full::Bool=false, team=nothing
 ) where {T}
     lock(_matrix_lock) do
         _handle(a)
@@ -24,62 +21,84 @@ function scratch_requirements(
             team isa FaerTeam ||
             throw(ArgumentError("team must be a FaerTeam"))
         !isnothing(team) && _handle(team)
-        width=isnothing(team) ? 1 : team.width
-        info=zeros(UInt, 2)
+        width = isnothing(team) ? 1 : team.width
+        info = zeros(UInt, 2)
         GC.@preserve info begin
-            args=(
+            args = (
                 UInt(size(a, 1)),
                 UInt(size(a, 2)),
                 _tag(T),
                 full,
                 f in (LinearAlgebra.svdvals, LinearAlgebra.svdvals!),
             )
-            isnothing(team) ?
-            _native_call(RustCrate.svd_requirements, args..., UInt(width), info) :
-            _native_call(RustCrate.svd_team_requirements, team, args..., info)
+            if isnothing(team)
+                _native_call(RustCrate.svd_requirements, args..., UInt(width), info)
+            else
+                _native_call(RustCrate.svd_team_requirements, team, args..., info)
+            end
         end
-        return (bytes = Int(info[1]), alignment = Int(info[2]))
+        return (bytes=Int(info[1]), alignment=Int(info[2]))
     end
 end
 function FaerScratch(f::_SvdFunction, a::FaerMatrix; kwargs...)
-    req=scratch_requirements(f, a; kwargs...)
-    return FaerScratch(req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a; kwargs...)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
 function reserve!(s::FaerScratch, f::_SvdFunction, a::FaerMatrix; kwargs...)
-    req=scratch_requirements(f, a; kwargs...)
-    return reserve!(s, req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a; kwargs...)
+    return reserve!(s, req.bytes; alignment=req.alignment)
 end
 function _svd_workspace_result(
     a::FaerMatrix{T};
-    full::Bool = false,
-    values_only::Bool = false,
-    scratch = nothing,
-    team = nothing,
+    full::Bool=false,
+    values_only::Bool=false,
+    scratch=nothing,
+    team=nothing,
 ) where {T}
     lock(_matrix_lock) do
         _handle(a)
         isnothing(team) ||
             team isa FaerTeam ||
             throw(ArgumentError("team must be a FaerTeam"))
-        f=values_only ? LinearAlgebra.svdvals : LinearAlgebra.svd
-        req=scratch_requirements(f, a; full, team)
-        temp=isnothing(scratch)
-        work=temp ? FaerScratch(req.bytes; alignment = req.alignment) : scratch
+        f = values_only ? LinearAlgebra.svdvals : LinearAlgebra.svd
+        req = scratch_requirements(f, a; full, team)
+        temp = isnothing(scratch)
+        work = temp ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
         work isa FaerScratch || throw(ArgumentError("scratch must be a FaerScratch"))
         try
-            cap=scratch_capacity(work)
-            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+            cap = scratch_capacity(work)
+            cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
                 ArgumentError(
                     "SVD scratch capacity/alignment is insufficient; reserve for the selected mode/team",
                 ),
             )
-            m, n=size(a)
-            k=min(m, n)
-            u=zeros(T, m, values_only ? 0 : full ? m : k)
-            v=zeros(T, n, values_only ? 0 : full ? n : k)
-            singular=zeros(_realtype(T), k)
+            m, n = size(a)
+            k = min(m, n)
+            u = zeros(
+                T,
+                m,
+                if values_only
+                    0
+                elseif full
+                    m
+                else
+                    k
+                end,
+            )
+            v = zeros(
+                T,
+                n,
+                if values_only
+                    0
+                elseif full
+                    n
+                else
+                    k
+                end,
+            )
+            singular = zeros(_realtype(T), k)
             GC.@preserve u v singular begin
-                args=(
+                args = (
                     Ptr{UInt8}(pointer(u)),
                     Ptr{UInt8}(pointer(singular)),
                     Ptr{UInt8}(pointer(v)),
@@ -108,36 +127,27 @@ This explicitly defined writeback is not LAPACK's unspecified work matrix.
 Input/output staging and Julia bookkeeping allocate; scratch may be reused.
 """
 function LinearAlgebra.svd!(
-    a::FaerMatrix;
-    full::Bool = false,
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
+    a::FaerMatrix; full::Bool=false, scratch=nothing, team=nothing, alg=nothing
 )
-    isnothing(alg) || return _svd_alg(()->LinearAlgebra.svd!(a; full, scratch, team), alg)
+    isnothing(alg) || return _svd_alg(() -> LinearAlgebra.svd!(a; full, scratch, team), alg)
     lock(_matrix_lock) do
-        F=_svd_workspace_result(a; full, scratch, team)
+        F = _svd_workspace_result(a; full, scratch, team)
         _svd_writeback!(a, F.S)
         return F
     end
 end
 function _svd_writeback!(a::FaerMatrix{T}, s) where {T}
-    sigma=zeros(T, size(a))
+    sigma = zeros(T, size(a))
     for i in eachindex(s)
-        sigma[i, i]=s[i]
+        sigma[i, i] = s[i]
     end
     copyto!(a, FaerMatrix(sigma))
     return a
 end
-function LinearAlgebra.svdvals!(
-    a::FaerMatrix;
-    scratch = nothing,
-    team = nothing,
-    alg = nothing,
-)
-    isnothing(alg) || return _svd_alg(()->LinearAlgebra.svdvals!(a; scratch, team), alg)
+function LinearAlgebra.svdvals!(a::FaerMatrix; scratch=nothing, team=nothing, alg=nothing)
+    isnothing(alg) || return _svd_alg(() -> LinearAlgebra.svdvals!(a; scratch, team), alg)
     lock(_matrix_lock) do
-        s=_svd_workspace_result(a; values_only = true, scratch, team)
+        s = _svd_workspace_result(a; values_only=true, scratch, team)
         _svd_writeback!(a, s)
         return s
     end

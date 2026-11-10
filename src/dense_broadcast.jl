@@ -43,20 +43,26 @@ and keep their Julia broadcast style when no native array takes part.
 struct FaerArrayStyle{N} <: Broadcast.AbstractArrayStyle{N} end
 FaerArrayStyle{M}(::Val{N}) where {M,N} = FaerArrayStyle{N}()
 
-const _DenseNativeArray=Union{FaerMatrix,FaerVector,FaerRow,FaerView}
-const _DenseNativeWrapped=Union{
+const _DenseNativeArray = Union{FaerMatrix,FaerVector,FaerRow,FaerView}
+const _DenseNativeWrapped = Union{
     LinearAlgebra.Adjoint{<:Any,<:_DenseNativeArray},
     LinearAlgebra.Transpose{<:Any,<:_DenseNativeArray},
 }
-const _DenseNativeLeaf=Union{_DenseNativeArray,_DenseNativeWrapped}
+const _DenseNativeLeaf = Union{_DenseNativeArray,_DenseNativeWrapped}
 
 Broadcast.BroadcastStyle(::Type{<:FaerVector}) = FaerArrayStyle{1}()
 Broadcast.BroadcastStyle(::Type{<:Union{FaerMatrix,FaerRow}}) = FaerArrayStyle{2}()
 Broadcast.BroadcastStyle(::Type{<:FaerView{<:Any,N}}) where {N} = FaerArrayStyle{N}()
-Broadcast.BroadcastStyle(::Type{<:LinearAlgebra.Adjoint{<:Any,<:_DenseNativeArray}}) =
-    FaerArrayStyle{2}()
-Broadcast.BroadcastStyle(::Type{<:LinearAlgebra.Transpose{<:Any,<:_DenseNativeArray}}) =
-    FaerArrayStyle{2}()
+function Broadcast.BroadcastStyle(
+    ::Type{<:LinearAlgebra.Adjoint{<:Any,<:_DenseNativeArray}}
+)
+    return FaerArrayStyle{2}()
+end
+function Broadcast.BroadcastStyle(
+    ::Type{<:LinearAlgebra.Transpose{<:Any,<:_DenseNativeArray}}
+)
+    return FaerArrayStyle{2}()
+end
 # A FaerDiagonal operand is read as a `Diagonal` of its stored entries, so
 # Julia's structured rules decide whether the result stays diagonal.
 Broadcast.BroadcastStyle(::Type{<:FaerDiagonal}) = FaerArrayStyle{2}()
@@ -69,8 +75,9 @@ for S in (
     @eval Broadcast.BroadcastStyle(::FaerArrayStyle{N}, ::$S) where {N} =
         FaerArrayStyle{max(N, 2)}()
 end
-Broadcast.BroadcastStyle(::FaerSparseStyle, ::FaerArrayStyle{N}) where {N} =
-    N<=2 ? FaerSparseStyle() : Broadcast.DefaultArrayStyle{N}()
+function Broadcast.BroadcastStyle(::FaerSparseStyle, ::FaerArrayStyle{N}) where {N}
+    return N <= 2 ? FaerSparseStyle() : Broadcast.DefaultArrayStyle{N}()
+end
 
 # One bulk native-to-Julia transfer per leaf.
 _dense_snapshot(a::FaerMatrix) = Matrix(a)
@@ -93,35 +100,40 @@ mutable struct _DenseSnapshots
 end
 _DenseSnapshots() = _DenseSnapshots(IdDict{Any,Any}(), true, false, false)
 function _julia_leaf(s::_DenseSnapshots, a::_DenseNativeLeaf)
-    s.native=true
-    a isa FaerRow || (s.rows=false)
+    s.native = true
+    a isa FaerRow || (s.rows = false)
     return get!(() -> _dense_snapshot(a), s.cache, a)
 end
 function _julia_leaf(s::_DenseSnapshots, a::FaerDiagonal)
-    s.native=true
-    s.rows=false
+    s.native = true
+    s.rows = false
     return get!(() -> LinearAlgebra.Diagonal(Vector(a)), s.cache, a)
 end
 function _julia_leaf(s::_DenseSnapshots, a::FaerSparseMatrix)
-    s.native=true
-    s.sparse=true
-    s.rows=false
+    s.native = true
+    s.sparse = true
+    s.rows = false
     return get!(() -> SparseArrays.SparseMatrixCSC(a), s.cache, a)
 end
 _julia_leaf(::_DenseSnapshots, a::FaerBorrowedArray) = parent(a)
 _julia_leaf(::_DenseSnapshots, a) = a
-_julia_leaf(s::_DenseSnapshots, bc::Broadcast.Broadcasted) =
-    Broadcast.broadcasted(bc.f, map(a -> _julia_leaf(s, a), bc.args)...)
+function _julia_leaf(s::_DenseSnapshots, bc::Broadcast.Broadcasted)
+    return Broadcast.broadcasted(bc.f, map(a -> _julia_leaf(s, a), bc.args)...)
+end
 function _julia_leaves(s::_DenseSnapshots, args)
     lock(_matrix_lock) do
-        map(a -> _julia_leaf(s, a), args)
+        return map(a -> _julia_leaf(s, a), args)
     end
 end
 _sparse_dense_leaf(a) = lock(() -> _dense_snapshot(a), _matrix_lock)
-_julia_sparse_broadcasted(a::Union{FaerVector,FaerRow,FaerView,_DenseNativeWrapped}) =
-    _sparse_dense_leaf(a)
-_julia_sparse_broadcasted(a::FaerDiagonal) =
-    lock(() -> LinearAlgebra.Diagonal(Vector(a)), _matrix_lock)
+function _julia_sparse_broadcasted(
+    a::Union{FaerVector,FaerRow,FaerView,_DenseNativeWrapped}
+)
+    return _sparse_dense_leaf(a)
+end
+function _julia_sparse_broadcasted(a::FaerDiagonal)
+    return lock(() -> LinearAlgebra.Diagonal(Vector(a)), _matrix_lock)
+end
 
 # Julia-to-native result transfers. Broadcast results (`A ./ 0`, `log.(A)`)
 # may hold Inf/NaN, which owners store like Julia arrays; results are written
@@ -130,35 +142,42 @@ _julia_sparse_broadcasted(a::FaerDiagonal) =
 _native_owner_from(owner, data) = (copyto!(owner, data); owner)
 # `Array{Union{}}` (empty results of inferred-bottom eltypes) stays Julia's.
 _native_array_result(r, ::Bool) = r
-_native_array_result(r::Vector{T}, ::Bool) where {T<:_NativeScalar} =
-    T===Union{} ? r : _native_owner_from(FaerVector{T}(undef, length(r)), r)
+function _native_array_result(r::Vector{T}, ::Bool) where {T<:_NativeScalar}
+    return T === Union{} ? r : _native_owner_from(FaerVector{T}(undef, length(r)), r)
+end
 function _native_array_result(r::Matrix{T}, rows::Bool) where {T<:_NativeScalar}
-    T===Union{} && return r
-    rows && size(r, 1)==1 && return _native_owner_from(FaerRow{T}(undef, size(r, 2)), r)
+    T === Union{} && return r
+    rows && size(r, 1) == 1 && return _native_owner_from(FaerRow{T}(undef, size(r, 2)), r)
     return _native_owner_from(FaerMatrix{T}(undef, size(r)...), r)
 end
-_native_array_result(r::LinearAlgebra.Diagonal{T,Vector{T}}, ::Bool) where {T<:_NativeScalar} =
-    FaerDiagonal{T}(r.diag)
+function _native_array_result(
+    r::LinearAlgebra.Diagonal{T,Vector{T}}, ::Bool
+) where {T<:_NativeScalar}
+    return FaerDiagonal{T}(r.diag)
+end
 function _native_dense_result(s::_DenseSnapshots, r)
     s.native || return r
     return _native_array_result(r, s.rows)
 end
 # A sparse result is native only when a native sparse operand took part, as
 # SparseArrays makes any concatenation with a sparse operand sparse.
-_native_dense_result(s::_DenseSnapshots, r::SparseArrays.SparseMatrixCSC{<:_NativeScalar,Int}) =
-    s.sparse ? FaerSparseMatrix(r) : r
+function _native_dense_result(
+    s::_DenseSnapshots, r::SparseArrays.SparseMatrixCSC{<:_NativeScalar,Int}
+)
+    return s.sparse ? FaerSparseMatrix(r) : r
+end
 
 # `A .± B` (equal shapes and scalar types) and `α .* A` reuse the native
 # whole-matrix kernels, which avoid the snapshots entirely.
 function _dense_native_kernel(bc::Broadcast.Broadcasted)
-    length(bc.args)==2 || return nothing
-    a, b=bc.args
-    if (bc.f===(+) || bc.f===(-)) && a isa FaerMatrix && b isa FaerMatrix
-        eltype(a)===eltype(b) && size(a)==size(b) && return bc.f(a, b)
-    elseif bc.f===(*) && _native_scale(a, b)
-        return a*b
-    elseif bc.f===(*) && _native_scale(b, a)
-        return b*a
+    length(bc.args) == 2 || return nothing
+    a, b = bc.args
+    if (bc.f === (+) || bc.f === (-)) && a isa FaerMatrix && b isa FaerMatrix
+        eltype(a) === eltype(b) && size(a) == size(b) && return bc.f(a, b)
+    elseif bc.f === (*) && _native_scale(a, b)
+        return a * b
+    elseif bc.f === (*) && _native_scale(b, a)
+        return b * a
     end
     return nothing
 end
@@ -169,28 +188,34 @@ end
 _native_scale(α, a) = false
 # The scalar must also not widen the matrix, keeping the fast path to the
 # kernels that need no promotion.
-_native_scale(α::Union{Float32,Float64,Base.BitInteger}, ::FaerMatrix{T}) where {T<:Union{Float32,Float64}} =
-    promote_type(typeof(α), T)===T
+function _native_scale(
+    α::Union{Float32,Float64,Base.BitInteger}, ::FaerMatrix{T}
+) where {T<:Union{Float32,Float64}}
+    return promote_type(typeof(α), T) === T
+end
 _native_scale(α::T, a::FaerMatrix{T}) where {T<:Union{ComplexF32,ComplexF64}} = true
 function Base.copy(bc::Broadcast.Broadcasted{FaerArrayStyle{N}}) where {N}
-    fast=_dense_native_kernel(bc)
+    fast = _dense_native_kernel(bc)
     isnothing(fast) || return fast
-    s=_DenseSnapshots()
-    args=_julia_leaves(s, bc.args)
-    r=Broadcast.materialize(Broadcast.broadcasted(bc.f, args...))
+    s = _DenseSnapshots()
+    args = _julia_leaves(s, bc.args)
+    r = Broadcast.materialize(Broadcast.broadcasted(bc.f, args...))
     return _native_dense_result(s, r)
 end
 
-const _DenseNativeDest=Union{FaerMatrix,FaerVector,FaerRow,FaerView}
+const _DenseNativeDest = Union{FaerMatrix,FaerVector,FaerRow,FaerView}
 # Sources that the bulk `copyto!` writes without restaging them through a
 # temporary native owner.
 _direct_copy_source(dest, a) = false
 _direct_copy_source(::FaerMatrix{T}, ::FaerMatrix{T}) where {T} = true
-_direct_copy_source(dest, a::Union{Array,FaerBorrowedArray}) =
-    eltype(a)===eltype(dest) && axes(a)==axes(dest)
-function Base.copyto!(dest::_DenseNativeDest, bc::Broadcast.Broadcasted{FaerArrayStyle{N}}) where {N}
-    if bc.f===identity && length(bc.args)==1
-        x=only(bc.args)
+function _direct_copy_source(dest, a::Union{Array,FaerBorrowedArray})
+    return eltype(a) === eltype(dest) && axes(a) == axes(dest)
+end
+function Base.copyto!(
+    dest::_DenseNativeDest, bc::Broadcast.Broadcasted{FaerArrayStyle{N}}
+) where {N}
+    if bc.f === identity && length(bc.args) == 1
+        x = only(bc.args)
         # `dest .= x` and same-type `dest .= B` keep the bulk fill/copy paths,
         # which already snapshot aliased sources and convert before writing.
         x isa Number && return fill!(dest, x)
@@ -198,31 +223,37 @@ function Base.copyto!(dest::_DenseNativeDest, bc::Broadcast.Broadcasted{FaerArra
     end
     # `A .+= B`, `A .*= 2`: a fresh native result, then one native assignment.
     if dest isa FaerMatrix
-        fast=_dense_native_kernel(bc)
-        !isnothing(fast) && eltype(fast)===eltype(dest) && size(fast)==size(dest) &&
+        fast = _dense_native_kernel(bc)
+        !isnothing(fast) &&
+            eltype(fast) === eltype(dest) &&
+            size(fast) == size(dest) &&
             return copyto!(dest, fast)
     end
-    s=_DenseSnapshots()
-    args=_julia_leaves(s, bc.args)
-    buf=Array{eltype(dest)}(undef, size(dest))
+    s = _DenseSnapshots()
+    args = _julia_leaves(s, bc.args)
+    buf = Array{eltype(dest)}(undef, size(dest))
     Broadcast.materialize!(buf, Broadcast.broadcasted(bc.f, args...))
     return copyto!(dest, buf)
 end
 # `D .= D .* 2`: a Julia `Diagonal` buffer (Julia rejects nonzero off-diagonal
 # results before anything is written), then one bulk write of the entries.
-function Base.copyto!(dest::FaerDiagonal, bc::Broadcast.Broadcasted{FaerArrayStyle{N}}) where {N}
-    s=_DenseSnapshots()
-    args=_julia_leaves(s, bc.args)
-    buf=LinearAlgebra.Diagonal(Vector{eltype(dest)}(undef, size(dest, 1)))
+function Base.copyto!(
+    dest::FaerDiagonal, bc::Broadcast.Broadcasted{FaerArrayStyle{N}}
+) where {N}
+    s = _DenseSnapshots()
+    args = _julia_leaves(s, bc.args)
+    buf = LinearAlgebra.Diagonal(Vector{eltype(dest)}(undef, size(dest, 1)))
     Broadcast.materialize!(buf, Broadcast.broadcasted(bc.f, args...))
     copyto!(diagonalview(dest), buf.diag)
     return dest
 end
-function Base.copyto!(dest::AbstractArray, bc::Broadcast.Broadcasted{FaerArrayStyle{N}}) where {N}
-    s=_DenseSnapshots()
-    args=_julia_leaves(s, bc.args)
+function Base.copyto!(
+    dest::AbstractArray, bc::Broadcast.Broadcasted{FaerArrayStyle{N}}
+) where {N}
+    s = _DenseSnapshots()
+    args = _julia_leaves(s, bc.args)
     # Unwrapping a borrowed destination lets Julia's unaliasing see its memory.
-    target=dest isa FaerBorrowedArray ? parent(dest) : dest
+    target = dest isa FaerBorrowedArray ? parent(dest) : dest
     Broadcast.materialize!(target, Broadcast.broadcasted(bc.f, args...))
     return dest
 end
@@ -243,14 +274,14 @@ same transfer applies (the leading Julia arrays accepted by concatenation,
 up to three of them before the native argument).
 """
 function Base.map(f, a::_DenseNativeArray, rest::AbstractArray...)
-    s=_DenseSnapshots()
-    args=_julia_leaves(s, (a, rest...))
+    s = _DenseSnapshots()
+    args = _julia_leaves(s, (a, rest...))
     return _native_dense_result(s, map(f, args...))
 end
 function Base.map!(f, dest::_DenseNativeDest, a::AbstractArray, rest::AbstractArray...)
-    s=_DenseSnapshots()
-    args=_julia_leaves(s, (a, rest...))
-    buf=Array{eltype(dest)}(undef, size(dest))
+    s = _DenseSnapshots()
+    args = _julia_leaves(s, (a, rest...))
+    buf = Array{eltype(dest)}(undef, size(dest))
     map!(f, buf, args...)
     return copyto!(dest, buf)
 end

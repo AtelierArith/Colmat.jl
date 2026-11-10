@@ -1,20 +1,25 @@
-const _evd_tuning_depth=Ref(0)
+const _evd_tuning_depth = Ref(0)
 # Untuned calls without resources use the high-level native path; inside a
 # `with_evd_tuning` scope they use the parameterized workspace driver.
-_evd_default_path(scratch, team) =
-    isnothing(scratch) && isnothing(team) && iszero(_evd_tuning_depth[])
+function _evd_default_path(scratch, team)
+    return isnothing(scratch) && isnothing(team) && iszero(_evd_tuning_depth[])
+end
 # The general driver's multishift QR step also follows `with_schur_tuning`.
-_general_evd_default_path(scratch, team) =
-    _evd_default_path(scratch, team) && iszero(_schur_tuning_depth[])
+function _general_evd_default_path(scratch, team)
+    return _evd_default_path(scratch, team) && iszero(_schur_tuning_depth[])
+end
 
 _evd_tuning_value(x::Nothing) = (UInt(0), UInt8(0))
 _evd_tuning_value(x::FaerParThreshold) = (x.value, UInt8(1))
 function _evd_tuning_value(x::Integer)
-    x>0 || throw(ArgumentError("EVD thresholds must be positive"))
+    x > 0 || throw(ArgumentError("EVD thresholds must be positive"))
     return (UInt(x), UInt8(1))
 end
-_evd_tuning_value(x) =
-    throw(ArgumentError("EVD tuning values must be integers, FaerParThreshold or nothing"))
+function _evd_tuning_value(x)
+    return throw(
+        ArgumentError("EVD tuning values must be integers, FaerParThreshold or nothing")
+    )
+end
 
 """
     with_evd_tuning(f; hessenberg_par_threshold=nothing, hessenberg_blocking_threshold=nothing,
@@ -42,41 +47,43 @@ settings (`evd_recursion_threshold` affects only returned eigenvectors).
 """
 function with_evd_tuning(
     f;
-    hessenberg_par_threshold = nothing,
-    hessenberg_blocking_threshold = nothing,
-    evd_recursion_threshold = nothing,
-    self_adjoint_recursion_threshold = nothing,
-    tridiagonal_par_threshold = nothing,
+    hessenberg_par_threshold=nothing,
+    hessenberg_blocking_threshold=nothing,
+    evd_recursion_threshold=nothing,
+    self_adjoint_recursion_threshold=nothing,
+    tridiagonal_par_threshold=nothing,
 )
     for x in (hessenberg_par_threshold, tridiagonal_par_threshold)
         x isa Union{Nothing,FaerParThreshold} ||
             throw(ArgumentError("parallel thresholds must be FaerParThreshold or nothing"))
     end
     hessenberg_blocking_threshold isa Integer &&
-        hessenberg_blocking_threshold<0 &&
+        hessenberg_blocking_threshold < 0 &&
         throw(ArgumentError("hessenberg_blocking_threshold must be nonnegative"))
-    blocking=hessenberg_blocking_threshold isa Integer ?
-             (UInt(hessenberg_blocking_threshold), UInt8(1)) :
-             _evd_tuning_value(hessenberg_blocking_threshold)
-    pairs=(
+    blocking = if hessenberg_blocking_threshold isa Integer
+        (UInt(hessenberg_blocking_threshold), UInt8(1))
+    else
+        _evd_tuning_value(hessenberg_blocking_threshold)
+    end
+    pairs = (
         _evd_tuning_value(hessenberg_par_threshold),
         blocking,
         _evd_tuning_value(evd_recursion_threshold),
         _evd_tuning_value(self_adjoint_recursion_threshold),
         _evd_tuning_value(tridiagonal_par_threshold),
     )
-    values=UInt[first(p) for p in pairs]
-    flags=UInt8[last(p) for p in pairs]
+    values = UInt[first(p) for p in pairs]
+    flags = UInt8[last(p) for p in pairs]
     lock(_matrix_lock) do
-        old_values=zeros(UInt, 5)
-        old_flags=zeros(UInt8, 5)
+        old_values = zeros(UInt, 5)
+        old_flags = zeros(UInt8, 5)
         _native_call(RustCrate.evd_tuning_state, old_values, old_flags)
         _native_call(RustCrate.set_evd_tuning, values, flags)
-        _evd_tuning_depth[]+=1
+        _evd_tuning_depth[] += 1
         try
             return f()
         finally
-            _evd_tuning_depth[]-=1
+            _evd_tuning_depth[] -= 1
             _native_call(RustCrate.set_evd_tuning, old_values, old_flags)
         end
     end
@@ -88,13 +95,11 @@ end
 # counterpart, so it also selects that default driver. QRIteration() raises
 # only the self-adjoint recursion threshold so the tridiagonal implicit QR
 # algorithm runs at every size, keeping the enclosing `with_evd_tuning` values.
-const _SelfAdjointDefaultAlg=Union{
-    Nothing,
-    LinearAlgebra.DivideAndConquer,
-    LinearAlgebra.RobustRepresentations,
+const _SelfAdjointDefaultAlg = Union{
+    Nothing,LinearAlgebra.DivideAndConquer,LinearAlgebra.RobustRepresentations
 }
-_selfadjoint_alg(f, ::_SelfAdjointDefaultAlg; native::Bool = false) = f()
-function _selfadjoint_alg(f, ::LinearAlgebra.QRIteration; native::Bool = false)
+_selfadjoint_alg(f, ::_SelfAdjointDefaultAlg; native::Bool=false) = f()
+function _selfadjoint_alg(f, ::LinearAlgebra.QRIteration; native::Bool=false)
     native && throw(
         ArgumentError(
             "native=true uses faer's owned self-adjoint EVD with default parameters; " *
@@ -102,26 +107,28 @@ function _selfadjoint_alg(f, ::LinearAlgebra.QRIteration; native::Bool = false)
         ),
     )
     lock(_matrix_lock) do
-        old_values=zeros(UInt, 5)
-        old_flags=zeros(UInt8, 5)
+        old_values = zeros(UInt, 5)
+        old_flags = zeros(UInt8, 5)
         _native_call(RustCrate.evd_tuning_state, old_values, old_flags)
-        values=copy(old_values)
-        flags=copy(old_flags)
-        values[4]=UInt(typemax(Int))
-        flags[4]=1
+        values = copy(old_values)
+        flags = copy(old_flags)
+        values[4] = UInt(typemax(Int))
+        flags[4] = 1
         _native_call(RustCrate.set_evd_tuning, values, flags)
-        _evd_tuning_depth[]+=1
+        _evd_tuning_depth[] += 1
         try
             return f()
         finally
-            _evd_tuning_depth[]-=1
+            _evd_tuning_depth[] -= 1
             _native_call(RustCrate.set_evd_tuning, old_values, old_flags)
         end
     end
 end
-_selfadjoint_alg(f, alg; native::Bool = false) = throw(
-    ArgumentError(
-        "alg must be LinearAlgebra.DivideAndConquer(), QRIteration() or " *
-        "RobustRepresentations() (which uses faer's default divide and conquer)",
-    ),
-)
+function _selfadjoint_alg(f, alg; native::Bool=false)
+    return throw(
+        ArgumentError(
+            "alg must be LinearAlgebra.DivideAndConquer(), QRIteration() or " *
+            "RobustRepresentations() (which uses faer's default divide and conquer)",
+        ),
+    )
+end

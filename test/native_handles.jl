@@ -19,7 +19,7 @@ using Colmat, Test, LinearAlgebra
         # TypedMatrix::duplicate returns Err without allocating a new owner.
         h = Colmat.RustCrate.TypedMatrix()
         @test_throws Colmat.RustCall.RustError Colmat.RustCall.result_to_exception(
-            Colmat.RustCrate.duplicate(h),
+            Colmat.RustCrate.duplicate(h)
         )
     end
 

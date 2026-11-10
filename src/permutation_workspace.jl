@@ -1,16 +1,20 @@
-const _DensePermutationFunction=Union{
-    typeof(permute_rows!),
-    typeof(permute_cols!),
-    typeof(permute!),
-    typeof(invpermute!),
+const _DensePermutationFunction = Union{
+    typeof(permute_rows!),typeof(permute_cols!),typeof(permute!),typeof(invpermute!)
 }
 _permutation_columns(::typeof(permute_cols!)) = true
 _permutation_columns(::_DensePermutationFunction) = false
-_permutation_target(::Union{typeof(permute_rows!),typeof(permute_cols!)}, a::_BorrowMatrix) = a
+function _permutation_target(
+    ::Union{typeof(permute_rows!),typeof(permute_cols!)}, a::_BorrowMatrix
+)
+    return a
+end
 _permutation_target(::typeof(permute_cols!), a::FaerRow) = a
 _permutation_target(::Union{typeof(permute!),typeof(invpermute!)}, v::_BorrowVector) = v
-_permutation_target(f, a) =
-    throw(ArgumentError("$(f) has no native dense permutation workspace for $(typeof(a))"))
+function _permutation_target(f, a)
+    return throw(
+        ArgumentError("$(f) has no native dense permutation workspace for $(typeof(a))")
+    )
+end
 """
     scratch_requirements(permute_rows!, A, p)
     scratch_requirements(permute_cols!, A, p)
@@ -25,23 +29,20 @@ permuted axis. The query depends only on the scalar type and shape.
 """
 function scratch_requirements(f::_DensePermutationFunction, a, p::AbstractVector{<:Integer})
     lock(_matrix_lock) do
-        x=_permutation_target(f, a)
+        x = _permutation_target(f, a)
         _view_source(x)
-        columns=_permutation_columns(f)
+        columns = _permutation_columns(f)
         _check_permutation(x, _as_permutation(p), columns)
         return _permutation_requirements(x, columns)
     end
 end
 function FaerScratch(f::_DensePermutationFunction, a, p::AbstractVector{<:Integer})
-    req=scratch_requirements(f, a, p)
-    return FaerScratch(req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a, p)
+    return FaerScratch(req.bytes; alignment=req.alignment)
 end
 function reserve!(
-    s::FaerScratch,
-    f::_DensePermutationFunction,
-    a,
-    p::AbstractVector{<:Integer},
+    s::FaerScratch, f::_DensePermutationFunction, a, p::AbstractVector{<:Integer}
 )
-    req=scratch_requirements(f, a, p)
-    return reserve!(s, req.bytes; alignment = req.alignment)
+    req = scratch_requirements(f, a, p)
+    return reserve!(s, req.bytes; alignment=req.alignment)
 end

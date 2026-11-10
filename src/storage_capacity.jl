@@ -1,6 +1,10 @@
-_capacity_int(n::UInt) =
-    n<=UInt(typemax(Int)) ? Int(n) :
-    throw(OverflowError("native capacity does not fit in Int"))
+function _capacity_int(n::UInt)
+    return if n <= UInt(typemax(Int))
+        Int(n)
+    else
+        throw(OverflowError("native capacity does not fit in Int"))
+    end
+end
 
 """
     capacity(A::FaerMatrix) -> (rows, cols)
@@ -18,7 +22,7 @@ raises `OverflowError`. The matrix query uses a two-entry Julia output buffer.
 function capacity(a::FaerMatrix)
     lock(_matrix_lock) do
         # RustCall mutable primitive slices require initialized elements.
-        out=zeros(UInt, 2)
+        out = zeros(UInt, 2)
         _native_call(RustCrate.storage_capacities, a, out)
         return (_capacity_int(out[1]), _capacity_int(out[2]))
     end

@@ -36,8 +36,9 @@ function Base.copy(f::FaerTridiagonalization)
     end
 end
 Base.deepcopy_internal(f::FaerTridiagonalization, d::IdDict) = get!(() -> copy(f), d, f)
-FaerMatrix(f::FaerTridiagonalization) =
-    lock(()->f.Q*FaerMatrix{eltype(f.Q)}(Matrix(f.H))*f.Q', _matrix_lock)
+function FaerMatrix(f::FaerTridiagonalization)
+    return lock(() -> f.Q * FaerMatrix{eltype(f.Q)}(Matrix(f.H)) * f.Q', _matrix_lock)
+end
 Base.Matrix(f::FaerTridiagonalization) = Matrix(FaerMatrix(f))
 Base.Array(f::FaerTridiagonalization) = Matrix(f)
 function _tridiagonal_open(a)
@@ -49,44 +50,44 @@ function _tridiagonal_open(a::Union{LinearAlgebra.Hermitian,LinearAlgebra.Symmet
 end
 function tridiagonalize(
     a::AbstractMatrix{<:Number};
-    blocksize::Integer = 0,
-    scratch = nothing,
-    team = nothing,
-    par_threshold = FaerParThreshold(),
-    compact::Bool = false,
+    blocksize::Integer=0,
+    scratch=nothing,
+    team=nothing,
+    par_threshold=FaerParThreshold(),
+    compact::Bool=false,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
-        policy=_par_threshold(par_threshold)
-        n, T, bs=_tridiagonalize_plan(a, blocksize)
-        R=_realtype(T)
-        req=_tridiagonalize_requirement(n, T, bs, team, policy; compact)
-        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
-             scratch
+        policy = _par_threshold(par_threshold)
+        n, T, bs = _tridiagonalize_plan(a, blocksize)
+        R = _realtype(T)
+        req = _tridiagonalize_requirement(n, T, bs, team, policy; compact)
+        work =
+            isnothing(scratch) ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
         try
-            cap=scratch_capacity(work)
-            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+            cap = scratch_capacity(work)
+            cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
                 ArgumentError(
                     "tridiagonal reduction scratch capacity/alignment is insufficient; call reserve!",
                 ),
             )
-            data=Matrix{T}(a)
+            data = Matrix{T}(a)
             data isa Matrix{T} || throw(
                 ArgumentError(
-                    "tridiagonal conversion returned incompatible scalar storage",
+                    "tridiagonal conversion returned incompatible scalar storage"
                 ),
             )
-            size(data)==(n, n) ||
+            size(data) == (n, n) ||
                 throw(DimensionMismatch("tridiagonal conversion changed matrix shape"))
             all(isfinite, data) ||
                 throw(ArgumentError("tridiagonalization input must be finite"))
             LinearAlgebra.ishermitian(data) ||
                 throw(ArgumentError("tridiagonalization requires Hermitian input"))
             if compact
-                diag=Vector{R}(undef, n)
-                off=Vector{R}(undef, max(0, n-1))
-                h=GC.@preserve data diag off begin
-                    args=(
+                diag = Vector{R}(undef, n)
+                off = Vector{R}(undef, max(0, n - 1))
+                h = GC.@preserve data diag off begin
+                    args = (
                         work,
                         Ptr{UInt8}(pointer(data)),
                         UInt(n),
@@ -99,15 +100,14 @@ function tridiagonalize(
                     _native_call(RustCrate.OwnedCompactTridiagonal, args..., team)
                 end
                 return FaerTridiagonalization(
-                    LinearAlgebra.SymTridiagonal(diag, off),
-                    _compact_q(T, h),
+                    LinearAlgebra.SymTridiagonal(diag, off), _compact_q(T, h)
                 )
             end
-            q=Matrix{T}(undef, n, n)
-            diag=Vector{R}(undef, n)
-            off=Vector{R}(undef, max(0, n-1))
+            q = Matrix{T}(undef, n, n)
+            diag = Vector{R}(undef, n)
+            off = Vector{R}(undef, max(0, n - 1))
             GC.@preserve data q diag off begin
-                args=(
+                args = (
                     work,
                     Ptr{UInt8}(pointer(data)),
                     UInt(n),
@@ -120,11 +120,10 @@ function tridiagonalize(
                 )
                 _native_call(RustCrate.tridiagonalize_workspace, args..., team)
             end
-            all(isfinite, q)&&all(isfinite, diag)&&all(isfinite, off) ||
+            all(isfinite, q) && all(isfinite, diag) && all(isfinite, off) ||
                 throw(ArgumentError("tridiagonalization overflowed the working type"))
             return FaerTridiagonalization(
-                LinearAlgebra.SymTridiagonal(diag, off),
-                FaerMatrix(q),
+                LinearAlgebra.SymTridiagonal(diag, off), FaerMatrix(q)
             )
         finally
             isnothing(scratch) && close(work)
@@ -135,25 +134,22 @@ end
 """Stage native tridiagonalization, then replace A by explicit H; Q is independently owned."""
 function tridiagonalize!(a::FaerMatrix; kwargs...)
     lock(_matrix_lock) do
-        f=tridiagonalize(a; kwargs...)
+        f = tridiagonalize(a; kwargs...)
         copyto!(a, Matrix(f.H))
         return f
     end
 end
-const _TridiagonalHermitian=LinearAlgebra.Hermitian{
-    T,
-    M,
-} where {T<:_NativeScalar,M<:_BorrowMatrix}
-const _TridiagonalSymmetric=LinearAlgebra.Symmetric{
-    T,
-    M,
-} where {T<:Union{Float32,Float64},M<:_BorrowMatrix}
-const _TridiagonalSelfAdjoint=Union{_TridiagonalHermitian,_TridiagonalSymmetric}
-LinearAlgebra.hessenberg(a::_TridiagonalSelfAdjoint; kwargs...) =
-    tridiagonalize(a; kwargs...)
+const _TridiagonalHermitian =
+    LinearAlgebra.Hermitian{T,M} where {T<:_NativeScalar,M<:_BorrowMatrix}
+const _TridiagonalSymmetric =
+    LinearAlgebra.Symmetric{T,M} where {T<:Union{Float32,Float64},M<:_BorrowMatrix}
+const _TridiagonalSelfAdjoint = Union{_TridiagonalHermitian,_TridiagonalSymmetric}
+function LinearAlgebra.hessenberg(a::_TridiagonalSelfAdjoint; kwargs...)
+    return tridiagonalize(a; kwargs...)
+end
 function LinearAlgebra.hessenberg!(a::_TridiagonalSelfAdjoint; kwargs...)
     lock(_matrix_lock) do
-        f=tridiagonalize(a; kwargs...)
+        f = tridiagonalize(a; kwargs...)
         _operator_copy_result!(parent(a), Matrix(f.H))
         return f
     end
@@ -162,10 +158,10 @@ function _tridiagonal_evd(
     d::AbstractVector{<:Number},
     e::AbstractVector{<:Number},
     vectors;
-    recursion_threshold::Integer = 128,
-    sortby = nothing,
-    scratch = nothing,
-    team = nothing,
+    recursion_threshold::Integer=128,
+    sortby=nothing,
+    scratch=nothing,
+    team=nothing,
 )
     lock(_matrix_lock) do
         _iterative_resource_check(scratch, team)
@@ -173,33 +169,33 @@ function _tridiagonal_evd(
         _tridiagonal_open(e)
         _dense_rhs_validate(d)
         _dense_rhs_validate(e)
-        n=length(d)
-        length(e)==max(0, n-1) ||
+        n = length(d)
+        length(e) == max(0, n - 1) ||
             throw(DimensionMismatch("subdiagonal length must be max(0,length(diag)-1)"))
-        T=_reflector_type(promote_type(eltype(d), eltype(e)))
-        R=_realtype(T)
-        threshold=Int(recursion_threshold)
-        threshold>=2 || throw(ArgumentError("recursion_threshold must be at least two"))
-        req=_tridiagonal_evd_requirement(n, T, vectors, threshold, team)
-        work=isnothing(scratch) ? FaerScratch(req.bytes; alignment = req.alignment) :
-             scratch
+        T = _reflector_type(promote_type(eltype(d), eltype(e)))
+        R = _realtype(T)
+        threshold = Int(recursion_threshold)
+        threshold >= 2 || throw(ArgumentError("recursion_threshold must be at least two"))
+        req = _tridiagonal_evd_requirement(n, T, vectors, threshold, team)
+        work =
+            isnothing(scratch) ? FaerScratch(req.bytes; alignment=req.alignment) : scratch
         try
-            cap=scratch_capacity(work)
-            cap.bytes>=req.bytes && cap.alignment>=req.alignment || throw(
+            cap = scratch_capacity(work)
+            cap.bytes >= req.bytes && cap.alignment >= req.alignment || throw(
                 ArgumentError(
                     "tridiagonal EVD scratch capacity/alignment is insufficient; call reserve!",
                 ),
             )
-            diag=Vector{T}(d)
-            off=Vector{T}(e)
-            all(isfinite, diag)&&all(isfinite, off) ||
+            diag = Vector{T}(d)
+            off = Vector{T}(e)
+            all(isfinite, diag) && all(isfinite, off) ||
                 throw(ArgumentError("tridiagonal coefficients must be finite"))
             all(isreal, diag) ||
                 throw(ArgumentError("Hermitian tridiagonal diagonal must be real"))
-            values=zeros(R, n)
-            q=zeros(T, vectors ? n : 0, vectors ? n : 0)
+            values = zeros(R, n)
+            q = zeros(T, vectors ? n : 0, vectors ? n : 0)
             GC.@preserve diag off values q begin
-                args=(
+                args = (
                     work,
                     Ptr{UInt8}(pointer(diag)),
                     Ptr{UInt8}(pointer(off)),
@@ -212,13 +208,13 @@ function _tridiagonal_evd(
                 )
                 _native_call(RustCrate.tridiagonal_evd_workspace, args..., team)
             end
-            all(isfinite, values)&&all(isfinite, q) || throw(
+            all(isfinite, values) && all(isfinite, q) || throw(
                 ArgumentError("tridiagonal eigendecomposition overflowed the working type"),
             )
             if !isnothing(sortby)
-                order=sortperm(values; by = sortby)
-                values=values[order]
-                vectors && (q=q[:, order])
+                order = sortperm(values; by=sortby)
+                values = values[order]
+                vectors && (q = q[:, order])
             end
             return vectors ? LinearAlgebra.Eigen(values, FaerMatrix(q)) : values
         finally
@@ -243,36 +239,42 @@ coefficient conversion, output and sorting arrays allocate separately. Saved
 tridiagonal factors and native `SymTridiagonal` eigen/eigvals forward these
 resources; a saved factor's separate Q back-transform also uses the team.
 """
-tridiagonal_eigen(d::AbstractVector{<:Number}, e::AbstractVector{<:Number}; kwargs...) =
-    _tridiagonal_evd(d, e, true; kwargs...)
+function tridiagonal_eigen(
+    d::AbstractVector{<:Number}, e::AbstractVector{<:Number}; kwargs...
+)
+    return _tridiagonal_evd(d, e, true; kwargs...)
+end
 """Native tridiagonal eigenvalues only, using O(n) coefficient/work storage; see [`tridiagonal_eigen`](@ref)."""
-tridiagonal_eigvals(d::AbstractVector{<:Number}, e::AbstractVector{<:Number}; kwargs...) =
-    _tridiagonal_evd(d, e, false; kwargs...)
+function tridiagonal_eigvals(
+    d::AbstractVector{<:Number}, e::AbstractVector{<:Number}; kwargs...
+)
+    return _tridiagonal_evd(d, e, false; kwargs...)
+end
 function LinearAlgebra.eigen(f::FaerTridiagonalization; kwargs...)
     lock(_matrix_lock) do
         _dense_rhs_validate(f.Q)
-        size(f.Q)==size(f.H) ||
+        size(f.Q) == size(f.H) ||
             throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
         f.Q isa FaerTridiagonalQ && return _compact_tridiagonal_eigen(f; kwargs...)
-        E=tridiagonal_eigen(f.H.dv, f.H.ev; kwargs...)
-        team=get(kwargs, :team, nothing)
-        vectors=isnothing(team) ? f.Q*E.vectors : team_mul(team, f.Q, E.vectors)
+        E = tridiagonal_eigen(f.H.dv, f.H.ev; kwargs...)
+        team = get(kwargs, :team, nothing)
+        vectors = isnothing(team) ? f.Q * E.vectors : team_mul(team, f.Q, E.vectors)
         return LinearAlgebra.Eigen(E.values, vectors)
     end
 end
 function LinearAlgebra.eigvals(f::FaerTridiagonalization; kwargs...)
     lock(_matrix_lock) do
         _dense_rhs_validate(f.Q)
-        size(f.Q)==size(f.H) ||
+        size(f.Q) == size(f.H) ||
             throw(DimensionMismatch("saved tridiagonal Q/H shapes do not match"))
         return tridiagonal_eigvals(f.H.dv, f.H.ev; kwargs...)
     end
 end
-const _NativeSymTridiagonal=LinearAlgebra.SymTridiagonal{
-    T,
-    V,
-} where {T<:Union{Float32,Float64},V<:FaerVector{T}}
-LinearAlgebra.eigen(a::_NativeSymTridiagonal; kwargs...) =
-    tridiagonal_eigen(a.dv, a.ev; kwargs...)
-LinearAlgebra.eigvals(a::_NativeSymTridiagonal; kwargs...) =
-    tridiagonal_eigvals(a.dv, a.ev; kwargs...)
+const _NativeSymTridiagonal =
+    LinearAlgebra.SymTridiagonal{T,V} where {T<:Union{Float32,Float64},V<:FaerVector{T}}
+function LinearAlgebra.eigen(a::_NativeSymTridiagonal; kwargs...)
+    return tridiagonal_eigen(a.dv, a.ev; kwargs...)
+end
+function LinearAlgebra.eigvals(a::_NativeSymTridiagonal; kwargs...)
+    return tridiagonal_eigvals(a.dv, a.ev; kwargs...)
+end

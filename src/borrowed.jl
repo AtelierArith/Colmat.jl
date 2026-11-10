@@ -19,9 +19,8 @@ to the same element (zero strides or overlapping strides throw
 including its views, satisfies these checks.
 """
 function faerview(a::StridedVecOrMat{T}) where {T}
-    T<:_NativeScalar || throw(
-        ArgumentError("faerview requires Float32, Float64, ComplexF32 or ComplexF64"),
-    )
+    T <: _NativeScalar ||
+        throw(ArgumentError("faerview requires Float32, Float64, ComplexF32 or ComplexF64"))
     _borrowable_memory(a) ||
         throw(ArgumentError("faerview requires memory backed by a Julia Array or Memory"))
     _aligned(a) || throw(ArgumentError("faerview requires an element-aligned pointer"))
@@ -29,9 +28,13 @@ function faerview(a::StridedVecOrMat{T}) where {T}
         throw(ArgumentError("faerview requires a layout without repeated elements"))
     return FaerBorrowedArray(a)
 end
-faerview(a::AbstractArray) = throw(
-    ArgumentError("faerview requires a strided Julia vector or matrix; got $(typeof(a))"),
-)
+function faerview(a::AbstractArray)
+    return throw(
+        ArgumentError(
+            "faerview requires a strided Julia vector or matrix; got $(typeof(a))"
+        ),
+    )
+end
 
 """
     FaerBorrowedArray{T,N,A}
@@ -63,8 +66,8 @@ struct FaerBorrowedArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
     # repeat elements.
     FaerBorrowedArray(a::AbstractArray{T,N}) where {T,N} = new{T,N,typeof(a)}(a)
 end
-const FaerBorrowedMatrix{T,A}=FaerBorrowedArray{T,2,A}
-const FaerBorrowedVector{T,A}=FaerBorrowedArray{T,1,A}
+const FaerBorrowedMatrix{T,A} = FaerBorrowedArray{T,2,A}
+const FaerBorrowedVector{T,A} = FaerBorrowedArray{T,1,A}
 faerview(b::FaerBorrowedArray) = b
 # Whether native kernels may write the borrowed memory in place. Read-only
 # parents (NPY borrows, possibly PROT_READ mappings) opt out; their writes go
@@ -72,24 +75,26 @@ faerview(b::FaerBorrowedArray) = b
 _borrowed_writable(::FaerBorrowedArray) = true
 
 function _borrowable_memory(a)
-    p=parent(a)
-    p===a && return a isa Union{Array,Memory}
+    p = parent(a)
+    p === a && return a isa Union{Array,Memory}
     return _borrowable_memory(p)
 end
 function _injective_layout(a)
     # Julia gives empty arrays zero strides; they have no elements to repeat.
     isempty(a) && return true
-    dims=[(abs(stride(a, d)), size(a, d)) for d in 1:ndims(a) if size(a, d)>1]
+    dims = [(abs(stride(a, d)), size(a, d)) for d in 1:ndims(a) if size(a, d) > 1]
     sort!(dims)
     for (k, (s, n)) in enumerate(dims)
-        s==0 && return false
-        k>1 && dims[k-1][1]*(dims[k-1][2]-1)>=s && return false
+        s == 0 && return false
+        k > 1 && dims[k - 1][1] * (dims[k - 1][2] - 1) >= s && return false
     end
     return true
 end
-_aligned(a) = UInt(pointer(a))%Base.datatype_alignment(eltype(a))==0
+_aligned(a) = UInt(pointer(a)) % Base.datatype_alignment(eltype(a)) == 0
 # Read-only internal borrows (copyto! sources) may repeat elements.
-_julia_borrowable(a::StridedVecOrMat{<:_NativeScalar}) = _borrowable_memory(a) && _aligned(a)
+function _julia_borrowable(a::StridedVecOrMat{<:_NativeScalar})
+    return _borrowable_memory(a) && _aligned(a)
+end
 _julia_borrowable(::Any) = false
 _faerview_valid(a) = _julia_borrowable(a) && _injective_layout(a)
 
@@ -103,11 +108,14 @@ Base.@propagate_inbounds Base.setindex!(b::FaerBorrowedArray, x, i::Int...) =
 Base.strides(b::FaerBorrowedArray) = strides(b.parent)
 Base.stride(b::FaerBorrowedArray, d::Integer) = stride(b.parent, d)
 Base.elsize(::Type{<:FaerBorrowedArray{T}}) where {T} = sizeof(T)
-Base.unsafe_convert(::Type{Ptr{T}}, b::FaerBorrowedArray{T}) where {T} =
-    Base.unsafe_convert(Ptr{T}, b.parent)
-Base.similar(b::FaerBorrowedArray, ::Type{T}, dims::Dims) where {T} = similar(b.parent, T, dims)
+function Base.unsafe_convert(::Type{Ptr{T}}, b::FaerBorrowedArray{T}) where {T}
+    return Base.unsafe_convert(Ptr{T}, b.parent)
+end
+function Base.similar(b::FaerBorrowedArray, ::Type{T}, dims::Dims) where {T}
+    return similar(b.parent, T, dims)
+end
 function Base.view(b::FaerBorrowedArray, I::Vararg{Any})
-    v=view(b.parent, I...)
+    v = view(b.parent, I...)
     # Layouts faerview would reject stay ordinary Julia views.
     return _faerview_valid(v) ? FaerBorrowedArray(v) : v
 end
@@ -120,11 +128,11 @@ end
 _owner_kind(::FaerBorrowedArray) = 4
 _raw_owner_argument(x, owner::FaerBorrowedArray) = Ptr{UInt8}(pointer(owner.parent))
 function _view_source(b::FaerBorrowedArray{T}) where {T}
-    a=b.parent
-    m, n=ndims(a)==1 ? (length(a), 1) : size(a)
-    rs=stride(a, 1)
-    cs=ndims(a)==1 ? m*rs : stride(a, 2)
-    d=_descriptor(b, 1:m, 1:n)
+    a = b.parent
+    m, n = ndims(a) == 1 ? (length(a), 1) : size(a)
+    rs = stride(a, 1)
+    cs = ndims(a) == 1 ? m * rs : stride(a, 2)
+    d = _descriptor(b, 1:m, 1:n)
     append!(d, (m, n, rs, cs, _tag(T)))
     return b, d
 end
@@ -134,14 +142,14 @@ Base.copy(b::FaerBorrowedVector) = _copy_view_vector(b)
 FaerMatrix(b::FaerBorrowedMatrix{<:_NativeScalar}) = copy(b)
 FaerVector(b::FaerBorrowedVector{<:_NativeScalar}) = copy(b)
 
-const _ProductMatrix=Union{_BorrowMatrix,FaerBorrowedMatrix}
-const _ProductVector=Union{_BorrowVector,FaerBorrowedVector}
-const _BorrowedTranspose=Union{
+const _ProductMatrix = Union{_BorrowMatrix,FaerBorrowedMatrix}
+const _ProductVector = Union{_BorrowVector,FaerBorrowedVector}
+const _BorrowedTranspose = Union{
     LinearAlgebra.Transpose{<:Any,<:FaerBorrowedMatrix},
     LinearAlgebra.Adjoint{<:Any,<:FaerBorrowedMatrix},
 }
-const _ProductTranspose=Union{_BorrowTranspose,_BorrowedTranspose}
-const _ProductLeft=Union{_ProductMatrix,_ProductTranspose}
+const _ProductTranspose = Union{_BorrowTranspose,_BorrowedTranspose}
+const _ProductLeft = Union{_ProductMatrix,_ProductTranspose}
 # Each method needs one borrowed operand; first argument types are disjoint.
 for (f, op) in ((:+, 0), (:-, 1))
     @eval begin
@@ -151,23 +159,25 @@ for (f, op) in ((:+, 0), (:-, 1))
 end
 Base.:*(a::FaerBorrowedMatrix, b::_ProductLeft) = _view_binary(a, b, 2)
 Base.:*(a::_BorrowedTranspose, b::_ProductLeft) = _view_binary(a, b, 2)
-Base.:*(a::Union{_BorrowMatrix,_BorrowTranspose}, b::Union{FaerBorrowedMatrix,_BorrowedTranspose}) =
-    _view_binary(a, b, 2)
-Base.:*(a::Union{FaerBorrowedMatrix,_BorrowedTranspose}, b::_ProductVector) =
-    _view_binary(a, b, 2; vector = true)
-Base.:*(a::Union{_BorrowMatrix,_BorrowTranspose}, b::FaerBorrowedVector) =
-    _view_binary(a, b, 2; vector = true)
-for (A, B) in ((:FaerBorrowedMatrix, :_ProductVector), (:_BorrowMatrix, :FaerBorrowedVector))
+function Base.:*(
+    a::Union{_BorrowMatrix,_BorrowTranspose},
+    b::Union{FaerBorrowedMatrix,_BorrowedTranspose},
+)
+    return _view_binary(a, b, 2)
+end
+function Base.:*(a::Union{FaerBorrowedMatrix,_BorrowedTranspose}, b::_ProductVector)
+    return _view_binary(a, b, 2; vector=true)
+end
+function Base.:*(a::Union{_BorrowMatrix,_BorrowTranspose}, b::FaerBorrowedVector)
+    return _view_binary(a, b, 2; vector=true)
+end
+for (A, B) in
+    ((:FaerBorrowedMatrix, :_ProductVector), (:_BorrowMatrix, :FaerBorrowedVector))
     @eval begin
         LinearAlgebra.mul!(
-            dest::FaerVector,
-            a::$A,
-            b::$B,
-            alpha::Number,
-            beta::Number;
-            team = nothing,
+            dest::FaerVector, a::$A, b::$B, alpha::Number, beta::Number; team=nothing
         ) = _vector_mul!(dest, a, b, alpha, beta; team)
-        LinearAlgebra.mul!(dest::FaerVector, a::$A, b::$B; team = nothing) =
+        LinearAlgebra.mul!(dest::FaerVector, a::$A, b::$B; team=nothing) =
             _vector_mul!(dest, a, b, 1, 0; team)
     end
 end

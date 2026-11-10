@@ -1,23 +1,23 @@
 _rotation_scalar(::LinearAlgebra.Givens{T}) where {T} = T
-const _RotationMatrix=Union{_BorrowMatrix,FaerRow}
-const _RotationArray=Union{_RotationMatrix,_BorrowVector}
+const _RotationMatrix = Union{_BorrowMatrix,FaerRow}
+const _RotationArray = Union{_RotationMatrix,_BorrowVector}
 _rotation_open(a::FaerView) = _view_owner(a)
 _rotation_open(a::Union{FaerMatrix,FaerVector,FaerRow}) = _handle(a)
 function _native_givens(p::T, q::T, i1::Integer, i2::Integer) where {T<:_NativeScalar}
-    i1!=i2 || throw(ArgumentError("Givens indices must be distinct"))
+    i1 != i2 || throw(ArgumentError("Givens indices must be distinct"))
     all(isfinite, (p, q)) || throw(ArgumentError("Givens inputs must be finite"))
-    input=T[p, q]
-    out=Vector{T}(undef, 3)
+    input = T[p, q]
+    out = Vector{T}(undef, 3)
     GC.@preserve input out _native_call(
         RustCrate.givens_parameters,
         Ptr{UInt8}(pointer(input)),
         Ptr{UInt8}(pointer(out)),
         _tag(T),
     )
-    c, s, r=out
-    if i1>i2
-        s=-conj(s)
-        i1, i2=i2, i1
+    c, s, r = out
+    if i1 > i2
+        s = -conj(s)
+        i1, i2 = i2, i1
     end
     return LinearAlgebra.Givens(Int(i1), Int(i2), c, s), r
 end
@@ -50,10 +50,10 @@ function LinearAlgebra.givens(a::_BorrowVector, i1::Integer, i2::Integer)
 end
 function _rotation_check(a, g, right)
     _rotation_open(a)
-    g.i1!=g.i2 && g.i1>=1 && g.i2>=1 ||
+    g.i1 != g.i2 && g.i1 >= 1 && g.i2 >= 1 ||
         throw(ArgumentError("Givens indices must be positive and distinct"))
-    bound=size(a, right ? 2 : 1)
-    max(g.i1, g.i2)<=bound ||
+    bound = size(a, right ? 2 : 1)
+    max(g.i1, g.i2) <= bound ||
         throw(DimensionMismatch("Givens indices exceed the selected axis"))
     isreal(g.c) || throw(ArgumentError("Givens cosine must be real"))
     return nothing
@@ -61,14 +61,14 @@ end
 function _rotate!(a::Union{FaerMatrix,FaerVector,FaerRow}, g::LinearAlgebra.Givens, right)
     lock(_matrix_lock) do
         _rotation_check(a, g, right)
-        T=eltype(a)
-        coeff=T[g.c, g.s]
+        T = eltype(a)
+        coeff = T[g.c, g.s]
         GC.@preserve coeff _native_call(
             RustCrate.givens_apply,
             a,
             Ptr{UInt8}(pointer(coeff)),
-            UInt(g.i1-1),
-            UInt(g.i2-1),
+            UInt(g.i1 - 1),
+            UInt(g.i2 - 1),
             right,
         )
         return a
@@ -77,7 +77,7 @@ end
 function _rotate!(a::FaerView, g::LinearAlgebra.Givens, right)
     lock(_matrix_lock) do
         _rotation_check(a, g, right)
-        result=copy(a)
+        result = copy(a)
         _rotate!(result, g, right)
         return copyto!(a, result)
     end
@@ -85,17 +85,17 @@ end
 LinearAlgebra.lmul!(g::LinearAlgebra.Givens, a::_RotationArray) = _rotate!(a, g, false)
 LinearAlgebra.rmul!(a::_RotationMatrix, g::LinearAlgebra.Givens) = _rotate!(a, g, true)
 _rotation_copy(a::_BorrowMatrix, ::Type{T}) where {T} = _coerce(copy(a), T)
-_rotation_copy(a::_BorrowVector, ::Type{T}) where {T} =
-    T===eltype(a) ? copy(a) : FaerVector{T}(a)
-_rotation_copy(a::FaerRow, ::Type{T}) where {T} =
-    T===eltype(a) ? copy(a) : FaerRow{T}(vec(Matrix(a)))
+function _rotation_copy(a::_BorrowVector, ::Type{T}) where {T}
+    return T === eltype(a) ? copy(a) : FaerVector{T}(a)
+end
+function _rotation_copy(a::FaerRow, ::Type{T}) where {T}
+    return T === eltype(a) ? copy(a) : FaerRow{T}(vec(Matrix(a)))
+end
 function Base.:*(g::LinearAlgebra.Givens, a::_RotationArray)
     lock(_matrix_lock) do
         _rotation_check(a, g, false)
         return _rotate!(
-            _rotation_copy(a, promote_type(_rotation_scalar(g), eltype(a))),
-            g,
-            false,
+            _rotation_copy(a, promote_type(_rotation_scalar(g), eltype(a))), g, false
         )
     end
 end
@@ -103,9 +103,7 @@ function Base.:*(a::_RotationMatrix, g::LinearAlgebra.Givens)
     lock(_matrix_lock) do
         _rotation_check(a, g, true)
         return _rotate!(
-            _rotation_copy(a, promote_type(_rotation_scalar(g), eltype(a))),
-            g,
-            true,
+            _rotation_copy(a, promote_type(_rotation_scalar(g), eltype(a))), g, true
         )
     end
 end

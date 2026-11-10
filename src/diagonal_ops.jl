@@ -1,12 +1,12 @@
 # Native diagonal operations borrowing faer DiagRef/DiagMut. A FaerDiagonal is
 # borrowed from its native owner; a Julia Diagonal (or a FaerDiagonal needing a
 # scalar conversion) passes only its n stored entries, never an n×n snapshot.
-const _DiagonalDense=Union{FaerMatrix,FaerMatrixView}
-const _DiagonalVector=Union{FaerVector,FaerVectorView}
+const _DiagonalDense = Union{FaerMatrix,FaerMatrixView}
+const _DiagonalVector = Union{FaerVector,FaerVectorView}
 
 function _dop_scalar(d, a)
-    P=promote_type(eltype(d), eltype(a))
-    P<:_NativeScalar ||
+    P = promote_type(eltype(d), eltype(a))
+    P <: _NativeScalar ||
         throw(ArgumentError("diagonal operation requires native scalar types"))
     return P
 end
@@ -15,34 +15,37 @@ _dop_values(d::LinearAlgebra.Diagonal, ::Type{P}) where {P} = Vector{P}(d.diag)
 # Calls `owner(h, D, args...)` when D is a native FaerDiagonal of scalar type P
 # that does not share h's handle; otherwise `values(h, ptr, n, args...)`.
 function _dop_call(owner, values, h, d, ::Type{P}, args...) where {P}
-    if d isa FaerDiagonal && eltype(d)===P && _handle(d)!==_native_argument(h)
+    if d isa FaerDiagonal && eltype(d) === P && _handle(d) !== _native_argument(h)
         return _native_call(owner, h, d, args...)
     end
-    v=_dop_values(d, P)
+    v = _dop_values(d, P)
     GC.@preserve v return _native_call(
-        values,
-        h,
-        Ptr{UInt8}(pointer(v)),
-        UInt(length(v)),
-        args...,
+        values, h, Ptr{UInt8}(pointer(v)), UInt(length(v)), args...
     )
 end
-_dop_check(info) =
-    iszero(info) ? nothing : throw(LinearAlgebra.SingularException(Int(info)))
+function _dop_check(info)
+    return iszero(info) ? nothing : throw(LinearAlgebra.SingularException(Int(info)))
+end
 _dop_coerce(a, ::Type{P}) where {P} = _promote_operand(a, P)
 
 # Modes: 0 D*A, 1 A*D, 2 D\A, 3 A/D, 4 A+D, 5 A-D, 6 D-A.
 function _dop_matrix(d, a, mode)
     lock(_matrix_lock) do
-        P=_dop_scalar(d, a)
-        n=size(d, 1)
-        m, k=size(a)
-        fits=mode in (0, 2) ? m==n : mode in (1, 3) ? k==n : m==n==k
+        P = _dop_scalar(d, a)
+        n = size(d, 1)
+        m, k = size(a)
+        fits = if mode in (0, 2)
+            m == n
+        elseif mode in (1, 3)
+            k == n
+        else
+            m == n == k
+        end
         fits || throw(DimensionMismatch("diagonal and matrix dimensions must match"))
-        aa=_dop_coerce(a, P)
-        p, desc=_view_source(aa)
-        h=P===Float64 ? RustCrate.OwnedMatrix() : RustCrate.TypedMatrix()
-        info=GC.@preserve desc _dop_call(
+        aa = _dop_coerce(a, P)
+        p, desc = _view_source(aa)
+        h = P === Float64 ? RustCrate.OwnedMatrix() : RustCrate.TypedMatrix()
+        info = GC.@preserve desc _dop_call(
             RustCrate.diagonal_matrix,
             RustCrate.diagonal_matrix_values,
             h,
@@ -53,20 +56,20 @@ function _dop_matrix(d, a, mode)
             Int32(mode),
         )
         _dop_check(info)
-        return P===Float64 ? _owned(h, (m, k)) : FaerMatrix{P,typeof(h)}(h, (m, k))
+        return P === Float64 ? _owned(h, (m, k)) : FaerMatrix{P,typeof(h)}(h, (m, k))
     end
 end
 # Modes: 0 D*v (column), 1 r*D (row), 2 D\v (column), 3 r/D (row).
 function _dop_vector(d, a, mode)
     lock(_matrix_lock) do
-        P=_dop_scalar(d, a)
-        n=size(d, 1)
-        length(a)==n && size(a, mode in (0, 2) ? 1 : 2)==n ||
+        P = _dop_scalar(d, a)
+        n = size(d, 1)
+        length(a) == n && size(a, mode in (0, 2) ? 1 : 2) == n ||
             throw(DimensionMismatch("diagonal and vector dimensions must match"))
-        aa=_dop_coerce(a, P)
-        p, desc=_view_source(aa)
-        h=RustCrate.VectorOwner()
-        info=GC.@preserve desc _dop_call(
+        aa = _dop_coerce(a, P)
+        p, desc = _view_source(aa)
+        h = RustCrate.VectorOwner()
+        info = GC.@preserve desc _dop_call(
             RustCrate.diagonal_vector,
             RustCrate.diagonal_vector_values,
             h,
@@ -77,7 +80,7 @@ function _dop_vector(d, a, mode)
             Int32(mode),
         )
         _dop_check(info)
-        C=mode in (0, 2) ? FaerVector : FaerRow
+        C = mode in (0, 2) ? FaerVector : FaerRow
         return C{P,typeof(h)}(h, n, UInt(0))
     end
 end
@@ -95,13 +98,19 @@ Base.:-(d::FaerDiagonal, a::_DiagonalDense) = _dop_matrix(d, a, 6)
 # Julia `Diagonal`s pass their n stored entries; non-native promotions
 # (BigFloat, ...) keep LinearAlgebra's generic result.
 for (f, mode, swap) in ((:+, 4, false), (:+, 4, true), (:-, 5, false), (:-, 6, true))
-    sig=swap ? :((d::LinearAlgebra.Diagonal, a::_DiagonalDense)) :
+    sig = if swap
+        :((d::LinearAlgebra.Diagonal, a::_DiagonalDense))
+    else
         :((a::_DiagonalDense, d::LinearAlgebra.Diagonal))
-    generic=swap ? :(Tuple{LinearAlgebra.Diagonal,AbstractMatrix}) :
-            :(Tuple{AbstractMatrix,LinearAlgebra.Diagonal})
-    call=swap ? :(invoke($f, $generic, d, a)) : :(invoke($f, $generic, a, d))
+    end
+    generic = if swap
+        :(Tuple{LinearAlgebra.Diagonal,AbstractMatrix})
+    else
+        :(Tuple{AbstractMatrix,LinearAlgebra.Diagonal})
+    end
+    call = swap ? :(invoke($f, $generic, d, a)) : :(invoke($f, $generic, a, d))
     @eval function Base.$f($(sig.args...))
-        promote_type(eltype(d), eltype(a))<:_NativeScalar || return $call
+        promote_type(eltype(d), eltype(a)) <: _NativeScalar || return $call
         return _dop_matrix(d, a, $mode)
     end
 end
@@ -134,7 +143,7 @@ index, as for `LinearAlgebra.Diagonal`.
 function Base.inv(d::FaerDiagonal)
     lock(_matrix_lock) do
         _handle(d)
-        h=RustCrate.VectorOwner()
+        h = RustCrate.VectorOwner()
         _dop_check(_native_call(RustCrate.diagonal_inverse, h, d))
         return FaerDiagonal{eltype(d),typeof(h)}(h, d.len, UInt(0))
     end
@@ -144,7 +153,7 @@ Base.copy(x::LinearAlgebra.Transpose{<:Any,<:FaerDiagonal}) = copy(parent(x))
 
 function _dop_of(a, C)
     lock(_matrix_lock) do
-        p, desc=_view_source(a)
+        p, desc = _view_source(a)
         GC.@preserve desc return _collection_result(
             C,
             eltype(a),
@@ -172,18 +181,17 @@ FaerDiagonal(a::_DiagonalDense) = _dop_of(a, FaerDiagonal)
 function _dop_update!(a, d, mode)
     lock(_matrix_lock) do
         _handle(a)
-        n=size(d, 1)
-        size(a, mode in (0, 2) ? 1 : 2)==n ||
+        n = size(d, 1)
+        size(a, mode in (0, 2) ? 1 : 2) == n ||
             throw(DimensionMismatch("diagonal and destination dimensions must match"))
         # Entries convert to the destination type; nonreal values for a real
         # destination throw InexactError before the native call.
-        P=eltype(a)
-        f, g=a isa FaerMatrix ?
-             (RustCrate.diagonal_update, RustCrate.diagonal_update_values) :
-             (
-            RustCrate.diagonal_collection_update,
-            RustCrate.diagonal_collection_update_values,
-        )
+        P = eltype(a)
+        f, g = if a isa FaerMatrix
+            (RustCrate.diagonal_update, RustCrate.diagonal_update_values)
+        else
+            (RustCrate.diagonal_collection_update, RustCrate.diagonal_collection_update_values)
+        end
         _dop_check(_dop_call(f, g, a, d, P, Int32(mode)))
         return a
     end
@@ -193,21 +201,17 @@ end
 function _dop_update_view!(a, d, mode)
     lock(_matrix_lock) do
         _view_owner(a)
-        result=ndims(a)==1 ? _dop_vector(d, a, mode) : _dop_matrix(d, a, mode)
+        result = ndims(a) == 1 ? _dop_vector(d, a, mode) : _dop_matrix(d, a, mode)
         copyto!(a, result)
         return a
     end
 end
 for D in (:FaerDiagonal, :(LinearAlgebra.Diagonal))
     @eval begin
-        LinearAlgebra.lmul!(d::$D, a::Union{FaerMatrix,FaerVector}) =
-            _dop_update!(a, d, 0)
-        LinearAlgebra.rmul!(a::Union{FaerMatrix,FaerRow}, d::$D) =
-            _dop_update!(a, d, 1)
-        LinearAlgebra.ldiv!(d::$D, a::Union{FaerMatrix,FaerVector}) =
-            _dop_update!(a, d, 2)
-        LinearAlgebra.rdiv!(a::Union{FaerMatrix,FaerRow}, d::$D) =
-            _dop_update!(a, d, 3)
+        LinearAlgebra.lmul!(d::$D, a::Union{FaerMatrix,FaerVector}) = _dop_update!(a, d, 0)
+        LinearAlgebra.rmul!(a::Union{FaerMatrix,FaerRow}, d::$D) = _dop_update!(a, d, 1)
+        LinearAlgebra.ldiv!(d::$D, a::Union{FaerMatrix,FaerVector}) = _dop_update!(a, d, 2)
+        LinearAlgebra.rdiv!(a::Union{FaerMatrix,FaerRow}, d::$D) = _dop_update!(a, d, 3)
     end
 end
 LinearAlgebra.lmul!(d::FaerDiagonal, a::FaerDiagonal) = _dop_update!(a, d, 0)
@@ -224,14 +228,14 @@ function LinearAlgebra.ldiv!(
     x::Union{_DiagonalVector,_DiagonalDense},
 )
     lock(_matrix_lock) do
-        size(y)==size(x) || throw(DimensionMismatch("destination and source must match"))
-        result=ndims(x)==1 ? _dop_vector(d, x, 2) : _dop_matrix(d, x, 2)
+        size(y) == size(x) || throw(DimensionMismatch("destination and source must match"))
+        result = ndims(x) == 1 ? _dop_vector(d, x, 2) : _dop_matrix(d, x, 2)
         return copyto!(y, result)
     end
 end
 
 # Outer products return native matrices through borrowed descriptors.
-const _VectorAdjoint=Union{
+const _VectorAdjoint = Union{
     LinearAlgebra.Adjoint{<:Any,<:_DiagonalVector},
     LinearAlgebra.Transpose{<:Any,<:_DiagonalVector},
 }
