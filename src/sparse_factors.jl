@@ -645,7 +645,6 @@ const _SparseTransposedFactor=Union{
     LinearAlgebra.TransposeFactorization{<:Any,<:FaerSparseFactorization},
     LinearAlgebra.AdjointFactorization{<:Any,<:FaerSparseFactorization},
 }
-const _SparseSolveFactor=Union{FaerSparseFactorization,_SparseTransposedFactor}
 function _sparse_factor_solve(
     f::FaerSparseFactorization{T,K},
     b::AbstractMatrix,
@@ -689,81 +688,12 @@ end
 _sparse_solve(f::FaerSparseFactorization, b) = _sparse_factor_solve(f, b)
 _sparse_solve(f::_SparseTransposedFactor, b) =
     _sparse_factor_solve(parent(f), b, true, f isa LinearAlgebra.AdjointFactorization)
-Base.:\(f::_SparseSolveFactor, b::AbstractMatrix{<:Number}) = _sparse_solve(f, b)
-function Base.:\(f::_SparseSolveFactor, b::AbstractVector{<:Number})
-    result=_sparse_solve(f, reshape(b, :, 1))
-    return b isa _BorrowVector ? _vector_from_source(result) : vec(Matrix(result))
-end
-function LinearAlgebra.ldiv!(f::_SparseSolveFactor, b::Union{AbstractVector,AbstractMatrix})
-    size(f, 1)==size(f, 2) ||
-        throw(DimensionMismatch("two-argument ldiv! requires a square sparse factor"))
-    return copyto!(b, f\b)
-end
-function LinearAlgebra.ldiv!(
-    dest::AbstractMatrix,
-    f::_SparseSolveFactor,
-    b::AbstractMatrix;
-    scratch = nothing,
-    atol = nothing,
-    rtol = nothing,
-)
-    size(dest)==(size(f, 2), size(b, 2)) ||
-        throw(DimensionMismatch("sparse solve destination has the wrong shape"))
-    if !isnothing(atol) || !isnothing(rtol)
-        isnothing(scratch) || throw(
-            ArgumentError(
-                "rank-aware QR solve allocates native SVD workspace; omit scratch",
-            ),
-        )
-        result=_sparse_qr_minimum_norm_solve(f, b; atol, rtol)
-        try
-            return copyto!(dest, result)
-        finally
-            close(result)
-        end
-    end
-    isnothing(scratch) || throw(
-        ArgumentError(
-            "scratch requires FaerScratch and a sparse LU, QR or Cholesky factor",
-        ),
-    )
-    return copyto!(dest, f\b)
-end
-function LinearAlgebra.ldiv!(
-    dest::AbstractVector,
-    f::_SparseSolveFactor,
-    b::AbstractVector;
-    atol = nothing,
-    rtol = nothing,
-)
-    length(dest)==size(f, 2) ||
-        throw(DimensionMismatch("sparse solve destination has the wrong length"))
-    if !isnothing(atol) || !isnothing(rtol)
-        LinearAlgebra.ldiv!(reshape(dest, :, 1), f, reshape(b, :, 1); atol, rtol)
-        return dest
-    end
-    return copyto!(dest, f\b)
-end
 LinearAlgebra.ishermitian(a::FaerSparseMatrix) = lock(_matrix_lock) do
     _native_call(RustCrate.sparse_is_selfadjoint, a, true)
 end
 LinearAlgebra.issymmetric(a::FaerSparseMatrix) = lock(_matrix_lock) do
     _native_call(RustCrate.sparse_is_selfadjoint, a, false)
 end
-# LinearAlgebra specializes real factorization / matching complex Array RHS.
-const _SparseSolveFactorOf{T}=Union{
-    FaerSparseFactorization{T},
-    LinearAlgebra.TransposeFactorization{T,<:FaerSparseFactorization},
-    LinearAlgebra.AdjointFactorization{T,<:FaerSparseFactorization},
-}
-Base.:\(
-    f::_SparseSolveFactorOf{T},
-    b::Matrix{Complex{T}},
-) where {T<:Union{Float32,Float64}} = _sparse_solve(f, b)
-Base.:\(
-    f::_SparseSolveFactorOf{T},
-    b::Vector{Complex{T}},
-) where {T<:Union{Float32,Float64}} = vec(Matrix(_sparse_solve(f, reshape(b, :, 1))))
 function _refactor_sparse!(
     f::FaerSparseFactorization{T},
     a::_SparseFactorInput{T};
