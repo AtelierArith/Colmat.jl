@@ -722,10 +722,12 @@ function LinearAlgebra.ldiv!(
             close(result)
         end
     end
-    return copyto!(
-        dest,
-        isnothing(scratch) ? f\b : _sparse_qr_workspace_solve(f, b, scratch),
+    isnothing(scratch) || throw(
+        ArgumentError(
+            "scratch requires FaerScratch and a sparse LU, QR or Cholesky factor",
+        ),
     )
+    return copyto!(dest, f\b)
 end
 function LinearAlgebra.ldiv!(
     dest::AbstractVector,
