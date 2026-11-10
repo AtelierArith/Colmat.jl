@@ -11,7 +11,7 @@ use crate::{
     teams::{with_team, OwnedTeam},
     workspace::OwnedScratch,
 };
-use faer::traits::{math_utils::*, ComplexField};
+use faer::traits::ComplexField;
 use faer::{MatMut, Par};
 use rustcall_julia_macros::julia;
 fn validate(source: &OwnedHouseholder, n: usize, tag: i32) -> Result<(), String> {
@@ -256,6 +256,7 @@ pub fn householder_mul_into(
 mod tests {
     use super::super::make;
     use super::*;
+    use faer::traits::math_utils::*;
     use crate::allocation_probe;
     use faer::{c32, c64, Mat};
     fn exercise<T: ComplexField + super::super::RealDivide>() {
@@ -277,18 +278,6 @@ mod tests {
                         if right { 7 } else { 3 },
                         |i, j| from_f64::<T>((1 + i + 2 * j) as f64),
                     );
-                    let effective = Mat::from_fn(7, 7, |i, j| {
-                        let x = if transpose {
-                            &reference[(j, i)]
-                        } else {
-                            &reference[(i, j)]
-                        };
-                        if conjugated {
-                            conj(x)
-                        } else {
-                            copy(x)
-                        }
-                    });
                     // Elementary reflection orientation is encoded in its owner, not run flags.
                     let effective = reference.clone();
                     let expected = if right {

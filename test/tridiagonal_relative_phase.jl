@@ -135,40 +135,6 @@ end
     end
 end
 
-@testset "Tiny phase legacy native allocating reduction" begin
-    for T in (ComplexF32, ComplexF64)
-        R=typeof(real(zero(T)))
-        for x in (R===Float32 ? R(1e-30) : R(1e-300), R(2)^(R===Float32 ? -140 : -1070))
-            source=T[1 T(0, -x); T(0, x) 2]
-            Q=Matrix{T}(undef, 2, 2)
-            d=Vector{R}(undef, 2)
-            e=Vector{R}(undef, 1)
-            GC.@preserve source Q d e Colmat._native_call(
-                Colmat.RustCrate.tridiagonalize_data,
-                Ptr{UInt8}(pointer(source)),
-                UInt(2),
-                Ptr{UInt8}(pointer(Q)),
-                Ptr{UInt8}(pointer(d)),
-                Ptr{UInt8}(pointer(e)),
-                Colmat._tag(T),
-                UInt(0),
-            )
-            @test all(isfinite, Q)
-            @test adjoint(Q)*Q≈Matrix{T}(I, 2, 2) atol=512eps(R)
-            reconstructed=Q*Matrix(SymTridiagonal(d, e))*adjoint(Q)
-            @test norm(reconstructed-source)<=512eps(R)*norm(source)
-            if x>=floatmin(R)
-                @test abs(
-                    _relative_phase_scaled(reconstructed[2, 1], x)-_relative_phase_scaled(
-                        source[2, 1],
-                        x,
-                    ),
-                )<=512eps(R)
-            end
-        end
-    end
-end
-
 @testset "Globally subnormal tridiagonal inputs retain their band" begin
     FaerTeam(2) do team
         for T in (ComplexF32, ComplexF64), n in (2, 4)

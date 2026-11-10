@@ -3,7 +3,7 @@ use super::guarded;
 use crate::{typed::TypedMatrix, OwnedMatrix};
 use faer::diag::Diag;
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{c32, c64, Col, Mat, MatMut, MatRef, Par, Row};
+use faer::{c32, c64, Col, Mat, MatMut, MatRef, Row};
 use rustcall_julia_macros::julia;
 
 #[derive(Clone)]

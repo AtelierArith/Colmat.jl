@@ -40,8 +40,6 @@ function _pivoted_apply(F::_PivotedNativeCholesky, b, op::Int32; kwargs...)
         close(result)
     end
 end
-_pivoted_solve(F::_PivotedNativeCholesky, b; kwargs...) =
-    _pivoted_apply(F, b, Int32(0); kwargs...)
 function _pivoted_divide_into!(dest, F, b, op; kwargs...)
     lock(_matrix_lock) do
         _pivoted_destination_check(F, dest)

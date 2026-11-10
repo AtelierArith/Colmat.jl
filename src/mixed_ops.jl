@@ -42,8 +42,6 @@ function _julia_operand(b)
     isnothing(y) || return y
     return ndims(b)==1 ? FaerVector(b) : FaerMatrix(b)
 end
-const _JuliaNativeMatrix=StridedMatrix{<:_NativeScalar}
-const _JuliaNativeVector=StridedVector{<:_NativeScalar}
 # Native matrices, views and their lazy transposes/adjoints.
 const _MixedNative=Union{_BorrowMatrix,_BorrowTranspose}
 for (f, op) in ((:+, 0), (:-, 1))

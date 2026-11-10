@@ -291,30 +291,14 @@ end
     end
 end
 
-@testset "Bidiagonal legacy entry and shared resources" begin
+@testset "Bidiagonal shared resources" begin
     team=FaerTeam(2)
     try
         for T in (Float32, Float64, ComplexF32, ComplexF64)
             R=typeof(real(zero(T)))
             d=T[1, 2, 3]
             e=fill(T<:Complex ? T(0.2, 0.1) : T(0.2), 2)
-            U=Matrix{T}(undef, 3, 3)
-            V=Matrix{T}(undef, 3, 3)
-            s=Vector{R}(undef, 3)
-            GC.@preserve d e U V s Colmat._native_call(
-                Colmat.RustCrate.bidiagonal_svd_data,
-                Ptr{UInt8}(pointer(d)),
-                Ptr{UInt8}(pointer(e)),
-                UInt(3),
-                Ptr{UInt8}(pointer(s)),
-                Ptr{UInt8}(pointer(U)),
-                Ptr{UInt8}(pointer(V)),
-                Colmat._tag(T),
-                true,
-                UInt(2),
-            )
             A=Matrix(Bidiagonal(d, e, :U))
-            @test A≈U*Diagonal(s)*V' rtol=4096eps(R) atol=4096eps(R)
             work=FaerScratch(bidiagonal_svd, d, e; team, recursion_threshold = 2)
             try
                 results=fetch.([

@@ -14,7 +14,6 @@ const _MeasureTriangular=Union{
     LinearAlgebra.UnitLowerTriangular{<:Any,<:_MeasureDense},
     LinearAlgebra.UnitUpperTriangular{<:Any,<:_MeasureDense},
 }
-const _MeasureOperand=Union{_MeasureDense,_MeasureTriangular,FaerDiagonal}
 
 function _measure_source(x)
     x isa FaerDiagonal && return (_handle(x); (x, _descriptor(x, 1:x.len, 1:1), Int32(5)))

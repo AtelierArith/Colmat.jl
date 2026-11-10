@@ -9,7 +9,7 @@ use crate::{
     OwnedMatrix,
 };
 use crate::{teams::OwnedTeam, workspace::OwnedScratch};
-use faer::traits::{math_utils::*, ComplexField};
+use faer::traits::ComplexField;
 use faer::{MatMut, Par};
 use rustcall_julia_macros::julia;
 pub(super) fn validate(
@@ -268,6 +268,7 @@ pub fn sequence_mul_into(
 mod tests {
     use super::super::load;
     use super::*;
+    use faer::traits::math_utils::*;
     use faer::{c32, c64, Mat};
     fn exercise<T: ComplexField>() {
         let basis = Mat::from_fn(7, 3, |i, j| {

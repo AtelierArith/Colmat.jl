@@ -289,33 +289,6 @@ pub fn tridiagonal_evd_workspace(
     })
 }
 
-pub(super) fn allocate(
-    d: *const u8,
-    e: *const u8,
-    n: usize,
-    values: *mut u8,
-    vectors: *mut u8,
-    tag: i32,
-    want_vectors: bool,
-    threshold: usize,
-) -> Result<(), String> {
-    let req = dispatch(n, tag, want_vectors, threshold, ParShape::Seq)?;
-    let mut scratch = OwnedScratch::new();
-    scratch.scratch_reserve(req.size_bytes(), req.align_bytes())?;
-    run(
-        &mut scratch,
-        d,
-        e,
-        n,
-        values,
-        vectors,
-        tag,
-        want_vectors,
-        threshold,
-        Par::Seq,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

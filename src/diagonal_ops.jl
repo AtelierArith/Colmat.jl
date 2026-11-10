@@ -1,7 +1,6 @@
 # Native diagonal operations borrowing faer DiagRef/DiagMut. A FaerDiagonal is
 # borrowed from its native owner; a Julia Diagonal (or a FaerDiagonal needing a
 # scalar conversion) passes only its n stored entries, never an n×n snapshot.
-const _DiagonalOperand=Union{FaerDiagonal,LinearAlgebra.Diagonal}
 const _DiagonalDense=Union{FaerMatrix,FaerMatrixView}
 const _DiagonalVector=Union{FaerVector,FaerVectorView}
 

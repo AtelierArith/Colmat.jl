@@ -1,5 +1,4 @@
 //! SVD with caller-owned workspace and ephemeral team authority.
-use crate::teams::with_team;
 use crate::typed::{MatrixData, TypedMatrix};
 use crate::{guarded, teams::OwnedTeam, workspace::OwnedScratch, OwnedMatrix};
 use faer::dyn_stack::StackReq;
