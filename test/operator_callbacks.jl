@@ -223,7 +223,7 @@ function jcb_released_fixture()
     held=copy(op)
     close(op)
     GC.gc()
-    alive=weak.value!==nothing
+    alive=!isnothing(weak.value)
     product=Matrix(held*ones(2, 1))
     close(held)
     return weak, alive, product
@@ -233,7 +233,7 @@ end
     @test alive
     @test product==fill(2.0, 2, 1)
     GC.gc()
-    @test weak.value===nothing
+    @test isnothing(weak.value)
     a=ComplexF64[4 im; 1 3]
     op=jcb_op(a)
     g=copy(op)

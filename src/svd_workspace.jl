@@ -114,7 +114,7 @@ function LinearAlgebra.svd!(
     team = nothing,
     alg = nothing,
 )
-    alg===nothing || return _svd_alg(()->LinearAlgebra.svd!(a; full, scratch, team), alg)
+    isnothing(alg) || return _svd_alg(()->LinearAlgebra.svd!(a; full, scratch, team), alg)
     lock(_matrix_lock) do
         F=_svd_workspace_result(a; full, scratch, team)
         _svd_writeback!(a, F.S)
@@ -135,7 +135,7 @@ function LinearAlgebra.svdvals!(
     team = nothing,
     alg = nothing,
 )
-    alg===nothing || return _svd_alg(()->LinearAlgebra.svdvals!(a; scratch, team), alg)
+    isnothing(alg) || return _svd_alg(()->LinearAlgebra.svdvals!(a; scratch, team), alg)
     lock(_matrix_lock) do
         s=_svd_workspace_result(a; values_only = true, scratch, team)
         _svd_writeback!(a, s)

@@ -42,7 +42,7 @@ using Test, LinearAlgebra, Random, Colmat
             @test !isopen(f)
             @test_throws ArgumentError f\B
             @test_throws ArgumentError Matrix(f)
-            @test close(f)===nothing
+            @test isnothing(close(f))
         end
         singular = FaerMatrix([1.0 2; 2 4])
         @test_throws SingularException lu(singular)

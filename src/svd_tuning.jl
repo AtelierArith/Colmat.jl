@@ -30,11 +30,22 @@ function _svd_scope(f, recursion, ratio, par, qr_blocking = nothing)
         old=_svd_state()
         # Unspecified controls keep the enclosing scope's values.
         v, r, flags=deepcopy(old)
-        isnothing(recursion) || (v[1] = UInt(min(recursion, typemax(Int))); flags[1] = 1)
-        isnothing(ratio) || (r[1] = Float64(ratio); flags[2] = 1)
-        isnothing(par) || (v[2] = par.value; flags[3] = 1)
-        isnothing(qr_blocking) ||
-            (v[3] = UInt(min(qr_blocking, typemax(Int))); flags[4] = 1)
+        if !isnothing(recursion)
+            v[1]=UInt(min(recursion, typemax(Int)))
+            flags[1]=1
+        end
+        if !isnothing(ratio)
+            r[1]=Float64(ratio)
+            flags[2]=1
+        end
+        if !isnothing(par)
+            v[2]=par.value
+            flags[3]=1
+        end
+        if !isnothing(qr_blocking)
+            v[3]=UInt(min(qr_blocking, typemax(Int)))
+            flags[4]=1
+        end
         _native_call(RustCrate.set_svd_tuning, v[1], r[1], v[2], v[3], flags)
         _svd_tuning_depth[]+=1
         try
