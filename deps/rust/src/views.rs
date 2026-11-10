@@ -5,7 +5,7 @@ use super::statistics::{widens, Native};
 use super::typed::{MatrixData, TypedMatrix};
 use super::{guarded, OwnedMatrix};
 use faer::traits::{math_utils::*, ComplexField};
-use faer::{Accum, Col, Conj, Mat, MatMut, MatRef, Par};
+use faer::{Accum, Conj, Mat, MatMut, MatRef, Par};
 use rustcall_julia_macros::julia;
 
 mod destination;

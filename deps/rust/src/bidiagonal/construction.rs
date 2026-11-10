@@ -117,19 +117,6 @@ fn query(
     }
     Ok(())
 }
-#[julia]
-pub fn bidiagonalize_requirements(
-    m: usize,
-    n: usize,
-    tag: i32,
-    full: bool,
-    bs: usize,
-    out: &mut [usize],
-    team: Option<&OwnedTeam>,
-) -> Result<(), String> {
-    let out = crate::workspace::requirement_out(out)?;
-    guarded(|| with_team(team, |par| query(m, n, tag, full, bs, par.shape(), out, 0)))
-}
 unsafe fn compute<T: ComplexField>(
     scratch: &mut OwnedScratch,
     input: *const u8,
@@ -305,59 +292,6 @@ fn run(
             _ => Err("unsupported bidiagonal scalar".into()),
         }
     }
-}
-#[julia]
-pub fn bidiagonalize_workspace(
-    scratch: &mut OwnedScratch,
-    input: *const u8,
-    m: usize,
-    n: usize,
-    u: *mut u8,
-    v: *mut u8,
-    d: *mut u8,
-    e: *mut u8,
-    tag: i32,
-    full: bool,
-    bs: usize,
-    team: Option<&OwnedTeam>,
-) -> Result<(), String> {
-    guarded(|| {
-        with_team(team, |par| {
-            run(scratch, input, m, n, u, v, d, e, tag, full, bs, par, 0)
-        })
-    })
-}
-
-pub(super) fn allocate(
-    input: *const u8,
-    m: usize,
-    n: usize,
-    u: *mut u8,
-    v: *mut u8,
-    d: *mut u8,
-    e: *mut u8,
-    tag: i32,
-    full: bool,
-    bs: usize,
-) -> Result<(), String> {
-    let req = dispatch(m, n, tag, full, bs, ParShape::Seq, 0)?;
-    let mut scratch = OwnedScratch::new();
-    scratch.scratch_reserve(req.size_bytes(), req.align_bytes())?;
-    run(
-        &mut scratch,
-        input,
-        m,
-        n,
-        u,
-        v,
-        d,
-        e,
-        tag,
-        full,
-        bs,
-        Par::Seq,
-        0,
-    )
 }
 
 #[julia]

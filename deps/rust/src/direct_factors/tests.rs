@@ -510,8 +510,6 @@ fn validation_failures_do_not_write_the_matrix() {
     let before = a.matrix.clone();
     let mut empty = OwnedScratch::new();
     empty.scratch_reserve(0, 1).unwrap();
-    let mut perm = vec![0usize; 40];
-    let mut inv = vec![0usize; 40];
     let mut coeff = vec![0.0f64; 40 * 40];
     for kind in [LU, FULL_LU, QR, LLT, LDLT, LBLT, LBLT_ROOK] {
         let rows = if is_lblt(kind) {

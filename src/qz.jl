@@ -84,8 +84,6 @@ function Base.deepcopy_internal(f::_NativeQZ, d::IdDict)
         end
     end
 end
-_qz_matrix(a::FaerMatrix) = a
-_qz_matrix(a::FaerMatrixView) = copy(a)
 function _qz_native_result(
     a::FaerMatrix{T},
     b::FaerMatrix{T},

@@ -1,10 +1,5 @@
 //! Julia-compatible ordering for real matrix extrema, including signed zero.
-use crate::{
-    guarded,
-    typed::{MatrixData, TypedMatrix},
-};
 use faer::MatRef;
-use rustcall_julia_macros::julia;
 
 macro_rules! extremum {
     ($name:ident, $t:ty) => {
@@ -29,16 +24,7 @@ macro_rules! extremum {
         }
     };
 }
-extremum!(extremum_f32, f32);
 extremum!(extremum_f64, f64);
-
-#[julia]
-pub fn real_extremum_f32(source: &TypedMatrix, minimum: bool) -> Result<f32, String> {
-    guarded(|| match source.data()? {
-        MatrixData::F32(a) => extremum_f32(a.as_ref(), minimum),
-        _ => Err("Float32 extrema require Float32 native storage".into()),
-    })
-}
 
 #[cfg(test)]
 mod tests {
@@ -69,6 +55,5 @@ mod tests {
             }
         };
     }
-    cases!(real_f32_ordering, f32, extremum_f32);
     cases!(real_f64_ordering, f64, extremum_f64);
 }

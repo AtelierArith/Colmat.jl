@@ -197,35 +197,6 @@ pub fn bidiagonal_svd_workspace(
     })
 }
 
-pub(super) fn allocate(
-    d: *const u8,
-    e: *const u8,
-    n: usize,
-    values: *mut u8,
-    u: *mut u8,
-    v: *mut u8,
-    tag: i32,
-    upper: bool,
-    threshold: usize,
-) -> Result<(), String> {
-    let req = dispatch(n, tag, threshold, ParShape::Seq)?;
-    let mut scratch = OwnedScratch::new();
-    scratch.scratch_reserve(req.size_bytes(), req.align_bytes())?;
-    run(
-        &mut scratch,
-        d,
-        e,
-        n,
-        values,
-        u,
-        v,
-        tag,
-        upper,
-        threshold,
-        Par::Seq,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

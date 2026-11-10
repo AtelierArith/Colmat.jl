@@ -130,7 +130,6 @@ end
 # entry is singular; a positive diagonal is a Hermitian positive definite B and
 # uses the native self-adjoint driver; other diagonals use LinearAlgebra's
 # general path on `D \ A`.
-const _SelfAdjointDiagonal=Union{FaerDiagonal,LinearAlgebra.Diagonal}
 function _selfadj_diagonal_gevd(a, d, vectors; kwargs...)
     LinearAlgebra.checksquare(a)==size(d, 1) ||
         throw(DimensionMismatch("generalized eigen input sizes must match"))

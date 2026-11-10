@@ -88,21 +88,6 @@ function _dense_solve_native(
         close(rhs)
     end
 end
-function _dense_solve_rhs(
-    f::_DenseSolveFactor,
-    b;
-    scratch = nothing,
-    team = nothing,
-    right = false,
-)
-    result=_dense_solve_native(f, b; scratch, team, right)
-    try
-        return right ? copy(adjoint(Matrix(result))) :
-               ndims(b)==1 ? vec(Matrix(result)) : Matrix(result)
-    finally
-        close(result)
-    end
-end
 function _dense_copy_result!(dest, result)
     buffer = ndims(dest)==1 ? Vector{eltype(dest)}(result) : Matrix{eltype(dest)}(result)
     copyto!(dest, buffer)

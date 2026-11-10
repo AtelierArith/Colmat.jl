@@ -39,6 +39,7 @@ impl<T: ComplexField> Factors<T> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn new(
         symbolic: Arc<SymbolicQr<usize>>,
         a: SparseColMatRef<'_, usize, T>,
@@ -49,6 +50,7 @@ impl<T: ComplexField> Factors<T> {
         .map_err(|e| format!("{e:?}"))?;
         Self::new_in(symbolic, a, MemStack::new(&mut mem))
     }
+    #[cfg(test)]
     pub(crate) fn new_in(
         symbolic: Arc<SymbolicQr<usize>>,
         a: SparseColMatRef<'_, usize, T>,
@@ -56,6 +58,7 @@ impl<T: ComplexField> Factors<T> {
     ) -> Result<Self, String> {
         Self::new_in_parallel(symbolic, a, stack, Par::Seq)
     }
+    #[cfg(test)]
     pub(crate) fn new_in_parallel(
         symbolic: Arc<SymbolicQr<usize>>,
         a: SparseColMatRef<'_, usize, T>,

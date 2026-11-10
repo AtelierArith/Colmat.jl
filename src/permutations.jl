@@ -142,7 +142,6 @@ Base.getindex(a::FaerMatrix, p::FaerPermutation, q::FaerPermutation) =
 # Dense owners and views accepted by the native in-place kernels. Vectors are
 # always permuted along their single axis (descriptors of row-vector views are
 # transposed to a column).
-const _DensePermutable=Union{FaerMatrix,FaerMatrixView,FaerRow,FaerVector,FaerVectorView}
 _permutation_dims(a) = ndims(a)==1 ? (length(a), 1) : size(a)
 # A zero step over more than one index would alias a mutable faer borrow.
 _injective(a) = true

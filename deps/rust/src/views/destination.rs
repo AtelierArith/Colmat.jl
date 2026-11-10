@@ -204,6 +204,7 @@ impl<T: ComplexField> Operand<'_, T> {
             Operand::Owned(a) => (a.as_ref(), false),
         }
     }
+    #[cfg(test)]
     pub(crate) fn is_snapshot(&self) -> bool {
         matches!(self, Operand::Owned(_))
     }

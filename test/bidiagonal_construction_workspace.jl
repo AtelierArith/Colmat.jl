@@ -286,39 +286,3 @@ end
         @test calls[]==1
     end
 end
-
-@testset "Bidiagonal reduction legacy buffers" begin
-    rng=MersenneTwister(762)
-    for T in (Float32, Float64, ComplexF32, ComplexF64),
-        (m, n) in ((0, 3), (3, 0), (3, 5), (5, 3)),
-        full in (false, true)
-
-        R=typeof(real(zero(T)))
-        tol=4096eps(R)
-        k=min(m, n)
-        data=randn(rng, T, m, n)
-        snapshot=copy(data)
-        U=Matrix{T}(undef, m, full ? m : k)
-        V=Matrix{T}(undef, n, full ? n : k)
-        d=Vector{T}(undef, k)
-        e=Vector{T}(undef, max(0, k-1))
-        GC.@preserve data U V d e Colmat._native_call(
-            Colmat.RustCrate.bidiagonalize_data,
-            Ptr{UInt8}(pointer(data)),
-            UInt(m),
-            UInt(n),
-            Ptr{UInt8}(pointer(U)),
-            Ptr{UInt8}(pointer(V)),
-            Ptr{UInt8}(pointer(d)),
-            Ptr{UInt8}(pointer(e)),
-            Colmat._tag(T),
-            full,
-            UInt(0),
-        )
-        B=Matrix(Bidiagonal(d, e, m<n ? :L : :U))
-        @test norm(data-U[:, 1:k]*B*V[:, 1:k]')<=tol*max(norm(data), one(R))
-        @test U'U≈Matrix{T}(I, size(U, 2), size(U, 2)) atol=tol
-        @test V'V≈Matrix{T}(I, size(V, 2), size(V, 2)) atol=tol
-        @test data==snapshot
-    end
-end

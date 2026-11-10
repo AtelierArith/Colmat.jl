@@ -316,20 +316,6 @@ pub fn tridiagonalize_workspace(
         })
     })
 }
-pub(super) fn allocate(
-    input: *const u8,
-    n: usize,
-    q: *mut u8,
-    d: *mut u8,
-    e: *mut u8,
-    tag: i32,
-    bs: usize,
-) -> Result<(), String> {
-    let req = dispatch(n, tag, bs, ParShape::Seq, 0)?;
-    let mut scratch = OwnedScratch::new();
-    scratch.scratch_reserve(req.size_bytes(), req.align_bytes())?;
-    run(&mut scratch, input, n, q, d, e, tag, bs, Par::Seq, 0)
-}
 
 #[cfg(test)]
 mod tests {
