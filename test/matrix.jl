@@ -151,9 +151,9 @@ using Test, LinearAlgebra, Random, Colmat
         C = copy(A)
         D = copy(C)
         @test isopen(C)
-        @test close(C) === nothing
+        @test isnothing(close(C))
         @test !isopen(C)
-        @test close(C) === nothing
+        @test isnothing(close(C))
         @test_throws ArgumentError Matrix(C)
         @test_throws ArgumentError C[1, 1]
         @test_throws ArgumentError (C[1, 1] = 1)

@@ -279,7 +279,7 @@ function _sparse_native_requirements(p::FaerSparsity, o)
     )
     return (bytes = Int(info[1]), alignment = Int(info[2]))
 end
-# Patterns analysed in place: a borrowed Julia CSC matrix (per-call 0-based
+# Patterns analyzed in place: a borrowed Julia CSC matrix (per-call 0-based
 # buffers) or a CSC owner. The plan keeps the only pattern copy.
 const _RawAnalysisSource=Union{FaerSparseMatrix,FaerBorrowedSparseMatrix}
 _analysis_open(p::Union{FaerSparsity,FaerSparseMatrix}) = _handle(p)
@@ -374,7 +374,7 @@ function _sparse_symbolic(p; scratch = nothing, kwargs...)
         end
     end
 end
-# Borrowed Julia CSC and CSC owner inputs are analysed in place; a CSR owner's
+# Borrowed Julia CSC and CSC owner inputs are analyzed in place; a CSR owner's
 # pattern is converted to CSC once (faer's symbolic analyses are CSC-only).
 const _SparseFactorInput{T}=Union{FaerSparseMatrix{T},FaerBorrowedSparseMatrix{T}}
 FaerSparseSymbolic(a::_SparseFactorInput; kwargs...) =
@@ -942,11 +942,14 @@ function reconstruct(f::FaerSparseFactorization{T,:qr}) where {T}
     end
 end
 FaerMatrix(f::FaerSparseFactorization{T,:qr}) where {T} = reconstruct(f)
-Base.Matrix(f::FaerSparseFactorization{T,:qr}) where {T} = (a = reconstruct(f); try
-    Matrix(a)
-finally
-    close(a)
-end)
+function Base.Matrix(f::FaerSparseFactorization{T,:qr}) where {T}
+    a=reconstruct(f)
+    try
+        return Matrix(a)
+    finally
+        close(a)
+    end
+end
 
 function FaerMatrix{T}(f::FaerSparseFactorization{S,:qr}) where {T<:_NativeScalar,S}
     a=reconstruct(f)

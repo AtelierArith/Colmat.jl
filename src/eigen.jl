@@ -102,7 +102,7 @@ function LinearAlgebra.eigen(
     team = nothing,
     alg = nothing,
 )
-    alg===nothing || return _selfadjoint_alg(alg; native) do
+    isnothing(alg) || return _selfadjoint_alg(alg; native) do
         LinearAlgebra.eigen(a; native, sortby, scratch, team)
     end
     return native ?
@@ -117,7 +117,7 @@ function LinearAlgebra.eigvals(
     team = nothing,
     alg = nothing,
 )
-    alg===nothing || return _selfadjoint_alg(alg) do
+    isnothing(alg) || return _selfadjoint_alg(alg) do
         LinearAlgebra.eigvals(a; sortby, scratch, team)
     end
     return _evd_default_path(scratch, team) ?

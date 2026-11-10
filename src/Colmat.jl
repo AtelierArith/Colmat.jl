@@ -1,12 +1,12 @@
 module Colmat
 
-using RustCall
 import LinearAlgebra
+using LinearAlgebra: SVD
+import Mmap
+import Random
+using RustCall
 import SparseArrays
 import Statistics
-import Random
-import Mmap
-using LinearAlgebra: SVD
 
 export FaerSpectralFactor,
     reconstruct,
@@ -354,4 +354,4 @@ include("diagonal_ops.jl")
 include("collection_ops.jl")
 include("structured_julia_products.jl")
 
-end
+end # module Colmat

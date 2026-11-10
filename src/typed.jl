@@ -212,7 +212,7 @@ function LinearAlgebra.svd(
     team = nothing,
     alg = nothing,
 ) where {T<:_ExtraScalar}
-    alg===nothing || return _svd_alg(alg) do
+    isnothing(alg) || return _svd_alg(alg) do
         LinearAlgebra.svd(a; full, native, scratch, team)
     end
     native && return _owned_spectral(a; full, scratch, team)
@@ -240,7 +240,7 @@ function LinearAlgebra.svdvals(
     team = nothing,
     alg = nothing,
 ) where {T<:_ExtraScalar}
-    alg===nothing || return _svd_alg(()->LinearAlgebra.svdvals(a; scratch, team), alg)
+    isnothing(alg) || return _svd_alg(()->LinearAlgebra.svdvals(a; scratch, team), alg)
     _svd_default_path(scratch, team) ||
         return _svd_workspace_result(a; values_only = true, scratch, team)
     s=Vector{_realtype(T)}(undef, min(size(a)...))
@@ -764,7 +764,7 @@ function LinearAlgebra.eigen(
     team = nothing,
     alg = nothing,
 )
-    alg===nothing || return _selfadjoint_alg(alg; native) do
+    isnothing(alg) || return _selfadjoint_alg(alg; native) do
         LinearAlgebra.eigen(a; native, sortby, scratch, team)
     end
     return native ?
@@ -780,7 +780,7 @@ function LinearAlgebra.eigvals(
     team = nothing,
     alg = nothing,
 )
-    alg===nothing || return _selfadjoint_alg(alg) do
+    isnothing(alg) || return _selfadjoint_alg(alg) do
         LinearAlgebra.eigvals(a; sortby, scratch, team)
     end
     return _evd_default_path(scratch, team) ?

@@ -277,7 +277,7 @@ function LinearAlgebra.svd(
     team = nothing,
     alg = nothing,
 )
-    alg===nothing || return _svd_alg(alg) do
+    isnothing(alg) || return _svd_alg(alg) do
         LinearAlgebra.svd(a; full, native, scratch, team)
     end
     native && return _owned_spectral(a; full, scratch, team)
@@ -305,7 +305,7 @@ function LinearAlgebra.svdvals(
     team = nothing,
     alg = nothing,
 )
-    alg===nothing || return _svd_alg(()->LinearAlgebra.svdvals(a; scratch, team), alg)
+    isnothing(alg) || return _svd_alg(()->LinearAlgebra.svdvals(a; scratch, team), alg)
     _svd_default_path(scratch, team) ||
         return _svd_workspace_result(a; values_only = true, scratch, team)
     s = Vector{Float64}(undef, min(size(a)...))

@@ -20,7 +20,7 @@ using Test, Colmat, LinearAlgebra, SparseArrays
                 residual=b-A*result.x
                 normal=A'*residual
                 reference=A'*b
-                if M!==nothing
+                if !isnothing(M)
                     normal=Matrix(M)'*normal
                     reference=Matrix(M)'*reference
                 end
