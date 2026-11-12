@@ -15,9 +15,9 @@ ParallelTestRunner.jl がテストファイルを自動検出し、独立した�
 
 ## RustCall 0.10 の利用方針
 
-RustCall.jl は General registry の `0.10` 系（compat `"0.10"`）を使います。
-Rust 側の `rustcall_julia_macros` は crates.io の `0.7` 系です。どちらも Git commit に
-固定しません。0.9 系は対象外です。`#[julia]` 境界を新しく書くときは、
+RustCall.jl は `[sources]` で指定した upstream の `main`（現在 `0.10.0`、compat `"0.10"`）を使います。
+`Pkg.update("RustCall")` で更新し、検証したコミットは `Manifest.toml` に記録します。
+Rust 側の `rustcall_julia_macros` は crates.io の `0.7` 系です。0.9 系は対象外です。`#[julia]` 境界を新しく書くときは、
 0.10 の検査付き機能を使います。
 
 - 省略可能な所有者は `Option<&Owner>` / `Option<&mut Owner>` で受け取ります。Julia からは

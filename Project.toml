@@ -11,6 +11,9 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
 RustCall = "7ac5b1a4-9e37-4f0e-9aa3-3305a66bfb1c"
 
+[sources]
+RustCall = {rev = "main", url = "https://github.com/AtelierArith/RustCall.jl.git"}
+
 [compat]
 Random = "1.11"
 Statistics = "1.11"
