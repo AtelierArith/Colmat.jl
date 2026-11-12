@@ -2,7 +2,7 @@
 
 julia_version = "1.13.3"
 manifest_format = "2.1"
-project_hash = "c225cba6d3f2108d400f8d409590cc59d2a74b1b"
+project_hash = "bb7308c7342301d6bf8a925b7cfd1fcef27def04"
 
 [[deps.Aqua]]
 deps = ["Compat", "Pkg", "Test"]
@@ -279,8 +279,9 @@ weakdeps = ["Distributed"]
 
 [[deps.RustCall]]
 deps = ["Dates", "FileWatching", "Libdl", "RustToolChain", "SHA", "Scratch", "TOML"]
-git-tree-sha1 = "6c3b55d8ec3d8ab1c6f81fb98b4b42c2885a1e59"
-registries = "General"
+git-tree-sha1 = "10dc1924f10a12bbca684fb7a3a4668b8a026d42"
+repo-rev = "main"
+repo-url = "https://github.com/AtelierArith/RustCall.jl.git"
 uuid = "7ac5b1a4-9e37-4f0e-9aa3-3305a66bfb1c"
 version = "0.10.0"
 

@@ -13,7 +13,7 @@ else
     run(`git -C $source fetch --depth=1 origin HEAD`)
     run(`git -C $source checkout --detach FETCH_HEAD`)
 end
-println("Building t4a-faer revision ", strip(read(`git -C $source rev-parse HEAD`, String)))
+println("Building colmat revision ", strip(read(`git -C $source rev-parse HEAD`, String)))
 
 # Use the same crate and cache as the package's @rust_crate binding.
 RustCall.load_crate_bindings(joinpath(@__DIR__, "rust"))

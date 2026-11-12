@@ -1,6 +1,6 @@
 # Colmat.jl マニュアル
 
-Colmat.jl は Rust の [t4a-faer](https://github.com/tensor4all/faer) を Julia から呼び出す線形代数パッケージです。
+Colmat.jl は Rust の [colmat](https://github.com/tensor4all/faer) を Julia から呼び出す線形代数パッケージです。
 `FaerMatrix` などの Rust 所有配列を Julia の `AbstractArray` として扱い、
 `LinearAlgebra` の分解・求解や疎行列・反復法を利用できます。
 

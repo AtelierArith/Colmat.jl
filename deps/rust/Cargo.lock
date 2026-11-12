@@ -85,16 +85,55 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
+name = "colmat"
+version = "0.34.0"
+dependencies = [
+ "bytemuck",
+ "colmat-traits",
+ "dyn-stack",
+ "equator 0.6.0",
+ "generativity",
+ "libm",
+ "nano-gemm",
+ "npyz",
+ "num-complex",
+ "num-traits",
+ "pulp",
+ "rand 0.9.5",
+ "rand_distr",
+ "rayon",
+ "reborrow",
+ "t4a-gemm",
+ "t4a-private-gemm-x86",
+ "threadteam",
+]
+
+[[package]]
 name = "colmat-faer"
 version = "0.1.0"
 dependencies = [
+ "colmat",
  "npyz",
  "num-complex",
  "rand 0.9.5",
  "rand_distr",
  "rustcall_julia_macros",
- "t4a-faer",
  "threadteam",
+]
+
+[[package]]
+name = "colmat-traits"
+version = "0.25.0"
+dependencies = [
+ "bytemuck",
+ "dyn-stack",
+ "generativity",
+ "libm",
+ "num-complex",
+ "num-traits",
+ "pulp",
+ "qd",
+ "reborrow",
 ]
 
 [[package]]
@@ -1024,45 +1063,6 @@ dependencies = [
  "libc",
  "thiserror",
  "walkdir",
-]
-
-[[package]]
-name = "t4a-faer"
-version = "0.32.0"
-dependencies = [
- "bytemuck",
- "dyn-stack",
- "equator 0.6.0",
- "generativity",
- "libm",
- "nano-gemm",
- "npyz",
- "num-complex",
- "num-traits",
- "pulp",
- "rand 0.9.5",
- "rand_distr",
- "rayon",
- "reborrow",
- "t4a-faer-traits",
- "t4a-gemm",
- "t4a-private-gemm-x86",
- "threadteam",
-]
-
-[[package]]
-name = "t4a-faer-traits"
-version = "0.24.3"
-dependencies = [
- "bytemuck",
- "dyn-stack",
- "generativity",
- "libm",
- "num-complex",
- "num-traits",
- "pulp",
- "qd",
- "reborrow",
 ]
 
 [[package]]

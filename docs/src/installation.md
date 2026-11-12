@@ -15,13 +15,14 @@ julia --project -e 'using Pkg; Pkg.test()'
 Rust 1.89 以降が必要です（RustCall の Rust ツールチェーンも利用できます）。
 
 `deps/build.jl` は https://github.com/tensor4all/faer のデフォルトブランチの
-最新 HEAD を `deps/t4a-faer` にクローンし、再実行時も最新 HEAD に更新します。
+最新 HEAD（Rust クレート `colmat`）を `deps/t4a-faer` にクローンし、再実行時も最新 HEAD に更新します。
 ローカル変更がある場合は上書きせず停止します。使用したコミット SHA は
 ビルド出力に表示します。最新版を追うため、将来の API 変更でビルドが失敗する
 可能性があります。
 
 `deps/rust` の橋渡し用 cdylib がこのクローンを Cargo の path dependency として
 参照し、RustCall のキャッシュにコンパイルされます。`extern/t4a-faer` は不要です。
+クローン内の `faer/` が `colmat` クレートです。橋渡しコードでは Cargo の別名 `faer` を使います。
 初回の `using Colmat` の前にビルドしてください。通常の読み込みでは Git の更新は
 行わず、最後にビルドしたソースを使用します。
 

@@ -14,4 +14,6 @@ rand_distr = "0.5.1"
 threadteam = { version = "0.5.1", default-features = false, features = ["parallel"] }
 npyz = { version = "0.8.4", default-features = false }
 num-complex = "0.4"
-faer = { package = "t4a-faer", path = "../t4a-faer/faer", default-features = false, features = ["std", "linalg", "rayon", "rand", "npy", "threadteam"] }
+# Upstream renamed the package and library to colmat; keep the bridge imports
+# under the faer alias. The upstream source directory is still named faer.
+faer = { package = "colmat", path = "../t4a-faer/faer", default-features = false, features = ["std", "sparse-linalg", "rayon", "rand", "npy", "threadteam"] }
