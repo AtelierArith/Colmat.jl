@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 rustcall_julia_macros = "0.7"
 rand = "0.9.2"
 rand_distr = "0.5.1"
-threadteam = { version = "0.5.1", default-features = false, features = ["parallel"] }
+threadteam = { version = "0.6.0", default-features = false, features = ["parallel"] }
 npyz = { version = "0.8.4", default-features = false }
 num-complex = "0.4"
 # Upstream renamed the package and library to colmat; keep the bridge imports
