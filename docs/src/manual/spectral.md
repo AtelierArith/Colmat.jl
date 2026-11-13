@@ -41,7 +41,7 @@ SB = schur!(B)
 異なり `H`・`Q`の両方を明示的な行列として所有します。
 `compact=true`は ネイティブ reflectorを保持する `FaerCompactHessenberg`を返し、
 保存因子からの Schurでも Qを暗黙に適用します。所有権と 更新形式の Q 置換は
-[省メモリ形式の Hessenberg](reductions.md#compact-hessenberg-q)を参照してください。
+[省メモリ形式の Hessenberg](reductions.md#一般の-Hessenberg-化で-Q-を省メモリ保存する)を参照してください。
 `hessenberg!`・`schur!`は独立した作業結果を計算してから入力の所有バッファを
 更新し、形状と既存ビューを保ちます。`schur!(H)`は `H.H`・`H.Q`の両方を
 更新し、返す Schur 分解とストレージを共有します。並べ替えも成功後に更新する

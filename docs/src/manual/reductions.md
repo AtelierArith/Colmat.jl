@@ -477,7 +477,7 @@ finally
 end
 ```
 
-## 一般の Hessenberg 化で Q を省メモリ保存する {#compact-hessenberg-q}
+## 一般の Hessenberg 化で Q を省メモリ保存する
 
 `hessenberg(A; compact=true)`は `FaerCompactHessenberg`を返し、Hと反射を保持する `FaerHessenbergQ`を保存します。`Matrix(F.Q)`を呼ぶまで密な Qを作りません。積・求解・転置・随伴で保存した反射を使います。
 
