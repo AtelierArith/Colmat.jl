@@ -1,17 +1,33 @@
 # インストールと最初の計算
 
 Julia 1.13、Git、ネットワーク接続、Rust 1.89 以降が必要です。RustCallの Rust ツールチェーンも利用できます。
-リポジトリをクローンし、そのルートで次を実行してください。
+次の手順でリポジトリを用意し、依存関係とネイティブライブラリを準備します。
 
 ```sh
 git clone https://github.com/AtelierArith/Colmat.jl.git
 cd Colmat.jl
 julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
-julia --project examples/poc.jl
-julia --project -e 'using Pkg; Pkg.test()'
 ```
 
-## ネイティブライブラリのビルド
+## 最初の計算
+
+リポジトリのルートで `julia --project` を実行して Julia を起動し、次を試してください。
+
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1; 1 3])
+B = FaerMatrix([1.0 2; 3 4])
+C = A * B
+x = A \ [1.0, 2.0]
+F = svd(A)
+@assert F.U * Diagonal(F.S) * F.Vt ≈ Matrix(A)
+```
+
+`x` はおよそ `[0.090909, 0.636364]` です。`@assert` は条件を満たすと何も表示せず、満たさないと例外を投げます。テスト全体を実行したい場合は[開発ガイド](development.md)を参照してください。
+
+分野別の使い方は [配列・型・所有権](manual/arrays.md)と [密行列の分解と求解](manual/dense.md)へ進んでください。
+
+## ビルドの詳細
 
 `julia --project deps/build.jl`でもビルドできます。Gitとネットワーク接続、
 Rust 1.89 以降が必要です（RustCallの Rust ツールチェーンも利用できます）。
@@ -27,15 +43,3 @@ Rust 1.89 以降が必要です（RustCallの Rust ツールチェーンも利�
 クローン内の `faer/`が `colmat` クレートです。橋渡しコードでは Cargoの別名 `faer`を使います。
 初回の `using Colmat`の前にビルドしてください。通常の読み込みでは Gitの更新は
 行わず、最後にビルドしたソースを使用します。
-
-```julia
-using Colmat, LinearAlgebra
-A = FaerMatrix([4.0 1; 1 3])
-B = FaerMatrix([1.0 2; 3 4])
-C = A * B
-x = A \ [1.0, 2.0]
-F = svd(A)
-@assert F.U * Diagonal(F.S) * F.Vt ≈ Matrix(A)
-```
-
-分野別の使い方は [配列・型・所有権](manual/arrays.md)と [密行列の分解と求解](manual/dense.md)へ進んでください。

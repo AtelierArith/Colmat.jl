@@ -73,6 +73,8 @@ end
 | :--- | :--- |
 | `FaerScratch` | Rustの作業バッファを解放し、以後の使用を禁止 |
 | `FaerTeam` | スレッド予約を返し、以後の使用を禁止 |
+| `FaerSpectralFactor` | 保存した SVD・自己随伴固有値分解の Rust データを解放 |
+| `FaerInPlaceFactorization` | 因子を使用不能にする。共有する入力行列は閉じない |
 | `FaerMatrix`・疎行列・疎分解など | Rust 所有者への参照を外し、以後の使用を禁止。所有者の実際の破棄は GCに委ねる |
 | `npyborrow`の借用 | 明示的な `close`はなく、親のメモリマップなどを参照がなくなるまで保持 |
 
