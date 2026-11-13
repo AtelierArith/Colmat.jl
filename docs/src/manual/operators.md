@@ -1,17 +1,24 @@
 # 線形作用素・反復法
 
-行列を明示しない作用素、前処理、CG・BiCGSTAB・LSMR を使います。
+行列を明示しない作用素、前処理、CG・BiCGSTAB・LSMRを使います。
 
-## Native linear operators and conjugate gradients
+## 反復法の選び方と最初の計算
 
-`FaerLinearOperator` owns a snapshot of a dense, CSC/CSR sparse, diagonal, or
-identity operator. Sparse coefficients stay sparse during multiplication and CG.
-A borrowed `faerview(S)` (and its `transpose`/`adjoint`) is snapshotted once at
-construction, directly from its arrays (`Hermitian`/`Symmetric` wrappers first
-expand the stored triangle in Julia, as for a Julia CSC matrix): native applies,
-compositions and iterative solvers use the operator inside Rust beyond one call,
-so they never read `S` and later writes to `S` do not change the operator.
-A preconditioner applies an approximate inverse:
+反復法は近似解を少しずつ改善して `A*x ≈ b`を目指す方法です。大きな疎行列など、分解を保存する費用が大きい問題で役立ちます。残差 `b - A*x`がどれだけ小さくなったかを確認します。
+
+| 方法 | 入力の条件・用途 |
+| :--- | :--- |
+| `cg` | Hermitian 正定値の正方行列と正定値の前処理 |
+| `bicgstab` | 対称とは限らない正方行列 |
+| `lsmr` | 長方形も含む最小二乗問題 |
+
+正定値とは、ゼロでない xに対して `real(x' * A * x) > 0`となる性質です。CGは条件を満たすと分かっているときに使ってください。前処理は、解きやすい近似逆行列を作用させて収束を助ける仕組みです。BiCGSTABの `M`は左、`N`は右の前処理です。
+
+`FaerLinearOperator(A)`は行列とベクトルの積を表すオブジェクトです。行列入力は構築時にコピーし、疎行列の係数は疎のまま保持します。元の行列を後で変更しても作用素は変わりません。
+
+返り値の `converged`と残差を確認します。既定の `check=true`では収束失敗時に対応する `FaerCgError`、`FaerBicgstabError`、`FaerLsmrError`を投げ、例外の `result`に最終結果を保持します。`check=false` なら失敗結果を直接返します。`cg!` などは出力先の現在値を初期値にします。
+
+LSMRは通常の残差がゼロにならなくても、最小二乗の条件を満たせば収束します。判定には `norm(M' * A' * (b-A*x))`を使い、絶対・相対許容誤差を独立に適用します。非ゼロの初期値や右前処理を使うと、元の問題の最小ノルム解になるとは限りません。
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -24,16 +31,6 @@ result = cg(op, b; M = diagonal_preconditioner(diag(A)))
 @assert op * b ≈ A * b
 ```
 
-CG requires a Hermitian positive definite operator and preconditioner action.
-`cg!` uses its destination as the initial guess. Failed checked solves throw
-`FaerCgError`, whose `result` contains the last iterate and residual diagnostics;
-`check=false` returns that result directly. Convergence includes an independently
-recomputed true residual check. Iteration callbacks and residual histories are
-available as described on this page, including Julia-defined operator actions.
-
-For a nonsymmetric square matrix, use `bicgstab` or `bicgstab!`. `M` and `N`
-apply left and right approximate inverses, respectively:
-
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
 A = sparse([5.0 2 0; -1 4 1; 0 -1 3])
@@ -45,15 +42,6 @@ x = zeros(3)
 @assert bicgstab!(x, A, b).x === x
 @assert A * x ≈ b
 ```
-
-`FaerBicgstabResult` reports the true and estimated residuals, iteration count
-and termination reason. Checked failures throw `FaerBicgstabError` retaining
-the result; `check=false` returns the last iterate. Multiple right-hand sides
-use faer's block algorithm. Unlike CG, BiCGSTAB does not require Hermitian
-positive definite coefficients.
-
-For rectangular least squares, `lsmr` and `lsmr!` use the native block LSMR
-algorithm without forming normal equations:
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -68,17 +56,6 @@ x = zeros(size(A, 2))
 @assert x ≈ result.x
 ```
 
-`M` supplies a nonsingular right preconditioner action. Convergence uses
-`norm(M' * A' * (b-A*x)) ≤ max(atol, rtol * norm(M' * A' * b))`, taking `M=I`
-when omitted. `FaerLsmrResult` separates ordinary residuals from these normal
-residuals; an inconsistent least squares problem can converge with a nonzero
-ordinary residual. Checked failures throw `FaerLsmrError` retaining the last
-iterate. A nonzero initial guess can retain nullspace components, and right
-preconditioning changes the minimum-norm metric.
-
-Absolute and relative LSMR tolerances are passed independently to faer. The
-absolute bound can accept a nonzero initial normal residual with no updates:
-
 ```julia
 using Colmat, LinearAlgebra
 A = Matrix{Float64}(I, 2, 2)
@@ -90,20 +67,9 @@ result = lsmr(A, b; atol=1.0, rtol=0, maxiter=0)
 @assert result.normal_rel_residual == result.estimated_rel_residual == 1.0
 ```
 
-## Reuse operator application scratch and teams
+## 作用素の積と作業領域
 
-`mul!(X, op, B[, alpha, beta]; scratch, team)` and
-`*(op, B; scratch, team)` accept caller-owned resources for native LinOp
-application, including conjugate/transpose/adjoint and right-operator products.
-Query the exact working scalar and orientation with `scratch_requirements`;
-alpha/beta and output type participate in a `mul!` query.
-When `X` and `B` share the operator's working scalar, the native operator
-writes `X` directly, whether `X` is a native matrix/view, a `faerview` or a
-plain Julia strided array: right products run as the transposed action on
-transposed descriptors, a `B` overlapping `X` is snapshot first, `alpha == 0`
-does not read `B` or run the operator, and `beta != 0` uses one native
-product buffer of `X`'s shape (LinOp has no accumulate mode). Square
-operators' `lmul!`/`rmul!` on views and Julia arrays use the same path.
+`mul!(X, op, B; scratch, team)`で出力先を再利用できます。転置・随伴や係数付きの積にも対応します。数値型・向き・係数をそろえて必要量を照会してください。同じ数値型の Julia 配列やネイティブ配列には直接書き込めます。重なる入力や型変換が必要な場合は一時領域を使います。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -128,21 +94,11 @@ FaerTeam(2) do team
     @assert x ≈ 3first
     close(work)
 end
-close(op)
 ```
 
-Kernel scratch covers the native LinOp query, including composition and saved
-factor inverse-action intermediates where implemented. Result staging, Julia
-scaling/conversion buffers and promoted operator snapshots allocate separately.
-Prepared auto/supernodal and wide sparse-QR inverse actions use this buffer and
-propagate the team to their kernels. Wide inverse construction caches the dense
-pseudoinverse of R once; its dense R, SVD and reconstruction temporaries come from
-caller scratch (`FaerLinearOperator(F; scratch, team)`, see below). Direct factor
-solves have separate allocation costs. Invalid/closed resources and insufficient
-capacity/alignment reject before destination writeback. Shared use is serialized
-by the owner lock.
+## 行列を作らず作用素を組み合わせる
 
-## Compose native matrix-free operators
+作用素は積、和、転置、随伴を組み合わせられます。`op' * op`は、まず op、次にその随伴を適用する演算です。全要素を持つ行列を作りません。ただし正規方程式は条件数を悪化させることがあるため、最小二乗が目的なら LSMR も検討してください。
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -154,18 +110,11 @@ b = ones(2)
 result = cg(N, b)
 @assert result.x ≈ (A0' * A0) \ b
 @assert Matrix(N) ≈ A0' * A0
-close(N)
 ```
 
-Operator multiplication retains independent copies of both operands and applies
-them in sequence without materializing their coefficient product. Composition
-supports nested products, conjugation, transpose and adjoint; intermediate RHS
-storage comes from native scratch. Explicit `Matrix(op)` materializes the result.
-A composition has no single `.coefficients` representation. Mixed native scalar types are promoted recursively through the operator tree.
-Dense, CSC/CSR, diagonal and identity leaves preserve their representations;
-composition never forms a dense coefficient product during promotion.
+## LU 分解を前処理に使う
 
-## Use retained LU factors as a native preconditioner
+`FaerLinearOperator(F)`に保存した正則な正方 LU 因子を渡すと、逆行列を明示的に作らず `F \ x`を適用する作用素になります。元の分解から独立した因子を保持します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -177,19 +126,11 @@ close(F)
 b = ones(2)
 @assert cg(A, b; M=M).x ≈ A0 \ b
 @assert M * b ≈ A0 \ b
-close(M)
-close(A)
 ```
 
-`FaerLinearOperator(F)` for a square nonsingular native partial-pivot LU owns
-copies of L/U and the pivot permutation. It applies the inverse action using
-native triangular solves and scratch, without forming an inverse or repeating
-factorization. Normal/conjugate/transpose/adjoint application, independent copies,
-composition and mixed native scalar promotion reuse those saved factors. There
-is no single `.coefficients` matrix. CG requires a positive-definite inverse
-action; general LU actions can be used with BiCGSTAB. Other retained decompositions and sparse factor actions are described on this page.
+## Cholesky 分解を前処理に使う
 
-## Use retained Cholesky factors as a preconditioner
+正定値行列の Cholesky 分解から近似逆作用を作れます。CGに使う前処理も正定値である必要があります。元の分解を閉じても、構築済みの作用素は使えます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -201,17 +142,11 @@ close(F)
 b = ones(ComplexF64, 2)
 @assert cg(A, b; M=M).x ≈ A0 \ b
 @assert transpose(M) * b ≈ transpose(A0) \ b
-close(M)
-close(A)
 ```
 
-A native Cholesky preconditioner owns independent triangular factors and applies
-them with lower/upper triangular solves. It supports the selected input triangle,
-all four native scalar types, mixed RHS promotion, copy/composition and
-transpose/adjoint without inverse construction or refactorization. Failed
-Cholesky factors are rejected with `PosDefException`. Other dense and sparse factor actions are described on this page.
+## 完全ピボット LUによる逆作用
 
-## Retained full-pivot LU inverse actions
+完全ピボット LUでは行と列の置換を保存します。作用素はそれらも保持して求解し、転置・随伴でも対応する置換を使います。特異な因子と長方形の因子はこの逆作用には使えません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -224,17 +159,13 @@ b = ones(2)
 @assert transpose(M) * b ≈ transpose(A0) \ b
 N = M * FaerLinearOperator(A0)
 @assert Matrix(N) ≈ Matrix{Float64}(I, 2, 2)
-close(M)
-close(N)
 ```
 
-Full-pivot LU inverse actions retain both row and column permutations with their
-triangular factors. Normal, transpose and adjoint application use native
-full-pivot solves and the corresponding scratch requirement. Mixed scalar
-promotion copies factor values and preserves both permutations, without
-refactorization. Singular and rectangular factors are rejected.
+## QR 分解による逆作用・最小ノルム作用
 
-## Retained QR inverse-action preconditioners
+正方 QRの既定は通常の逆作用で、ゼロの対角を持つ Rは拒否します。長方形の QR、または `atol`が非ゼロ・`rtol`を明示した QRでは、小さな特異値を切り捨てた最小ノルム作用を作ります。
+
+構築時に Rの SVDを計算して保存し、適用時には再分解しません。しきい値は `max(atol, rtol*maximum(svdvals(R)))`です。作業領域を構築にも渡す場合は `FaerScratch(FaerLinearOperator, F; atol, rtol, team)`と同じ設定を使います。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -246,38 +177,7 @@ b = ones(ComplexF64, 2)
 @assert M * b ≈ A0 \ b
 @assert transpose(M) * b ≈ transpose(A0) \ b
 @assert adjoint(M) * b ≈ adjoint(A0) \ b
-close(M)
 ```
-
-Square native QR and column-pivoted QR factors can provide inverse actions.
-Their compact Householder basis/coefficients, R and column permutation are copied
-into an independent native owner. No explicit Q, inverse or refactorization is
-needed. Native QR solve kernels consume operator scratch, and mixed scalar
-promotion converts the saved components. Empty square factors are supported.
-Without a nonzero atol or explicit rtol, square QR keeps this nonsingular
-inverse contract and rejects zero R pivots.
-
-Rectangular QR instead provides a minimum-norm action of shape `reverse(size(F))`,
-including rank-deficient inputs. `atol`/`rtol` select singular values of saved R
-using `max(atol,rtol*maximum(svdvals(R)))`. The default rtol is
-`min(size(F)...)*eps(real(eltype(F)))` when atol is zero, and zero otherwise.
-Nonzero atol or explicit rtol also select this truncated action for square QR.
-Construction computes an SVD of R once and stores only the singular columns
-above the cutoff, compact Householder factors and column permutation. Applications
-form neither dense Q nor a pseudoinverse of A and reuse native scratch/team.
-Promotion converts the cache without recomputing rank; result staging allocates.
-
-The SVD temporaries of construction come from caller-owned scratch:
-`scratch_requirements(FaerLinearOperator, F; atol, rtol, team)`,
-`FaerScratch(FaerLinearOperator, F; ...)` and `reserve!(scratch, FaerLinearOperator, F; ...)`
-declare them, and `FaerLinearOperator(F; atol, rtol, scratch, team)` uses them
-(a temporary buffer when omitted). Pass the same tolerances and team to the query.
-The same keywords build sparse QR inverse actions; only wide QR needs bytes, for
-dense R, its SVD and the cached `pinv(R)` reconstruction. The cached `pinv(R)` is
-kept dense: retained rank-r `U` and `V` would be smaller and cheaper to apply only
-when `r*(m+n) < m*n`; at full rank they need more storage and an extra product. Retained factors are operator
-output; faer's matrix products inside the SVD can still allocate their own packing
-buffers above small sizes (t4a-faer upstream-reports/gemm-001).
 
 ```julia
 using Colmat, LinearAlgebra
@@ -290,7 +190,6 @@ FaerTeam(2) do team
     close(M)
     close(scratch)
 end
-close(F)
 ```
 
 ```julia
@@ -309,15 +208,15 @@ FaerTeam(2) do team
 end
 @assert Matrix(M')≈pinv(A0)'
 close(M)
-# Explicit rtol enables a truncated action for singular square QR too.
+# rtol を明示すると特異な正方 QR も切り捨てた逆作用として扱う
 F=qr(FaerMatrix([1.0 0;0 0]))
 M=FaerLinearOperator(F;rtol=1e-12)
 @assert Matrix(M)≈[1.0 0;0 0]
-close(M)
-close(F)
 ```
 
-## Retained LDLT preconditioners for indefinite systems
+## LDLᴴ 分解による前処理
+
+Lと Dを保存して求解します。ゼロの対角ピボットは拒否します。不定値（正と負の方向を持つ）行列の逆作用は BiCGSTAB などに使えますが、CGの正定値条件を満たしません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -330,18 +229,11 @@ b = ones(ComplexF64, 2)
 @assert M * b ≈ A0 \ b
 @assert transpose(M) * b ≈ transpose(A0) \ b
 @assert bicgstab(A, b; M=M).x ≈ A0 \ b
-close(M)
-close(A)
 ```
 
-The native LDLT inverse action owns L and D and applies the low-level saved-factor
-solve without an inverse or refactorization. Both selected input triangles,
-normal/conjugate/transpose/adjoint, copy/composition and mixed native scalar
-promotion are supported. Zero diagonal pivots are rejected. Indefinite inverse
-actions are suitable for general solvers such as BiCGSTAB; they do not satisfy
-CG's positive-definiteness requirement. Sparse factor actions are described on this page.
+## Bunch–Kaufman 分解による前処理
 
-## Retained Bunch–Kaufman preconditioners
+L、Dの 1×1・2×2 ブロック、置換を保持します。2×2 ブロックが正則なら、個々の対角要素がゼロでも使えます。不定値の作用素を CGの前処理には使わないでください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -353,17 +245,11 @@ b = ones(ComplexF64, 2)
 @assert M * b ≈ A0 \ b
 @assert transpose(M) * b ≈ transpose(A0) \ b
 @assert adjoint(M) * b ≈ adjoint(A0) \ b
-close(M)
 ```
 
-Block-pivoted LDLT inverse actions retain L, the block diagonal's diagonal and
-subdiagonal, and the pivot permutation. Native Bunch–Kaufman solves consume
-operator scratch; valid 2×2 blocks with zero diagonal entries are preserved.
-Mixed promotion copies both block components and the permutation, without an
-inverse or refactorization. These indefinite actions can be used with BiCGSTAB;
-CG's positive-definiteness requirement still applies. Sparse factor actions are described on this page.
+## SVD・固有値分解による疑似逆作用
 
-## Matrix-free saved SVD/EVD pseudoinverse actions
+`FaerLinearOperator(F; atol, rtol)`は保存した SVD または自己随伴固有値分解を使います。小さい特異値・固有値を切り捨て、全体の疑似逆行列を作らず適用します。作用素の形状は `reverse(size(F))`です。しきい値は元の因子の精度で決め、負の固有値の符号は保ちます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -374,27 +260,13 @@ close(F)
 @assert size(M) == (2, 3)
 @assert M * ones(3) ≈ [1/3, 0]
 @assert Matrix(M) ≈ pinv(A0; rtol=1e-3)
-close(M)
 ```
 
-`FaerLinearOperator(F;atol,rtol)` for a saved native SVD or self-adjoint EVD
-owns spectral components and applies a truncated inverse action using native
-projection/scaling kernels and scratch. The operator shape is `reverse(size(F))`;
-rectangular and rank-truncated actions are supported. Thresholds follow `pinv(F)`
-and are chosen in the original factor precision before any RHS promotion.
-Negative eigenvalues retain their sign. Copy/composition, mixed native scalar
-promotion, conjugation and transpose/adjoint do not recompute the decomposition
-or materialize a pseudoinverse. Iterative preconditioning requires a suitable
-square nonsingular action; CG additionally requires positive definiteness.
+## Julia 関数で作用素を定義する
 
-## Julia-defined operator and preconditioner actions
+行列を保存せず計算式だけで積を求めたい場合は、`FaerLinearOperator(apply!, adjoint_apply!, m, n; T)`を使います。2 つの関数は通常の Julia 行列 `(Y, X)`を受け取り、順方向と随伴の積で Y 全体を上書きします。複数列の右辺と昇格した数値型にも対応してください。
 
-`FaerLinearOperator(apply!,adjoint_apply!,m,n;T)` supplies native LinOp/BiLinOp
-traits with Julia functions. Each function receives owned Julia matrices `(Y,X)`
-and must overwrite all of Y with the forward or adjoint product. The functions
-must accept batched RHS and promoted native scalar types. Captured state is held
-by reference and shared by copies, transforms and compositions. Callback arrays
-may be retained after a call; they never borrow native temporary storage.
+コールバックは呼び出し元の Julia タスクで同期的に実行します。入出力の受け渡し用配列は再利用するため、関数内で X や Yを保存しないでください。後で値が必要なら `copy` します。出力は有限値で全要素を書き込みます。例外は Rustの境界を戻ってから Juliaに伝えます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -409,36 +281,15 @@ result=cg(op,b;M,history=true)
 @assert result.converged
 @assert result.x≈A0\b
 @assert Matrix(op)≈A0
-close(M)
-close(op)
 ```
 
-CG/BiCGSTAB/LSMR, preconditioner application and partial spectra still run their
-native algorithms. They invoke Julia actions synchronously on the calling Julia
-thread. The task is temporarily pinned for this call. Same-task nested Colmat
-calls are supported; calls from other tasks serialize on the owner lock until
-the callback returns. User exceptions return through the native boundary before being rethrown;
-failed actions preserve staged destinations. Outputs must be finite and fully
-written. Empty-domain/range and zero-column products are treated as zero maps.
-Native composition/conjugation intermediates can reuse `scratch=`/`team=` as
-for other operators. Callback inputs and outputs are marshalled through
-Julia-owned matrices that each operator reuses per scalar type and orientation,
-so repeated same-shape applications inside CG/BiCGSTAB/LSMR and partial spectra
-do not allocate for marshalling (measured `@allocated` per extra application of
-a 64×64 `Float64` operator in `cg`: about 1.1 KB before, 0 after). The buffers
-are overwritten by later applications, so actions must not retain `Y` or `X`;
-recursive applications of the same operator get fresh arrays. Result staging
-and promotion of the solver call still allocate, and the user's action itself
-is not constrained.
+## 収束履歴と途中停止
 
-## Iterative histories and stopping callbacks
+`history=true`は各反復の残差を記録します。`callback=state -> ...`は反復番号 `iteration`、独立した近似解 `x`、残差を受け取ります。`true` または `nothing`で続行し、`false`で停止します。意図的な停止では `reason=:stopped`、`converged=false`となり、`check=true`でも例外にはしません。
 
-`cg`, `bicgstab`, `lsmr` and their in-place forms accept `history=true` and
-`callback=state -> ...`. Each callback receives an independent Julia iterate
-`state.x`, the completed update number `state.iteration`, true primal residual
-norms, and (for LSMR) true preconditioned normal residual norms. Return `nothing`
-or `true` to continue and `false` to stop. A requested stop returns
-`reason=:stopped`, `converged=false`, including with `check=true`.
+観測用のコピーと残差再計算には追加の費用がかかります。初期値ですでに収束した場合や更新回数がゼロの場合は記録・コールバックがありません。コールバックが例外を投げた場合、更新形式の出力先は保持します。
+
+3 種類の反復法はいずれも `scratch`と `team`に対応します。必要量の照会は作用素やコールバックを実行しません。最終的な真の残差も確認するため、内部推定だけによる誤った収束は受け入れません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -450,24 +301,6 @@ result = cg(A, b; history=true, callback=state -> state.iteration < 2)
 @assert isapprox(last(result.history).abs_residual, norm(b-A*result.x); atol=1e-12)
 @assert !result.converged
 ```
-
-History retains residual records without full iterates. Observation allocates
-copies and makes extra native operator applications to recompute residuals.
-With both options disabled, these copies and extra applications are absent.
-Callbacks run synchronously on the calling Julia task; retained iterate copies
-stay valid after the solver returns. Initial convergence or zero update limits
-produce no callback/history entries. Callback exceptions propagate after safely
-returning through Rust; in-place destinations remain unchanged. A deliberate
-stop copies the stopped iterate into an in-place destination.
-
-Julia-defined operator/preconditioner actions are available through the constructor
-above. The three iterative solvers and their in-place forms also accept
-`scratch` and `team`, with `scratch_requirements`, `FaerScratch` and `reserve!`.
-Queries account for the promoted scalar type, RHS columns, preconditioners and
-actual team shape without applying operators or invoking callbacks. The buffer
-covers the native iteration and independently recomputed final residuals.
-Result staging, operator promotion and Julia callback/history storage allocate
-separately. Short or closed resources fail before updating destinations.
 
 ```julia
 using Colmat, LinearAlgebra
@@ -481,11 +314,4 @@ x = zeros(6)
 reserve!(work, lsmr!, x, A, b; team)
 r2 = lsmr!(x, A, b; scratch=work, team)
 @assert r2.x === x && x ≈ A\b
-close(work)
-close(team)
 ```
-
-LSMR can falsely report native convergence on extreme uniform scales
-([faer #245](https://github.com/tensor4all/faer/issues/245)). Colmat's true-residual
-check rejects those results. Observing a nonfinite failed iterate preserves the
-same failure diagnostics; the history bridge accepts its nonfinite values.

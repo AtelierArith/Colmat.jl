@@ -1,8 +1,8 @@
 using Documenter
 using DocumenterVitepress
 
-# The manual contains ordinary Julia code fences, not executed examples. Building
-# it does not load Colmat or compile/update the native Rust dependency.
+# マニュアルの Julia コードブロックは表示用であり、このビルドでは実行しない。
+# Colmat の読み込みや Rust 依存関係のコンパイル・更新も行わない。
 makedocs(;
     root = @__DIR__,
     sitename = "Colmat.jl",
@@ -11,12 +11,15 @@ makedocs(;
         repo = "github.com/AtelierArith/Colmat.jl",
         devbranch = "main",
         devurl = "dev",
+        description = "Julia ユーザのための Colmat.jl 日本語マニュアル",
     ),
     pages = [
         "ホーム" => "index.md",
         "インストール" => "installation.md",
+        "計算の選び方と用語" => "getting-started.md",
         "マニュアル" => [
             "配列・型・所有権" => "manual/arrays.md",
+            "GC と資源の寿命" => "manual/lifetimes.md",
             "密行列の分解と求解" => "manual/dense.md",
             "固有値・Schur・QZ" => "manual/spectral.md",
             "疎行列と直接法" => "manual/sparse.md",
