@@ -54,9 +54,9 @@ API 案内は手動で管理する主要 APIの索引です。
 
 ## CIと公開
 
-GitHub Actionsは pull request、mainへの push、`v*` タグでドキュメントをビルドします。
+GitHub Actionsは プルリクエスト、mainへの push、`v*` タグでドキュメントをビルドします。
 mainとタグの push 時に `DocumenterVitepress.deploydocs`で `gh-pages`へ公開します。
-プレビューは各実行の `documentation` artifact から取得できます。
+プレビューは各実行の `documentation` 成果物 から取得できます。
 GitHub Pagesの公開元はリポジトリ設定で **Deploy from a branch → gh-pages / (root)**にしてください。
 公開先は `https://atelierarith.github.io/Colmat.jl/dev/`です。
 

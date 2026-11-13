@@ -91,10 +91,10 @@ Rustに渡します（容量に達した後は割り当てなし）。何もキ�
   所有物です: 計画は `factorize(plan, B2)`・`lu!(F, B2)`で後の入力の 非ゼロ配置を検査する
   （faerの数値分解は 非ゼロ配置 一致を前提とし検査しない）ために保持し、スナップショットは分解の
   値の出所です。faerの所有疎行列型は 非ゼロ配置を共有できないため、これ以上は減らせません。
-  CSR 所有と、明示 simplicialの `ordering=:colamd`（Colmat 側で COLAMDを先に実行）は
+  CSR 所有と、明示 列ごとの方式の `ordering=:colamd`（Colmat 側で COLAMDを先に実行）は
   CSCの `FaerSparsity`を 1 回作ります。
 - 疎三角求解は借用配列を faerの三角 カーネルにそのまま渡します（転置・随伴は列優先 カーネルの
-  転置版・共役 フラグに写像）。scratch・昇格・前提を満たさない 格納順の扱いは所有行列と同じです。
+  転置版・共役 フラグに写像）。作業領域・昇格・前提を満たさない 格納順の扱いは所有行列と同じです。
   出力先が `S`の配列とメモリを共有する場合は書き込み前に `ArgumentError`です。
 - 疎×疎 `*`・`+`・`-`は、借用（転置・随伴を含む）同士、借用と `FaerSparseMatrix`
   （転置・随伴を含む）の混在で、どの被演算子も所有コピーせずに読みます。結果は
@@ -142,11 +142,11 @@ lu!(F, B)                          # 現在の値で再分解
 - `rmul!(B, α)`・`lmul!(α, B)`・`fill!(B, x)`・`B .*= α` などの ブロードキャストは
   親 `S`に転送します（Juliaの `SparseMatrixCSC`と同じ意味論）。
 
-`u32` indexでの faer 呼び出しは意図的に対応しません。Juliaの indexは 1 始まり なので、
+`u32` 添字での faer 呼び出しは意図的に対応しません。Juliaの 添字は 1 始まり なので、
 `Ti`の幅や符号（`Int32`・`UInt32` なども受け付けます）に関係なく呼び出しごとの
 0 始まり バッファが必要です。所有疎行列・
 非ゼロ配置・すべての疎 カーネルは `usize`に単相化しており、`u32`を加えると疎の全入口の
-単相化が倍になる一方、利点は index バッファの縮小だけです。非圧縮形式（faerの
+単相化が倍になる一方、利点は 添字 バッファの縮小だけです。非圧縮形式（faerの
 `col_nnz`）も未接続です。Juliaの `SparseMatrixCSC`は常に圧縮形式なので、非圧縮形式は
 Julia 入力では生じません。
 
@@ -170,7 +170,7 @@ Rust 側の疎行列 `A`は、どちらの格納形式でも faerの列優先ビ
   `A`（CSC）・`transpose(A)`／`A'`（CSR）は CSC、それ以外は CSRです。
 
 この faerの版の疎×密 カーネルは `MemStack`を受け取らず、`Par` も使わずに逐次実行します。
-そのため疎×密の `mul!`には callerの `scratch`／`team`を渡す引数がなく、Rust 側の
+そのため疎×密の `mul!`には 呼び出し元の `scratch`／`team`を渡す引数がなく、Rust 側の
 作業領域も必要ありません。並列化には faer 側の対応が必要です。
 
 ```julia
@@ -189,8 +189,8 @@ G = A' * B'                           # 両方を共役の列優先ビューと�
 
 ### 疎×疎積の計画再利用 (`FaerSparseProductPlan`)
 
-`A * B`は呼び出しごとに faerの symbolic 段（結果の疎構造と作業分割）と
-numeric 段を実行し、結果の疎行列を新しく割り当てます。疎構造が固定で値だけが
+`A * B`は呼び出しごとに faerの 構造解析 段（結果の疎構造と作業分割）と
+数値計算 段を実行し、結果の疎行列を新しく割り当てます。疎構造が固定で値だけが
 変わる反復では、`FaerSparseProductPlan(A, B)`で
 `sparse_sparse_matmul_symbolic`を1回だけ実行し、
 `mul!(C, plan, A, B, α=1, β=0; scratch, team)`で
@@ -206,15 +206,15 @@ numeric 段を実行し、結果の疎行列を新しく割り当てます。疎
   `β == 0`は上書き、それ以外は `C`を `β` 倍して加算します。
 - 計画と `C`の形式は `A`に従います（CSRは `Cᵀ = Bᵀ Aᵀ`の列優先 計画）。
   `B`の形式が `A`と異なる場合は、計画の作成時に `B`の転置パターンと値の置換を
-  1回だけ計算して保持します。毎回の `mul!`は `B`の値をこの置換で callerの
+  1回だけ計算して保持します。毎回の `mul!`は `B`の値をこの置換で 呼び出し元の
   `scratch` 上に並べ替えるだけで、形式変換の割り当ては行いません。
-  `faerview(S)`の借用 Julia CSC 同士なら値も index 変換バッファ経由でコピーせずに
+  `faerview(S)`の借用 Julia CSC 同士なら値も 添字 変換バッファ経由でコピーせずに
   読みます。借用と Rust 側の混在でもどちらもコピーせずに読みます（ネイティブ CSRは列優先の
   転置として読みます）。出力先 `C`には借用 `faerview(C)` も使えます。
 - `eltype(C)`は `promote_type(eltype(A), eltype(B))`を保持できる型です。
   型の異なる入力は `eltype(C)`へ変換したコピー（同じパターン）を作ります。
   `C === A`／`C === B`は `ArgumentError`です。
-- numeric 段の作業領域はスレッドごとに `eltype(C)`の密な1列です。`B`の形式が
+- 数値計算 段の作業領域はスレッドごとに `eltype(C)`の密な1列です。`B`の形式が
   `A`と異なる 計画では、`B`の値を並べ替える `nnz(B)` 個分の領域が加わります。
   `scratch_requirements(mul!, C, plan, A, B; team)`、
   `FaerScratch(mul!, C, plan, A, B; team)`、
@@ -237,16 +237,16 @@ end
 @assert Matrix(C) ≈ Matrix(A) * Matrix(B)
 ```
 
-同型の入力と callerの `scratch`を使う場合、Rust 側の numeric 呼び出しは
-割り当てを行いません（Rustの allocation probeで検証）。Julia 側には FFI 呼び出し
-1回分の固定 bookkeeping だけが残ります。400×400・密度 2%の測定では、
+同型の入力と 呼び出し元の `scratch`を使う場合、Rust 側の 数値計算 呼び出しは
+割り当てを行いません（Rustの メモリ確保 計測で検証）。Julia 側には FFI 呼び出し
+1回分の固定 管理処理 だけが残ります。400×400・密度 2%の測定では、
 Julia ヒープ上の割り当ては従来の `mul!(C, A, B)`の 7712 バイト（これに加えて
-ネイティブ 側で symbolic 構造・結果値・新しい 所有者を毎回割り当て）に対し、
+ネイティブ 側で 構造解析 構造・結果値・新しい 所有者を毎回割り当て）に対し、
 計画 経由は 1648 バイトで ネイティブ 側の割り当てはありません。
-借用 Julia CSCの 計画 経由では 0 始まり index バッファの検査・変換が加わります。
+借用 Julia CSCの 計画 経由では 0 始まり 添字 バッファの検査・変換が加わります。
 
 疎三角ラッパーの `\`と2引数・3引数の `ldiv!`は Rust 側の疎求解を使います。
-通常・単位・下三角・上三角、転置／随伴、型の promotionに対応します。
+通常・単位・下三角・上三角、転置／随伴、型の 型の昇格に対応します。
 単位三角では未格納の対角を 1として扱い、通常の三角行列で対角がゼロなら
 `SingularException`を投げます。右辺が `FaerMatrix`／`FaerVector` なら結果も Rust 所有です。
 
@@ -269,16 +269,16 @@ ldiv!(UnitLowerTriangular(A), b)
 格納済みの疎行列は、すべての列が faerの前提を満たす場合にそのまま借用されます。
 前提は、選択した半分だけが格納され、対角が下三角なら先頭、上三角なら末尾にあることです。
 単位三角でも対角の格納が必要です。両半分を格納した行列や対角のない単位三角では、
-三角部分を callerの `scratch` 上に組み直します。実数の疎行列と複素の右辺のように
+三角部分を 呼び出し元の `scratch` 上に組み直します。実数の疎行列と複素の右辺のように
 型を昇格する場合は、昇格した値だけを `scratch`に置きます。
 `scratch_requirements(ldiv!, T, B)`は、この組み直しと昇格に必要な byte 数を返します。
 前提を満たす同型の場合は 0です。`FaerScratch(ldiv!, T, B)`と
-`reserve!(work, ldiv!, T, B)` も使えます。callerの scratchを渡し、`Y === B`の場合、
-Rust 側の求解は割り当てを行いません。Julia 側には nに依存しない数 KBの固定 bookkeeping
+`reserve!(work, ldiv!, T, B)` も使えます。呼び出し元の 作業領域を渡し、`Y === B`の場合、
+Rust 側の求解は割り当てを行いません。Julia 側には nに依存しない数 KBの固定 管理処理
 （lock・ビュー 記述子・必要量と容量の照会・FFI 引数）だけが残ります。`ldiv!(Y, T, B)`で `Y !== B` なら `B`を `Y`に
 複製してから解きます。要素型の狭い出力や ストライドdでない出力では、昇格型の作業コピーを
 1つ作り、書き戻すときに変換します。`team=`は検証しますが、faerの疎三角 カーネルは逐次実行です。
-対角のゼロ、close 済みの行列・ビュー・scratch・team、容量不足はいずれも出力に書き込む前に検出します。
+対角のゼロ、`close` 済みの行列・ビュー・作業領域・team、容量不足はいずれも出力に書き込む前に検出します。
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -333,7 +333,7 @@ mask = S .> 0                     # Bool は native 型ではないため Sparse
 
 `f`は Rust 側では実行しません。Juliaの関数を Rustの カーネル から呼ぶには `f` ごとの
 `@cfunction`と GC・スレッドの制約が必要です。一方、値の転送は入力ごとに1回で済むため、
-Rust 側での callback 実行には利点がありません。
+Rust 側での コールバック 実行には利点がありません。
 
 出力先が入力自身の `S .= f.(S)`／`S .*= α`では値を一括で書き戻します。
 このとき nnz・格納順・値ビューは維持されます。
@@ -386,7 +386,7 @@ LU・Choleskyは転置／随伴の求解にも対応します。
 
 ## 並べ替え
 
-fill-inを減らすための 並べ替えを単独で計算できます。
+分解中の非ゼロの増加を減らすための 並べ替えを単独で計算できます。
 `amd`は正方行列の `A + transpose(A)`のパターン、`colamd`は長方形も含む
 列パターンを使い、どちらも `FaerPermutation`を返します。
 
@@ -413,7 +413,7 @@ AMDの `statistics=true`は置換と faerの演算数見積もりを返します
 `permute_rows!`・`permute_cols!`でも更新できます。構造が変わる更新では以前の
 `nonzeros` ビューが失効します。疎 LU／QRへの恒等・任意 並べ替えの直接指定にも対応します。
 `amd` / `colamd`は逐次 Rust 側のカーネルの 呼び出し元が保持する作業領域に対応します。
-queryは格納パターン（格納ゼロを含む）から必要量を計算し、数値には依存しません。
+必要量の照会は格納パターン（格納ゼロを含む）から必要量を計算し、数値には依存しません。
 容量・アラインメント 不足や閉じた 作業領域は拒否し、自動拡張はしません。
 CSCの複製／CSR 変換、Julia からのパターン構築、返却する置換は別途確保します。
 構造解析 内の 並べ替え用の作業領域は `FaerSparseSymbolic(A; scratch=s)`に渡します（下記）。
@@ -436,28 +436,28 @@ q = colamd(A; scratch=work)
 
 - Choleskyの `:default`／`:amd`: faerの 構造解析と同じ入力・設定の AMDを
   呼び出し元の作業領域で実行し、得た置換を faerに明示指定します。`algorithm=:auto`では
-  simplicial／supernodalの選択を scratch なしの場合と一致させるため、因子の列数も
-  同じ scratchで計算します。置換・方式・`factor_storage`は scratch なしと同一です。
-  この列数計算の分だけ `:auto`は scratch なしより遅くなります（測定例で約 15–30%）。
+  列ごとの方式／列群方式の選択を 作業領域 なしの場合と一致させるため、因子の列数も
+  同じ 作業領域で計算します。置換・方式・`factor_storage`は 作業領域 なしと同一です。
+  この列数計算の分だけ `:auto`は 作業領域 なしより遅くなります（測定例で約 15–30%）。
   `:simplicial`／`:supernodal`を明示すると追加計算はありません。
-- 横長 QRの既定 COLAMDと、明示 simplicial LU／QRの `ordering=:colamd`: COLAMD カーネルの
+- 横長 QRの既定 COLAMDと、明示 列ごとの方式 LU／QRの `ordering=:colamd`: COLAMD カーネルの
   必要量です。
-- 縦長／正方の明示 simplicial QR（全 並べ替え）: faerの公開 カーネル（列消去木・postorder・
-  列数・simplicial symbolic）と転置パターンの一時領域です。`:colamd`では COLAMDと同じ
+- 縦長／正方の明示 列ごとの方式 QR（全 並べ替え）: faerの公開 カーネル（列消去木・後行順・
+  列数・列ごとの方式 構造解析）と転置パターンの一時領域です。`:colamd`では COLAMDと同じ
   バッファを順に使い、必要量は大きい方です。
-- 恒等・任意 並べ替えの Cholesky／LUと、正方／縦長の auto／supernodal LU／QRは 0 バイトです。
-  後者の COLAMDは caller stackを受け取らない faerの symbolic API 内で確保されます。
+- 恒等・任意 並べ替えの Cholesky／LUと、正方／縦長の auto／列群方式 LU／QRは 0 バイトです。
+  後者の COLAMDは 呼び出し元 作業スタックを受け取らない faerの 構造解析 API 内で確保されます。
   明示 並べ替えを渡しても faerの内部要求量に COLAMD 分が残るため、事前計算では減りません
   （[tensor4all/faer#322](https://github.com/tensor4all/faer/issues/322)、
   実行済みの再現例 `docs/reproducers/faer-symbolic-colamd-scratch.md`）。
-  faerの symbolic QRが caller stack・`Par`を受け取らない点は 上流 未起票で、実行済みの再現例は
-  [sparse-symbolic-qr-作業領域](https://github.com/AtelierArith/Colmat.jl/tree/main/docs/reproducers/sparse-symbolic-qr-workspace)
+  faerの 構造解析 QRが 呼び出し元 作業スタック・`Par`を受け取らない点は 上流 未起票で、実行済みの再現例は
+  [sparse-構造解析-qr-作業領域](https://github.com/AtelierArith/Colmat.jl/tree/main/docs/reproducers/sparse-symbolic-qr-workspace)
  にあります。
 
 並べ替えカーネルは逐次実行です。容量・アラインメント 不足や閉じた 作業領域は拒否します。
-CSCへの変換・複製、faerの 並べ替え 後の symbolic 用内部バッファ、保持する置換と
-symbolic 構造は必要な出力として別途確保します。一括の `cholesky`／`lu`／`qr`の
-`scratch`は数値分解用のままです。symbolic 側の 作業領域 も管理する場合は
+CSCへの変換・複製、faerの 並べ替え 後の 構造解析 用内部バッファ、保持する置換と
+構造解析 構造は必要な出力として別途確保します。一括の `cholesky`／`lu`／`qr`の
+`scratch`は数値分解用のままです。構造解析 側の 作業領域 も管理する場合は
 `FaerSparseSymbolic`と `factorize(plan, A)`の二段階で呼び出します。
 
 ```julia
@@ -497,24 +497,24 @@ G = factorize(plan, A)
 `perm=p` も使えます。`perm`と `ordering`の同時指定はエラーです。
 `dense`・`aggressive`は AMDの設定、`algorithm`は `:auto`・`:simplicial`・
 `:supernodal`です。`F.p`／`plan.p`は独立した置換、`.algorithm`は実際の分解方式、
-`.factor_storage`は確保する数値スロット数（supernodalの paddingを含む）を返します。
+`.factor_storage`は確保する数値スロット数（列群方式の 余白を含む）を返します。
 コピー・数値更新・混合精度の求解でも 構造解析の設定を引き継ぎます。
 
-faerの supernodal 制御も指定できます（疎 Choleskyと、明示 simplicial 以外の疎 LU／QR）。
+faerの 列群方式 制御も指定できます（疎 Choleskyと、明示 列ごとの方式 以外の疎 LU／QR）。
 疎 QRでは横長入力の head 解析にも適用され、`plan.algorithm`／`F.algorithm`で
 選ばれた方式を確認できます。
 
 - `supernodal_threshold=r`: faerの `supernodal_flop_ratio_threshold`。`algorithm=:auto`
- でのみ有効な非負の実数で、既定は faerと同じ 1.0です。`0`はほぼ常に supernodal、
-  `Inf`は常に simplicialを選びます。`FaerSparseSymbolic(A; scratch)`の AMD 経路でも
+ でのみ有効な非負の実数で、既定は faerと同じ 1.0です。`0`はほぼ常に 列群方式、
+  `Inf`は常に 列ごとの方式を選びます。`FaerSparseSymbolic(A; scratch)`の AMD 経路でも
   同じ選択になります。
-- `relax=[(n, z), ...]`: faerの `SymbolicSupernodalParams.relax`。隣接 supernodeの
+- `relax=[(n, z), ...]`: faerの `SymbolicSupernodalParams.relax`。隣接 列群の
   合計列数が `n` 以下で、併合後のゼロの割合が `z`（`0 ≤ z ≤ 1`）未満なら併合します。
   省略時は faerの既定値です。空の配列を渡すと併合しません。`algorithm=:simplicial`
  とは併用できません。
-- `blocking_threshold=b`（疎 QRのみ）: supernodal frontの dense QRに使う faerの
-  `QrParams.blocking_threshold`（非負整数、既定 48²）。計画に保持され、symbolic 再利用・
-  `qr!`でも使われます。数値分解の scratch 量は変わりません。
+- `blocking_threshold=b`（疎 QRのみ）: 列群方式 フロント行列の 密 QRに使う faerの
+  `QrParams.blocking_threshold`（非負整数、既定 48²）。計画に保持され、構造解析 再利用・
+  `qr!`でも使われます。数値分解の 作業領域 量は変わりません。
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -533,25 +533,25 @@ G = cholesky(Hermitian(A); algorithm=:supernodal, relax=Tuple{Int,Float64}[])
 必要になるため、変換 1 回を意図的に残しています）。
 
 faerの数値 `LltRegularization`（動的正則化）と `LltParams`は意図的に公開しません。
-この pinの `SymbolicCholesky::factorize_numeric_llt`は、カーネルが返す正則化した pivotの
+この pinの `SymbolicCholesky::factorize_numeric_llt`は、カーネルが返す正則化した ピボットの
 個数（`LltInfo`）を捨てるため、正則化で摂動した分解と厳密な分解を区別できず、
 `check`・`PosDefException`・`issuccess`の規約（Juliaの CHOLMODと同じ）と両立しません。
-正定値でない行列には `A + δI`のような shift か疎 LUを使ってください。`LltParams`
-（supernode 内の密 ブロックの再帰閾値と ブロック 幅）は結果を変えない性能用の値で、他の密
+正定値でない行列には `A + δI`のような シフト か疎 LUを使ってください。`LltParams`
+（列群 内の密 ブロックの再帰閾値と ブロック 幅）は結果を変えない性能用の値で、他の密
 カーネルと同様に faerの `Auto` 既定値を使います。
 
-faerの 構造解析（`factorize_symbolic_{cholesky,lu,qr}`）は callerの stackを
+faerの 構造解析（`factorize_symbolic_{cholesky,lu,qr}`）は 呼び出し元の 作業スタックを
 受け取らず内部で割り当てます。`scratch`を渡すと Choleskyの AMDと wide QRの COLAMDは 呼び出し元の作業領域 上で
 実行しますが、残りの内部割当は faerの API 上の制約です。入力が選択した三角部分だけを格納していれば、そのまま faerに渡します。
 両方の三角部分を格納している場合は、選択した三角部分を faerの数値分解用 作業領域と
-同じ stack 上に組み直します。`scratch`を渡したときの割当は返却する数値バッファ 1 つだけで、
+同じ 作業スタック 上に組み直します。`scratch`を渡したときの割当は返却する数値バッファ 1 つだけで、
 `scratch_requirements(factorize, plan, A)`はこの組み直し分を含みます。
 `F.L`・`F.U`は 行・列・値の組を経由せず、直接ソート済み CSCとして組み立てます。
 
 LU／QRの 並べ替えと数値分解の `scratch`・`team`については、このページおよび [疎 QR](sparse-qr.md)を参照してください。
 
 疎 Choleskyの `F.L`・`F.U`は独立した Rust 所有の CSC 行列です。
-元の分解を更新・close しても、取り出した行列は使えます。
+元の分解を更新・`close` しても、取り出した行列は使えます。
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -608,8 +608,8 @@ Rust 所有配列に対する `givens`は faerで係数を計算し、Julia 標�
 
 ## 格納値ビューと変換
 
-`copyto!`は以前の値ビューを失効させます。`FaerSparsity`は元の行列の変更・closeに
-影響されません。`FaerSparseMatrix{T}(P)`は Boolean パターンを数値の 1に変換し、
+`copyto!`は以前の値ビューを失効させます。`FaerSparsity`は元の行列の変更・`close`に
+影響されません。`FaerSparseMatrix{T}(P)`は 真偽値 パターンを数値の 1に変換し、
 `FaerSparseMatrix{T}(undef,P)`は同じ格納位置を 0で初期化します。
 `FaerSparseMatrix(P, values)`で格納順の値をまとめて設定できます。
 

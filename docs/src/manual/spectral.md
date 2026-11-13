@@ -39,7 +39,7 @@ SB = schur!(B)
 `ordschur`の選択では対の両方を含めるか、両方を除外します。
 `hessenberg`の既定の結果は `FaerHessenberg`で、Juliaの 省メモリ形式の Householder 表現と
 異なり `H`・`Q`の両方を明示的な行列として所有します。
-`compact=true`は ネイティブ reflectorを保持する `FaerCompactHessenberg`を返し、
+`compact=true`は ネイティブ 反射を保持する `FaerCompactHessenberg`を返し、
 保存因子からの Schurでも Qを暗黙に適用します。所有権と 更新形式の Q 置換は
 [省メモリ形式の Hessenberg](reductions.md#一般の-Hessenberg-化で-Q-を省メモリ保存する)を参照してください。
 `hessenberg!`・`schur!`は独立した作業結果を計算してから入力の所有バッファを
@@ -144,7 +144,7 @@ Sview = view(F.S, :, :)
 互いに重ならないビューも使えます。数値的に安全な交換や固有値評価ができない
 場合は例外を返し、元の分解を保ちます。`scratch=`では `FaerScratch`を再利用でき、
 `reserve!(work, ordschur, F)`で容量を増やせます。容量・アラインメントの不足や閉じた
-scratchは入力を変更せずに拒否します。作業因子と Juliaの出力・変換配列は別に確保します。
+作業領域は入力を変更せずに拒否します。作業因子と Juliaの出力・変換配列は別に確保します。
 `values`／`eigvals(F)`は Juliaの α/βの比に従い、複素ゼロ除算では NaNを
 含む場合があるため、無限・不定値の判定には同次対を使ってください。
 QZ 構築の `scratch`・`team`は、このページの構築用リソースの節を参照してください。

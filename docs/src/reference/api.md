@@ -3,7 +3,7 @@
 Julia 標準の演算は `using LinearAlgebra`、疎行列は `using SparseArrays`、
 統計は `using Statistics`、乱数は `using Random`と組み合わせます。
 以下は主要な入口の一覧です。引数、制約、実行例はリンク先のマニュアルにあります。
-実装に付属する docstringは Juliaのヘルプモード（例: `?FaerMatrix`）でも確認できます。
+実装に付属する ドキュメント文字列は Juliaのヘルプモード（例: `?FaerMatrix`）でも確認できます。
 
 | 分野 | 主な型・関数 | 詳細 |
 | :--- | :--- | :--- |

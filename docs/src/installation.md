@@ -22,7 +22,7 @@ Rust 1.89 以降が必要です（RustCallの Rust ツールチェーンも利�
 ビルド出力に表示します。最新版を追うため、将来の API 変更でビルドが失敗する
 可能性があります。
 
-`deps/rust`の橋渡し用 cdylibがこのクローンを Cargoの path dependencyとして
+`deps/rust`の橋渡し用 `cdylib`がこのクローンを Cargoの ローカルパス依存として
 参照し、RustCallのキャッシュにコンパイルされます。`extern/t4a-faer`は不要です。
 クローン内の `faer/`が `colmat` クレートです。橋渡しコードでは Cargoの別名 `faer`を使います。
 初回の `using Colmat`の前にビルドしてください。通常の読み込みでは Gitの更新は

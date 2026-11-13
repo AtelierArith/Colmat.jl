@@ -435,7 +435,7 @@ end
   `LbltParams`の `block_size`・`par_threshold`（`:full`のみが参照）は
   `with_cholesky_tuning(f; llt_recursion_threshold, llt_block_size, ldlt_recursion_threshold,
   ldlt_block_size, lblt_block_size, lblt_par_threshold)` のスコープで指定します（`nothing`は faer 既定）。
-  保持因子・型付き・借用入力・team・一時保存／直接の `!`と scratch 照会がすべて従います。LBLᴴの直接経路の
+  保持因子・型付き・借用入力・team・一時保存／直接の `!`と 作業領域 照会がすべて従います。LBLᴴの直接経路の
   作業領域は `lblt_block_size`で変わるため、照会もスコープ内で行います。faerの `LbltInfo.transposition_count`
  は公開しません（置換そのものは `F.p`で得られ、対称置換は行列式に影響しないため `det`は `B`のブロックだけから求めます）。
 
@@ -459,7 +459,7 @@ end
   `with_qr_tuning(f; blocking_threshold, pivoted_par_threshold)`は `QrParams.blocking_threshold`と
   `ColPivQrParams.par_threshold`をスコープ内のすべての `lu`/`full_piv_lu`/`qr`/`qr(A, ColumnNorm())`
   構築に適用します（保存因子・型付き・借用入力・`team=`・一時保存／直接の `!`、`inv!(A)`、
-  混合スカラー求解の昇格再分解、scratch 照会・`FaerScratch`・`reserve!`）。`nothing`は faer 既定で、
+  混合スカラー求解の昇格再分解、作業領域 照会・`FaerScratch`・`reserve!`）。`nothing`は faer 既定で、
   2 つのスコープは同じ ネイティブ 状態の別の欄を持つため、どちらの順にも入れ子にできます。
   これらは再帰・ブロック化・並列化だけを変え、分解は丸め誤差の範囲で同じです。
 - faerの `PartialPivLu::new` などは既定パラメータしか渡さず、既存の因子から組み立てることもできないため、
