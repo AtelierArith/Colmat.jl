@@ -25,7 +25,7 @@ v = FaerVector([3.0, 4.0, 5.0])
 H, _ = givens(v, 1, 2)
 @assert Vector(H * v) ≈ [5.0, 0.0, 5.0]
 V = view(A, 2:-1:1, :)
-lmul!(G, V)                       # ビューは native の一時結果を書き戻す
+lmul!(G, V)                       # ビューは ネイティブ の一時結果を書き戻す
 ```
 
 4数値型の行列・ベクトル・範囲ビューに対応します。右からの回転には `FaerRow` も
@@ -69,11 +69,11 @@ rmul!(R, H)
 `H.head_with_beta_inv`は faerの生成情報です。`tau`は LAPACKの乗数とは異なります。
 `H'`・`transpose(H)`・`conj(H)`・`inv(H)`・コピーは独立した所有者を返します。
 `H * A`・`A * H`・`H \ b`、左右の 格納領域内での更新 適用、3引数・5引数の `mul!`に対応します。
-通常の Julia ストライドd 配列も使え、格納領域内での更新の出力は4数値型に限定します。
+通常の Julia ストライド付き 配列も使え、格納領域内での更新の出力は4数値型に限定します。
 係数・生成情報を出力型に変換できない場合は更新前に失敗します。単一反射・
 `FaerHouseholderSequence`・省メモリ形式の Hessenberg／三重対角 Qの `lmul!`・`rmul!`・
 `mul!(C, H, B[, α, β])`は、要素型が同じなら Rust 所有型・ビュー・`faerview`・
-Julia ストライドd 配列の Cに faerが直接書き込みます（一時結果・書き戻しなし。Bが Cと
+Julia ストライド付き 配列の Cに faerが直接書き込みます（一時結果・書き戻しなし。Bが Cと
 重なる場合だけ スナップショット、`β == 0`では Cを、`α == 0`では Bを読みません。`β ≠ 0`
 は Cと同形の ネイティブ 積バッファを1つ使います）。省メモリ形式の二重対角 U/Vの `mul!` も
 宣言済み 作業領域の作業行列だけで Cに直接書き込みます。`Matrix(H)`と反射同士の積は密行列を作ります。
@@ -96,7 +96,7 @@ B = Q * A
 
 restored = FaerHouseholderSequence(Q.basis, Q.factor)
 @assert Matrix(restored) ≈ Matrix(Q)
-small_blocks = reblock(Q, 1)      # faer の factor upgrade を使って再構築
+small_blocks = reblock(Q, 1)      # faer の 因子の再構築 を使って再構築
 @assert Matrix(small_blocks) ≈ Matrix(Q)
 reblock!(Q, 3)
 @assert Q.blocksize == 3

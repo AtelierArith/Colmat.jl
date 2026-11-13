@@ -117,7 +117,7 @@ S = sparse([4.0 1 0; 1 5 2; 0 2 6])
 B = faerview(S)                    # 値はコピーしない
 X = FaerMatrix(rand(3, 2))
 C = FaerMatrix(zeros(3, 2))
-mul!(C, B, X, 2, 0)                # native 積を C に直接書き込む
+mul!(C, B, X, 2, 0)                # ネイティブ 積を C に直接書き込む
 @assert Matrix(C) ≈ 2 * S * Matrix(X)
 F = lu(B)
 S.nzval .*= 2                      # 借用ビューには反映、F は不変
@@ -262,7 +262,7 @@ ldiv!(UnitLowerTriangular(A), b)
 ```
 
 `ldiv!(T, B)`は、`B`が `promote_type(eltype(T), eltype(B))`の要素型を持つ
-`FaerMatrix`／`FaerVector`・ネイティブ ビュー・`faerview` 借用・重複要素のない Julia ストライドd
+`FaerMatrix`／`FaerVector`・ネイティブ ビュー・`faerview` 借用・重複要素のない Julia ストライド付き
 配列なら、faerの `sp_solve_{unit_}{lower,upper}_triangular_in_place`を `B`のメモリ上で
 直接実行します。結果用の行列や右辺の複製は作りません。CSR 格納と `transpose`／`adjoint`
 は列優先の カーネルとその転置版・共役 フラグに写像するため、疎行列も複製しません。
@@ -276,7 +276,7 @@ ldiv!(UnitLowerTriangular(A), b)
 `reserve!(work, ldiv!, T, B)` も使えます。呼び出し元の 作業領域を渡し、`Y === B`の場合、
 Rust 側の求解は割り当てを行いません。Julia 側には nに依存しない数 KBの固定 管理処理
 （lock・ビュー 記述子・必要量と容量の照会・FFI 引数）だけが残ります。`ldiv!(Y, T, B)`で `Y !== B` なら `B`を `Y`に
-複製してから解きます。要素型の狭い出力や ストライドdでない出力では、昇格型の作業コピーを
+複製してから解きます。要素型の狭い出力や ストライド付きでない出力では、昇格型の作業コピーを
 1つ作り、書き戻すときに変換します。`team=`は検証しますが、faerの疎三角 カーネルは逐次実行です。
 対角のゼロ、`close` 済みの行列・ビュー・作業領域・team、容量不足はいずれも出力に書き込む前に検出します。
 
@@ -308,7 +308,7 @@ v = nonzeros(S)
 S .*= 0.5                         # 構造が変わらなければ値を一括で書き戻す
 @assert isopen(v)                 # 既存の値ビューも有効なまま
 D = S .+ 1                        # f(0) ≠ 0。SparseArrays と同じく全要素を格納
-mask = S .> 0                     # Bool は native 型ではないため SparseMatrixCSC
+mask = S .> 0                     # Bool は ネイティブ 型ではないため SparseMatrixCSC
 ```
 
 次の条件をすべて満たす場合は、Rust 側の高速経路で計算します。
@@ -395,7 +395,7 @@ using Colmat, LinearAlgebra, SparseArrays
 
 A = FaerSparseMatrix(sparse([4.0 0 1; 0 3 1; 1 1 5]); format=:csr)
 p = amd(A)
-B = A[p, p]                      # CSC/CSR を維持する native の置換
+B = A[p, p]                      # CSC/CSR を維持する ネイティブ の置換
 @assert sparse(B) == sparse(A)[Vector(p), Vector(p)]
 info = amd(FaerSparsity(A); dense=10.0, aggressive=true, statistics=true)
 @assert Vector(info.permutation) == Vector(p)
@@ -561,7 +561,7 @@ F = cholesky(A; perm=[3, 1, 2], algorithm=:supernodal)
 L, U, p = F.L, F.U, Vector(F.p)
 @assert sparse(L * U) ≈ sparse(A)[p, p]
 @assert Matrix(F) ≈ Matrix(A)     # 元の行・列の順序で再構成
-R = FaerSparseMatrix(F)           # native の疎積・置換で再構成
+R = FaerSparseMatrix(F)           # ネイティブ の疎積・置換で再構成
 @assert sparse(R) ≈ sparse(A)
 @assert logdet(F) ≈ logdet(cholesky(Hermitian(Matrix(A))))
 @assert det(F) ≈ det(Matrix(A))

@@ -62,11 +62,11 @@ LAPACKを使うには親配列 `parent(B)`を渡します。`det`・`inv`・`B\b
 （`eigmax`/`eigmin` も使えます。`FaerMatrix`の `eigen`は一般ドライバで複素数です）。
 
 同じ要素型の正方・ランク落ちしていない保存因子による `ldiv!(F, B)`は、
-`B`が `Matrix`・ストライドd `SubArray`・`faerview`・`FaerVector`・ネイティブビューなら
+`B`が `Matrix`・ストライド付き `SubArray`・`faerview`・`FaerVector`・ネイティブビューなら
 faerの `solve_in_place`を `B`の記憶域で直接実行し、右辺のコピー・新しい結果・
 書き戻しを作りません。`ldiv!(X, F, B)`は `B`を `X`へ Rust 側で1回代入して
 （重なる入力は スナップショット）から `X`で同じ 格納領域内での更新 求解をします。`F \ B`
-（`B`が Julia ストライドd 配列・`faerview`）は右辺の ネイティブ コピー1つで解いて返します。
+（`B`が Julia ストライド付き 配列・`faerview`）は右辺の ネイティブ コピー1つで解いて返します。
 2引数 `rdiv!(B, F)` も同じ条件で `transpose(B)`に在位置求解します。`scratch=`を
 渡すと因子種別ごとの低水準 カーネルが 呼び出し元の作業領域 上で動き、在位置求解は ネイティブ
 割当なしになります。長方形・ランク落ちした QR・SVD 因子、型昇格は従来の新規結果の
@@ -76,7 +76,7 @@ faerの `solve_in_place`を `B`の記憶域で直接実行し、右辺のコピ�
 using Colmat, LinearAlgebra
 
 J = [4.0 1; 1 3]
-F = lu(faerview(J))                  # J を直接読む native LU
+F = lu(faerview(J))                  # J を直接読む ネイティブ LU
 @assert F isa Colmat.FaerFactorization
 B = [1.0 2; 3 4]
 ldiv!(F, B)                          # B の記憶域で直接求解

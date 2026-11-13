@@ -46,9 +46,11 @@ snapshot = Matrix(A)      # Julia へ独立したコピーを取得
 
 ### Julia 配列・転置・ビューとの混合演算
 
+ストライドは隣の要素へ進むメモリ上の間隔です。以下の「ストライド付き配列」は、各次元で一定の間隔を使って要素を参照できる配列を指します。通常の `Matrix` や範囲を指定した `view` などが含まれます。
+
 Rust 側の行列・範囲ビューとその `transpose` / `adjoint`が一方に含まれる `+` / `-` / `*`
-は、もう一方が ネイティブ・`faerview`の借用・要素重複のない Julia ストライドd 配列
-（`Matrix`・ストライドd `SubArray`・その転置／随伴）のいずれでも、Julia 側を借用配列として
+は、もう一方が ネイティブ・`faerview`の借用・要素重複のない Julia ストライド付き 配列
+（`Matrix`・ストライド付き `SubArray`・その転置／随伴）のいずれでも、Julia 側を借用配列として
 その場で読み、結果を新しい Rust 側の所有者に書きます（入力の スナップショット・Julia 経由の
 一時配列なし）。結果の型は「ネイティブが関与すれば ネイティブ」で、`A * J`・`A' * J`・
 `A * J'`は `FaerMatrix`、`FaerMatrix`・ビュー・`A'`と Julia ベクトルの積 `A * x`は
@@ -73,7 +75,7 @@ A = FaerMatrix(rand(3, 3))
 @assert A * rand(3) isa FaerVector
 r = FaerRow(rand(3))
 @assert r * J isa FaerRow
-mul!(r, r, A)                         # r = r * A（r は先に snapshot）
+mul!(r, r, A)                         # r = r * A（r は先に 一時コピー）
 ```
 
 ## ベクトル・行・対角行列とビュー
@@ -101,11 +103,11 @@ copyto!(view(A, :, 1), v)         # 重複する領域からのコピーにも�
 fill!(diagonalview(D), 5)         # 対角の格納領域を借用
 @assert Matrix(A[[2, 1, 2], :]) == Matrix(A)[[2, 1, 2], :]  # 指定位置を Rust 側で一括取得
 A[[2, 1], [true, false]] = [7.0, 8.0]                         # 指定位置へ Rust 側で一括代入
-top, bottom = split_at_row(A, 1)  # faer の split_at_row に対応する native ビュー
+top, bottom = split_at_row(A, 1)  # faer の split_at_row に対応する ネイティブ ビュー
 @assert Matrix(bottom) == Matrix(A)[2:2, :]
-@assert strides(A)[1] == 1 && stride(A, 2) >= size(A, 1)  # padding を含む列 stride
+@assert strides(A)[1] == 1 && stride(A, 2) >= size(A, 1)  # padding を含む列 ストライド
 reserve!(A, 8, 8)                # 容量確保後も V は有効
-@assert all(capacity(A) .>= (8, 8)) # alignment padding を含む native 容量
+@assert all(capacity(A) .>= (8, 8)) # 配置調整用の余白 を含む ネイティブ 容量
 reserve!(v, 8)
 @assert capacity(v) >= 8
 @assert isopen(V)
@@ -147,7 +149,7 @@ native_full = FaerDiagonal{ComplexF32}(3; fill=1-2im)
 失効させます。親を閉じた場合もアクセスは例外になります。
 `copy(view(...))`は独立した Rust 所有行列・ベクトルを返します。
 ビューへの `copyto!`は Rust 所有型・ビューの入力を一時コピーし、代入先と重なる
-場合も値を保ちます。同じ要素型の Julia ストライドd 配列（`Matrix`、範囲・逆順の
+場合も値を保ちます。同じ要素型の Julia ストライド付き 配列（`Matrix`、範囲・逆順の
 `view` など）は一時コピーせず、Juliaのメモリを直接読みます（形状が一致する
 所有型への `copyto!` も同様）。
 `FaerMatrix` / `FaerRow`への Julia 配列・ビュー・疎行列などからの `copyto!` も同じ
@@ -179,7 +181,7 @@ faerが報告する実際の ストライドを返します。所有型は列優
 逆順・行ビューの ストライドを反映します。Rust 側の記憶域は Julia から直接アドレス
 指定できないため、`pointer`と `Base.elsize`は定義しません。
 
-`faerview(A)`は Juliaの ストライドd ベクトル・行列を借用する `FaerBorrowedMatrix` /
+`faerview(A)`は Juliaの ストライド付き ベクトル・行列を借用する `FaerBorrowedMatrix` /
 `FaerBorrowedVector`を返します。`A`を保持し、各ネイティブ呼び出しの間だけ
 `pointer(A)`・`size(A)`・`strides(A)` から faerの `MatRef`を作るため、負や
 非単位の ストライド もコピーせずに読みます。ポインタ・形状は保存しないので、親の
@@ -191,7 +193,7 @@ faerが報告する実際の ストライドを返します。所有型は列優
 `all(isfinite,·)` / `any(isnan,·)`、`copyto!`の入力が借用のまま動作し、
 `view` も借用を保ちます。添字・`strides`・`pointer`は親へ転送します。
 
-借用配列と、要素型が同じで要素の重複しない Julia ストライドd 配列は Rust 側の
+借用配列と、要素型が同じで要素の重複しない Julia ストライド付き 配列は Rust 側の
 書き込み先にもなります。`mul!(C, A, B[, α, β])`（A/Bの少なくとも一方が ネイティブ か
 借用、転置・随伴を含む）、ネイティブ 入力からの `copyto!`、Householder 反射・列・省メモリ形式の
 Hessenberg／三重対角／二重対角基底の `lmul!` / `rmul!` / `mul!`、`FaerLinearOperator`の
@@ -205,13 +207,13 @@ Hessenberg／三重対角／二重対角基底の `lmul!` / `rmul!` / `mul!`、`
 
 借用配列は密分解（`lu`・`qr`・`cholesky`・`ldlt`・`bunchkaufman`・`svd`・`eigen` など）の
 入力にもなり、faerが親配列を直接読んで Rust 側の分解を返します。保存因子による
-`ldiv!(F, B)`は借用配列・Julia ストライドd 配列の `B`で直接 格納領域内での更新に解きます
+`ldiv!(F, B)`は借用配列・Julia ストライド付き 配列の `B`で直接 格納領域内での更新に解きます
 （[密行列の分解と求解](dense.md)を参照）。
 
 ```julia
 J = rand(4, 3)
 B = faerview(J)                       # コピーしない
-P = B' * FaerMatrix(J)                # Julia のメモリを直接読む native 積
+P = B' * FaerMatrix(J)                # Julia のメモリを直接読む ネイティブ 積
 J[1, 1] = 0                           # 以後の呼び出しに反映
 @assert copy(B)[1, 1] == 0
 copyto!(view(FaerMatrix{Float64}(undef, 4, 3), :, :), view(J, :, :))
@@ -227,7 +229,7 @@ n×nの密な スナップショットを作りません。`D*A` / `A*D` / `D\A`
 `D*v` / `D\v`、`r*D` / `r/D`（結果は `FaerRow`）、`inv(D)`、
 `lmul!` / `rmul!` / `ldiv!` / `rdiv!`に対応します。Juliaの `Diagonal` も、
 格納された n 個の要素だけを渡して同じ経路を使います。
-`FaerDiagonal`と Julia ストライドd 行列・ベクトル（`Matrix`・ストライドd `SubArray`・その
+`FaerDiagonal`と Julia ストライド付き 行列・ベクトル（`Matrix`・ストライド付き `SubArray`・その
 転置／随伴）の `D*M` / `M*D` / `D\M` / `M/D` / `D±M` / `D*x` / `D\x` も Julia 側を
 その場で読み、結果は `FaerMatrix` / `FaerVector`です（以前は `Matrix` / `Vector`）。
 Juliaの `Diagonal`と Julia 配列だけの組合せは Juliaの結果です。
@@ -296,7 +298,7 @@ Rust 側で直接構築し、Juliaの密配列を実体化しません。fillの
 | `resize_with` | `resize!(...; fill=value)`は固定値で初期化します。`resize_with!(f,A,rows,cols)` / `resize_with!(f,x,length)`は新規要素だけを添字から生成し、重なる領域を保持します。 |
 | `truncate` | `truncate!`は縮小のみを受け付け、容量を保持します。 |
 | `row_capacity` / `col_capacity` / `capacity` | 所有型の `capacity`で実際の容量を照会します。 |
-| unsafe `set_dims` | 初期化済み領域の証明を呼び出し側に要求するため、Juliaの公開 APIとしては提供していません。安全な `resize!`は新しい要素を初期化します。 |
+| Rust の `unsafe set_dims` | 初期化済み領域の証明を呼び出し側に要求するため、Juliaの公開 APIとしては提供していません。安全な `resize!`は新しい要素を初期化します。 |
 
 `resize_with!`の関数は1 始まりの添字を受け取り、新規要素だけを列優先順に
 評価します。do-ブロック 形式も使えます。縮小のみ・形状不変なら関数を呼びません。
@@ -312,9 +314,9 @@ Rust 側で直接構築し、Juliaの密配列を実体化しません。fillの
 
 ### Kronecker 積
 
-`kron(A,B)`は `FaerMatrix`・ストライドd／逆順の `FaerMatrixView`・`FaerVector`／
+`kron(A,B)`は `FaerMatrix`・ストライド付き／逆順の `FaerMatrixView`・`FaerVector`／
 `FaerRow`とそのビュー・`faerview`の借用 Julia 配列・それらの転置／随伴、
-および ネイティブと混在する Julia ストライドd 配列を ビュー記述子でその場で読み、
+および ネイティブと混在する Julia ストライド付き 配列を ビュー記述子でその場で読み、
 faer `linalg::kron::kron`で新しい Rust 側の所有者に書きます（入力の スナップショット なし）。
 形状は LinearAlgebraに合わせ、`kron(v,w)`は `FaerVector`、`kron(v',w')`は
 `kron(v,w)'`、`kron(FaerRow,FaerRow)`は `FaerRow`、それ以外は `FaerMatrix`です。
@@ -525,7 +527,7 @@ r = FaerRow([1.0, -1.0])
 B = sin.(A) .+ 2 .* v          # FaerMatrix（列ベクトルを各列に拡張）
 w = v ./ 0                     # Inf を含む結果も FaerVector
 s = r .* 3                     # 行だけの式は FaerRow
-mask = A .> 2                  # Bool は native 型ではないため BitMatrix
+mask = A .> 2                  # Bool は ネイティブ 型ではないため BitMatrix
 A .+= 1                        # Julia の作業配列で計算し、1回で書き戻す
 view(A, 2:2, :) .= view(A, 1:1, :) .* 2  # 同じ owner の重なりも旧値を読む
 C = map(+, A, B)               # FaerMatrix
@@ -574,11 +576,11 @@ Rust 側の場合に同じ転送を行い、Juliaの `map`を実行します。J
 
 ```julia
 J = [5.0 6; 7 8]
-hcat(J, A)                # FaerMatrix（Julia 配列が先頭でも native）
+hcat(J, A)                # FaerMatrix（Julia 配列が先頭でも ネイティブ）
 [J A; A J]                # FaerMatrix
 vcat(1.0, v)              # FaerVector（スカラーが先頭）
 ComplexF64[J A]           # FaerMatrix{ComplexF64}
-Int[J round.(Int, J)]     # Int は native 型ではないため Matrix{Int}
+Int[J round.(Int, J)]     # Int は ネイティブ 型ではないため Matrix{Int}
 [A;;; J]                  # 3次元の結果は Array{Float64,3}
 S = FaerSparseMatrix(sparse([1.0 0; 0 2]))
 [S J; A S]                # FaerSparseMatrix（CSC）

@@ -32,13 +32,13 @@ F = svd(A)
 `julia --project deps/build.jl`でもビルドできます。Gitとネットワーク接続、
 Rust 1.89 以降が必要です（RustCallの Rust ツールチェーンも利用できます）。
 
-`deps/build.jl`は https://github.com/tensor4all/faerのデフォルトブランチの
+`deps/build.jl`は [colmat のリポジトリ](https://github.com/tensor4all/faer)のデフォルトブランチの
 最新 HEAD（Rust クレート `colmat`）を `deps/t4a-faer`にクローンし、再実行時も最新 HEADに更新します。
 ローカル変更がある場合は上書きせず停止します。使用したコミット SHAは
 ビルド出力に表示します。最新版を追うため、将来の API 変更でビルドが失敗する
 可能性があります。
 
-`deps/rust`の橋渡し用 `cdylib`がこのクローンを Cargoの ローカルパス依存として
+`deps/rust`の橋渡し用 `cdylib`がこのクローンを Cargo のローカルパス依存として
 参照し、RustCallのキャッシュにコンパイルされます。`extern/t4a-faer`は不要です。
 クローン内の `faer/`が `colmat` クレートです。橋渡しコードでは Cargoの別名 `faer`を使います。
 初回の `using Colmat`の前にビルドしてください。通常の読み込みでは Gitの更新は
