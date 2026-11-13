@@ -1,34 +1,34 @@
 # Colmat.jl マニュアル
 
-Colmat.jl は Rust の [colmat](https://github.com/tensor4all/faer) を Julia から呼び出す線形代数パッケージです。
-`FaerMatrix` などの Rust 所有配列を Julia の `AbstractArray` として扱い、
-`LinearAlgebra` の分解・求解や疎行列・反復法を利用できます。
+Colmat.jlは、Rustの [colmat](https://github.com/tensor4all/faer)を Julia から使う線形代数パッケージです。Juliaの配列や `LinearAlgebra`に慣れていれば、行列の積や連立方程式から使い始められます。分解の公式を覚えている必要はありません。
 
-初めて使う場合は [インストール](installation.md) の後、
-[配列・型・所有権](manual/arrays.md) と [密行列の分解と求解](manual/dense.md) を読んでください。
+## 最初に読むページ
 
-| 目的 | ページ |
+1. [インストールと最初の計算](installation.md)で `A * x`と `A \ b`を試します。
+2. [計算の選び方と用語](getting-started.md)で、自分の問題に合う関数を選びます。
+3. [配列・型・所有権](manual/arrays.md)で Julia 配列との変換やビューを確認します。
+
+通常の配列は Juliaの GCに管理を任せられます。例ごとに `close`を並べる必要はありません。解放時期を指定したい場合は[GCと資源の寿命](manual/lifetimes.md)の `do` ブロックを使ってください。
+
+## 目的から探す
+
+| したいこと | ページ |
 | :--- | :--- |
-| 配列の構築・変換、ビューと寿命を理解する | [配列・型・所有権](manual/arrays.md) |
-| 分解を保存して繰り返し解く | [密行列の分解と求解](manual/dense.md) |
-| 固有値・左右固有ベクトル、Schur・QZ を計算する | [固有値・Schur・QZ](manual/spectral.md) |
-| CSC/CSR、ordering、symbolic analysis を使う | [疎行列と直接法](manual/sparse.md) |
-| 疎な最小二乗・最小ノルム問題を解く | [疎 QR](manual/sparse-qr.md) |
-| 作用素や前処理を使って反復法で解く | [線形作用素・反復法](manual/operators.md) |
-| Householder・Jacobi・帯行列への縮約を使う | [反射・回転・縮約](manual/reductions.md) |
-| scratch とスレッドチームを再利用する | [作業領域とチーム](manual/resources.md) |
-| 統計・乱数・NPY を使う | [統計・乱数・NPY](manual/utilities.md) |
+| 連立方程式・最小二乗問題を解く、分解を保存する | [密行列の分解と求解](manual/dense.md) |
+| 固有値・固有ベクトルを計算する | [固有値・Schur・QZ](manual/spectral.md) |
+| ゼロが多い行列を扱う | [疎行列と直接法](manual/sparse.md) |
+| 疎行列の最小二乗・最小ノルム問題を解く | [疎 QR](manual/sparse-qr.md) |
+| 大きな問題を反復的に解く、行列を作らず積を定義する | [線形作用素・反復法](manual/operators.md) |
+| 分解の内部で使う反射・回転・縮約を扱う | [反射・回転・縮約](manual/reductions.md) |
+| 一時メモリや計算スレッドを再利用する | [作業領域とチーム](manual/resources.md) |
+| 平均・分散、乱数、NumPy ファイルを使う | [統計・乱数・NPY](manual/utilities.md) |
 
-## 共通の規約
+関数名から探す場合は [API 案内](reference/api.md)、ビルドやテストは[開発ガイド](development.md)を参照してください。各マニュアルの後半は、性能調整や内部の格納形式が必要になったときに読む詳細です。
 
-密配列のネイティブ数値型は `Float32`・`Float64`・`ComplexF32`・`ComplexF64` です。
-添字と置換は Julia と同じ 1-based です。構築・明示変換は通常コピーを作り、
-ビューは元の所有者を保持します。`!` 付き操作のストレージ共有や失敗時の挙動は各節で説明します。
+## 共通の約束
 
-`scratch=` はカーネルの一時領域を制御します。返り値・型変換・更新の staging などは
-別途メモリを確保するため、呼び出し全体が allocation-free になるとは限りません。
-`team=` を受け取る場合も、カーネルによっては逐次実行になります。
+Rust 側で直接計算する数値型は `Float32`・`Float64`・`ComplexF32`・`ComplexF64`です。添字と置換は Juliaと同じく 1 から数えます。明示的な構築・変換は通常コピーを作り、ビューは元の配列を保持します。
 
-このマニュアルは README の利用例を分野別に整理したものです。
-API を探す場合は [API 案内](reference/api.md)、開発やビルドは [開発ガイド](development.md) を参照してください。
-実装の履歴・未完了項目は [実装台帳](https://github.com/AtelierArith/Colmat.jl/blob/main/docs/implementation-status.md) に記録しています。
+関数名の `!`は引数の更新を示します。どの値を書き込むか、結果と入力がメモリを共有するかは関数によって異なります。元の値が必要ならコピーしてから実行してください。
+
+`scratch=`は一時メモリ、`team=`は計算スレッドの指定です。初めは省略して構いません。作業領域を渡しても返り値などのメモリは別に確保し、チームを渡しても逐次実行する処理があります。

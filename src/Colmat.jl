@@ -8,7 +8,8 @@ using RustCall
 using SparseArrays: SparseArrays
 using Statistics: Statistics
 
-export FaerSpectralFactor,
+export with_resource,
+    FaerSpectralFactor,
     reconstruct,
     FaerScratch,
     scratch_capacity,
@@ -343,5 +344,6 @@ include("measures.jl")
 include("diagonal_ops.jl")
 include("collection_ops.jl")
 include("structured_julia_products.jl")
+include("resource_scope.jl")
 
 end # module Colmat

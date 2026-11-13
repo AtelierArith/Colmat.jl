@@ -1,10 +1,12 @@
 # 反射・回転・帯行列への縮約
 
-Householder、Jacobi、三重対角化、二重対角化を扱います。
+このページは分解の構成要素を直接扱いたい場合の詳細です。通常の連立方程式や固有値計算には `lu`、`qr`、`svd`、`eigen`を使えば、ここでの操作を手で組み合わせる必要はありません。
+
+反射・回転は長さや直交性を保ちながら成分をゼロにする変換です。「縮約」は、それらを使って元の問題を同じ情報を持つ計算しやすい帯状の行列へ変形することです。三重対角化は固有値、二重対角化は SVDの準備に使います。
 
 ## Givens 回転
 
-`LinearAlgebra.Givens` と消去後の値を返します。
+`LinearAlgebra.Givens`と消去後の値を返します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -23,21 +25,21 @@ v = FaerVector([3.0, 4.0, 5.0])
 H, _ = givens(v, 1, 2)
 @assert Vector(H * v) ≈ [5.0, 0.0, 5.0]
 V = view(A, 2:-1:1, :)
-lmul!(G, V)                       # ビューは native の一時結果を書き戻す
+lmul!(G, V)                       # ビューは ネイティブ の一時結果を書き戻す
 ```
 
 4数値型の行列・ベクトル・範囲ビューに対応します。右からの回転には `FaerRow` も
-使えます。`*` は型を昇格した独立した native 配列を返し、`lmul!`・`rmul!` は
+使えます。`*`は型を昇格した独立した Rust 所有配列を返し、`lmul!`・`rmul!`は
 係数を出力の型に変換してから更新します。変換に失敗すれば出力は変わりません。
-回転の cosine は実数が必要です。生成対象の2要素は有限値に限定しています。
-スカラー形式の `givens(f,g,i,j)` は Julia 標準の実装です。
-独立した Jacobi オブジェクトは、このページの Jacobi rotations を参照してください。
+回転の 余弦は実数が必要です。生成対象の2要素は有限値に限定しています。
+スカラー形式の `givens(f,g,i,j)`は Julia 標準の実装です。
+独立した Jacobi オブジェクトは、このページの Jacobi 回転を参照してください。
 
-Householder 反射は `householder(x)` または `FaerHouseholder(x)` で生成できます。
+Householder 反射は `householder(x)` または `FaerHouseholder(x)`で生成できます。
 
 ## Householder 反射と列
 
-faer と同じ `H = I - v*v'/tau` の規約で、`tau` は実数の分母です。
+faerと同じ `H = I - v*v'/tau`の規約で、`tau`は実数の分母です。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -63,22 +65,22 @@ rmul!(R, H)
 
 生成は入力をコピーしてスケーリングしてから行い、4数値型を保持します。
 入力は有限値に限定し、空の入力と末尾がゼロの場合は恒等反射になります。
-`H.v` は独立した native ベクトル、`H.beta`・`H.tau`・`H.input_norm`・
-`H.head_with_beta_inv` は faer の生成情報です。`tau` は LAPACK の乗数とは異なります。
+`H.v`は独立した ネイティブ ベクトル、`H.beta`・`H.tau`・`H.input_norm`・
+`H.head_with_beta_inv`は faerの生成情報です。`tau`は LAPACKの乗数とは異なります。
 `H'`・`transpose(H)`・`conj(H)`・`inv(H)`・コピーは独立した所有者を返します。
-`H * A`・`A * H`・`H \ b`、左右の in-place 適用、3引数・5引数の `mul!` に対応します。
-通常の Julia strided 配列も使え、in-place の出力は4数値型に限定します。
+`H * A`・`A * H`・`H \ b`、左右の 格納領域内での更新 適用、3引数・5引数の `mul!`に対応します。
+通常の Julia ストライド付き 配列も使え、格納領域内での更新の出力は4数値型に限定します。
 係数・生成情報を出力型に変換できない場合は更新前に失敗します。単一反射・
-`FaerHouseholderSequence`・compact な Hessenberg／三重対角 Q の `lmul!`・`rmul!`・
-`mul!(C, H, B[, α, β])` は、要素型が同じなら native 所有型・ビュー・`faerview`・
-Julia strided 配列の C に faer が直接書き込みます（一時結果・書き戻しなし。B が C と
-重なる場合だけ snapshot、`β == 0` では C を、`α == 0` では B を読みません。`β ≠ 0`
-は C と同形の native 積バッファを1つ使います）。compact な二重対角 U/V の `mul!` も
-宣言済み scratch の作業行列だけで C に直接書き込みます。`Matrix(H)` と反射同士の積は密行列を作ります。
-単一反射・block／sequence の左右適用は `scratch=` と `team=` に対応します。
-必要量照会・reserve は以下の API を使います。block／sequence は次の所有型で扱います。
+`FaerHouseholderSequence`・省メモリ形式の Hessenberg／三重対角 Qの `lmul!`・`rmul!`・
+`mul!(C, H, B[, α, β])`は、要素型が同じなら Rust 所有型・ビュー・`faerview`・
+Julia ストライド付き 配列の Cに faerが直接書き込みます（一時結果・書き戻しなし。Bが Cと
+重なる場合だけ スナップショット、`β == 0`では Cを、`α == 0`では Bを読みません。`β ≠ 0`
+は Cと同形の ネイティブ 積バッファを1つ使います）。省メモリ形式の二重対角 U/Vの `mul!` も
+宣言済み 作業領域の作業行列だけで Cに直接書き込みます。`Matrix(H)`と反射同士の積は密行列を作ります。
+単一反射・ブロック／反射列の左右適用は `scratch=`と `team=`に対応します。
+必要量照会・容量拡張は以下の APIを使います。ブロック／反射列は次の所有型で扱います。
 
-複数の反射は `FaerHouseholderSequence` に compact な basis／factor として保持できます。
+複数の反射は `FaerHouseholderSequence`に 省メモリ形式の 基底／係数として保持できます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -94,7 +96,7 @@ B = Q * A
 
 restored = FaerHouseholderSequence(Q.basis, Q.factor)
 @assert Matrix(restored) ≈ Matrix(Q)
-small_blocks = reblock(Q, 1)      # faer の factor upgrade を使って再構築
+small_blocks = reblock(Q, 1)      # faer の 因子の再構築 を使って再構築
 @assert Matrix(small_blocks) ≈ Matrix(Q)
 reblock!(Q, 3)
 @assert Q.blocksize == 3
@@ -115,31 +117,29 @@ lmul!(Q, A; scratch=work, team)
 reserve!(work, ldiv!, Q, A; team)
 ldiv!(Q, A; scratch=work, team)
 @assert A ≈ [1.0 2; 3 4; 5 6]
-close(work)
-close(team)
 ```
 
-`lmul!/rmul!/mul!/ldiv!/rdiv!` で作業領域を再利用できます。左右積の照会は
-演算と同じ引数順序を使い、`mul!` の照会は alpha/beta と型昇格も反映します。
-容量・alignment 不足や閉じた resource は出力更新前に拒否します。native kernel は
-caller-owned team を借用します。結果の staging・係数の型変換・Julia 配列変換は
-scratch の外で割り当てます。sequence 構築・reblock の team は指定できます。
+`lmul!/rmul!/mul!/ldiv!/rdiv!`で作業領域を再利用できます。左右積の照会は
+演算と同じ引数順序を使い、`mul!`の照会は 係数 α/betaと型昇格も反映します。
+容量・アラインメント 不足や閉じた 資源は出力更新前に拒否します。Rust 側のカーネルは
+呼び出し元が保持するチームを借用します。結果の 書き戻す前の一時保存・係数の型変換・Julia 配列変換は
+作業領域の外で割り当てます。反射列 構築・`reblock`の teamは指定できます。
 
-`Q = H₁*H₂*…*Hₖ` の順序で、m×k の basis には k≤m が必要です。
-対角は暗黙の 1、上三角は無視し、strict lower の値だけを使います。
-有限の `tau[j]` は `vⱼ'vⱼ/2` と一致する必要があります。`Inf` は恒等反射を表し、
+`Q = H₁*H₂*…*Hₖ`の順序で、m×kの 基底には k≤mが必要です。
+対角は暗黙の 1、上三角は無視し、狭義下三角の値だけを使います。
+有限の `tau[j]`は `vⱼ'vⱼ/2`と一致する必要があります。`Inf`は恒等反射を表し、
 その列の未使用部分はゼロに正規化します。`blocksize=k` なら単一ブロックです。
-`Q.basis`・`Q.factor` は独立した native 行列、`Q.tau` は Julia の実数ベクトルです。
-factor は blocksize×k で、各ブロックの上三角を連結した faer の形式です。
+`Q.basis`・`Q.factor`は独立した Rust 所有行列、`Q.tau`は Juliaの実数ベクトルです。
+因子は ブロックサイズ×kで、各ブロックの上三角を連結した faerの形式です。
 
-`Q'`・`transpose(Q)`・`conj(Q)` は独立した所有者を返します。これらの `.basis`・`.factor`
-は変換前の格納表現を返し、`.transposed`・`.conjugated` が適用方向を表します。
-積・左右の in-place 適用・`mul!`・左右の求解は密な Q を作りません。
-`Matrix(Q)` と演算子同士の積は明示的に密行列を作ります。
-sequence の構築と `reblock/reblock!` は `team=` を受け取ります。
-factor 行列からの構築は `blocksize=` で変更後のサイズを指定でき、`prev_block_size=`
-（既定は元・先 blocksize の gcd）が両方を割り切る場合に保存済みの上三角 block を再利用します。
-reblock は basis/tau を Julia に戻さず native owner から構築し、変換方向と失敗時の旧 owner を保持します。
+`Q'`・`transpose(Q)`・`conj(Q)`は独立した所有者を返します。これらの `.basis`・`.factor`
+は変換前の格納表現を返し、`.transposed`・`.conjugated`が適用方向を表します。
+積・左右の 格納領域内での更新 適用・`mul!`・左右の求解は密な Qを作りません。
+`Matrix(Q)`と演算子同士の積は明示的に密行列を作ります。
+反射列の構築と `reblock/reblock!`は `team=`を受け取ります。
+因子 行列からの構築は `blocksize=`で変更後のサイズを指定でき、`prev_block_size=`
+（既定は元・先 ブロックサイズの gcd）が両方を割り切る場合に保存済みの上三角 ブロックを再利用します。
+`reblock`は 基底/tauを Juliaに戻さず Rust 側の所有者 から構築し、変換方向と失敗時の旧 所有者を保持します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -156,15 +156,13 @@ reblock!(R, 3; team)
 close(S); close(R); close(Q); close(team)
 ```
 
-native upgrade は scratch 引数・必要量照会を持たず、深い並列分岐の内部 buffer を毎回確保します。
-[faer #93 の実行済み MWE](https://github.com/tensor4all/faer/issues/93#issuecomment-6648218975)
-と修正案で追跡し、構築/reblock の caller-owned scratch は未完了です。
+ネイティブ 再構築は 作業領域 引数・必要量照会を持たず、深い並列分岐の内部 バッファを毎回確保します。
+[faer #93の実行済み MWE](https://github.com/tensor4all/faer/issues/93#issuecomment-6648218975)
+と修正案で追跡し、構築/`reblock`の 呼び出し元が保持する作業領域は未完了です。
 
-`nonzeros(S)` は格納値の変更に使えます。要素の挿入、`dropzeros!`、異なる構造の
+## Jacobi 回転
 
-## Standalone Jacobi rotations
-
-`rotg` returns faer's 2×2 unitary rotation, using its native sign convention:
+`rotg`は 2×2の回転と変換後の値を返します。回転は長さを保ちながら、指定した成分をゼロにするために使います。単独の回転を配列に適用する場合は対象の軸が長さ 2である必要があります。大きな配列の 2 行・2 列に埋め込むには `LinearAlgebra.Givens(J, i, j)`を使います。`make_givens`は実数の生成関数です。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -174,19 +172,14 @@ J, r = rotg(3.0, 4.0)
 A = FaerMatrix([1.0 2; 3 4])
 lmul!(J, A)
 @assert Matrix(A) ≈ Matrix(J) * [1.0 2; 3 4]
-G = LinearAlgebra.Givens(J, 2, 4) # embed the same rotation in a larger array
+G = LinearAlgebra.Givens(J, 2, 4) # 大きな配列の指定した位置に回転を適用
 ```
 
-`make_givens(p,q)` exposes faer's real constructor. `transpose`, `conj` and
-`adjoint` use its native transforms. `apply_on_the_left_2x2` and
-`apply_on_the_right_2x2` accept four entries and return them in row order.
-Standalone rotations require an axis of length two; embedded `Givens` rotations
-use the existing native array kernels.
+## 三重対角化と固有値計算
 
-## Hermitian tridiagonalization and band eigensolvers
+自己随伴行列を、対角とその両隣だけが非ゼロの三重対角行列 Hに変形します。`A ≈ Q*H*Q'`が成り立ち、固有値計算の準備に使います。通常は `eigen(A)`に任せて構いません。
 
-`hessenberg` on a native Hermitian (or real symmetric) matrix calls faer's
-self-adjoint tridiagonalization. `tridiagonalize` also accepts ordinary arrays:
+`tridiagonalize`の既定は明示的な Qと実数の `SymTridiagonal`を保持します。更新形式は成功後に入力を Hに置き換えます。`tridiagonal_eigen(d, e)`の eは下側の副対角で、上側はその複素共役です。値は実数の昇順で、値だけの計算は密行列を作りません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -194,28 +187,17 @@ A = FaerMatrix([4.0 1 2; 1 3 1; 2 1 5])
 F = hessenberg(Hermitian(A))
 @assert F.H isa SymTridiagonal
 @assert Matrix(F) ≈ Matrix(A)
-E = eigen(F) # reuse the reduction and call the native tridiagonal eigensolver
+E = eigen(F) # 縮約を再利用して三重対角の固有値を計算
 @assert Matrix(A) * Matrix(E.vectors) ≈ Matrix(E.vectors) * Diagonal(E.values)
 S = SymTridiagonal(FaerVector([1.0, 2, 3]), FaerVector([0.2, 0.4]))
 @assert eigvals(S) ≈ tridiagonal_eigvals([1.0, 2, 3], [0.2, 0.4])
 ```
 
-By default `FaerTridiagonalization` owns explicit native `Q` and a real `SymTridiagonal` H;
-complex phases are absorbed into Q. `tridiagonalize!` and `hessenberg!` on native
-self-adjoint wrappers stage the reduction and then store explicit H in the input.
-They preserve the input on failure. Compact Householder storage stays internal.
+## 二重対角化と SVD
 
-`tridiagonal_eigen(d,e)` and `tridiagonal_eigvals(d,e)` call faer's dedicated
-band kernels directly, treating e as the **subdiagonal** and `conj(e)` as the
-superdiagonal. Values are real and ascending; eigenvectors are native matrices.
-`recursion_threshold` selects QR versus divide-and-conquer for vectors, and
-`sortby` changes ordering. Eigenvalues-only calls use linear coefficient/work
-storage and do not form a dense matrix. All four native types, complex
-subdiagonals and scaling for extreme finite inputs are supported.
+二重対角化は、対角と片側の隣だけを残す変形です。SVDの準備に使います。`bidiagonalize(A)`の既定は必要な列だけの基底を持ち、`full=true`は完全な基底を保存します。縦長・正方では上二重対角、横長では下二重対角になります。
 
-## Bidiagonal reduction and SVD
-
-`bidiagonalize` uses faer's native reduction for square or rectangular matrices:
+更新形式は成功後に入力を Bの長方形への埋め込みで置き換えます。`bidiagonal_svd(d, e; uplo=:U)`は帯成分から直接 SVDを計算します。特異値は非負の降順です。現在、値だけを求める場合も内部では因子用の領域を確保します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -223,19 +205,11 @@ A = [1.0 2; 3 4; 5 6]
 F = bidiagonalize(A)
 @assert Matrix(F) ≈ A
 @assert Matrix(F.U) * Matrix(F.B) * Matrix(F.V)' ≈ A
-S = svd(F) # reuse the reduction and call the dedicated bidiagonal SVD
+S = svd(F) # 縮約を再利用して二重対角 SVD を計算
 @assert Matrix(S.U) * Diagonal(S.S) * Matrix(S.Vt) ≈ A
 B = Bidiagonal(FaerVector([3.0, -2]), FaerVector([0.5]), :U)
 @assert svdvals(B) ≈ bidiagonal_svd([3.0, -2], [0.5]).S
 ```
-
-The default factors are thin; `bidiagonalize(A; full=true)` retains complete
-bases for `svd(F; full=true)`. B is upper for tall/square inputs and lower for
-wide inputs. `bidiagonalize!` stages its result before replacing a native input
-by the rectangular embedding of B. Compact reflectors stay internal.
-
-Real power-of-two scaling is restored componentwise, including complex inputs
-near the floating-point exponent limits:
 
 ```julia
 using Colmat, LinearAlgebra
@@ -249,20 +223,9 @@ finally
 end
 ```
 
-`bidiagonal_svd(d,e; uplo=:U)` supports real or complex diagonals and either
-selected offdiagonal, returning native U/Vt and nonnegative descending real S.
-`recursion_threshold` selects the native small/large SVD paths. Inputs remain
-unchanged. The public native bidiagonal SVD computes dense factors/workspace,
-including when `svdvals` requests only values.
+## 二重対角 SVDの作業領域
 
-## Reusing bidiagonal SVD workspace
-
-`bidiagonal_svd`, saved reduction `svd/svdvals`, and native `Bidiagonal`
-dispatch accept `scratch=` and `team=`. The query includes coefficient copies
-and the declared kernel workspace at the actual team shape; U/V are written
-directly into preserved staging. Saved-factor back-transform products also use
-the team, with their own work/output storage. Julia conversions and result
-ownership allocate separately. Reduction construction resources are described below.
+`bidiagonal_svd`、保存した縮約の `svd`・`svdvals`、ネイティブな `Bidiagonal`は `scratch`と `team`に対応します。係数の一時コピーとカーネルの一時領域を照会します。返り値と Juliaへの変換は別に確保します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -284,16 +247,9 @@ finally
 end
 ```
 
-## Reusing bidiagonal reduction workspace
+## 二重対角化の作業領域
 
-`bidiagonalize` and the native matrix's staged `bidiagonalize!` accept `scratch`
-and `team`, with matching query/FaerScratch/reserve. Workspace holds the canonical
-work matrix and compact factors; reduction and both basis applications reuse
-one kernel region and the actual scoped team token. U/V are formed in preserved
-Julia staging, borrowing the compact basis/factors without owning copies.
-Conversion, returned owners and bang writeback allocate separately. The native
-deep Householder upgrade buffer remains subject to [faer #93](https://github.com/tensor4all/faer/issues/93);
-declared kernel scratch does not imply whole-call zero allocations.
+`bidiagonalize`と更新形式は作業領域を再利用できます。`full`・`compact`・`team`を照会と実行で合わせてください。縮約と基底の適用は同じ一時領域を使い回します。入力変換、返り値、書き戻しや Rust 内部の追加バッファは別に確保する場合があります。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -316,13 +272,9 @@ finally
 end
 ```
 
-## Bidiagonal parallel policy
+## 二重対角化の並列化設定
 
-Use `FaerParThreshold` to select faer's derived, fixed or never-parallel policy.
-The default remains derived. Reuse the same policy for workspace planning and
-computation; changing it may change the required capacity. A fixed floor counts
-elements of the reduction's updated trailing block, while `:never` also keeps
-explicit U/V formation sequential. Supplied teams are validated for every policy.
+`FaerParThreshold()`は既定の計算量モデル、整数は更新する残りの領域の要素数の下限、`:never`は縮約と明示的な U/Vの構築を逐次実行にします。照会と実行で同じ設定を使います。どの設定でも、渡したチームは開いている必要があります。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -349,14 +301,9 @@ finally
 end
 ```
 
-## Reusing tridiagonal eigensolver workspace
+## 三重対角固有値計算の作業領域
 
-Dedicated tridiagonal eigenvectors and eigenvalues accept `scratch` and `team`.
-The query includes the scaled band and native temporary eigenvalues. Coefficient
-conversion, result storage and sorting allocate separately. Saved tridiagonal
-factors and native `SymTridiagonal` inputs forward these resources; saved-factor
-Q back-transformation also uses the supplied team. Tridiagonal reduction
-construction accepts its own reusable workspace as described below.
+固有値だけ、または固有ベクトルを含む計算で `scratch`と `team`を使えます。保存済みの三重対角化やネイティブな `SymTridiagonal` からも渡せます。保存した Qによる元の座標への変換もチームを使います。出力と並べ替え用配列は別に確保します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -379,11 +326,9 @@ finally
 end
 ```
 
-## Extreme-scale complex tridiagonal reduction
+## 極端な大きさの複素入力
 
-Tridiagonal reduction restores its real power-of-two scale componentwise, so a
-finite complex result does not depend on squaring a tiny or huge complex divisor.
-Check reconstruction after removing the scale to keep the residual meaningful.
+非常に大きい・小さい有限値は、2のべき乗でスケールを調整してから縮約し、成分ごとに戻します。残差を調べる際にも元のスケールを外すと、比較自体のオーバーフローを避けられます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -398,11 +343,9 @@ finally
 end
 ```
 
-## Tiny relative complex tridiagonal phases
+## 小さな複素成分の位相
 
-A small nonzero complex off-diagonal can require a finite unit phase even when
-it is negligible in a global residual. Phase normalization uses real norms,
-without squaring a complex-typed tiny divisor. Check that component separately:
+全体の残差では見えにくい小さな副対角成分も、位相（複素数の向き）の調整を必要とします。重要な成分は個別にも確認してください。作業スケールで非正規化数となるほど相対的に小さい成分を、すべて保存する保証はありません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -421,19 +364,9 @@ finally
 end
 ```
 
-Native Householder reduction deliberately discards subnormal heads in its
-working scale; componentwise retention of such relative subnormal entries is
-not promised. Whole-matrix scaling protects globally subnormal inputs. The
-separate scalar magnitude underflow is reported in
-[faer #274](https://github.com/tensor4all/faer/issues/274).
+## 三重対角化の作業領域
 
-## Reusing tridiagonal reduction workspace
-
-`tridiagonalize` and its staged bang form accept `scratch` and `team`, including
-native Hermitian/Symmetric `hessenberg` dispatch. Workspace covers the canonical
-work matrix, compact coefficients and a region reused by reduction and explicit
-Q formation. Native Q and basis copies are avoided; Julia conversion, returned
-owners and bang writeback still allocate separately.
+`tridiagonalize`と更新形式、自己随伴入力の `hessenberg`は `scratch`と `team`を受け取ります。作業行列、反射の係数、縮約と Q 構築の一時領域を再利用します。返り値と入力変換、書き戻しのメモリは別です。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -456,14 +389,9 @@ finally
 end
 ```
 
-## Tridiagonal parallel policy
+## 三重対角化の並列化設定
 
-`tridiagonalize[!]` and native Hermitian/real Symmetric `hessenberg[!]` accept
-`par_threshold=FaerParThreshold()`. Fixed thresholds count `rem*rem÷2` elements
-for the updated triangle. Explicit Q applications keep their own parallel rule;
-`FaerParThreshold(:never)` makes both reduction and Q formation sequential.
-Use the same policy for workspace planning and execution. A supplied team must
-still be open, including for empty matrices and Never.
+固定しきい値は、残りの次数 `rem`に対する `rem*rem÷2`を基準にします。`:never`は縮約と明示的な Qの構築を逐次実行にします。照会と実行で同じ設定を使い、空の問題でも渡すチームは開いておいてください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -490,24 +418,13 @@ finally
 end
 ```
 
-## Compact tridiagonal reflectors
+## 三重対角化の Qを省メモリで保存する
 
-Use `compact=true` to retain Q as `FaerTridiagonalQ`. Products and in-place
-Householder actions apply saved native reflectors and phases without forming a
-dense Q. `Matrix(F.Q)` explicitly materializes it. `F.Q.basis`, `.factor` and
-`.phases` return independent Julia arrays describing the base representation;
-the factor can contain positive infinite denominators denoting identity.
-For n rows, the Householder product acts on rows 2:n, followed by the diagonal
-phase factor. Transpose/adjoint/conj record orientation and share immutable
-native storage; closing one wrapper leaves another open. Copy and deepcopy
-make independent native owners. Input arrays and native source owners can be
-changed or closed after construction.
+`compact=true`は密な Qの代わりに `FaerTridiagonalQ`として反射と位相を保存します。積や求解は Q 全体を作らず適用し、`Matrix(F.Q)`で明示的な行列にできます。
 
-Both explicit and compact reductions require representable finite real diagonal
-and off-diagonal bands. Finite complex components can still have an overflowing
-real magnitude. Construction then fails before publishing the bands; staged
-`tridiagonalize!` and self-adjoint `hessenberg!` preserve their input. Scale the
-input first when its real band representation would overflow.
+転置・随伴・共役は変更しない保存領域を共有し、それぞれ個別に閉じられます。`copy`と `deepcopy`は独立した所有者を作ります。`basis`・`factor`・`phases`は独立した Julia 配列です。入力を変更・終了しても保存した Qは使えます。
+
+実数の帯成分が表現可能である必要があり、絶対値がオーバーフローする場合は先に入力を縮小します。照会にも `compact=true`を渡します。保存領域や出力は一時作業領域とは別に確保します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -531,35 +448,11 @@ finally
 end
 ```
 
-Construction scratch covers only the reduction kernel in compact mode. The
-returned packed matrix, block factors and phases allocate their own storage;
-Julia input conversion and staged bang writeback also allocate separately.
-Use `compact=true` consistently in `scratch_requirements`, `FaerScratch` and
-`reserve!` for construction. Later Q applications have their own scratch/team
-contract. Saved-factor `eigen` reuses one workspace for the band eigensolver
-and implicit Q back-transformation; its query takes the maximum requirement.
-A construction `FaerParThreshold(:never)` governs the reduction and does not
-restrict separately requested Q applications. No speedup or worker utilization
-is claimed by this storage option.
+## 二重対角化の U/Vを省メモリで保存する
 
-## Compact bidiagonal bases
+`bidiagonalize(A; compact=true)`は `FaerBidiagonalBasis`に反射を保存します。既定は必要な列だけの基底、`full=true`は正方の基底です。Uと Vは変更しない保存領域を共有し、それぞれ個別に閉じられます。
 
-`bidiagonalize(A; compact=true)` returns implicit `FaerBidiagonalBasis` U/V
-with the same thin shapes as the explicit default. `full=true` retains square
-bases. The two wrappers share immutable native packed storage, and each can be
-closed independently. Copying a factor duplicates its storage once, with the
-new U/V sharing that duplicate. Inputs can be changed or closed afterward.
-
-Products, transpose/adjoint/conj, rectangular `mul!`, and saved-factor SVD apply
-reflectors by embedding/projecting operands rather than forming a square Q.
-Shape-preserving `lmul!`/`rmul!` require a square basis; rectangular actions use
-a correctly shaped separate destination. Since each basis is a partial isometry,
-`Q \ A` and `A / Q` apply its adjoint (least-squares/minimum-norm as appropriate).
-`Matrix(Q)` explicitly materializes its exact thin/full shape. Independent Julia
-arrays `Q.basis` and `Q.factor` expose the base Householder representation;
-`Q.offset` gives its leading identity coordinates and `Q.basis_conjugated`
-indicates conjugation of that product. The usual orientation flags apply after
-embedding and selecting the retained columns. Complex band phases stay in B.
+`Matrix(Q)`は保存した形状の行列を作ります。長方形の基底への適用は適切な形状の別の出力先を使い、`lmul!`・`rmul!`は正方基底に限ります。`Q \ A`と `A / Q`は随伴による最小二乗・最小ノルム作用です。完全な SVDには構築時にも `full=true`が必要です。作業領域は構築と適用で別に照会します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -584,26 +477,11 @@ finally
 end
 ```
 
-Compact construction scratch covers only the reduction kernel; the returned
-packed matrix and factors allocate their own storage. Application scratch
-includes operand embedding and the Householder kernel, while Julia input/output
-conversion allocates separately. Saved SVD queries the maximum of the band
-solver and successive U/V application requirements and reuses one workspace/team.
-A full SVD requires a reduction made with `full=true`, as for explicit factors.
-Values-only still uses the existing native full-factor band-SVD path. Construction
-parallel policy does not constrain later separately requested applications. No
-speedup is claimed; native internal Householder buffers remain subject to faer #267.
+## 一般の Hessenberg 化で Q を省メモリ保存する
 
-## Compact general Hessenberg Q
+`hessenberg(A; compact=true)`は `FaerCompactHessenberg`を返し、Hと反射を保持する `FaerHessenbergQ`を保存します。`Matrix(F.Q)`を呼ぶまで密な Qを作りません。積・求解・転置・随伴で保存した反射を使います。
 
-For a general native square matrix, `hessenberg(A; compact=true)` returns
-`FaerCompactHessenberg` with native H and an implicit `FaerHessenbergQ`. The
-explicit `FaerHessenberg` default is unchanged. The implicit Q uses saved native
-Householder factors acting on rows 2:n. Its `.basis` and `.factor` properties
-return independent arrays; `.phases` returns ones because this reduction has no
-additional diagonal phase factor. Products, left/right actions, solves and
-transpose/adjoint/conjugation apply those factors without forming dense Q.
-`Matrix(F.Q)` explicitly materializes it.
+`hessenberg!`では Hが入力を共有し、Qは独立した反射を保持します。`schur(F)`は元の Qを明示的に作らず利用します。`schur!(F)`は成功後に Hを更新し、Qを明示的な Schur 基底に置き換えます。以前に取り出した暗黙の Qは引き続き使えます。構築用の照会にも `compact=true`を渡してください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -638,42 +516,11 @@ finally
 end
 ```
 
-Construction owns the packed reflectors independently of its input. In
-`hessenberg!`, H shares the input matrix while Q retains separate packed storage.
-Transpose/adjoint/conj wrappers share immutable reflector storage and close
-independently; copy/deepcopy duplicate it and preserve the concrete wrapper type.
+## 一般の Hessenberg 化の設定
 
-Saved `schur(F)` starts the Hessenberg QR stage with identity and applies the
-saved Q directly to the resulting native Schur basis. It preserves F and avoids
-materializing the original Q. `schur!(F)` stages the entire result, updates H,
-and replaces the implicit Q with the explicit Schur basis. Its result shares
-H and Q with F. A previously retained implicit Q remains a valid independent
-wrapper; close it separately. Repeated `schur!` keeps the existing explicit Q
-owner, as for the explicit default factor.
+`par_threshold`は並列化、`blocking_threshold`はブロック化の判断を制御します。既定の `blocking_threshold=65536`では `n*n`がそれ未満なら非ブロック経路です。`0`はブロック経路を許し、十分大きい値は非ブロック経路を選びます。保存後の Schur 反復の設定とは別です。
 
-Use `compact=true` for construction queries, `FaerScratch` and `reserve!`.
-Saved Schur queries the maximum of the QR-stage and implicit-Q application
-requirements and reuses that one workspace/team. Packed factors, owned outputs,
-Julia conversions, eigenvalue arrays and staged bang writeback allocate
-separately. No allocation-free API, performance improvement, or new Hessenberg
-tuning is claimed; native internal Householder buffers remain subject to faer #267.
-
-## General Hessenberg reduction controls
-
-Both explicit and compact general Hessenberg factors accept faer's public
-`HessenbergParams` controls. `par_threshold=FaerParThreshold()` uses the derived
-cost model; an integer floor counts squared trailing order, and `:never` keeps
-reduction and explicit Q formation sequential. A supplied team must remain open.
-`blocking_threshold=65536` is the upstream default: orders satisfying
-`n*n < blocking_threshold` use unblocked reduction. Zero permits the blocked
-path at every order; `typemax(UInt)` selects the unblocked path for representable
-matrix dimensions. These choices control reduction, not saved Schur iteration.
-
-Use identical options for query, reserve and computation. The bang method writes
-H only after successful computation and retains an independent Q. Caller scratch
-covers declared kernel temporaries; output owners, packed reflectors and view
-copies allocate separately. Compact construction now reads the native input and
-returns a checked owned Q directly, without staging either input or H in Julia.
+明示的・省メモリ形式とも照会と実行を同じ設定にします。更新形式は計算成功後に Hを書き、独立した Qを保持します。
 
 ```julia
 using Colmat, LinearAlgebra

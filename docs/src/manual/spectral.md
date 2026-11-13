@@ -1,10 +1,19 @@
 # 固有値・Schur・QZ
 
-単一行列と行列対の固有値問題、Schur 分解、左右固有ベクトルを扱います。
+固有値 λと固有ベクトル vは `A*v = λ*v`を満たします。まずは `eigen(A)`、値だけが必要なら `eigvals(A)`を使います。各列と固有値が対応しているかは残差で確認できます。
 
-## Hessenberg と Schur 分解
+```julia
+using Colmat, LinearAlgebra
+A = FaerMatrix([4.0 1; 1 3])
+F = eigen(Hermitian(A))
+@assert Matrix(A) * F.vectors ≈ F.vectors * Diagonal(F.values)
+```
 
-Hessenberg 化と Schur 分解も native 経路を使います。
+`Hermitian(A)`は自己随伴であることを明示します。一般の行列では固有値が複素数になることもあります。Schur 分解は行列を三角または小さなブロックの三角形に変形する方法、Hessenberg 化はその準備、QZは行列対のための方法です。これらの詳細は必要になったときに参照してください。
+
+## Hessenbergと Schur 分解
+
+Hessenberg 化と Schur 分解も ネイティブ 経路を使います。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -25,20 +34,24 @@ SB = schur!(B)
 @assert SB.T === B
 ```
 
-`schur` は Rust 所有の `T`・`Z` と Julia の固有値ベクトルを持つ
-`LinearAlgebra.Schur` を返します。実数では共役対を 2×2 ブロックに保ち、
-`ordschur` の選択では対の両方を含めるか、両方を除外します。
-`hessenberg` の既定の結果は `FaerHessenberg` で、Julia の compact Householder 表現と
-異なり `H`・`Q` の両方を明示的な行列として所有します。
-`compact=true` は native reflector を保持する `FaerCompactHessenberg` を返し、
-保存因子からの Schur でも Q を暗黙に適用します。所有権と bang の Q 置換は
-[compact Hessenberg](reductions.md#Compact-general-Hessenberg-Q) を参照してください。
-`hessenberg!`・`schur!` は独立した作業結果を計算してから入力の所有バッファを
-更新し、形状と既存ビューを保ちます。`schur!(H)` は `H.H`・`H.Q` の両方を
+`schur`は Rust 所有の `T`・`Z`と Juliaの固有値ベクトルを持つ
+`LinearAlgebra.Schur`を返します。実数では共役対を 2×2 ブロックに保ち、
+`ordschur`の選択では対の両方を含めるか、両方を除外します。
+`hessenberg`の既定の結果は `FaerHessenberg`で、Juliaの 省メモリ形式の Householder 表現と
+異なり `H`・`Q`の両方を明示的な行列として所有します。
+`compact=true`は ネイティブ 反射を保持する `FaerCompactHessenberg`を返し、
+保存因子からの Schurでも Qを暗黙に適用します。所有権と 更新形式の Q 置換は
+[省メモリ形式の Hessenberg](reductions.md#一般の-Hessenberg-化で-Q-を省メモリ保存する)を参照してください。
+`hessenberg!`・`schur!`は独立した作業結果を計算してから入力の所有バッファを
+更新し、形状と既存ビューを保ちます。`schur!(H)`は `H.H`・`H.Q`の両方を
 更新し、返す Schur 分解とストレージを共有します。並べ替えも成功後に更新する
 ため、失敗時は元の分解を保ちます。これらは内部の一時領域を割り当てます。
 
-### Tuning the multishift QR and QZ drivers
+### Schur・QZの計算方法の調整
+
+`with_schur_tuning`は Schur・QZと一般化 Hessenberg 化の性能設定を一時的に変えます。初めて使う場合は既定値で構いません。シフト数、収束した部分を取り除く窓の大きさ、ブロック化などを調整できます。
+
+必要量の照会と実行を同じスコープ内で行います。設定は例外時も元に戻ります。スコープは Colmatの呼び出しロックを保持するため、同じタスクから Colmatを呼んでください。一般の固有値分解内部の QR・QZ 計算にも適用します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -47,31 +60,11 @@ F = with_schur_tuning(; shift_count=8, deflation_window=10, blocking_threshold=2
     schur(A)
 end
 @assert Matrix(F.Z) * Matrix(F.T) * Matrix(F.Z)' ≈ Matrix(A)
-close(A)
 ```
 
-`with_schur_tuning(f; shift_count, deflation_window, blocking_threshold,
-nibble_threshold, shift_chase_cost, generalized_hessenberg_block_size,
-generalized_hessenberg_blocking_threshold)` applies faer's `SchurParams`,
-`GeneralizedSchurParams` and `GeneralizedHessenbergParams` controls to every
-Schur and QZ factorization, `hessenberg(A, B)`, scratch query, `FaerScratch`
-and `reserve!` inside the scope, so query and execution agree. Zero keeps
-faer's default. The generalized Hessenberg block size changes the QZ
-construction workspace; the pinned faer does not read its
-`blocking_threshold`, which is forwarded as is. The general
-`eigen`/`eigvals`/`eigen!`/`eigvals!(A)` driver's multishift QR step also
-follows the scope, and calls without `scratch`/`team` then use the
-parameterized workspace driver; the generalized `eigen(A, B)` driver follows
-the generalized Hessenberg and QZ controls, and its query reserves the tuned
-Hessenberg step that faer's own `gevd_scratch` sizes with the default block
-size. Because faer takes the shift count, deflation window
-and shift-chase cost as `extern "C"` function pointers, the overrides are
-stored natively for the scope, which holds Colmat's native-call lock: other
-tasks wait, `f` must call Colmat on the current task, and the previous
-settings return even when `f` throws. faer's Schur reordering kernels accept
-a parallel token but run sequentially; Colmat forwards the team unchanged.
+### 固有値分解の計算方法の調整
 
-### Tuning the EVD drivers
+EVDは固有値分解の略です。`with_evd_tuning`で Hessenberg 化・三重対角化や再帰のしきい値を一時的に変えます。`nothing`は既定値です。`with_schur_tuning`と入れ子にでき、作業領域の照会も同じ設定に従います。通常の利用では指定不要です。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -84,23 +77,9 @@ end
 close(parent(S))
 ```
 
-`with_evd_tuning(f; ...)` overrides the parameters inside faer's EVD drivers
-for every general and self-adjoint `eigen`/`eigvals` call, scratch query,
-`FaerScratch` and `reserve!` in the scope: the general driver's Hessenberg
-`hessenberg_par_threshold`/`hessenberg_blocking_threshold` and
-`evd_recursion_threshold` (eigenvectors from Schur), and the self-adjoint
-driver's `tridiagonal_par_threshold` and `self_adjoint_recursion_threshold`.
-`nothing` keeps faer's default. Inside the scope, calls without
-`scratch`/`team` use the parameterized workspace driver. The general driver's
-multishift QR step follows `with_schur_tuning`, and both scopes nest.
-Destructive `eigen!`/`eigvals!` return the tuned driver's results; the general
-form additionally writes back a Schur form computed with the scope's
-Hessenberg settings (`evd_recursion_threshold` only affects the returned
-eigenvectors).
-
 ## 一般化 Schur／QZ
 
-一般化 Schur／QZ は行列対に適用します。
+一般化 Schur／QZは行列対に適用します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -120,19 +99,19 @@ FM = schur!(AA, BB)
 @assert FM.S === AA && FM.T === BB
 ```
 
-`GeneralizedSchur` の `S`・`T`・`Q`・`Z` はすべて Rust 所有行列です。
-`hessenberg(A,B)` は `FaerGeneralizedHessenberg` を返し、
-`A ≈ Q*H*Z'`・`B ≈ Q*T*Z'` を満たします。`hessenberg!`・`schur!` は
+`GeneralizedSchur`の `S`・`T`・`Q`・`Z`はすべて Rust 所有行列です。
+`hessenberg(A,B)`は `FaerGeneralizedHessenberg`を返し、
+`A ≈ Q*H*Z'`・`B ≈ Q*T*Z'`を満たします。`hessenberg!`・`schur!`は
 計算成功後に既存の所有バッファを更新し、既存ビューを維持します。
 更新する行列対は同じスカラー型で、別々の所有者にする必要があります。
-`schur!(H)` は H/T/Q/Z のすべてを更新し、結果とストレージを共有します。
+`schur!(H)`は H/T/Q/Zのすべてを更新し、結果とストレージを共有します。
 
-固有値は同次形式の `α`・`β` でも保持します。`β == 0, α != 0` は無限固有値、
-`α == β == 0` は不定な固有値を表します。比に直す前の値を調べることで区別できます。
-実数・複素数とも native QZ を使い、混合型の通常呼び出しでは型を昇格します。
-一般化 `ordschur`／`ordschur!` は保存済みの S/T を native で並べ替え、
+固有値は同次形式の `α`・`β`でも保持します。`β == 0, α != 0`は無限固有値、
+`α == β == 0`は不定な固有値を表します。比に直す前の値を調べることで区別できます。
+実数・複素数とも ネイティブ QZを使い、混合型の通常呼び出しでは型を昇格します。
+一般化 `ordschur`／`ordschur!`は保存済みの S/Tを ネイティブで並べ替え、
 選択したブロックを先頭へ集めます。選択群・非選択群の内部の順序は保ちます。
-実共役対の片方だけを選ぶと両方が対象になります。α/β は保存因子から更新します。
+実共役対の片方だけを選ぶと両方が対象になります。α/βは保存因子から更新します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -157,23 +136,24 @@ Sview = view(F.S, :, :)
 @assert Matrix(Sview) == Matrix(F.S)
 @assert F.values ≈ G.values
 @assert scratch_capacity(work) == req
-close(work)
 ```
 
-`ordschur!` は全計算・固有値の変換に成功してから既存の S/T/Q/Z・α/β を
-更新し、元の所有者とビューを保ちます。行列は別々の native 所有者、α/β は
-要素領域の重ならない mutable strided vector が必要です。同じ Julia 配列の
+`ordschur!`は全計算・固有値の変換に成功してから既存の S/T/Q/Z・α/βを
+更新し、元の所有者とビューを保ちます。行列は別々の Rust 所有者、α/βは
+要素領域の重ならない 変更可能なストライド付きベクトルが必要です。同じ Julia 配列の
 互いに重ならないビューも使えます。数値的に安全な交換や固有値評価ができない
-場合は例外を返し、元の分解を保ちます。`scratch=` では `FaerScratch` を再利用でき、
-`reserve!(work, ordschur, F)` で容量を増やせます。容量・alignment の不足や閉じた
-scratch は入力を変更せずに拒否します。作業因子と Julia の出力・変換配列は別に確保します。
-`values`／`eigvals(F)` は Julia の α/β の比に従い、複素ゼロ除算では NaN を
+場合は例外を返し、元の分解を保ちます。`scratch=`では `FaerScratch`を再利用でき、
+`reserve!(work, ordschur, F)`で容量を増やせます。容量・アラインメントの不足や閉じた
+作業領域は入力を変更せずに拒否します。作業因子と Juliaの出力・変換配列は別に確保します。
+`values`／`eigvals(F)`は Juliaの α/βの比に従い、複素ゼロ除算では NaNを
 含む場合があるため、無限・不定値の判定には同次対を使ってください。
-QZ 構築の `scratch`・`team` は、このページの構築用リソースの節を参照してください。
+QZ 構築の `scratch`・`team`は、このページの構築用リソースの節を参照してください。
 
-## Balancing before eigenvalue computations
+## 計算前に行列のスケールを整える
 
-`balance` calls faer's permutation and power-of-two scaling routine:
+要素の大きさが極端に異なる場合、`balance`で行・列の並べ替えと 2のべき乗による拡大縮小を行えます。固有値は保たれますが、固有ベクトルは元の座標へ戻す必要があります。`balance_eigenvectors!`はその変換を行います。
+
+`eigen(A; permute=true, scale=true)`は調整、固有値分解、元の座標への変換、列の長さの正規化をまとめて行います。両設定は同じ値にしてください。Colmatの既定は両方 `false`で、Juliaの LAPACK 経路の既定とは異なります。行列対にはこの設定は使えません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -185,19 +165,6 @@ X = balance_eigenvectors(F, E.vectors)
 @assert A * Matrix(X) ≈ Matrix(X) * Diagonal(E.values)
 ```
 
-`F.perm` uses 1-based indices, and `F.active` is the active Julia range.
-`balance!(A::FaerMatrix)` replaces A after a successful computation and returns
-a result sharing A as `B`. `balance_eigenvectors!` restores right eigenvector
-columns in place after staging the full result. Back-transforms do not normalize
-columns; invalid metadata, conversion failure or overflow leave the destination
-unchanged.
-
-The general EVD can balance in one call. faer's EVD driver itself does not
-balance, so `eigen`/`eigvals(A; permute=true, scale=true)` balances natively
-first, runs the EVD on `B` with the same `side`, `scratch` and `team`, maps the
-right (`P*S*v`) or left (`P*S⁻¹*w`) eigenvectors back and renormalizes each
-column to unit 2-norm:
-
 ```julia
 using Colmat, LinearAlgebra
 a = [1.0 1e4 0; 1e-4 2 1e3; 0 1e-3 3]
@@ -206,17 +173,15 @@ E = eigen(A; permute=true, scale=true)
 @assert norm(a * E.vectors - E.vectors * Diagonal(E.values)) < 1e-10
 L = eigen(A; side=:left, permute=true, scale=true)
 @assert norm(L.vectors' * a - Diagonal(L.values) * L.vectors') < 1e-10
-close(A)
 ```
 
-faer's `balance_in_place` always permutes and scales together, so `permute`
-and `scale` must be equal (otherwise `ArgumentError`). Balancing is opt-in:
-the default `false` keeps the unbalanced native driver, unlike LinearAlgebra's
-LAPACK default. The Hessenberg, Schur and EVD-from-Schur parameters inside
-faer's EVD driver are tracked with the Hessenberg (#123) and Schur (#110)
-controls.
+## 一部の固有値・特異値だけを求める
 
-## Partial eigenvalues and singular values
+大きな問題で少数の値だけが必要なら、`partial_eigen`、`partial_self_adjoint_eigen`、`partial_svd`を使えます。自己随伴版は Hermitian な入力に限ります。初期ベクトル `v0`、探索空間の大きさ `min_dim`・`max_dim`、許容誤差 `tol`、再開始回数 `max_restarts`を指定できます。
+
+必ず `nconverged`と残差を確認してください。返るのは収束が確認された列だけで、初期ベクトルによって目的の部分空間を見逃す場合があります。
+
+自己随伴版と SVDは、探索空間が問題全体に達する小さな問題では密行列を作る経路に切り替わります。`algorithm == :dense_fallback`で判別でき、常に少量のメモリで済むわけではありません。反復経路は `:partial`です。`scratch`と `team`に対応し、照会時には探索設定もそろえます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -229,48 +194,6 @@ S = partial_svd(op, 2; tol=1e-8)
 @assert S.S ≈ [96.0, 95.0]
 ```
 
-`partial_eigen`, `partial_self_adjoint_eigen` and `partial_svd` call native
-restarted projection methods and return only reported converged columns, with
-independently recomputed residuals. Set `v0`, `min_dim`, `max_dim`, `tol` and
-`max_restarts` to control the search. The self-adjoint variant assumes Hermitian
-input. A start orthogonal to a desired invariant subspace can miss it. Inspect
-`nconverged` and residuals before using results. Small/full-projection
-self-adjoint and SVD requests (`max(max_dim, 64, 2k) >= min(size(op)...)`) take
-faer's native full-subspace branch, which materializes the operator and runs a
-dense EVD/SVD; they report `algorithm == :dense_fallback`, and iterative results
-report `:partial`. The self-adjoint dense branch reads the lower triangle of the
-materialized operator, so results are defined only for Hermitian operators. If
-the branch fails, for example because the materialized operator is not finite,
-it returns `nconverged == 0` instead of throwing. faer emits the converged
-results sorted by decreasing magnitude, and they are written directly into the
-returned Julia arrays: there is no Rust or Julia staging copy, no sort
-permutation copy, and truncation to `nconverged` resizes the arrays in place.
-`partial_svd` writes the right singular vectors straight into the rows of the
-returned `Vt::Matrix` (conjugated in place), so no transpose copy is made. The
-residuals are recomputed natively in the same call; a real operator acts on the
-real and imaginary parts of complex `partial_eigen` vectors instead of being
-promoted to a complex copy. A `v0` given as a `FaerVector`, a one-dimensional
-`FaerView`, a `faerview` borrow or a strided Julia vector of the
-operator's scalar type is read in place; other start vectors are converted once.
-
-Measured Julia `@allocated` for `k = 6` and a dense `Float64` operator,
-before → after: `partial_eigen` 567 KB → 66 KB (n = 400) and 1.84 MB → 181 KB
-(n = 1600); `partial_self_adjoint_eigen` 973 KB → 99 KB and `partial_svd`
-(1600×800) 1.56 MB → 148 KB at n = 1600. What remains is the returned arrays
-plus a fixed FFI marshalling overhead of roughly 16–33 KB. A Julia callback
-operator reuses its marshalling arrays; with an allocation-free action the
-marginal cost is about 32 B per application, the same as inside `cg`
-(n = 400, measured by varying `max_restarts` / `maxiter`).
-
-All three methods accept `scratch` and `team`. Query or reserve with the same
-projection controls and team used for execution. The buffer covers the partial
-kernel, including its full-subspace operator materialization and dense EVD/SVD,
-plus independent residual applications. For the self-adjoint full-subspace
-branch Colmat also adds the `n×n` eigenvector buffer that faer's own scratch
-query omits. Querying does not apply operators. Julia callback operators reuse
-their per-operator marshalling arrays; callbacks run on the calling Julia task,
-including when a team executes the native kernels.
-
 ```julia
 using Colmat, LinearAlgebra
 op = FaerLinearOperator(Diagonal(collect(1.0:96)))
@@ -281,12 +204,13 @@ F = partial_self_adjoint_eigen(op, 2; scratch=work, team, tol=1e-8)
 reserve!(work, partial_svd, op, 2; max_dim=96, team)
 S = partial_svd(op, 2; max_dim=96, scratch=work, team)
 @assert S.algorithm == :dense_fallback && S.S ≈ [96.0,95.0]
-close(work)
-close(team)
-close(op)
 ```
 
-## Destructive eigenvalue decompositions
+## 入力を書き換える固有値計算
+
+`eigen!`と `eigvals!`は成功後に入力を書き換えます。一般の行列には Schur 形を書き、自己随伴行列の `eigen!`は固有ベクトル、`eigvals!`は固有値の対角行列を書きます。返り値の配列は入力から独立しています。
+
+行列対は別々の所有者かつ同じ数値型が必要です。一般の行列対は S/T、自己随伴の対は第 1 入力に固有ベクトル（値だけの形式では対角行列）、第 2 入力に固有値の対角行列を書きます。収束や並べ替えの失敗時は書き戻しません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -302,22 +226,11 @@ G = eigen!(B)
 @assert eltype(B) == Float64
 ```
 
-`eigen!` and `eigvals!` support four native types and preserve the input scalar
-type. General matrices receive their real quasi-triangular or complex triangular
-Schur form. Right eigenvectors are normalized and copied to independent Julia
-arrays; `sortby` follows the existing eigen API. Native Hermitian/real Symmetric
-wrappers read the selected triangle. Their `eigen!` writes eigenvectors to the
-parent, while `eigvals!` writes a diagonal matrix of sorted eigenvalues.
+## 自己随伴行列の固有値と作業領域
 
-For generalized pairs, native general eigen and QZ passes produce the result
-and S/T writeback. Self-adjoint pairs write eigenvectors (or diagonal values for
-`eigvals!`) to the first parent and a diagonal eigenvalue matrix to the second.
-These are explicit staged formats; they do not expose LAPACK work buffers.
-Pair parents must be distinct with matching scalar types. Convergence/sort errors
-before writeback preserve inputs. Returned arrays remain independent of later
-input changes/close. Factorization, sorting and writeback allocate. Single-matrix and generalized EVD support scratch/team keywords below.
+自己随伴とは `A == A'`となる性質で、実数では対称行列です。`Hermitian(A, :L)`は下三角、`:U`は上三角を正しい値として扱います。参照しない側と複素対角の虚部は無視します。
 
-## Self-adjoint EVD with reusable workspace and teams
+`eigen`、`eigvals`と更新形式は `scratch`と `team`に対応します。固有値は実数です。選択した三角領域に非有限値があれば拒否します。返り値や並べ替え用の配列は作業領域とは別に確保します。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -333,17 +246,13 @@ FaerTeam(2) do team
 end
 ```
 
-Native Hermitian and real Symmetric single-matrix `eigen`, `eigvals`, `eigen!`
-and `eigvals!` accept `scratch=` and `team=`. Query matching mode/team options
-through `scratch_requirements` or construct using `FaerScratch(function, A)`.
-The buffer includes a canonical copy of the selected triangle and temporary
-values. Unused triangles and complex diagonal imaginary parts are ignored;
-nonfinite values in the active data are rejected. Eigenvalues are real.
-Sorting and independent eigenvector output arrays allocate separately. Caller
-workspace never grows implicitly, and temporary workspace is closed on errors.
-Other kernels retain their existing workspace and execution interfaces.
+## 計算方法・範囲選択・複素対称行列
 
-## Self-adjoint EVD algorithms, subsets and complex Symmetric input
+`alg=DivideAndConquer()`は既定の分割統治法、`QRIteration()`は QR 反復を選びます。`RobustRepresentations()` も既定経路を選び、MRRR 法を提供するわけではありません。値だけの計算は QRを使います。`native=true`の保存形式では `QRIteration()`を指定できません。
+
+`eigen(A, irange)`は昇順の添字範囲、`eigen(A, vl, vu)`は `(vl, vu]`の値を選びます。現在は全固有値を計算してから抽出するため、少数の選択でも全分解の費用がかかります。
+
+複素数では `Symmetric`（転置で不変）と `Hermitian`（随伴で不変）は別です。複素 `Symmetric`の参照三角がすべて実数なら自己随伴版、それ以外は一般の固有値計算を使います。後者には `scratch`を指定できず、複素 `Symmetric`の `eigen!` も定義していません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -358,37 +267,11 @@ S = Symmetric(FaerMatrix(ComplexF64[1 2im; 2im 3]))
 @assert eigvals(Symmetric(FaerMatrix(ComplexF64[2 1; 1 2]))) isa Vector{Float64}
 ```
 
-Self-adjoint `eigen`, `eigvals`, `eigen!` and `eigvals!` accept LinearAlgebra's
-`alg`. `DivideAndConquer()` is faer's default driver (divide and conquer above
-`self_adjoint_recursion_threshold`, implicit QR below). `QRIteration()` raises
-that threshold for the call so the tridiagonal implicit QR algorithm runs at
-every size; other settings of an enclosing `with_evd_tuning` scope are
-kept. faer has no MRRR driver, so `RobustRepresentations()`, Julia's default
-spelling, also selects the default divide and conquer. `native=true` builds
-faer's owned decomposition with default parameters and rejects `QRIteration()`.
-The algorithm only affects eigenvectors; `eigvals` always uses implicit QR.
+## 一般の固有値計算と作業領域
 
-The positional subset forms `eigen/eigvals(A, irange)` and `(A, vl, vu)`
-select ascending eigenvalue indices or the half-open interval `(vl, vu]`, as
-LAPACK `syevr`; `eigmin`/`eigmax` follow. faer has no dense subset driver, so
-the full spectrum is computed and the selection copied: the cost and workspace
-are those of the full decomposition. The bang forms overwrite the parent as the
-full `eigen!`/`eigvals!` do. For a few extreme eigenpairs of large operators,
-see `partial_self_adjoint_eigen` above.
+一般の `eigen`・`eigvals`は `scratch`と `team`を受け取ります。実数入力でも固有値・固有ベクトルは複素数です。固有ベクトルの列の 2 ノルムは 1に正規化します。
 
-A complex `Symmetric` wrapper follows Julia's generic EVD, which takes the
-Hermitian branch exactly when the matrix is Hermitian. If the stored triangle
-(diagonal included) is real, faer's self-adjoint EVD runs on it and returns real
-eigenvalues with orthonormal eigenvectors. Otherwise the matrix is complex
-symmetric but generally not normal: the triangle is expanded natively into a
-full owner and the general native EVD runs on it (`sortby`, `team` and
-`permute`/`scale` apply; no `scratch` form, since the driver depends on the
-data), returning complex eigenpairs. Julia's shortcut that
-returns complex values for diagonal input is not mirrored, and `eigen!` on a
-complex `Symmetric` wrapper is not defined, as in Julia. This is the same rule
-as `cholesky` of a complex `Symmetric` wrapper.
-
-## General EVD with caller-owned scratch and teams
+更新形式の設定は固有値計算に適用しますが、入力へ Schur 形を書き戻すために別の逐次 Schur 分解も実行します。その追加作業は照会した `scratch`の範囲外です。行列対にも専用の作業領域インターフェースがあります。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -405,20 +288,11 @@ FaerTeam(2) do team
 end
 ```
 
-General native `eigen`/`eigvals` now accept `scratch=` and `team=`. Outputs remain
-complex for real input, with normalized right eigenvectors. Real conjugate-pair
-conversion uses the provided scratch; complex outputs are written directly.
-Workspace queries/factories/reserve support the ordinary and bang aliases, and
-use actual team conditions. Calls without options retain their original path.
+## 正定値の行列対の固有値問題
 
-For `eigen!`/`eigvals!`, these options apply to the eigen computation. The staged
-Schur-form writeback performs an additional sequential native Schur factorization
-with its own temporary storage. Queries describe the eigen pass, so caller-owned
-scratch does not cover that additional writeback computation. Generalized-pair
-scratch/team interfaces remain unexposed. Output arrays, sorting and temporary
-writeback factors allocate; input is preserved on errors before writeback.
+一般化固有値問題は `A*v = λ*B*v`を解く問題です。Aと Bが自己随伴で Bが正定値なら、Cholesky 分解を使った専用経路があります。固有ベクトルは `V' * B * V ≈ I`となるよう正規化します。
 
-## Definite self-adjoint generalized EVD workspace
+`eigen`、`eigvals`と更新形式は `scratch`と `team`に対応します。選択した三角領域だけを読みます。Bが正定値でなければ `PosDefException(i)`、非有限値があれば `ArgumentError`です。正の対角行列 B も使えます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -436,22 +310,6 @@ FaerTeam(2) do team
 end
 ```
 
-Four native types and real `Symmetric` pairs support `eigen/eigvals` and their
-bang variants with `scratch=` and `team=`. B must be positive definite. The
-workspace contains two selected-triangle copies, temporary eigenvalues, and
-reused LLT/EVD kernel storage. The native pipeline reduces through Cholesky,
-solves a self-adjoint EVD, and back-transforms B-orthonormal eigenvectors.
-Unused triangles and imaginary diagonal parts are ignored independently.
-Output arrays, scalar promotion, sorting and staged bang writeback allocate
-separately. Nonpositive B or sorting failure preserves bang inputs.
-
-A B that is not positive definite throws `PosDefException(i)` whose `info` is
-the one-based failing pivot, matching `cholesky(Hermitian(B); check=false).info`.
-Non-finite values in a selected triangle throw `ArgumentError`. A diagonal B
-(`FaerDiagonal` or `Diagonal`) with positive entries uses the same native
-driver; a zero entry throws `ArgumentError`, and an indefinite diagonal falls
-back to LinearAlgebra's general path.
-
 ```julia
 using Colmat, LinearAlgebra
 A = Hermitian(FaerMatrix([4.0 1; 1 3]))
@@ -464,7 +322,11 @@ end
 close(parent(A))
 ```
 
-## Generalized EVD for general matrix pairs
+## 一般の行列対の固有値問題
+
+一般の行列対にも `eigen(A, B)`と `eigvals(A, B)`を使えます。4 種類の対応数値型、型の昇格、`scratch`、`team`に対応します。実数入力でも結果は複素数です。
+
+更新形式は固有値計算後、別の逐次 QZ 分解で S/Tを書き戻します。この追加の作業領域は固有値計算用の照会に含まれません。重複した固有値では固有ベクトルが独立とは限りません。無限固有値や不定な対を区別するには、以下の同次形式を使ってください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -480,51 +342,26 @@ FaerTeam(2) do team
 end
 ```
 
-General `FaerMatrix` pairs support four types and scalar promotion, with complex
-values and unit 2-norm right eigenvectors. The workspace includes writable input
-copies and packed real outputs as needed. `scratch_requirements` and `reserve!`
-support eigen/eigvals and their bang aliases. Bang calls use the options for the
-eigen pass, then compute a separate sequential QZ for staged S/T writeback;
-that QZ workspace is outside this query. Sorting, output arrays and writeback
-allocate separately.
+### Julia 標準との主な違い
 
-Apart from the range scaling described in the conventions below, native output is returned without post-processing. The pinned faer revision
-returns finite vectors for repeated finite and infinite eigenvalues
-([faer #217](https://github.com/tensor4all/faer/issues/217), fixed upstream), so
-Colmat no longer recomputes nullspaces. Regression tests cover identity pencils,
-defective Jordan blocks (finite and infinite), singular pencils with
-indeterminate α=β=0 pairs and pencils scaled near the floating-point range
-limits. Defective pencils yield finite but linearly dependent vectors, as in
-LAPACK.
+| 項目 | Colmatの規約 |
+| :--- | :--- |
+| 一般の行列対の型 | 固有値・ベクトルは常に複素数 |
+| 固有ベクトルの長さ | 左右とも列ごとの 2 ノルムを 1にする。符号・位相は一意でない |
+| 自己随伴の専用経路 | `Hermitian` / `Symmetric`で明示する |
+| 並べ替え | 通常は Juliaと同じ `sortby`。同次形式の既定は並べ替えなし |
+| 無限・不定値 | 比の NaN / Inf だけで判定せず `α`と `β`を使う |
+| スケール調整 | 行列対は内部で 2のべき乗による値域調整を行い、α・βを元へ戻す |
+| 更新形式 | A/Bに別計算の一般化 Schur 形 S/Tを書く |
 
-### Conventions compared with LinearAlgebra and faer
+固有ベクトルは定数倍でも同じ解です。他のライブラリとの比較では要素の一致ではなく、固有値と方程式の残差を確認してください。
 
-Checked against Julia 1.13 `eigen(A, B)`/`eigvals(A, B)`/`eigen!` (LAPACK
-`ggev3`) and the faer `d374ec0` API (`Mat::generalized_eigen`,
-`GeneralizedEigen::{U, S_a, S_b}`, `gevd_real`/`gevd_cplx`, `GevdParams`):
 
-| Item | LinearAlgebra / faer | Colmat |
-|---|---|---|
-| `sortby` | `eigsortby`: real λ, else `(real(λ), imag(λ))`; `nothing` keeps the driver order | same function and `sortperm`; homogeneous output defaults to `sortby=nothing` |
-| Eigenvector scaling | `ggev`: each column scaled so that its largest `abs(real)+abs(imag)` is 1 (left vectors too); faer returns unit 2-norm columns | unit 2-norm columns for every side and bang calls (documented difference); zero columns stay zero. Phases and signs are those of faer |
-| Value type | real pencil with all `alphai == 0` returns real `values`/`vectors`, otherwise complex | always complex for general pairs, like `eigen(A)` |
-| Infinite/indeterminate quotients | real, all-real spectrum: `alphar./beta` (`±Inf`, `NaN` for 0/0); real with complex pairs: `Complex/Real` gives `Inf+NaN*im`; complex: `α./β` with complex `β=0` gives `NaN+NaN*im` | element-wise: a real pencil's real α divides as a real number (`complex(±Inf)` for β=0), also when other eigenvalues form complex pairs (where Julia gives `Inf+NaN*im`); complex pencils give Julia's `NaN+NaN*im`. Use `homogeneous=true` to classify infinite (`β=0`, `α≠0`) and indeterminate (`α=β=0`) pairs |
-| Symmetric/Hermitian shortcut | `eigen!(A, B)` uses the definite self-adjoint driver when `A` is symmetric and `B` is positive definite (real values, B-normalized vectors) | plain `FaerMatrix` pairs always use the general driver; wrap them in `Hermitian`/`Symmetric` for the definite driver |
-| Balancing | `ggev` permutes only (`ggbal('P')`); Julia exposes no `permute`/`scale` for pencils; faer has no pencil balancing | no balancing keywords (`balance`, #160, is for single matrices). Instead Colmat scales A and B by powers of two into `[sqrt(safmin)/eps, eps/sqrt(safmin)]`, as `ggev` does, and scales α and β back; faer alone returns α=β=0 for tiny-norm regular pencils (executed reproducer: `docs/reproducers/faer-gevd-driver.md`) |
-| QZ controls (`GevdParams`) | `hessenberg`, `schur` (`GeneralizedSchurParams`); `evd_from_schur` has no public fields | `with_schur_tuning` reaches `hessenberg` and `schur`. Colmat's query also reserves the tuned Hessenberg step, which faer's `gevd_scratch` sizes with the default block size (executed reproducer: `docs/reproducers/faer-gevd-driver.md`) |
-| `eigen!`/`eigvals!(A, B)` | A and B are overwritten as unspecified workspace | same result types; A and B receive a staged generalized Schur form S/T from a separate sequential QZ (own workspace, also range scaled) |
-| `homogeneous=true`, `side=` | not in LinearAlgebra; faer returns α/β and optional left/right vectors | `(α, β, …)` named tuples and `side=:left/:right/:both` |
-| Owning API | `GeneralizedEigen::new` allocates, has no scratch argument and returns right vectors only | Colmat calls the low-level drivers for scratch, teams and left vectors |
+## 無限固有値も扱う同次形式
 
-Allocation: with caller scratch, the Julia heap receives only the returned
-owners (α, β, the eigenvector matrices and, for quotient output, the values and
-sorted α/β copies) plus about 12 KB of per-call bookkeeping that does not grow with
-n; the A/B copies, packed real output and driver workspace live in the native
-`FaerScratch`. faer's drivers make no heap allocation on the queried
-buffer after the first call of a process
-(executed measurement: `docs/reproducers/faer-gevd-driver.md`).
+`homogeneous=true`は λを割り算で求めず、`β*A*v = α*B*v`の組 `(α, β)`を返します。`β == 0` かつ `α != 0`は無限固有値、両方ゼロは不定な対です。
 
-## Homogeneous generalized eigenvalues
+`eigen`は `(α, β, vectors)`、`eigvals`は `(α, β)`の独立した Julia 配列を返します。既定では元の順序を保ち、`sortby`を明示すると比に基づいて共通の並べ替えを行います。対象は一般の行列対で、自己随伴ラッパーや更新形式には指定しません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -539,19 +376,11 @@ values = eigvals(A, B; homogeneous=true)
 @assert values.α ≈ F.α && values.β ≈ F.β
 ```
 
-General native pairs accept `homogeneous=true`: `eigen` returns independent Julia
-arrays `(α, β, vectors)`, while `eigvals` returns `(α, β)`. Four types, promotion,
-`scratch=` and `team=` are supported. The default homogeneous order is the native
-order, with no division or sorting. An explicit `sortby` uses α/β to select a
-common permutation of both arrays and the vectors. Ordinary calls still return
-`GeneralizedEigen` or quotient eigenvalues in their usual sorted order.
+## 行列対の左固有ベクトル
 
-A nonzero α with β=0 denotes infinity. The pair α=β=0 remains indeterminate;
-values-only homogeneous queries preserve it, while quotient queries return NaN.
-The homogeneous residual above stays meaningful for infinite eigenvalues. This option is for general pairs;
-self-adjoint wrappers and destructive eigen routines keep their current APIs.
+通常の固有ベクトルは右から掛ける列ベクトルです。`side=:left`は左固有ベクトルを列として返します。返り値は `(values, vectors)`、同次形式では `(α, β, vectors)`です。左固有ベクトルは右とは一般に異なるため、下の例の随伴の方程式で残差を確認します。
 
-## Left generalized eigenvectors
+`side=:right`が既定です。どちらの片側計算も `scratch`と `team`を使えます。破壊的更新形式にはこの切り替えを指定しません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -568,20 +397,11 @@ FaerTeam(2) do team
 end
 ```
 
-`side=:right` remains the default. General native pairs also accept `side=:left`
-to compute normalized left eigenvectors through faer's left-vector driver,
-using four scalar types, promotion, scratch and explicit teams. Sorting keeps
-vectors aligned with their eigenvalues or α/β pairs. The returned `vectors`
-field contains the selected side. Left-only quotient output is a named tuple
-`(values,vectors)`, rather than a factorization for subsequent solves. Requirements are common to the two one-sided
-modes in the current backend; the same `FaerScratch(eigen, A, B; team=team)`
-works for either. The left-only driver result is returned directly; the pinned
-faer revision preserves the spectrum when only left vectors are requested
-([faer #219](https://github.com/tensor4all/faer/issues/219), fixed upstream), so
-no adjoint-pencil recomputation or extra copies occur. Simultaneous output is available with `side=:both` below. Side selection for
-single matrices is described below; destructive routines retain their current API.
+## 行列対の左右を同時に求める
 
-## Simultaneous left and right generalized eigenvectors
+`side=:both`は `(values, left, right)`、同次形式では `(α, β, left, right)`を返します。左右の列は同じ固有値順に並び、個別に長さを正規化します。左右の内積を 1にする正規化は行いません。
+
+作業領域の照会・構築にも `side=:both`を渡してください。片側の場合より多くの領域が必要になることがあります。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -601,16 +421,11 @@ FaerTeam(2) do team
 end
 ```
 
-`side=:both` computes the two sides in one native generalized EVD call. It
-returns `(values,left,right)` for quotient values or `(α,β,left,right)` with
-`homogeneous=true`. Four scalar types, promotion, sorting and explicit teams
-are supported. Both sets of columns are independently normalized and share the
-same eigenvalue order; biorthogonal scaling is not imposed. Queries and
-constructors must include `side=:both`: real input needs an extra packed matrix
-inside the caller workspace. `reserve!(workspace, eigen, A, B; side=:both, team=team)`
-can enlarge an existing buffer. Julia output arrays allocate separately. Inputs are preserved.
+## 単一行列の左・左右固有ベクトル
 
-## Left and simultaneous eigenvectors of one matrix
+一般の単一行列も `side=:left`と `:both`に対応します。左だけなら `(values, vectors)`、左右なら `(values, left, right)`です。通常の右側は `Eigen`のままです。
+
+左側を含む名前付きタプルは固有ベクトルを運ぶための返り値で、右側の分解と同じ求解・再構成機能を持つわけではありません。必要量の照会にも向きを指定します。自己随伴ラッパーと更新形式には指定しません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -626,21 +441,9 @@ FaerTeam(2) do team
 end
 ```
 
-General native matrices accept `side=:left/:right/:both` for four scalar types.
-The default right result remains `Eigen`; left-only returns `(values,vectors)`,
-and simultaneous output returns `(values,left,right)` as named tuples. These
-left output containers carry eigenvectors without exposing ordinary right-vector
-factorization solve/reconstruction operations. Generalized left-only quotient
-output follows the same named-tuple convention; homogeneous output is unchanged.
+## 保存した SVD・固有値分解で解く作業領域
 
-The left columns are normalized and satisfy the adjoint equations above. Both
-sides are computed in one native EVD call, then share the same sorting
-permutation. Query or construct workspace with the requested side; real
-simultaneous output includes two packed matrices. Output arrays and sorting
-allocate independently. Explicit teams are propagated through the EVD driver.
-Self-adjoint wrappers and destructive routines retain their current APIs.
-
-## Reusable workspace for saved SVD/EVD solves
+`scratch_requirements`、`FaerScratch`、`reserve!`は求解と同じ引数順を使います。許容誤差、型の昇格、右辺の列数、チームを実行と合わせてください。容量不足は更新前に拒否します。因子そのものの構築費用は別です。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -665,18 +468,11 @@ E=eigen(Hermitian(FaerMatrix(H0));native=true)
 work=FaerScratch(inv,E)
 inverse=inv(E;scratch=work)
 @assert Matrix(inverse)≈inv(H0)
-close(inverse)
-close(work)
-close(E)
 ```
 
-`scratch_requirements` accepts the same operand order for backslash, `/`,
-`ldiv!`, `rdiv!` and `inv`. Optional tolerances are validated without changing
-capacity; scalar promotion changes the coefficient/projection buffer sizes.
-`reserve!` grows explicitly, and operations reject insufficient/already-closed
-resources before destination writeback. Factor construction remains separate.
+## 一般化 Hessenberg・QZの作業領域
 
-## Reuse workspace for generalized Hessenberg and QZ construction
+行列対の `hessenberg`、`schur`、保存した Hessenberg からの `schur`と各更新形式は `scratch`と `team`に対応します。入力や出力の所有メモリは別に確保します。更新形式は計算成功後に書き戻し、既存のビューを保ちます。必要量は同じ演算・チームで照会してください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -692,35 +488,11 @@ F = schur(H; scratch=work, team)
 reserve!(work, schur!, A, B; team)
 G = schur!(copy(A), copy(B); scratch=work, team)
 @assert isapprox(sort(real.(G.values)), sort(real.(F.values)))
-close(work)
-close(team)
 ```
 
-`schur`/`hessenberg` on matrix pairs, their staged bang methods and
-`schur(H)`/`schur!(H)` accept `scratch` and `team`. Query the same operation,
-source and team with `scratch_requirements`; computations reject insufficient
-capacity/alignment instead of growing the buffer. Native metadata is checked
-before scalar promotion. Views, mixed native scalars and a native matrix paired
-with a Julia matrix are supported. Resource and native failures precede bang
-writeback; existing factor owners and views are preserved on successful updates.
+## 単一行列の Hessenberg・Schurの作業領域
 
-The workspace holds QR coefficients, projection storage, generalized Hessenberg
-work, QZ temporary homogeneous columns and the declared QZ kernel scratch
-(including the existing correction for faer #260). Source copies, owned
-factor outputs, staging and Julia conversion/output arrays allocate separately.
-The selected faer QR can still allocate its deep Householder partial buffer;
-caller control of that buffer awaits faer #267. This is not a whole-API
-zero-allocation or scaling claim. The actual scoped team token reaches QR,
-Householder apply, projection, generalized Hessenberg and QZ kernels.
-
-## Single-matrix Hessenberg and Schur construction resources
-
-Single-matrix reductions and Schur iteration from a saved Hessenberg factor
-accept reusable scratch and a scoped team. Queries and `reserve!` use the same
-operation and team as execution. Owned factors, view copies, Julia eigenvalue
-arrays and staged bang results allocate separately. The selected faer may also
-allocate its internal deep Householder partial buffer; external control awaits
-faer #267. These interfaces do not imply a whole-call allocation or scaling bound.
+単一行列の縮約と、保存した Hessenberg からの Schur 計算でも一時メモリとチームを再利用できます。返される因子、固有値配列、更新時の書き戻しや内部の追加領域は別に確保される場合があります。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -734,21 +506,11 @@ F = schur(H; scratch=work, team)
 reserve!(work, schur!, A; team)
 G = schur!(copy(A); scratch=work, team)
 @assert Matrix(G) ≈ Matrix(A)
-close(G)
-close(F)
-close(H)
-close(work)
-close(team)
-close(A)
 ```
 
-## Saved Schur reordering resources
+## Schur 形の並べ替えと作業領域
 
-`ordschur` and `ordschur!` accept reusable scratch for native selection flags
-and block swaps. Working factors and Julia selection/eigenvalue/conversion
-vectors allocate separately. A supplied team is validated and lends its token;
-the selected faer reorder kernels currently perform sequential work, so no
-parallel speedup or whole-call allocation bound is implied.
+`ordschur`と `ordschur!`は選択した固有値のブロックを先頭に移します。作業メモリを再利用できますが、作業因子や Juliaの配列は別に確保します。現在の並べ替えカーネルは、チームを渡しても逐次実行です。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -764,22 +526,11 @@ H = copy(F)
 reserve!(work, ordschur!, H; team)
 ordschur!(H, selected; scratch=work, team)
 @assert Matrix(H) ≈ Matrix(A)
-close(H)
-close(G)
-close(F)
-close(work)
-close(team)
-close(A)
 ```
 
-## Eigenvectors from saved Schur factors
+## 保存した Schur 分解から固有ベクトルを求める
 
-`eigvecs(F)` and `eigen(F)` reuse saved native Schur factors with caller scratch
-and an actual scoped team. Queries cover faer's declared kernel temporary space
-and packed real output; the returned complex matrix and Julia eigenvalue copies
-allocate separately. Extreme Schur entry magnitudes can still trigger an internal
-scaled copy in selected faer, tracked in [faer #270](https://github.com/tensor4all/faer/issues/270).
-No whole-call allocation or parallel scaling bound is implied.
+`eigvecs(F)`と `eigen(F)`は保存した Schur 因子を再利用します。`scratch`と `team`に対応します。返り値の複素行列や固有値は独立した配列です。極端な大きさの要素を持つ場合など、Rust 内部で追加コピーが必要になる場合があります。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -792,10 +543,4 @@ V = eigvecs(F; scratch=work, team)
 reserve!(work, eigen, F; team)
 E = eigen(F; scratch=work, team)
 @assert Matrix(A)*Matrix(E.vectors) ≈ Matrix(E.vectors)*Diagonal(E.values)
-close(E.vectors)
-close(V)
-close(work)
-close(team)
-close(F)
-close(A)
 ```

@@ -1,10 +1,12 @@
 # 密行列の分解と求解
 
-保存した分解を再利用して、求解・再構成・疑似逆行列を計算します。
+密行列は全要素を格納する行列です。まずは `A \ b`で連立方程式を解き、右辺だけを変えて繰り返す場合に分解を保存します。「分解」「最小二乗」「ランク」の意味は[計算の選び方と用語](../getting-started.md)にあります。
+
+このページの前半では通常の分解、後半では入力を書き換える形式や性能調整を説明します。まず `lu(A)`、`qr(A)`、`svd(A)`の必要なものから試してください。
 
 ## 保存した密分解
 
-密行列の分解は Rust に保持して再利用できます。
+密行列の分解は Rustに保持して再利用できます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -22,9 +24,9 @@ E = eigen(Hermitian(A))
 @assert Matrix(A) * E.vectors ≈ E.vectors * Diagonal(E.values)
 ```
 
-dense LU・完全ピボット LU・QR（列ピボットを含む）・Cholesky・LDLT・
-Bunch–Kaufman の構築と対応する `!` 版には `team=` を指定できます。
-`factorize(A; team)` も対応します。構築後の因子は team や入力を閉じても独立に使えます。
+密 LU・完全ピボット LU・QR（列ピボットを含む）・Cholesky・LDLT・
+Bunch–Kaufmanの構築と対応する `!` 版には `team=`を指定できます。
+`factorize(A; team)` も対応します。通常の保存因子は team や入力を閉じても独立に使えます。入力を共有する直接分解は例外です。
 保存因子からの通常の求解・成分取り出しは引き続き逐次経路です。
 
 ```julia
@@ -42,39 +44,39 @@ close(A)
 @assert F \ [1.0, 2.0] ≈ a \ [1.0, 2.0]
 ```
 
-### 借用 Julia 配列の分解と in-place 求解
+### Julia 配列を借用した分解・直接求解
 
-`faerview(J)` で借用した Julia 行列（4 型、負・非単位 stride を含む）は、
+`faerview(J)`で借用した Julia 行列（4 型、負・非単位 ストライドを含む）は、
 `lu`・`full_piv_lu`・`qr`（`NoPivot`/`ColumnNorm`）・`cholesky`・`ldlt`・
 `bunchkaufman`（`Hermitian`/実 `Symmetric` ラッパーを含む）・`svd`/`svdvals`・
-`eigen`/`eigvals` の入力として faer が親配列の `MatRef` を直接読みます。
+`eigen`/`eigvals`の入力として faerが親配列の `MatRef`を直接読みます。
 結果は `FaerMatrix` 入力と同じ型（`FaerFactorization`・`SVD`・`Eigen`）で、
-Julia や native の入力 snapshot は作りません（因子自身の格納は出力として確保）。
-以前は LinearAlgebra の汎用経路（LAPACK と `Matrix` へのコピー）でした。
-LAPACK を使うには親配列 `parent(B)` を渡します。`det`・`inv`・`B\b`・
-`factorize`・`cond`・`rank`・`pinv` など LinearAlgebra の汎用関数もこの native 分解を
+Julia や Rust 側の入力 スナップショットは作りません（因子自身の格納は出力として確保）。
+以前は LinearAlgebraの汎用経路（LAPACKと `Matrix`へのコピー）でした。
+LAPACKを使うには親配列 `parent(B)`を渡します。`det`・`inv`・`B\b`・
+`factorize`・`cond`・`rank`・`pinv` など LinearAlgebraの汎用関数もこの Rust 側の分解を
 通ります。`scratch`・`team`（SVD/EVD）・`alg`・`native=true`・`side`・平衡化・
-チューニング中の呼び出しは入力を native へ1回コピーして `FaerMatrix` の経路を使います。
+チューニング中の呼び出しは入力を ネイティブへ1回コピーして `FaerMatrix`の経路を使います。
 読み取り専用の NPY 借用も分解の入力にできます。ラッパーなしの Hermitian な借用行列の
-`eigen`/`eigvals` は、Julia 配列と同様に自己随伴ドライバで実固有値を返します
-（`eigmax`/`eigmin` も使えます。`FaerMatrix` の `eigen` は一般ドライバで複素数です）。
+`eigen`/`eigvals`は、Julia 配列と同様に自己随伴ドライバで実固有値を返します
+（`eigmax`/`eigmin` も使えます。`FaerMatrix`の `eigen`は一般ドライバで複素数です）。
 
-同じ要素型の正方・ランク落ちしていない保存因子による `ldiv!(F, B)` は、
-`B` が `Matrix`・strided `SubArray`・`faerview`・`FaerVector`・native ビューなら
-faer の `solve_in_place` を `B` の記憶域で直接実行し、右辺のコピー・新しい結果・
-書き戻しを作りません。`ldiv!(X, F, B)` は `B` を `X` へ native に1回代入して
-（重なる入力は snapshot）から `X` で同じ in-place 求解をします。`F \ B`
-（`B` が Julia strided 配列・`faerview`）は右辺の native コピー1つで解いて返します。
-2引数 `rdiv!(B, F)` も同じ条件で `transpose(B)` に在位置求解します。`scratch=` を
-渡すと因子種別ごとの低水準 kernel が caller scratch 上で動き、在位置求解は native
+同じ要素型の正方・ランク落ちしていない保存因子による `ldiv!(F, B)`は、
+`B`が `Matrix`・ストライド付き `SubArray`・`faerview`・`FaerVector`・ネイティブビューなら
+faerの `solve_in_place`を `B`の記憶域で直接実行し、右辺のコピー・新しい結果・
+書き戻しを作りません。`ldiv!(X, F, B)`は `B`を `X`へ Rust 側で1回代入して
+（重なる入力は スナップショット）から `X`で同じ 格納領域内での更新 求解をします。`F \ B`
+（`B`が Julia ストライド付き 配列・`faerview`）は右辺の ネイティブ コピー1つで解いて返します。
+2引数 `rdiv!(B, F)` も同じ条件で `transpose(B)`に在位置求解します。`scratch=`を
+渡すと因子種別ごとの低水準 カーネルが 呼び出し元の作業領域 上で動き、在位置求解は ネイティブ
 割当なしになります。長方形・ランク落ちした QR・SVD 因子、型昇格は従来の新規結果の
-経路で、Julia の書き込み先へは結果を native に1回代入します。
+経路で、Juliaの書き込み先へは結果を Rust 側で1回代入します。
 
 ```julia
 using Colmat, LinearAlgebra
 
 J = [4.0 1; 1 3]
-F = lu(faerview(J))                  # J を直接読む native LU
+F = lu(faerview(J))                  # J を直接読む ネイティブ LU
 @assert F isa Colmat.FaerFactorization
 B = [1.0 2; 3 4]
 ldiv!(F, B)                          # B の記憶域で直接求解
@@ -82,7 +84,11 @@ ldiv!(F, B)                          # B の記憶域で直接求解
 @assert eigvals(Hermitian(faerview(J))) ≈ eigvals(Hermitian(J))
 ```
 
-## SVD algorithms and tuning
+## 特異値分解（SVD）と計算方法
+
+SVDは `A ≈ U * Diagonal(S) * Vt`と表す分解です。`S`の値（特異値）は、行列が各方向をどれだけ拡大するかを表します。小さな特異値は、入力の違いを結果から区別しにくい方向に対応します。`svdvals(A)`は特異値だけを返します。
+
+`alg=LinearAlgebra.QRIteration()`で計算方法を選べます。性能調整の `with_svd_tuning`は通常不要です。設定を変える場合は作業領域の照会と実行を同じスコープ内で行ってください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -94,121 +100,73 @@ G = with_svd_tuning(; recursion_threshold=8, qr_ratio_threshold=1.5) do
     svd(A)
 end
 @assert G.S ≈ F.S
-close(A)
 ```
 
-`alg=DivideAndConquer()` (the default) uses faer's driver, which runs the
-bidiagonal implicit QR algorithm below `recursion_threshold` (128) and divide
-and conquer above it; `alg=QRIteration()` uses the implicit QR algorithm at
-every size. `with_svd_tuning(f; recursion_threshold, qr_ratio_threshold,
-bidiag_par_threshold, qr_blocking_threshold)` overrides faer's `SvdParams` (the
-last is the blocking threshold of the QR that precedes bidiagonalization for
-tall inputs; faer's QR workspace does not depend on it) for every SVD, scratch query,
-`FaerScratch` and `reserve!` in the scope (unspecified values keep the enclosing
-scope's), and calls without `scratch`/`team` then use the parameterized
-workspace driver. The scope holds Colmat's native-call lock.
-## Column-pivoted QR rank and truncated solves
+## 列を並べ替える QRと数値ランク
+
+ランクは独立な列の数です。丸め誤差があるため、数値計算では小さな特異値をゼロとみなす許容誤差を指定します。`qr(A, ColumnNorm())`は列を並べ替えて分解し、`rank(F; atol, rtol)` や許容誤差付きの `ldiv!`で保存因子を再利用できます。
+
+しきい値は絶対許容誤差 `atol`と相対許容誤差 `rtol` から決まります。しきい値を大きくすると、解に使う方向を減らします。ランク不足の最小ノルム解では、保存した Rの SVDを使います。
 
 ```julia
 using Colmat, LinearAlgebra
 a = [1.0 2 3; 2 4 6; 1 0 1; 0 1 1]
-a[:, 2] = 2a[:, 1]                       # rank two
+a[:, 2] = 2a[:, 1]                       # ランクは 2
 F = qr(FaerMatrix(a), ColumnNorm())
 @assert rank(F) == 2
 @assert rank(F; atol=1e3) == 0
 B = reshape([1.0, 2, 3, 4], 4, 1)
-B, r = ldiv!(F, B, 1e-10)               # minimum-norm, rank-truncated
+B, r = ldiv!(F, B, 1e-10)               # 小さい特異値を切り捨てた最小ノルム解
 @assert r == 2
 @assert B[1:3, :] ≈ pinv(a) * [1.0, 2, 3, 4]
 X = zeros(3, 1)
-ldiv!(X, F, [1.0 2 3 4]'; rtol=1e-10)   # keyword form, same kernel
+ldiv!(X, F, [1.0 2 3 4]'; rtol=1e-10)   # キーワード形式も同じ計算を使う
 @assert X == B[1:3, :]
 x = ldiv!(zeros(3), F, [1.0, 2, 3, 4]; atol=1e3)
-@assert iszero(x)                       # rank zero writes zeros
-close(F)
+@assert iszero(x)                       # ランクが 0 ならゼロを書き込む
 ```
 
-`rank(F; atol, rtol)` follows `rank(::QRPivoted)`: the first stored
-`|R[i,i]| <= max(atol, rtol*|R[1,1]|)`, with the same default `rtol`. It reads
-the native R diagonal without reconstruction. `ldiv!(F, B, rcond; team)`
-matches `ldiv!(::QRPivoted, B, rcond)`. `B` needs at least `max(m,n)` rows,
-its first `n` rows receive the minimum-norm solution, and the rank is
-returned. The rank is decided with `rtol=rcond`, whereas LAPACK `xgelsy`
-estimates it incrementally, so the two can differ for pivots near the
-threshold. The leading rank rows of R are completed orthogonally on the
-native side. faer's `ColPivQr` has no rank or tolerance API of its own.
+## 保存した QR から疑似逆行列を作る
 
-`ldiv!(X, F, B; atol, rtol, team)` (vector or matrix `B` with `m` rows, `X` of
-size `(n, size(B, 2))`) and the square `ldiv!(F, B; atol, rtol, team)` truncate to
-`rank(F; atol, rtol)` and run the same kernel, so `atol=0, rtol=rcond` reproduces
-the positional result exactly. Defaults follow `pinv` and the sparse-QR
-minimum-norm solve: `atol=nothing` is zero and `rtol=nothing` is
-`min(m,n)*eps(real(T))` when `atol` is zero. The rank uses the source precision;
-a real factor solves a complex `B` (both forms) by parts. `X` may alias `B`, and
-validation errors, including a non-finite `B`, leave the destination unchanged.
-Without `atol`/`rtol` the ordinary dense solve runs. Tolerances are rejected
-with `scratch=` and on transposed or adjoint factors.
-
-## Pseudoinverses of saved QR factors
+疑似逆行列は、逆行列が存在しない場合や長方形の行列でも最小二乗解を表すための行列です。`pinv(F; atol, rtol)`は保存した QRの Rと反射を使い、元の入力を再分解しません。結果は独立した密行列なので、大きな問題では必要なメモリに注意してください。解だけが必要なら `ldiv!`を使えます。
 
 ```julia
 using Colmat, LinearAlgebra
-a = [1.0 2 3; 2 4 6; 1 0 1; 0 1 1]       # rank two
+a = [1.0 2 3; 2 4 6; 1 0 1; 0 1 1]       # ランクは 2
 F = qr(FaerMatrix(a), ColumnNorm())
 P = pinv(F; rtol=1e-10)
 @assert Matrix(P) ≈ pinv(a; rtol=1e-10)
 FaerTeam(2) do team
-    work = FaerScratch(pinv, F; team)    # SVD of saved R
+    work = FaerScratch(pinv, F; team)    # 保存した R の SVD 用
     Q = pinv(F; scratch=work, team)
     @assert Matrix(Q) ≈ pinv(a)
     close(Q)
     close(work)
 end
-close(P)
-close(F)
 ```
 
-`pinv(F; atol, rtol, team, scratch)` of a saved `qr(A)` or `qr(A, ColumnNorm())`
-returns an independent native `FaerMatrix` without refactorizing A. With
-`A·P = Q·R`, R has the singular values of A, so the cutoff
-`max(atol, rtol*maximum(svdvals(A)))` and the defaults (`rtol =
-min(m,n)*eps(real(T))` when `atol` is zero, otherwise zero) are those of
-`pinv(A; atol, rtol)`. Tall, wide, square and rank-deficient factors use the same
-path. The SVD of R runs in caller scratch (`scratch_requirements(pinv, F;
-team)`, `FaerScratch`, `reserve!`), and the retained singular columns are applied
-through the saved Householder reflectors, so no dense Q is formed. A direct
-`qr!(A; scratch)` factor (`FaerInPlaceFactorization`) uses the native SVD
-pseudoinverse of `F.R` and its thin Q on `team`, without a scratch form.
+## 行列式とトレース
 
-Julia has no `pinv` for LU, Cholesky, LDLᵀ or Bunch–Kaufman factors. These
-factors are only useful for nonsingular input, where `inv(F)` is the
-pseudoinverse; for singular input they carry no rank-revealing information, so
-Colmat does not add them. Schur and Hessenberg factors would need the same SVD
-as `pinv(A)`.
-## Determinant and trace
+`det(A)`は行列式、`tr(A)`は対角成分の和（トレース）です。`logabsdet`は行列式の絶対値の対数と符号を返し、積が極端に大きい・小さい場合に便利です。特異かどうかの数値判定には行列式の大きさだけを使わず、ランクや特異値も確認してください。
 
 ```julia
 using Colmat, LinearAlgebra
 A = FaerMatrix([4.0 1 2; 1 3 0; 2 0 5])
 @assert det(A) ≈ 43
-@assert det(view(A, 3:-1:1, :)) ≈ -43        # borrowed view, no copy
+@assert det(view(A, 3:-1:1, :)) ≈ -43        # ビューを借用し、コピーしない
 team = FaerTeam(2)
 @assert det(A'; team) ≈ 43
 close(team)
-@assert det(LowerTriangular(A)) == 60       # product of the stored diagonal
+@assert det(LowerTriangular(A)) == 60       # 格納された対角成分の積
 @assert logabsdet(FaerDiagonal([2.0, -3.0])) == (log(6.0), -1.0)
 @assert tr(view(A, 1:2, 1:2)) == 7
 ```
 
-`det` of a native matrix, range view, `transpose` or `adjoint` calls faer's
-`determinant` on the borrowed view; `team=` runs it on a caller-owned
-`FaerTeam`. Triangular wrappers and `FaerDiagonal` use only the stored
-diagonal for `det`, `tr` and `logabsdet` (a zero entry gives `(-Inf, 0)`).
-Non-square operands throw `DimensionMismatch`, empty operands give a
-determinant of one, and a real negative determinant makes `logdet` throw
-`DomainError`.
+## 三角行列・対角行列の積
 
-## Structured products
+`LowerTriangular(A)`は下三角だけを使う行列、`UpperTriangular(A)`は上三角だけを使う行列です。`UnitLowerTriangular` などは対角を 1とみなします。無視される側に値があっても計算には使いません。
+
+`mul!`は出力先へ積を書き込みます。`structured_mul!`の `dest`で出力する三角領域を指定できます。対角行列との積は行または列を拡大・縮小する操作であり、密な対角行列を作る必要はありません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -222,50 +180,11 @@ D = FaerDiagonal([2.0, 3.0])
 mul!(B, L, B, 2.0, 0.0)
 @assert Matrix(B) == 2Matrix(C)
 v = FaerVector([1.0, 1.0])
-@assert Vector(L * v) == [2.0, 7.0]           # a native FaerVector
+@assert Vector(L * v) == [2.0, 7.0]           # Rust 所有の FaerVector
 E = FaerMatrix(fill(-1.0, 2, 2))
 structured_mul!(E, L, FaerMatrix([1.0 0; 0 1]); dest=:strict_lower)
-@assert Matrix(E) == [-1.0 -1; 3 -1]      # only the strict lower block is written
+@assert Matrix(E) == [-1.0 -1; 3 -1]      # 対角を除く下三角だけを書き換える
 ```
-
-Lower/upper and unit-triangular wrappers use faer's `matmul::triangular`.
-`FaerDiagonal` and Julia `Diagonal` use native diagonal products. These
-methods return a `FaerMatrix`, including triangular×triangular products, and a
-triangular wrapper times a `FaerVector` returns a `FaerVector`. Operands are
-borrowed rather than snapshotted: native parents, ranges and their
-`transpose`/`adjoint` through view descriptors, and strided Julia parents of
-the product type directly from their buffers (other Julia inputs and scalar
-conversions are copied once). `mul!` into a native matrix, range view or
-`FaerVector` writes the destination in place with faer's accumulation, so no
-temporary result is allocated; an operand sharing the destination's storage is
-snapshotted first. A zero `β` does not read the destination and a zero `α`
-does not read the operands. When the promoted type is wider than the
-destination, the product is computed out of place and converted.
-`structured_mul!(C, A, B, α, β; dest)` additionally selects the destination
-block (`:full`, `:lower`, `:upper`, `:strict_lower`, `:strict_upper`) that is
-computed and written. Unused triangles and implicit unit diagonals are
-ignored, including nonfinite values stored there.
-
-Structured wrappers mixed with Julia arrays follow the same rule as other
-mixed products: a native operand gives a native result. A triangular wrapper
-of a `FaerMatrix`, a range view or their `transpose`/`adjoint` (so
-`UpperTriangular(A)'` too) times a strided Julia matrix, its lazy
-transpose/adjoint, a `faerview` or a Julia vector (on either side for
-matrices) borrows the Julia operand and returns a `FaerMatrix`/`FaerVector`.
-`mul!` with these operands, and with a Julia-parent wrapper or a Julia
-`Diagonal` and a native operand, writes a strided Julia destination (or a
-`faerview`) in place through its buffer; operands sharing the destination's
-memory are snapshotted first. `Symmetric`/`Hermitian` wrappers (native or
-strided Julia parents) with native operands, Julia operands of a native
-wrapper, triangular wrappers or each other are expanded once, natively, from
-the stored triangle (a `Hermitian` diagonal keeps its real part) because faer
-has no self-adjoint product kernel; the product then takes the dense gemm path.
-`Bidiagonal`, `Tridiagonal` and `SymTridiagonal` with a native matrix copy the
-native operand to Julia once and use LinearAlgebra's O(n²) banded kernel,
-returning a `FaerMatrix` (expanding the band for faer's gemm would make the
-product O(n³)). `FaerMatrix ± Diagonal` (and view operands) passes only the
-diagonal's n entries to Rust. Without these routes LinearAlgebra's generic
-kernels read the native operand element by element (hundreds of MB at n=64).
 
 ```julia
 using Colmat, LinearAlgebra
@@ -274,31 +193,14 @@ J = [1.0 2; 3 4]
 @assert UpperTriangular(A) * J isa FaerMatrix
 @assert Matrix(Symmetric(A) * J) ≈ Symmetric([2.0 1; 3 4]) * J
 C = zeros(2, 2)
-mul!(C, UpperTriangular(A), J)              # written in C's buffer
+mul!(C, UpperTriangular(A), J)              # C の格納領域へ直接書く
 @assert C ≈ UpperTriangular([2.0 1; 3 4]) * J
 @assert Matrix(A + Diagonal([1.0, 1.0])) == [3.0 1; 3 5]
 ```
 
-`FaerDiagonal` or Julia `Diagonal` times a `FaerMatrix`, a range view, their
-`transpose`/`adjoint`, or a triangular wrapper of a `FaerMatrix` (on either
-side) scales rows or columns in
-Rust: the stored diagonal is borrowed as a column (a Julia `Diagonal` crosses
-as its contiguous buffer for one call) and never expanded to a dense matrix,
-and the dense operand is borrowed in place. `mul!(C, D, B, α, β)` with
-a `FaerMatrix` or view destination folds `α` into an O(n) copy of the diagonal,
-builds the result in one Rust buffer and writes it into `C`; `β == 0` never reads
-`C`, `α == 0` never reads the operands, and an operand sharing the destination's
-owner is first copied natively. A native dense operand of a narrower scalar
-type is converted once in Rust (applying its transpose or conjugation) rather
-than through a Julia snapshot. A destination narrower than the promoted type
-is intentionally computed in the promoted type and converted on assignment, as
-LinearAlgebra does (a nonreal result for a real destination throws
-`InexactError`). `D * v::FaerVector` and `r::FaerRow * D` return native vectors,
-and `mul!(y, D, x, α, β)` / `mul!(z, r, D, α, β)` write native column (or
-column view) and row destinations in place. `transpose(D)` and `D'` take the
-same native paths (`D'` of a complex diagonal is one O(n) conjugated copy).
+## 並べ替え付き Cholesky 分解
 
-## Pivoted Cholesky
+Cholesky 分解は正定値行列を三角因子に分けます。`RowMaximum()`を指定する形式は対角の大きさで並べ替え、正の半定値行列のランクを扱えます。`check=false`では状態を自分で確認してください。分解を得たことと、任意の右辺に対して通常の逆行列が存在することは別です。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -312,39 +214,9 @@ G = cholesky(B, RowMaximum(); tol=-1)
 @assert Matrix(B) * (G \ [1.0, 2.0]) ≈ [1.0, 2.0]
 ```
 
-Pivoted factors use independently owned native storage. `F.L`, `F.U`, `F.p`,
-`F.P`, `rank(F)` and reconstruction follow `CholeskyPivoted` conventions.
-Negative `tol` selects faer's automatic threshold; nonnegative `tol` selects
-an absolute cutoff in the Rust adapter's complete diagonal-pivot method because
-faer's factor kernel does not expose a tolerance parameter. The Julia default
-is `tol=0`. Reconstruction, full-rank solves and inverses use faer's pivoted LLT
-kernels. Rank-deficient factors require `check=false`; their solves/inverses
-throw `RankDeficientException`. Native snapshots and workspace are allocated.
-`close(F)` closes its native factors; a copied factorization remains usable.
+### 並べ替え付き Choleskyの作業領域
 
-### Pivoted Cholesky workspace and blocking
-
-`cholesky[!](A, RowMaximum(); scratch, team, block_size=128)` supports native
-matrices and views, including stored-triangle wrappers. A positive `block_size`
-controls both faer's automatic-tolerance kernel (`tol<0`) and the adapter's
-absolute-tolerance panel algorithm (`tol>=0`). The latter uses native matrix
-products for its trailing updates. A team selects the native execution context;
-small or sequential parts need not use every worker.
-`block_size=0` is rejected before query/compute: the selected faer revision otherwise
-loops without advancing its panel index ([faer #283](https://github.com/tensor4all/faer/issues/283)).
-
-The same `tol`, `block_size` and team must be used for query, reserve and compute.
-Declared caller scratch includes permutation arrays, faer's kernel temporaries,
-and the Hermitian working matrix for explicit tolerance. Returned factors,
-view copies, factor/RHS promotion, upper-factor conversion, owned results and
-Julia arrays allocate separately.
-
-Saved factors accept `scratch`/`team` in `ldiv!`, `rdiv!`, `inv`, and
-`reconstruct`; native RHS `\` and `/` return native matrices. Queries always
-put F before B, including right solves. The stored factors are reused across
-promoted RHS types. Bang construction and in-place solves stage their output;
-destination aliases of factor storage are rejected. Rank-deficient factors
-support reconstruction, while solve/inverse still require full rank.
+`FaerScratch`と `team`を使えます。許容誤差やブロックの設定を含め、必要量照会と実行で同じ引数を渡してください。入力を更新する形式では、元の値が必要なら先にコピーします。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -380,7 +252,9 @@ finally
 end
 ```
 
-## Destructive factorization entry points
+## 入力を書き換える分解
+
+`lu!` や `qr!`の `!`は入力が更新されることを示します。結果の保存形式は元の行列とは異なります。通常の形式では独立した因子を計算してから入力に書き戻しますが、`scratch`を渡す直接分解では入力と返り値の因子が格納領域を共有します。次の節の使い分けを確認してください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -396,59 +270,24 @@ sequence = FaerHouseholderSequence(Q.Qbasis, Q.Qcoeff)
 @assert Matrix(B) == Matrix(Q.packed)
 ```
 
-`lu!`, `qr!` (including `ColumnNorm()`) and `cholesky!` (including `RowMaximum()`)
-compute independent native factors and then overwrite the input after the result
-is available. Existing same-shape views observe the packed entries. The returned
-factorization remains independent if the input changes or closes. These methods
-allocate factors and staging buffers; errors before writeback preserve the input.
-Failed ordinary `cholesky!(...; check=false)` returns an unsuccessful factor
-without changing the input.
+## 入力の格納領域を直接使う分解
 
-LU packed storage combines U with the strict lower part of L. QR combines R
-with the strict lower Householder basis; its block coefficients are exposed as
-`F.Qcoeff` and its basis as `F.Qbasis`. This is faer's block format, rather than
-LAPACK's tau layout. `F.packed` returns an independent copy, with lower storage
-for Cholesky. Upper-triangle Cholesky wrappers receive U in the input instead.
+`lu!(A; scratch)` などは `FaerInPlaceFactorization`を返し、入力 `A`に保存した因子を参照します。`A`を変更・サイズ変更・`close` すると因子にも影響するため、分解の利用中は入力を保ってください。
 
-## Direct in-place LU, QR, Cholesky, LDLᴴ and Bunch–Kaufman
+対象は LU、完全ピボット LU、QR、列ピボット QR、Cholesky、LDLᴴ、Bunch–Kaufmanです。入力の形状・数値型・設定を合わせて作業領域を用意します。直接書き換えるため、数値的な失敗後も元の入力を保つ保証はありません。入力を残したいときは `lu(A)` などを使います。メモリ確保の削減は処理や大きさに依存し、Rust 内部の確保までゼロとは限りません。
 
 ```julia
 using Colmat, LinearAlgebra
 A = FaerMatrix([4.0 1; 1 3])
 work = FaerScratch(lu!, A)          # scratch_requirements(lu!, A; team)
-F = lu!(A; scratch = work)          # faer lu_in_place on A's own storage
+F = lu!(A; scratch = work)          # A 自身の格納領域で LU 分解
 @assert F isa FaerInPlaceFactorization && F.factors === A
 B = FaerMatrix([1.0 2; 3 4])
 solve = FaerScratch(ldiv!, F, B)
-ldiv!(F, B; scratch = solve)        # overwrites B with A \ B
+ldiv!(F, B; scratch = solve)        # B を A \ B で上書き
 C = FaerMatrix([4.0 1; 1 3])
 G = cholesky!(Hermitian(C, :U); scratch = FaerScratch(cholesky!, C))
 ```
-
-Passing `scratch=` to `lu!`, `qr!`/`qr!(A, NoPivot())` or `cholesky!`
-(including `Hermitian`/`Symmetric` wrappers) selects the direct path. faer's
-`lu_in_place`, `qr_in_place` or `cholesky_in_place` runs on the input's native
-storage, and the result is a `FaerInPlaceFactorization` that aliases it, as
-Julia's `lu!` does. The packed layout is the same as above. The LU permutation
-and the QR block coefficients live in Julia-owned buffers of F. Writes to A
-change F. Closing, resizing or truncating A invalidates F. Shape, scalar,
-scratch, team, finiteness and Hermitian checks all run before the first write.
-A numerical failure (a singular LU with `check=true`, or a non-positive-definite
-Cholesky) leaves A partially factored, as LAPACK does.
-
-The same `scratch=` keyword selects the direct path for `full_piv_lu!(A)`
-(faer `lu::full_pivoting::factor::lu_in_place`; `F.p` and `F.q` hold both
-permutations), `ldlt!(A)` (`cholesky::ldlt::factor::cholesky_in_place`; L below
-the diagonal and D on it) and `bunchkaufman!(A, rook)`
-(`cholesky::lblt::factor::cholesky_in_place` with the same `LbltParams` as the
-retained factor: `Rook` for `rook=true`, faer's default `PartialDiag`
-otherwise). LDLᴴ and Bunch–Kaufman take a Hermitian `FaerMatrix` or a
-`Hermitian`/`Symmetric` wrapper and, for an upper wrapper, store the adjoint
-factor in the upper triangle. Bunch–Kaufman keeps the block diagonal's
-off-diagonal and the symmetric permutation in Julia-owned buffers of F and
-provides `F.D`, `F.p`, `F.P`, `F.rook` and `inertia(F)`. Size the workspace with
-`scratch_requirements(full_piv_lu!, A)`, `scratch_requirements(ldlt!, A)` or
-`scratch_requirements(bunchkaufman!, A[, rook])`.
 
 ```julia
 H = FaerMatrix([1e-8 2 0; 2 -3 1; 0 1 4])
@@ -456,190 +295,53 @@ K = bunchkaufman!(Hermitian(H, :U), true; scratch = FaerScratch(bunchkaufman!, H
 K \ [1.0, 2.0, 3.0]
 ```
 
-`qr!(A, ColumnNorm(); scratch, team)` runs faer's column-pivoted
-`qr::col_pivoting::factor::qr_in_place` on A and returns a
-`FaerInPlaceFactorization{T,:pivoted_qr}`. A holds the packed QR of `A*P`, and
-the column permutation (`F.p`, and `F.P` with `A*P == Q*R`) and the block
-coefficients live in Julia-owned buffers of F. The packed factor, `F.p` and
-`F.Qcoeff` are bit-identical to those of `qr(A, ColumnNorm())`. Besides the
-solves, right solves, `inv`/`inv!` and parts above, `rank(F; atol, rtol)`,
-`ldiv!(F, B, rcond)` and `ldiv!(X, F, B; atol, rtol)` use the retained factor's
-rank rule and rank-truncated minimum-norm kernel (see the column-pivoted QR
-section), and `pinv(F; atol, rtol)` is available. The plain `F \ b` and
-`ldiv!(F, B)` run faer's least-squares solve without a rank test, so use a
-tolerance form for rank-deficient factors.
-
 ```julia
-X = [1.0 2 3; 2 4 6; 1 2 1; 0 0 1]                  # rank two
+X = [1.0 2 3; 2 4 6; 1 2 1; 0 0 1]                  # ランクは 2
 P = FaerMatrix(X)
 F = qr!(P, ColumnNorm(); scratch = FaerScratch(qr!, P, ColumnNorm()))
 @assert rank(F) == 2 && F.factors === P
 x = zeros(3)
-ldiv!(x, F, [1.0, 2, 3, 4]; rtol = 1e-10)           # minimum-norm solution
+ldiv!(x, F, [1.0, 2, 3, 4]; rtol = 1e-10)           # 最小ノルム解
 @assert x ≈ pinv(X) * [1.0, 2, 3, 4]
 ```
-
-`ldiv!(F, B; scratch, team)` solves in place on a `FaerMatrix` B of the same
-scalar type, including through `transpose(F)` and `adjoint(F)`. Tall QR writes
-the least-squares solution into `B[1:n, :]`. `\`, the factor properties,
-`Matrix(F)`, `inv`, and `det`/`logabsdet`/`logdet` (all but QR; computed
-natively from the stored pivots with the diagonal log-measure) are also
-available.
-
-With caller scratch, Colmat allocates no native memory for the factorization
-or the solve. Small shapes make no native allocation at all. Blocked shapes
-still allocate inside faer's matrix products (also inside its blocked
-triangular solves). On aarch64 with `Par::Seq`:
-
-| case | direct | default path |
-| :--- | ---: | ---: |
-| LU 70×70 | 9 | 14 |
-| full-pivot LU 70×70 | 0 | 7 |
-| LDLᴴ 70×70 / 140×140 | 1 / 18 | 4 / 21 |
-| Bunch–Kaufman 70×70 / 140×140 | 0 / 22 | 6 / 28 |
-| solves up to 70×70 | 0 | — |
-| LDLᴴ/Bunch–Kaufman solve 140×140, 3 RHS | 8 | — |
-
-A lone faer 70×35×70 product allocates twice and a lone 140×140 unit-triangular
-solve four times (t4a-faer `upstream-reports/gemm-001`). With a `FaerTeam` of
-width 2, the direct LU, full-pivot LU, QR, column-pivoted QR and Cholesky
-factorizations and their solves made no allocation on the calling thread at
-n = 6 and n = 200 (aarch64). The test allocation probe counts the calling
-thread only, so allocations on the team's workers are not visible in these
-figures.
-
-Square factors also solve from the right in B's own storage:
-`rdiv!(B, F; scratch, team)` (and `transpose(F)`, `adjoint(F)`) runs faer's
-in-place left solve on the transposed view of B, as `Aᵀ Xᵀ = Bᵀ` for `X A = B`
-and as the conjugate-only solve `conj(A) Xᵀ = Bᵀ` for `X Aᴴ = B`. Size its
-workspace with `scratch_requirements(rdiv!, B, F)`. `B / F` returns a
-`FaerMatrix` solved in one native copy of B.
-
-`LinearAlgebra.inv!(F; scratch, team)` overwrites A (`F.factors`) with `inv(A)`
-and returns it, like Julia's `inv!(::LU)` and `inv!(::Cholesky)`. For LDLᴴ,
-Bunch–Kaufman and Cholesky both triangles hold the Hermitian inverse. faer's
-inverse kernels read the factor while they write their output, so the packed
-factor (and Bunch–Kaufman's off-diagonal) is first copied into scratch
-(`scratch_requirements(inv!, F)`). F no longer holds a factor afterwards, so
-`inv!` closes it. Singular, failed or non-square factors throw before any
-write. `LinearAlgebra.inv!(A::FaerMatrix; scratch, team)` inverts a square
-matrix in place through its direct LU, with one workspace sized by
-`scratch_requirements(inv!, A)`.
 
 ```julia
 A = FaerMatrix([4.0 1; 2 3])
 F = lu!(A; scratch = FaerScratch(lu!, A))
 X = FaerMatrix([1.0 2; 3 4])
-rdiv!(X, F; scratch = FaerScratch(rdiv!, X, F))   # X / A, in X's storage
+rdiv!(X, F; scratch = FaerScratch(rdiv!, X, F))   # X 自身の格納領域で X / A を計算
 LinearAlgebra.inv!(F; scratch = FaerScratch(LinearAlgebra.inv!, F))
 @assert Matrix(A) ≈ inv([4.0 1; 2 3]) && !isopen(F)
 ```
 
-With caller scratch, right solves and `inv!` made no native allocation for any
-kind (LU, full LU, QR, Cholesky, LDLᴴ, both Bunch–Kaufman pivotings, both
-storage triangles) at n = 6 and n = 70 (complex double, aarch64, `Par::Seq`).
-The zero-pivot check of a QR factor runs natively before any write, so it does
-not allocate either.
+## 三角行列を使った求解
 
-`ldiv!(F, b)` of a square direct factor also overwrites Julia strided arrays
-and `FaerVector`s, and a real factor solves a complex `b` as two real solves.
-`FaerLinearOperator(F)` (and `M = F` in `cg`/`bicgstab`/`lsmr`) is an
-inverse-action operator over an independent copy of the direct factor.
-`F \ b` of a rectangular LU or wide-QR direct factor (or a transposed rectangular
-one) returns the minimum-norm least-squares solution through the pseudoinverse.
-`pinv(F; atol, rtol, team)` of a direct QR is supported (see below). A
-right-hand side of a wider scalar type promotes as for retained factors (two
-real solves for a complex `b` of a real factor's precision, otherwise one
-refactorization of `reconstruct(F)` in the promoted type).
+三角行列なら、一般の LU 分解をせず順に未知数を求められます。`ldiv!`は左から、`rdiv!`は右からの求解です。ネイティブ配列・ビュー・借用配列を親にした三角ラッパーに対応します。普通の Julia 行列を親にした場合は Julia 標準の処理を使います。コピーなしで Colmatの処理を選ぶには `LowerTriangular(faerview(A))` などを使います。
 
-Pivoted Cholesky factors A itself with `cholesky!(A, RowMaximum(); inplace=true)`
-(`A` a `FaerMatrix`/view or `Hermitian(A, :L)`; the lower triangle is read). The
-returned `CholeskyPivoted` has `F.factors === A`. With faer's automatic
-threshold (`tol < 0`) faer factors A's storage directly on caller `scratch`
-(`FaerScratch(cholesky!, A, RowMaximum(); tol)`) and `team`; an explicit
-`tol >= 0` runs the panel algorithm, which builds its own L before writing it
-into A, because faer's in-place kernel has no absolute cutoff. Without
-`inplace=true`, `cholesky!(A, RowMaximum(); scratch)` keeps its existing meaning
-(caller scratch for an independent factor, then writeback).
+ゼロの対角成分は `SingularException`になります。型の昇格や入出力の重なりがある場合は一時コピーが必要です。`inv!`は選択した三角領域だけを逆行列で置き換え、反対側は変更しません。単位三角ラッパーの格納対角も変更しません。
 
-## Direct triangular solves and destructive triangular inverses
+`cond(A, 1)`と `cond(A, Inf)`は逆行列を明示的に作らない推定値です。`cond(A, 2)`は特異値を使います。
 
 ```julia
 using Colmat, LinearAlgebra
 A = FaerMatrix([2.0 0; 1 4])
 B = FaerMatrix([2.0 4; 9 8])
-ldiv!(LowerTriangular(A), B)            # solved in B's own storage
+ldiv!(LowerTriangular(A), B)            # B 自身の格納領域で求解
 @assert Matrix(B) ≈ LowerTriangular([2.0 0; 1 4]) \ [2.0 4; 9 8]
 X = [1.0 2; 3 4]
-rdiv!(X, UpperTriangular(transpose(A))) # X / transpose(L), in place in X
+rdiv!(X, UpperTriangular(transpose(A))) # X を X / transpose(L) で更新
 Z = FaerMatrix(ComplexF64[1 2; 3 4])
-work = FaerScratch(ldiv!, LowerTriangular(A), Z) # promoted triangle copy
+work = FaerScratch(ldiv!, LowerTriangular(A), Z) # 数値型を昇格した三角行列のコピー用
 ldiv!(LowerTriangular(A), Z; scratch = work)
 T = UpperTriangular(FaerMatrix([2.0 1; 0 4]))
 LinearAlgebra.inv!(T; scratch = FaerScratch(LinearAlgebra.inv!, T))
 ```
 
-Lower/upper/unit triangular wrappers of a `FaerMatrix`, a native matrix view, a
-`faerview` borrow of Julia memory (including its strided views) or the
-`transpose`/`adjoint` (or elementwise conjugate) of any of them solve with faer's
-`solve_{unit_}{lower,upper}_triangular_in_place_with_conj`. The triangle is
-borrowed through its view descriptor, so transposed, adjoint and strided parents
-are never copied. `ldiv!(A, B)`, `ldiv!(Y, A, B)` and `rdiv!(B, A)` run the
-kernel directly on the destination when it is a `FaerMatrix`/`FaerVector`, a
-native view, a `faerview` borrow or an injective Julia strided array holding
-`promote_type(eltype(A), eltype(B))`. `rdiv!` solves `transpose(op(A)) *
-transpose(X) = transpose(B)` on the same memory. Narrower or non-strided
-destinations stage one promoted copy. A destination that shares the triangle's
-owner, or for a `faerview` parent the same Julia memory, solves from a
-snapshot of the triangle. `A \ B` and `B / A` return a `FaerMatrix` (a vector
-RHS returns a vector, and a row vector stays a row vector).
+## 不定値分解と完全ピボット LUの更新形式
 
-A plain Julia array parent (`LowerTriangular(::Matrix)`) intentionally keeps
-LinearAlgebra's path: with a Julia RHS every type involved belongs to Base, so a
-Colmat method would be type piracy, and LinearAlgebra already solves strided
-`BLAS` triangles in place with `trsm`/`trsv`. Wrap the parent with `faerview(A)`
-to select the native kernel without copying it.
+`ldlt!`、`bunchkaufman!`、`full_piv_lu!`は通常、独立した因子を作ってから入力へ書き戻します。`scratch` 付きの直接分解とは所有権が異なります。
 
-faer's dense triangular kernels need no workspace. `scratch` holds only the
-promoted copy of a triangle whose scalar is narrower than the promoted type
-(for example, a real triangle with a complex RHS), so
-`scratch_requirements(ldiv!, A, B)` is zero without promotion. It is also
-defined for `\`, `rdiv!` and `ldiv!(Y, A, B)`, with `FaerScratch` and
-`reserve!` for each. `team=` runs the kernel on a caller-owned `FaerTeam`.
-Zero diagonals throw `SingularException(i)`. Closed owners, closed teams and
-undersized scratch throw before any write.
-
-`LinearAlgebra.inv!(A; scratch, team)` overwrites the selected triangle of the
-parent (any of the parents above, including `adjoint`, conjugated and
-`faerview` parents) with the inverse triangle and returns `A`, as Julia's
-`inv!` does for strided triangles. A conjugated parent needs no extra pass:
-the stored triangle is inverted unconjugated, since `inv(Xᴴ) = inv(X)ᴴ`. The
-opposite strict triangle is untouched, and so is the diagonal of a unit
-wrapper. faer's `triangular_inverse::invert_*` kernels write into a separate
-destination, so the source triangle is first copied into scratch, sized by
-`scratch_requirements(inv!, A)`.
-
-With caller scratch, Colmat allocates no native memory on these paths. The
-direct solve made no native allocation through n = 70 (aarch64, `Par::Seq`).
-At n = 300, faer's blocked kernel can allocate matmul packing buffers: from 0
-to 12 per solve, depending on warm-up. The in-place inverse is allocation-free at n = 5, but faer's matrix
-products allocate at n = 70. See t4a-faer `upstream-reports/gemm-001`. Under a
-two-worker `FaerTeam`, the calling thread made no native allocation for left or
-right solves at n = 6, 70 and 300. The allocation probe observes only the
-calling thread, so allocations on the team's workers are not counted.
-
-`cond(A, 1)` and `cond(A, Inf)` of these wrappers are estimates, as Julia's
-LAPACK `trcon` path is for strided triangles. `opnorm(A, p)` is exact, and
-`‖A⁻¹‖ₚ` is the deterministic Higham–Tisseur block estimate (a lower bound,
-usually exact) from a few native solves with A and Aᴴ, so A⁻¹ is never formed.
-A zero diagonal gives `Inf`. `cond(A, 2)` uses the singular values. A native
-`Hermitian` (or real `Symmetric`) matrix computes `cond(A, 2)` as
-`maximum(abs.(λ))/minimum(abs.(λ))` from faer's self-adjoint eigenvalues instead
-of an SVD. At n = 1000 on aarch64 macOS, a triangular `cond(A, 1)` took 2.7 ms
-(1.0 s through the generic `inv`), and a Hermitian `cond(A)` took 94 ms (2.2 s
-through the generic SVD).
-
-## Destructive indefinite and full-pivot LU decompositions
+LDLᴴは `L * D * L'`の形です。Bunch–Kaufmanでは Dに 2×2 ブロックがあるため、入力に書かれた対角・下三角だけでは復元できません。返された `F.D`と置換 `F.p` も保持してください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -656,17 +358,6 @@ H = full_piv_lu!(C)
 @assert Matrix(H.L * H.U) ≈ original[H.p, H.q]
 ```
 
-`ldlt!`, `bunchkaufman!` and `full_piv_lu!` stage independent native factors
-before writing packed entries into the input. Same-shape views see those
-entries; returned factors remain independent of later changes or close.
-LDLT/block LDLT store D's diagonal plus strict-lower L (or its adjoint for an
-upper wrapper). Block LDLT keeps its block off-diagonals in the returned `F.D`
-and its permutation in `F.p`; retain those to reconstruct/solve. This is faer's
-split block representation. `F.packed` is always lower-oriented. Failed
-`ldlt!(...; check=false)` leaves input unchanged because no factor is available;
-allowed singular full-pivot LU/block LDLT write the available packed factors.
-These entry points allocate factors and writeback buffers.
-
 ## 自己随伴分解の Julia 規約
 
 ```julia
@@ -681,28 +372,28 @@ C = FaerMatrix(ComplexF64[4 1+2im; 1+2im 3])
 @assert cholesky(Symmetric(C); check = false).info == -1
 ```
 
-- `bunchkaufman[!](A, rook=false; check, team)` は Julia と同じ位置引数 `rook` を受け、
-  `true` で faer の rook ピボット（`PivotingStrategy::Rook`）を使います。`false` は従来どおり
-  faer 既定の `PartialDiag` で、LAPACK の古典的 Bunch–Kaufman（faer の `Partial`）とは
-  ピボット列が異なり得ます。`F.rook` は選んだ戦略を返し、`copy` と昇格求解の再分解でも保持されます。
-- `inertia(F; atol, rtol)` は `F.D` の 1×1/2×2 ブロックから Julia と同じ許容規則で
-  `(正, 負, 零)` 固有値数を数えます。`F.D` を密に取り出すため O(n²) の一時領域を使います。
-- `cholesky(A; check=false)` は非 Hermitian 入力に対して Julia と同様 `info == -1` の
-  失敗因子を返します（`check=true` は `PosDefException(-1)`）。`cholesky!` はこのとき入力を変更しません。
-  失敗因子は数値因子を保持しないため、成分取り出しはエラーになります。`F.UL` は `uplo` 側の三角因子です。
-- 複素 `Symmetric` ラッパーは、格納三角（対角を含む）が実数のとき Hermitian として分解します。
-  それ以外の複素対称（非 Hermitian）行列は、`cholesky` では Julia と同じく `info == -1`、
-  `ldlt`/`bunchkaufman` では `ArgumentError` です。t4a-faer の LDLᴴ/LBLᴴ は自己随伴専用で、
+- `bunchkaufman[!](A, rook=false; check, team)`は Juliaと同じ位置引数 `rook`を受け、
+  `true`で faerの rook ピボット（`PivotingStrategy::Rook`）を使います。`false`は従来どおり
+  faer 既定の `PartialDiag`で、LAPACKの古典的 Bunch–Kaufman（faerの `Partial`）とは
+  ピボット列が異なり得ます。`F.rook`は選んだ戦略を返し、`copy`と昇格求解の再分解でも保持されます。
+- `inertia(F; atol, rtol)`は `F.D`の 1×1/2×2 ブロックから Juliaと同じ許容規則で
+  `(正, 負, 零)` 固有値数を数えます。`F.D`を密に取り出すため O(n²)の一時領域を使います。
+- `cholesky(A; check=false)`は非 Hermitian 入力に対して Juliaと同様 `info == -1`の
+  失敗因子を返します（`check=true`は `PosDefException(-1)`）。`cholesky!`はこのとき入力を変更しません。
+  失敗因子は数値因子を保持しないため、成分取り出しはエラーになります。`F.UL`は `uplo` 側の三角因子です。
+- 複素 `Symmetric` ラッパーは、格納三角（対角を含む）が実数のとき Hermitianとして分解します。
+  それ以外の複素対称（非 Hermitian）行列は、`cholesky`では Juliaと同じく `info == -1`、
+  `ldlt`/`bunchkaufman`では `ArgumentError`です。t4a-faerの LDLᴴ/LBLᴴは自己随伴専用で、
   LAPACK `zsytrf` 相当の転置対称分解を提供しないためです。
-  `eigen`/`eigvals` も同じ規則で、格納三角が実数なら自己随伴 EVD（実固有値）、それ以外は一般 native EVD
-  （複素固有値）に渡します（spectral マニュアルの self-adjoint EVD algorithms 節）。
-- `F.uplo` は Julia の `Char` ではなく `Symbol`（`:L`/`:U`）です。LDLT/Bunch–Kaufman は
+  `eigen`/`eigvals` も同じ規則で、格納三角が実数なら自己随伴 EVD（実固有値）、それ以外は一般 ネイティブ EVD
+  （複素固有値）に渡します（spectral マニュアルの 自己随伴固有値計算の節）。
+- `F.uplo`は Juliaの `Char`ではなく `Symbol`（`:L`/`:U`）です。LDLT/Bunch–Kaufmanは
   常に下三角向きの `F.L`（`A[p,p] = L D Lᴴ`、上三角ラッパーは格納三角の随伴を分解）を返し、
-  Julia の `uplo='U'` における `F.U`（`A[p,p] = U D Uᴴ`）は提供しません。`F.L'` は
-  `Uᴴ D U` を満たすだけで Julia の `U` にならず、反転による上三角への付け替え
-  （`U = J L J`）は LAPACK `sytrf` の上三角因子と一致せず `F.D`/`F.p` の意味も変えるためです。
-  密な `ldlt(A)` は Julia 標準には無く（`SymTridiagonal`・疎のみ）、Colmat では
-  ピボットなし LDLᴴ として Hermitian 入力を受けます。`cholesky[!](A, NoPivot())` も同じ native 経路です。
+  Juliaの `uplo='U'`における `F.U`（`A[p,p] = U D Uᴴ`）は提供しません。`F.L'`は
+  `Uᴴ D U`を満たすだけで Juliaの `U`にならず、反転による上三角への付け替え
+  （`U = J L J`）は LAPACK `sytrf`の上三角因子と一致せず `F.D`/`F.p`の意味も変えるためです。
+  密な `ldlt(A)`は Julia 標準には無く（`SymTridiagonal`・疎のみ）、Colmatでは
+  ピボットなし LDLᴴとして Hermitian 入力を受けます。`cholesky[!](A, NoPivot())` も同じ ネイティブ 経路です。
 
 ## 自己随伴分解のパラメータと動的正則化
 
@@ -722,31 +413,31 @@ K = with_cholesky_tuning(; ldlt_block_size = 32, lblt_block_size = 16) do
 end
 ```
 
-- 結果を変える faer の設定は呼び出しごとのキーワードです。`cholesky`・`ldlt`（`!`、
-  `scratch=` の直接経路、`team=`、`faerview`・ラッパー入力を含む）の
-  `regularization_delta`/`regularization_epsilon` は faer の `LltRegularization`/
-  `LdltRegularization` を有効にします（両方正のときのみ。片方だけ・負・非有限は `ArgumentError`）。
-  分解される行列が `A` に対角摂動を加えたものに変わるため、意図した場合（前処理など）に限って使います。
-  `ldlt` の `regularization_signs`（各行 -1/0/1）は期待する符号です。`F.regularization_count` は
-  faer の `dynamic_regularization_count` です。
-- 固定版 faer の LLᴴ 正則化は置換したピボットの対角を誤って格納し、ブロック化経路では因子全体が
-  壊れます。Colmat は同じ置換規則・カウントを持つ faer の LDLᴴ カーネル（全符号 +1）で分解し、
-  `sqrt(D)` を掛けて L を作ります。LDLᴴ のカウントは期待符号 +1 のピボットだけを数え、
+- 結果を変える faerの設定は呼び出しごとのキーワードです。`cholesky`・`ldlt`（`!`、
+  `scratch=`の直接経路、`team=`、`faerview`・ラッパー入力を含む）の
+  `regularization_delta`/`regularization_epsilon`は faerの `LltRegularization`/
+  `LdltRegularization`を有効にします（両方正のときのみ。片方だけ・負・非有限は `ArgumentError`）。
+  分解される行列が `A`に対角摂動を加えたものに変わるため、意図した場合（前処理など）に限って使います。
+  `ldlt`の `regularization_signs`（各行 -1/0/1）は期待する符号です。`F.regularization_count`は
+  faerの `dynamic_regularization_count`です。
+- 固定版 faerの LLᴴ 正則化は置換したピボットの対角を誤って格納し、ブロック化経路では因子全体が
+  壊れます。Colmatは同じ置換規則・カウントを持つ faerの LDLᴴ カーネル（全符号 +1）で分解し、
+  `sqrt(D)`を掛けて Lを作ります。LDLᴴのカウントは期待符号 +1のピボットだけを数え、
   -1 方向の補正や符号なしの置換は数えません（どちらも
   [実行済み再現例](https://github.com/AtelierArith/Colmat.jl/tree/main/docs/reproducers/faer-selfadjoint-factor-params)）。
-- `bunchkaufman[!](A, rook; pivoting)` は `LbltParams.pivoting` の全戦略
-  `:partial`・`:partial_diag`（既定）・`:rook`・`:rook_diag`・`:full` を選べます。`F.rook` は
-  `:rook`/`:rook_diag` で `true`、`rook=true` と他の戦略の組み合わせは `ArgumentError` です。
-  `:partial` は LAPACK の古典的 Bunch–Kaufman と同じ探索規則ですが、ピボット列が一致するとは限りません
-  （9×9 の乱数対称行列 200 例で `bunchkaufman(Symmetric(A, :L)).p` と一致したのは 159 例）。
-  非推奨の `Diagonal` は提供しません。`scratch_requirements(bunchkaufman!, A, rook; pivoting)` も同じ戦略を受けます。
-- 性能だけに効く `LltParams`/`LdltParams` の `recursion_threshold`・`block_size` と
-  `LbltParams` の `block_size`・`par_threshold`（`:full` のみが参照）は
+- `bunchkaufman[!](A, rook; pivoting)`は `LbltParams.pivoting`の全戦略
+  `:partial`・`:partial_diag`（既定）・`:rook`・`:rook_diag`・`:full`を選べます。`F.rook`は
+  `:rook`/`:rook_diag`で `true`、`rook=true`と他の戦略の組み合わせは `ArgumentError`です。
+  `:partial`は LAPACKの古典的 Bunch–Kaufmanと同じ探索規則ですが、ピボット列が一致するとは限りません
+  （9×9の乱数対称行列 200 例で `bunchkaufman(Symmetric(A, :L)).p`と一致したのは 159 例）。
+  非推奨の `Diagonal`は提供しません。`scratch_requirements(bunchkaufman!, A, rook; pivoting)` も同じ戦略を受けます。
+- 性能だけに効く `LltParams`/`LdltParams`の `recursion_threshold`・`block_size`と
+  `LbltParams`の `block_size`・`par_threshold`（`:full`のみが参照）は
   `with_cholesky_tuning(f; llt_recursion_threshold, llt_block_size, ldlt_recursion_threshold,
-  ldlt_block_size, lblt_block_size, lblt_par_threshold)` のスコープで指定します（`nothing` は faer 既定）。
-  保持因子・型付き・借用入力・team・staged/直接の `!` と scratch 照会がすべて従います。LBLᴴ の直接経路の
-  作業領域は `lblt_block_size` で変わるため、照会もスコープ内で行います。faer の `LbltInfo.transposition_count`
-  は公開しません（置換そのものは `F.p` で得られ、対称置換は行列式に影響しないため `det` は `B` のブロックだけから求めます）。
+  ldlt_block_size, lblt_block_size, lblt_par_threshold)` のスコープで指定します（`nothing`は faer 既定）。
+  保持因子・型付き・借用入力・team・一時保存／直接の `!`と 作業領域 照会がすべて従います。LBLᴴの直接経路の
+  作業領域は `lblt_block_size`で変わるため、照会もスコープ内で行います。faerの `LbltInfo.transposition_count`
+ は公開しません（置換そのものは `F.p`で得られ、対称置換は行列式に影響しないため `det`は `B`のブロックだけから求めます）。
 
 ## LU・QR 分解のパラメータ
 
@@ -763,25 +454,29 @@ Q = with_qr_tuning(; blocking_threshold = 0,
 end
 ```
 
-- `with_lu_tuning(f; partial_recursion_threshold, partial_par_threshold, full_par_threshold)` は
-  faer の `PartialPivLuParams.{recursion_threshold, par_threshold}` と `FullPivLuParams.par_threshold`、
-  `with_qr_tuning(f; blocking_threshold, pivoted_par_threshold)` は `QrParams.blocking_threshold` と
-  `ColPivQrParams.par_threshold` をスコープ内のすべての `lu`/`full_piv_lu`/`qr`/`qr(A, ColumnNorm())`
-  構築に適用します（保存因子・型付き・借用入力・`team=`・staged/直接の `!`、`inv!(A)`、
-  混合スカラー求解の昇格再分解、scratch 照会・`FaerScratch`・`reserve!`）。`nothing` は faer 既定で、
-  2 つのスコープは同じ native 状態の別の欄を持つため、どちらの順にも入れ子にできます。
+- `with_lu_tuning(f; partial_recursion_threshold, partial_par_threshold, full_par_threshold)`は
+  faerの `PartialPivLuParams.{recursion_threshold, par_threshold}`と `FullPivLuParams.par_threshold`、
+  `with_qr_tuning(f; blocking_threshold, pivoted_par_threshold)`は `QrParams.blocking_threshold`と
+  `ColPivQrParams.par_threshold`をスコープ内のすべての `lu`/`full_piv_lu`/`qr`/`qr(A, ColumnNorm())`
+  構築に適用します（保存因子・型付き・借用入力・`team=`・一時保存／直接の `!`、`inv!(A)`、
+  混合スカラー求解の昇格再分解、作業領域 照会・`FaerScratch`・`reserve!`）。`nothing`は faer 既定で、
+  2 つのスコープは同じ ネイティブ 状態の別の欄を持つため、どちらの順にも入れ子にできます。
   これらは再帰・ブロック化・並列化だけを変え、分解は丸め誤差の範囲で同じです。
-- faer の `PartialPivLu::new` などは既定パラメータしか渡さず、既存の因子から組み立てることもできないため、
-  Colmat は保存 LU/QR 因子を自前の型で持ち、低水準の `*_in_place` kernel を呼びます。既定値のままなら
-  faer の型と bit 一致します（Rust の単体テストで確認）。
-- `PartialPivLuParams`/`FullPivLuParams` の rank 打切り（`max_rank`・`abs_tol`・`rel_tol`）は分解を途中で止め、
-  faer の求解・逆行列・再構成はそのような因子を受け付けないため公開しません（列ピボット QR の rank は
-  `rank(F; atol, rtol)` と許容誤差付き `ldiv!` で扱います）。`PartialPivLuParams.block_size` と
-  `ColPivQrParams.blocking_threshold` は pin した faer の kernel が読まないため公開しません。
-  `with_svd_tuning` の `qr_blocking` は SVD 内部の QR 用で、このスコープとは独立です。
-  保存因子のない `A \ B`・`det(A)`・QZ/Schur・疎分解の内部 LU/QR は faer 既定のままです。
+- faerの `PartialPivLu::new` などは既定パラメータしか渡さず、既存の因子から組み立てることもできないため、
+  Colmatは保存 LU/QR 因子を自前の型で持ち、低水準の `*_in_place` カーネルを呼びます。既定値のままなら
+  faerの型と bit 一致します（Rustの単体テストで確認）。
+- `PartialPivLuParams`/`FullPivLuParams`の ランクの打ち切り（`max_rank`・`abs_tol`・`rel_tol`）は分解を途中で止め、
+  faerの求解・逆行列・再構成はそのような因子を受け付けないため公開しません（列ピボット QRの ランクは
+  `rank(F; atol, rtol)`と許容誤差付き `ldiv!`で扱います）。`PartialPivLuParams.block_size`と
+  `ColPivQrParams.blocking_threshold`は 固定した faerの カーネルが読まないため公開しません。
+  `with_svd_tuning`の `qr_blocking`は SVD 内部の QR 用で、このスコープとは独立です。
+  保存因子のない `A \ B`・`det(A)`・QZ/Schur・疎分解の内部 LU/QRは faer 既定のままです。
 
-## SVD workspace, teams and destructive entry points
+## SVDの作業領域と更新形式
+
+`svd`、`svdvals`、`svd!`、`svdvals!`は `scratch`と `team`に対応します。`full`の設定も必要量の照会に合わせます。返り値の配列は作業領域とは別に確保されます。
+
+`svd!`と `svdvals!`は成功後に入力を長方形の対角行列 Σへ置き換えます。Juliaの LAPACKの作業行列をそのまま公開する形式ではありません。容量不足や計算失敗時は書き戻しません。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -803,22 +498,11 @@ values = svdvals!(B)
 @assert diag(Matrix(B)) ≈ values
 ```
 
-`svd`/`svdvals` accept `scratch=` and `team=` for low-level native SVD; existing
-calls without these keywords retain their prior route. `scratch_requirements`
-and `FaerScratch` accept `svd`, `svdvals`, `svd!` and `svdvals!`; specify matching
-`full` and `team` options. The query uses the actual team's execution conditions.
-Singular values are real for all four input types. Thin/full and empty factors
-follow Julia's SVD conventions. Factor output arrays are Julia allocations;
-temporary diagonal values and algorithm workspace use the supplied native buffer.
+## 分解から元の行列を復元する
 
-`svd!` and `svdvals!` replace input by rectangular Sigma only after success.
-Same-shape views observe Sigma; returned factors remain independent. This is an
-explicit writeback convention, not a LAPACK work matrix. Insufficient scratch,
-invalid input or native failure leaves input unchanged. Source/factor bookkeeping
-and writeback allocate; neither entry point promises whole-call zero allocation.
-Temporary scratch created for a call is closed in a finally block.
+`reconstruct(F)`は保存因子から、入力時の行・列の順序で独立した行列を作ります。密分解は `FaerMatrix`、疎 LUと疎 Choleskyは `FaerSparseMatrix`、疎 QRは密な `FaerMatrix`を返します。一般化 Schur／Hessenbergは名前付きの `(A, B)`を返します。
 
-## Reconstructing native factorizations
+`Matrix(F)` や型を指定した変換も利用できます。直接分解の因子は入力の格納領域を読むため、その入力が閉じられたりサイズ変更されたりすると例外になります。復元済みの独立した行列は、その後に因子を閉じても使えます。
 
 ```julia
 using Colmat, LinearAlgebra, SparseArrays
@@ -837,52 +521,15 @@ pair = reconstruct(QZ)
 close(QZ)
 @assert Matrix(pair.A) ≈ A0
 @assert Matrix(pair.B) ≈ B0
-close(pair.A)
-close(pair.B)
 ```
 
-`reconstruct(F)` returns independent native storage. Dense owned LU/QR/
-Cholesky/LDLT, Schur/Hessenberg and tridiagonal/bidiagonal reductions return
-`FaerMatrix`; sparse Cholesky and every sparse LU algorithm return `FaerSparseMatrix`
-in original row/column order. Generalized Schur/Hessenberg return `(A,B)` named
-fields, reconstructing both members through Q/S-or-H/T/Z. The sparse LU path
-uses current native factors and permutations, including numeric updates; it
-never copies the retained input snapshot. Its default output is CSC. All sparse QR
-algorithms reconstruct a dense native matrix from their saved Q/R factors.
+## 保存した分解で作業領域を再利用する
 
-`Matrix{T}(F)` and `FaerMatrix{T}(F)` also support the dense owned decompositions
-above; sparse LU adds these conversions and typed sparse CSC output. The in-place
-`lu!/qr!/cholesky!(A; scratch)` results (`FaerInPlaceFactorization`) also support
-`reconstruct(F)` and the typed conversions; they read A's packed storage and
-throw `ArgumentError` once F is closed or A is closed, resized or truncated.
-Numeric conversion follows Julia rules, including errors for nonrepresentable
-complex-to-real values. Conversion temporaries are closed on errors. Reconstructed
-owners remain valid after the original factors are updated or closed.
+同じ Aに対して右辺だけを変えるなら、分解 `F`を保存して求解を繰り返します。`ldiv!(X, F, B; scratch, team)`と `rdiv!(X, B, F; scratch, team)`に対応します。2 引数の更新形式は正方の因子に限られます。
 
-## Retained dense solves with reusable scratch and teams
+同じ数値型の書き込み可能な右辺では、その格納領域を直接使う経路があります。型の昇格、ランク不足、長方形の因子などでは別の作業配列が必要になります。構築時と求解時のチームは別に選べ、どちらを閉じても独立した保存因子は使えます。
 
-`ldiv!(X,F,B; scratch,team)` and `rdiv!(X,B,F; scratch,team)` borrow native resources for
-retained LU/full LU/QR/pivoted QR/Cholesky/LDLT/Bunch–Kaufman solves, including
-transpose/adjoint, rectangular LU/full LU/QR and rank-deficient QR minimum-norm paths.
-Two-argument forms require square factors. When B holds the factor's scalar in
-writable memory (a `FaerMatrix`/`FaerVector`, a native view, a writable
-`faerview` borrow or an injective Julia strided array), `ldiv!(F, B)` and
-`rdiv!(B, F)` (also through `transpose(F)` and `adjoint(F)`) run faer's
-per-kind `solve_in_place` directly in B's storage through its view descriptor
-(a right solve on B's transposed view). No RHS copy or native result is made.
-With caller scratch the solve makes no native allocation of its own (all seven
-kinds; Float64 at n = 6 and 70, complex at n = 6; aarch64, `Par::Seq`).
-Retained SVDs and rank-deficient QR (whose minimum-norm solution needs work
-matrices), scalar promotion, read-only or non-strided B and three-argument
-`rdiv!` keep the out-of-place path below; three-argument `ldiv!(X, F, B)`
-first assigns B into X natively and then solves in X. Solve teams are independent of the
-team used to construct the factor; the factor remains usable after either team
-closes. Native solve work, including the QR fallback R SVD and projections,
-uses caller scratch; the result and Julia staging allocate separately. Mixed
-native scalar types can reconstruct/refactor a factor outside this solve query.
-QR rank cutoffs retain the source precision after promotion so reconstruction
-roundoff does not become new solution directions. Component extraction
-remains sequential; promoted matrix products and factorization borrow the team.
+必要量は演算と同じ引数順で照会します。入力と出力の型や許容誤差も合わせてください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -897,7 +544,6 @@ FaerTeam(2) do team
     @assert X≈B/A0'
 end
 @assert F\ones(2)≈A0\ones(2)
-close(F)
 ```
 
 ```julia
@@ -912,24 +558,13 @@ ldiv!(X,F,B;scratch=work,team)
 @assert X ≈ ComplexF64[1 1; 0 0]
 @assert Matrix(F\FaerMatrix(B)) ≈ X
 reserve!(work,ldiv!,X,F,B;team)
-close(work)
-close(team)
-close(F)
 ```
 
-`scratch_requirements(ldiv!,X,F,B;team)` and the corresponding right-solve
-argument order describe the working scalar and actual team. Two-argument
-`ldiv!(F,B)` / `rdiv!(B,F)` have matching queries for square factors. Capacity,
-alignment, closed-resource, conversion and alias failures preserve destinations.
-Wide/rank-deficient QR uses the saved Householder/R and column permutation;
-the R SVD is computed inside scratch on each fallback solve. Rectangular LU/full
-LU reconstructs from saved L/U and permutations and computes its SVD inside
-the same workspace; the original input snapshot is not used. `FaerLinearOperator(F;rtol=...)` offers a separately configurable cached
-QR R SVD action for repeated applications. Float64 factors split
-complex RHS into two real solves that reuse one workspace. Factor construction
-and its mixed-scalar reconstruction/refactorization still allocate independently.
+## SVD・固有値分解を Rust 側に保存する
 
-## Reusing Rust-owned spectral factors
+`svd(A; native=true)`と自己随伴行列の `eigen(A; native=true)`は `FaerSpectralFactor`を返します。分解を保存して `pinv`、`rank`、`reconstruct`、求解を繰り返すための形式です。通常の呼び出しの返り値は変わりません。
+
+`F \ B`は保存因子を使い、小さな特異値・固有値を許容誤差で切り捨てた最小ノルム解を求めます。疑似逆行列全体を作る必要はありません。取り出した成分は独立したコピーで、変更しても Fは変わりません。構築には `team`を指定できますが、呼び出し元の `scratch`は指定できません。求解・疑似逆行列の作業領域は別途指定できます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -950,43 +585,11 @@ close(F)
 H0 = [4.0 1; 1 3]
 E = eigen(Hermitian(FaerMatrix(H0)); native=true)
 @assert Matrix(pinv(E; atol=0, rtol=1e-12)) ≈ inv(H0)
-close(E)
-close(U)
-close(V)
-close(P)
 ```
 
-`native=true` retains actual faer `Svd` / `SelfAdjointEigen` objects in a
-`FaerSpectralFactor`, across four scalar types. Ordinary calls keep their current
-Julia result types. Native SVD supports thin/full and rectangular/empty shapes;
-native self-adjoint EVD honors each selected triangle and `sortby`. Real
-`Symmetric` wrappers are supported too. Construction accepts `team=` and uses
-backend-owned workspace; caller `scratch=` is not supported for construction.
+## 保存因子の疑似逆行列と作業領域
 
-`pinv(F; atol, rtol, team)` reuses stored factors through faer's pseudoinverse
-reconstruction kernel. `reconstruct(F; team)`, `Matrix(F)`, typed conversions,
-`rank`, `svdvals` or self-adjoint `eigvals/eigvecs` also reuse the factorization.
-`copy/deepcopy` create independent native owners and `close` releases the retained
-factors immediately. Components are independent copies: U/V/vectors are native
-matrices, S/values are real Julia vectors. Eigen sorting applies a common
-permutation to values/vectors. Extracted components survive closing F; modifying
-them does not update F. General EVD native ownership, native bang construction
-and caller-controlled spectral-owner construction workspace remain unexposed.
-
-Saved factors also support `F \ B`, `B / F`, `ldiv!`, `rdiv!`, and square
-`inv(F)`, including transpose/adjoint and mixed scalar types. Solves project the
-RHS through the retained native factors, applying a truncated minimum-norm
-solution without building a full pseudoinverse. `atol`, `rtol`, `scratch`, and `team` are
-accepted; cutoff precision follows the stored factor even when the RHS promotes
-the computation. Signed self-adjoint eigenvalues are preserved. Three-argument
-mutation supports rectangular factors; two-argument mutation requires square
-factors. Destination conversion is staged before writeback. Caller scratch holds
-projection, weights and promoted U/V copies; native results and Julia/RHS
-conversions allocate separately. Right solves avoid an owned adjoint RHS copy.
-Singular inverses throw
-`SingularException`.
-
-## Reusable workspace for saved-factor pseudoinverses
+`FaerScratch(pinv, F; team)`と `pinv(F; scratch, atol, rtol, team)`で作業領域を再利用します。SVD や固有値分解はやり直しません。しきい値は保存した値に適用し、返される行列は独立して確保します。容量不足なら `reserve!`で拡張してください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -1002,16 +605,4 @@ FaerTeam(2) do team
     close(P)
     close(workspace)
 end
-close(F)
 ```
-
-`pinv(F; scratch=workspace, atol, rtol, team)` consumes caller-owned aligned
-storage for retained native SVD and self-adjoint EVD factors. The query reads
-actual factor metadata and team conditions. `FaerScratch(pinv,F)` and
-`reserve!(workspace,pinv,F)` use the same requirements as execution; insufficient
-capacity/alignment is rejected and the workspace never grows implicitly.
-Repeated calls reuse the allocated buffer and do not repeat SVD/EVD. Thresholds
-apply to the stored singular/eigenvalues. The independent result matrix allocates
-outside scratch. Empty factors need no kernel workspace but still require an
-open buffer. This interface controls saved-factor pseudoinverse workspace;
-native factor construction and direct `pinv(A)` keep their existing interfaces.

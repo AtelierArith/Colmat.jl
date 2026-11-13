@@ -2,11 +2,13 @@
 
 統計量、乱数生成、NPY ファイルを扱います。
 
-## Native statistics
+## 平均・分散・標準偏差
 
-`Statistics.mean`, `var`, and `varm` use faer's row/column kernels for native
-matrices, vectors, rows and views. Dimension reductions return Julia arrays;
-full reductions return scalars:
+`using Statistics`を追加すると `mean`、`var`、`varm`、`std`を使えます。`dims=1`は各列、`dims=2`は各行について集計します。`dims`を省略すると全要素をまとめた数値を返し、指定すると Julia 配列を返します。
+
+既定の `nan=:propagate`は NaNを結果に伝えます。`nan=:ignore`は NaNを含む要素を除いて個数も補正します。`corrected=false`は個数そのもので割る母分散です。複素数の分散は実数になります。空の集計結果は NaN、1 要素の標本分散も Juliaと同じく NaNです。
+
+ビューや逆順のビューも直接読めます。`varm`に渡す平均によって計算型が広がる場合は変換用コピーを作ります。全要素の集計と `dims` 付き集計の結果型は `Statistics.varm`の規約に従います。`BigFloat` など未対応の計算型になる平均は `ArgumentError`です。
 
 ```julia
 using Colmat, Statistics
@@ -19,21 +21,6 @@ A[1, 1] = NaN
 @assert mean(A; dims=1, nan=:ignore) ≈ [4.0 4.0]
 ```
 
-The default `nan=:propagate` retains NaNs; `nan=:ignore` excludes entries with
-any NaN component and adjusts each slice's count. `corrected=false` uses
-population variance. Complex variances are real, empty slices return NaN, and
-singleton sample variances follow Julia's NaN convention. faer's kernels read
-native arrays and strided or reversed views in place, so no Julia copy of the
-data is made; inputs are left unchanged.
-
-Supplied means follow `Statistics.varm` result types: a full reduction returns
-the real type of the promoted scalar, while a `dims` reduction keeps the data's
-real type. A mean that widens the data scalar (for example a `Float64` or
-complex mean for `Float32` data) makes Rust stage one converted copy, as does a
-full reduction of a view whose entries do not form one strided column. Means
-whose promotion is not a native scalar, such as `BigFloat`, throw an
-`ArgumentError`:
-
 ```julia
 using Colmat, Statistics
 A = FaerMatrix(Float32[1 2; 3 5])
@@ -42,10 +29,15 @@ A = FaerMatrix(Float32[1 2; 3 5])
 @assert var(view(A, 2:-1:1, :); dims=2) ≈ var(Float32[3 5; 1 2]; dims=2)
 ```
 
-## Native random matrices and unitary samples
+## 乱数とランダムな直交行列
 
-`FaerRNG` owns a Rust random stream. Native array sampling uses faer's matrix,
-column and row distributions directly:
+`using Random`を追加します。`FaerRNG(seed)`は Rust 側の乱数列を保持します。`rand`は実部・虚部それぞれが `[0,1)`の一様乱数、`randn`は標準正規乱数です。複素正規乱数は実部・虚部の分散が各 1/2になります。
+
+`randunitary`は、実数型なら `Q'Q ≈ I`を満たす直交行列、複素数型なら同じ関係を満たすユニタリ行列を生成します。`rand!`と `randn!`は既存の配列を更新します。
+
+Juliaの他の乱数生成器を渡した場合、空でない各呼び出しで `UInt64`の種を 1 個取り出して一時的な Rustの乱数列を作ります。空の呼び出しは種を消費しません。同じ状態・依存関係・呼び出し順なら再現できますが、Julia 配列を直接生成したときと同じ数列ではありません。連続した Rustの乱数列が必要なら `FaerRNG`を使ってください。
+
+`rand!(rng, A, X)`は範囲・コレクション・Juliaの分布オブジェクトなど、`rand(rng, X)`に対応する値から標本を生成します。同じ型・形状の Julia 配列に生成してから一括代入するため、標本生成や型変換に失敗しても `A`は変わりません。一様分布の区間や正規分布の平均・標準偏差は、下の例のように平行移動と拡大で指定できます。乱数生成に `team`の並列版はありません。
 
 ```julia
 using Colmat, Random, LinearAlgebra
@@ -63,55 +55,21 @@ row = rand(MersenneTwister(1), FaerRow{Float32}, (8,))
 randn!(rng, view(A, 1:2, 1:2))
 ```
 
-`rand` gives independent uniform real/imaginary components in [0,1). `randn`
-gives real standard normals; complex components each have variance 1/2, matching
-Julia's unit expected squared modulus. `rand!`/`randn!` fill native matrices,
-vectors, rows and views after staging the result. `randunitary(Float64,n)` gives
-an orthogonal sample; complex types give unitary samples through faer's
-sequential QR and phase correction.
-
-Seed contract for other Julia RNGs: each nonempty native `rand`, `randn`,
-`rand!(rng, A)`, `randn!(rng, A)` or `randunitary` call draws exactly one
-`rand(rng, UInt64)`, seeds a temporary native stream with it, and samples from
-that stream. Empty calls consume no seed. The result is reproducible for the
-same Julia RNG state, dependency versions and call sequence, but it is not
-Julia's own `rand(rng, T, dims)`/`randn` sequence, and consecutive calls are
-seeded independently rather than continuing one native stream. Use `FaerRNG` to
-keep a continuous native stream; copy and reseed it independently, and close it
-when no longer needed. Scalar/ordinary Julia-array draws from `FaerRNG` use
-Julia's sampling algorithms over its native 64-bit words, including narrower
-and 128-bit integer, `Float16`/`Float32` and complex draws.
-
-`rand!(rng, A, X)` fills a native matrix, vector, row or view with Julia samples
-from `X`: a range, collection, scalar type, `Random.Sampler`, or any
-distribution object that implements Julia's `rand(rng, X)` (Distributions.jl
-included). It stages Julia's `rand!` on an `Array` of the same eltype and shape,
-so `rng` is consumed exactly as for that array, then performs one bulk native
-assignment. A closed target fails before sampling; sampling or conversion
-failures leave the target unchanged:
-
 ```julia
 using Colmat, Random
 A = zeros(FaerMatrix{Float64}, 2, 3)
 rand!(Xoshiro(1), A, 1:6)
 @assert Matrix(A) == rand!(Xoshiro(1), Matrix{Float64}(undef, 2, 3), 1:6)
-B = 2 .+ 3 .* Matrix(randn(FaerRNG(1), FaerMatrix{Float64}, 2, 2))  # N(2, 3²)
+B = 2 .+ 3 .* Matrix(randn(FaerRNG(1), FaerMatrix{Float64}, 2, 2))  # 平均 2、標準偏差 3 の正規分布
 ```
 
-Parameterized faer/rand_distr distributions are not exposed as separate native
-APIs: uniform on `[a,b)` and normal with mean `μ` and standard deviation `σ` are
-affine maps of native `rand`/`randn`, and other distributions are available
-through `rand!(rng, A, X)` or the per-element function constructors such as
-`FaerMatrix{T}((i, j) -> f(i, j), m, n)`. Rust's `Distribution<T>` is a
-compile-time generic trait with no runtime object a Julia value could name;
-wrapping a Julia callback as one would cost one FFI round trip per element
-while holding the native RNG borrow, which is slower than staging in Julia.
-faer's distributions take no `Par`, so there is no Seq/Team variant.
+## NumPyの NPY ファイルを読む
 
-## NPY loading and read-only views
+NPYは NumPyの配列を保存するファイル形式です。`loadnpy(path)`はファイルを読み、独立した変更可能な `FaerMatrix`を返します。バイト列と IO も入力にできます。下の例ではパッケージ付属の小さなファイルを使います。
 
-`loadnpy` reads NPY bytes, an IO or a file path into an independent native matrix.
-This example uses a small fixture included with the package:
+対応する型は `Float32`、`Float64`、`ComplexF32`、`ComplexF64`、形式は NPY 1〜3です。行優先・列優先と両方のバイト順に対応します。スカラーは 1×1、ベクトルは n×1 行列になります。元の形状などは `npyinfo`で確認できます。3 次元以上や未対応の型、不整合な長さ、余分な末尾データは拒否します。IOは現在位置から末尾までを 1 配列として読みます。
+
+`npyview`（または `loadnpy(...; view=true)`）は読み取り専用のコピーを保持します。入力とメモリを共有せず、ファイルのメモリマップでもありません。`copy(V)`は変更可能な行列、`deepcopy(V)`は独立した読み取り専用ビューを作ります。`close(V)` 後も、これらの独立したコピーは使えます。
 
 ```julia
 using Colmat
@@ -121,110 +79,42 @@ A = loadnpy(path)
 V = npyview(path)
 @assert npyinfo(V).shape == (2, 3)
 @assert V[2, 3] == 6.0
-B = copy(V) # independent, mutable FaerMatrix
+B = copy(V) # 独立した変更可能な FaerMatrix
 close(V)
 @assert Matrix(B) == Matrix(A)
 ```
 
-Float32/Float64 and ComplexF32/ComplexF64, NPY versions 1–3, C/Fortran order and
-both byte orders are supported. Scalars become 1×1 matrices and vectors become
-n×1 matrices; `npyinfo` retains original shape/version/order metadata. NaN/Inf,
-NaN payloads and signed zero are preserved. Higher ranks and other dtypes are
-rejected, as are inconsistent lengths and trailing bytes. IO inputs are read
-from their current position to EOF as one array.
+### ファイルやバイト列をコピーせずに読む
 
-The default `loadnpy` copies the payload directly from the source bytes through
-faer's `Npy::to_mat`, which reads unaligned and foreign-endian inputs without an
-intermediate normalized buffer; contiguous byte vectors (including contiguous
-`view`s) are read in place without a Julia-side snapshot.
+`npyborrow(path)`と `npyborrow(io::IOStream)`はファイルをメモリに対応付け、`npyborrow(bytes)`はバイトベクトルを共有します。返り値は `FaerBorrowedMatrix`です。`sum`、`mean`、積などは元のデータを直接読みます。`npyinfo`は借用時に記録した形状・格納順・書き込み可否を返します。
 
-`npyview` (or `loadnpy(...; view=true)`) owns an aligned, native-endian snapshot
-of the bytes and uses faer's aligned-reference API for reads; that API requires
-a 64-byte aligned buffer in native byte order, so the view normalizes its
-snapshot. It does not alias the input bytes or memory-map a file (use
-`npyborrow` for that). Entries are read-only. `copy` materializes
-a native matrix; `deepcopy` preserves the view type with independent storage.
-Closing a view invalidates its reads, while materialized/deep copies remain valid.
+既定は読み取り専用で、代入や `mul!`の出力先にはできません。`writable=true` ならファイルまたはバイト列へ直接書き込みます。ファイルは書き込み権限が必要です。`Colmat.Mmap.sync!(W)`で変更を同期できます。
 
-### Zero-copy borrows: memory-mapped files and aliased bytes
+コピーしない読み取りには、実行環境と同じバイト順と要素に合った配置が必要です。条件を満たさない入力は既定で `loadnpy`によるコピーに切り替わります。`fallback=false`は代わりに例外にします。`writable=true`ではコピーへの切り替えはしません。
 
-`npyborrow(path)` and `npyborrow(io::IOStream)` memory-map the file, and
-`npyborrow(bytes)` aliases a `Vector{UInt8}` in place. All return a
-`FaerBorrowedMatrix` whose parent addresses the payload directly. C-order arrays
-are exposed through row strides `(n, 1)`, so neither order is copied. Native
-consumers such as `copy`, `FaerMatrix`, `+`/`-`/`*` (including transposes and
-native operands), `sum`, `mean` and `var` read the mapped pages in place, as
-they do for `faerview`. `npyinfo(M)` returns the metadata recorded at borrow
-time (shape, order, version, byte order, plus `writable`) without rereading the
-source.
+同じプロセス内で同じファイルを複数回借用すると、同じ対応付けを共有します。入力と出力が重なる演算では入力を一時コピーしてから更新します。別プロセスや外部で作ったメモリマップによる更新との順序は管理しません。
+
+借用は元のバイト列やメモリマップを保持し、参照がなくなると GCによって解放されます。明示的な `close`はありません。ストリームを閉じても対応付けは残ります。ファイルサイズ変更時には次の借用で対応付けを更新しますが、読み取り中のファイル切り詰めは OSのエラー（`SIGBUS`）を起こし得ます。利用中は切り詰めないでください。
 
 ```julia
-M = npyborrow(path)      # read-only mmap, no payload copy
+M = npyborrow(path)      # 読み取り専用のメモリマップ。データのコピーなし
 @assert M == [1.0 2 3; 4 5 6]
-@assert strides(M) == (3, 1) # C order read through row strides
-C = copy(M)              # independent FaerMatrix
+@assert strides(M) == (3, 1) # 行ストライドを使って C の行優先順で読む
+C = copy(M)              # 独立した FaerMatrix
 
 tmp = tempname()
 cp(path, tmp)
-W = npyborrow(tmp; writable = true) # read-write MAP_SHARED mapping
-mul!(W, FaerMatrix([0.0 1; 1 0]), npyborrow(tmp)) # rows swapped in the file pages
-Colmat.Mmap.sync!(W)     # flush; the aliased input was snapshot first
+W = npyborrow(tmp; writable = true) # 読み書き可能な共有メモリマップ
+mul!(W, FaerMatrix([0.0 1; 1 0]), npyborrow(tmp)) # ファイルに対応する領域の行を交換
+Colmat.Mmap.sync!(W)     # 同期。重なる入力は更新前にコピー済み
 @assert loadnpy(tmp) == [4.0 5 6; 1 2 3]
 ```
 
-- **When aliasing applies:** the payload must be native-endian and its data
-  offset a multiple of the element alignment. NumPy pads headers to 16 or 64 bytes,
-  so its files qualify. Otherwise (foreign endian, odd header padding, or a
-  `SubArray` byte source) the copying `loadnpy` result is returned. Pass
-  `fallback=false` to get an `ArgumentError` instead. `writable=true` never
-  falls back: a copy would silently not write back.
-- **Read-only by default:** `setindex!`, broadcasts, `copyto!`, `fill!`, `mul!`
-  and `ldiv!` into the borrow throw `ArgumentError`, and native kernels never
-  write it. Views of it are plain Julia views.
-- **Writable borrows:** `writable=true` opens a path `"r+"` (a stream must be
-  writable) and maps it read-write, or allows writes into the byte vector.
-  `setindex!`, `.=`, `copyto!`, `fill!`, `mul!` and `ldiv!`/`rdiv!` then write the
-  payload in place; dense `mul!`, `copyto!` and triangular solves write it
-  natively through a faer `MatMut`. `Mmap.sync!(W)` flushes the mapping, and
-  pages written before the finalizer unmaps it stay in the file either way.
-- **Same-file aliasing:** every borrow of one file in a process (identified by
-  device and inode, so hard links too) shares a single mapping. That mapping is
-  read-write once any borrow of the file is writable, and a read-only borrow
-  sharing it still rejects writes. Two borrows of one file therefore alias at
-  the same addresses. The byte-range overlap checks of native destinations, and
-  Julia's `mightalias` for broadcasts, snapshot an overlapping input before
-  writing (`mul!(W, R, R)` or `copyto!(W, transpose(R))` with `R` a second
-  borrow of the file is correct). Separate mappings would alias at different
-  virtual addresses, which no range check can relate. Copies of a file have
-  their own inode and do not alias. Writes by other processes, or through
-  `Mmap.mmap` arrays created outside `npyborrow`, are visible but neither
-  tracked nor ordered with native calls.
-- **Streams:** `npyborrow(io)` maps the whole file behind an `IOStream` and
-  borrows the NPY data from the stream's current position to the end of the
-  file. The position is not advanced. If the shared mapping is read-write and
-  must be remapped (the file size changed), the stream must be writable.
-- **Lifetime:** the borrow keeps the byte vector or mapping alive. Closing or
-  unlinking the file does not invalidate the mapping, which is unmapped by its
-  finalizer once every borrow of the file and its views are unreachable; there
-  is no explicit `close`.
-- **Changing the source:** shrinking the source vector with `resize!` is
-  detected before every access. When a file's size has changed, the next borrow
-  of it remaps the file and all its borrows move to the new mapping; a borrow
-  whose payload no longer fits then throws `ArgumentError` on access.
-  Truncating a mapped file while it is accessed raises `SIGBUS`, as for any
-  `mmap`.
+## 最小値・最大値
 
-## Real matrix extrema
+`minimum`、`maximum`、`extrema`は実数配列の最小値・最大値を返します。`Float32`の入力なら結果も `Float32`です。NaNは結果に伝わり、負のゼロは正のゼロより小さいものとして扱います。
 
-`minimum`, `maximum` and `extrema` use native storage directly for Float32 and
-Float64 matrices, vectors, rows and views and return the input scalar type
-(`faerview` arrays keep Julia's vectorized reductions over the parent, without a
-copy). NaNs propagate; negative zero sorts below positive zero. `dims`
-follows Base (an integer or tuple; dimensions past `ndims(A)` reduce nothing),
-and reducing an empty dimension throws `ArgumentError`. `init` and function-first
-forms other than `identity` run Julia's generic implementation on one snapshot
-(the parent array of a `faerview`). Complex inputs retain Julia's generic ordering
-contract.
+`dims`は Baseと同じ規約で、空の次元を集計すると `ArgumentError`です。`init` や `identity` 以外の関数を先頭に渡す形式は Juliaの汎用処理を使います。複素数の順序付けも Juliaの規約に従います。
 
 ```julia
 using Colmat
@@ -239,35 +129,15 @@ A[2, 2] = 0f0
 @assert signbit(minimum(A))
 @assert !signbit(maximum(A))
 @assert extrema(A; dims = 1) == [(0f0, 0f0) (0f0, 0f0)]
-close(A)
 ```
 
-## Reductions of views and borrowed arrays
+## ビューの集計とノルム
 
-`dot`, `norm`, `sum`, `minimum`/`maximum`/`extrema`, `all(isfinite, A)` and
-`any(isnan, A)` read native views (strided and reversed ranges) in place, without
-a Julia or Rust copy; `dot`, `sum`, `norm` and the predicates do the same for
-`faerview` arrays. `dot` conjugates its first argument
-with faer's `inner_prod` for any pair of native vectors, rows, matrices, views and
-borrowed arrays; vector-shaped operands pair entries in order, and mixed scalar
-types promote (Rust stages one converted copy of a promoted operand).
-`norm(A, p)` is the entrywise norm for every real `p` except NaN: 2/1/Inf use
-faer's reductions, 0 counts nonzeros, -Inf is the NaN-propagating smallest
-magnitude, and other `p` follow `LinearAlgebra.generic_normp` (Float64
-accumulation, rescaling by the extreme magnitude; integer `p` by repeated
-multiplication, as fast as or faster than Julia's `norm` of a dense array).
-Use `opnorm` for operator norms. Summation order is faer's, so sums may differ from Julia's by rounding.
-Equal-length `dot` operands of different shapes pair entries in column-major
-order, as in Julia. `x' * y` and `transpose(x) * y` of native vectors, vector views
-and borrowed vectors run the same native inner product.
+集計は配列から 1 個または少数の値を得る操作です。`sum`は和、`dot`は内積、`norm`は要素の大きさをまとめた尺度です。ビューや `faerview` も直接読めます。`dot`は第 1 引数を複素共役にし、形状が違っても同じ要素数なら列優先順に対応付けます。
 
-`sum!`, `minimum!`, `maximum!` and `extrema!(r, A; init = true)` reduce a
-native or borrowed `A` along the dimensions where `r` has extent 1 and write
-the result into native, borrowed or Julia destinations in one transfer;
-`init = false` combines it with the current contents of `r`. Structure tests
-(`isone`, `issymmetric`, `ishermitian` on views and borrowed matrices;
-`istriu(A, k)`, `istril(A, k)`, `isdiag` on native matrices too) read in
-place and stop at the first violating entry, with Julia's `==` semantics.
+`norm(A)`は全要素の絶対値の二乗和の平方根です。行列がベクトルをどれだけ拡大するかを調べる場合は `opnorm`を使います。`norm(A, 0)`は非ゼロ数、`norm(A, Inf)`は最大絶対値、`norm(A, -Inf)`は最小絶対値です。NaN 以外の実数 `p`に対応します。和の計算順序が Juliaと異なるため、丸め誤差による差が生じる場合があります。
+
+`sum!`、`minimum!`、`maximum!`、`extrema!`は出力先の長さが 1の次元に沿って集計します。`init=false`は出力先の現在値と結果を組み合わせます。`all(isfinite, A)`、`any(isnan, A)`、`istriu`、`istril`、`isdiag` などで値や構造も調べられます。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -285,5 +155,4 @@ r = zeros(1, 2)
 @assert sum!(r, B) == [3.0 -3.0]
 @assert minimum!(r, view(FaerMatrix(J), 2:-1:1, :); init = false) == [0.0 -4.0]
 @assert istriu(B) && !issymmetric(B)
-close(x)
 ```

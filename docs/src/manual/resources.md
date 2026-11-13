@@ -1,8 +1,26 @@
 # 作業領域とスレッドチーム
 
-caller-owned scratch と team の共通の使い方を説明します。各分解の詳細は該当ページを参照してください。
+このページは、同じ規模の計算を繰り返す際の性能調整を説明します。`scratch`は一時メモリ、`team`は計算スレッドの指定です。どちらも初めは省略して構いません。
 
-## Caller-owned parallel teams
+これらの寿命を指定するときは [GCと資源の寿命](lifetimes.md)の `with_resource`と `FaerTeam`の `do` 構文を使えます。
+
+## 再利用できるスレッドチーム
+
+`FaerTeam(width)`は計算に使うスレッドを予約します。`width`は呼び出し元を含む人数で、1 なら逐次実行です。まずは通常の計算を使い、大きな計算を繰り返すときに検討してください。
+
+`team_mul` や `mul!(C, A, B; team)`、対応する分解・求解の `team=`に同じチームを渡せます。`A * B` や `F \ B`、`F.Q`のような記法ではチームを指定できません。並列化したい場合は `mul!`、`ldiv!`、`rdiv!`、`qr_q`を使います。小さい問題や並列化に対応しない処理では、チームを渡しても逐次実行します。Colmat 内の呼び出しは所有者を守るロックでも直列化されます。
+
+チームは Juliaのスレッドプールとは別に管理されます。`copy(team)`は独立した予約を作るため、単に再利用する場合は元のチームを渡してください。`do` ブロックは例外時も予約を解放します。
+
+| 設定 | 意味 |
+| :--- | :--- |
+| `acquire_timeout` | 予約を待つ秒数。既定は 30 秒 |
+| `spin_polls` | 待機時に空回りする回数の上限。`0`で早く休止する |
+| `qos` | macOSの作業スレッドの優先度区分 |
+| `pin` | Linuxで CPU 配置を固定するか。既定は `true` |
+| `dispatch_cost` | 並列化の判断に使う起動コスト（秒）。大きいほど分割を控える |
+
+`team_diagnostics(team)`で予約や待機の状況を調べられます。速度は行列の大きさや環境に依存するため、実際の処理で測定してください。
 
 ```julia
 using Colmat, LinearAlgebra
@@ -13,53 +31,11 @@ FaerTeam(2) do team
     mul!(A, team, A, A, 2.0, 0.0)
     @assert Matrix(A) == 2Matrix(B)
     C = zeros(2, 2)
-    mul!(C, A, A; team)             # writes C in place on the team
+    mul!(C, A, A; team)             # チームを使い C を直接更新
     F = lu(A; team)
     @assert Matrix(F; team) ≈ Matrix(A)
-end # releases the reservation, including when the body throws
+end # 例外時もスレッド予約を解放
 ```
-
-`FaerTeam(width)` retains a reusable native pool/team. Width includes the caller
-and `width-1` reserved workers; width one is sequential. Each multiplication
-borrows a `Par::Team` only during the native call. Four scalar types, promotion,
-views, transposes, coefficients and aliased destinations are supported. Copies
-reserve independent teams. Close teams promptly; GC also owns their handles.
-
-`team_mul`, `mul!(dest, team, A, B[, alpha, beta])`, `pfaffian(A; team=team)`
-and supported factorization, solve, operator and reduction entry points with `team=` use this explicit team. Consult each operation’s page for sequential kernels and restrictions. Calls are serialized
-by Colmat's owner lock, and faer may choose a narrower region for small work.
-The API controls worker reservations; it does not promise a speedup for every
-matrix size.
-
-Dense `mul!(C, A, B[, alpha, beta]; team)` and the positional
-`mul!(C, team, A, B[, alpha, beta])` run faer's gemm directly in `C` (native
-owners and views, `faerview` and Julia strided destinations; at least one
-operand must be native or `faerview`) without a temporary result; only mixed scalar types stage the promoted operands. faer's
-`gemm_team` cost model decides whether a product is large enough to split, so
-Colmat adds no threshold. Dense LU/QR/Cholesky/LDLT/Bunch–Kaufman factors,
-retained or computed in place, accept `team` in `reconstruct`, `FaerMatrix(F)`
-and `Matrix(F)`, and `inv(F; team)` (also `inv(A; team)` for a dense matrix).
-`qr_q(F; thin=false, team)` forms the explicit `F.Q` (or `F.Qthin` with
-`thin=true`) on the team, and dense `pinv(A; team)` (including Hermitian and
-Symmetric inputs) runs the SVD/EVD and the reconstruction on it. Triangular
-structured `mul!(C, A, B[, α, β]; team)` and `structured_mul!(C, A, B; dest, team)`
-write `C` in place through faer's `matmul::triangular`; diagonal operands
-(elementwise scaling) and promotion beyond `C`'s type stay sequential.
-Operators such as `A * B`, `F \ B` and `B / F`, and property access such as
-`F.Q`, cannot take keywords and stay sequential by design; use `mul!`, `ldiv!`,
-`rdiv!`, `qr_q` or `team_mul` instead. Sparse × dense products are tracked in #114. Component copies (`F.L`, `F.U`, `F.R`, ...), `kron`,
-permutations, statistics, elementwise operations and sparse symbolic analysis
-are sequential because faer exposes no parallel form for them.
-
-A team cannot adopt a threadteam pool owned by another library: threadteam
-0.5.1 has no API to attach to an existing pool (its `Pool` is consumed by
-`into_team`), and a `Team` from a separately built crate is not ABI-compatible.
-Reuse one `FaerTeam` across operations instead. The owner lock is kept: one team
-runs one execution at a time anyway (threadteam's own gate), and running different
-teams concurrently would need per-owner locking across every native call.
-
-Pool options are keywords of the constructor, and `team_diagnostics` reads the
-reservation and wait counters of the pool:
 
 ```julia
 using Colmat
@@ -73,49 +49,22 @@ FaerTeam(2; spin_polls=0, qos=:utility, pin=false, acquire_timeout=5,
 end
 ```
 
-- `acquire_timeout` (seconds, default 30): how long reserving the workers may
-  wait for idle threads.
-- `spin_polls`: spin budget of a team wait (reserved members waiting for work,
-  joins and barriers) before yielding and sleeping; `0` sleeps after the yields.
-- `qos`: macOS worker class (`:default`, `:utility`, `:user_initiated`,
-  `:user_interactive`); the calling Julia thread is never changed.
-- `pin` (default `true`): place participants on distinct CPUs of the caller's
-  CPU set during team sections on Linux; pass `false` when the CPUs are shared
-  with other work.
-- `dispatch_cost`: cost of one team section that faer weighs against the
-  estimated work when it decides whether to split (gemm, LU, Householder
-  updates, ...): seconds for every width, or `width => seconds` pairs. Larger
-  values split less often; `nothing` keeps threadteam's measured host default.
-  On a 1000×1000 `Float64` matrix with width 4 (aarch64 macOS), the default
-  gave `mul!` 8.6 ms and `lu` 11.3 ms, and `dispatch_cost=1.0` gave the
-  sequential 34.7 ms and 19.6 ms.
+## 並列化のしきい値
 
-`copy(team)` reserves a new pool with the same options. A team cannot borrow an
-external (for example Julia's) thread pool: threadteam reserves its own worker
-threads, and faer's symbolic sparse analyses take no `Par`, so they stay
-sequential.
+`FaerParThreshold()` または `FaerParThreshold(:derived)`は計算量から並列化を判断します。`FaerParThreshold(n)`は固定の下限、`:never`は縮約と明示的な基底の構築を逐次実行にします。
 
-## Parallel-region thresholds
+二重対角化では更新する残りの領域の要素数、三重対角化では残りの次数を `rem`として `rem*rem÷2`を下限と比較します。整数は `0 <= n < typemax(UInt)`が必要です。一般の Hessenberg 化にも対応する設定があります。
 
-`bidiagonalize[!]` and `tridiagonalize[!]` accept `par_threshold=FaerParThreshold()` and forward the
-same policy through `scratch_requirements`, `FaerScratch` and `reserve!`.
-`FaerParThreshold(:derived)` keeps faer's default cost model.
-`FaerParThreshold(n)` sets a fixed floor in the reduction's work units:
-updated trailing-block elements for bidiagonalization, or `rem*rem÷2` for the
-remaining triangle in tridiagonalization. Native Hermitian/Symmetric
-`hessenberg[!]` forwards the same policy. For either family,
-zero and one select the same policy for positive work. The integer must satisfy
-`0 <= n < typemax(UInt)`. This fixed floor controls the reduction's trailing
-updates; explicit U/V or Q applications retain their own parallel rules.
+これ自体はチームを作りません。並列実行には開いた `FaerTeam`が必要です。作業領域の照会と実行では同じ設定を使い、変更時は必要量を照会し直してください。具体例は[反射・回転・縮約](reductions.md)にあります。
 
-`FaerParThreshold(:never)` keeps both reduction and explicit U/V or Q formation
-sequential. A supplied `FaerTeam` must still be open. These policies create no
-team; reuse an explicit team when parallel work is desired. Query and execute
-with the same policy, and reserve again when changing it. See the
-[bidiagonal](reductions.md#Bidiagonal-parallel-policy) and
-[tridiagonal](reductions.md#Tridiagonal-parallel-policy) examples.
 
-## Reusable native scratch
+## 作業メモリの再利用
+
+`FaerScratch`は Rustの計算に使う一時メモリです。同じ規模の計算を繰り返すときに、毎回の確保を減らすために使います。最初は `scratch`を省略して構いません。
+
+`FaerScratch(関数, 引数...; 設定...)`で必要量を確保し、同じ設定で実行します。容量不足なら自動拡張せず、計算開始前に例外になります。入力や設定を変えた場合は `reserve!`で明示的に拡張してください。`copy`と `deepcopy`は独立したメモリを作ります。
+
+この領域に返り値は保存されません。Julia 配列への変換、返り値、Rust 内部の追加メモリなどは別に確保されるため、呼び出し全体のメモリ確保がゼロになる保証はありません。下の例の `pfaffian`は歪対称行列に対する Pfaffianを計算し、入力を変更しません。
 
 ```julia
 using Colmat
@@ -128,31 +77,18 @@ FaerTeam(2) do team
     @assert pfaffian(A; scratch=workspace, team=team) == 2.0
 end
 reserve!(workspace, requirements.bytes; alignment=requirements.alignment)
-close(workspace)
 ```
-
-`FaerScratch` owns an aligned native MemBuffer. Capacity/alignment are explicit,
-and insufficient workspace raises an error before kernel execution. Grow it
-using `reserve!(workspace, pfaffian, A)` for a new operation size, or supply byte
-capacity/alignment directly. Calls never grow the workspace implicitly; copy
-and deepcopy allocate independent storage. Contents are scratch, not user data.
-Pfaffian validates shape, finiteness and skew-symmetry and leaves A unchanged.
-`team=` works with supplied scratch or with a temporary workspace released after
-the call. Supported consumers include dense and sparse factorizations/solves, spectral
-methods, operators, iterative solvers and reductions, as documented on their pages.
-Julia/FFI bookkeeping may still allocate even
-when the native workspace is reused.
 
 ## 操作別のリソース対応
 
 必要量の照会・構築・実行では同じ操作、入力、数値型、`team`、許容誤差を使います。
-入力や team を変えた場合は必要量を再照会し、必要なら `reserve!` で拡張してください。
+入力や teamを変えた場合は必要量を再照会し、必要なら `reserve!`で拡張してください。
 
 | 操作 | 詳細 |
 | :--- | :--- |
-| 密分解・保存因子の求解・SVD、`lu!/qr!/cholesky!(A; scratch)` の直接 in-place 分解 | [密行列の分解と求解](dense.md) |
+| 密分解・保存因子の求解・SVD、`lu!/qr!/cholesky!(A; scratch)`の格納領域を直接使う分解 | [密行列の分解と求解](dense.md) |
 | 固有値・Schur・QZ・並べ替え | [固有値問題](spectral.md) |
-| 疎 LU・Cholesky の構築・更新・求解、ordering | [疎直接法](sparse.md) |
-| 疎 QR の構築・更新・最小ノルム求解 | [疎 QR](sparse-qr.md) |
+| 疎 LU・Choleskyの構築・更新・求解、並べ替え | [疎直接法](sparse.md) |
+| 疎 QRの構築・更新・最小ノルム求解 | [疎 QR](sparse-qr.md) |
 | 作用素・前処理・CG・BiCGSTAB・LSMR | [線形作用素・反復法](operators.md) |
 | Householder 適用・三重対角化・帯行列固有値 | [反射・回転・縮約](reductions.md) |
