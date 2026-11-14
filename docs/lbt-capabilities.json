@@ -206,15 +206,31 @@
     },
     {
       "routines": [
-        "gesvdx",
-        "gesvdq",
+        "gesvdx"
+      ],
+      "status": "composition",
+      "api": "native SVD + singular-value selection",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "A/I/V selection, descending S, U/VT, query and minimum work are connected for four types and both integer ABIs; native failure uses the saved ILP64 driver."
+    },
+    {
+      "routines": [
+        "gesvdq"
+      ],
+      "status": "conditional",
+      "api": "column-pivoted QR + native SVD + Q application",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "JOBA=A/M/H use QR rank truncation with row pivoting, R transpose and full/thin/rank/factored vectors. JOBA=E condition estimation uses the saved ILP64 expert driver; native failure also falls back."
+    },
+    {
+      "routines": [
         "gesvj",
         "gejsv"
       ],
       "status": "conditional",
-      "api": "Svd と選択・rank 判定",
+      "api": "independent Jacobi SVD algorithm required",
       "source": "faer/src/linalg/svd/mod.rs",
-      "note": "標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない"
+      "note": "Not exported by this adapter. Existing LAPACK backend remains responsible; ordinary native SVD is not substituted for Jacobi sweeps or expert accuracy modes."
     },
     {
       "routines": [

@@ -579,3 +579,34 @@ GESC2 は最後の IPIV/JPIV 要素を参照しません。
 極小/極大尺度、巨大右辺、112次元の非ゼロ解と300次元の不可避な SCALE underflow、
 BigFloat による残差/解の比較、padding・論理部分行列・整数 guard、
 未参照 pivot、不正引数と LBT 経由の通常配列を検証します。
+
+## 選択 SVD と QR 前処理 SVD（#273）
+
+GESVDX/GESVDQ の4型、計8 Fortran シンボルを両整数 ABI に接続しました。
+GESVDX は native SVD から降順の特異値と U/VT を生成し、RANGE=A/I/V を
+処理します。値区間は `(VL,VU]` で、計算した特異値をそのまま比較します。
+区間の端の数学的特異値と丸め後の特異値は一致しない場合があります。
+NS 個の出力だけを書き、VT の複素共役と選択列数に応じた LDVT を扱います。
+
+GESVDQ は列ピボット QR、rank 判定、rank 個の R の行に対する native SVD、
+Q 適用と置換の逆変換を組み合わせます。JOBA=A/M/H、JOBP=N/P、JOBR=N/T、
+JOBU=A/S/U/R/F/N、JOBV=A/V/R/N を扱い、JOBU=R と JOBV=A/V の組合せは
+参照実装と同じく不正引数です。JOBU=F では A の Householder 表現と
+WORK の先頭 N 個の tau を保持し、Q 適用前の左ベクトルを返します。
+IWORK の先頭 N 個は列置換で、行ピボット時は続く M-1 個が逐次行交換です。
+JOBA=E の条件推定は保存した ILP64 driver に委譲します。
+
+GEJSV/GESVJ は独立した Jacobi 算法が必要なため、今回のアダプタでは
+export せず既存バックエンドに残します。通常の SVD で代用しません。
+GESVDX/GESVDQ は native 計算が失敗した場合も、変更前の入力から保存した
+ILP64 driver に委譲します。LP64 入口では整数配列を変換します。
+ロード前に既存 ILP64 の8 driver が必要で、再登録時の自己参照を防ぎます。
+
+workspace query と最小合法 workspace を提供しますが、caller workspace
+だけで計算するという保証はありません。native SVD と QR の一時領域を
+内部確保し、GESVDQ は失敗時の再実行に備えて QR 入力を一時領域に保存します。
+入力 A の余分な leading-dimension 領域と未使用のベクトル出力は保持します。
+
+`test/advanced_svd.jl` は4型・両 ABI の矩形残差、特異値の重複・ゼロ・
+区間端、query・最小 workspace、整数幅、rank 判定、factored Q の適用、
+JOBA=E の参照バックエンドとの一致を検証します。
