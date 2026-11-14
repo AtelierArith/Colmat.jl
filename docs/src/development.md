@@ -55,3 +55,33 @@ julia --project=docs docs/make.jl
 文書ビルドは公開 API の掲載漏れと doctest を検査します。
 対応シンボル数の doctest は、文書と LBT の実際の登録内容を照合します。
 公開例は `examples/poc.jl` でも実行できます。
+
+
+## 実測対応表の更新
+
+[Julia API の実測対応表](@ref)は、通常配列の実行結果と LBT 登録先を照合して生成します。
+
+```sh
+julia --project=test test/support_matrix.jl --output=docs/src/reference/support-matrix.md
+```
+
+生成前に `Pkg.build("Colmat")` を実行し、新しい Julia プロセスを使ってください。
+プローブは `Pkg.test()` にも含まれますが、通常のテストでは文書を上書きしません。
+生成版は検証した Julia・プラットフォーム・ソースコミットを記録したスナップショットです。
+Rust に機能があること、Julia から呼べること、Colmat が担当することを分けて更新します。
+
+
+## LBT 全シンボルの監査
+
+```sh
+python3 docs/generate_lbt_inventory.py
+julia --project=test test/lbt_inventory.jl
+```
+
+Python 3.11 以降はこの監査を再生成する場合だけ必要です。通常のビルド・ロードには不要です。
+`docs/lbt-capabilities.json` で公開 API の根拠と制約を管理し、LBT の全 canonical 名を
+TSV に出力します。未分類の補助関数も独立公開 API なしの一覧へ記録し、省略しません。
+`test/lbt_inventory.jl` は実際の LBT シンボル集合と記録の一致・重複の不存在を検査します。
+
+`deps/generate_symmetric.py` は自己随伴 EVD の精度・整数 ABI ごとの具体的な C 署名を
+`lapack_symmetric.rs` に生成します。変更時は生成後に Rustfmt を実行します。

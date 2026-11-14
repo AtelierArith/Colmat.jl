@@ -93,7 +93,7 @@ Random.seed!(782)
                 @test BLAS.dotu(x, y) ≈ sum(x[i] * y[i] for i in eachindex(x))
             end
         end
-        @testset "$T fallback LAPACK" begin
+        @testset "$T decomposition interoperability" begin
             A = randn(T, 9, 9) + 9I
             b = randn(T, 9)
             @test norm(A * (A \ b) - b) < 1e-4

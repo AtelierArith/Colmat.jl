@@ -22,8 +22,12 @@ makedocs(;
             "バックエンドとフォールバック" => "manual/backend.md",
             "スレッド設定" => "manual/threading.md",
         ],
-        "リファレンス" =>
-            ["BLAS 対応範囲" => "reference/coverage.md", "公開 API" => "reference/api.md"],
+        "リファレンス" => [
+            "LBT 全ルーチン対応表" => "reference/lbt-inventory.md",
+            "BLAS 対応範囲" => "reference/coverage.md",
+            "Julia API の実測対応表" => "reference/support-matrix.md",
+            "公開 API" => "reference/api.md",
+        ],
         "トラブルシューティング" => "troubleshooting.md",
         "0.2 への設計変更" => "migration.md",
         "開発" => "development.md",

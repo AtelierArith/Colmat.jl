@@ -1,5 +1,8 @@
 # BLAS 対応範囲
 
+通常の Julia API を実行した結果と登録先の照合は
+[Julia API の実測対応表](@ref)に記載します。
+
 ## 型と整数 ABI
 
 | Julia の要素型 | BLAS 接頭辞 |
@@ -38,7 +41,7 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 `cblas_cdot{u,c}_sub` / `cblas_zdot{u,c}_sub` も提供します。
 CBLAS 全体の互換ライブラリを提供するものではありません。
 
-この構成では LP64・ILP64 それぞれ112シンボルを LBT に登録します。
+この構成では LP64・ILP64 それぞれ188シンボル（BLAS 112、LAPACK 76）を LBT に登録します。
 登録を調べるには次を実行します。
 
 ```jldoctest
@@ -51,7 +54,7 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 112 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 188 for l in libs)
 true
 ```
 
@@ -59,8 +62,7 @@ true
 
 帯・packed 格納の演算（`gbmv`, `sbmv`, `hbmv`, `spmv`, `hpmv`, `spr` など）、
 `rotg`, `rotmg`, `rotm`, `syr2`, `her2`, `gemmt` など、この一覧にないルーチンは
-Colmat が提供しません。LAPACK のシンボルも提供しません。
-`lu`, `qr`, `svd`, `eigen` などを Rust colmat の分解へ直接接続する API はありません。
+Colmat が提供しません。未接続の LAPACK は既存バックエンドを使います。
 
 ## 計算経路と一時領域
 
@@ -88,3 +90,22 @@ Level 1 の引数規約はルーチンごとに異なります。
 ネイティブ診断関数 `colmat_blas_last_error()` は呼び出し OS スレッドに記録した
 最後の不正引数番号を読み取り、記録をクリアします。Rust の例外を Julia の例外へ
 変換する API や、任意の生ポインタの安全性を検査する API ではありません。
+
+
+## 接続する LAPACK
+
+全4型・LP64/ILP64 に、次の19系列（計76 canonical シンボル）を提供します。
+
+| 系列 | native 処理 |
+|---|---|
+| GETRF / GETRF2 / GETF2 / GETRS / GETRI / GESV | 部分ピボット LU・三角求解 |
+| POTRF / POTRF2 / POTF2 / POTRS / POTRI / POSV | LLT・三角求解 |
+| GESDD / GESVD | SVD、full/thin/overwrite の変換 |
+| GEEV / GEEVX | 一般 EVD・balance・左右固有ベクトル・Schur |
+| SYEV / HEEV / SYEVD / HEEVD | 自己随伴 EVD |
+| SYEVR / HEEVR | 全自己随伴 EVD からの範囲選択 |
+
+実数の SY 系と複素数の HE 系は型ごとの同じ系列として数えます。
+GEEVX の条件数推定は既存 backend に委譲し、native 対応は SENSE=N です。
+全 LBT シンボルについての対応候補・公開 API 不足・契約の差は
+[LBT と colmat-rs の全ルーチン対応表](@ref)に列挙します。

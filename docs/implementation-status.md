@@ -1,7 +1,9 @@
 # Colmat 0.2 の実装状況
 
-現在の Colmat は libblastrampoline に登録する BLAS バックエンドです。
+現在の Colmat は libblastrampoline に登録する BLAS / LAPACK バックエンドです。
 
+- [LBT 全ルーチンの接続候補・未対応一覧](src/reference/lbt-inventory.md)
+- [Julia API の実測対応表](src/reference/support-matrix.md)
 - [対応する型・整数 ABI・ルーチン](src/reference/coverage.md)
 - [転送とフォールバックの仕組み](src/manual/backend.md)
 - [ソース構成・依存更新・検証方法](src/development.md)
