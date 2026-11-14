@@ -60,7 +60,7 @@ unsafe fn factor<T: PivotScalar>(
     lda: isize,
     tol: f64,
 ) -> (Vec<usize>, usize) {
-    let original = Mat::from_fn(n, n, |i, j| {
+    let mut residual = Mat::from_fn(n, n, |i, j| {
         if i == j {
             T::real(T::diagonal(a.offset(i as isize + j as isize * lda)))
         } else if (uplo == b'L' && i > j) || (uplo == b'U' && i < j) {
@@ -69,7 +69,6 @@ unsafe fn factor<T: PivotScalar>(
             (*a.offset(j as isize + i as isize * lda)).cj()
         }
     });
-    let mut residual = original.clone();
     let mut l = Mat::<T>::zeros(n, n);
     let mut permutation: Vec<usize> = (0..n).collect();
     let mut rank = n;
@@ -153,10 +152,12 @@ unsafe fn factor<T: PivotScalar>(
         for i in 0..n {
             if (uplo == b'L' && i >= j) || (uplo == b'U' && i <= j) {
                 let (row, col) = if uplo == b'L' { (i, j) } else { (j, i) };
+                // Columns beyond the numerical rank keep the original entries.
+                // Read them before the first write to the caller's buffer.
                 let mut value = if col < rank {
                     l[(row, col)]
                 } else {
-                    original[(permutation[row], permutation[col])]
+                    *a.offset(permutation[row] as isize + permutation[col] as isize * lda)
                 };
                 if row == rank && col == rank {
                     if let Some(stop) = stop_value {
@@ -166,7 +167,15 @@ unsafe fn factor<T: PivotScalar>(
                 if uplo == b'U' {
                     value = value.cj();
                 }
-                *a.offset(i as isize + j as isize * lda) = value;
+                l[(row, col)] = value;
+            }
+        }
+    }
+    for j in 0..n {
+        for i in 0..n {
+            if (uplo == b'L' && i >= j) || (uplo == b'U' && i <= j) {
+                let (row, col) = if uplo == b'L' { (i, j) } else { (j, i) };
+                *a.offset(i as isize + j as isize * lda) = l[(row, col)];
             }
         }
     }

@@ -3,9 +3,6 @@ use crate::kernels::{flag, Scalar};
 use colmat::dyn_stack::{MemBuffer, MemStack};
 use colmat::{Conj, Mat, MatMut, MatRef};
 
-pub unsafe fn input<T: Scalar>(a: *const T, m: usize, n: usize, ld: isize) -> Mat<T> {
-    MatRef::from_raw_parts(a, m, n, 1, ld).to_owned()
-}
 /// Borrow a column-major Fortran buffer without copying it.
 pub unsafe fn input_ref<'a, T: Scalar>(
     a: *const T,
@@ -481,42 +478,11 @@ pub struct GeneralResult<T: Scalar> {
     wi: Vec<f64>,
     left: Mat<T>,
     right: Mat<T>,
-    schur: Mat<T>,
 }
 pub trait General: Scalar {
     fn eigen(a: MatRef<'_, Self>, left: bool, right: bool) -> Result<GeneralResult<Self>, ()>;
     fn balance(a: MatMut<'_, Self>, job: u8) -> Result<(Vec<usize>, Vec<f64>, usize, usize), ()>;
-}
-fn hessenberg<T: Scalar>(a: MatRef<'_, T>) -> Mat<T> {
-    let n = a.nrows();
-    let mut h = a.to_owned();
-    if n < 2 {
-        return h;
-    }
-    crate::threading::with_par(|par| {
-        use colmat::linalg::{evd::hessenberg::*, qr::no_pivoting::factor::recommended_block_size};
-        let bs = recommended_block_size::<T>(n - 1, n - 1);
-        let mut coeff = Mat::<T>::zeros(bs, n - 1);
-        let mut mem = MemBuffer::new(hessenberg_in_place_scratch::<T>(
-            n,
-            bs,
-            par.shape(),
-            Default::default(),
-        ));
-        hessenberg_in_place(
-            h.as_mut(),
-            coeff.as_mut(),
-            par,
-            MemStack::new(&mut mem),
-            Default::default(),
-        );
-    });
-    for j in 0..n {
-        for i in j + 2..n {
-            h[(i, j)] = T::z();
-        }
-    }
-    h
+    fn schur(a: MatMut<'_, Self>) -> Result<(), ()>;
 }
 macro_rules! balance_impl {
     ($t:ty,$r:ty) => {
@@ -598,18 +564,56 @@ macro_rules! general_real {
                     )
                     .map_err(|_| ())
                 })?;
-                let mut h = hessenberg(a);
+                Ok(GeneralResult {
+                    w: (0..n).map(|i| wr[i]).collect(),
+                    wi: (0..n).map(|i| wi[i] as f64).collect(),
+                    left: vl,
+                    right: vr,
+                })
+            }
+            fn schur(mut a: MatMut<'_, Self>) -> Result<(), ()> {
+                use colmat::linalg::{
+                    evd::{hessenberg::*, *},
+                    qr::no_pivoting::factor::recommended_block_size,
+                };
+                use colmat::Col;
+                let n = a.nrows();
+                if n < 2 {
+                    return Ok(());
+                }
                 crate::threading::with_par(|par| {
-                    let mut mem = MemBuffer::new(hessenberg_schur_scratch::<$t>(
+                    let bs = recommended_block_size::<Self>(n - 1, n - 1);
+                    let mut coeff = Mat::<Self>::zeros(bs, n - 1);
+                    let mut mem = MemBuffer::new(hessenberg_in_place_scratch::<Self>(
+                        n,
+                        bs,
+                        par.shape(),
+                        Default::default(),
+                    ));
+                    hessenberg_in_place(
+                        a.as_mut(),
+                        coeff.as_mut(),
+                        par,
+                        MemStack::new(&mut mem),
+                        Default::default(),
+                    );
+                });
+                for j in 0..n {
+                    for i in j + 2..n {
+                        a[(i, j)] = Self::z();
+                    }
+                }
+                crate::threading::with_par(|par| {
+                    let mut mem = MemBuffer::new(hessenberg_schur_scratch::<Self>(
                         n,
                         false,
                         par.shape(),
                         Default::default(),
                     ));
-                    let mut rw = colmat::Col::<$t>::zeros(n);
-                    let mut iw = colmat::Col::<$t>::zeros(n);
+                    let mut rw = Col::<Self>::zeros(n);
+                    let mut iw = Col::<Self>::zeros(n);
                     hessenberg_schur_real(
-                        h.as_mut(),
+                        a.as_mut(),
                         None,
                         rw.as_mut(),
                         iw.as_mut(),
@@ -618,13 +622,6 @@ macro_rules! general_real {
                         Default::default(),
                     )
                     .map_err(|_| ())
-                })?;
-                Ok(GeneralResult {
-                    w: (0..n).map(|i| wr[i]).collect(),
-                    wi: (0..n).map(|i| wi[i] as f64).collect(),
-                    left: vl,
-                    right: vr,
-                    schur: h,
                 })
             }
         }
@@ -670,17 +667,55 @@ macro_rules! general_complex {
                     )
                     .map_err(|_| ())
                 })?;
-                let mut h = hessenberg(a);
+                Ok(GeneralResult {
+                    w: (0..n).map(|i| w[i]).collect(),
+                    wi: vec![0.0; n],
+                    left: vl,
+                    right: vr,
+                })
+            }
+            fn schur(mut a: MatMut<'_, Self>) -> Result<(), ()> {
+                use colmat::linalg::{
+                    evd::{hessenberg::*, *},
+                    qr::no_pivoting::factor::recommended_block_size,
+                };
+                use colmat::Col;
+                let n = a.nrows();
+                if n < 2 {
+                    return Ok(());
+                }
                 crate::threading::with_par(|par| {
-                    let mut mem = MemBuffer::new(hessenberg_schur_scratch::<$t>(
+                    let bs = recommended_block_size::<Self>(n - 1, n - 1);
+                    let mut coeff = Mat::<Self>::zeros(bs, n - 1);
+                    let mut mem = MemBuffer::new(hessenberg_in_place_scratch::<Self>(
+                        n,
+                        bs,
+                        par.shape(),
+                        Default::default(),
+                    ));
+                    hessenberg_in_place(
+                        a.as_mut(),
+                        coeff.as_mut(),
+                        par,
+                        MemStack::new(&mut mem),
+                        Default::default(),
+                    );
+                });
+                for j in 0..n {
+                    for i in j + 2..n {
+                        a[(i, j)] = Self::z();
+                    }
+                }
+                crate::threading::with_par(|par| {
+                    let mut mem = MemBuffer::new(hessenberg_schur_scratch::<Self>(
                         n,
                         false,
                         par.shape(),
                         Default::default(),
                     ));
-                    let mut sw = colmat::Col::<$t>::zeros(n);
+                    let mut sw = Col::<Self>::zeros(n);
                     hessenberg_schur_cplx(
-                        h.as_mut(),
+                        a.as_mut(),
                         None,
                         sw.as_mut(),
                         par,
@@ -688,13 +723,6 @@ macro_rules! general_complex {
                         Default::default(),
                     )
                     .map_err(|_| ())
-                })?;
-                Ok(GeneralResult {
-                    w: (0..n).map(|i| w[i]).collect(),
-                    wi: vec![0.0; n],
-                    left: vl,
-                    right: vr,
-                    schur: h,
                 })
             }
         }
@@ -793,13 +821,13 @@ unsafe fn general_driver<T: General>(
             .fold(0.0f64, f64::max);
         T::eigen(mat, jl == b'V', jr == b'V')?
     };
+    T::schur(input_mut(a, n, n, la))?;
     if jl == b'V' {
         output(&unbalance(&e.left, &p, &s, true, &e.wi), vl, ll);
     }
     if jr == b'V' {
         output(&unbalance(&e.right, &p, &s, false, &e.wi), vr, lr);
     }
-    output(&e.schur, a, la);
     let encoded = crate::balance::encode_scale(&p, s, lo, hi);
     Ok((e.w, e.wi, lo, hi, encoded, abnrm))
 }

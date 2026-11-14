@@ -60,7 +60,8 @@ Colmat 内部の設定ロックは、他パッケージや直接の LBT 操作�
 
 LU の最終置換を LAPACK の IPIV に、SVD の V を VT に変換します。
 LU・Cholesky の因数分解は呼び出し側の配列を借用して in-place で実行し、
-SVD・一般/自己随伴 EVD も入力をコピーせずに読み取ります。
+SVD・一般/自己随伴 EVD・Schur/QZ・一般化 Hessenberg・最小二乗も入力を
+コピーせずに読み取ります。
 workspace query は LAPACK の `lwork=-1` 等を受け付けますが、native の作業領域は
 現在 adapter 内部で確保します。LAPACK の work 配列だけで割り当てなしに動く
 実装ではありません。

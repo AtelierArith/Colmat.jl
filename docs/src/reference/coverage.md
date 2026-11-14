@@ -77,8 +77,11 @@ Colmat が提供しません。未接続の LAPACK は既存バックエンド�
 | GETRF / POTRF | Julia バッファを借用し、因数分解を in-place で実行 |
 | GETRS / GETRI / POTRS / POTRI | 因子を借用し、求解・逆行列の結果だけを書き戻す |
 | GESDD / GESVD | 入力を借用して読み取り、特異値・特異ベクトルを出力へ書き込む |
-| GEEV / GEEVX / SYEV / HEEV 系 | 入力を借用して固有値分解を実行。一般 EVD の balance も呼び出し側バッファで実行 |
+| GEEV / GEEVX / SYEV / HEEV 系 | 入力を借用して固有値分解を実行。balance と Schur 形の生成も呼び出し側バッファで実行 |
 | GGEV / GGHRD 系 | 入力を借用し、Schur 形・Hessenberg 形を呼び出し側バッファへ書き戻す |
+| HSEQR / GEES / HGEQZ / GGES 系 | 入力の Hessenberg 行列・三角行列を借用し、スケーリングとブロック変換を in-place で実行。Q/Z は出力領域へ書き込む |
+| GELS / GELSS / GELSD 系 | 係数行列を借用して SVD・QR に渡す。右辺だけをスケーリング用の作業領域に展開する |
+| PSTRF / PSTF2 | 呼び出し側の三角部分を借用する。残余行列の更新用ワークは別途確保する |
 
 現時点で全ルーチンが割り当てなしに動く、または既存バックエンドより高速である
 という保証はありません。性能比較では転送先・型・行列サイズ・スレッド数を揃えて

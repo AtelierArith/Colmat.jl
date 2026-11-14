@@ -3,20 +3,20 @@ use crate::householder::ReflectorScalar;
 use crate::kernels::Scalar;
 use crate::schur::multiply;
 use colmat::dyn_stack::{MemBuffer, MemStack};
-use colmat::{c32, c64, Col, Mat};
+use colmat::{c32, c64, Col, Mat, MatMut};
 
 pub(crate) trait QzScalar: ReflectorScalar {
     fn native(
-        a: &mut Mat<Self>,
-        b: &mut Mat<Self>,
-        q: &mut Mat<Self>,
-        z: &mut Mat<Self>,
+        a: MatMut<'_, Self>,
+        b: MatMut<'_, Self>,
+        q: MatMut<'_, Self>,
+        z: MatMut<'_, Self>,
     ) -> (Vec<Self>, Vec<f64>, Vec<Self>);
     fn reorder(
-        a: &mut Mat<Self>,
-        b: &mut Mat<Self>,
-        q: &mut Mat<Self>,
-        z: &mut Mat<Self>,
+        a: MatMut<'_, Self>,
+        b: MatMut<'_, Self>,
+        q: MatMut<'_, Self>,
+        z: MatMut<'_, Self>,
         from: usize,
         to: usize,
     ) -> bool;
@@ -25,10 +25,10 @@ macro_rules! real_qz {
     ($t:ty) => {
         impl QzScalar for $t {
             fn native(
-                a: &mut Mat<Self>,
-                b: &mut Mat<Self>,
-                q: &mut Mat<Self>,
-                z: &mut Mat<Self>,
+                a: MatMut<'_, Self>,
+                b: MatMut<'_, Self>,
+                q: MatMut<'_, Self>,
+                z: MatMut<'_, Self>,
             ) -> (Vec<Self>, Vec<f64>, Vec<Self>) {
                 use colmat::linalg::gevd::qz_real::{hessenberg_to_qz, hessenberg_to_qz_scratch};
                 let n = a.nrows();
@@ -40,10 +40,10 @@ macro_rules! real_qz {
                     let mut mem =
                         MemBuffer::new(hessenberg_to_qz_scratch::<Self>(n, par.shape(), params));
                     hessenberg_to_qz(
-                        a.as_mut(),
-                        b.as_mut(),
-                        Some(q.as_mut()),
-                        Some(z.as_mut()),
+                        a,
+                        b,
+                        Some(q),
+                        Some(z),
                         ar.as_mut(),
                         ai.as_mut(),
                         beta.as_mut(),
@@ -60,10 +60,10 @@ macro_rules! real_qz {
                 )
             }
             fn reorder(
-                a: &mut Mat<Self>,
-                b: &mut Mat<Self>,
-                q: &mut Mat<Self>,
-                z: &mut Mat<Self>,
+                a: MatMut<'_, Self>,
+                b: MatMut<'_, Self>,
+                q: MatMut<'_, Self>,
+                z: MatMut<'_, Self>,
                 from: usize,
                 to: usize,
             ) -> bool {
@@ -71,10 +71,10 @@ macro_rules! real_qz {
                 crate::threading::with_par(|par| {
                     let mut mem = MemBuffer::new(reorder_schur_scratch::<Self>(a.nrows()));
                     reorder_schur_real(
-                        a.as_mut(),
-                        b.as_mut(),
-                        Some(q.as_mut()),
-                        Some(z.as_mut()),
+                        a,
+                        b,
+                        Some(q),
+                        Some(z),
                         from,
                         to,
                         par,
@@ -90,10 +90,10 @@ macro_rules! complex_qz {
     ($t:ty) => {
         impl QzScalar for $t {
             fn native(
-                a: &mut Mat<Self>,
-                b: &mut Mat<Self>,
-                q: &mut Mat<Self>,
-                z: &mut Mat<Self>,
+                a: MatMut<'_, Self>,
+                b: MatMut<'_, Self>,
+                q: MatMut<'_, Self>,
+                z: MatMut<'_, Self>,
             ) -> (Vec<Self>, Vec<f64>, Vec<Self>) {
                 use colmat::linalg::gevd::qz_cplx::{hessenberg_to_qz, hessenberg_to_qz_scratch};
                 let n = a.nrows();
@@ -104,10 +104,10 @@ macro_rules! complex_qz {
                     let mut mem =
                         MemBuffer::new(hessenberg_to_qz_scratch::<Self>(n, par.shape(), params));
                     hessenberg_to_qz(
-                        a.as_mut(),
-                        b.as_mut(),
-                        Some(q.as_mut()),
-                        Some(z.as_mut()),
+                        a,
+                        b,
+                        Some(q),
+                        Some(z),
                         alpha.as_mut(),
                         beta.as_mut(),
                         colmat::linalg::evd::ComputeEigenvectors::Yes,
@@ -123,10 +123,10 @@ macro_rules! complex_qz {
                 )
             }
             fn reorder(
-                a: &mut Mat<Self>,
-                b: &mut Mat<Self>,
-                q: &mut Mat<Self>,
-                z: &mut Mat<Self>,
+                a: MatMut<'_, Self>,
+                b: MatMut<'_, Self>,
+                q: MatMut<'_, Self>,
+                z: MatMut<'_, Self>,
                 from: usize,
                 to: usize,
             ) -> bool {
@@ -134,10 +134,10 @@ macro_rules! complex_qz {
                 crate::threading::with_par(|par| {
                     let mut mem = MemBuffer::new(reorder_schur_scratch::<Self>(a.nrows()));
                     reorder_schur_cplx(
-                        a.as_mut(),
-                        b.as_mut(),
-                        Some(q.as_mut()),
-                        Some(z.as_mut()),
+                        a,
+                        b,
+                        Some(q),
+                        Some(z),
                         from,
                         to,
                         par,
@@ -157,7 +157,13 @@ complex_qz!(c64);
 fn identity<T: Scalar>(n: usize) -> Mat<T> {
     Mat::from_fn(n, n, |i, j| if i == j { T::o() } else { T::z() })
 }
-fn converged<T: QzScalar>(a: &Mat<T>, b: &Mat<T>, ar: &[T], ai: &[f64], beta: &[T]) -> bool {
+fn converged<T: QzScalar>(
+    a: colmat::MatRef<'_, T>,
+    b: colmat::MatRef<'_, T>,
+    ar: &[T],
+    ai: &[f64],
+    beta: &[T],
+) -> bool {
     let n = a.nrows();
     for i in 0..n {
         if !ar[i].magnitude().is_finite() || !ai[i].is_finite() || !beta[i].magnitude().is_finite()
@@ -216,8 +222,8 @@ mod tests {
         let mut b = original_b.clone();
         let mut q = identity::<T>(n);
         let mut z = identity::<T>(n);
-        let (ar, ai, beta) = T::native(&mut a, &mut b, &mut q, &mut z);
-        assert!(converged(&a, &b, &ar, &ai, &beta));
+        let (ar, ai, beta) = T::native(a.as_mut(), b.as_mut(), q.as_mut(), z.as_mut());
+        assert!(converged(a.as_ref(), b.as_ref(), &ar, &ai, &beta));
         for (original, result) in [(&original_a, &a), (&original_b, &b)] {
             let reconstructed = multiply(
                 multiply(q.as_ref(), b'N', result.as_ref(), b'N').as_ref(),
@@ -250,7 +256,7 @@ fn embed<T: Scalar>(basis: &Mat<T>, n: usize, lo: usize, hi: usize) -> Mat<T> {
         }
     })
 }
-fn positive_beta<T: QzScalar>(a: &mut Mat<T>, b: &mut Mat<T>, z: &mut Mat<T>) {
+fn positive_beta<T: QzScalar>(mut a: MatMut<'_, T>, mut b: MatMut<'_, T>, mut z: MatMut<'_, T>) {
     let n = a.nrows();
     for j in 0..n {
         let diag = b[(j, j)];
@@ -267,10 +273,10 @@ fn positive_beta<T: QzScalar>(a: &mut Mat<T>, b: &mut Mat<T>, z: &mut Mat<T>) {
     }
 }
 fn active<T: QzScalar>(
-    a: &mut Mat<T>,
-    b: &mut Mat<T>,
-    q: &mut Mat<T>,
-    z: &mut Mat<T>,
+    mut a: MatMut<'_, T>,
+    mut b: MatMut<'_, T>,
+    mut q: MatMut<'_, T>,
+    mut z: MatMut<'_, T>,
     lo: usize,
     hi: usize,
 ) -> (Vec<T>, Vec<f64>, Vec<T>, usize) {
@@ -281,48 +287,56 @@ fn active<T: QzScalar>(
     let mut beta: Vec<T> = (0..n).map(|i| b[(i, i)]).collect();
     let mut err = 0;
     if size > 0 {
-        let mut h = Mat::from_fn(size, size, |i, j| {
-            if i <= j + 1 {
-                a[(lo + i, lo + j)]
-            } else {
-                T::z()
-            }
-        });
-        let mut t = Mat::from_fn(size, size, |i, j| {
-            if i <= j {
-                b[(lo + i, lo + j)]
-            } else {
-                T::z()
-            }
-        });
-        let max_a = (0..size)
-            .flat_map(|j| (0..size).map(move |i| (i, j)))
-            .map(|(i, j)| h[(i, j)].magnitude())
-            .fold(0.0_f64, f64::max);
-        let max_b = (0..size)
-            .flat_map(|j| (0..size).map(move |i| (i, j)))
-            .map(|(i, j)| t[(i, j)].magnitude())
-            .fold(0.0_f64, f64::max);
-        let sa = if max_a > 0.0 && max_a.is_finite() {
-            max_a
-        } else {
-            1.0
-        };
-        let sb = if max_b > 0.0 && max_b.is_finite() {
-            max_b
-        } else {
-            1.0
-        };
-        for j in 0..size {
-            for i in 0..size {
-                h[(i, j)] = h[(i, j)] / T::real(sa);
-                t[(i, j)] = t[(i, j)] / T::real(sb);
-            }
-        }
         let mut u = identity::<T>(size);
         let mut v = identity::<T>(size);
-        let (w, imag, be) = T::native(&mut h, &mut t, &mut u, &mut v);
-        if !converged(&h, &t, &w, &imag, &be) {
+        let (sa, sb, w, imag, be, ok) = {
+            // Factor the active block in place. Its scale does not affect the
+            // off-block update below because the transforms are identity there.
+            let mut h = a.as_mut().get_mut(lo..hi, lo..hi);
+            let mut t = b.as_mut().get_mut(lo..hi, lo..hi);
+            for j in 0..size {
+                for i in j + 2..size {
+                    h[(i, j)] = T::z();
+                }
+                for i in j + 1..size {
+                    t[(i, j)] = T::z();
+                }
+            }
+            let max_a = (0..size)
+                .flat_map(|j| (0..size).map(move |i| (i, j)))
+                .map(|(i, j)| h[(i, j)].magnitude())
+                .fold(0.0_f64, f64::max);
+            let max_b = (0..size)
+                .flat_map(|j| (0..size).map(move |i| (i, j)))
+                .map(|(i, j)| t[(i, j)].magnitude())
+                .fold(0.0_f64, f64::max);
+            let sa = if max_a > 0.0 && max_a.is_finite() {
+                max_a
+            } else {
+                1.0
+            };
+            let sb = if max_b > 0.0 && max_b.is_finite() {
+                max_b
+            } else {
+                1.0
+            };
+            for j in 0..size {
+                for i in 0..size {
+                    h[(i, j)] = h[(i, j)] / T::real(sa);
+                    t[(i, j)] = t[(i, j)] / T::real(sb);
+                }
+            }
+            let (w, imag, be) = T::native(h.as_mut(), t.as_mut(), u.as_mut(), v.as_mut());
+            let ok = converged(
+                crate::schur::borrow(&h),
+                crate::schur::borrow(&t),
+                &w,
+                &imag,
+                &be,
+            );
+            (sa, sb, w, imag, be, ok)
+        };
+        if !ok {
             err = hi;
         }
         let left = embed(&u, n, lo, hi);
@@ -330,35 +344,66 @@ fn active<T: QzScalar>(
         let updated_a = multiply(
             left.as_ref(),
             b'C',
-            multiply(a.as_ref(), b'N', right.as_ref(), b'N').as_ref(),
+            multiply(crate::schur::borrow(&a), b'N', right.as_ref(), b'N').as_ref(),
             b'N',
         );
         let updated_b = multiply(
             left.as_ref(),
             b'C',
-            multiply(b.as_ref(), b'N', right.as_ref(), b'N').as_ref(),
+            multiply(crate::schur::borrow(&b), b'N', right.as_ref(), b'N').as_ref(),
             b'N',
         );
         for j in 0..n {
             for i in 0..n {
                 if i >= lo && i < hi && j >= lo && j < hi {
-                    a[(i, j)] = h[(i - lo, j - lo)] * T::real(sa);
-                    b[(i, j)] = t[(i - lo, j - lo)] * T::real(sb);
+                    continue;
                 } else if (i >= lo && i < hi) || (j >= lo && j < hi) {
                     a[(i, j)] = updated_a[(i, j)];
                     b[(i, j)] = updated_b[(i, j)];
                 }
             }
         }
-        *q = multiply(q.as_ref(), b'N', left.as_ref(), b'N');
-        *z = multiply(z.as_ref(), b'N', right.as_ref(), b'N');
+        {
+            let mut h = a.as_mut().get_mut(lo..hi, lo..hi);
+            let mut t = b.as_mut().get_mut(lo..hi, lo..hi);
+            for j in 0..size {
+                for i in 0..size {
+                    h[(i, j)] = h[(i, j)] * T::real(sa);
+                    t[(i, j)] = t[(i, j)] * T::real(sb);
+                }
+            }
+        }
+        {
+            let updated = multiply(crate::schur::borrow(&q), b'N', left.as_ref(), b'N');
+            for j in 0..n {
+                for i in 0..n {
+                    q[(i, j)] = updated[(i, j)];
+                }
+            }
+        }
+        {
+            let updated = multiply(crate::schur::borrow(&z), b'N', right.as_ref(), b'N');
+            for j in 0..n {
+                for i in 0..n {
+                    z[(i, j)] = updated[(i, j)];
+                }
+            }
+        }
         for i in 0..size {
             ar[lo + i] = w[i] * T::real(sa);
             ai[lo + i] = imag[i] * sa;
             beta[lo + i] = be[i] * T::real(sb);
         }
     }
-    positive_beta(a, b, z);
+    positive_beta(a.as_mut(), b.as_mut(), z.as_mut());
+    for j in 0..n {
+        for i in j + 2..n {
+            a[(i, j)] = T::z();
+        }
+        for i in j + 1..n {
+            b[(i, j)] = T::z();
+        }
+    }
     for i in 0..n {
         if T::COMPLEX || i < lo || i >= hi {
             ar[i] = a[(i, i)];
@@ -386,38 +431,47 @@ unsafe fn hgeqz<T: QzScalar>(
     cq: u8,
     cz: u8,
 ) -> (Vec<T>, Vec<f64>, Vec<T>, usize) {
-    let mut a = Mat::from_fn(n, n, |i, j| {
-        if i <= j + 1 {
-            *h.offset(i as isize + j as isize * ldh)
-        } else {
-            T::z()
+    let mut a = crate::lapack::input_mut(h, n, n, ldh);
+    let mut b = crate::lapack::input_mut(t, n, n, ldt);
+    for j in 0..n {
+        for i in j + 2..n {
+            a[(i, j)] = T::z();
         }
-    });
-    let mut b = Mat::from_fn(n, n, |i, j| {
-        if i <= j {
-            *t.offset(i as isize + j as isize * ldt)
-        } else {
-            T::z()
+        for i in j + 1..n {
+            b[(i, j)] = T::z();
         }
-    });
-    let mut left = if cq == b'V' {
-        crate::lapack::input(q, n, n, ldq)
-    } else {
-        identity::<T>(n)
-    };
-    let mut right = if cz == b'V' {
-        crate::lapack::input(z, n, n, ldz)
-    } else {
-        identity::<T>(n)
-    };
-    let result = active(&mut a, &mut b, &mut left, &mut right, lo, hi);
-    crate::lapack::output(&a, h, ldh);
-    crate::lapack::output(&b, t, ldt);
-    if cq != b'N' {
-        crate::lapack::output(&left, q, ldq);
     }
-    if cz != b'N' {
-        crate::lapack::output(&right, z, ldz);
+    let mut left_owned = if cq == b'V' {
+        Mat::<T>::zeros(0, 0)
+    } else {
+        identity::<T>(n)
+    };
+    let mut right_owned = if cz == b'V' {
+        Mat::<T>::zeros(0, 0)
+    } else {
+        identity::<T>(n)
+    };
+    let result = active(
+        a.as_mut(),
+        b.as_mut(),
+        if cq == b'V' {
+            crate::lapack::input_mut(q, n, n, ldq)
+        } else {
+            left_owned.as_mut()
+        },
+        if cz == b'V' {
+            crate::lapack::input_mut(z, n, n, ldz)
+        } else {
+            right_owned.as_mut()
+        },
+        lo,
+        hi,
+    );
+    if cq == b'I' {
+        crate::lapack::output(&left_owned, q, ldq);
+    }
+    if cz == b'I' {
+        crate::lapack::output(&right_owned, z, ldz);
     }
     result
 }
@@ -471,14 +525,15 @@ unsafe fn general<T: QzScalar>(
     sort: bool,
     mut select: impl FnMut(T, f64, T) -> bool,
 ) -> (Vec<T>, Vec<f64>, Vec<T>, Vec<bool>, usize, usize) {
-    let mut h = crate::lapack::input(a, n, n, lda);
-    let mut t = crate::lapack::input(b, n, n, ldb);
-    let mut sa = 0.0_f64;
-    let mut sb = 0.0_f64;
-    for j in 0..n {
-        for i in 0..n {
-            sa = sa.max(h[(i, j)].magnitude());
-            sb = sb.max(t[(i, j)].magnitude());
+    let (mut sa, mut sb) = (0.0_f64, 0.0_f64);
+    {
+        let ah = crate::lapack::input_ref(a, n, n, lda);
+        let bt = crate::lapack::input_ref(b, n, n, ldb);
+        for j in 0..n {
+            for i in 0..n {
+                sa = sa.max(ah[(i, j)].magnitude());
+                sb = sb.max(bt[(i, j)].magnitude());
+            }
         }
     }
     if sa == 0.0 || !sa.is_finite() {
@@ -487,14 +542,16 @@ unsafe fn general<T: QzScalar>(
     if sb == 0.0 || !sb.is_finite() {
         sb = 1.0;
     }
+    let mut h = crate::lapack::input_mut(a, n, n, lda);
+    let mut t = crate::lapack::input_mut(b, n, n, ldb);
     for j in 0..n {
         for i in 0..n {
             h[(i, j)] = h[(i, j)] / T::real(sa);
             t[(i, j)] = t[(i, j)] / T::real(sb);
         }
     }
-    let lh = h.as_ref().col_stride();
-    let lt = t.as_ref().col_stride();
+    let lh = h.col_stride();
+    let lt = t.col_stride();
     let mut tau = vec![T::z(); n];
     crate::qr::standard_qr(n, n, t.as_mut().as_ptr_mut(), lt, tau.as_mut_ptr(), false);
     crate::qr::apply_q(
@@ -545,7 +602,8 @@ unsafe fn general<T: QzScalar>(
         b'V',
         b'V',
     );
-    let (mut ar, mut ai, mut beta, mut info) = active(&mut h, &mut t, &mut left, &mut right, 0, n);
+    let (mut ar, mut ai, mut beta, mut info) =
+        active(h.as_mut(), t.as_mut(), left.as_mut(), right.as_mut(), 0, n);
     let mut chosen = vec![false; n];
     let mut sdim = 0;
     if sort && info == 0 {
@@ -565,7 +623,14 @@ unsafe fn general<T: QzScalar>(
             }
             if take {
                 if i != sdim {
-                    if !T::reorder(&mut h, &mut t, &mut left, &mut right, i, sdim) {
+                    if !T::reorder(
+                        h.as_mut(),
+                        t.as_mut(),
+                        left.as_mut(),
+                        right.as_mut(),
+                        i,
+                        sdim,
+                    ) {
                         info = n + 3;
                         break;
                     }
@@ -577,7 +642,7 @@ unsafe fn general<T: QzScalar>(
         }
         // Re-evaluate homogeneous values from the reordered pencil, retaining its order.
         let previous_info = info;
-        let result = active(&mut h, &mut t, &mut left, &mut right, 0, n);
+        let result = active(h.as_mut(), t.as_mut(), left.as_mut(), right.as_mut(), 0, n);
         ar = result.0;
         ai = result.1;
         beta = result.2;
@@ -626,8 +691,6 @@ unsafe fn general<T: QzScalar>(
         ai[i] *= sa;
         beta[i] = beta[i] * T::real(sb);
     }
-    crate::lapack::output(&h, a, lda);
-    crate::lapack::output(&t, b, ldb);
     if want_q {
         crate::lapack::output(&left, q, ldq);
     }
