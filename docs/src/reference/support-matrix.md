@@ -6,7 +6,7 @@
 ## 検証条件
 
 - Julia: `1.13.3` / `x86_64-linux-gnu`。
-- Colmat ソース: `8e4d30a33b6637b21ad0c71d38aaad3fbc1e90fd`。
+- Colmat ソース: `bc0dce2af48590dec20f99976ad7aee8b999a447`。
 - Rust colmat ソース: `e1c83482f5a61449d30e989808c3ba5f751ec391`。
 - Julia の BLAS 整数 ABI: `ilp64`。
 - Colmat 実行幅: `1`。
@@ -24,16 +24,16 @@
 | `BLAS.axpy!` | 成功 | 成功 | 成功 | 成功 | Colmat | Rust 互換層 |
 | `UpperTriangular(A) \ x` | 成功 | 成功 | 成功 | 成功 | Colmat | Rust 互換層 |
 | `UpperTriangular(A) \ B` | 成功 | 成功 | 成功 | 成功 | Colmat | Rust 互換層 |
-| `lu(A)` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | partial_piv_lu（未接続） |
-| `lu(A) \ x` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | LU solve（未接続） |
+| `lu(A)` | 成功 | 成功 | 成功 | 成功 | Colmat | partial_piv_lu（接続済み） |
+| `lu(A) \ x` | 成功 | 成功 | 成功 | 成功 | Colmat | LU solve（接続済み） |
 | `qr(A)` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | qr（未接続） |
 | `qr(A, ColumnNorm())` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | col_piv_qr（未接続） |
-| `svd(A)` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | svd（未接続） |
-| `svd(A; alg=LinearAlgebra.QRIteration())` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | svd（未接続） |
-| `svdvals(A)` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | SVD（未接続） |
-| `eigen(A)` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | eigen（未接続） |
-| `eigen(Hermitian(A))` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | self_adjoint_eigen（未接続） |
-| `cholesky(Hermitian(A))` | 成功 | 成功 | 成功 | 成功 | 既存バックエンド | llt（未接続） |
+| `svd(A)` | 成功 | 成功 | 成功 | 成功 | Colmat | svd（接続済み） |
+| `svd(A; alg=LinearAlgebra.QRIteration())` | 成功 | 成功 | 成功 | 成功 | Colmat | svd（接続済み） |
+| `svdvals(A)` | 成功 | 成功 | 成功 | 成功 | Colmat | SVD（接続済み） |
+| `eigen(A)` | 成功 | 成功 | 成功 | 成功 | Colmat | eigen（接続済み） |
+| `eigen(Hermitian(A))` | 成功 | 成功 | 成功 | 成功 | Colmat | self_adjoint_eigen（接続済み） |
+| `cholesky(Hermitian(A))` | 成功 | 成功 | 成功 | 成功 | Colmat | llt（接続済み） |
 
 ## 入口シンボルと実際のライブラリ
 
@@ -49,16 +49,16 @@
 | `BLAS.axpy!` | `saxpy_`, `daxpy_`, `caxpy_`, `zaxpy_` | `libcolmat_blas.so` |
 | `UpperTriangular(A) \ x` | `strsv_`, `dtrsv_`, `ctrsv_`, `ztrsv_` | `libcolmat_blas.so` |
 | `UpperTriangular(A) \ B` | `strsm_`, `dtrsm_`, `ctrsm_`, `ztrsm_` | `libcolmat_blas.so` |
-| `lu(A)` | `sgetrf_`, `dgetrf_`, `cgetrf_`, `zgetrf_` | `libopenblas64_.so` |
-| `lu(A) \ x` | `sgetrs_`, `dgetrs_`, `cgetrs_`, `zgetrs_` | `libopenblas64_.so` |
+| `lu(A)` | `sgetrf_`, `dgetrf_`, `cgetrf_`, `zgetrf_` | `libcolmat_blas.so` |
+| `lu(A) \ x` | `sgetrs_`, `dgetrs_`, `cgetrs_`, `zgetrs_` | `libcolmat_blas.so` |
 | `qr(A)` | `sgeqrt_`, `dgeqrt_`, `cgeqrt_`, `zgeqrt_` | `libopenblas64_.so` |
 | `qr(A, ColumnNorm())` | `sgeqp3_`, `dgeqp3_`, `cgeqp3_`, `zgeqp3_` | `libopenblas64_.so` |
-| `svd(A)` | `sgesdd_`, `dgesdd_`, `cgesdd_`, `zgesdd_` | `libopenblas64_.so` |
-| `svd(A; alg=LinearAlgebra.QRIteration())` | `sgesvd_`, `dgesvd_`, `cgesvd_`, `zgesvd_` | `libopenblas64_.so` |
-| `svdvals(A)` | `sgesdd_`, `dgesdd_`, `cgesdd_`, `zgesdd_` | `libopenblas64_.so` |
-| `eigen(A)` | `sgeevx_`, `dgeevx_`, `cgeevx_`, `zgeevx_` | `libopenblas64_.so` |
-| `eigen(Hermitian(A))` | `ssyevr_`, `dsyevr_`, `cheevr_`, `zheevr_` | `libopenblas64_.so` |
-| `cholesky(Hermitian(A))` | `spotrf_`, `dpotrf_`, `cpotrf_`, `zpotrf_` | `libopenblas64_.so` |
+| `svd(A)` | `sgesdd_`, `dgesdd_`, `cgesdd_`, `zgesdd_` | `libcolmat_blas.so` |
+| `svd(A; alg=LinearAlgebra.QRIteration())` | `sgesvd_`, `dgesvd_`, `cgesvd_`, `zgesvd_` | `libcolmat_blas.so` |
+| `svdvals(A)` | `sgesdd_`, `dgesdd_`, `cgesdd_`, `zgesdd_` | `libcolmat_blas.so` |
+| `eigen(A)` | `sgeevx_`, `dgeevx_`, `cgeevx_`, `zgeevx_` | `libcolmat_blas.so` |
+| `eigen(Hermitian(A))` | `ssyevr_`, `dsyevr_`, `cheevr_`, `zheevr_` | `libcolmat_blas.so` |
+| `cholesky(Hermitian(A))` | `spotrf_`, `dpotrf_`, `cpotrf_`, `zpotrf_` | `libcolmat_blas.so` |
 
 ## 判定の範囲
 
