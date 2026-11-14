@@ -27,6 +27,7 @@ mod matrix_norms;
 mod matrix_permutation;
 mod matrix_scaling;
 mod pivoted_cholesky;
+mod precision_conversion;
 mod qr;
 mod qr_pivoted;
 mod qz;
