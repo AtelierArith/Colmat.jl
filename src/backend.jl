@@ -24,6 +24,8 @@ Tridiagonal EVD also saves ILP64 LAPACK entries for native nonconvergence and
 the relative/absolute accuracy modes not provided by the native API.
 Generalized self-adjoint drivers save ILP64 entries for native failures and
 positive-ABSTOL range calculations.
+Selected and QR-preconditioned SVD save ILP64 entries for native failures and
+GESVDQ condition estimation; independent Jacobi drivers remain on the existing backend.
 Call again to select Colmat after loading another BLAS provider. Configure the
 backend before starting concurrent BLAS work.
 """
@@ -136,6 +138,28 @@ function load_backend(; verbose::Bool=false)
             end
             ccall(has_selfadjoint, Cint, (Cint,), id-1)!=0||error(
                 "Colmat generalized self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
+        # Preserve the expert estimate and failure-recovery drivers before forwarding.
+        register_svd=Libdl.dlsym(_handle[], :colmat_advanced_svd_set_fallback)
+        has_svd=Libdl.dlsym(_handle[], :colmat_advanced_svd_has_fallback)
+        for (id, symbol) in enumerate((
+            "sgesvdx_",
+            "dgesvdx_",
+            "cgesvdx_",
+            "zgesvdx_",
+            "sgesvdq_",
+            "dgesvdq_",
+            "cgesvdq_",
+            "zgesvdq_",
+        ))
+            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous!==nothing&&realpath(previous.libname)!=realpath(path)
+                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_svd, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
+            end
+            ccall(has_svd, Cint, (Cint,), id-1)!=0||error(
+                "Colmat advanced SVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.

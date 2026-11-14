@@ -32,6 +32,7 @@ include("triangular_lapack.jl")
 include("generalized_reduction.jl")
 include("generalized_selfadjoint.jl")
 include("complete_pivot_lu.jl")
+include("advanced_svd.jl")
 include("lbt_inventory.jl")
 include("support_matrix.jl")
 

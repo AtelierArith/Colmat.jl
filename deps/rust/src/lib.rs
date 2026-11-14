@@ -5,6 +5,7 @@
 #![allow(clippy::too_many_arguments, clippy::missing_safety_doc)]
 
 mod abi;
+mod advanced_svd;
 mod balance;
 mod bunch_kaufman;
 mod complete_pivot_lu;
