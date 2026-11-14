@@ -414,3 +414,41 @@ GEBAK は更新対象の行だけを読み書きし、選択した JOB が使わ
 孤立固有値・非自明な置換・尺度、OpenBLAS との metadata の双方向相互運用、
 空・1要素・矩形の固有ベクトル、未参照領域、不正引数・整数幅、
 Julia の LAPACK wrapper と LBT 登録を検証します。
+
+
+## 三重対角 EVD driver の接続（#268）
+
+STEQR/STEDC/PTEQR/STEGR/STEMR の4型、STERF/STEV/STEVD/STEVR/STEVX の実数2型、
+計30 Fortran シンボルを LP64/ILP64 に接続しました。
+通常の経路は native `tridiagonal_self_adjoint_evd` を呼び出します。
+STEQR と STERF は QR 経路を選び、STEDC/STEVD は native の既定閾値128で
+QR と divide-and-conquer を使い分けます。COMPZ=V は既存 Z に固有ベクトルを後乗算します。
+PTEQR は正定値三重対角の bidiagonal Cholesky 因子を作り、
+native `bidiagonal_svd` の QR 経路を使って小さな正固有値の相対精度を保ちます。
+PTEQR の固有値は降順、他の driver は昇順です。
+
+範囲選択 driver の通常経路は、全スペクトルから A/I/V を選択します。
+専用 MRRR や bisection/inverse iteration の実装を提供するという意味ではありません。
+STEMR の TRYRAC=true、STEVR/STEVX の正の ABSTOL は、保存した既存 LAPACK に委譲します。
+STEGR の ABSTOL は Reference LAPACK と同じく使いません。
+ISUPPZ は得られた固有ベクトルの support から作り、STEVR の部分範囲では更新しません。
+STEMR の NZC=-1 query は必要な列数を Z(1,1) に返します。
+
+公開 native API は非収束時の途中の D/E を返さないため、native が失敗した場合も
+元の入力から保存した LAPACK を呼び、各 driver の INFO と部分結果の契約を保ちます。
+このためロード前に24入口の ILP64 LAPACK バックエンドが必要です。通常の Julia は
+OpenBLAS を提供します。LP64 呼び出しには整数引数・出力と整数 scratch を変換し、
+再登録時には自分自身を転送先として保存しません。
+
+内部で行列・固有ベクトル・native scratch を確保します。
+STEVR/STEMR/STEGR の選択範囲が狭くても全スペクトルを計算するため、
+専用の範囲選択実装と同じ計算量・割り当て量にはなりません。
+STEDC の caller workspace は小問題の QR 閾値25と LAPACK の D&C の最小量を使い、
+native scratch は別に確保します。query は入力行列と固有ベクトルを変更しません。
+ただし STEMR の value-range の列数 query は D/E を読みます。
+
+`test/tridiagonal_evd.jl` は4型・両 ABI、0/1/2次元、重複・split・区間端点、
+既存 Z の後乗算、support、各 query と最小 workspace、guard と整数幅、
+160次元の D&C、expert fallback、通常 Julia API と30シンボルの登録を検証します。
+隔離プロセスでは fallback 不足の診断と通常経路が fallback を使わないことを確認します。
+STEBZ/STEIN はこの接続に含めません。

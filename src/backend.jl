@@ -20,6 +20,8 @@ backend for expert condition estimates; its SENSE=N path runs in colmat.
 GGEVX runs BALANC=N/SENSE=N in colmat; other modes require a saved ILP64
 expert backend, with integer conversion for LP64 callers. Such a backend must
 be configured before loading Colmat (Julia normally provides OpenBLAS).
+Tridiagonal EVD also saves ILP64 LAPACK entries for native nonconvergence and
+the relative/absolute accuracy modes not provided by the native API.
 Call again to select Colmat after loading another BLAS provider. Configure the
 backend before starting concurrent BLAS work.
 """
@@ -66,6 +68,45 @@ function load_backend(; verbose::Bool=false)
             end
             ccall(has_generalized, Cint, (Cint,), id - 1) != 0 || error(
                 "Colmat GGEVX requires an existing ILP64 expert backend; configure one before loading Colmat.",
+            )
+        end
+        # Native tridiagonal EVD does not expose partial D/E on nonconvergence.
+        # Save a LAPACK implementation before forwarding; LP64 widens integers.
+        register_tridiagonal = Libdl.dlsym(_handle[], :colmat_tridiagonal_set_fallback)
+        has_tridiagonal = Libdl.dlsym(_handle[], :colmat_tridiagonal_has_fallback)
+        for (id, symbol) in enumerate((
+            "ssteqr_",
+            "dsteqr_",
+            "csteqr_",
+            "zsteqr_",
+            "ssterf_",
+            "dsterf_",
+            "sstevd_",
+            "dstevd_",
+            "spteqr_",
+            "dpteqr_",
+            "cpteqr_",
+            "zpteqr_",
+            "sstedc_",
+            "dstedc_",
+            "cstedc_",
+            "zstedc_",
+            "sstevr_",
+            "dstevr_",
+            "sstevx_",
+            "dstevx_",
+            "sstemr_",
+            "dstemr_",
+            "cstemr_",
+            "zstemr_",
+        ))
+            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_tridiagonal, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
+            end
+            ccall(has_tridiagonal, Cint, (Cint,), id - 1) != 0 || error(
+                "Colmat tridiagonal EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
