@@ -358,9 +358,9 @@
         "hegvx"
       ],
       "status": "conditional",
-      "api": "self_adjoint_generalized_eigen",
-      "source": "faer/src/linalg/solvers.rs",
-      "note": "正定値 pencil の固有値・固有ベクトルはある。ITYPE=2/3・選択範囲・上三角入力は追加変換が必要"
+      "api": "Cholesky + triangular congruence + self_adjoint_evd",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続"
     },
     {
       "routines": [

@@ -73,20 +73,33 @@ unsafe fn native<T: GeneralizedScalar>(
     lb: isize,
 ) -> Result<NativeResult<T>, Failure> {
     let saved = snapshot(u, n, b, lb);
-    // Initialize ignored complex diagonal imaginary components before borrowing
-    // the factorization buffer, without reading those components from input.
-    if T::COMPLEX {
-        for i in 0..n {
-            let p = b.offset(i as isize * (lb + 1));
-            *p = T::diagonal(p);
+    // Complex native LLT uses the opposite triangle as scratch. Stage it and
+    // copy only the selected output, without reading ignored diagonal parts.
+    let status = if T::COMPLEX {
+        let mut factor = reduction::hermitian(u, n, b, lb);
+        let status = crate::lapack::cholesky(factor.as_mut());
+        for j in 0..n {
+            for i in 0..n {
+                if (u == b'U' && i <= j) || (u == b'L' && i >= j) {
+                    let value = if u == b'L' {
+                        factor[(i, j)]
+                    } else {
+                        factor[(j, i)].cj()
+                    };
+                    *b.offset(i as isize + j as isize * lb) =
+                        if i == j { T::real(value.re()) } else { value };
+                }
+            }
         }
-    }
-    let factor = if u == b'L' {
-        crate::lapack::input_mut(b, n, n, lb)
+        status
     } else {
-        crate::lapack::input_mut_transposed(b, n, lb)
+        let factor = if u == b'L' {
+            crate::lapack::input_mut(b, n, n, lb)
+        } else {
+            crate::lapack::input_mut_transposed(b, n, lb)
+        };
+        crate::lapack::cholesky(factor)
     };
-    let status = crate::lapack::cholesky(factor);
     if status != 0 {
         return Err(Failure::NonPositive(status));
     }
