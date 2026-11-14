@@ -144,9 +144,6 @@
       "routines": [
         "geqr",
         "gemqr",
-        "geqp3",
-        "geqpf",
-        "geqp3rk",
         "getsqrhrt",
         "latsqr",
         "orgtsqr",
@@ -1092,6 +1089,17 @@
       "api": "qr_in_place / Householder / triangular solve",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
       "note": "Fortran 36シンボル・4型・両 ABI を接続済み。A/TAU の係数変換、Q の生成・左右適用と GEQRS を提供。複素通常版と非負対角版は LAPACK gauge の reflector を生成し実数 beta を保持。内部配列を確保し、各入口の算法名と同一の Netlib 実装を使う保証はない。"
+    },
+    {
+      "routines": [
+        "geqp3",
+        "geqpf",
+        "geqp3rk"
+      ],
+      "status": "composition",
+      "api": "QR / reflector application / residual column norms",
+      "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
+      "note": "Fortran 4型・LP64/ILP64 を接続済み。GEQP3/GEQPF は固定 JPVT と置換方向を変換。GEQP3RK は残差列ノルムを再計算して KMAX/ABSTOL/RELTOL による途中停止と付随右辺の更新を実装。native の対角値による rank 判定とは区別する。内部作業配列を確保する。"
     }
   ]
 }
