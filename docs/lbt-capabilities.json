@@ -569,16 +569,28 @@
     },
     {
       "routines": [
-        "rot",
-        "rotg",
-        "lartg",
-        "lartgp",
-        "lartgs"
+        "rot"
       ],
       "status": "representation",
       "api": "JacobiRotation::rotg / make_givens",
       "source": "faer/src/linalg/jacobi.rs",
-      "note": "係数の共役・符号・r の規約を変換。modified Givens rotmg/rotm は別物"
+      "note": "既存 ROT の算術互換入口。modified Givens ROTMG/ROTM は別物。"
+    },
+    {
+      "routines": [
+        "rotg",
+        "lartg",
+        "lartgp",
+        "lartgs",
+        "largv",
+        "lartv",
+        "lar2v",
+        "lasr"
+      ],
+      "status": "representation",
+      "api": "JacobiRotation::rotg and native scalar/row/column applications",
+      "source": "faer/src/linalg/jacobi.rs",
+      "note": "Twenty-eight Fortran symbols connected for both integer ABIs. Convert native sine conjugation/sign and real r conventions; compose shifted rotations and batched one-/two-sided applications, including LASR pivot and direction. Scale real generators and shifted product ratios safely. Complex LAR2V ignores diagonal imaginary components. ROTM/ROTMG remain separate."
     },
     {
       "routines": [

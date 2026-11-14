@@ -688,3 +688,37 @@ GEMM3M は通常の native GEMM に接続して同じ積和の算術契約を提
 `test/reduction_extensions.jl` は両実数精度・該当する複素型、両 ABI、stride、
 同率・abs1 と modulus の差・Float32 の丸め、空入力、非有限の scalar、
 巨大配列を確保しない整数幅検査、LBT 登録と実呼び出しを検証します。
+
+## Givens 回転の生成と配列適用（#278）
+
+ROTG/LARTG/LARGV/LARTV/LAR2V/LASR の4型と、実数 LARTGP/LARTGS の2型、
+計28 Fortran シンボルを両整数 ABI に接続しました。native JacobiRotation の
+sine の符号・共役を LAPACK の規約に変換します。real ROTG/LARGV は大きい
+入力の符号、LARTG は非ゼロ F の符号、LARTGP は非負 R を採用します。
+real ROTG は A に R、B に補助値 Z を返し、complex ROTG は B を保持します。
+
+real 生成系は入力を正規化してから native ROTG を呼ぶため、R 自体が型の
+範囲を超える場合にも有限で単位長の係数を保持します。LARTGS はシフト列を
+構成して LARTGP の順序を変えた回転を生成します。中間積が overflow する
+場合は指数を分離した積・商で比を求め、表現可能な小さい sine を失わない
+ようにします。小さい X とゼロシフトに関する LAPACK の分岐も維持します。
+
+LARGV は正 stride の X/Y から配列係数と R を生成します。LARTV は個別の
+係数を native の2成分適用へ、LAR2V は Hermitian 2x2 行列の両側適用へ
+変換します。complex LAR2V は X/Y の実部だけを読み、実対角を出力します。
+LASR は native の行/列 view による左右適用を使い、V/T/B pivot と F/B 順序を
+扱います。恒等回転は A を参照せず、leading-dimension の余白も保持します。
+
+配列係数ルーチンの増分は正値が利用条件です。正の N に対する不正な増分と
+LASR の不正引数は `colmat_blas_last_error()` に引数位置を記録します。
+配列係数ルーチンの N<=0 は係数・配列・増分を参照せず戻ります。
+workspace は不要で、入力の借用は呼び出し中に限定します。
+modified Givens の ROTM/ROTMG を提供するという意味ではありません。
+
+`test/givens.jl` は両 ABI・4型、BigFloat の独立した生成式、極小/極大値・
+ゼロ・複素位相、R の overflow と subnormal の出力量子化、配列係数・stride、
+両側 Hermitian 適用、LASR の左右/pivot/順序、guard・引数診断・整数幅、
+全28シンボルの LBT 数値呼び出しを検証します。通常領域では既存 LAPACK とも
+照合します。既存 OpenBLAS の complex ROTG に単位長条件を満たさない極端な
+入力があるため、その領域の正否判定は BigFloat と残差に基づきます。
+Rust テストでは空/恒等操作の null pointer と、小さい sine の保持も検証します。
