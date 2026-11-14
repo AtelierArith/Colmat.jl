@@ -256,3 +256,20 @@ active range 全体を未収束として INFO=IHI を返し、部分収束を偽
 A=Z*T*Z'、直交性、active range、既存 Z の更新と行範囲、実 Schur 共役対、
 SELECT/SDIM、極小・極大尺度、padding、未参照領域の NaN、空・1×1、
 query、不正引数、非収束 INFO と20シンボルの LBT 登録を検証します。
+
+## 一般化 Hessenberg 接続（#269）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+GGHRD/GGHD3 の8シンボルを4型・両整数 ABI に接続しました。
+公開 `generalized_hessenberg` が返す active block の左右基底を全体へ埋め込み、
+範囲外との結合と既存 Q/Z を native GEMM で更新します。
+COMPQ/COMPZ=N/I/V と ILO/IHI を扱い、B の厳密下三角は入力で読みません。
+GGHRD/GGHD3 は同じ native 経路で、内部の行列・scratch を確保します。
+GGHD3 は呼び出し元の WORK を1要素だけ必要とし、query でも1を返します。
+Netlib GGHRD/GGHD3 の別々の算法や外部 WORK の利用方法を再現しません。
+
+`test/generalized_hessenberg.jl` は両 ABI の具体的な C 署名、4型、
+Q'*A*Z=H と Q'*B*Z=T、Hessenberg/三角構造、ユニタリ性、
+空・1×1・2×2、部分範囲、Q/Z の初期化・既存値への更新・未使用、
+40×40 のブロック経路、padding、未参照 B/Q/Z の NaN、query、
+不正引数と8シンボルの LBT 登録を検証します。

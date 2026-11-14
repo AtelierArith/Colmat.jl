@@ -21,6 +21,7 @@ include("rz.jl")
 include("least_squares.jl")
 include("hessenberg.jl")
 include("schur.jl")
+include("generalized_hessenberg.jl")
 include("lbt_inventory.jl")
 include("support_matrix.jl")
 

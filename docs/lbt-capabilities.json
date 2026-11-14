@@ -450,10 +450,10 @@
         "gghrd",
         "gghd3"
       ],
-      "status": "native",
+      "status": "representation",
       "api": "generalized_hessenberg",
       "source": "faer/src/linalg/gevd/gen_hessenberg/mod.rs",
-      "note": "Hessenberg-triangular reduction の Q/Z と部分範囲を変換"
+      "note": "Fortran 8シンボル・4型・両 ABI を接続済み。active block を公開 generalized_hessenberg へ渡し、範囲外との結合と COMPQ/COMPZ=N/I/V を native GEMM で変換する。B の厳密下三角を読まず、出力でゼロにする。GGHRD/GGHD3 は共通 native 経路で内部行列・scratch を確保する。GGHD3 の最小 WORK と query は1。"
     },
     {
       "routines": [
