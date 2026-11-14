@@ -24,6 +24,7 @@ mod lapack_symmetric;
 mod least_squares;
 mod lq;
 mod matrix_copy;
+mod matrix_extensions;
 mod matrix_norms;
 mod matrix_permutation;
 mod matrix_scaling;
