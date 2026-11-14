@@ -1,6 +1,6 @@
 # Colmat.jl
 
-Rust の [colmat](https://github.com/tensor4all/faer) を使う Julia の BLAS バックエンドです。
+Rust の [colmat](https://github.com/tensor4all/colmat-rs) を使う Julia の BLAS バックエンドです。
 `using Colmat` で libblastrampoline の転送先を登録します。通常の `Matrix` と
 `LinearAlgebra` をそのまま使えます。専用の行列型・RustCall は不要です。
 

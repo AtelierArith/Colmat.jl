@@ -35,7 +35,7 @@ Pkg.build("Colmat")
 
 `deps/build.jl` は次の順に処理します。
 
-1. Rust ソースがなければ `deps/t4a-faer` に取得する。
+1. Rust ソースがなければ `deps/colmat-rs` に取得する。
 2. checkout のコミットと `deps/upstream.toml` の revision を照合する。
 3. `cargo build --release --locked` で BLAS 共有ライブラリを作る。
 4. ライブラリを `deps/usr/lib` に配置する。

@@ -1,7 +1,7 @@
 using Libdl
 using TOML
 
-const source = joinpath(@__DIR__, "t4a-faer")
+const source = joinpath(@__DIR__, "colmat-rs")
 const upstream = TOML.parsefile(joinpath(@__DIR__, "upstream.toml"))
 const revision = upstream["revision"]
 

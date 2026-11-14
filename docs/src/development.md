@@ -28,7 +28,7 @@ julia --project -e 'using Pkg; Pkg.build("Colmat"); Pkg.test()'
 
 ## upstream の更新
 
-`deps/t4a-faer` を目的のコミットに checkout し、`deps/upstream.toml` の revision を
+`deps/colmat-rs` を目的のコミットに checkout し、`deps/upstream.toml` の revision を
 同じ値に更新します。必要に応じて Cargo.lock を更新し、ビルドとテストを実行します。
 依存元の checkout にパッケージ側の修正を混ぜないでください。
 

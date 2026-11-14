@@ -8,6 +8,6 @@ rust-version = "1.89"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-colmat = { path = "../t4a-faer/faer", default-features = false, features = ["std", "rayon", "threadteam"] }
+colmat = { path = "../colmat-rs/faer", default-features = false, features = ["std", "rayon", "threadteam"] }
 threadteam = { version = "0.6.0", default-features = false, features = ["parallel"] }
 paste = "1.0"

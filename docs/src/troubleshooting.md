@@ -19,8 +19,8 @@ Git・Cargo・OS の開発ツールが実行可能であることも確認して
 次のコマンドは状態の確認だけを行います。
 
 ```sh
-git -C deps/t4a-faer rev-parse HEAD
-git -C deps/t4a-faer status --short
+git -C deps/colmat-rs rev-parse HEAD
+git -C deps/colmat-rs status --short
 cat deps/upstream.toml
 ```
 
