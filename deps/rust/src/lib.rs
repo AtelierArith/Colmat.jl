@@ -25,6 +25,7 @@ mod lq;
 mod matrix_copy;
 mod matrix_norms;
 mod matrix_permutation;
+mod matrix_scaling;
 mod pivoted_cholesky;
 mod qr;
 mod qr_pivoted;
