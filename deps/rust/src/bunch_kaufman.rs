@@ -141,7 +141,12 @@ mod tests {
                     T::z()
                 }
             });
-            let reconstructed = multiply(&multiply(&l, b'N', &d, b'N'), b'N', &l, b'C');
+            let reconstructed = multiply(
+                multiply(l.as_ref(), b'N', d.as_ref(), b'N').as_ref(),
+                b'N',
+                l.as_ref(),
+                b'C',
+            );
             for j in 0..n {
                 for i in 0..n {
                     assert!(
@@ -155,7 +160,7 @@ mod tests {
             let rhs = Mat::from_fn(n, 2, |i, j| T::real((i + j + 1) as f64));
             let mut solution = rhs.clone();
             native_solve(&factors, &mut solution);
-            let reconstructed = multiply(&original, b'N', &solution, b'N');
+            let reconstructed = multiply(original.as_ref(), b'N', solution.as_ref(), b'N');
             for j in 0..2 {
                 for i in 0..n {
                     assert!((reconstructed[(i, j)] - rhs[(i, j)]).magnitude() < 1e-10);
