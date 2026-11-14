@@ -308,7 +308,7 @@ pub(crate) unsafe fn svd_solve<T: ReflectorScalar>(
         let z = *a.offset(i as isize + j as isize * lda);
         T::parts(z.re() / scale, z.im() / scale)
     });
-    let (u, values, v) = crate::lapack::svd(&matrix, m, k)?;
+    let (u, values, v) = crate::lapack::svd(matrix.as_ref(), m, k)?;
     let cutoff = if rcond < 0.0 { T::EPS } else { rcond };
     let rank = values
         .iter()
@@ -666,7 +666,7 @@ pub(crate) unsafe fn complete_orthogonal<T: ReflectorScalar>(
                     T::z()
                 }
             });
-            let (_, s, _) = crate::lapack::svd(&triangular, 0, 0)?;
+            let (_, s, _) = crate::lapack::svd(triangular.as_ref(), 0, 0)?;
             if s[size - 1] < s[0] * rcond {
                 break;
             }

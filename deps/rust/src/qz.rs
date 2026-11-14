@@ -219,7 +219,12 @@ mod tests {
         let (ar, ai, beta) = T::native(&mut a, &mut b, &mut q, &mut z);
         assert!(converged(&a, &b, &ar, &ai, &beta));
         for (original, result) in [(&original_a, &a), (&original_b, &b)] {
-            let reconstructed = multiply(&multiply(&q, b'N', result, b'N'), b'N', &z, b'C');
+            let reconstructed = multiply(
+                multiply(q.as_ref(), b'N', result.as_ref(), b'N').as_ref(),
+                b'N',
+                z.as_ref(),
+                b'C',
+            );
             for j in 0..n {
                 for i in 0..n {
                     assert!((reconstructed[(i, j)] - original[(i, j)]).magnitude() < 1e-10);
@@ -322,8 +327,18 @@ fn active<T: QzScalar>(
         }
         let left = embed(&u, n, lo, hi);
         let right = embed(&v, n, lo, hi);
-        let updated_a = multiply(&left, b'C', &multiply(a, b'N', &right, b'N'), b'N');
-        let updated_b = multiply(&left, b'C', &multiply(b, b'N', &right, b'N'), b'N');
+        let updated_a = multiply(
+            left.as_ref(),
+            b'C',
+            multiply(a.as_ref(), b'N', right.as_ref(), b'N').as_ref(),
+            b'N',
+        );
+        let updated_b = multiply(
+            left.as_ref(),
+            b'C',
+            multiply(b.as_ref(), b'N', right.as_ref(), b'N').as_ref(),
+            b'N',
+        );
         for j in 0..n {
             for i in 0..n {
                 if i >= lo && i < hi && j >= lo && j < hi {
@@ -335,8 +350,8 @@ fn active<T: QzScalar>(
                 }
             }
         }
-        *q = multiply(q, b'N', &left, b'N');
-        *z = multiply(z, b'N', &right, b'N');
+        *q = multiply(q.as_ref(), b'N', left.as_ref(), b'N');
+        *z = multiply(z.as_ref(), b'N', right.as_ref(), b'N');
         for i in 0..size {
             ar[lo + i] = w[i] * T::real(sa);
             ai[lo + i] = imag[i] * sa;

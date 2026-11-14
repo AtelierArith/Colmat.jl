@@ -1,7 +1,7 @@
 //! Schur driver primitives over the native public Hessenberg-Schur APIs.
 use crate::kernels::Scalar;
 use colmat::dyn_stack::{MemBuffer, MemStack};
-use colmat::{c32, c64, Col, Mat};
+use colmat::{c32, c64, Col, Mat, MatRef};
 
 pub(crate) trait SchurScalar: crate::householder::ReflectorScalar {
     fn reorder(t: &mut Mat<Self>, q: &mut Mat<Self>, from: usize, to: usize) -> bool;
@@ -106,7 +106,7 @@ real_schur!(f64);
 complex_schur!(c32);
 complex_schur!(c64);
 
-pub(crate) fn multiply<T: Scalar>(a: &Mat<T>, ta: u8, b: &Mat<T>, tb: u8) -> Mat<T> {
+pub(crate) fn multiply<T: Scalar>(a: MatRef<'_, T>, ta: u8, b: MatRef<'_, T>, tb: u8) -> Mat<T> {
     let rows = if ta == b'N' { a.nrows() } else { a.ncols() };
     let inner = if ta == b'N' { a.ncols() } else { a.nrows() };
     let cols = if tb == b'N' { b.ncols() } else { b.nrows() };
@@ -120,10 +120,10 @@ pub(crate) fn multiply<T: Scalar>(a: &Mat<T>, ta: u8, b: &Mat<T>, tb: u8) -> Mat
             cols as isize,
             inner as isize,
             T::o(),
-            a.as_ref().as_ptr(),
-            a.as_ref().col_stride(),
-            b.as_ref().as_ptr(),
-            b.as_ref().col_stride(),
+            a.as_ptr(),
+            a.col_stride(),
+            b.as_ptr(),
+            b.col_stride(),
             T::z(),
             output.as_mut().as_ptr_mut(),
             ld,
@@ -163,8 +163,8 @@ pub(crate) fn active<T: SchurScalar>(
             T::z()
         }
     });
-    let right = multiply(h, b'N', &transform, b'N');
-    let result = multiply(&transform, b'C', &right, b'N');
+    let right = multiply(h.as_ref(), b'N', transform.as_ref(), b'N');
+    let result = multiply(transform.as_ref(), b'C', right.as_ref(), b'N');
     for j in 0..n {
         for i in 0..n {
             if i >= lo && i < hi && j >= lo && j < hi {
@@ -179,7 +179,7 @@ pub(crate) fn active<T: SchurScalar>(
         }
     }
     if let Some(z) = z {
-        let updated = multiply(z, b'N', &transform, b'N');
+        let updated = multiply(z.as_ref(), b'N', transform.as_ref(), b'N');
         *z = updated;
     }
     values[lo..hi].copy_from_slice(&w);
@@ -205,8 +205,8 @@ mod tests {
         let mut z = Mat::from_fn(n, n, |i, j| if i == j { T::o() } else { T::z() });
         let (_, _, info) = active(&mut h, Some(&mut z), 1, 4);
         assert_eq!(info, 0);
-        let temp = multiply(&z, b'N', &h, b'N');
-        let result = multiply(&temp, b'N', &z, b'C');
+        let temp = multiply(z.as_ref(), b'N', h.as_ref(), b'N');
+        let result = multiply(temp.as_ref(), b'N', z.as_ref(), b'C');
         for j in 0..n {
             for i in 0..n {
                 assert!((result[(i, j)] - original[(i, j)]).magnitude() < 1e-10);
