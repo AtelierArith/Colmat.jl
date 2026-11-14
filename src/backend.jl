@@ -20,6 +20,8 @@ backend for expert condition estimates; its SENSE=N path runs in colmat.
 GGEVX runs BALANC=N/SENSE=N in colmat; other modes require a saved ILP64
 expert backend, with integer conversion for LP64 callers. Such a backend must
 be configured before loading Colmat (Julia normally provides OpenBLAS).
+Tridiagonal EVD also saves ILP64 LAPACK entries for native nonconvergence and
+the relative/absolute accuracy modes not provided by the native API.
 Call again to select Colmat after loading another BLAS provider. Configure the
 backend before starting concurrent BLAS work.
 """
@@ -85,6 +87,18 @@ function load_backend(; verbose::Bool=false)
             "dpteqr_",
             "cpteqr_",
             "zpteqr_",
+            "sstedc_",
+            "dstedc_",
+            "cstedc_",
+            "zstedc_",
+            "sstevr_",
+            "dstevr_",
+            "sstevx_",
+            "dstevx_",
+            "sstemr_",
+            "dstemr_",
+            "cstemr_",
+            "zstemr_",
         ))
             previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
             if previous !== nothing && realpath(previous.libname) != realpath(path)

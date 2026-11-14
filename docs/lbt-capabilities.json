@@ -310,13 +310,12 @@
         "stevd",
         "steqr",
         "stedc",
-        "sterf",
-        "pteqr"
+        "sterf"
       ],
       "status": "native",
       "api": "tridiagonal_self_adjoint_evd",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "三重対角 eigensolver はある。固有ベクトルへの既存 Q の適用や作業配列は変換が必要"
+      "note": "STEV/STEVD/STEQR/STEDC/STERF の14 Fortran シンボルを両 ABI に接続。既存 Q の後乗算、workspace query と最小 WORK を扱う。native 非収束時は保存した ILP64 LAPACK に渡し部分結果を維持"
     },
     {
       "routines": [
@@ -328,7 +327,16 @@
       "status": "composition",
       "api": "tridiagonal_self_adjoint_evd と全スペクトルからの選択",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "専用 MRRR/選択範囲エンジンはない。数学的出力の合成候補"
+      "note": "STEVR/STEVX/STEGR/STEMR の12 Fortran シンボルを両 ABI に接続。native 全スペクトルから A/I/V を選択し、専用 MRRR とは算法が異なる。STEMR の TRYRAC=true、STEVR/STEVX の正の ABSTOL と native 非収束は保存した ILP64 LAPACK に委譲。C API は別途接続"
+    },
+    {
+      "routines": [
+        "pteqr"
+      ],
+      "status": "composition",
+      "api": "bidiagonal_svd + positive tridiagonal factor representation",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "PTEQR の4 Fortran シンボルを両 ABI に接続。正定値三重対角の bidiagonal Cholesky 因子を作り native bidiagonal SVD を使う。降順の固有値、正定値性 INFO、既存 Q の後乗算を扱い、SVD 非収束は保存した LAPACK に委譲。C API は別途接続"
     },
     {
       "routines": [

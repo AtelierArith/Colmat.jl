@@ -27,6 +27,7 @@ include("generalized_eigen.jl")
 include("pivoted_cholesky.jl")
 include("bunch_kaufman.jl")
 include("balance.jl")
+include("tridiagonal_evd.jl")
 include("lbt_inventory.jl")
 include("support_matrix.jl")
 
