@@ -25,6 +25,7 @@ mod pivoted_cholesky;
 mod qr;
 mod qr_pivoted;
 mod qz;
+mod reduction_extensions;
 mod rz;
 mod schur;
 mod selected_selfadjoint;

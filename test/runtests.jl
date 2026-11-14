@@ -11,6 +11,7 @@ using Colmat
 include("backend.jl")
 include("blas.jl")
 include("dense_extensions.jl")
+include("reduction_extensions.jl")
 include("abi.jl")
 include("lapack_native.jl")
 include("householder.jl")

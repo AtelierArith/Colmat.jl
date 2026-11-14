@@ -545,12 +545,6 @@
         "nrm2",
         "asum",
         "iamax",
-        "iamin",
-        "amax",
-        "amin",
-        "max",
-        "min",
-        "sum",
         "real_scal",
         "real_rot"
       ],
@@ -558,6 +552,20 @@
       "api": "行列/ベクトル view と還元・演算",
       "source": "faer/src/linalg/reductions/mod.rs",
       "note": "基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ"
+    },
+    {
+      "routines": [
+        "amax",
+        "amin",
+        "iamin",
+        "max",
+        "min",
+        "sum"
+      ],
+      "status": "composition",
+      "api": "MatRef::min/max/sum + real-precision abs1 and first-index selection",
+      "source": "faer/src/mat/matref.rs",
+      "note": "Fourteen Fortran symbols connected for both integer ABIs. Real MAX/MIN/SUM borrow strided vectors; absolute extrema and IAMIN allocate real comparison values and use native min/max. Complex IAMIN compares abs(real)+abs(imag), rounded in the real input precision, and returns the first 1-based logical index. Negative strides return zero without reading X; zero stride returns the first (absolute) value for extrema and zero for SUM/IAMIN."
     },
     {
       "routines": [
