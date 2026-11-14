@@ -11,6 +11,7 @@ using Colmat
 include("backend.jl")
 include("blas.jl")
 include("abi.jl")
+include("support_matrix.jl")
 
 # Reuse Julia's BLAS conformance suite as well as our independent references.
 # It runs in the same process with Colmat forwards active.

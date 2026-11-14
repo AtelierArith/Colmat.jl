@@ -1,5 +1,8 @@
 # BLAS 対応範囲
 
+通常の Julia API を実行した結果と登録先の照合は
+[Julia API の実測対応表](@ref)に記載します。
+
 ## 型と整数 ABI
 
 | Julia の要素型 | BLAS 接頭辞 |

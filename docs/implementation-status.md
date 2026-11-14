@@ -2,6 +2,7 @@
 
 現在の Colmat は libblastrampoline に登録する BLAS バックエンドです。
 
+- [Julia API の実測対応表](src/reference/support-matrix.md)
 - [対応する型・整数 ABI・ルーチン](src/reference/coverage.md)
 - [転送とフォールバックの仕組み](src/manual/backend.md)
 - [ソース構成・依存更新・検証方法](src/development.md)

@@ -55,3 +55,17 @@ julia --project=docs docs/make.jl
 文書ビルドは公開 API の掲載漏れと doctest を検査します。
 対応シンボル数の doctest は、文書と LBT の実際の登録内容を照合します。
 公開例は `examples/poc.jl` でも実行できます。
+
+
+## 実測対応表の更新
+
+[Julia API の実測対応表](@ref)は、通常配列の実行結果と LBT 登録先を照合して生成します。
+
+```sh
+julia --project=test test/support_matrix.jl --output=docs/src/reference/support-matrix.md
+```
+
+生成前に `Pkg.build("Colmat")` を実行し、新しい Julia プロセスを使ってください。
+プローブは `Pkg.test()` にも含まれますが、通常のテストでは文書を上書きしません。
+生成版は検証した Julia・プラットフォーム・ソースコミットを記録したスナップショットです。
+Rust に機能があること、Julia から呼べること、Colmat が担当することを分けて更新します。
