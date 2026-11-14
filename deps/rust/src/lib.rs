@@ -11,6 +11,7 @@ mod bunch_kaufman;
 mod complete_pivot_lu;
 mod complex_auxiliary;
 mod dense_extensions;
+mod general_equilibration;
 mod generalized_eigen;
 mod generalized_hessenberg;
 mod generalized_selfadjoint;
