@@ -42,7 +42,7 @@
       "status": "native",
       "api": "triangular_solve / triangular_inverse",
       "source": "faer/src/linalg/triangular_solve.rs",
-      "note": "unit diagonal・転置・共役を変換。trtrs は特異対角検査も必要"
+      "note": "TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない"
     },
     {
       "routines": [
@@ -614,7 +614,7 @@
       "status": "native",
       "api": "triangular::matmul",
       "source": "faer/src/linalg/matmul/triangular.rs",
-      "note": "三角因子とその転置/共役の積を構成"
+      "note": "LAUUM/LAUU2 の8 Fortran シンボルを両 ABI に接続。借用した三角因子とその転置/共役の積を native triangular::matmul で構成し、指定した三角だけを更新。C API は別途接続"
     },
     {
       "routines": [
