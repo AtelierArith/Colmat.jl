@@ -653,7 +653,7 @@
       "status": "representation",
       "api": "make_householder_in_place / block Householder",
       "source": "faer/src/linalg/householder.rs",
-      "note": "tau の逆数/共役・implicit leading one・positive gauge の変換が必要"
+      "note": "Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。"
     },
     {
       "routines": [

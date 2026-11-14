@@ -78,3 +78,29 @@ julia --project=test test/support_matrix.jl --output=docs/src/reference/support-
 ```
 
 検証が失敗したときは表を上書きしません。呼び出しケースと検証方法は `test/support_matrix.jl` にあります。
+
+## Householder ABI 接続（#264）
+
+この追記は既存の Linux 実測表とは別の検証です。Julia 1.13.3 /
+`x86_64-apple-darwin`、colmat-rs
+`e1c83482f5a61449d30e989808c3ba5f751ec391` を使用しました。
+`test/householder.jl` は `larf/larfx/larfy/larft/larfb/larfg/larfgp` の
+4型・LP64/ILP64 の共有ライブラリ入口を具体的な C 署名で実行し、
+28 canonical シンボルの LBT 登録先が Colmat であることを確認します。
+
+生成は LAPACK の `I - tau*v*v'`、実数 beta、LARFGP の非負 beta に合わせた
+Rust adapter です。colmat の実数係数・複素位相を保持する生成 API の単なる
+逆数変換ではありません。適用は既存の native GEMV/SYMV/GEMM を使用します。
+F/B、C/R の implicit unit diagonal を展開し、LARFT の三角因子を構成します。
+LARFB は LAPACK 形式の外部因子も受け入れます。
+
+検証は反射積・ユニタリ性・極小/極大尺度・複素 head・ゼロ係数・
+長さ1・正負 stride・左右・上下三角・外部 OpenBLAS の LARFT 因子を含みます。
+LARFX の小次数では WORK を参照せず、LARFY は選択した三角領域だけを更新します。
+これらの補助ルーチンには workspace query や INFO 引数はありません。
+不正引数の診断は既存の `colmat_blas_last_error` 規約を使います。
+
+LARFB は内部で basis と次数の二乗の明示的な反射行列を確保します。
+呼び出し側の最小合法 WORK で動作しますが、作業領域だけを使う実装や
+LAPACK と同じ計算量・割り当て量を保証するものではありません。
+この接続は Fortran ABI に限定し、LAPACKE は別タスクです。
