@@ -106,11 +106,10 @@ macro_rules! exports{
             for(arg,ok)in[(1,matches!(mode,b'N'|b'P'|b'S'|b'B')),(2,nn>=0),(4,la>=nn.max(1))]{if !ok{*info=-arg;crate::invalid(arg as i32);return;}}
             *ilo=1;*ihi=nn as $i;for i in 0..nn as usize{*scale.add(i)=1.0;}
             if mode==b'N'||nn==0{return;}
-            let mut matrix=crate::lapack::input(a,nn as usize,nn as usize,la);
-            match <$t as General>::balance(&mut matrix,mode){
+            let matrix=crate::lapack::input_mut(a,nn as usize,nn as usize,la);
+            match <$t as General>::balance(matrix,mode){
                 Ok((permutation,factors,lo,hi))=>{
                     let encoded=encode_scale(&permutation,factors,lo,hi);
-                    crate::lapack::output(&matrix,a,la);
                     for i in 0..nn as usize{*scale.add(i)=encoded[i] as $r;}
                     *ilo=(lo+1) as $i;*ihi=hi as $i;
                 },
