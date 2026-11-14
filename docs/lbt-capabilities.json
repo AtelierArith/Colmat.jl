@@ -63,10 +63,10 @@
         "getc2",
         "gesc2"
       ],
-      "status": "conditional",
-      "api": "FullPivLu",
+      "status": "composition",
+      "api": "FullPivLu rank truncation + guarded triangular solve / matmul",
       "source": "faer/src/linalg/lu/full_pivoting/factor.rs",
-      "note": "完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要"
+      "note": "GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続"
     },
     {
       "routines": [

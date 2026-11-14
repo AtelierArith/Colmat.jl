@@ -542,3 +542,40 @@ JOBZ=V の GV/GVD は A 全体が固有ベクトル出力となり、GVX の Z �
 正定値性 INFO、不正引数・整数幅、未参照領域、精度指定と native 失敗の fallback、
 通常 Julia の `eigen(Hermitian(A), Hermitian(B))` と12シンボルの登録を検証します。
 隔離プロセスでは backend 不足を LBT 登録前に検出し、通常経路の native 実行を確認します。
+
+
+## 完全ピボット LU と scaled solve（#272）
+
+GETC2/GESC2 の4型、計8 Fortran シンボルを両整数 ABI に接続しました。
+GETC2 は SMIN を abs_tol に指定して native full-pivot LU を実行します。
+その最終置換を LAPACK の逐次 IPIV/JPIV に変換し、残る Schur complement には
+完全ピボット選択・小ピボット置換を行い、native triangular solve と matmul で消去を継続します。
+因子化を最後まで実行してから対角だけを置換する方式ではありません。
+
+SMIN は max(eps × 最初の最大絶対値, floatmin/eps)、1要素の場合は floatmin/eps です。
+小ピボットは正の実数 SMIN に置き換え、INFO は最後に摂動した位置を返します。
+native prefix と参照 LAPACK は、同値候補の選び方や複素数の pivot score が異なるため、
+IPIV/JPIV の値そのものの一致は保証しません。因子形式と再構成・solve の契約を保ちます。
+Bignum の定数と最終 SMIN は対応する実数精度です。
+
+GESC2 は行置換、unit lower solve、upper solve、逆順の列置換を行い、
+元の行列に対する A x = SCALE b を満たす scaled solution を返します。
+前進代入の更新前と後退代入の除算・積の前で右辺全体を縮小して overflow を防ぎます。
+後退代入では U の行を対角で正規化してから native の積を使い、
+未正規化の列との積だけが巨大になる不要な SCALE の縮小を避けます。
+SCALE は実数精度で毎回更新し、積がゼロへ underflow した場合は右辺もゼロにします。
+SCALE は参照 LAPACK と数値的に同一とは限らず、0≤SCALE≤1 と残差を検証します。
+
+A は借用して因子化し、GESC2 は入力因子を変更しません。
+内部で native scratch・行列サイズに比例する置換配列・正規化した U 行を確保し、
+入力行列全体の控えは作りません。caller workspace と query はありません。
+N=0 は配列に触れずに戻り、GESC2 の SCALE は1です。
+アダプタは不正な N/LDA を検査し、GETC2 は負の INFO、
+INFO 引数を持たない GESC2 は `colmat_blas_last_error` で引数番号を報告します。
+GESC2 は最後の IPIV/JPIV 要素を参照しません。
+
+`test/complete_pivot_lu.jl` は4型・両 ABI、行/列置換の再構成、
+非特異・特異・階数落ち・subnormal・SMIN 境界、外部因子と solve の双方向相互運用、
+極小/極大尺度、巨大右辺、112次元の非ゼロ解と300次元の不可避な SCALE underflow、
+BigFloat による残差/解の比較、padding・論理部分行列・整数 guard、
+未参照 pivot、不正引数と LBT 経由の通常配列を検証します。
