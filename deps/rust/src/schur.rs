@@ -1,31 +1,35 @@
 //! Schur driver primitives over the native public Hessenberg-Schur APIs.
 use crate::kernels::Scalar;
 use colmat::dyn_stack::{MemBuffer, MemStack};
-use colmat::{c32, c64, Col, Mat, MatRef};
+use colmat::{c32, c64, Col, Mat, MatMut, MatRef};
+
+pub(crate) fn borrow<'a, T: Scalar>(m: &MatMut<'a, T>) -> MatRef<'a, T> {
+    unsafe {
+        MatRef::from_raw_parts(
+            m.as_ptr(),
+            m.nrows(),
+            m.ncols(),
+            m.row_stride(),
+            m.col_stride(),
+        )
+    }
+}
 
 pub(crate) trait SchurScalar: crate::householder::ReflectorScalar {
-    fn reorder(t: &mut Mat<Self>, q: &mut Mat<Self>, from: usize, to: usize) -> bool;
-    fn native(h: &mut Mat<Self>, q: &mut Mat<Self>) -> (Vec<Self>, Vec<f64>, bool);
+    fn reorder(t: MatMut<'_, Self>, q: MatMut<'_, Self>, from: usize, to: usize) -> bool;
+    fn native(h: MatMut<'_, Self>, q: MatMut<'_, Self>) -> (Vec<Self>, Vec<f64>, bool);
 }
 macro_rules! real_schur {
     ($t:ty) => {
         impl SchurScalar for $t {
-            fn reorder(t: &mut Mat<Self>, q: &mut Mat<Self>, from: usize, to: usize) -> bool {
+            fn reorder(t: MatMut<'_, Self>, q: MatMut<'_, Self>, from: usize, to: usize) -> bool {
                 use colmat::linalg::evd::{reorder_schur_real, reorder_schur_scratch};
                 crate::threading::with_par(|par| {
                     let mut mem = MemBuffer::new(reorder_schur_scratch::<Self>(t.nrows()));
-                    reorder_schur_real(
-                        t.as_mut(),
-                        Some(q.as_mut()),
-                        from,
-                        to,
-                        par,
-                        MemStack::new(&mut mem),
-                    )
-                    .is_ok()
+                    reorder_schur_real(t, Some(q), from, to, par, MemStack::new(&mut mem)).is_ok()
                 })
             }
-            fn native(h: &mut Mat<Self>, q: &mut Mat<Self>) -> (Vec<Self>, Vec<f64>, bool) {
+            fn native(h: MatMut<'_, Self>, q: MatMut<'_, Self>) -> (Vec<Self>, Vec<f64>, bool) {
                 use colmat::linalg::evd::{hessenberg_schur_real, hessenberg_schur_scratch};
                 let n = h.nrows();
                 let mut real = Col::<Self>::zeros(n);
@@ -38,8 +42,8 @@ macro_rules! real_schur {
                         Default::default(),
                     ));
                     hessenberg_schur_real(
-                        h.as_mut(),
-                        Some(q.as_mut()),
+                        h,
+                        Some(q),
                         real.as_mut(),
                         imag.as_mut(),
                         par,
@@ -60,22 +64,15 @@ macro_rules! real_schur {
 macro_rules! complex_schur {
     ($t:ty) => {
         impl SchurScalar for $t {
-            fn reorder(t: &mut Mat<Self>, q: &mut Mat<Self>, from: usize, to: usize) -> bool {
+            fn reorder(t: MatMut<'_, Self>, q: MatMut<'_, Self>, from: usize, to: usize) -> bool {
                 use colmat::linalg::evd::{reorder_schur_cplx, reorder_schur_scratch};
                 crate::threading::with_par(|par| {
                     let mut mem = MemBuffer::new(reorder_schur_scratch::<Self>(t.nrows()));
-                    reorder_schur_cplx(
-                        t.as_mut(),
-                        Some(q.as_mut()),
-                        from,
-                        to,
-                        par,
-                        MemStack::new(&mut mem),
-                    );
+                    reorder_schur_cplx(t, Some(q), from, to, par, MemStack::new(&mut mem));
                 });
                 true
             }
-            fn native(h: &mut Mat<Self>, q: &mut Mat<Self>) -> (Vec<Self>, Vec<f64>, bool) {
+            fn native(h: MatMut<'_, Self>, q: MatMut<'_, Self>) -> (Vec<Self>, Vec<f64>, bool) {
                 use colmat::linalg::evd::{hessenberg_schur_cplx, hessenberg_schur_scratch};
                 let n = h.nrows();
                 let mut values = Col::<Self>::zeros(n);
@@ -87,8 +84,8 @@ macro_rules! complex_schur {
                         Default::default(),
                     ));
                     hessenberg_schur_cplx(
-                        h.as_mut(),
-                        Some(q.as_mut()),
+                        h,
+                        Some(q),
                         values.as_mut(),
                         par,
                         MemStack::new(&mut mem),
@@ -133,10 +130,12 @@ pub(crate) fn multiply<T: Scalar>(a: MatRef<'_, T>, ta: u8, b: MatRef<'_, T>, tb
 }
 
 pub(crate) fn active<T: SchurScalar>(
-    h: &mut Mat<T>,
-    z: Option<&mut Mat<T>>,
+    mut h: MatMut<'_, T>,
+    mut z: Option<MatMut<'_, T>>,
     lo: usize,
     hi: usize,
+    zlo: usize,
+    zhi: usize,
 ) -> (Vec<T>, Vec<f64>, usize) {
     let n = h.nrows();
     let size = hi - lo;
@@ -153,7 +152,7 @@ pub(crate) fn active<T: SchurScalar>(
         }
     });
     let mut q = Mat::from_fn(size, size, |i, j| if i == j { T::o() } else { T::z() });
-    let (w, wi, success) = T::native(&mut block, &mut q);
+    let (w, wi, success) = T::native(block.as_mut(), q.as_mut());
     let transform = Mat::from_fn(n, n, |i, j| {
         if i >= lo && i < hi && j >= lo && j < hi {
             q[(i - lo, j - lo)]
@@ -163,7 +162,7 @@ pub(crate) fn active<T: SchurScalar>(
             T::z()
         }
     });
-    let right = multiply(h.as_ref(), b'N', transform.as_ref(), b'N');
+    let right = multiply(borrow(&h), b'N', transform.as_ref(), b'N');
     let result = multiply(transform.as_ref(), b'C', right.as_ref(), b'N');
     for j in 0..n {
         for i in 0..n {
@@ -178,9 +177,15 @@ pub(crate) fn active<T: SchurScalar>(
             }
         }
     }
-    if let Some(z) = z {
-        let updated = multiply(z.as_ref(), b'N', transform.as_ref(), b'N');
-        *z = updated;
+    if let Some(z) = z.as_mut() {
+        let updated = multiply(borrow(z), b'N', transform.as_ref(), b'N');
+        // HSEQR only updates rows zlo..zhi; row-wise multiplication leaves the
+        // rows outside that range independent of the transform.
+        for j in 0..n {
+            for i in zlo..zhi {
+                z[(i, j)] = updated[(i, j)];
+            }
+        }
     }
     values[lo..hi].copy_from_slice(&w);
     imaginary[lo..hi].copy_from_slice(&wi);
@@ -203,7 +208,8 @@ mod tests {
         h[(4, 3)] = T::z();
         let original = h.clone();
         let mut z = Mat::from_fn(n, n, |i, j| if i == j { T::o() } else { T::z() });
-        let (_, _, info) = active(&mut h, Some(&mut z), 1, 4);
+        let zn = z.ncols();
+        let (_, _, info) = active(h.as_mut(), Some(z.as_mut()), 1, 4, 0, zn);
         assert_eq!(info, 0);
         let temp = multiply(z.as_ref(), b'N', h.as_ref(), b'N');
         let result = multiply(temp.as_ref(), b'N', z.as_ref(), b'C');
@@ -232,48 +238,38 @@ unsafe fn run_hessenberg<T: SchurScalar>(
     ldz: isize,
     initialize: bool,
     want_z: bool,
-    zlo: usize,
-    zhi: usize,
+    _zlo: usize,
+    _zhi: usize,
 ) -> (Vec<T>, Vec<f64>, usize) {
-    let mut matrix = Mat::from_fn(n, n, |i, j| {
-        if i <= j + 1 {
-            *h.offset(i as isize + j as isize * ldh)
-        } else {
-            T::z()
+    let mut matrix = crate::lapack::input_mut(h, n, n, ldh);
+    for j in 0..n {
+        for i in j + 2..n {
+            matrix[(i, j)] = T::z();
         }
-    });
+    }
     let mut vectors = if want_z {
-        Some(Mat::from_fn(n, n, |i, j| {
-            if initialize {
-                if i == j {
-                    T::o()
-                } else {
-                    T::z()
+        let mut view = crate::lapack::input_mut(z, n, n, ldz);
+        if initialize {
+            for j in 0..n {
+                for i in 0..n {
+                    view[(i, j)] = if i == j { T::o() } else { T::z() };
                 }
-            } else if i >= zlo && i < zhi {
-                *z.offset(i as isize + j as isize * ldz)
-            } else {
-                T::z()
             }
-        }))
+        }
+        Some(view)
     } else {
         None
     };
-    let result = active(&mut matrix, vectors.as_mut(), lo, hi);
-    for j in 0..n {
-        for i in 0..n {
-            *h.offset(i as isize + j as isize * ldh) = matrix[(i, j)];
-        }
-    }
-    if let Some(vectors) = vectors {
-        let rows = if initialize { 0..n } else { zlo..zhi };
-        for j in 0..n {
-            for i in rows.clone() {
-                *z.offset(i as isize + j as isize * ldz) = vectors[(i, j)];
-            }
-        }
-    }
-    result
+    active(
+        matrix.as_mut(),
+        vectors.as_mut().map(|view| view.as_mut()),
+        lo,
+        hi,
+        _zlo,
+        _zhi,
+    )
+    // The Hessenberg matrix and Z are updated in place; rows outside the
+    // requested Z range are untouched because the transform is identity there.
 }
 use crate::kernels::flag;
 use paste::paste;
@@ -634,7 +630,7 @@ laqr_complex_exports!(z, laqr0, c64, i64, _64_);
 laqr_complex_exports!(z, laqr4, c64, i64, _64_);
 
 // Eigenvalues in LAPACK's real conjugate-pair order after native block swaps.
-fn spectrum<T: SchurScalar>(t: &Mat<T>) -> (Vec<T>, Vec<f64>) {
+fn spectrum<T: SchurScalar>(t: MatRef<'_, T>) -> (Vec<T>, Vec<f64>) {
     let n = t.nrows();
     let mut w: Vec<T> = (0..n).map(|i| t[(i, i)]).collect();
     let mut wi = vec![0.0; n];
@@ -683,13 +679,16 @@ unsafe fn general_schur<T: SchurScalar>(
     } else {
         1.0
     };
-    let mut h = Mat::from_fn(n, n, |i, j| {
-        *a.offset(i as isize + j as isize * lda) / T::real(scale)
-    });
-    let ld = h.as_ref().col_stride();
+    let mut h = crate::lapack::input_mut(a, n, n, lda);
+    for j in 0..n {
+        for i in 0..n {
+            h[(i, j)] = h[(i, j)] / T::real(scale);
+        }
+    }
+    let ld = h.col_stride();
     let mut tau = vec![T::z(); n.saturating_sub(1)];
     crate::hessenberg::reduce(n, 0, n, h.as_mut().as_ptr_mut(), ld, tau.as_mut_ptr());
-    let mut q = h.clone();
+    let mut q = borrow(&h).to_owned();
     let lq = q.as_ref().col_stride();
     crate::hessenberg::explicit(n, 0, n, q.as_mut().as_ptr_mut(), lq, tau.as_ptr());
     for j in 0..n {
@@ -697,7 +696,7 @@ unsafe fn general_schur<T: SchurScalar>(
             h[(i, j)] = T::z();
         }
     }
-    let (mut w, mut wi, mut info) = active(&mut h, Some(&mut q), 0, n);
+    let (mut w, mut wi, mut info) = active(h.as_mut(), Some(q.as_mut()), 0, n, 0, n);
     for i in 0..n {
         w[i] = w[i] * T::real(scale);
         wi[i] *= scale;
@@ -721,7 +720,7 @@ unsafe fn general_schur<T: SchurScalar>(
             }
             if take {
                 if i != sdim {
-                    if !T::reorder(&mut h, &mut q, i, sdim) {
+                    if !T::reorder(h.as_mut(), q.as_mut(), i, sdim) {
                         info = n + 1;
                         break;
                     }
@@ -731,7 +730,7 @@ unsafe fn general_schur<T: SchurScalar>(
             }
             i += size;
         }
-        (w, wi) = spectrum(&h);
+        (w, wi) = spectrum(borrow(&h));
         for i in 0..n {
             w[i] = w[i] * T::real(scale);
             wi[i] *= scale;
@@ -770,7 +769,6 @@ unsafe fn general_schur<T: SchurScalar>(
             h[(i, j)] = h[(i, j)] * T::real(scale);
         }
     }
-    crate::lapack::output(&h, a, lda);
     if want_vs {
         crate::lapack::output(&q, vs, ldvs);
     }

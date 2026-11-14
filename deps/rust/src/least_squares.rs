@@ -304,11 +304,11 @@ pub(crate) unsafe fn svd_solve<T: ReflectorScalar>(
     if !scale.is_finite() {
         return Err(());
     }
-    let matrix = colmat::Mat::<T>::from_fn(m, n, |i, j| {
-        let z = *a.offset(i as isize + j as isize * lda);
-        T::parts(z.re() / scale, z.im() / scale)
-    });
-    let (u, values, v) = crate::lapack::svd(matrix.as_ref(), m, k)?;
+    // The native SVD normalizes extreme scales internally, so the caller's
+    // matrix can be read directly. The right-hand side still needs its own
+    // scale to stay finite in the transformed products.
+    let matrix = crate::lapack::input_ref(a, m, n, lda);
+    let (u, values, v) = crate::lapack::svd(matrix, m, k)?;
     let cutoff = if rcond < 0.0 { T::EPS } else { rcond };
     let rank = values
         .iter()
@@ -377,8 +377,8 @@ pub(crate) unsafe fn svd_solve<T: ReflectorScalar>(
         for i in 0..n {
             let z = solution[i + j * n];
             *b.offset(i as isize + j as isize * ldb) = T::parts(
-                rescale(z.re(), rhs_scale, scale),
-                rescale(z.im(), rhs_scale, scale),
+                rescale(z.re(), rhs_scale, 1.0),
+                rescale(z.im(), rhs_scale, 1.0),
             );
         }
         for i in n..m {
@@ -394,7 +394,7 @@ pub(crate) unsafe fn svd_solve<T: ReflectorScalar>(
             }
         }
     }
-    Ok((rank, values.iter().map(|&s| s * scale).collect()))
+    Ok((rank, values))
 }
 
 #[cfg(test)]
