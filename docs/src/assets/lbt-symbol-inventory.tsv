@@ -2893,7 +2893,7 @@ cgerfs_	Fortran	gerfs	c	対応する独立公開 API なし	false	false	—	faer
 cgerq2_	Fortran	gerq2	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 cgerqf_	Fortran	gerqf	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 cgeru_	Fortran	geru	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-cgesc2_	Fortran	gesc2	c	一部機能のみ・追加の契約実装が必要	false	false	FullPivLu	faer/src/linalg/lu/full_pivoting/factor.rs	完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要
+cgesc2_	Fortran	gesc2	c	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 cgesdd_	Fortran	gesdd	c	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
 cgesv_	Fortran	gesv	c	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 cgesvd_	Fortran	gesvd	c	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
@@ -2901,7 +2901,7 @@ cgesvdq_	Fortran	gesvdq	c	一部機能のみ・追加の契約実装が必要	fa
 cgesvdx_	Fortran	gesvdx	c	一部機能のみ・追加の契約実装が必要	false	false	Svd と選択・rank 判定	faer/src/linalg/svd/mod.rs	標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない
 cgesvj_	Fortran	gesvj	c	一部機能のみ・追加の契約実装が必要	false	false	Svd と選択・rank 判定	faer/src/linalg/svd/mod.rs	標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない
 cgesvx_	Fortran	gesvx	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-cgetc2_	Fortran	getc2	c	一部機能のみ・追加の契約実装が必要	false	false	FullPivLu	faer/src/linalg/lu/full_pivoting/factor.rs	完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要
+cgetc2_	Fortran	getc2	c	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 cgetf2_	Fortran	getf2	c	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 cgetrf2_	Fortran	getrf2	c	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 cgetrf_	Fortran	getrf	c	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
@@ -3440,7 +3440,7 @@ dger_	Fortran	ger	d	対応する公開数値機能あり	true	true	matmul / tria
 dgerfs_	Fortran	gerfs	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 dgerq2_	Fortran	gerq2	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 dgerqf_	Fortran	gerqf	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
-dgesc2_	Fortran	gesc2	d	一部機能のみ・追加の契約実装が必要	false	false	FullPivLu	faer/src/linalg/lu/full_pivoting/factor.rs	完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要
+dgesc2_	Fortran	gesc2	d	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 dgesdd_	Fortran	gesdd	d	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
 dgesv_	Fortran	gesv	d	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 dgesvd_	Fortran	gesvd	d	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
@@ -3448,7 +3448,7 @@ dgesvdq_	Fortran	gesvdq	d	一部機能のみ・追加の契約実装が必要	fa
 dgesvdx_	Fortran	gesvdx	d	一部機能のみ・追加の契約実装が必要	false	false	Svd と選択・rank 判定	faer/src/linalg/svd/mod.rs	標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない
 dgesvj_	Fortran	gesvj	d	一部機能のみ・追加の契約実装が必要	false	false	Svd と選択・rank 判定	faer/src/linalg/svd/mod.rs	標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない
 dgesvx_	Fortran	gesvx	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-dgetc2_	Fortran	getc2	d	一部機能のみ・追加の契約実装が必要	false	false	FullPivLu	faer/src/linalg/lu/full_pivoting/factor.rs	完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要
+dgetc2_	Fortran	getc2	d	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 dgetf2_	Fortran	getf2	d	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 dgetrf2_	Fortran	getrf2	d	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 dgetrf_	Fortran	getrf	d	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
@@ -4095,7 +4095,7 @@ sger_	Fortran	ger	s	対応する公開数値機能あり	true	true	matmul / tria
 sgerfs_	Fortran	gerfs	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 sgerq2_	Fortran	gerq2	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 sgerqf_	Fortran	gerqf	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
-sgesc2_	Fortran	gesc2	s	一部機能のみ・追加の契約実装が必要	false	false	FullPivLu	faer/src/linalg/lu/full_pivoting/factor.rs	完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要
+sgesc2_	Fortran	gesc2	s	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 sgesdd_	Fortran	gesdd	s	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
 sgesv_	Fortran	gesv	s	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 sgesvd_	Fortran	gesvd	s	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
@@ -4103,7 +4103,7 @@ sgesvdq_	Fortran	gesvdq	s	一部機能のみ・追加の契約実装が必要	fa
 sgesvdx_	Fortran	gesvdx	s	一部機能のみ・追加の契約実装が必要	false	false	Svd と選択・rank 判定	faer/src/linalg/svd/mod.rs	標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない
 sgesvj_	Fortran	gesvj	s	一部機能のみ・追加の契約実装が必要	false	false	Svd と選択・rank 判定	faer/src/linalg/svd/mod.rs	標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない
 sgesvx_	Fortran	gesvx	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-sgetc2_	Fortran	getc2	s	一部機能のみ・追加の契約実装が必要	false	false	FullPivLu	faer/src/linalg/lu/full_pivoting/factor.rs	完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要
+sgetc2_	Fortran	getc2	s	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 sgetf2_	Fortran	getf2	s	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 sgetrf2_	Fortran	getrf2	s	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 sgetrf_	Fortran	getrf	s	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
@@ -4684,7 +4684,7 @@ zgerfs_	Fortran	gerfs	z	対応する独立公開 API なし	false	false	—	faer
 zgerq2_	Fortran	gerq2	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 zgerqf_	Fortran	gerqf	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 zgeru_	Fortran	geru	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zgesc2_	Fortran	gesc2	z	一部機能のみ・追加の契約実装が必要	false	false	FullPivLu	faer/src/linalg/lu/full_pivoting/factor.rs	完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要
+zgesc2_	Fortran	gesc2	z	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 zgesdd_	Fortran	gesdd	z	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
 zgesv_	Fortran	gesv	z	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 zgesvd_	Fortran	gesvd	z	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
@@ -4692,7 +4692,7 @@ zgesvdq_	Fortran	gesvdq	z	一部機能のみ・追加の契約実装が必要	fa
 zgesvdx_	Fortran	gesvdx	z	一部機能のみ・追加の契約実装が必要	false	false	Svd と選択・rank 判定	faer/src/linalg/svd/mod.rs	標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない
 zgesvj_	Fortran	gesvj	z	一部機能のみ・追加の契約実装が必要	false	false	Svd と選択・rank 判定	faer/src/linalg/svd/mod.rs	標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない
 zgesvx_	Fortran	gesvx	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-zgetc2_	Fortran	getc2	z	一部機能のみ・追加の契約実装が必要	false	false	FullPivLu	faer/src/linalg/lu/full_pivoting/factor.rs	完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要
+zgetc2_	Fortran	getc2	z	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 zgetf2_	Fortran	getf2	z	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 zgetrf2_	Fortran	getrf2	z	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
 zgetrf_	Fortran	getrf	z	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
