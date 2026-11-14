@@ -328,3 +328,133 @@ end
         @test all(g->all(==(J(777)), g), queryresult.integer_guards)
     end
 end
+
+@testset "Generalized EVD singular pencils, conjugate pairs and padding" begin
+    Random.seed!(3012)
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        J in (Int32, Int64),
+        family in (:ggev, :ggev3, :gegv)
+
+        inputs=(
+            (T[0 -1; 1 0], Matrix{T}(I, 2, 2)),
+            (zeros(T, 3, 3), zeros(T, 3, 3)),
+            (Matrix{T}(I, 3, 3), zeros(T, 3, 3)),
+            (T[1 1; 0 1], Matrix{T}(I, 2, 2)),
+        )
+        for (original, original_b) in inputs
+            n=size(original, 2)
+            a=fill(T(456), n+2, n)
+            b=copy(a)
+            vl=copy(a)
+            vr=copy(a)
+            a[1:n, :]=original
+            b[1:n, :]=original_b
+            alpha, beta, info, _=direct_generalized_eigen!(a, b, vl, vr, J, Val(family))
+            @test info==0
+            check_generalized_vectors(original, original_b, alpha, beta, vl, vr)
+            @test all(x->all(==(T(456)), x[(n + 1):end, :]), (a, b, vl, vr))
+            if all(iszero, original_b)
+                @test all(iszero, beta)
+            end
+            saved=map(copy, (a, b, vl, vr))
+            _, _, info, _=direct_generalized_eigen!(
+                a, b, vl, vr, J, Val(family); lwork_override=0
+            )
+            @test info==(T<:Real ? -16 : -15)
+            @test all(isequal.(saved, (a, b, vl, vr)))
+        end
+    end
+end
+
+@testset "Generalized EVD independent OpenBLAS homogeneous spectrum" begin
+    library=only(
+        filter(
+            l->l.interface==:ilp64 && occursin("openblas", lowercase(basename(l.libname))),
+            BLAS.get_config().loaded_libs,
+        ),
+    ).libname
+    Random.seed!(3013)
+    for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
+        n=7
+        original=randn(T, n, n)
+        original_b=randn(T, n, n)
+        vl=zeros(T, n, n)
+        vr=copy(vl)
+        alpha, beta, info, _=direct_generalized_eigen!(
+            copy(original), copy(original_b), vl, vr, J, Val(:ggev)
+        )
+        ar, be, refinfo, _=direct_generalized_eigen!(
+            copy(original), copy(original_b), copy(vl), copy(vr), Int64, Val(:ggev); library
+        )
+        @test info==0 && refinfo==0
+        R=typeof(real(zero(T)))
+        pool=collect(zip(ar, be))
+        for (a, b) in zip(alpha, beta)
+            scale=hypot(abs(a), abs(b))
+            a/=scale
+            b/=scale
+            distances=[
+                abs(a*(d/hypot(abs(c), abs(d)))-b*(c/hypot(abs(c), abs(d)))) for
+                (c, d) in pool
+            ]
+            i=argmin(distances)
+            @test distances[i]<=5000eps(R)
+            deleteat!(pool, i)
+        end
+    end
+end
+
+@testset "GGEVX restored Schur scales, empty input and registration" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
+        R=typeof(real(zero(T)))
+        base=T[-1 -3; 3 -1]
+        base_b=T[2 0; 0 1]
+        for (sa, sb) in (
+            (sqrt(floatmin(R)), sqrt(floatmax(R))/10),
+            (sqrt(floatmax(R))/10, sqrt(floatmin(R))),
+        )
+            original=base*sa
+            original_b=base_b*sb
+            a=copy(original)
+            b=copy(original_b)
+            vl=zeros(T, 2, 2)
+            vr=copy(vl)
+            result=direct_ggevx!(a, b, vl, vr, J)
+            @test result.info==0
+            @test norm(a/sa) ≈ norm(base)
+            @test norm(b/sb) ≈ norm(base_b)
+            @test all(isfinite, result.alpha) && all(isfinite, result.beta)
+            @test all(!iszero, result.beta)
+            check_generalized_vectors(base, base_b, result.alpha/sa, result.beta/sb, vl, vr)
+        end
+        for bal in ('N', 'B'), sense in ('N', 'B')
+            a=zeros(T, 0, 0)
+            vl=copy(a)
+            vr=copy(a)
+            result=direct_ggevx!(a, copy(a), vl, vr, J; bal, sense)
+            @test result.info==0
+        end
+        prefix=if T===Float32
+            "s"
+        elseif T===Float64
+            "d"
+        elseif T===ComplexF32
+            "c"
+        else
+            "z"
+        end
+        for family in ("ggev", "ggev3", "gegv", "ggevx")
+            backing=BLAS.lbt_find_backing_library(
+                prefix*family*"_", J===Int32 ? :lp64 : :ilp64
+            )
+            @test backing!==nothing &&
+                realpath(backing.libname)==realpath(Colmat.backend_library())
+        end
+    end
+end
+
+@testset "GGEVX missing expert configuration is diagnosed before registration" begin
+    worker=joinpath(@__DIR__, "generalized_eigen_fallback_worker.jl")
+    project=dirname(Base.active_project())
+    @test success(`$(Base.julia_cmd()) --startup-file=no --project=$project $worker`)
+end

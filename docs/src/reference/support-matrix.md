@@ -305,3 +305,34 @@ Schur 構造、ユニタリ性、active range、Q/Z の初期化・更新・未�
 SELECT/SDIM、独立した極小・極大尺度、padding、未参照領域の NaN、
 空・1×1・2×2、query と最小 WORK、不正引数、非収束 INFO、
 Julia GGES ラッパーと16シンボルの LBT 登録を検証します。
+
+## 一般化 EVD driver 接続（#301）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+GGEV/GGEV3/GEGV/GGEVX の16シンボルを4型・両整数 ABI に接続しました。
+通常 driver は公開 `gevd_real/cplx` の homogeneous α/β と左右固有ベクトルを
+変換します。β=0 と 0/0 の特異 pencil を保持し、実数共役対を隣接する実部・虚部列で
+返します。native の実数 transpose-left 規約は虚部列を反転して LAPACK の
+adjoint-left 規約へ変換し、各ベクトルの最大の |Re|+|Im| を1に正規化します。
+各入口は同じ native 経路と内部 scratch を使い、入口ごとの最小 WORK/query を返します。
+native GEVD が非収束を返す場合は、部分 index がないため INFO=N とします。
+
+GGEVX の `BALANC=N/SENSE=N` は native です。ILO/IHI=1/N、LSCALE/RSCALE=1 と
+元の行列の ABNRM/BBNRM を返します。A/B の Schur 出力は、固定 revision の native
+実装の2冪 prescale を追跡して元の単位へ戻します。依存更新時にはこの変換を
+再検証する必要があります。
+
+その他の BALANC/SENSE は既存 ILP64 expert backend へ委譲します。
+LP64 の呼び出しでは整数スカラーを64 bitへ変換し、IWORK/BWORK は呼び出し内で
+確保するため、32 bit の出力領域へ64 bitで書き込みません。ILO/IHI/INFO を元の幅へ戻し、
+query 時には ILO/IHI を変更しません。balance と条件推定を native 対応済みとは扱いません。
+Colmat のロード前に4型の ILP64 GGEVX が必要です。通常の Julia は OpenBLAS を提供します。
+不足時は LBT 登録の変更前に明示的な設定エラーを返し、合法なモードを不正引数として
+報告したり、未計算の条件推定を成功扱いにしたりしません。
+再登録では Colmat 自身を expert backend として保存しません。
+
+`test/generalized_eigen.jl` は4型・両 ABI・全4入口、左右・片側・values-only、
+homogeneous な左右残差、β=0、0/0、実数共役対と正規化、独立 OpenBLAS 比較、
+GGEVX の全 BALANC/SENSE 組合せ、metadata、query、整数幅の guard、padding、
+元の尺度の Schur 出力、空・1×1、不十分な workspace と LBT 登録を検証します。
+別プロセスで expert backend 欠落時の登録前診断と再登録も確認します。

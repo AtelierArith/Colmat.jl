@@ -17,6 +17,9 @@ backend_library() = abspath(_library)
 Install Colmat's LP64 and ILP64 BLAS/LAPACK symbols in libblastrampoline for this process.
 Existing forwards for unprovided routines are preserved. GEEVX uses the saved
 backend for expert condition estimates; its SENSE=N path runs in colmat.
+GGEVX runs BALANC=N/SENSE=N in colmat; other modes require a saved ILP64
+expert backend, with integer conversion for LP64 callers. Such a backend must
+be configured before loading Colmat (Julia normally provides OpenBLAS).
 Call again to select Colmat after loading another BLAS provider. Configure the
 backend before starting concurrent BLAS work.
 """

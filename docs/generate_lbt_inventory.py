@@ -139,6 +139,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| POTRF / POTRF2 / POTF2 / POTRS / POTRI / POSV | colmat-rs LLT・三角 solve | UPLO と INFO を変換 |',
     '| GESDD / GESVD | colmat-rs SVD | full/thin/overwrite と VT を変換。両 driver は共通 native SVD に接続 |',
     '| GEEV / GEEVX | colmat-rs balance・EVD・Schur | GEEVX は SENSE=N が native。その他は既存 backend |',
+    '| GGEV / GGEV3 / GEGV / GGEVX | colmat-rs GEVD・homogeneous α/β・左右固有ベクトル | GGEVX は BALANC=N/SENSE=N が native。その他は既存 ILP64 backend と整数 ABI 変換 |',
     '| SYEV / HEEV / SYEVD / HEEVD | colmat-rs 自己随伴 EVD | ドライバー名と同じ Netlib 算法を実行する保証はない |',
     '| LARFG / LARFGP / LARF / LARFX / LARFY / LARFT / LARFB | Rust reflector 生成・native GEMV/SYMV/GEMM | LAPACK 係数・F/B・C/R を変換。LARFB は内部配列を確保 |',
     '| SYEVR / HEEVR | 全 EVD と A/I/V 範囲の選択 | native MRRR / Sturm count は提供しない |','',

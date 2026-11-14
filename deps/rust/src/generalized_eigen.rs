@@ -140,7 +140,6 @@ complex_eigen!(c64);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernels::Scalar;
     fn check<T: EigenScalar>() {
         let n = 3;
         let a = Mat::from_fn(n, n, |i, j| {
