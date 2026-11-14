@@ -29,11 +29,11 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 | 1 | `dotu`, `dotc` | 複素数2型 |
 | 1 | `nrm2`, `asum` | 全4型、戻り値は対応する実数型 |
 | 1 | `csscal`, `zdscal`, `csrot`, `zdrot` | 複素配列と実数係数 |
-| 2 | `gemv`, `symv`, `syr`, `trmv`, `trsv` | 全4型 |
+| 2 | `gemv`, `symv`, `syr`, `syr2`, `trmv`, `trsv` | 全4型 |
 | 2 | `ger` | 実数2型 |
-| 2 | `geru`, `gerc`, `hemv`, `her` | 複素数2型 |
-| 3 | `gemm`, `symm`, `syrk`, `syr2k`, `trmm`, `trsm` | 全4型 |
-| 3 | `hemm`, `herk`, `her2k` | 複素数2型 |
+| 2 | `geru`, `gerc`, `hemv`, `her`, `her2` | 複素数2型 |
+| 3 | `gemm`, `gemmt`, `gemmtr`, `symm`, `syrk`, `syr2k`, `trmm`, `trsm` | 全4型 |
+| 3 | `gemm3m`, `hemm`, `herk`, `her2k` | 複素数2型 |
 
 `iamax` の実際のシンボル名は `isamax_` / `idamax_` / `icamax_` / `izamax_`、
 複素ノルム・絶対値和は `scnrm2_` / `dznrm2_` / `scasum_` / `dzasum_` です。
@@ -41,7 +41,7 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 `cblas_cdot{u,c}_sub` / `cblas_zdot{u,c}_sub` も提供します。
 CBLAS 全体の互換ライブラリを提供するものではありません。
 
-この構成では LP64・ILP64 それぞれ610シンボル（BLAS 112、LAPACK 498）を LBT に登録します。
+この構成では LP64・ILP64 それぞれ626シンボル（BLAS 128、LAPACK 498）を LBT に登録します。
 登録を調べるには次を実行します。
 
 ```jldoctest
@@ -54,14 +54,14 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 610 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 626 for l in libs)
 true
 ```
 
 ## フォールバックに残すもの
 
 帯・packed 格納の演算（`gbmv`, `sbmv`, `hbmv`, `spmv`, `hpmv`, `spr` など）、
-`rotg`, `rotmg`, `rotm`, `syr2`, `her2`, `gemmt` など、この一覧にないルーチンは
+`rotg`, `rotmg`, `rotm` など、この一覧にないルーチンは
 Colmat が提供しません。未接続の LAPACK は既存バックエンドを使います。
 
 ## 計算経路と一時領域
