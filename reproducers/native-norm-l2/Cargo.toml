@@ -1,0 +1,10 @@
+[package]
+name = "colmat-native-norm-l2-repro"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+colmat = { git = "https://github.com/tensor4all/colmat-rs.git", rev = "e1c83482f5a61449d30e989808c3ba5f751ec391", default-features = false, features = ["std", "rayon", "threadteam"] }
+
+[workspace]

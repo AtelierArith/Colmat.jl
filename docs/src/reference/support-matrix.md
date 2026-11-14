@@ -722,3 +722,40 @@ modified Givens の ROTM/ROTMG を提供するという意味ではありませ�
 照合します。既存 OpenBLAS の complex ROTG に単位長条件を満たさない極端な
 入力があるため、その領域の正否判定は BigFloat と残差に基づきます。
 Rust テストでは空/恒等操作の null pointer と、小さい sine の保持も検証します。
+
+## 通常・構造付き格納の行列ノルム（#279）
+
+LANGE/LANGB/LANGT/LANHS、対称・Hermitian の dense/band/packed/RFP/三重対角、
+三角・台形・三角 band/packed の計54 Fortran シンボルを両整数 ABI に接続しました。
+M、1/O、I、F/E と小文字の同義指定を扱います。1 ノルムは最大列和、I は最大行和
+であり、行列全体の elementwise l1 ではありません。複素数の各要素には modulus
+を使います。native の複素 norm_max（成分最大）・norm_l1（abs1）をそのまま
+LAPACK の定義と同一視せず、実数絶対値への変換・native 和・最大値を合成します。
+
+F/E は複素成分を保ち、最大成分で正規化した値を native norm_l2 で還元して
+から戻します。pinned native の固定された3段階の二乗和では、最小 subnormal
+や MAX 近傍で表現可能なノルムが0/∞になるため、この正規化を行います。
+[単独再現 crate](https://github.com/AtelierArith/Colmat.jl/tree/main/reproducers/native-norm-l2)
+は依存の git revision と Cargo.lock を保持し、native の8件の失敗を exit 101 で
+示す診断です。通常の package test が失敗しているという意味ではありません。
+関連する [native 報告 #36](https://github.com/tensor4all/t4a-faer/issues/36) への
+追記は archived/read-only により拒否され、未公開草稿を再現 crate に残しています。
+
+参照する格納要素だけを走査し、unit diagonal は1を合成して格納値を読みません。
+Hermitian の対角は実部だけを読み、対称形式の複素対角は両成分を扱います。
+M/1/I の complex `Inf+NaN*i` は modulus の∞、F/E は成分ごとの NaN を返す
+LAPACK の規約に合わせます。別要素の NaN は各ノルムへ伝播します。
+RFP は偶数/奇数、UPLO、実数 N/T と複素数 N/C の対応を変換します。
+
+入力配列と WORK は保持します。非空入力の内部一時領域は格納要素数に比例し、
+band/三重対角を dense 行列へ展開しません。1/I の group 管理には行/列数に比例
+する領域も使います。caller WORK が全一時メモリを制限するという保証はなく、
+LWORK query を持たない入口です。空の m または n は配列を読まず0を返します。
+不正引数は0を返し、`colmat_blas_last_error()` に引数位置を記録します。
+LAPACK の INFO 引数を新設するものではありません。
+
+`test/matrix_norms.jl` は4型・両 ABI、独立 scalar/BigFloat norm、全格納形式、
+無視領域の NaN、workspace guard、unit/Hermitian 対角、極小/極大、NaN/Inf、
+引数診断・整数幅、全54入口の LBT 数値呼び出しを検証します。RFP は既存
+TRTTF が独立に pack したデータと照合します。Rust は空/暗黙対角の null pointer、
+RFP 全要素の重複なしの配置、複素 modulus、Frobenius の値域も検証します。

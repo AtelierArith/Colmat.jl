@@ -22,6 +22,7 @@ mod lapack;
 mod lapack_symmetric;
 mod least_squares;
 mod lq;
+mod matrix_norms;
 mod pivoted_cholesky;
 mod qr;
 mod qr_pivoted;
