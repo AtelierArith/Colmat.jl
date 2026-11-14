@@ -294,14 +294,22 @@
     {
       "routines": [
         "syevr",
-        "heevr",
-        "syevx",
-        "heevx"
+        "heevr"
       ],
       "status": "composition",
       "api": "self_adjoint_evd と全スペクトルからの選択",
       "source": "faer/src/linalg/evd/mod.rs",
       "note": "部分範囲は全固有値からフィルター可能。MRRR・Sturm count・inverse iteration の直接 API はない"
+    },
+    {
+      "routines": [
+        "syevx",
+        "heevx"
+      ],
+      "status": "composition",
+      "api": "self_adjoint_evd + full-spectrum selection",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "Four scalar types and both integer ABIs implement A/I/V, IFAIL, minimum workspace and query. Nonpositive ABSTOL uses native full EVD, without claiming Sturm/MRRR/inverse iteration. Positive ABSTOL and native failures use a saved ILP64 expert driver."
     },
     {
       "routines": [

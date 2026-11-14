@@ -610,3 +610,27 @@ workspace query と最小合法 workspace を提供しますが、caller workspa
 `test/advanced_svd.jl` は4型・両 ABI の矩形残差、特異値の重複・ゼロ・
 区間端、query・最小 workspace、整数幅、rank 判定、factored Q の適用、
 JOBA=E の参照バックエンドとの一致を検証します。
+
+## SYEVX/HEEVX の範囲選択（#274）
+
+実数 SYEVX と複素数 HEEVX の4シンボルを LP64/ILP64 に接続しました。
+非正の ABSTOL では native 自己随伴 EVD の全スペクトルから RANGE=A/I/V
+を選択し、昇順の W と対応する Z を返します。値区間は `(VL,VU]` です。
+Sturm count、MRRR、inverse iteration の独立算法を提供するという意味では
+ありません。正の ABSTOL と native 計算失敗は、ロード前に保存した ILP64
+参照 driver に委譲し、LP64 の整数 workspace と出力を変換します。
+
+UPLO の指定部分だけを一時行列へ読み、複素対角の虚部は読みません。
+native 経路では入力 A を保持し、caller の leading-dimension の余白と
+未使用の出力は保持します。参照 driver への委譲時は LAPACK が許す範囲で
+A の指定三角部分を上書きします。成功時、JOBZ=V の先頭 M 個の IFAIL は
+0 です。N=1 の Z(1,1) は範囲に入らない場合も参照実装と同じく1を書きます。
+query は M、行列、固有値・固有ベクトルを変更しません。
+
+最小 LWORK は N<=1 で1、他は実数8N・複素数2Nです。query はこの合法な
+最小値を推奨値として返します。native の全固有値計算には別途内部確保を
+使用するため、caller workspace が全一時メモリを制限するものではありません。
+
+`test/selected_selfadjoint.jl` で4型・両 ABI、UPLO、A/I/V、重複・ゼロ・
+区間端、workspace・INFO・IFAIL、不正引数、空配列、整数幅、極小/極大
+スケール、複素対角の無視領域、LBT 登録と数値呼び出しを検証します。

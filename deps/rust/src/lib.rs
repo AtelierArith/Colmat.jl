@@ -26,6 +26,7 @@ mod qr_pivoted;
 mod qz;
 mod rz;
 mod schur;
+mod selected_selfadjoint;
 mod threading;
 mod triangular_lapack;
 mod tridiagonal_evd;
