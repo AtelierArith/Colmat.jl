@@ -2,11 +2,9 @@
 use crate::householder::ReflectorScalar;
 use colmat::diag::Diag;
 use colmat::dyn_stack::{MemBuffer, MemStack};
-use colmat::{c32, c64, Mat};
+use colmat::{c32, c64, Mat, MatMut, MatRef};
 
 pub(crate) struct EigenResult<T: ReflectorScalar> {
-    pub a: Mat<T>,
-    pub b: Mat<T>,
     pub alpha: Vec<T>,
     pub imaginary: Vec<f64>,
     pub beta: Vec<T>,
@@ -14,14 +12,19 @@ pub(crate) struct EigenResult<T: ReflectorScalar> {
     pub right: Mat<T>,
 }
 pub(crate) trait EigenScalar: ReflectorScalar {
-    fn eigen(a: Mat<Self>, b: Mat<Self>, left: bool, right: bool) -> Result<EigenResult<Self>, ()>;
+    fn eigen(
+        a: MatMut<'_, Self>,
+        b: MatMut<'_, Self>,
+        left: bool,
+        right: bool,
+    ) -> Result<EigenResult<Self>, ()>;
 }
 macro_rules! real_eigen {
     ($t:ty) => {
         impl EigenScalar for $t {
             fn eigen(
-                mut a: Mat<Self>,
-                mut b: Mat<Self>,
+                mut a: MatMut<'_, Self>,
+                mut b: MatMut<'_, Self>,
                 left: bool,
                 right: bool,
             ) -> Result<EigenResult<Self>, ()> {
@@ -63,8 +66,6 @@ macro_rules! real_eigen {
                     .map_err(|_| ())
                 })?;
                 Ok(EigenResult {
-                    a,
-                    b,
                     alpha: (0..n).map(|i| ar[i]).collect(),
                     imaginary: (0..n).map(|i| ai[i] as f64).collect(),
                     beta: (0..n).map(|i| beta[i]).collect(),
@@ -79,8 +80,8 @@ macro_rules! complex_eigen {
     ($t:ty) => {
         impl EigenScalar for $t {
             fn eigen(
-                mut a: Mat<Self>,
-                mut b: Mat<Self>,
+                mut a: MatMut<'_, Self>,
+                mut b: MatMut<'_, Self>,
                 left: bool,
                 right: bool,
             ) -> Result<EigenResult<Self>, ()> {
@@ -120,8 +121,6 @@ macro_rules! complex_eigen {
                     .map_err(|_| ())
                 })?;
                 Ok(EigenResult {
-                    a,
-                    b,
                     alpha: (0..n).map(|i| alpha[i]).collect(),
                     imaginary: vec![0.0; n],
                     beta: (0..n).map(|i| beta[i]).collect(),
@@ -142,7 +141,7 @@ mod tests {
     use super::*;
     fn check<T: EigenScalar>() {
         let n = 3;
-        let a = Mat::from_fn(n, n, |i, j| {
+        let mut a = Mat::from_fn(n, n, |i, j| {
             if i == j {
                 T::real((i + 2) as f64)
             } else if i < j {
@@ -151,14 +150,14 @@ mod tests {
                 T::z()
             }
         });
-        let b = Mat::from_fn(n, n, |i, j| {
+        let mut b = Mat::from_fn(n, n, |i, j| {
             if i == j {
                 T::real((i + 1) as f64)
             } else {
                 T::z()
             }
         });
-        let result = T::eigen(a.clone(), b.clone(), true, true).unwrap();
+        let result = T::eigen(a.as_mut(), b.as_mut(), true, true).unwrap();
         for j in 0..n {
             assert_eq!(result.imaginary[j], 0.0);
             let alpha = result.alpha[j];
@@ -209,7 +208,7 @@ fn normalize<T: EigenScalar>(v: &mut Mat<T>, imaginary: &[f64]) {
 }
 // Track the pinned GEVD implementation's power-of-two prescale so its Schur
 // matrices can be returned in original units (GGEVX's stronger output contract).
-fn native_unscale<T: EigenScalar>(a: &Mat<T>) -> f64 {
+fn native_unscale<T: EigenScalar>(a: MatRef<'_, T>) -> f64 {
     let mut norm = 0.0_f64;
     for j in 0..a.ncols() {
         for i in 0..a.nrows() {
@@ -250,18 +249,27 @@ unsafe fn run<T: EigenScalar>(
     if n == 0 {
         return Ok((Vec::new(), Vec::new(), Vec::new()));
     }
-    let aa = crate::lapack::input(a, n, n, lda);
-    let bb = crate::lapack::input(b, n, n, ldb);
-    let (sa, sb) = (native_unscale(&aa), native_unscale(&bb));
-    let mut result = T::eigen(aa, bb, left, right)?;
-    for j in 0..n {
-        for i in 0..n {
-            result.a[(i, j)] = result.a[(i, j)] * T::real(sa);
-            result.b[(i, j)] = result.b[(i, j)] * T::real(sb);
+    let (sa, sb) = {
+        let aa = crate::lapack::input_ref(a, n, n, lda);
+        let bb = crate::lapack::input_ref(b, n, n, ldb);
+        (native_unscale(aa), native_unscale(bb))
+    };
+    let mut result = T::eigen(
+        crate::lapack::input_mut(a, n, n, lda),
+        crate::lapack::input_mut(b, n, n, ldb),
+        left,
+        right,
+    )?;
+    {
+        let mut aa = crate::lapack::input_mut(a, n, n, lda);
+        let mut bb = crate::lapack::input_mut(b, n, n, ldb);
+        for j in 0..n {
+            for i in 0..n {
+                aa[(i, j)] = aa[(i, j)] * T::real(sa);
+                bb[(i, j)] = bb[(i, j)] * T::real(sb);
+            }
         }
     }
-    crate::lapack::output(&result.a, a, lda);
-    crate::lapack::output(&result.b, b, ldb);
     if left {
         // Native real GEVD packs transpose-left vectors; LAPACK packs adjoint-left
         // vectors for the positive-imaginary member, so conjugate each real pair.

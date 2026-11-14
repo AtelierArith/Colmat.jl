@@ -33,64 +33,88 @@ pub(crate) unsafe fn reduce<T: Scalar>(
     cq: u8,
     cz: u8,
 ) {
-    let mut aa = crate::lapack::input(a, n, n, lda);
-    // Strict lower B is outside the input contract and must never be read.
-    let mut bb = Mat::from_fn(n, n, |i, j| {
-        if i <= j {
-            *b.offset(i as isize + j as isize * ldb)
-        } else {
-            T::z()
-        }
-    });
-    let size = hi - lo;
-    let mut h = Mat::from_fn(size, size, |i, j| aa[(lo + i, lo + j)]);
-    let mut t = Mat::from_fn(size, size, |i, j| bb[(lo + i, lo + j)]);
-    let mut u = identity::<T>(size);
-    let mut v = identity::<T>(size);
-    if size > 2 {
-        use colmat::linalg::gevd::gen_hessenberg::{
-            generalized_hessenberg, generalized_hessenberg_scratch, GeneralizedHessenbergParams,
-        };
-        let params: GeneralizedHessenbergParams = colmat::auto!(T);
-        crate::threading::with_par(|par| {
-            let mut memory = MemBuffer::new(generalized_hessenberg_scratch::<T>(size, params));
-            generalized_hessenberg(
-                h.as_mut(),
-                t.as_mut(),
-                Some(u.as_mut()),
-                Some(v.as_mut()),
-                par,
-                MemStack::new(&mut memory),
-                params,
-            );
+    let (h, t, left, right, updated_a, updated_b) = {
+        let aa = crate::lapack::input_ref(a, n, n, lda);
+        // Strict lower B is outside the input contract and must never be read.
+        let bb = Mat::from_fn(n, n, |i, j| {
+            if i <= j {
+                *b.offset(i as isize + j as isize * ldb)
+            } else {
+                T::z()
+            }
         });
-    }
-    let left = embedded(&u, n, lo, hi);
-    let right = embedded(&v, n, lo, hi);
-    let updated_a = multiply(&left, b'C', &multiply(&aa, b'N', &right, b'N'), b'N');
-    let updated_b = multiply(&left, b'C', &multiply(&bb, b'N', &right, b'N'), b'N');
-    for j in 0..n {
-        for i in 0..n {
-            if i >= lo && i < hi && j >= lo && j < hi {
-                aa[(i, j)] = if i <= j + 1 {
-                    h[(i - lo, j - lo)]
-                } else {
-                    T::z()
-                };
-                bb[(i, j)] = if i <= j { t[(i - lo, j - lo)] } else { T::z() };
-            } else if (i >= lo && i < hi) || (j >= lo && j < hi) {
-                aa[(i, j)] = updated_a[(i, j)];
-                bb[(i, j)] = if i <= j { updated_b[(i, j)] } else { T::z() };
+        let size = hi - lo;
+        let mut h = Mat::from_fn(size, size, |i, j| aa[(lo + i, lo + j)]);
+        let mut t = Mat::from_fn(size, size, |i, j| bb[(lo + i, lo + j)]);
+        let mut u = identity::<T>(size);
+        let mut v = identity::<T>(size);
+        if size > 2 {
+            use colmat::linalg::gevd::gen_hessenberg::{
+                generalized_hessenberg, generalized_hessenberg_scratch, GeneralizedHessenbergParams,
+            };
+            let params: GeneralizedHessenbergParams = colmat::auto!(T);
+            crate::threading::with_par(|par| {
+                let mut memory = MemBuffer::new(generalized_hessenberg_scratch::<T>(size, params));
+                generalized_hessenberg(
+                    h.as_mut(),
+                    t.as_mut(),
+                    Some(u.as_mut()),
+                    Some(v.as_mut()),
+                    par,
+                    MemStack::new(&mut memory),
+                    params,
+                );
+            });
+        }
+        let left = embedded(&u, n, lo, hi);
+        let right = embedded(&v, n, lo, hi);
+        let updated_a = multiply(
+            left.as_ref(),
+            b'C',
+            multiply(aa, b'N', right.as_ref(), b'N').as_ref(),
+            b'N',
+        );
+        let updated_b = multiply(
+            left.as_ref(),
+            b'C',
+            multiply(bb.as_ref(), b'N', right.as_ref(), b'N').as_ref(),
+            b'N',
+        );
+        (h, t, left, right, updated_a, updated_b)
+    };
+    {
+        let mut aa = crate::lapack::input_mut(a, n, n, lda);
+        let mut bb = crate::lapack::input_mut(b, n, n, ldb);
+        for j in 0..n {
+            for i in 0..n {
+                if i >= lo && i < hi && j >= lo && j < hi {
+                    aa[(i, j)] = if i <= j + 1 {
+                        h[(i - lo, j - lo)]
+                    } else {
+                        T::z()
+                    };
+                    bb[(i, j)] = if i <= j { t[(i - lo, j - lo)] } else { T::z() };
+                } else if (i >= lo && i < hi) || (j >= lo && j < hi) {
+                    aa[(i, j)] = updated_a[(i, j)];
+                    bb[(i, j)] = if i <= j { updated_b[(i, j)] } else { T::z() };
+                } else if i > j {
+                    // The strict lower triangle of B is outside the contract and
+                    // must not be read; clear any caller bytes left there.
+                    bb[(i, j)] = T::z();
+                }
             }
         }
     }
-    crate::lapack::output(&aa, a, lda);
-    crate::lapack::output(&bb, b, ldb);
     if cq != b'N' {
         let result = if cq == b'I' {
             left
         } else {
-            multiply(&crate::lapack::input(q, n, n, ldq), b'N', &left, b'N')
+            multiply(
+                crate::lapack::input_ref(q, n, n, ldq),
+                b'N',
+                left.as_ref(),
+                b'N',
+            )
         };
         crate::lapack::output(&result, q, ldq);
     }
@@ -98,7 +122,12 @@ pub(crate) unsafe fn reduce<T: Scalar>(
         let result = if cz == b'I' {
             right
         } else {
-            multiply(&crate::lapack::input(z, n, n, ldz), b'N', &right, b'N')
+            multiply(
+                crate::lapack::input_ref(z, n, n, ldz),
+                b'N',
+                right.as_ref(),
+                b'N',
+            )
         };
         crate::lapack::output(&result, z, ldz);
     }

@@ -1,10 +1,37 @@
 //! LAPACK drivers over colmat's public decomposition and solve APIs.
 use crate::kernels::{flag, Scalar};
 use colmat::dyn_stack::{MemBuffer, MemStack};
-use colmat::{Conj, Mat, MatRef};
+use colmat::{Conj, Mat, MatMut, MatRef};
 
 pub unsafe fn input<T: Scalar>(a: *const T, m: usize, n: usize, ld: isize) -> Mat<T> {
     MatRef::from_raw_parts(a, m, n, 1, ld).to_owned()
+}
+/// Borrow a column-major Fortran buffer without copying it.
+pub unsafe fn input_ref<'a, T: Scalar>(
+    a: *const T,
+    m: usize,
+    n: usize,
+    ld: isize,
+) -> MatRef<'a, T> {
+    MatRef::from_raw_parts(a, m, n, 1, ld)
+}
+/// Borrow a column-major Fortran buffer for in-place output without copying it.
+pub unsafe fn input_mut<'a, T: Scalar>(a: *mut T, m: usize, n: usize, ld: isize) -> MatMut<'a, T> {
+    MatMut::from_raw_parts_mut(a, m, n, 1, ld)
+}
+/// Borrow the transposed view of a column-major buffer, so the lower triangle of
+/// the view is the upper triangle of the caller's matrix.
+pub unsafe fn input_mut_transposed<'a, T: Scalar>(a: *mut T, n: usize, ld: isize) -> MatMut<'a, T> {
+    MatMut::from_raw_parts_mut(a, n, n, ld, 1)
+}
+/// Borrow the transpose of a column-major buffer, so the lower triangle of the
+/// view is the caller's upper triangle.
+pub unsafe fn input_ref_transposed<'a, T: Scalar>(
+    a: *const T,
+    n: usize,
+    ld: isize,
+) -> MatRef<'a, T> {
+    MatRef::from_raw_parts(a, n, n, ld, 1)
 }
 pub unsafe fn output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize) {
     for j in 0..a.ncols() {
@@ -13,15 +40,35 @@ pub unsafe fn output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize) {
         }
     }
 }
-pub fn lu<T: Scalar>(a: &mut Mat<T>) -> (Vec<usize>, usize) {
+/// Factor the caller's buffer in place. `a` is overwritten with the L/U factors,
+/// matching LAPACK's xGETRF contract.
+pub fn lu<T: Scalar>(mut a: MatMut<'_, T>) -> (Vec<usize>, usize) {
+    use colmat::linalg::lu::partial_pivoting::factor::*;
     let m = a.nrows();
     let n = a.ncols();
     let k = m.min(n);
     if k == 0 {
         return (vec![], 0);
     }
-    let f = crate::threading::with_par(|par| a.as_ref().partial_piv_lu(par));
-    let (p, _) = f.P().arrays();
+    let mut row_perm = vec![0usize; m];
+    let mut row_perm_inv = vec![0usize; m];
+    crate::threading::with_par(|par| {
+        let mut mem = MemBuffer::new(lu_in_place_scratch::<usize, T>(
+            m,
+            n,
+            par.shape(),
+            Default::default(),
+        ));
+        lu_in_place(
+            a.as_mut(),
+            &mut row_perm,
+            &mut row_perm_inv,
+            par,
+            MemStack::new(&mut mem),
+            Default::default(),
+        );
+    });
+    let p = row_perm;
     let mut current: Vec<usize> = (0..m).collect();
     let mut piv = vec![0; k];
     let mut info = 0;
@@ -29,11 +76,6 @@ pub fn lu<T: Scalar>(a: &mut Mat<T>) -> (Vec<usize>, usize) {
         let pos = (j..m).find(|&i| current[i] == p[j]).unwrap();
         piv[j] = pos;
         current.swap(j, pos);
-    }
-    for j in 0..n {
-        for i in 0..m {
-            a[(i, j)] = if i > j { f.L()[(i, j)] } else { f.U()[(i, j)] };
-        }
     }
     for i in 0..k {
         if a[(i, i)] == T::z() {
@@ -43,10 +85,10 @@ pub fn lu<T: Scalar>(a: &mut Mat<T>) -> (Vec<usize>, usize) {
     }
     (piv, info)
 }
-pub fn solve_lu<T: Scalar>(a: &Mat<T>, p: &[usize], b: &mut Mat<T>, t: u8) {
+pub fn solve_lu<T: Scalar>(a: MatRef<'_, T>, p: &[usize], mut b: MatMut<'_, T>, t: u8) {
     use colmat::linalg::triangular_solve::*;
     let n = a.nrows();
-    let swap = |b: &mut Mat<T>, i: usize, j: usize| {
+    let swap = |b: &mut MatMut<'_, T>, i: usize, j: usize| {
         for c in 0..b.ncols() {
             let x = b[(i, c)];
             b[(i, c)] = b[(j, c)];
@@ -56,31 +98,28 @@ pub fn solve_lu<T: Scalar>(a: &Mat<T>, p: &[usize], b: &mut Mat<T>, t: u8) {
     crate::threading::with_par(|mut par| {
         if t == b'N' {
             for (i, &j) in p.iter().enumerate() {
-                swap(b, i, j);
+                swap(&mut b, i, j);
             }
-            solve_unit_lower_triangular_in_place(a.as_ref(), b.as_mut(), par.reborrow());
-            solve_upper_triangular_in_place(a.as_ref(), b.as_mut(), par);
+            solve_unit_lower_triangular_in_place(a, b.as_mut(), par.reborrow());
+            solve_upper_triangular_in_place(a, b.as_mut(), par);
         } else {
             let conj = if t == b'C' { Conj::Yes } else { Conj::No };
             solve_lower_triangular_in_place_with_conj(
-                a.as_ref().transpose(),
+                a.transpose(),
                 conj,
                 b.as_mut(),
                 par.reborrow(),
             );
-            solve_unit_upper_triangular_in_place_with_conj(
-                a.as_ref().transpose(),
-                conj,
-                b.as_mut(),
-                par,
-            );
+            solve_unit_upper_triangular_in_place_with_conj(a.transpose(), conj, b.as_mut(), par);
             for i in (0..n).rev() {
-                swap(b, i, p[i]);
+                swap(&mut b, i, p[i]);
             }
         }
     });
 }
-pub fn cholesky<T: Scalar>(a: &mut Mat<T>) -> usize {
+/// Factor the caller's buffer in place. The lower triangle is used regardless of
+/// the caller's UPLO: an upper-triangular view is transposed before the call.
+pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
     use colmat::linalg::cholesky::llt::factor::*;
     crate::threading::with_par(|par| {
         let mut mem = MemBuffer::new(cholesky_in_place_scratch::<T>(
@@ -100,34 +139,26 @@ pub fn cholesky<T: Scalar>(a: &mut Mat<T>) -> usize {
         }
     })
 }
-pub fn solve_cholesky<T: Scalar>(a: &Mat<T>, b: &mut Mat<T>) {
+pub fn solve_cholesky<T: Scalar>(a: MatRef<'_, T>, mut b: MatMut<'_, T>, u: u8) {
     use colmat::linalg::triangular_solve::*;
     crate::threading::with_par(|mut par| {
-        solve_lower_triangular_in_place(a.as_ref(), b.as_mut(), par.reborrow());
-        solve_upper_triangular_in_place_with_conj(
-            a.as_ref().transpose(),
-            Conj::Yes,
-            b.as_mut(),
-            par,
-        );
-    });
-}
-pub unsafe fn hermitian_input<T: Scalar>(a: *const T, n: usize, ld: isize, u: u8) -> Mat<T> {
-    Mat::from_fn(n, n, |i, j| {
-        if i == j {
-            T::real((*a.offset(i as isize + j as isize * ld)).re())
-        } else if u == b'L' {
-            if i > j {
-                *a.offset(i as isize + j as isize * ld)
-            } else {
-                (*a.offset(j as isize + i as isize * ld)).cj()
-            }
-        } else if i < j {
-            *a.offset(i as isize + j as isize * ld)
+        if u == b'L' {
+            // A = L L^H with L in the lower triangle of `a`.
+            solve_lower_triangular_in_place(a, b.as_mut(), par.reborrow());
+            solve_upper_triangular_in_place_with_conj(a.transpose(), Conj::Yes, b.as_mut(), par);
         } else {
-            (*a.offset(j as isize + i as isize * ld)).cj()
+            // A = U^H U with U in the upper triangle of `a`. The transpose view
+            // exposes the stored upper triangle as a lower triangle, and the
+            // conjugate flag makes it U^H.
+            solve_lower_triangular_in_place_with_conj(
+                a.transpose(),
+                Conj::Yes,
+                b.as_mut(),
+                par.reborrow(),
+            );
+            solve_upper_triangular_in_place(a, b.as_mut(), par);
         }
-    })
+    });
 }
 pub unsafe fn cholesky_output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize, u: u8) {
     for j in 0..a.ncols() {
@@ -143,7 +174,7 @@ pub unsafe fn cholesky_output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize, u: u8
 type SvdResult<T> = (Mat<T>, Vec<f64>, Mat<T>);
 type GeneralOutput<T> = (Vec<T>, Vec<f64>, usize, usize, Vec<f64>, f64);
 
-pub fn svd<T: Scalar>(a: &Mat<T>, u: usize, v: usize) -> Result<SvdResult<T>, ()> {
+pub fn svd<T: Scalar>(a: MatRef<'_, T>, u: usize, v: usize) -> Result<SvdResult<T>, ()> {
     use colmat::{diag::Diag, linalg::svd::*};
     let (m, n) = (a.nrows(), a.ncols());
     let mut s = Diag::<T>::zeros(m.min(n));
@@ -180,7 +211,7 @@ pub fn svd<T: Scalar>(a: &Mat<T>, u: usize, v: usize) -> Result<SvdResult<T>, ()
         Ok((left, (0..m.min(n)).map(|i| s[i].re()).collect(), right))
     })
 }
-pub fn selfadj<T: Scalar>(a: &Mat<T>, vectors: bool) -> Result<(Vec<f64>, Mat<T>), ()> {
+pub fn selfadj<T: Scalar>(a: MatRef<'_, T>, vectors: bool) -> Result<(Vec<f64>, Mat<T>), ()> {
     use colmat::{diag::Diag, linalg::evd::*};
     let n = a.nrows();
     let mut s = Diag::<T>::zeros(n);
@@ -252,12 +283,12 @@ macro_rules! basic {
 #[no_mangle]
 pub unsafe extern "C" fn [<$p getrf $s>](m:*const $i,n:*const $i,a:*mut $t,lda:*const $i,piv:*mut $i,info:*mut $i){
  *info=0;let(m,n,ld)=((*m).val(),(*n).val(),(*lda).val());valid!(info,1=>m>=0,2=>n>=0,4=>ld>=1.max(m));if m==0||n==0{return;}
- let mut mat=input(a,m as usize,n as usize,ld);let(p,err)=lu(&mut mat);output(&mat,a,ld);for(i,v)in p.iter().enumerate(){*piv.add(i)=<$i>::from_i64(*v as i64+1);}*info=err as $i;
+ let mat=input_mut(a,m as usize,n as usize,ld);let(p,err)=lu(mat);for(i,v)in p.iter().enumerate(){*piv.add(i)=<$i>::from_i64(*v as i64+1);}*info=err as $i;
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p getrs $s>](t:*const u8,n:*const $i,nrhs:*const $i,a:*const $t,lda:*const $i,piv:*const $i,b:*mut $t,ldb:*const $i,info:*mut $i){
  *info=0;let(t,n,k,la,lb)=(flag(t),(*n).val(),(*nrhs).val(),(*lda).val(),(*ldb).val());valid!(info,1=>crate::kernels::trans(t),2=>n>=0,3=>k>=0,5=>la>=1.max(n),8=>lb>=1.max(n));if n==0||k==0{return;}
- let mat=input(a,n as usize,n as usize,la);let mut rhs=input(b,n as usize,k as usize,lb);let p:Vec<usize>=(0..n as usize).map(|i|(*piv.add(i)).val() as usize-1).collect();solve_lu(&mat,&p,&mut rhs,t);output(&rhs,b,lb);
+ let mat=input_ref(a,n as usize,n as usize,la);let rhs=input_mut(b,n as usize,k as usize,lb);let p:Vec<usize>=(0..n as usize).map(|i|(*piv.add(i)).val() as usize-1).collect();solve_lu(mat,&p,rhs,t);
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p gesv $s>](n:*const $i,k:*const $i,a:*mut $t,lda:*const $i,p:*mut $i,b:*mut $t,ldb:*const $i,info:*mut $i){
@@ -266,20 +297,20 @@ pub unsafe extern "C" fn [<$p gesv $s>](n:*const $i,k:*const $i,a:*mut $t,lda:*c
 #[no_mangle]
 pub unsafe extern "C" fn [<$p getri $s>](n:*const $i,a:*mut $t,lda:*const $i,p:*const $i,work:*mut $t,lwork:*const $i,info:*mut $i){
  *info=0;valid!(info,1=>*n>=0,3=>*lda>=1.max(*n),6=>*lwork== -1||*lwork>=1.max(*n));*work=workspace::<$t>((1.max(*n)).val());if *lwork== -1||*n==0{return;}
- let n=(*n).val() as usize;let mat=input(a,n,n,(*lda).val());for i in 0..n{if mat[(i,i)]==<$t>::z(){*info=(i+1)as $i;return;}}
- let mut inv=Mat::<$t>::identity(n,n);let piv:Vec<usize>=(0..n).map(|i|(*p.add(i)).val()as usize-1).collect();solve_lu(&mat,&piv,&mut inv,b'N');output(&inv,a,(*lda).val());
+ let n=(*n).val() as usize;let inv={let mat=input_ref(a,n,n,(*lda).val());for i in 0..n{if mat[(i,i)]==<$t>::z(){*info=(i+1)as $i;return;}}
+ let mut inv=Mat::<$t>::identity(n,n);let piv:Vec<usize>=(0..n).map(|i|(*p.add(i)).val()as usize-1).collect();solve_lu(mat,&piv,inv.as_mut(),b'N');inv};output(&inv,a,(*lda).val());
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p potrf $s>](u:*const u8,n:*const $i,a:*mut $t,lda:*const $i,info:*mut $i){
- *info=0;let(u,n,ld)=(flag(u),(*n).val(),(*lda).val());valid!(info,1=>crate::kernels::uplo(u),2=>n>=0,4=>ld>=1.max(n));if n==0{return;}let mut mat=hermitian_input(a,n as usize,ld,u);*info=cholesky(&mut mat)as $i;cholesky_output(&mat,a,ld,u);
+ *info=0;let(u,n,ld)=(flag(u),(*n).val(),(*lda).val());valid!(info,1=>crate::kernels::uplo(u),2=>n>=0,4=>ld>=1.max(n));if n==0{return;}let mat=if u==b'L'{input_mut(a,n as usize,n as usize,ld)}else{input_mut_transposed(a,n as usize,ld)};*info=cholesky(mat)as $i;
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p potrs $s>](u:*const u8,n:*const $i,k:*const $i,a:*const $t,lda:*const $i,b:*mut $t,ldb:*const $i,info:*mut $i){
- *info=0;let(u,n,k,la,lb)=(flag(u),(*n).val(),(*k).val(),(*lda).val(),(*ldb).val());valid!(info,1=>crate::kernels::uplo(u),2=>n>=0,3=>k>=0,5=>la>=1.max(n),7=>lb>=1.max(n));if n==0||k==0{return;}let mat=hermitian_input(a,n as usize,la,u);let mut rhs=input(b,n as usize,k as usize,lb);solve_cholesky(&mat,&mut rhs);output(&rhs,b,lb);
+ *info=0;let(u,n,k,la,lb)=(flag(u),(*n).val(),(*k).val(),(*lda).val(),(*ldb).val());valid!(info,1=>crate::kernels::uplo(u),2=>n>=0,3=>k>=0,5=>la>=1.max(n),7=>lb>=1.max(n));if n==0||k==0{return;}let mat=input_ref(a,n as usize,n as usize,la);let rhs=input_mut(b,n as usize,k as usize,lb);solve_cholesky(mat,rhs,u);
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p potri $s>](u:*const u8,n:*const $i,a:*mut $t,lda:*const $i,info:*mut $i){
- *info=0;let(u,n,ld)=(flag(u),(*n).val(),(*lda).val());valid!(info,1=>crate::kernels::uplo(u),2=>n>=0,4=>ld>=1.max(n));if n==0{return;}let mat=hermitian_input(a,n as usize,ld,u);for i in 0..n as usize{if mat[(i,i)]==<$t>::z(){*info=(i+1)as $i;return;}}let mut inv=Mat::<$t>::identity(n as usize,n as usize);solve_cholesky(&mat,&mut inv);cholesky_output(&inv,a,ld,u);
+ *info=0;let(u,n,ld)=(flag(u),(*n).val(),(*lda).val());valid!(info,1=>crate::kernels::uplo(u),2=>n>=0,4=>ld>=1.max(n));if n==0{return;}let inv={let mat=input_ref(a,n as usize,n as usize,ld);for i in 0..n as usize{if mat[(i,i)]==<$t>::z(){*info=(i+1)as $i;return;}}let mut inv=Mat::<$t>::identity(n as usize,n as usize);solve_cholesky(mat,inv.as_mut(),u);inv};cholesky_output(&inv,a,ld,u);
 }
 }};}
 macro_rules! factor_aliases {
@@ -389,11 +420,11 @@ unsafe fn svd_driver<T: Scalar, R: Scalar, I: LapackInt>(
             Mat::<T>::identity(n as usize, vcols),
         ))
     } else {
-        let mat = input(a, m as usize, n as usize, la);
+        let mat = input_ref(a, m as usize, n as usize, la);
         if !mat.is_all_finite() {
             Err(())
         } else {
-            svd(&mat, ucols, vcols)
+            svd(mat, ucols, vcols)
         }
     };
     match result {
@@ -453,12 +484,12 @@ pub struct GeneralResult<T: Scalar> {
     schur: Mat<T>,
 }
 pub trait General: Scalar {
-    fn eigen(a: &Mat<Self>, left: bool, right: bool) -> Result<GeneralResult<Self>, ()>;
-    fn balance(a: &mut Mat<Self>, job: u8) -> Result<(Vec<usize>, Vec<f64>, usize, usize), ()>;
+    fn eigen(a: MatRef<'_, Self>, left: bool, right: bool) -> Result<GeneralResult<Self>, ()>;
+    fn balance(a: MatMut<'_, Self>, job: u8) -> Result<(Vec<usize>, Vec<f64>, usize, usize), ()>;
 }
-fn hessenberg<T: Scalar>(a: &Mat<T>) -> Mat<T> {
+fn hessenberg<T: Scalar>(a: MatRef<'_, T>) -> Mat<T> {
     let n = a.nrows();
-    let mut h = a.clone();
+    let mut h = a.to_owned();
     if n < 2 {
         return h;
     }
@@ -489,14 +520,17 @@ fn hessenberg<T: Scalar>(a: &Mat<T>) -> Mat<T> {
 }
 macro_rules! balance_impl {
     ($t:ty,$r:ty) => {
-        fn balance(a: &mut Mat<Self>, job: u8) -> Result<(Vec<usize>, Vec<f64>, usize, usize), ()> {
+        fn balance(
+            a: MatMut<'_, Self>,
+            job: u8,
+        ) -> Result<(Vec<usize>, Vec<f64>, usize, usize), ()> {
             use colmat::linalg::evd::*;
             let n = a.nrows();
             let mut p = vec![0; n];
             let mut s = vec![0.0 as $r; n];
             let mut mem = MemBuffer::new(balance_scratch());
             let range = balance_in_place_with(
-                a.as_mut(),
+                a,
                 &mut p,
                 &mut s,
                 match job {
@@ -522,7 +556,11 @@ macro_rules! general_real {
     ($t:ty) => {
         impl General for $t {
             balance_impl!($t, $t);
-            fn eigen(a: &Mat<Self>, left: bool, right: bool) -> Result<GeneralResult<Self>, ()> {
+            fn eigen(
+                a: MatRef<'_, Self>,
+                left: bool,
+                right: bool,
+            ) -> Result<GeneralResult<Self>, ()> {
                 use colmat::{diag::Diag, linalg::evd::*};
                 let n = a.nrows();
                 let mut wr = Diag::<$t>::zeros(n);
@@ -592,7 +630,11 @@ macro_rules! general_complex {
     ($t:ty,$r:ty) => {
         impl General for $t {
             balance_impl!($t, $r);
-            fn eigen(a: &Mat<Self>, left: bool, right: bool) -> Result<GeneralResult<Self>, ()> {
+            fn eigen(
+                a: MatRef<'_, Self>,
+                left: bool,
+                right: bool,
+            ) -> Result<GeneralResult<Self>, ()> {
                 use colmat::{diag::Diag, linalg::evd::*};
                 let n = a.nrows();
                 let mut w = Diag::<$t>::zeros(n);
@@ -738,12 +780,15 @@ unsafe fn general_driver<T: General>(
     if n == 0 {
         return Ok((vec![], vec![], 0, 0, vec![], 0.0));
     }
-    let mut mat = input(a, n, n, la);
-    let (p, s, lo, hi) = T::balance(&mut mat, job)?;
-    let abnrm = (0..n)
-        .map(|j| (0..n).map(|i| mat[(i, j)].magnitude()).sum::<f64>())
-        .fold(0.0f64, f64::max);
-    let e = T::eigen(&mat, jl == b'V', jr == b'V')?;
+    let (p, s, lo, hi) = T::balance(input_mut(a, n, n, la), job)?;
+    let abnrm;
+    let e = {
+        let mat = input_ref(a, n, n, la);
+        abnrm = (0..n)
+            .map(|j| (0..n).map(|i| mat[(i, j)].magnitude()).sum::<f64>())
+            .fold(0.0f64, f64::max);
+        T::eigen(mat, jl == b'V', jr == b'V')?
+    };
     if jl == b'V' {
         output(&unbalance(&e.left, &p, &s, true, &e.wi), vl, ll);
     }
@@ -818,8 +863,22 @@ pub unsafe fn symmetric_driver<T: Scalar, R: Scalar, I: LapackInt>(
     lz: isize,
     support: *mut I,
 ) -> Result<(), ()> {
-    let mat = hermitian_input(a, n, la, u);
-    let (values, vectors) = selfadj(&mat, job == b'V')?;
+    let mat = if u == b'L' {
+        input_ref(a, n, n, la)
+    } else {
+        // The transpose view exposes the stored upper triangle as a lower
+        // triangle. Its eigenvectors are the conjugates of the caller's, so
+        // they are conjugated again before being written out.
+        input_ref_transposed(a, n, la)
+    };
+    let (values, mut vectors) = selfadj(mat, job == b'V')?;
+    if u != b'L' {
+        for j in 0..vectors.ncols() {
+            for i in 0..vectors.nrows() {
+                vectors[(i, j)] = vectors[(i, j)].cj();
+            }
+        }
+    }
     let selected: Vec<usize> = (0..n)
         .filter(|&i| {
             range == b'A'

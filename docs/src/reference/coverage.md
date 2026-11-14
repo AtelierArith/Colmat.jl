@@ -74,6 +74,11 @@ Colmat が提供しません。未接続の LAPACK は既存バックエンド�
 | SYRK / SYR2K / HERK / HER2K | 一時行列で積を計算し、指定された三角部分へ書き戻す |
 | ベクトル演算、SYMV / HEMV、GER / SYR / HER | Rust 互換層のループ |
 | TRSV / TRSM | Rust 互換層の三角求解。右側 TRSM は係数行列の一時展開を使用 |
+| GETRF / POTRF | Julia バッファを借用し、因数分解を in-place で実行 |
+| GETRS / GETRI / POTRS / POTRI | 因子を借用し、求解・逆行列の結果だけを書き戻す |
+| GESDD / GESVD | 入力を借用して読み取り、特異値・特異ベクトルを出力へ書き込む |
+| GEEV / GEEVX / SYEV / HEEV 系 | 入力を借用して固有値分解を実行。一般 EVD の balance も呼び出し側バッファで実行 |
+| GGEV / GGHRD 系 | 入力を借用し、Schur 形・Hessenberg 形を呼び出し側バッファへ書き戻す |
 
 現時点で全ルーチンが割り当てなしに動く、または既存バックエンドより高速である
 という保証はありません。性能比較では転送先・型・行列サイズ・スレッド数を揃えて
