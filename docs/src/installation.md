@@ -1,45 +1,51 @@
-# インストールと最初の計算
+# インストール
 
-Julia 1.13、Git、ネットワーク接続、Rust 1.89 以降が必要です。RustCallの Rust ツールチェーンも利用できます。
-次の手順でリポジトリを用意し、依存関係とネイティブライブラリを準備します。
+## 必要な環境
+
+- Julia 1.13。
+- Rust 1.89 以降と Cargo。
+- Git。
+- 初回の Rust ソース・Cargo 依存関係取得に必要なネットワーク接続。
+
+Rust のコンパイルに必要な、その OS の開発ツールも用意してください。
+現在の CI 設定は Linux と macOS を対象にしています。
+
+## リポジトリからビルドする
+
+リポジトリのルートで実行します。
 
 ```sh
-git clone https://github.com/AtelierArith/Colmat.jl.git
-cd Colmat.jl
 julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
+julia --project examples/poc.jl
 ```
 
-## 最初の計算
-
-リポジトリのルートで `julia --project` を実行して Julia を起動し、次を試してください。
+別の Julia プロジェクトからこの checkout を利用する場合は、そのプロジェクトで
+ローカルパッケージとして登録します。
 
 ```julia
-using Colmat, LinearAlgebra
-A = FaerMatrix([4.0 1; 1 3])
-B = FaerMatrix([1.0 2; 3 4])
-C = A * B
-x = A \ [1.0, 2.0]
-F = svd(A)
-@assert F.U * Diagonal(F.S) * F.Vt ≈ Matrix(A)
+using Pkg
+Pkg.develop(path="/absolute/path/to/Colmat.jl")
+Pkg.build("Colmat")
 ```
 
-`x` はおよそ `[0.090909, 0.636364]` です。`@assert` は条件を満たすと何も表示せず、満たさないと例外を投げます。テスト全体を実行したい場合は[開発ガイド](development.md)を参照してください。
+ビルド後、新しい Julia プロセスで `using Colmat, LinearAlgebra` を実行します。
+モジュールのロード時に Rust のダウンロードやコンパイルは行いません。
 
-分野別の使い方は [配列・型・所有権](manual/arrays.md)と [密行列の分解と求解](manual/dense.md)へ進んでください。
+## ビルドで生成するもの
 
-## ビルドの詳細
+`deps/build.jl` は次の順に処理します。
 
-`julia --project deps/build.jl`でもビルドできます。Gitとネットワーク接続、
-Rust 1.89 以降が必要です（RustCallの Rust ツールチェーンも利用できます）。
+1. Rust ソースがなければ `deps/colmat-rs` に取得する。
+2. checkout のコミットと `deps/upstream.toml` の revision を照合する。
+3. `cargo build --release --locked` で BLAS 共有ライブラリを作る。
+4. ライブラリを `deps/usr/lib` に配置する。
 
-`deps/build.jl`は [colmat のリポジトリ](https://github.com/tensor4all/faer)のデフォルトブランチの
-最新 HEAD（Rust クレート `colmat`）を `deps/t4a-faer`にクローンし、再実行時も最新 HEADに更新します。
-ローカル変更がある場合は上書きせず停止します。使用したコミット SHAは
-ビルド出力に表示します。最新版を追うため、将来の API 変更でビルドが失敗する
-可能性があります。
+Rust ソースと Cargo 依存関係は `deps/upstream.toml` と `deps/rust/Cargo.lock`
+で固定します。ビルド中に upstream の HEAD へ自動更新しません。
+既存 checkout のコミットが一致しない場合や追跡ファイルに変更がある場合は停止します。
 
-`deps/rust`の橋渡し用 `cdylib`がこのクローンを Cargo のローカルパス依存として
-参照し、RustCallのキャッシュにコンパイルされます。`extern/t4a-faer`は不要です。
-クローン内の `faer/`が `colmat` クレートです。橋渡しコードでは Cargoの別名 `faer`を使います。
-初回の `using Colmat`の前にビルドしてください。通常の読み込みでは Gitの更新は
-行わず、最後にビルドしたソースを使用します。
+ビルド用 Julia 依存関係は `deps/Project.toml`、文書用は `docs/Project.toml` に
+分離しています。RustCall のインストールは不要です。
+
+共有ライブラリを再ビルドした後は Julia を再起動してください。
+診断方法は[トラブルシューティング](@ref)を参照してください。

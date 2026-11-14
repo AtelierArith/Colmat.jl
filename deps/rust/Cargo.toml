@@ -1,6 +1,6 @@
 [package]
-name = "colmat-faer"
-version = "0.1.0"
+name = "colmat-blas"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.89"
 
@@ -8,12 +8,6 @@ rust-version = "1.89"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rustcall_julia_macros = "0.7"
-rand = "0.9.2"
-rand_distr = "0.5.1"
+colmat = { path = "../colmat-rs/faer", default-features = false, features = ["std", "rayon", "threadteam"] }
 threadteam = { version = "0.6.0", default-features = false, features = ["parallel"] }
-npyz = { version = "0.8.4", default-features = false }
-num-complex = "0.4"
-# Upstream renamed the package and library to colmat; keep the bridge imports
-# under the faer alias. The upstream source directory is still named faer.
-faer = { package = "colmat", path = "../t4a-faer/faer", default-features = false, features = ["std", "sparse-linalg", "rayon", "rand", "npy", "threadteam"] }
+paste = "1.0"

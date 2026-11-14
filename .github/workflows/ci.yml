@@ -1,0 +1,30 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.13'
+      - uses: julia-actions/cache@v2
+      - name: Build
+        run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
+      - name: Rust formatting and tests
+        run: |
+          cargo fmt --manifest-path deps/rust/Cargo.toml --check
+          cargo test --manifest-path deps/rust/Cargo.toml --locked
+      - name: Julia tests
+        run: julia --project -e 'using Pkg; Pkg.test()'
+      - name: README example
+        run: julia --project examples/poc.jl

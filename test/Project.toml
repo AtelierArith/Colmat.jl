@@ -1,19 +1,9 @@
 [deps]
-Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Colmat = "dcd86e8a-e18c-4a45-9bc6-b65a8e7b2bd3"
-JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 Colmat = {path = ".."}
-
-[compat]
-Aqua = "0.8"
-JET = "0.13"
-ParallelTestRunner = "2.10"
-Statistics = "1.11"

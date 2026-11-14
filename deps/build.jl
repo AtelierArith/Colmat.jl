@@ -1,19 +1,31 @@
-using RustCall
+using Libdl
+using TOML
 
-const source = joinpath(@__DIR__, "t4a-faer")
-const repository = "https://github.com/tensor4all/faer.git"
+const source = joinpath(@__DIR__, "colmat-rs")
+const upstream = TOML.parsefile(joinpath(@__DIR__, "upstream.toml"))
+const revision = upstream["revision"]
 
 if !ispath(source)
-    run(`git clone --depth=1 $repository $source`)
-else
-    isdir(joinpath(source, ".git")) || error("$source is not a Git checkout")
-    isempty(read(`git -C $source status --porcelain`, String)) ||
-        error("$source has local changes; commit or move them before rebuilding")
-    # Follow the remote's current default branch, including branch renames.
-    run(`git -C $source fetch --depth=1 origin HEAD`)
-    run(`git -C $source checkout --detach FETCH_HEAD`)
+    repository = upstream["repository"]
+    run(`git clone --no-checkout $repository $source`)
+    run(`git -C $source checkout --detach $revision`)
 end
-println("Building colmat revision ", strip(read(`git -C $source rev-parse HEAD`, String)))
+actual = strip(read(`git -C $source rev-parse HEAD`, String))
+actual == revision ||
+    error("Colmat source is at $actual; expected $revision from deps/upstream.toml")
+isempty(read(`git -C $source status --porcelain --untracked-files=no`, String)) ||
+    error("Colmat source has local changes; restore the pinned source before building")
+println("Building Colmat BLAS with Rust colmat revision ", actual)
 
-# Use the same crate and cache as the package's @rust_crate binding.
-RustCall.load_crate_bindings(joinpath(@__DIR__, "rust"))
+const manifest = joinpath(@__DIR__, "rust", "Cargo.toml")
+const target = joinpath(@__DIR__, "rust", "target")
+run(`cargo build --release --locked --manifest-path $manifest --target-dir $target`)
+const destination = joinpath(@__DIR__, "usr", "lib")
+mkpath(destination)
+const library = Sys.iswindows() ? "colmat_blas.dll" : "libcolmat_blas." * Libdl.dlext
+cp(
+    joinpath(target, "release", library),
+    joinpath(destination, "libcolmat_blas." * Libdl.dlext);
+    force=true,
+)
+println("Installed ", joinpath(destination, "libcolmat_blas." * Libdl.dlext))

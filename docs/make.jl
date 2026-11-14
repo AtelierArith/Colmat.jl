@@ -1,44 +1,40 @@
 using Documenter
 using DocumenterVitepress
 
-# マニュアルの Julia コードブロックは表示用であり、このビルドでは実行しない。
-# Colmat の読み込みや Rust 依存関係のコンパイル・更新も行わない。
+using Colmat
+
 makedocs(;
-    root = @__DIR__,
-    sitename = "Colmat.jl",
-    authors = "Satoshi Terasaki",
-    format = DocumenterVitepress.MarkdownVitepress(;
-        repo = "github.com/AtelierArith/Colmat.jl",
-        devbranch = "main",
-        devurl = "dev",
-        description = "Julia ユーザのための Colmat.jl 日本語マニュアル",
+    root=@__DIR__,
+    sitename="Colmat.jl",
+    authors="Satoshi Terasaki",
+    format=DocumenterVitepress.MarkdownVitepress(;
+        repo="github.com/AtelierArith/Colmat.jl",
+        devbranch="main",
+        devurl="dev",
+        description="Julia ユーザのための Colmat.jl 日本語マニュアル",
     ),
-    pages = [
+    modules=[Colmat],
+    pages=[
         "ホーム" => "index.md",
         "インストール" => "installation.md",
-        "計算の選び方と用語" => "getting-started.md",
-        "マニュアル" => [
-            "配列・型・所有権" => "manual/arrays.md",
-            "GC と資源の寿命" => "manual/lifetimes.md",
-            "密行列の分解と求解" => "manual/dense.md",
-            "固有値・Schur・QZ" => "manual/spectral.md",
-            "疎行列と直接法" => "manual/sparse.md",
-            "疎 QR" => "manual/sparse-qr.md",
-            "線形作用素・反復法" => "manual/operators.md",
-            "反射・回転・縮約" => "manual/reductions.md",
-            "作業領域とチーム" => "manual/resources.md",
-            "統計・乱数・NPY" => "manual/utilities.md",
+        "はじめに" => "getting-started.md",
+        "使い方と設計" => [
+            "バックエンドとフォールバック" => "manual/backend.md",
+            "スレッド設定" => "manual/threading.md",
         ],
-        "API 案内" => "reference/api.md",
-        "開発ガイド" => "development.md",
+        "リファレンス" =>
+            ["BLAS 対応範囲" => "reference/coverage.md", "公開 API" => "reference/api.md"],
+        "トラブルシューティング" => "troubleshooting.md",
+        "0.2 への設計変更" => "migration.md",
+        "開発" => "development.md",
     ],
 )
 
 if "--deploy" in ARGS
     DocumenterVitepress.deploydocs(;
-        repo = "github.com/AtelierArith/Colmat.jl",
-        target = joinpath(@__DIR__, "build"),
-        devbranch = "main",
-        push_preview = false,
+        repo="github.com/AtelierArith/Colmat.jl",
+        target=joinpath(@__DIR__, "build"),
+        devbranch="main",
+        push_preview=false,
     )
 end
