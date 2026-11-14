@@ -23,7 +23,8 @@ be configured before loading Colmat (Julia normally provides OpenBLAS).
 Tridiagonal EVD also saves ILP64 LAPACK entries for native nonconvergence and
 the relative/absolute accuracy modes not provided by the native API.
 Generalized self-adjoint drivers save ILP64 entries for native failures and
-positive-ABSTOL range calculations.
+positive-ABSTOL range calculations. SYEVX/HEEVX also save ILP64 entries for
+positive ABSTOL and native failures.
 Selected and QR-preconditioned SVD save ILP64 entries for native failures and
 GESVDQ condition estimation; independent Jacobi drivers remain on the existing backend.
 Call again to select Colmat after loading another BLAS provider. Configure the
@@ -160,6 +161,18 @@ function load_backend(; verbose::Bool=false)
             end
             ccall(has_svd, Cint, (Cint,), id-1)!=0||error(
                 "Colmat advanced SVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
+        register_vx=Libdl.dlsym(_handle[], :colmat_selfadjoint_vx_set_fallback)
+        has_vx=Libdl.dlsym(_handle[], :colmat_selfadjoint_vx_has_fallback)
+        for (id, symbol) in enumerate(("ssyevx_", "dsyevx_", "cheevx_", "zheevx_"))
+            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous!==nothing && realpath(previous.libname)!=realpath(path)
+                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_vx, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
+            end
+            ccall(has_vx, Cint, (Cint,), id-1)!=0 || error(
+                "Colmat selected self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
