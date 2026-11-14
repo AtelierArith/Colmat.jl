@@ -159,3 +159,22 @@ rank と残差ノルムの返却を別々に扱います。内部配列を確保
 query と最小合法 workspace、leading dimension、空行列・1×1・ゼロ行列、
 NaN/Inf 診断、LBT 登録を検証します。空行列の Julia GEQP3 ラッパーは
 native 入口を呼ばないため、直接 ABI の空行列ケースと区別します。
+
+## LQ 接続（#291）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+通常・ブロック・short-wide・ヘッダー形式の LQ、Q の生成・左右適用、
+GELQS の56シンボルを4型・両整数 ABI に接続しました。
+通常 LQ は随伴 QR の恒等式を使い、A/TAU と行保存のブロック T を構成します。
+short-wide 形式は最初の NB 列の因子と、後続の [L B] パネルの因子を
+LAPACK と同じ順序で格納します。外部の T とヘッダーを受け入れます。
+
+GELQ は合法な MB=1・NB=N の形式を選ぶため、最適・最小 query の推奨値が
+一致します。GELQT3 は共通の分解経路であり Netlib の再帰算法ではありません。
+内部で随伴行列・反射・選択パネルなどを確保します。GELQS は deprecated
+LAPACK 契約に従い workspace query を提供しません。
+
+`test/lq.jl` は4型・両 ABI、通常 Julia ラッパー、最小合法 workspace、
+最小ヘッダー query、ブロック端、外部 OpenBLAS 因子との双方向相互運用、
+左右・転置・共役、leading dimension の padding、空・矩形・階数落ち、
+GELQS の残差と最小ノルム性、56シンボルの LBT 登録を検証します。
