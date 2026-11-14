@@ -3,12 +3,28 @@ use crate::kernels::Scalar;
 use colmat::dyn_stack::{MemBuffer, MemStack};
 use colmat::{c32, c64, Col, Mat};
 
-pub(crate) trait SchurScalar: Scalar {
+pub(crate) trait SchurScalar: crate::householder::ReflectorScalar {
+    fn reorder(t: &mut Mat<Self>, q: &mut Mat<Self>, from: usize, to: usize) -> bool;
     fn native(h: &mut Mat<Self>, q: &mut Mat<Self>) -> (Vec<Self>, Vec<f64>, bool);
 }
 macro_rules! real_schur {
     ($t:ty) => {
         impl SchurScalar for $t {
+            fn reorder(t: &mut Mat<Self>, q: &mut Mat<Self>, from: usize, to: usize) -> bool {
+                use colmat::linalg::evd::{reorder_schur_real, reorder_schur_scratch};
+                crate::threading::with_par(|par| {
+                    let mut mem = MemBuffer::new(reorder_schur_scratch::<Self>(t.nrows()));
+                    reorder_schur_real(
+                        t.as_mut(),
+                        Some(q.as_mut()),
+                        from,
+                        to,
+                        par,
+                        MemStack::new(&mut mem),
+                    )
+                    .is_ok()
+                })
+            }
             fn native(h: &mut Mat<Self>, q: &mut Mat<Self>) -> (Vec<Self>, Vec<f64>, bool) {
                 use colmat::linalg::evd::{hessenberg_schur_real, hessenberg_schur_scratch};
                 let n = h.nrows();
@@ -44,6 +60,21 @@ macro_rules! real_schur {
 macro_rules! complex_schur {
     ($t:ty) => {
         impl SchurScalar for $t {
+            fn reorder(t: &mut Mat<Self>, q: &mut Mat<Self>, from: usize, to: usize) -> bool {
+                use colmat::linalg::evd::{reorder_schur_cplx, reorder_schur_scratch};
+                crate::threading::with_par(|par| {
+                    let mut mem = MemBuffer::new(reorder_schur_scratch::<Self>(t.nrows()));
+                    reorder_schur_cplx(
+                        t.as_mut(),
+                        Some(q.as_mut()),
+                        from,
+                        to,
+                        par,
+                        MemStack::new(&mut mem),
+                    );
+                });
+                true
+            }
             fn native(h: &mut Mat<Self>, q: &mut Mat<Self>) -> (Vec<Self>, Vec<f64>, bool) {
                 use colmat::linalg::evd::{hessenberg_schur_cplx, hessenberg_schur_scratch};
                 let n = h.nrows();
@@ -289,1638 +320,502 @@ hseqr_complex_exports!(z, c64, i32, _);
 hseqr_complex_exports!(c, c32, i64, _64_);
 hseqr_complex_exports!(z, c64, i64, _64_);
 
-#[no_mangle]
-pub unsafe extern "C" fn slahqr_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut f32,
-    ldh: *const i32,
-    wr: *mut f32,
-    wi: *mut f32,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut f32,
-    ldz: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
+macro_rules! lahqr_real_exports {
+    ($p:ident,$family:ident,$t:ty,$i:ty,$s:tt) => {
+        paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $family $s>](
+            wantt: *const $i,
+            wantz: *const $i,
+            n: *const $i,
+            ilo: *const $i,
+            ihi: *const $i,
+            h: *mut $t,
+            ldh: *const $i,
+            wr: *mut $t,
+            wi: *mut $t,
+            iloz: *const $i,
+            ihiz: *const $i,
+            z: *mut $t,
+            ldz: *const $i,
+            info: *mut $i,
+        ) {
+            *info = 0;
+            let _want_t = *wantt != 0;
+            let want_z = *wantz != 0;
+            let (n, lo, hi, lh, zlo, zhi, lz) = (
+                *n as isize,
+                *ilo as isize,
+                *ihi as isize,
+                *ldh as isize,
+                *iloz as isize,
+                *ihiz as isize,
+                *ldz as isize,
+            );
+            for (arg, ok) in [
+                (3, n >= 0),
+                (4, lo >= 1 && lo <= n.max(1)),
+                (5, hi >= lo.min(n) && hi <= n),
+                (7, lh >= n.max(1)),
+                (10, !want_z || (zlo >= 1 && zlo <= lo)),
+                (11, !want_z || (zhi >= hi && zhi <= n)),
+                (13, lz >= 1 && (!want_z || lz >= n)),
+            ] {
+                if !ok {
+                    *info = -arg;
+                    crate::invalid(arg as i32);
+                    return;
+                }
+            }
+            let (values, imag, err) = run_hessenberg(
+                n as usize,
+                (lo - 1) as usize,
+                hi as usize,
+                h,
+                lh,
+                z,
+                lz,
+                false,
+                want_z,
+                zlo.max(1) as usize - 1,
+                zhi.max(0) as usize,
+            );
+            for j in 0..n as usize {
+                *wr.add(j) = values[j];
+                *wi.add(j) = imag[j] as $t;
+            }
+            *info = err as $i;
+        }
+        }
+    };
+}
+macro_rules! laqr_real_exports {
+    ($p:ident,$family:ident,$t:ty,$i:ty,$s:tt) => {
+        paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $family $s>](
+            wantt: *const $i,
+            wantz: *const $i,
+            n: *const $i,
+            ilo: *const $i,
+            ihi: *const $i,
+            h: *mut $t,
+            ldh: *const $i,
+            wr: *mut $t,
+            wi: *mut $t,
+            iloz: *const $i,
+            ihiz: *const $i,
+            z: *mut $t,
+            ldz: *const $i,
+            work: *mut $t,
+            lwork: *const $i,
+            info: *mut $i,
+        ) {
+            *info = 0;
+            let _want_t = *wantt != 0;
+            let want_z = *wantz != 0;
+            let (n, lo, hi, lh, zlo, zhi, lz) = (
+                *n as isize,
+                *ilo as isize,
+                *ihi as isize,
+                *ldh as isize,
+                *iloz as isize,
+                *ihiz as isize,
+                *ldz as isize,
+            );
+            for (arg, ok) in [
+                (3, n >= 0),
+                (4, lo >= 1 && lo <= n.max(1)),
+                (5, hi >= lo.min(n) && hi <= n),
+                (7, lh >= n.max(1)),
+                (10, !want_z || (zlo >= 1 && zlo <= lo)),
+                (11, !want_z || (zhi >= hi && zhi <= n)),
+                (13, lz >= 1 && (!want_z || lz >= n)),
+                (15, *lwork == -1 || *lwork >= 1),
+            ] {
+                if !ok {
+                    *info = -arg;
+                    crate::invalid(arg as i32);
+                    return;
+                }
+            }
+            *work = crate::lapack::workspace::<$t>(n.max(1));
+            if *lwork == -1 {
+                return;
+            }
+            let (values, imag, err) = run_hessenberg(
+                n as usize,
+                (lo - 1) as usize,
+                hi as usize,
+                h,
+                lh,
+                z,
+                lz,
+                false,
+                want_z,
+                zlo.max(1) as usize - 1,
+                zhi.max(0) as usize,
+            );
+            for j in 0..n as usize {
+                *wr.add(j) = values[j];
+                *wi.add(j) = imag[j] as $t;
+            }
+            *info = err as $i;
+        }
+        }
+    };
+}
+macro_rules! lahqr_complex_exports {
+    ($p:ident,$family:ident,$t:ty,$i:ty,$s:tt) => {
+        paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $family $s>](
+            wantt: *const $i,
+            wantz: *const $i,
+            n: *const $i,
+            ilo: *const $i,
+            ihi: *const $i,
+            h: *mut $t,
+            ldh: *const $i,
+            w: *mut $t,
+            iloz: *const $i,
+            ihiz: *const $i,
+            z: *mut $t,
+            ldz: *const $i,
+            info: *mut $i,
+        ) {
+            *info = 0;
+            let _want_t = *wantt != 0;
+            let want_z = *wantz != 0;
+            let (n, lo, hi, lh, zlo, zhi, lz) = (
+                *n as isize,
+                *ilo as isize,
+                *ihi as isize,
+                *ldh as isize,
+                *iloz as isize,
+                *ihiz as isize,
+                *ldz as isize,
+            );
+            for (arg, ok) in [
+                (3, n >= 0),
+                (4, lo >= 1 && lo <= n.max(1)),
+                (5, hi >= lo.min(n) && hi <= n),
+                (7, lh >= n.max(1)),
+                (9, !want_z || (zlo >= 1 && zlo <= lo)),
+                (10, !want_z || (zhi >= hi && zhi <= n)),
+                (12, lz >= 1 && (!want_z || lz >= n)),
+            ] {
+                if !ok {
+                    *info = -arg;
+                    crate::invalid(arg as i32);
+                    return;
+                }
+            }
+            let (values, imag, err) = run_hessenberg(
+                n as usize,
+                (lo - 1) as usize,
+                hi as usize,
+                h,
+                lh,
+                z,
+                lz,
+                false,
+                want_z,
+                zlo.max(1) as usize - 1,
+                zhi.max(0) as usize,
+            );
+            let _ = imag;
+            for j in 0..n as usize {
+                *w.add(j) = values[j];
+            }
+            *info = err as $i;
+        }
+        }
+    };
+}
+macro_rules! laqr_complex_exports {
+    ($p:ident,$family:ident,$t:ty,$i:ty,$s:tt) => {
+        paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $family $s>](
+            wantt: *const $i,
+            wantz: *const $i,
+            n: *const $i,
+            ilo: *const $i,
+            ihi: *const $i,
+            h: *mut $t,
+            ldh: *const $i,
+            w: *mut $t,
+            iloz: *const $i,
+            ihiz: *const $i,
+            z: *mut $t,
+            ldz: *const $i,
+            work: *mut $t,
+            lwork: *const $i,
+            info: *mut $i,
+        ) {
+            *info = 0;
+            let _want_t = *wantt != 0;
+            let want_z = *wantz != 0;
+            let (n, lo, hi, lh, zlo, zhi, lz) = (
+                *n as isize,
+                *ilo as isize,
+                *ihi as isize,
+                *ldh as isize,
+                *iloz as isize,
+                *ihiz as isize,
+                *ldz as isize,
+            );
+            for (arg, ok) in [
+                (3, n >= 0),
+                (4, lo >= 1 && lo <= n.max(1)),
+                (5, hi >= lo.min(n) && hi <= n),
+                (7, lh >= n.max(1)),
+                (9, !want_z || (zlo >= 1 && zlo <= lo)),
+                (10, !want_z || (zhi >= hi && zhi <= n)),
+                (12, lz >= 1 && (!want_z || lz >= n)),
+                (14, *lwork == -1 || *lwork >= 1),
+            ] {
+                if !ok {
+                    *info = -arg;
+                    crate::invalid(arg as i32);
+                    return;
+                }
+            }
+            *work = crate::lapack::workspace::<$t>(n.max(1));
+            if *lwork == -1 {
+                return;
+            }
+            let (values, imag, err) = run_hessenberg(
+                n as usize,
+                (lo - 1) as usize,
+                hi as usize,
+                h,
+                lh,
+                z,
+                lz,
+                false,
+                want_z,
+                zlo.max(1) as usize - 1,
+                zhi.max(0) as usize,
+            );
+            let _ = imag;
+            for j in 0..n as usize {
+                *w.add(j) = values[j];
+            }
+            *info = err as $i;
+        }
+        }
+    };
+}
+lahqr_real_exports!(s, lahqr, f32, i32, _);
+laqr_real_exports!(s, laqr0, f32, i32, _);
+laqr_real_exports!(s, laqr4, f32, i32, _);
+lahqr_real_exports!(s, lahqr, f32, i64, _64_);
+laqr_real_exports!(s, laqr0, f32, i64, _64_);
+laqr_real_exports!(s, laqr4, f32, i64, _64_);
+lahqr_real_exports!(d, lahqr, f64, i32, _);
+laqr_real_exports!(d, laqr0, f64, i32, _);
+laqr_real_exports!(d, laqr4, f64, i32, _);
+lahqr_real_exports!(d, lahqr, f64, i64, _64_);
+laqr_real_exports!(d, laqr0, f64, i64, _64_);
+laqr_real_exports!(d, laqr4, f64, i64, _64_);
+lahqr_complex_exports!(c, lahqr, c32, i32, _);
+laqr_complex_exports!(c, laqr0, c32, i32, _);
+laqr_complex_exports!(c, laqr4, c32, i32, _);
+lahqr_complex_exports!(c, lahqr, c32, i64, _64_);
+laqr_complex_exports!(c, laqr0, c32, i64, _64_);
+laqr_complex_exports!(c, laqr4, c32, i64, _64_);
+lahqr_complex_exports!(z, lahqr, c64, i32, _);
+laqr_complex_exports!(z, laqr0, c64, i32, _);
+laqr_complex_exports!(z, laqr4, c64, i32, _);
+lahqr_complex_exports!(z, lahqr, c64, i64, _64_);
+laqr_complex_exports!(z, laqr0, c64, i64, _64_);
+laqr_complex_exports!(z, laqr4, c64, i64, _64_);
+
+// Eigenvalues in LAPACK's real conjugate-pair order after native block swaps.
+fn spectrum<T: SchurScalar>(t: &Mat<T>) -> (Vec<T>, Vec<f64>) {
+    let n = t.nrows();
+    let mut w: Vec<T> = (0..n).map(|i| t[(i, i)]).collect();
+    let mut wi = vec![0.0; n];
+    let mut i = 0;
+    while i < n {
+        if !T::COMPLEX && i + 1 < n && t[(i + 1, i)] != T::z() {
+            let a = t[(i, i)].re();
+            let d = t[(i + 1, i + 1)].re();
+            let b = t[(i, i + 1)].re();
+            let c = t[(i + 1, i)].re();
+            let scale = a.abs().max(b.abs()).max(c.abs()).max(d.abs());
+            let re = a * 0.5 + d * 0.5;
+            let delta = ((a / scale - d / scale) * 0.5).powi(2) + (b / scale) * (c / scale);
+            let im = (-delta).max(0.0).sqrt() * scale;
+            w[i] = T::real(re);
+            w[i + 1] = T::real(re);
+            wi[i] = im;
+            wi[i + 1] = -im;
+            i += 2;
+        } else {
+            i += 1;
         }
     }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f32;
-    }
-    *info = err as i32;
+    (w, wi)
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn slaqr0_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut f32,
-    ldh: *const i32,
-    wr: *mut f32,
-    wi: *mut f32,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut f32,
-    ldz: *const i32,
-    work: *mut f32,
-    lwork: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-        (15, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
+unsafe fn general_schur<T: SchurScalar>(
+    n: usize,
+    a: *mut T,
+    lda: isize,
+    vs: *mut T,
+    ldvs: isize,
+    want_vs: bool,
+    sort: bool,
+    mut select: impl FnMut(T, f64) -> bool,
+) -> (Vec<T>, Vec<f64>, Vec<bool>, usize, usize) {
+    // Normalize reduction, iteration and reordering; SELECT always sees original units.
+    let mut largest = 0.0_f64;
+    for j in 0..n {
+        for i in 0..n {
+            largest = largest.max((*a.offset(i as isize + j as isize * lda)).magnitude());
         }
     }
-    *work = crate::lapack::workspace::<f32>(n.max(1));
-    if *lwork == -1 {
-        return;
+    let scale = if largest > 0.0 && largest.is_finite() {
+        largest
+    } else {
+        1.0
+    };
+    let mut h = Mat::from_fn(n, n, |i, j| {
+        *a.offset(i as isize + j as isize * lda) / T::real(scale)
+    });
+    let ld = h.as_ref().col_stride();
+    let mut tau = vec![T::z(); n.saturating_sub(1)];
+    crate::hessenberg::reduce(n, 0, n, h.as_mut().as_ptr_mut(), ld, tau.as_mut_ptr());
+    let mut q = h.clone();
+    let lq = q.as_ref().col_stride();
+    crate::hessenberg::explicit(n, 0, n, q.as_mut().as_ptr_mut(), lq, tau.as_ptr());
+    for j in 0..n {
+        for i in j + 2..n {
+            h[(i, j)] = T::z();
+        }
     }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f32;
+    let (mut w, mut wi, mut info) = active(&mut h, Some(&mut q), 0, n);
+    for i in 0..n {
+        w[i] = w[i] * T::real(scale);
+        wi[i] *= scale;
     }
-    *info = err as i32;
+    let mut chosen = vec![false; n];
+    let mut sdim = 0;
+    if sort && info == 0 {
+        for i in 0..n {
+            chosen[i] = select(w[i], wi[i]);
+        }
+        let mut i = 0;
+        while i < n {
+            let size = if !T::COMPLEX && i + 1 < n && h[(i + 1, i)] != T::z() {
+                2
+            } else {
+                1
+            };
+            let take = chosen[i..i + size].iter().any(|&x| x);
+            for flag in &mut chosen[i..i + size] {
+                *flag = take;
+            }
+            if take {
+                if i != sdim {
+                    if !T::reorder(&mut h, &mut q, i, sdim) {
+                        info = n + 1;
+                        break;
+                    }
+                    chosen[sdim..i + size].rotate_right(size);
+                }
+                sdim += size;
+            }
+            i += size;
+        }
+        (w, wi) = spectrum(&h);
+        for i in 0..n {
+            w[i] = w[i] * T::real(scale);
+            wi[i] *= scale;
+        }
+        if info == 0 {
+            let mut actual = vec![false; n];
+            for i in 0..n {
+                actual[i] = select(w[i], wi[i]);
+            }
+            let mut i = 0;
+            while i < n {
+                let size = if !T::COMPLEX && i + 1 < n && h[(i + 1, i)] != T::z() {
+                    2
+                } else {
+                    1
+                };
+                let take = actual[i..i + size].iter().any(|&x| x);
+                for flag in &mut actual[i..i + size] {
+                    *flag = take;
+                }
+                i += size;
+            }
+            if actual
+                .iter()
+                .enumerate()
+                .any(|(i, &take)| take != (i < sdim))
+            {
+                info = n + 2;
+            }
+            sdim = actual.iter().filter(|&&x| x).count();
+            chosen = actual;
+        }
+    }
+    for j in 0..n {
+        for i in 0..n {
+            h[(i, j)] = h[(i, j)] * T::real(scale);
+        }
+    }
+    crate::lapack::output(&h, a, lda);
+    if want_vs {
+        crate::lapack::output(&q, vs, ldvs);
+    }
+    (w, wi, chosen, sdim, info)
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn slaqr4_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut f32,
-    ldh: *const i32,
-    wr: *mut f32,
-    wi: *mut f32,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut f32,
-    ldz: *const i32,
-    work: *mut f32,
-    lwork: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-        (15, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
+macro_rules! gees_real_exports {
+    ($p:ident,$t:ty,$i:ty,$s:tt)=>{paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p gees $s>](jobvs:*const u8,sort:*const u8,select:Option<unsafe extern "C" fn(*const $t,*const $t)->$i>,n:*const $i,a:*mut $t,lda:*const $i,sdim:*mut $i,wr:*mut $t,wi:*mut $t,vs:*mut $t,ldvs:*const $i,work:*mut $t,lwork:*const $i,bwork:*mut $i,info:*mut $i) {
+            *info=0;let(job,sorting)=(flag(jobvs),flag(sort));let(n,la,lv,lw)=(*n as isize,*lda as isize,*ldvs as isize,*lwork as isize);
+            for(arg,ok)in [(1,matches!(job,b'N'|b'V')),(2,matches!(sorting,b'N'|b'S')),(4,n>=0),(6,la>=n.max(1)),(11,lv>=1&&(job==b'N'||lv>=n)),(13,lw== -1||lw>=(3*n).max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            *work=crate::lapack::workspace::<$t>((3*n).max(1));if lw== -1{return;}
+            *sdim=0;
+            let(w,imag,chosen,count,err)=general_schur(n as usize,a,la,vs,lv,job==b'V',sorting==b'S',|re,im| {
+                let im=im as $t;select.expect("GEES SORT=S requires a SELECT callback")(&re,&im)!=0
+            });
+            for j in 0..n as usize {*wr.add(j)=w[j];*wi.add(j)=imag[j] as $t;if sorting==b'S'{*bwork.add(j)=chosen[j] as $i;}}
+            *sdim=count as $i;*info=err as $i;
         }
-    }
-    *work = crate::lapack::workspace::<f32>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f32;
-    }
-    *info = err as i32;
+    }};
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn slahqr_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut f32,
-    ldh: *const i64,
-    wr: *mut f32,
-    wi: *mut f32,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut f32,
-    ldz: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
+macro_rules! gees_complex_exports {
+    ($p:ident,$t:ty,$r:ty,$i:ty,$s:tt)=>{paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p gees $s>](jobvs:*const u8,sort:*const u8,select:Option<unsafe extern "C" fn(*const $t)->$i>,n:*const $i,a:*mut $t,lda:*const $i,sdim:*mut $i,w:*mut $t,vs:*mut $t,ldvs:*const $i,work:*mut $t,lwork:*const $i,_rwork:*mut $r,bwork:*mut $i,info:*mut $i) {
+            *info=0;let(job,sorting)=(flag(jobvs),flag(sort));let(n,la,lv,lw)=(*n as isize,*lda as isize,*ldvs as isize,*lwork as isize);
+            for(arg,ok)in [(1,matches!(job,b'N'|b'V')),(2,matches!(sorting,b'N'|b'S')),(4,n>=0),(6,la>=n.max(1)),(10,lv>=1&&(job==b'N'||lv>=n)),(12,lw== -1||lw>=(2*n).max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            *work=crate::lapack::workspace::<$t>((2*n).max(1));if lw== -1{return;}
+            *sdim=0;
+            let(values,_,chosen,count,err)=general_schur(n as usize,a,la,vs,lv,job==b'V',sorting==b'S',|value,_|select.expect("GEES SORT=S requires a SELECT callback")(&value)!=0);
+            for j in 0..n as usize {*w.add(j)=values[j];if sorting==b'S'{*bwork.add(j)=chosen[j] as $i;}}
+            *sdim=count as $i;*info=err as $i;
         }
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f32;
-    }
-    *info = err as i64;
+    }};
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn slaqr0_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut f32,
-    ldh: *const i64,
-    wr: *mut f32,
-    wi: *mut f32,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut f32,
-    ldz: *const i64,
-    work: *mut f32,
-    lwork: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-        (15, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<f32>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f32;
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn slaqr4_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut f32,
-    ldh: *const i64,
-    wr: *mut f32,
-    wi: *mut f32,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut f32,
-    ldz: *const i64,
-    work: *mut f32,
-    lwork: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-        (15, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<f32>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f32;
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dlahqr_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut f64,
-    ldh: *const i32,
-    wr: *mut f64,
-    wi: *mut f64,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut f64,
-    ldz: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f64;
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dlaqr0_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut f64,
-    ldh: *const i32,
-    wr: *mut f64,
-    wi: *mut f64,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut f64,
-    ldz: *const i32,
-    work: *mut f64,
-    lwork: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-        (15, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<f64>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f64;
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dlaqr4_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut f64,
-    ldh: *const i32,
-    wr: *mut f64,
-    wi: *mut f64,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut f64,
-    ldz: *const i32,
-    work: *mut f64,
-    lwork: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-        (15, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<f64>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f64;
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dlahqr_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut f64,
-    ldh: *const i64,
-    wr: *mut f64,
-    wi: *mut f64,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut f64,
-    ldz: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f64;
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dlaqr0_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut f64,
-    ldh: *const i64,
-    wr: *mut f64,
-    wi: *mut f64,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut f64,
-    ldz: *const i64,
-    work: *mut f64,
-    lwork: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-        (15, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<f64>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f64;
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dlaqr4_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut f64,
-    ldh: *const i64,
-    wr: *mut f64,
-    wi: *mut f64,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut f64,
-    ldz: *const i64,
-    work: *mut f64,
-    lwork: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (10, !want_z || (zlo >= 1 && zlo <= lo)),
-        (11, !want_z || (zhi >= hi && zhi <= n)),
-        (13, lz >= 1 && (!want_z || lz >= n)),
-        (15, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<f64>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    for j in 0..n as usize {
-        *wr.add(j) = values[j];
-        *wi.add(j) = imag[j] as f64;
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn clahqr_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut c32,
-    ldh: *const i32,
-    w: *mut c32,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut c32,
-    ldz: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn claqr0_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut c32,
-    ldh: *const i32,
-    w: *mut c32,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut c32,
-    ldz: *const i32,
-    work: *mut c32,
-    lwork: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-        (14, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<c32>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn claqr4_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut c32,
-    ldh: *const i32,
-    w: *mut c32,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut c32,
-    ldz: *const i32,
-    work: *mut c32,
-    lwork: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-        (14, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<c32>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn clahqr_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut c32,
-    ldh: *const i64,
-    w: *mut c32,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut c32,
-    ldz: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn claqr0_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut c32,
-    ldh: *const i64,
-    w: *mut c32,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut c32,
-    ldz: *const i64,
-    work: *mut c32,
-    lwork: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-        (14, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<c32>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn claqr4_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut c32,
-    ldh: *const i64,
-    w: *mut c32,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut c32,
-    ldz: *const i64,
-    work: *mut c32,
-    lwork: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-        (14, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<c32>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn zlahqr_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut c64,
-    ldh: *const i32,
-    w: *mut c64,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut c64,
-    ldz: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn zlaqr0_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut c64,
-    ldh: *const i32,
-    w: *mut c64,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut c64,
-    ldz: *const i32,
-    work: *mut c64,
-    lwork: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-        (14, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<c64>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn zlaqr4_(
-    wantt: *const i32,
-    wantz: *const i32,
-    n: *const i32,
-    ilo: *const i32,
-    ihi: *const i32,
-    h: *mut c64,
-    ldh: *const i32,
-    w: *mut c64,
-    iloz: *const i32,
-    ihiz: *const i32,
-    z: *mut c64,
-    ldz: *const i32,
-    work: *mut c64,
-    lwork: *const i32,
-    info: *mut i32,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-        (14, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<c64>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i32;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn zlahqr_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut c64,
-    ldh: *const i64,
-    w: *mut c64,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut c64,
-    ldz: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn zlaqr0_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut c64,
-    ldh: *const i64,
-    w: *mut c64,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut c64,
-    ldz: *const i64,
-    work: *mut c64,
-    lwork: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-        (14, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<c64>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i64;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn zlaqr4_64_(
-    wantt: *const i64,
-    wantz: *const i64,
-    n: *const i64,
-    ilo: *const i64,
-    ihi: *const i64,
-    h: *mut c64,
-    ldh: *const i64,
-    w: *mut c64,
-    iloz: *const i64,
-    ihiz: *const i64,
-    z: *mut c64,
-    ldz: *const i64,
-    work: *mut c64,
-    lwork: *const i64,
-    info: *mut i64,
-) {
-    *info = 0;
-    let _want_t = *wantt != 0;
-    let want_z = *wantz != 0;
-    let (n, lo, hi, lh, zlo, zhi, lz) = (
-        *n as isize,
-        *ilo as isize,
-        *ihi as isize,
-        *ldh as isize,
-        *iloz as isize,
-        *ihiz as isize,
-        *ldz as isize,
-    );
-    for (arg, ok) in [
-        (3, n >= 0),
-        (4, lo >= 1 && lo <= n.max(1)),
-        (5, hi >= lo.min(n) && hi <= n),
-        (7, lh >= n.max(1)),
-        (9, !want_z || (zlo >= 1 && zlo <= lo)),
-        (10, !want_z || (zhi >= hi && zhi <= n)),
-        (12, lz >= 1 && (!want_z || lz >= n)),
-        (14, *lwork == -1 || *lwork >= 1),
-    ] {
-        if !ok {
-            *info = -arg;
-            crate::invalid(arg as i32);
-            return;
-        }
-    }
-    *work = crate::lapack::workspace::<c64>(n.max(1));
-    if *lwork == -1 {
-        return;
-    }
-    let (values, imag, err) = run_hessenberg(
-        n as usize,
-        (lo - 1) as usize,
-        hi as usize,
-        h,
-        lh,
-        z,
-        lz,
-        false,
-        want_z,
-        zlo.max(1) as usize - 1,
-        zhi.max(0) as usize,
-    );
-    let _ = imag;
-    for j in 0..n as usize {
-        *w.add(j) = values[j];
-    }
-    *info = err as i64;
-}
+gees_real_exports!(s, f32, i32, _);
+gees_real_exports!(d, f64, i32, _);
+gees_real_exports!(s, f32, i64, _64_);
+gees_real_exports!(d, f64, i64, _64_);
+gees_complex_exports!(c, c32, f32, i32, _);
+gees_complex_exports!(z, c64, f64, i32, _);
+gees_complex_exports!(c, c32, f32, i64, _64_);
+gees_complex_exports!(z, c64, f64, i64, _64_);
