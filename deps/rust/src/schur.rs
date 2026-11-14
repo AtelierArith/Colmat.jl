@@ -106,7 +106,7 @@ real_schur!(f64);
 complex_schur!(c32);
 complex_schur!(c64);
 
-fn multiply<T: Scalar>(a: &Mat<T>, ta: u8, b: &Mat<T>, tb: u8) -> Mat<T> {
+pub(crate) fn multiply<T: Scalar>(a: &Mat<T>, ta: u8, b: &Mat<T>, tb: u8) -> Mat<T> {
     let rows = if ta == b'N' { a.nrows() } else { a.ncols() };
     let inner = if ta == b'N' { a.ncols() } else { a.nrows() };
     let cols = if tb == b'N' { b.ncols() } else { b.nrows() };
