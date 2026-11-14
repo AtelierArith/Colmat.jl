@@ -50,6 +50,21 @@ function load_backend(; verbose::Bool=false)
                 )
             end
         end
+        # Generalized expert balancing/condition estimates remain on the previous
+        # ILP64 backend. Rust bridges LP64 calls and owns integer scratch buffers.
+        register_generalized = Libdl.dlsym(_handle[], :colmat_ggevx_set_expert_fallback)
+        has_generalized = Libdl.dlsym(_handle[], :colmat_ggevx_has_expert_fallback)
+        for (id, prefix) in enumerate(("s", "d", "c", "z"))
+            symbol = prefix * "ggevx_"
+            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_generalized, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
+            end
+            ccall(has_generalized, Cint, (Cint,), id - 1) != 0 || error(
+                "Colmat GGEVX requires an existing ILP64 expert backend; configure one before loading Colmat.",
+            )
+        end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
         # Detect ILP64 first, then LP64, preserving the existing fallback table.
         for suffix in ("64_", "")
