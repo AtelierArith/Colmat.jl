@@ -14,6 +14,7 @@ mod lapack;
 mod lapack_symmetric;
 mod least_squares;
 mod lq;
+mod pivoted_cholesky;
 mod qr;
 mod qr_pivoted;
 mod qz;
