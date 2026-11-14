@@ -18,6 +18,7 @@ include("qr_standard.jl")
 include("qr_pivoted.jl")
 include("lq.jl")
 include("rz.jl")
+include("least_squares.jl")
 include("lbt_inventory.jl")
 include("support_matrix.jl")
 
