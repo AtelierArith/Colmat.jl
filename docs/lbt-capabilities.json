@@ -190,21 +190,6 @@
     },
     {
       "routines": [
-        "gels",
-        "gelsd",
-        "gelss",
-        "gelsy",
-        "gelsx",
-        "gelst",
-        "getsls"
-      ],
-      "status": "conditional",
-      "api": "SolveLstsq / Qr / Svd",
-      "source": "faer/src/linalg/solvers.rs",
-      "note": "最小二乗・最小ノルム機能はある。RCOND・数値 rank・残差配置・固定 JPVT・過少決定の契約を個別に変換"
-    },
-    {
-      "routines": [
         "gesvd",
         "gesdd"
       ],
@@ -1100,6 +1085,21 @@
       "api": "Householder generation / native GEMV and GEMM",
       "source": "faer/src/linalg/householder.rs",
       "note": "Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。"
+    },
+    {
+      "routines": [
+        "gels",
+        "gelsd",
+        "gelss",
+        "gelst",
+        "gelsx",
+        "gelsy",
+        "getsls"
+      ],
+      "status": "composition",
+      "api": "QR / LQ / SVD / RZ / triangular solve",
+      "source": "faer/src/linalg/solvers.rs",
+      "note": "Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。"
     }
   ]
 }

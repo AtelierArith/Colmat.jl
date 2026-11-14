@@ -192,3 +192,25 @@ LARZT/LARZB は LAPACK の backward・行保存を扱い、複素 T の共役も
 因子・適用との相互運用、query と最小合法 workspace、padding、正負 stride、
 分離された C1/C2、L=0 と暗黙成分に重なる尾部、中央領域を NaN にした入力、
 直交性・再構成・共役適用と LBT 登録を検証します。
+
+## 最小二乗 driver 接続（#310）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+GELS/GELST/GETSLS、GELSS/GELSD、GELSY/GELSX の28シンボルを4型・両整数 ABI に接続しました。
+full-rank 系は QR/LQ と三角 solve で tall/wide と転置・共役を処理し、
+A/B を尺度調整して解・残差・因子の尺度を戻します。
+GELSS/GELSD は共通 native SVD で RCOND と rank を判定します。
+GELSS の A には行方向の右特異ベクトルを返します。GELSD の query は
+WORK に加え IWORK/RWORK の必要長を返します。
+
+GELSY/GELSX は固定 JPVT の列ピボット QR、leading R の条件判定、RZ、
+Q/Z 適用、逆置換による完全直交分解です。条件判定には leading R の
+特異値を使うため、Netlib の増分条件推定とは境界付近の rank が異なる可能性があります。
+GELST/GETSLS は共通 full-rank 経路で、Netlib の compact-WY/TS 算法と同一ではありません。
+GETSLS は最適・最小 query の値が一致する構成です。SVD の full U や中間行列などを
+内部で確保し、GELSD という名称でも native divide-and-conquer の実行を保証しません。
+
+`test/least_squares.jl` は両 ABI の具体的な C 署名、外部 OpenBLAS との比較、
+固定列、rank-deficient と過少決定の最小ノルム解、特異値・右特異ベクトル、
+TRANS/共役、残差配置、極小/極大尺度、padding、最小 workspace と query、
+空・ゼロ入力、28シンボルの LBT 登録を検証します。
