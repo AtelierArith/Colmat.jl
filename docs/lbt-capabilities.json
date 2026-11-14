@@ -604,17 +604,28 @@
     },
     {
       "routines": [
+        "langb",
         "lange",
-        "lansy",
+        "langt",
+        "lanhb",
         "lanhe",
-        "lantr",
+        "lanhf",
+        "lanhp",
         "lanhs",
-        "lanst"
+        "lanht",
+        "lansb",
+        "lansf",
+        "lansp",
+        "lanst",
+        "lansy",
+        "lantb",
+        "lantp",
+        "lantr"
       ],
       "status": "composition",
-      "api": "norm_l2 / norm_max / reduction",
+      "api": "real modulus reductions / induced row-column sums / normalized native norm_l2",
       "source": "faer/src/linalg/reductions/mod.rs",
-      "note": "Frobenius は norm_l2。LAPACK の induced 1/∞ norm と colmat の elementwise norm_l1 を同一視しない"
+      "note": "Fifty-four Fortran symbols connected for both integer ABIs across dense, Hessenberg, tridiagonal, symmetric/Hermitian, triangular, band, packed and RFP storage. Complex M/1/I use modulus, not native component-max or abs1; F/E retain components and normalize before native l2 to avoid the pinned extreme-range defect. Unit diagonals and ignored Hermitian imaginary components are not read. RFP N/T/C and NaN/Inf behavior are tested. Temporary storage is allocated internally; caller WORK is preserved."
     },
     {
       "routines": [
