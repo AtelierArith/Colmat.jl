@@ -158,29 +158,10 @@ fn visit_rfp(n: usize, lower: bool, transposed: bool, mut visit: impl FnMut(usiz
     if n == 0 {
         return;
     }
-    let even = n % 2 == 0;
-    let rows = if even { n + 1 } else { n };
-    let columns = (n + 1) / 2;
-    let half = n / 2;
     for j in 0..n {
         let indices = if lower { j..n } else { 0..j + 1 };
         for i in indices {
-            let (row, column) = if lower {
-                if j < n - half {
-                    (i + usize::from(even), j)
-                } else {
-                    (j - (n - half), i - half)
-                }
-            } else if j >= half {
-                (i, j - half)
-            } else {
-                (half + j + 1, i)
-            };
-            let index = if transposed {
-                column + row * columns
-            } else {
-                row + column * rows
-            };
+            let (index, _, _) = crate::storage_layout::rfp_location(n, lower, transposed, i, j);
             visit(i, j, index);
         }
     }

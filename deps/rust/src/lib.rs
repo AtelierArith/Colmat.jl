@@ -31,6 +31,8 @@ mod reduction_extensions;
 mod rz;
 mod schur;
 mod selected_selfadjoint;
+mod storage_conversions;
+mod storage_layout;
 mod threading;
 mod triangular_lapack;
 mod tridiagonal_evd;
