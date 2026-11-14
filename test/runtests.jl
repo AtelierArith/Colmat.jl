@@ -12,6 +12,7 @@ include("backend.jl")
 include("blas.jl")
 include("abi.jl")
 include("lapack_native.jl")
+include("householder.jl")
 include("lbt_inventory.jl")
 include("support_matrix.jl")
 

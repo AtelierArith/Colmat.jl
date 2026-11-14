@@ -5,6 +5,7 @@
 #![allow(clippy::too_many_arguments, clippy::missing_safety_doc)]
 
 mod abi;
+mod householder;
 mod kernels;
 mod lapack;
 mod lapack_symmetric;
