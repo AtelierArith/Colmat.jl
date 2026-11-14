@@ -3,7 +3,7 @@ use crate::kernels::{flag, Scalar};
 use colmat::{Accum, Conj, MatMut, MatRef};
 use paste::paste;
 
-fn vector_start(n: isize, inc: isize) -> Option<isize> {
+pub(crate) fn vector_start(n: isize, inc: isize) -> Option<isize> {
     let span = (n - 1).checked_mul(inc)?;
     if inc < 0 {
         span.checked_neg()

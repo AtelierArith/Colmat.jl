@@ -31,6 +31,7 @@ mod matrix_permutation;
 mod matrix_scaling;
 #[cfg(test)]
 mod matrix_transform_edges;
+mod packed_updates;
 mod pivoted_cholesky;
 mod positive_equilibration;
 mod precision_conversion;
