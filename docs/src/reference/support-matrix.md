@@ -140,3 +140,22 @@ ORMQR/UNMQR/ORM2R/UNM2R、GEQRS の36シンボルを両整数 ABI に接続し�
 Q の適用は native GEMV、GEQRS の三角 solve は native 三角 kernel に接続します。
 内部配列を確保するため、呼び出し側の WORK 以外にもメモリを使用します。
 GEQRS は deprecated LAPACK 契約に従い、workspace query を提供しません。
+
+## 列ピボット QR 接続（#299）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+GEQP3/GEQPF/GEQP3RK の12シンボルを4型・両整数 ABI に接続しました。
+`qr(A, ColumnNorm())` は GEQP3 から native QR/reflector 適用へ到達します。
+固定 JPVT 列は入力順を保って先頭へ移し、出力は元の列番号を1始まりで返します。
+
+GEQP3RK は KMAX と、残差部分の最大列2ノルムに対する ABSTOL/RELTOL で停止します。
+各段階で列ノルムを再計算するため、native ColPivQr の対角値による rank 判定や
+Netlib の部分ノルム更新とは異なる計算量・丸め経路です。付随 NRHS 列は
+ピボット選択から除外し、Q' を適用します。NaN/Inf の INFO、ゼロ・極小 tolerance、
+rank と残差ノルムの返却を別々に扱います。内部配列を確保します。
+
+`test/qr_pivoted.jl` で両 ABI の具体的な C 署名、固定列、外部 OpenBLAS 因子、
+途中停止した分解の再構成、独立計算した残差ノルム、付随右辺、
+query と最小合法 workspace、leading dimension、空行列・1×1・ゼロ行列、
+NaN/Inf 診断、LBT 登録を検証します。空行列の Julia GEQP3 ラッパーは
+native 入口を呼ばないため、直接 ABI の空行列ケースと区別します。

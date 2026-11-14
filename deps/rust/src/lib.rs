@@ -10,6 +10,7 @@ mod kernels;
 mod lapack;
 mod lapack_symmetric;
 mod qr;
+mod qr_pivoted;
 mod threading;
 
 use std::cell::Cell;
