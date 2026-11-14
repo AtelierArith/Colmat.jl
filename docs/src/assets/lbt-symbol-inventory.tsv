@@ -42,8 +42,8 @@ LAPACKE_cgeequ	LAPACKE	geequ	c	公開機能の合成候補・直接 API はな�
 LAPACKE_cgeequ_work	LAPACKE	geequ	c	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cgeequb	LAPACKE	geequb	c	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cgeequb_work	LAPACKE	geequb	c	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_cgees	LAPACKE	gees	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_cgees_work	LAPACKE	gees	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_cgees	LAPACKE	gees	c	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_cgees_work	LAPACKE	gees	c	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cgeesx	LAPACKE	geesx	c	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cgeesx_work	LAPACKE	geesx	c	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cgeev	LAPACKE	geev	c	一部機能のみ・追加の契約実装が必要	false	false	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -321,8 +321,8 @@ LAPACKE_chs_nancheck	LAPACKE	hs_nancheck	c	対応する独立公開 API なし	f
 LAPACKE_chs_trans	LAPACKE	hs_trans	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_chsein	LAPACKE	hsein	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_chsein_work	LAPACKE	hsein	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_chseqr	LAPACKE	hseqr	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_chseqr_work	LAPACKE	hseqr	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_chseqr	LAPACKE	hseqr	c	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_chseqr_work	LAPACKE	hseqr	c	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_clacgv	LAPACKE	lacgv	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_clacgv_work	LAPACKE	lacgv	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_clacn2	LAPACKE	lacn2	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -722,8 +722,8 @@ LAPACKE_dgeequ	LAPACKE	geequ	d	公開機能の合成候補・直接 API はな�
 LAPACKE_dgeequ_work	LAPACKE	geequ	d	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dgeequb	LAPACKE	geequb	d	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dgeequb_work	LAPACKE	geequb	d	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_dgees	LAPACKE	gees	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_dgees_work	LAPACKE	gees	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_dgees	LAPACKE	gees	d	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_dgees_work	LAPACKE	gees	d	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dgeesx	LAPACKE	geesx	d	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dgeesx_work	LAPACKE	geesx	d	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dgeev	LAPACKE	geev	d	一部機能のみ・追加の契約実装が必要	false	false	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -863,8 +863,8 @@ LAPACKE_dhs_nancheck	LAPACKE	hs_nancheck	d	対応する独立公開 API なし	f
 LAPACKE_dhs_trans	LAPACKE	hs_trans	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dhsein	LAPACKE	hsein	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dhsein_work	LAPACKE	hsein	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_dhseqr	LAPACKE	hseqr	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_dhseqr_work	LAPACKE	hseqr	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_dhseqr	LAPACKE	hseqr	d	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_dhseqr_work	LAPACKE	hseqr	d	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dlacn2	LAPACKE	lacn2	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dlacn2_work	LAPACKE	lacn2	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dlacpy	LAPACKE	lacpy	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -1352,8 +1352,8 @@ LAPACKE_sgeequ	LAPACKE	geequ	s	公開機能の合成候補・直接 API はな�
 LAPACKE_sgeequ_work	LAPACKE	geequ	s	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sgeequb	LAPACKE	geequb	s	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sgeequb_work	LAPACKE	geequb	s	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_sgees	LAPACKE	gees	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_sgees_work	LAPACKE	gees	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_sgees	LAPACKE	gees	s	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_sgees_work	LAPACKE	gees	s	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sgeesx	LAPACKE	geesx	s	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sgeesx_work	LAPACKE	geesx	s	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sgeev	LAPACKE	geev	s	一部機能のみ・追加の契約実装が必要	false	false	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -1493,8 +1493,8 @@ LAPACKE_shs_nancheck	LAPACKE	hs_nancheck	s	対応する独立公開 API なし	f
 LAPACKE_shs_trans	LAPACKE	hs_trans	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_shsein	LAPACKE	hsein	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_shsein_work	LAPACKE	hsein	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_shseqr	LAPACKE	hseqr	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_shseqr_work	LAPACKE	hseqr	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_shseqr	LAPACKE	hseqr	s	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_shseqr_work	LAPACKE	hseqr	s	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_slacn2	LAPACKE	lacn2	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_slacn2_work	LAPACKE	lacn2	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_slacpy	LAPACKE	lacpy	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -1973,8 +1973,8 @@ LAPACKE_zgeequ	LAPACKE	geequ	z	公開機能の合成候補・直接 API はな�
 LAPACKE_zgeequ_work	LAPACKE	geequ	z	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zgeequb	LAPACKE	geequb	z	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zgeequb_work	LAPACKE	geequb	z	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_zgees	LAPACKE	gees	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_zgees_work	LAPACKE	gees	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_zgees	LAPACKE	gees	z	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_zgees_work	LAPACKE	gees	z	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zgeesx	LAPACKE	geesx	z	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zgeesx_work	LAPACKE	geesx	z	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zgeev	LAPACKE	geev	z	一部機能のみ・追加の契約実装が必要	false	false	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2252,8 +2252,8 @@ LAPACKE_zhs_nancheck	LAPACKE	hs_nancheck	z	対応する独立公開 API なし	f
 LAPACKE_zhs_trans	LAPACKE	hs_trans	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zhsein	LAPACKE	hsein	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zhsein_work	LAPACKE	hsein	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_zhseqr	LAPACKE	hseqr	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_zhseqr_work	LAPACKE	hseqr	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_zhseqr	LAPACKE	hseqr	z	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_zhseqr_work	LAPACKE	hseqr	z	公開機能の合成候補・直接 API はなし	false	false	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zlacgv	LAPACKE	lacgv	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zlacgv_work	LAPACKE	lacgv	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zlacn2	LAPACKE	lacn2	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2844,7 +2844,7 @@ cgedmd_	Fortran	gedmd	c	対応する独立公開 API なし	false	false	—	faer
 cgedmdq_	Fortran	gedmdq	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	Dynamic Mode Decomposition の公開 API はない
 cgeequ_	Fortran	geequ	c	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
 cgeequb_	Fortran	geequb	c	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
-cgees_	Fortran	gees	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+cgees_	Fortran	gees	c	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 cgeesx_	Fortran	geesx	c	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない
 cgeev_	Fortran	geev	c	一部機能のみ・追加の契約実装が必要	true	true	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応
 cgeevx_	Fortran	geevx	c	一部機能のみ・追加の契約実装が必要	true	true	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応; 現行 native は SENSE=N。条件数推定は登録時に保持した backend へ委譲。該当 ABI に既存転送先がない場合は利用不可
@@ -3028,7 +3028,7 @@ chptrf_	Fortran	hptrf	c	対応機能あり・保存形式の変換が必要	fals
 chptri_	Fortran	hptri	c	対応機能あり・保存形式の変換が必要	false	false	dense Lblt	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
 chptrs_	Fortran	hptrs	c	対応機能あり・保存形式の変換が必要	false	false	dense Lblt	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
 chsein_	Fortran	hsein	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
-chseqr_	Fortran	hseqr	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+chseqr_	Fortran	hseqr	c	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 cimatcopy_	Fortran	imatcopy	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 clabrd_	Fortran	labrd	c	対応機能あり・保存形式の変換が必要	false	false	bidiag_in_place / householder	faer/src/linalg/svd/bidiag.rs	二重対角と左右 reflector・TAU の保存形式を変換
 clacgv_	Fortran	lacgv	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
@@ -3056,7 +3056,7 @@ clahef_aa_	Fortran	lahef_aa	c	対応する独立公開 API なし	false	false	�
 clahef_rk_	Fortran	lahef_rk	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 clahef_rook_	Fortran	lahef_rook	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 clahilb_	Fortran	lahilb	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-clahqr_	Fortran	lahqr	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+clahqr_	Fortran	lahqr	c	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 clahr2_	Fortran	lahr2	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 clahrd_	Fortran	lahrd	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 claic1_	Fortran	laic1	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -3093,11 +3093,11 @@ claqp2_	Fortran	laqp2	c	対応する独立公開 API なし	false	false	—	faer
 claqp2rk_	Fortran	laqp2rk	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 claqp3rk_	Fortran	laqp3rk	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 claqps_	Fortran	laqps	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-claqr0_	Fortran	laqr0	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+claqr0_	Fortran	laqr0	c	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 claqr1_	Fortran	laqr1	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 claqr2_	Fortran	laqr2	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 claqr3_	Fortran	laqr3	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-claqr4_	Fortran	laqr4	c	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+claqr4_	Fortran	laqr4	c	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 claqr5_	Fortran	laqr5	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 claqsb_	Fortran	laqsb	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 claqsp_	Fortran	laqsp	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -3393,7 +3393,7 @@ dgedmd_	Fortran	gedmd	d	対応する独立公開 API なし	false	false	—	faer
 dgedmdq_	Fortran	gedmdq	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	Dynamic Mode Decomposition の公開 API はない
 dgeequ_	Fortran	geequ	d	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
 dgeequb_	Fortran	geequb	d	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
-dgees_	Fortran	gees	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+dgees_	Fortran	gees	d	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 dgeesx_	Fortran	geesx	d	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない
 dgeev_	Fortran	geev	d	一部機能のみ・追加の契約実装が必要	true	true	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応
 dgeevx_	Fortran	geevx	d	一部機能のみ・追加の契約実装が必要	true	true	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応; 現行 native は SENSE=N。条件数推定は登録時に保持した backend へ委譲。該当 ABI に既存転送先がない場合は利用不可
@@ -3485,7 +3485,7 @@ dgttrs_	Fortran	gttrs	d	対応機能あり・保存形式の変換が必要	fals
 dgtts2_	Fortran	gtts2	d	対応機能あり・保存形式の変換が必要	false	false	dense PartialPivLu	faer/src/linalg/lu/partial_pivoting/factor.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
 dhgeqz_	Fortran	hgeqz	d	一部機能のみ・追加の契約実装が必要	false	false	QZ	faer/src/linalg/gevd/qz_real/mod.rs	generalized Schur はある。sorting callback・active range・Schur vector 初期化の ABI は追加実装
 dhsein_	Fortran	hsein	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
-dhseqr_	Fortran	hseqr	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+dhseqr_	Fortran	hseqr	d	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 dimatcopy_	Fortran	imatcopy	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 disnan_	Fortran	isnan	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 dlabad_	Fortran	labad	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -3522,7 +3522,7 @@ dlagtm_	Fortran	lagtm	d	対応する独立公開 API なし	false	false	—	faer
 dlagts_	Fortran	lagts	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlagv2_	Fortran	lagv2	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlahilb_	Fortran	lahilb	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-dlahqr_	Fortran	lahqr	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+dlahqr_	Fortran	lahqr	d	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 dlahr2_	Fortran	lahr2	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlahrd_	Fortran	lahrd	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlaic1_	Fortran	laic1	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -3564,11 +3564,11 @@ dlaqp2_	Fortran	laqp2	d	対応する独立公開 API なし	false	false	—	faer
 dlaqp2rk_	Fortran	laqp2rk	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlaqp3rk_	Fortran	laqp3rk	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlaqps_	Fortran	laqps	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-dlaqr0_	Fortran	laqr0	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+dlaqr0_	Fortran	laqr0	d	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 dlaqr1_	Fortran	laqr1	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlaqr2_	Fortran	laqr2	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlaqr3_	Fortran	laqr3	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-dlaqr4_	Fortran	laqr4	d	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+dlaqr4_	Fortran	laqr4	d	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 dlaqr5_	Fortran	laqr5	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlaqsb_	Fortran	laqsb	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlaqsp_	Fortran	laqsp	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -4048,7 +4048,7 @@ sgedmd_	Fortran	gedmd	s	対応する独立公開 API なし	false	false	—	faer
 sgedmdq_	Fortran	gedmdq	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	Dynamic Mode Decomposition の公開 API はない
 sgeequ_	Fortran	geequ	s	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
 sgeequb_	Fortran	geequb	s	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
-sgees_	Fortran	gees	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+sgees_	Fortran	gees	s	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 sgeesx_	Fortran	geesx	s	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない
 sgeev_	Fortran	geev	s	一部機能のみ・追加の契約実装が必要	true	true	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応
 sgeevx_	Fortran	geevx	s	一部機能のみ・追加の契約実装が必要	true	true	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応; 現行 native は SENSE=N。条件数推定は登録時に保持した backend へ委譲。該当 ABI に既存転送先がない場合は利用不可
@@ -4140,7 +4140,7 @@ sgttrs_	Fortran	gttrs	s	対応機能あり・保存形式の変換が必要	fals
 sgtts2_	Fortran	gtts2	s	対応機能あり・保存形式の変換が必要	false	false	dense PartialPivLu	faer/src/linalg/lu/partial_pivoting/factor.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
 shgeqz_	Fortran	hgeqz	s	一部機能のみ・追加の契約実装が必要	false	false	QZ	faer/src/linalg/gevd/qz_real/mod.rs	generalized Schur はある。sorting callback・active range・Schur vector 初期化の ABI は追加実装
 shsein_	Fortran	hsein	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
-shseqr_	Fortran	hseqr	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+shseqr_	Fortran	hseqr	s	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 simatcopy_	Fortran	imatcopy	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 sisnan_	Fortran	isnan	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 slabad_	Fortran	labad	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -4177,7 +4177,7 @@ slagtm_	Fortran	lagtm	s	対応する独立公開 API なし	false	false	—	faer
 slagts_	Fortran	lagts	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slagv2_	Fortran	lagv2	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slahilb_	Fortran	lahilb	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-slahqr_	Fortran	lahqr	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+slahqr_	Fortran	lahqr	s	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 slahr2_	Fortran	lahr2	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slahrd_	Fortran	lahrd	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slaic1_	Fortran	laic1	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -4219,11 +4219,11 @@ slaqp2_	Fortran	laqp2	s	対応する独立公開 API なし	false	false	—	faer
 slaqp2rk_	Fortran	laqp2rk	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slaqp3rk_	Fortran	laqp3rk	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slaqps_	Fortran	laqps	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-slaqr0_	Fortran	laqr0	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+slaqr0_	Fortran	laqr0	s	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 slaqr1_	Fortran	laqr1	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slaqr2_	Fortran	laqr2	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slaqr3_	Fortran	laqr3	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-slaqr4_	Fortran	laqr4	s	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+slaqr4_	Fortran	laqr4	s	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 slaqr5_	Fortran	laqr5	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slaqsb_	Fortran	laqsb	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slaqsp_	Fortran	laqsp	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -4635,7 +4635,7 @@ zgedmd_	Fortran	gedmd	z	対応する独立公開 API なし	false	false	—	faer
 zgedmdq_	Fortran	gedmdq	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	Dynamic Mode Decomposition の公開 API はない
 zgeequ_	Fortran	geequ	z	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
 zgeequb_	Fortran	geequb	z	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
-zgees_	Fortran	gees	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+zgees_	Fortran	gees	z	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 zgeesx_	Fortran	geesx	z	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない
 zgeev_	Fortran	geev	z	一部機能のみ・追加の契約実装が必要	true	true	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応
 zgeevx_	Fortran	geevx	z	一部機能のみ・追加の契約実装が必要	true	true	evd_real / evd_cplx / balance	faer/src/linalg/evd/mod.rs	固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応; 現行 native は SENSE=N。条件数推定は登録時に保持した backend へ委譲。該当 ABI に既存転送先がない場合は利用不可
@@ -4818,7 +4818,7 @@ zhptrf_	Fortran	hptrf	z	対応機能あり・保存形式の変換が必要	fals
 zhptri_	Fortran	hptri	z	対応機能あり・保存形式の変換が必要	false	false	dense Lblt	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
 zhptrs_	Fortran	hptrs	z	対応機能あり・保存形式の変換が必要	false	false	dense Lblt	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
 zhsein_	Fortran	hsein	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
-zhseqr_	Fortran	hseqr	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+zhseqr_	Fortran	hseqr	z	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 zimatcopy_	Fortran	imatcopy	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 zlabrd_	Fortran	labrd	z	対応機能あり・保存形式の変換が必要	false	false	bidiag_in_place / householder	faer/src/linalg/svd/bidiag.rs	二重対角と左右 reflector・TAU の保存形式を変換
 zlacgv_	Fortran	lacgv	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
@@ -4846,7 +4846,7 @@ zlahef_aa_	Fortran	lahef_aa	z	対応する独立公開 API なし	false	false	�
 zlahef_rk_	Fortran	lahef_rk	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 zlahef_rook_	Fortran	lahef_rook	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 zlahilb_	Fortran	lahilb	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-zlahqr_	Fortran	lahqr	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+zlahqr_	Fortran	lahqr	z	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 zlahr2_	Fortran	lahr2	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlahrd_	Fortran	lahrd	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlaic1_	Fortran	laic1	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -4883,11 +4883,11 @@ zlaqp2_	Fortran	laqp2	z	対応する独立公開 API なし	false	false	—	faer
 zlaqp2rk_	Fortran	laqp2rk	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlaqp3rk_	Fortran	laqp3rk	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlaqps_	Fortran	laqps	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-zlaqr0_	Fortran	laqr0	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+zlaqr0_	Fortran	laqr0	z	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 zlaqr1_	Fortran	laqr1	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlaqr2_	Fortran	laqr2	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlaqr3_	Fortran	laqr3	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-zlaqr4_	Fortran	laqr4	z	一部機能のみ・追加の契約実装が必要	false	false	hessenberg_schur_real/cplx	faer/src/linalg/evd/mod.rs	Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続
+zlaqr4_	Fortran	laqr4	z	公開機能の合成候補・直接 API はなし	true	true	hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder	faer/src/linalg/evd/mod.rs	Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。
 zlaqr5_	Fortran	laqr5	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlaqsb_	Fortran	laqsb	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlaqsp_	Fortran	laqsp	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない

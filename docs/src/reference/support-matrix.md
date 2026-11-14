@@ -228,3 +228,31 @@ ILO/IHI の部分範囲に対応し、Q はその範囲外で恒等変換です�
 外部 OpenBLAS の因子と Q との相互運用、A=Q*H*Q'、直交性、active range 外の
 保存、空・1×1、左右・転置・共役、padding、最小 workspace と query、
 不正範囲と LBT 登録を検証します。
+
+## Schur driver 接続（#300）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+HSEQR/LAHQR/LAQR0/LAQR4/GEES の20シンボルを4型・両整数 ABI に接続しました。
+Hessenberg の active block を公開 native Schur API へ渡し、範囲外との結合と
+既存 Z を native GEMM で更新します。COMPZ=N/I/V、JOB=E/S、
+補助入口の WANTT/WANTZ と ILOZ/IHIZ を扱います。JOB=E/WANTT=false でも
+Schur 形式まで計算します。各入口は同じ native QR 経路を使い、Netlib の
+LAHQR/LAQR0/LAQR4 の算法の切り替えを再現するものではありません。
+
+GEES は Hessenberg 還元、native Schur、native block reorder を合成します。
+尺度を正規化してから還元・反復・並べ替えを行い、SELECT には元の単位の
+固有値を渡します。SELECT の Fortran LOGICAL は整数 ABI と同じ幅で扱い、
+実数共役対は片方が選択されれば両方を選択します。SDIM と選択された
+スペクトルの前方配置を返し、並べ替え拒否と再選択の不整合はそれぞれ
+INFO=N+1/N+2 です。SORT=N と workspace query では callback を呼びません。
+GEESX/TRSEN の条件推定はこの接続に含みません。
+
+公開 native Schur API は非収束の部分 index を返しません。その場合は
+active range 全体を未収束として INFO=IHI を返し、部分収束を偽って報告しません。
+内部で行列・反射係数・native scratch を確保し、呼び出し元の最小合法 WORK で
+実行できます。query はその必要長を返します。
+
+`test/schur.jl` は4型・両 ABI の具体的な C 署名、Julia の通常ラッパー、
+A=Z*T*Z'、直交性、active range、既存 Z の更新と行範囲、実 Schur 共役対、
+SELECT/SDIM、極小・極大尺度、padding、未参照領域の NaN、空・1×1、
+query、不正引数、非収束 INFO と20シンボルの LBT 登録を検証します。

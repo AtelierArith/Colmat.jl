@@ -368,10 +368,10 @@
         "laqr4",
         "gees"
       ],
-      "status": "conditional",
-      "api": "hessenberg_schur_real/cplx",
+      "status": "composition",
+      "api": "hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続"
+      "note": "Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。"
     },
     {
       "routines": [
