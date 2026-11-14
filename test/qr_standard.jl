@@ -407,3 +407,13 @@ end
         end
     end
 end
+
+@testset "Standard QR Julia coefficient convention" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64), n in (5, 10, 15)
+        a=randn(T, 10, n)
+        generic=LinearAlgebra.qrfactUnblocked!(copy(a))
+        factors, tau=LAPACK.geqrf!(copy(a))
+        @test factors ≈ generic.factors
+        @test tau ≈ generic.τ
+    end
+end

@@ -207,14 +207,14 @@ pub(crate) unsafe fn standard_qr<T: ReflectorScalar>(
     positive: bool,
 ) {
     let k = m.min(n);
-    if !positive {
+    if !positive && !T::COMPLEX {
         compact_qr(m, n, 1, a, lda, tau, 1);
         return;
     }
     let mut work = vec![T::z(); n];
     for j in 0..k {
         let p = a.offset(j as isize * (lda + 1));
-        crate::householder::generate((m - j) as isize, p, p.add(1), 1, tau.add(j), true);
+        crate::householder::generate((m - j) as isize, p, p.add(1), 1, tau.add(j), positive);
         if j + 1 == n {
             continue;
         }

@@ -134,8 +134,9 @@ ORMQR/UNMQR/ORM2R/UNM2R、GEQRS の36シンボルを両整数 ABI に接続し�
 非負対角、workspace query と最小合法作業領域、padded leading dimension、
 空・矩形・ゼロ列、GEQRS の最小二乗残差を検証します。
 
-通常版は native QR の block-size-one 係数から A/TAU を作り、複素 R の
-対角位相を保持します。非負対角版は既存の LAPACK gauge reflector 生成を使います。
+実数通常版は native QR の block-size-one 係数から A/TAU を作ります。
+複素通常版と非負対角版は LAPACK gauge reflector 生成を使い、
+実数 beta と複素 TAU を Julia の標準規約に合わせます。
 Q の適用は native GEMV、GEQRS の三角 solve は native 三角 kernel に接続します。
 内部配列を確保するため、呼び出し側の WORK 以外にもメモリを使用します。
 GEQRS は deprecated LAPACK 契約に従い、workspace query を提供しません。
