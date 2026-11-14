@@ -18,7 +18,7 @@ fn embedded<T: Scalar>(q: &Mat<T>, n: usize, lo: usize, hi: usize) -> Mat<T> {
         }
     })
 }
-unsafe fn reduce<T: Scalar>(
+pub(crate) unsafe fn reduce<T: Scalar>(
     n: usize,
     lo: usize,
     hi: usize,

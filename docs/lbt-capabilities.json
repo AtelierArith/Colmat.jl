@@ -430,10 +430,10 @@
         "gegs",
         "hgeqz"
       ],
-      "status": "conditional",
-      "api": "QZ",
+      "status": "composition",
+      "api": "QR / generalized_hessenberg / hessenberg_to_qz / generalized reorder_schur",
       "source": "faer/src/linalg/gevd/qz_real/mod.rs",
-      "note": "generalized Schur はある。sorting callback・active range・Schur vector 初期化の ABI は追加実装"
+      "note": "Fortran 16シンボル・4型・両 ABI を接続済み。HGEQZ の active range と Q/Z=N/I/V、GGES/GGES3/GEGS の dense 還元、homogeneous alpha/beta、SELECT と実数共役対、SDIM を変換。β=0 を保持する。native API が非収束状態を返さないため構造・出力値を検証し、不完全な結果は active range 全体を未収束として INFO=IHI。並べ替え後は QZ を再評価する。内部配列・scratch を確保し、入口ごとの最小合法 WORK と query を提供する。"
     },
     {
       "routines": [

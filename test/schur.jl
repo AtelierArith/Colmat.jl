@@ -521,7 +521,13 @@ end
 end
 
 @testset "GEES independent OpenBLAS spectrum" begin
-    library=BLAS.lbt_find_backing_library("dgges_", :ilp64).libname
+    library=only(
+        filter(
+            l ->
+                l.interface==:ilp64 && occursin("openblas", lowercase(basename(l.libname))),
+            BLAS.get_config().loaded_libs,
+        ),
+    ).libname
     Random.seed!(3003)
     for T in (Float32, Float64, ComplexF32, ComplexF64)
         original=randn(T, 8, 8)

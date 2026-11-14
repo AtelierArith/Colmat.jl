@@ -15,6 +15,7 @@ mod least_squares;
 mod lq;
 mod qr;
 mod qr_pivoted;
+mod qz;
 mod rz;
 mod schur;
 mod threading;
