@@ -42,6 +42,7 @@ for (T, p) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "
         cz=('I'),
         job=('S'),
         query=false,
+        lwork_override=nothing,
         library=Colmat.backend_library(),
     )
         n=size(a, 2)
@@ -72,7 +73,13 @@ for (T, p) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "
             z,
             max(1, size(z, 1)),
             work,
-            query ? -1 : length(work),
+            if query
+                -1
+            elseif isnothing(lwork_override)
+                length(work)
+            else
+                lwork_override
+            end,
             $(realargs...),
             info,
         )
@@ -192,6 +199,7 @@ for (T, p) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "
             jz=('V'),
             sorting=false,
             query=false,
+            lwork_override=nothing,
             use_callback=sorting,
             selection=($callback),
             library=Colmat.backend_library(),
@@ -225,7 +233,13 @@ for (T, p) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "
                 z,
                 max(1, size(z, 1)),
                 work,
-                query ? -1 : length(work),
+                if query
+                    -1
+                elseif isnothing(lwork_override)
+                    length(work)
+                else
+                    lwork_override
+                end,
                 $(rwargs...),
                 $(bwargs...),
                 info,
@@ -274,5 +288,179 @@ end
         @test info==0 && real(work[1])>=1
         @test qz_callback_calls[]==calls
         @test all(isequal.(saved, (a, b, q, z)))
+    end
+end
+
+function qz_pair_distance(a, b, c, d)
+    x=hypot(abs(a), abs(b))
+    y=hypot(abs(c), abs(d))
+    if x==0 || y==0
+        return x==y ? 0.0 : 1.0
+    end
+    return abs((a/x)*(d/y)-(b/x)*(c/y))
+end
+@testset "QZ independent homogeneous spectrum and infinite values" begin
+    library=only(
+        filter(
+            l->l.interface==:ilp64 && occursin("openblas", lowercase(basename(l.libname))),
+            BLAS.get_config().loaded_libs,
+        ),
+    ).libname
+    Random.seed!(2942)
+    for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
+        R=typeof(real(zero(T)))
+        for singular in (false, true)
+            n=7
+            original=triu(randn(T, n, n), -1)
+            triangular=triu(randn(T, n, n))
+            singular && (triangular[3, 3]=0)
+            a=copy(original)
+            b=copy(triangular)
+            q=zeros(T, n, n)
+            z=copy(q)
+            alpha, beta, info, _=direct_hgeqz!(a, b, q, z, J)
+            refa=copy(original)
+            refb=copy(triangular)
+            refq=zeros(T, n, n)
+            refz=copy(refq)
+            ar, be, ri, _=direct_hgeqz!(refa, refb, refq, refz, Int64; library)
+            @test info==0 && ri==0
+            pool=collect(zip(ar, be))
+            for (value, denominator) in zip(alpha, beta)
+                distances=[qz_pair_distance(value, denominator, c, d) for (c, d) in pool]
+                index=argmin(distances)
+                @test distances[index]<=5000eps(R)
+                deleteat!(pool, index)
+            end
+            if singular
+                @test any(iszero, beta)
+            end
+        end
+        original=T[2 1 0 0; 0 -1 -3 1; 0 3 -1 1; 0 0 0 4]
+        original_b=Matrix{T}(I, 4, 4)
+        original_b[4, 4]=0
+        for family in (:gges, :gges3, :gegs)
+            a=copy(original)
+            b=copy(original_b)
+            q=zeros(T, 4, 4)
+            z=copy(q)
+            alpha, beta, sdim, info, _=direct_gges!(
+                a, b, q, z, J, Val(family); sorting=family!==:gegs
+            )
+            @test info==0
+            @test count(iszero, beta)==1
+            @test q*a*z' ≈ original
+            @test q*b*z' ≈ original_b
+            if family!==:gegs
+                @test sdim==2
+                @test all(real.(alpha[1:2] ./ beta[1:2]) .< 0)
+            end
+            if T<:Real
+                indices=findall(!iszero, imag.(alpha))
+                @test length(indices)==2
+                @test imag(alpha[first(indices)])>0 && imag(alpha[last(indices)])<0
+            end
+        end
+    end
+end
+
+@testset "QZ guards, workspace limits, unused factors and Julia wrappers" begin
+    Random.seed!(2943)
+    for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
+        n=5
+        original=randn(T, n, n)
+        original_b=randn(T, n, n)
+        for family in (:gges, :gges3, :gegs)
+            a=fill(T(789), n+2, n)
+            b=copy(a)
+            a[1:n, :]=original
+            b[1:n, :]=original_b
+            q=fill(T(NaN), n+2, n)
+            z=copy(q)
+            _, _, sdim, info, _=direct_gges!(a, b, q, z, J, Val(family); jq=('N'), jz=('N'))
+            @test info==0 && sdim==0
+            @test all(isnan, q) && all(isnan, z)
+            @test all(==(T(789)), a[(n + 1):end, :]) && all(==(T(789)), b[(n + 1):end, :])
+            saved=map(copy, (a, b, q, z))
+            _, _, _, info, _=direct_gges!(a, b, q, z, J, Val(family); lwork_override=0)
+            expected=T<:Real ? (family===:gegs ? -16 : -19) : (family===:gegs ? -15 : -18)
+            @test info==expected
+            @test all(isequal.(saved, (a, b, q, z)))
+            _, _, _, info, _=direct_gges!(a, b, q, z, J, Val(family); jq=('?'))
+            @test info == -1
+            @test all(isequal.(saved, (a, b, q, z)))
+        end
+        a=fill(T(789), n+2, n)
+        b=copy(a)
+        a[1:n, :]=triu(original, -1)
+        b[1:n, :]=triu(original_b)
+        for j in 1:n, i in (j + 2):n
+            a[i, j]=T(NaN)
+        end
+        for j in 1:n, i in (j + 1):n
+            b[i, j]=T(NaN)
+        end
+        q=fill(T(NaN), n+2, n)
+        z=copy(q)
+        _, _, info, _=direct_hgeqz!(a, b, q, z, J; cq=('N'), cz=('N'), job=('E'))
+        @test info==0 && all(isnan, q) && all(isnan, z)
+        @test all(==(T(789)), a[(n + 1):end, :]) && all(==(T(789)), b[(n + 1):end, :])
+        saved=map(copy, (a, b, q, z))
+        _, _, info, work=direct_hgeqz!(a, b, q, z, J; query=true)
+        @test info==0 && real(work[1])>=n
+        @test all(isequal.(saved, (a, b, q, z)))
+        _, _, info, _=direct_hgeqz!(a, b, q, z, J; lo=0)
+        @test info == -5
+        _, _, info, _=direct_hgeqz!(a, b, q, z, J; lwork_override=0)
+        @test info==(T<:Real ? -19 : -18)
+        @test all(isequal.(saved, (a, b, q, z)))
+        a=fill(T(NaN), 1, 1)
+        b=ones(T, 1, 1)
+        q=zeros(T, 1, 1)
+        z=copy(q)
+        _, _, info, _=direct_hgeqz!(a, b, q, z, J)
+        @test info==1
+        a, b, alpha, beta, q, z=LAPACK.gges!('V', 'V', copy(original), copy(original_b))
+        @test q*a*z' ≈ original
+        @test q*b*z' ≈ original_b
+        prefix=if T===Float32
+            "s"
+        elseif T===Float64
+            "d"
+        elseif T===ComplexF32
+            "c"
+        else
+            "z"
+        end
+        for family in ("hgeqz", "gges", "gges3", "gegs")
+            backing=BLAS.lbt_find_backing_library(
+                prefix*family*"_", J===Int32 ? :lp64 : :ilp64
+            )
+            @test backing!==nothing &&
+                realpath(backing.libname)==realpath(Colmat.backend_library())
+        end
+    end
+end
+
+@testset "QZ independent scales and real conjugate blocks" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
+        R=typeof(real(zero(T)))
+        base=T[-1 -3 0; 3 -1 1; 0 0 2]
+        base_b=Matrix{T}(I, 3, 3)
+        for (sa, sb) in (
+            (sqrt(floatmin(R)), sqrt(floatmax(R))/10),
+            (sqrt(floatmax(R))/10, sqrt(floatmin(R))),
+        )
+            a=base*sa
+            b=base_b*sb
+            q=zeros(T, 3, 3)
+            z=copy(q)
+            alpha, beta, _, info, _=direct_gges!(a, b, q, z, J, Val(:gges))
+            @test info==0
+            @test q*(a/sa)*z' ≈ base
+            @test q*(b/sb)*z' ≈ base_b
+            @test all(isfinite, alpha) && all(isfinite, beta)
+            @test all(!iszero, beta)
+        end
     end
 end

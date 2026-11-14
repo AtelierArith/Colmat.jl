@@ -273,3 +273,35 @@ Q'*A*Z=H と Q'*B*Z=T、Hessenberg/三角構造、ユニタリ性、
 空・1×1・2×2、部分範囲、Q/Z の初期化・既存値への更新・未使用、
 40×40 のブロック経路、padding、未参照 B/Q/Z の NaN、query、
 不正引数と8シンボルの LBT 登録を検証します。
+
+## QZ driver 接続（#294）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+HGEQZ/GGES/GGES3/GEGS の16シンボルを4型・両整数 ABI に接続しました。
+HGEQZ は active block の native QZ と基底変換を合成し、
+COMPQ/COMPZ=N/I/V と ILO/IHI を扱います。
+JOB=E でも内部では Schur 形式まで計算します。
+β の対角を非負の実数に揃え、Q/Z と pencil の変換を維持します。
+α/β は homogeneous な組で返し、β=0 を有限の固有値へ置き換えません。
+
+GGES/GGES3/GEGS は QR による B の三角化、一般化 Hessenberg 還元、native QZ を
+合成します。A/B は独立に尺度を正規化し、α/β と S/T の単位を戻します。
+GGES/GGES3 の SELECT は LP64/ILP64 の LOGICAL 幅で呼び、実数共役対の
+片方が選択されれば両方を選択します。選択された block を native reorder で
+前方へ移し、並べ替えた pencil の QZ を再評価して α/β を更新します。
+query と SORT=N では callback を呼びません。並べ替え拒否は INFO=N+3、
+再選択の不整合は INFO=N+2 です。GGESX/TGSEN の条件推定は対象外です。
+
+公開 native QZ API は非収束状態・部分 index を返しません。
+返却された Schur 構造と homogeneous な α/β の各成分の有限性を確認し、不完全な結果は
+active range 全体を未収束として INFO=IHI とします。
+内部行列と scratch を確保し、入口ごとに LAPACK の最小合法 WORK と query を
+提供します。GGES/GGES3/GEGS は共通経路で、Netlib の各 driver の
+ブロック化や permutation balancing の実装を再現するものではありません。
+
+`test/qz.jl` は両 ABI の具体的な C 署名、4型、pencil の再構成、
+Schur 構造、ユニタリ性、active range、Q/Z の初期化・更新・未使用、
+40×40 の入力、homogeneous 値の独立 OpenBLAS 比較、β=0、実数共役対、
+SELECT/SDIM、独立した極小・極大尺度、padding、未参照領域の NaN、
+空・1×1・2×2、query と最小 WORK、不正引数、非収束 INFO、
+Julia GGES ラッパーと16シンボルの LBT 登録を検証します。
