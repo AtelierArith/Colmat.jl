@@ -10,6 +10,7 @@ mod bunch_kaufman;
 mod generalized_eigen;
 mod generalized_hessenberg;
 mod generalized_selfadjoint;
+mod generalized_selfadjoint_drivers;
 mod hessenberg;
 mod householder;
 mod kernels;

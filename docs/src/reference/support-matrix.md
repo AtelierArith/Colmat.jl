@@ -502,3 +502,43 @@ B の正定値性を再検査せず、LAPACK と同じく INFO は不正引数�
 B/B⁻¹ による正規化、複素対角虚部と反対三角の NaN、未参照領域の保持、
 不正引数・整数幅、LBT 経由の通常配列、外部 Cholesky 因子と広い尺度を検証します。
 標準形変換の共通処理は一般化自己随伴 EVD driver でも利用できます。
+
+
+## 一般化自己随伴正定値 EVD driver（#292）
+
+実数 SYGV/SYGVD/SYGVX と複素 HEGV/HEGVD/HEGVX の12 Fortran シンボルを
+両整数 ABI に接続しました。native LLT、#275 の標準形変換、native self-adjoint EVD、
+三角 solve/matmul による固有ベクトルの逆変換を合成します。
+ITYPE=1 は A X = B X Λ、2 は A B X = X Λ、3 は B A X = X Λ を扱い、
+1/2 は Xᴴ B X = I、3 は Xᴴ B⁻¹ X = I に正規化します。
+UPLO の両方と JOBZ=N/V を扱います。B は指定された三角に Cholesky 因子を返します。
+正定値性の失敗は INFO=N+k とし、A と固有値・固有ベクトルの出力を更新しません。
+
+GV/GVD は共通の native EVD を使い、既定の閾値128で QR と D&C を選びます。
+legacy driver 名ごとの独立した QR/D&C 実装を提供するという意味ではありません。
+GVX は全スペクトルから A/I/V を選択し、正の ABSTOL は保存した ILP64 LAPACK に委譲します。
+専用 bisection/inverse iteration による選択計算の実装を提供するという意味ではありません。
+通常の計算では固有値が昇順となり、GV/GVD は A、GVX は Z に固有ベクトルを返します。
+IFAIL は native 成功時に最初の M 要素をゼロにします。
+
+複素 native LLT は反対三角を作業用に使うため、内部行列で因子化し、
+指定三角だけを B へ書き戻します。複素対角の虚部は入力で読みません。
+実数 B の因子化は借用バッファで実行します。A の標準形、固有ベクトル、
+native scratch と、native 失敗時の再実行に備えた B の指定三角の控えを内部で確保します。
+native が途中の固有値・固有ベクトルを返さず失敗した場合、B を復元して
+保存した LAPACK を呼び、各 driver の INFO と途中結果を維持します。
+このためロード前に12入口の ILP64 バックエンドが必要です。通常の Julia は OpenBLAS を提供します。
+LP64 の転送は整数引数・整数出力を変換し、整数 scratch を内部で確保します。
+再登録時には自分自身を fallback として保存しません。
+
+query は入力と値・ベクトルの出力を変更せず、この実装で受け付ける最小 WORK を返します。
+GVD の複数 workspace query と、各 caller workspace の最小量・不十分な量を検証します。
+caller workspace だけで全処理が完結するという意味ではありません。
+A/B の反対三角と padding は入力で参照しません。B の反対三角は出力でも保持します。
+JOBZ=V の GV/GVD は A 全体が固有ベクトル出力となり、GVX の Z は最初の M 列だけを更新します。
+
+`test/generalized_selfadjoint.jl` は4型・両 ABI・ITYPE・UPLO・JOBZ、正規化と各残差、
+参照 LAPACK、範囲端点と重複値、空・1要素・160次元 D&C、query と最小 work、
+正定値性 INFO、不正引数・整数幅、未参照領域、精度指定と native 失敗の fallback、
+通常 Julia の `eigen(Hermitian(A), Hermitian(B))` と12シンボルの登録を検証します。
+隔離プロセスでは backend 不足を LBT 登録前に検出し、通常経路の native 実行を確認します。
