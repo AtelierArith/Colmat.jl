@@ -24,7 +24,7 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 
 | Level | 系列 | 対象 |
 |---|---|---|
-| 1 | `copy`, `swap`, `scal`, `axpy`, `axpby`, `iamax`, `rot` | 全4型 |
+| 1 | `copy`, `swap`, `scal`, `axpy`, `axpby`, `iamax`, `rot`, `rotg` | 全4型 |
 | 1 | `dot` | 実数2型 |
 | 1 | `dotu`, `dotc` | 複素数2型 |
 | 1 | `nrm2`, `asum` | 全4型、戻り値は対応する実数型 |
@@ -43,7 +43,7 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 `cblas_cdot{u,c}_sub` / `cblas_zdot{u,c}_sub` も提供します。
 CBLAS 全体の互換ライブラリを提供するものではありません。
 
-この構成では LP64・ILP64 それぞれ640シンボル（BLAS 142、LAPACK 498）を LBT に登録します。
+この構成では LP64・ILP64 それぞれ668シンボル（BLAS 146、LAPACK 522）を LBT に登録します。
 登録を調べるには次を実行します。
 
 ```jldoctest
@@ -56,14 +56,14 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 640 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 668 for l in libs)
 true
 ```
 
 ## フォールバックに残すもの
 
 帯・packed 格納の演算（`gbmv`, `sbmv`, `hbmv`, `spmv`, `hpmv`, `spr` など）、
-`rotg`, `rotmg`, `rotm` など、この一覧にないルーチンは
+`rotmg`, `rotm` など、この一覧にないルーチンは
 Colmat が提供しません。未接続の LAPACK は既存バックエンドを使います。
 
 ## 計算経路と一時領域
