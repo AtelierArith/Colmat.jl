@@ -759,3 +759,61 @@ LAPACK の INFO 引数を新設するものではありません。
 引数診断・整数幅、全54入口の LBT 数値呼び出しを検証します。RFP は既存
 TRTTF が独立に pack したデータと照合します。Rust は空/暗黙対角の null pointer、
 RFP 全要素の重複なしの配置、複素 modulus、Frobenius の値域も検証します。
+
+
+## コピー・置換・尺度変更・精度変換・equilibration（#280）
+
+112 Fortran canonical シンボルを LP64/ILP64 に追加しました。該当する4型を扱い、
+CLACGV/ZLACGV、実数→複素コピー・混合積、6種類の精度変換は定義された型だけを提供します。
+CBLAS/LAPACKE の入口は別タスクです。対応数は各 ABI 834（BLAS 158、LAPACK 676）です。
+
+TRTTP/TPTTR/TRTTF/TFTTR/TPTTF/TFTTP の24入口は三角 column の native copy を使い、
+packed/RFP の位置・stride・折返し共役を変換します。RFP の偶数/奇数、UPLO、実数 N/T、
+複素 N/C を扱い、参照しない三角側や leading-dimension padding は保持します。
+
+LACPY/LASET は選択領域だけを copy/fill します。LACPY の上三角コピーでは、
+Julia の矩形コピーと同じく出力の min(M,N) 行だけを要求します。LASWP は
+`K1+(row-K1)*abs(INCX)` の pivot を指定順に適用し、負の INCX では順序を逆にします。
+LAPMR/LAPMT は1-based permutation の forward/backward を native 行・列交換で実行し、
+K を保持します。Fortran LOGICAL は各整数 ABI の幅です。LACGV は負・ゼロ stride を扱います。
+LASCL は7格納形式に段階的な safe-range 倍率を適用します。complex では参照 Fortran の
+複素乗算式を使い、NaN の伝播と signed zero も検証します。実部・虚部を独立に乗算する
+方式とは非有限値の結果が異なります。
+
+SLAG2D/CLAG2Z は拡大、DLAG2S/ZLAG2C/DLAT2S/ZLAT2C は縮小変換です。
+縮小では各成分が単精度の最大有限値を超えるかを検査し、最初の範囲外で INFO=1 を返します。
+NaN は比較で範囲外とせず変換します。LAT2 は指定三角だけを参照します。
+成功時は INFO=0 を書きます。参照 LAPACK の LAT2 は成功時に INFO を保持する版もあるため、
+差分テスト側では参照用 INFO を0で初期化しています。
+
+GEADD は alpha=0 の入力、beta=0 の旧出力を読みません。OMATCOPY/IMATCOPY は
+row/column major、N/T/R/C、矩形と異なる入出力 leading dimension を扱います。
+IMATCOPY は native の owned snapshot を確保します。実数 matcopy の alpha=0 は入力を読まず、
+complex matcopy は参照 kernel の複素乗算式で評価します。LACP2 は虚部を正の0に設定します。
+LACRM/LARCM は strided な実部・虚部 view に2回の real GEMM を適用し、片方の成分の
+Inf/NaN が複素係数の零成分との積によって他方へ伝播することを避けます。
+
+GEEQU/GBEQU と radix 版は複素 abs1 を各精度で計算し、行・列の係数を safe range に
+制限します。ゼロ行は INFO=i、行尺度適用後のゼロ列は INFO=M+j です。
+GEEQUB/GBEQUB の AMAX は量子化後の行最大値に基づきます。POEQU/POEQUB/PBEQU/PPEQU は
+実対角だけを読み、非正の対角を INFO=i で報告します。POEQUB は radix の整数べき、
+SCOND は元の対角の平方根の比です。band の尺度計算は有効 column 区間だけを map し、
+full dense 行列へ展開しません。
+
+SYEQUB/HEEQUB は有限成分の行列に対する BIN 反復を native GEMV と vector map で構成します。
+複素 SY/HE とも参照実装と同じ abs1 を使い、HEEQUB の対角もこの定義です。
+内部反復は f64 で計算し、対数による全体正規化と必要時の対称行正規化によって、
+最小 subnormal と最大有限値が混在する場合も扱います。f32 出力は最後に変換します。
+各正規化につき最大100反復、radix への量子化と SCOND を実装しています。反復・和の順序と安全な正規化により、
+既存 LAPACK と係数が radix 1段違う場合を許容し、独立した条件数・尺度適用後の行和でも検証します。
+ゼロ行は INFO=i で終了します。この境界では参照ソースが除算で非有限値に進む経路と異なります。
+反復の数値上の終了には参照算法と同じ INFO=-1 を使います。
+
+全入口は呼び出し中だけ借用します。BIN は O(n²) の native 行列と内部作業領域を確保し、
+caller WORK は保持します。caller WORK が内部割り当て量を制限する保証はありません。
+入力・出力の alias を一般に許すものではなく、in-place 契約の IMATCOPY と permutation は
+専用経路で扱います。不正引数は既存の INFO/TLS 診断を使い、C ABI を越えて unwind しません。
+
+追加した10種類の focused test は各入口の直接 Int32/Int64 呼び出し、guard、空/矩形、
+独立 scalar/BigFloat 参照、保存形式の往復、NaN/signed zero、極端な有限値、既存 LAPACK を検証します。
+`test/matrix_transforms_lbt.jl` は112 canonical シンボルすべてを両 ABI の LBT 入口から数値実行します。

@@ -650,9 +650,9 @@
         "geadd"
       ],
       "status": "composition",
-      "api": "MatRef/MatMut と conversion/permutation",
+      "api": "native strided copy/map/fill, row/column swaps, real component GEMM",
       "source": "faer/src/mat/matref.rs",
-      "note": "コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装"
+      "note": "Fortran のコピー・置換・safe-range LASCL・精度変換・混合積と行列コピー拡張を両 ABI に接続。縮小変換は成分ごとの上限検査と INFO=1 を実装し、単なる cast や飽和と区別する。IMATCOPY は native snapshot、LACRM/LARCM は2回の real GEMM を使う。C API は別の ABI 接続タスク。"
     },
     {
       "routines": [
@@ -1013,9 +1013,9 @@
         "tfttr"
       ],
       "status": "composition",
-      "api": "MatRef/MatMut とコピー",
+      "api": "borrowed strided MatRef/MatMut copy and conjugation",
       "source": "faer/src/mat/matref.rs",
-      "note": "LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理"
+      "note": "TR/TP/TF の24 Fortran シンボルを両 ABI に接続。三角領域だけを読み書きし、RFP の偶奇・UPLO・実数 N/T・複素数 N/C と折返し共役を変換する。dense 全体への展開は行わない。"
     },
     {
       "routines": [
@@ -1031,9 +1031,9 @@
         "heequb"
       ],
       "status": "composition",
-      "api": "reduction と scale",
+      "api": "native column magnitude maps, diagonal copies, GEMV and BIN iteration",
       "source": "faer/src/linalg/reductions/mod.rs",
-      "note": "行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要"
+      "note": "38 Fortran シンボルを両 ABI に接続。GEEQU/GBEQU の abs1・safe range・ゼロ行列診断、radix 版の係数/AMAX、PO/PB/PP の対角読み出しと SCOND を検証。SYEQUB/HEEQUB は native GEMV による BIN 反復を実装し、指数範囲を正規化する。独立した同名 native API があるという分類ではない。内部メモリを確保し caller WORK は保持する。"
     },
     {
       "routines": [
