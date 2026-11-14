@@ -87,10 +87,10 @@
         "pstrf",
         "pstf2"
       ],
-      "status": "representation",
-      "api": "pivoted LLT",
+      "status": "composition",
+      "api": "single-pivot native LLT / native GEMM",
       "source": "faer/src/linalg/cholesky/llt_pivoting/factor.rs",
-      "note": "rank stop と置換を LAPACK の PIV/RANK/TOL へ変換"
+      "note": "Fortran 8シンボル・4型・両 ABI を接続済み。adapter が pivot と LAPACK TOL/INFO/PIV を制御し、各 pivot の native LLT と native GEMM の Schur 更新を合成する。自動許容値は N*DLAMCH(E)*最大対角。最初の正 pivot 後に TOL で停止し、完了済み因子と未計算の置換済み三角部分・停止対角を返す。PSTRF/PSTF2 は共通の逐次経路で内部行列・scratch を確保する。"
     },
     {
       "routines": [

@@ -336,3 +336,30 @@ homogeneous な左右残差、β=0、0/0、実数共役対と正規化、独立 
 GGEVX の全 BALANC/SENSE 組合せ、metadata、query、整数幅の guard、padding、
 元の尺度の Schur 出力、空・1×1、不十分な workspace と LBT 登録を検証します。
 別プロセスで expert backend 欠落時の登録前診断と再登録も確認します。
+
+## ピボット付き Cholesky 接続（#265）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+PSTRF/PSTF2 の8シンボルを4型・両整数 ABI に接続しました。
+adapter が最大対角 pivot と TOL による停止を制御し、各 pivot の native LLT と
+native GEMM による Schur complement 更新を合成します。公開の一括 pivoted LLT は
+固定の内部許容値を使うため、この構成で任意の TOL と TOL=0 を扱います。
+
+TOL<0 は N*DLAMCH(E)*最大対角を使い、最初の正 pivot を取った後の候補を
+TOL と比較します。RANK<n は INFO=1、空入力は RANK=0/INFO=0 です。
+PIV は置換後の各位置にある元の行番号を1始まりで返します。
+初期対角が非正なら因子化せず RANK=0/INFO=1 とします。計算途中で停止した場合は、
+完了した因子、未計算の置換済み三角部分、停止対角を返します。
+UPLO=U では下三角の内部因子を共役転置して出力します。
+反対側の三角と padding は変更せず、複素対角の虚部も入力では読みません。
+
+PSTRF/PSTF2 は共通の逐次 pivot 経路で、内部の密行列と native scratch を確保します。
+呼び出し元 WORK の内容には依存しません。これらの LAPACK 入口には workspace query が
+ありません。許容値の近傍では丸めによって pivot や rank が変化し得るため、
+浮動小数点 Gram 行列の代数的 rank と数値的 rank を区別します。
+
+`test/pivoted_cholesky.jl` は4型・両 ABI・UPLO の直接署名、PIV と rank、
+PSD/full-rank/厳密な rank-deficient/ゼロ・負の対角、部分因子の再構成、
+OpenBLAS の因子・停止状態との比較、TOL の等号境界と自動許容値、
+大きな動的範囲での TOL=0、空・1×1、padding と未参照三角、
+複素対角の虚部、整数 guard、不正引数、Julia の通常 API と LBT 登録を検証します。
