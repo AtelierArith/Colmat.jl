@@ -370,9 +370,9 @@
         "hegs2"
       ],
       "status": "composition",
-      "api": "Cholesky と三角 solve/matmul",
+      "api": "factorized triangular B + triangular_solve / triangular::matmul",
       "source": "faer/src/linalg/triangular_solve.rs",
-      "note": "一般化自己随伴問題の標準形への変換を構成可能。独立 LAPACK ABI はない"
+      "note": "SYGST/SYGS2/HEGST/HEGS2 の8 Fortran シンボルを両 ABI に接続。因子化済み B を読み、ITYPE=1 は三角 solve、2/3 は三角 matmul で標準形を構成。GS2/GST は共通の native kernel を使用。C API は別途接続"
     },
     {
       "routines": [

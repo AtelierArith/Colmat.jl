@@ -29,6 +29,7 @@ include("bunch_kaufman.jl")
 include("balance.jl")
 include("tridiagonal_evd.jl")
 include("triangular_lapack.jl")
+include("generalized_reduction.jl")
 include("lbt_inventory.jl")
 include("support_matrix.jl")
 

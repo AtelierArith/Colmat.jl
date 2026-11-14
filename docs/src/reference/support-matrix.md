@@ -478,3 +478,27 @@ n×n 出力行列を作って指定三角だけを書き戻し、入力全体の
 複数/ゼロ右辺、unit diagonal と反対三角の NaN、padding、外部 inverse との相互運用、
 左右の inverse residual、三角積、特異 INFO、不正引数・整数幅、通常 Julia API と
 20シンボルの LBT 登録を検証します。既存 BLAS TRSV/TRSM の経路はこの接続の対象外です。
+
+
+## 一般化自己随伴問題の標準形変換（#275）
+
+実数 SYGST/SYGS2 と複素 HEGST/HEGS2 の8 Fortran シンボルを両整数 ABI に接続しました。
+入力 B は既に Cholesky 因子化されている必要があり、この入口では因子化しません。
+UPLO=L の L、UPLO=U の Uᴴ を共通の下三角因子として扱い、
+ITYPE=1 は L⁻¹ A L⁻ᴴ、ITYPE=2/3 は Lᴴ A L を構成します。
+前者は native triangular solve、後者は native triangular matmul を使います。
+SYGS2/HEGS2 と SYGST/HEGST は共通の kernel を使い、名前ごとの
+独立した blocked/unblocked 算法を提供するという意味ではありません。
+
+A/B の指定された三角だけを入力として読みます。A は対称/Hermitian 行列へ展開し、
+複素対角の実部だけを読みます。B の実数因子は借用し、複素因子は実対角を持つ
+下三角表現へ変換するため内部行列を確保します。ITYPE=2/3 は積のための
+一時行列も確保します。B は変更せず、A の反対側の三角と padding も保持します。
+これらの入口に workspace 引数や query はありません。
+B の正定値性を再検査せず、LAPACK と同じく INFO は不正引数だけを報告します。
+
+`test/generalized_reduction.jl` は4型・両 ABI・ITYPE・UPLO、0/1/3/40/80次元、
+非単位対角因子、参照 LAPACK の両算法との比較、元の3種類の一般化問題の残差と
+B/B⁻¹ による正規化、複素対角虚部と反対三角の NaN、未参照領域の保持、
+不正引数・整数幅、LBT 経由の通常配列、外部 Cholesky 因子と広い尺度を検証します。
+標準形変換の共通処理は一般化自己随伴 EVD driver でも利用できます。

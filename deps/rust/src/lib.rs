@@ -9,6 +9,7 @@ mod balance;
 mod bunch_kaufman;
 mod generalized_eigen;
 mod generalized_hessenberg;
+mod generalized_selfadjoint;
 mod hessenberg;
 mod householder;
 mod kernels;
