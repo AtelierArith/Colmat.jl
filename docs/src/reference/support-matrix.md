@@ -395,3 +395,22 @@ A/IPIV の双方向相互運用、各 inverse と driver、特異 INFO と B の
 最小 WORK、不十分な workspace、不正引数、padding・整数 guard・未参照領域、
 極小・極大尺度、Julia の通常 API と32シンボルの LBT 登録を検証します。
 複素対称問題が HE へ誤接続されないことも回帰確認します。
+
+
+## GEBAL/GEBAK の接続（#267）
+
+4型の GEBAL/GEBAK、8 Fortran シンボルを LP64/ILP64 に接続しました。
+GEBAL は native `balance_in_place_with`、GEBAK は
+`balance_eigenvectors_in_place` を使います。JOB=N/P/S/B と SIDE=L/R を扱い、
+最終置換を LAPACK の ILO/IHI/SCALE の swap encoding に変換します。
+全固有値が孤立する場合も、非空行列には LAPACK の1要素 active range を返します。
+この encoding と範囲の処理は既存 GEEVX と共有します。
+
+GEBAK は更新対象の行だけを読み書きし、選択した JOB が使わない SCALE、
+未参照の行、leading dimension の padding を読みません。
+内部では行列・置換・尺度と native scratch を確保し、固有ベクトルを再正規化しません。
+
+`test/balance.jl` は4型・両 ABI、相似変換の再構成、左右の逆変換、
+孤立固有値・非自明な置換・尺度、OpenBLAS との metadata の双方向相互運用、
+空・1要素・矩形の固有ベクトル、未参照領域、不正引数・整数幅、
+Julia の LAPACK wrapper と LBT 登録を検証します。

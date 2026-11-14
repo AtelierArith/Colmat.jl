@@ -513,7 +513,11 @@ macro_rules! balance_impl {
                 p,
                 s.into_iter().map(|x| x as f64).collect(),
                 range.start,
-                range.end,
+                if n > 0 && range.start == range.end {
+                    range.start + 1
+                } else {
+                    range.end
+                },
             ))
         }
     };
@@ -751,14 +755,7 @@ unsafe fn general_driver<T: General>(
         output(&unbalance(&e.right, &p, &s, false, &e.wi), vr, lr);
     }
     output(&e.schur, a, la);
-    // Encode the final permutation as the outside-active-range swaps xGEBAK expects.
-    let mut encoded = s;
-    let mut current: Vec<usize> = (0..n).collect();
-    for i in (hi..n).rev().chain(0..lo) {
-        let pos = (0..n).find(|&k| current[k] == p[i]).unwrap();
-        encoded[i] = (pos + 1) as f64;
-        current.swap(i, pos);
-    }
+    let encoded = crate::balance::encode_scale(&p, s, lo, hi);
     Ok((e.w, e.wi, lo, hi, encoded, abnrm))
 }
 
