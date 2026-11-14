@@ -68,6 +68,33 @@ function load_backend(; verbose::Bool=false)
                 "Colmat GGEVX requires an existing ILP64 expert backend; configure one before loading Colmat.",
             )
         end
+        # Native tridiagonal EVD does not expose partial D/E on nonconvergence.
+        # Save a LAPACK implementation before forwarding; LP64 widens integers.
+        register_tridiagonal = Libdl.dlsym(_handle[], :colmat_tridiagonal_set_fallback)
+        has_tridiagonal = Libdl.dlsym(_handle[], :colmat_tridiagonal_has_fallback)
+        for (id, symbol) in enumerate((
+            "ssteqr_",
+            "dsteqr_",
+            "csteqr_",
+            "zsteqr_",
+            "ssterf_",
+            "dsterf_",
+            "sstevd_",
+            "dstevd_",
+            "spteqr_",
+            "dpteqr_",
+            "cpteqr_",
+            "zpteqr_",
+        ))
+            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_tridiagonal, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
+            end
+            ccall(has_tridiagonal, Cint, (Cint,), id - 1) != 0 || error(
+                "Colmat tridiagonal EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
         # Detect ILP64 first, then LP64, preserving the existing fallback table.
         for suffix in ("64_", "")

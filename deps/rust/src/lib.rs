@@ -23,6 +23,7 @@ mod qz;
 mod rz;
 mod schur;
 mod threading;
+mod tridiagonal_evd;
 
 use std::cell::Cell;
 
