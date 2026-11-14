@@ -363,3 +363,35 @@ PSD/full-rank/厳密な rank-deficient/ゼロ・負の対角、部分因子の�
 OpenBLAS の因子・停止状態との比較、TOL の等号境界と自動許容値、
 大きな動的範囲での TOL=0、空・1×1、padding と未参照三角、
 複素対角の虚部、整数 guard、不正引数、Julia の通常 API と LBT 登録を検証します。
+
+## Bunch–Kaufman 接続（#266）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+実数 SY / 複素 Hermitian HE の TRF/TF2、TRS/TRS2、TRI/TRI2/TRI2X、SV の
+32シンボルを両整数 ABI に接続しました。複素対称 SY 系は既存バックエンドに残します。
+native `cholesky::lblt` の Partial pivoting と分離された対角・副対角・最終置換を使い、
+LAPACK の classic IPIV と、途中の置換を含む A の保存形式へ変換します。
+native L の後続の行交換を戻して列を保存し、外部の LAPACK A/IPIV からも
+逆変換して native solve/inverse を呼び出します。
+UPLO=U は行・列の順序を反転した基底で処理します。
+
+TRF は native の既定 panel、TF2 は native の非ブロック経路を使用します。
+TRS/TRS2 は共通 solve、TRI/TRI2/TRI2X は共通 inverse です。
+内部で行列と native scratch を確保します。TRF/SV の query は1、
+共通 inverse 経路の TRI2 query は max(1,N) を返します。
+TRI2X の NB は blocking hint として受け付け、同じ inverse を使います。
+反対側の三角、padding、複素対角の虚部は入力では読みません。
+出力も指定された三角だけを更新します。
+
+factorization/inverse の1×1 のゼロ D は LAPACK の位置で正の INFO を返し、
+SV はその場合に solve を実行しません。
+対角がゼロでも非特異な2×2 block を誤って特異と判定しません。
+入力 factor の形式と INFO は LAPACK に従い、native の最終置換を
+そのまま IPIV として返す扱いにはしません。
+
+`test/bunch_kaufman.jl` は4型・両 ABI・UPLO、1×1/2×2、80×80 の panel 経路、
+PAP' と LDL'/UDU' の再構成、solve/inverse residual、native と OpenBLAS の
+A/IPIV の双方向相互運用、各 inverse と driver、特異 INFO と B の保存、query、
+最小 WORK、不十分な workspace、不正引数、padding・整数 guard・未参照領域、
+極小・極大尺度、Julia の通常 API と32シンボルの LBT 登録を検証します。
+複素対称問題が HE へ誤接続されないことも回帰確認します。

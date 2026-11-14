@@ -25,6 +25,7 @@ include("generalized_hessenberg.jl")
 include("qz.jl")
 include("generalized_eigen.jl")
 include("pivoted_cholesky.jl")
+include("bunch_kaufman.jl")
 include("lbt_inventory.jl")
 include("support_matrix.jl")
 

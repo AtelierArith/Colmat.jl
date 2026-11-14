@@ -103,12 +103,18 @@
         "hetf2",
         "hetrs",
         "hetri",
-        "hesv"
+        "hesv",
+        "hetri2",
+        "hetri2x",
+        "hetrs2",
+        "sytri2",
+        "sytri2x",
+        "sytrs2"
       ],
       "status": "representation",
-      "api": "Lblt / Bunch-Kaufman",
+      "api": "cholesky::lblt::factor / solve / inverse (Partial pivoting)",
       "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
-      "note": "分離 D と 1x1/2x2 ピボットを LAPACK 形式へ変換。複素対称 SY 系は対象外"
+      "note": "Fortran 32シンボル・実 SY/複素 HE・両 ABI を接続済み。native の分離 D と最終置換を classic IPIV と interleaved な A へ変換し、外部因子も読み込む。UPLO=U は反転基底で処理する。TRF/TF2、TRS/TRS2、TRI/TRI2/TRI2X、SV は共通 native 経路と内部 scratch を使用。TRF/SV query は1、TRI2 query はmax(1,N)、TRI2X の NB は hint。複素対称 SY 系は対象外。"
     },
     {
       "routines": [
@@ -957,20 +963,6 @@
       "api": "reduction と scale",
       "source": "faer/src/linalg/reductions/mod.rs",
       "note": "行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要"
-    },
-    {
-      "routines": [
-        "sytri2",
-        "sytri2x",
-        "sytrs2",
-        "hetri2",
-        "hetri2x",
-        "hetrs2"
-      ],
-      "status": "representation",
-      "api": "Lblt / inverse / solve",
-      "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
-      "note": "標準 Bunch-Kaufman と数学的には対応。分離 D と LAPACK の因子保存の変換が必要。複素対称 SY 系は対象外"
     },
     {
       "routines": [
