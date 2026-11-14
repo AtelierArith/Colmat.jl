@@ -658,3 +658,33 @@ GEMM3M は通常の native GEMM に接続して同じ積和の算術契約を提
 複素係数、空/矩形、正負 stride、alpha/beta=0、無視領域の NaN、実対角、
 引数診断、整数幅、LBT 登録先と実呼び出しを検証します。Rust の null pointer
 テストで、不要なオペランドや alpha=0/beta=1 の C を参照しない経路も確認します。
+
+## BLAS の値還元と IAMIN（#277）
+
+実数 AMAX/AMIN/MAX/MIN/SUM の2型と IAMIN の4型、計14 Fortran シンボルを
+両整数 ABI に接続しました。MAX/MIN/SUM は正 stride のベクトルを native
+`MatRef::max/min/sum` へ借用します。絶対値の極値と IAMIN は実数比較値を
+一時配列に作り、native min/max で還元します。IAMIN は最小値の最初の位置を
+探し、物理オフセットではなく Fortran の1-based 論理 index を返します。
+
+複素 IAMIN は modulus ではなく `abs(real(x))+abs(imag(x))` を比較します。
+加算結果を元の実数精度へ丸めてから比較するため、ComplexF32 で丸めにより
+同率になる場合も先頭を選びます。空入力は値・index とも0です。
+正の N に対する stride の規約は次のとおりです。
+
+| INCX | MAX/MIN/AMAX/AMIN | SUM | IAMIN |
+| :--- | :--- | :--- | :--- |
+| 正 | native 還元 | native 和 | abs1 の最初の最小 index |
+| 0 | 先頭の値／絶対値 | 0、X を読まない | 0、X を読まない |
+| 負 | 0、X を読まない | 0、X を読まない | 0、X を読まない |
+
+負 stride は [OpenBLAS 0.3.30 汎用 AMIN kernel](https://github.com/OpenMathLib/OpenBLAS/blob/v0.3.30/kernel/arm/amin.c)
+などと同じ非参照の規約に固定します。一部の最適化 backend で負 stride が
+先頭より前を読む動作は再現しません。外部 backend との差分検証は正 stride と
+定義済みの zero-stride 動作を対象とし、負 stride は独立期待値と null pointer
+テストで検証します。SUM の演算順序や signed zero、NaN payload の bit 一致を
+他 backend と保証するものではありません。
+
+`test/reduction_extensions.jl` は両実数精度・該当する複素型、両 ABI、stride、
+同率・abs1 と modulus の差・Float32 の丸め、空入力、非有限の scalar、
+巨大配列を確保しない整数幅検査、LBT 登録と実呼び出しを検証します。
