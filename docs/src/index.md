@@ -1,34 +1,37 @@
-# Colmat.jl マニュアル
+# Colmat.jl
 
-Colmat.jlは、Rustの [colmat](https://github.com/tensor4all/faer)を Julia から使う線形代数パッケージです。Juliaの配列や `LinearAlgebra`に慣れていれば、行列の積や連立方程式から使い始められます。分解の公式を覚えている必要はありません。
+Colmat は Rust の colmat を使う Julia の BLAS バックエンドです。
+`using Colmat` で libblastrampoline (LBT) に転送先を登録し、通常の Julia 配列と
+`LinearAlgebra` の API から計算します。
 
-## 最初に読むページ
+```jldoctest
+julia> using Colmat, LinearAlgebra
 
-1. [インストールと最初の計算](installation.md)で `A * x`と `A \ b`を試します。
-2. [計算の選び方と用語](getting-started.md)で、自分の問題に合う関数を選びます。
-3. [配列・型・所有権](manual/arrays.md)で Julia 配列との変換やビューを確認します。
+julia> A = [4.0 1; 1 3]; B = [2.0 0; 0 2];
 
-通常の配列は Juliaの GCに管理を任せられます。例ごとに `close`を並べる必要はありません。解放時期を指定したい場合は[GCと資源の寿命](manual/lifetimes.md)の `do` ブロックを使ってください。
+julia> A * B == [8.0 2; 2 6]
+true
 
-## 目的から探す
+julia> C = similar(A); mul!(C, A, B); C == A * B
+true
+```
 
-| したいこと | ページ |
-| :--- | :--- |
-| 連立方程式・最小二乗問題を解く、分解を保存する | [密行列の分解と求解](manual/dense.md) |
-| 固有値・固有ベクトルを計算する | [固有値・Schur・QZ](manual/spectral.md) |
-| ゼロが多い行列を扱う | [疎行列と直接法](manual/sparse.md) |
-| 疎行列の最小二乗・最小ノルム問題を解く | [疎 QR](manual/sparse-qr.md) |
-| 大きな問題を反復的に解く、行列を作らず積を定義する | [線形作用素・反復法](manual/operators.md) |
-| 分解の内部で使う反射・回転・縮約を扱う | [反射・回転・縮約](manual/reductions.md) |
-| 一時メモリや計算スレッドを再利用する | [作業領域とチーム](manual/resources.md) |
-| 平均・分散、乱数、NumPy ファイルを使う | [統計・乱数・NPY](manual/utilities.md) |
+## 読み進め方
 
-関数名から探す場合は [API 案内](reference/api.md)、ビルドやテストは[開発ガイド](development.md)を参照してください。各マニュアルの後半は、性能調整や内部の格納形式が必要になったときに読む詳細です。
+- [インストール](@ref): 必要な環境と初回ビルド。
+- [はじめに](@ref): 行列積、ベクトル演算、転送先の確認。
+- [バックエンドとフォールバック](@ref): プロセス全体の切り替えと LAPACK の扱い。
+- [スレッド設定](@ref): Colmat と既存バックエンドの並列実行幅。
+- [BLAS 対応範囲](@ref): 型・整数 ABI・提供ルーチン。
+- [トラブルシューティング](@ref): ビルドやロードで困ったときの確認。
 
-## 共通の約束
+## 対象とする計算
 
-Rust 側で直接計算する数値型は `Float32`・`Float64`・`ComplexF32`・`ComplexF64`です。添字と置換は Juliaと同じく 1 から数えます。明示的な構築・変換は通常コピーを作り、ビューは元の配列を保持します。
+Float32 / Float64 / ComplexF32 / ComplexF64、LP64 / ILP64 に対応します。
+GEMM・GEMV と行列積を利用する Level 3 演算では Rust colmat のカーネルを使い、
+ベクトル演算と三角求解の一部はこのパッケージの Rust 互換層で実行します。
 
-関数名の `!`は引数の更新を示します。どの値を書き込むか、結果と入力がメモリを共有するかは関数によって異なります。元の値が必要ならコピーしてから実行してください。
+未提供の BLAS と LAPACK は既存バックエンドを使います。`lu`・`svd`・`eigen`
+そのものを Rust colmat の分解に置き換える機能はありません。
 
-`scratch=`は一時メモリ、`team=`は計算スレッドの指定です。初めは省略して構いません。作業領域を渡しても返り値などのメモリは別に確保し、チームを渡しても逐次実行する処理があります。
+[0.2 への設計変更](@ref)で専用行列型による旧 API を廃止しました。

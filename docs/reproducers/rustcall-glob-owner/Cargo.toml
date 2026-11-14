@@ -1,8 +1,0 @@
-[package]
-name = "rustcall-path-mwe"
-version = "0.1.0"
-edition = "2021"
-[lib]
-crate-type = ["cdylib", "rlib"]
-[dependencies]
-rustcall_julia_macros = "=0.6.0"

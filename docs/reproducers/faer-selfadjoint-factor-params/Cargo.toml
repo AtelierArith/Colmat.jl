@@ -1,7 +1,0 @@
-[package]
-name = "faer-selfadjoint-factor-params"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-faer = { package = "t4a-faer", path = "faer/faer", default-features = false, features = ["std", "linalg", "rayon", "rand", "npy", "threadteam"] }

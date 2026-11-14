@@ -1,7 +1,0 @@
-[package]
-name = "faer-triangular-copy-validation"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-faer = { package = "t4a-faer", git = "https://github.com/tensor4all/faer.git", rev = "2b87010cb82efbe0a90eceeb51931a833e1de8e6", default-features = false, features = ["std", "linalg", "rayon", "threadteam"] }
