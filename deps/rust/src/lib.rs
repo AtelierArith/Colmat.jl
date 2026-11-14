@@ -43,6 +43,7 @@ mod schur;
 mod selected_selfadjoint;
 mod storage_conversions;
 mod storage_layout;
+mod structured_blas;
 mod symmetric_equilibration;
 mod threading;
 mod triangular_lapack;
