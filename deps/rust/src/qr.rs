@@ -196,3 +196,340 @@ exports!(s, f32, i64, _64_);
 exports!(d, f64, i64, _64_);
 exports!(c, c32, i64, _64_);
 exports!(z, c64, i64, _64_);
+
+// Standard A/TAU storage shares the compact factorization's block-size-one path.
+pub(crate) unsafe fn standard_qr<T: ReflectorScalar>(
+    m: usize,
+    n: usize,
+    a: *mut T,
+    lda: isize,
+    tau: *mut T,
+    positive: bool,
+) {
+    let k = m.min(n);
+    if !positive {
+        compact_qr(m, n, 1, a, lda, tau, 1);
+        return;
+    }
+    let mut work = vec![T::z(); n];
+    for j in 0..k {
+        let p = a.offset(j as isize * (lda + 1));
+        crate::householder::generate((m - j) as isize, p, p.add(1), 1, tau.add(j), true);
+        if j + 1 == n {
+            continue;
+        }
+        let beta = *p;
+        *p = T::o();
+        crate::householder::apply(
+            b'L',
+            (m - j) as isize,
+            (n - j - 1) as isize,
+            p,
+            1,
+            (*tau.add(j)).cj(),
+            a.offset(j as isize + (j + 1) as isize * lda),
+            lda,
+            work.as_mut_ptr(),
+        );
+        *p = beta;
+    }
+}
+
+pub(crate) unsafe fn apply_q<T: Scalar>(
+    side: u8,
+    tr: u8,
+    m: usize,
+    n: usize,
+    k: usize,
+    a: *const T,
+    lda: isize,
+    tau: *const T,
+    c: *mut T,
+    ldc: isize,
+) {
+    if m == 0 || n == 0 || k == 0 {
+        return;
+    }
+    let order = if side == b'L' { m } else { n };
+    let mut indices: Vec<usize> = (0..k).collect();
+    if (side == b'L' && tr == b'N') || (side == b'R' && tr != b'N') {
+        indices.reverse();
+    }
+    let mut work = vec![T::z(); m.max(n)];
+    for j in indices {
+        let tau = if tr == b'N' {
+            *tau.add(j)
+        } else {
+            (*tau.add(j)).cj()
+        };
+        if tau == T::z() {
+            continue;
+        }
+        let mut v = vec![T::o(); order - j];
+        for i in 1..v.len() {
+            v[i] = *a.offset((j + i) as isize + j as isize * lda);
+        }
+        let (rows, cols, offset) = if side == b'L' {
+            (m - j, n, j as isize)
+        } else {
+            (m, n - j, j as isize * ldc)
+        };
+        crate::householder::apply(
+            side,
+            rows as isize,
+            cols as isize,
+            v.as_ptr(),
+            1,
+            tau,
+            c.offset(offset),
+            ldc,
+            work.as_mut_ptr(),
+        );
+    }
+}
+
+macro_rules! factor_exports {
+    ($p:ident,$t:ty,$i:ty,$s:tt,$name:ident,$positive:expr,blocked)=>{paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $name $s>](m:*const $i,n:*const $i,a:*mut $t,lda:*const $i,
+            tau:*mut $t,work:*mut $t,lwork:*const $i,info:*mut $i) {
+            *info=0;
+            let (m,n,la,lw)=(*m as isize,*n as isize,*lda as isize,*lwork as isize);
+            let query=lw== -1;
+            for (arg,ok) in [(1,m>=0),(2,n>=0),(4,la>=m.max(1)),(7,query||lw>=n.max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            *work=crate::lapack::workspace::<$t>(n.max(1));
+            if query {return;}
+            standard_qr(m as usize,n as usize,a,la,tau,$positive);
+        }
+    }};
+    ($p:ident,$t:ty,$i:ty,$s:tt,$name:ident,$positive:expr,unblocked)=>{paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $name $s>](m:*const $i,n:*const $i,a:*mut $t,lda:*const $i,
+            tau:*mut $t,_work:*mut $t,info:*mut $i) {
+            *info=0;
+            let (m,n,la)=(*m as isize,*n as isize,*lda as isize);
+            for (arg,ok) in [(1,m>=0),(2,n>=0),(4,la>=m.max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            standard_qr(m as usize,n as usize,a,la,tau,$positive);
+        }
+    }};
+}
+macro_rules! standard_exports {
+    ($p:ident,$t:ty,$i:ty,$s:tt) => {
+        factor_exports!($p, $t, $i, $s, geqrf, false, blocked);
+        factor_exports!($p, $t, $i, $s, geqrfp, true, blocked);
+        factor_exports!($p, $t, $i, $s, geqr2, false, unblocked);
+        factor_exports!($p, $t, $i, $s, geqr2p, true, unblocked);
+    };
+}
+standard_exports!(s, f32, i32, _);
+standard_exports!(d, f64, i32, _);
+standard_exports!(c, c32, i32, _);
+standard_exports!(z, c64, i32, _);
+standard_exports!(s, f32, i64, _64_);
+standard_exports!(d, f64, i64, _64_);
+standard_exports!(c, c32, i64, _64_);
+standard_exports!(z, c64, i64, _64_);
+
+#[cfg(test)]
+mod standard_tests {
+    use super::*;
+    #[test]
+    fn standard_and_positive_qr_reconstruct() {
+        for positive in [false, true] {
+            let original = [1.0_f64, 2.0, -3.0, 4.0, -1.0, 2.0];
+            let mut a = original;
+            let mut tau = [0.0; 2];
+            unsafe {
+                standard_qr(3, 2, a.as_mut_ptr(), 3, tau.as_mut_ptr(), positive);
+                if positive {
+                    assert!(a[0] >= 0.0 && a[4] >= 0.0);
+                }
+                let mut r = [a[0], 0.0, 0.0, a[3], a[4], 0.0];
+                apply_q(
+                    b'L',
+                    b'N',
+                    3,
+                    2,
+                    2,
+                    a.as_ptr(),
+                    3,
+                    tau.as_ptr(),
+                    r.as_mut_ptr(),
+                    3,
+                );
+                for i in 0..6 {
+                    assert!((r[i] - original[i]).abs() < 1e-12);
+                }
+            }
+        }
+    }
+    #[test]
+    fn query_does_not_read_matrix() {
+        unsafe {
+            let mut info = 99_i32;
+            let mut work = 0.0_f64;
+            dgeqrf_(
+                &3,
+                &2,
+                std::ptr::null_mut(),
+                &3,
+                std::ptr::null_mut(),
+                &mut work,
+                &-1,
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            assert_eq!(work, 2.0);
+            dgeqrf_(
+                &3,
+                &2,
+                std::ptr::null_mut(),
+                &3,
+                std::ptr::null_mut(),
+                &mut work,
+                &1,
+                &mut info,
+            );
+            assert_eq!(info, -7);
+        }
+    }
+}
+
+unsafe fn explicit_q<T: Scalar>(
+    m: usize,
+    n: usize,
+    k: usize,
+    a: *mut T,
+    lda: isize,
+    tau: *const T,
+) {
+    if n == 0 {
+        return;
+    }
+    let mut reflectors = vec![T::z(); m * k];
+    for j in 0..k {
+        for i in j + 1..m {
+            reflectors[i + j * m] = *a.offset(i as isize + j as isize * lda);
+        }
+    }
+    for j in 0..n {
+        for i in 0..m {
+            *a.offset(i as isize + j as isize * lda) = if i == j { T::o() } else { T::z() };
+        }
+    }
+    apply_q(
+        b'L',
+        b'N',
+        m,
+        n,
+        k,
+        reflectors.as_ptr(),
+        m as isize,
+        tau,
+        a,
+        lda,
+    );
+}
+macro_rules! q_generate_exports {
+    ($p:ident,$t:ty,$i:ty,$s:tt,$blocked:ident,$unblocked:ident)=>{paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $blocked $s>](m:*const $i,n:*const $i,k:*const $i,a:*mut $t,lda:*const $i,
+            tau:*const $t,work:*mut $t,lwork:*const $i,info:*mut $i) {
+            *info=0;
+            let (m,n,k,la,lw)=(*m as isize,*n as isize,*k as isize,*lda as isize,*lwork as isize);
+            let query=lw== -1;
+            for (arg,ok) in [(1,m>=0),(2,n>=0 && n<=m),(3,k>=0 && k<=n),(5,la>=m.max(1)),(8,query||lw>=n.max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            *work=crate::lapack::workspace::<$t>(n.max(1));
+            if query {return;}
+            explicit_q(m as usize,n as usize,k as usize,a,la,tau);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $unblocked $s>](m:*const $i,n:*const $i,k:*const $i,a:*mut $t,lda:*const $i,
+            tau:*const $t,_work:*mut $t,info:*mut $i) {
+            *info=0;
+            let (m,n,k,la)=(*m as isize,*n as isize,*k as isize,*lda as isize);
+            for (arg,ok) in [(1,m>=0),(2,n>=0 && n<=m),(3,k>=0 && k<=n),(5,la>=m.max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            explicit_q(m as usize,n as usize,k as usize,a,la,tau);
+        }
+    }};
+}
+q_generate_exports!(s, f32, i32, _, orgqr, org2r);
+q_generate_exports!(d, f64, i32, _, orgqr, org2r);
+q_generate_exports!(c, c32, i32, _, ungqr, ung2r);
+q_generate_exports!(z, c64, i32, _, ungqr, ung2r);
+q_generate_exports!(s, f32, i64, _64_, orgqr, org2r);
+q_generate_exports!(d, f64, i64, _64_, orgqr, org2r);
+q_generate_exports!(c, c32, i64, _64_, ungqr, ung2r);
+q_generate_exports!(z, c64, i64, _64_, ungqr, ung2r);
+
+macro_rules! q_apply_exports {
+    ($p:ident,$t:ty,$i:ty,$s:tt,$blocked:ident,$unblocked:ident)=>{paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $blocked $s>](side:*const u8,tr:*const u8,m:*const $i,n:*const $i,k:*const $i,
+            a:*const $t,lda:*const $i,tau:*const $t,c:*mut $t,ldc:*const $i,work:*mut $t,lwork:*const $i,info:*mut $i) {
+            *info=0;
+            let (side,tr)=(flag(side),flag(tr));
+            let (m,n,k,la,lc,lw)=(*m as isize,*n as isize,*k as isize,*lda as isize,*ldc as isize,*lwork as isize);
+            let order=if side==b'L' {m} else {n};
+            let nw=if side==b'L' {n} else {m};
+            let query=lw== -1;
+            for (arg,ok) in [(1,matches!(side,b'L'|b'R')),(2,tr==b'N'||tr==if <$t>::COMPLEX {b'C'} else {b'T'}),
+                (3,m>=0),(4,n>=0),(5,k>=0 && k<=order),(7,la>=order.max(1)),(10,lc>=m.max(1)),(12,query||lw>=nw.max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            *work=crate::lapack::workspace::<$t>(nw.max(1));
+            if query {return;}
+            apply_q(side,tr,m as usize,n as usize,k as usize,a,la,tau,c,lc);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $unblocked $s>](side:*const u8,tr:*const u8,m:*const $i,n:*const $i,k:*const $i,
+            a:*const $t,lda:*const $i,tau:*const $t,c:*mut $t,ldc:*const $i,_work:*mut $t,info:*mut $i) {
+            let len=if flag(side)==b'L' {*n} else {*m};
+            let len=len.max(1);
+            let mut work=<$t>::z();
+            [<$p $blocked $s>](side,tr,m,n,k,a,lda,tau,c,ldc,&mut work,&len,info);
+        }
+    }};
+}
+q_apply_exports!(s, f32, i32, _, ormqr, orm2r);
+q_apply_exports!(d, f64, i32, _, ormqr, orm2r);
+q_apply_exports!(c, c32, i32, _, unmqr, unm2r);
+q_apply_exports!(z, c64, i32, _, unmqr, unm2r);
+q_apply_exports!(s, f32, i64, _64_, ormqr, orm2r);
+q_apply_exports!(d, f64, i64, _64_, ormqr, orm2r);
+q_apply_exports!(c, c32, i64, _64_, unmqr, unm2r);
+q_apply_exports!(z, c64, i64, _64_, unmqr, unm2r);
+
+macro_rules! solve_exports {
+    ($p:ident,$t:ty,$i:ty,$s:tt)=>{paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p geqrs $s>](m:*const $i,n:*const $i,nrhs:*const $i,a:*const $t,lda:*const $i,
+            tau:*const $t,b:*mut $t,ldb:*const $i,_work:*mut $t,lwork:*const $i,info:*mut $i) {
+            *info=0;
+            let (m,n,r,la,lb,lw)=(*m as isize,*n as isize,*nrhs as isize,*lda as isize,*ldb as isize,*lwork as isize);
+            for (arg,ok) in [(1,m>=0),(2,n>=0 && n<=m),(3,r>=0),(5,la>=m.max(1)),(8,lb>=m.max(1)),
+                (10,lw>=1 && (m==0||n==0||lw>=r))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            if m==0 || n==0 || r==0 {return;}
+            apply_q(b'L',if <$t>::COMPLEX {b'C'} else {b'T'},m as usize,r as usize,n as usize,a,la,tau,b,lb);
+            crate::kernels::trmatrix(b'L',b'U',b'N',b'N',n,r,<$t>::o(),a,la,b,lb,true);
+        }
+    }};
+}
+solve_exports!(s, f32, i32, _);
+solve_exports!(d, f64, i32, _);
+solve_exports!(c, c32, i32, _);
+solve_exports!(z, c64, i32, _);
+solve_exports!(s, f32, i64, _64_);
+solve_exports!(d, f64, i64, _64_);
+solve_exports!(c, c32, i64, _64_);
+solve_exports!(z, c64, i64, _64_);

@@ -123,3 +123,19 @@ LAPACK の T を構成します。これにより、native の rank 処理がゼ
 Q と R の積・外部 LAPACK による反射適用を検証します。
 GEQRT3 も共通の数値経路を使い、Netlib の再帰算法とは異なります。
 内部配列を確保し、GEMQRT は各ブロックを明示的に展開します。
+
+## 通常 QR 接続（#289）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+GEQRF/GEQR2、非負対角版、ORGQR/UNGQR/ORG2R/UNG2R、
+ORMQR/UNMQR/ORM2R/UNM2R、GEQRS の36シンボルを両整数 ABI に接続しました。
+`test/qr_standard.jl` は Julia ラッパー経由の再構成・Q の左右適用に加え、
+両 ABI の直接実行、外部 OpenBLAS 因子の受け入れと native 因子の外部適用、
+非負対角、workspace query と最小合法作業領域、padded leading dimension、
+空・矩形・ゼロ列、GEQRS の最小二乗残差を検証します。
+
+通常版は native QR の block-size-one 係数から A/TAU を作り、複素 R の
+対角位相を保持します。非負対角版は既存の LAPACK gauge reflector 生成を使います。
+Q の適用は native GEMV、GEQRS の三角 solve は native 三角 kernel に接続します。
+内部配列を確保するため、呼び出し側の WORK 以外にもメモリを使用します。
+GEQRS は deprecated LAPACK 契約に従い、workspace query を提供しません。

@@ -142,20 +142,7 @@
     },
     {
       "routines": [
-        "geqrf",
-        "geqr2",
-        "geqrfp",
-        "geqr2p",
         "geqr",
-        "geqrs",
-        "orgqr",
-        "ungqr",
-        "org2r",
-        "ung2r",
-        "ormqr",
-        "unmqr",
-        "orm2r",
-        "unm2r",
         "gemqr",
         "geqp3",
         "geqpf",
@@ -1084,6 +1071,27 @@
       "api": "block matmul",
       "source": "faer/src/linalg/matmul/mod.rs",
       "note": "2x2 block orthogonal/unitary 行列の適用はブロック積で構成可能。専用 LAPACK 入口はない"
+    },
+    {
+      "routines": [
+        "geqr2",
+        "geqr2p",
+        "geqrf",
+        "geqrfp",
+        "geqrs",
+        "org2r",
+        "orgqr",
+        "orm2r",
+        "ormqr",
+        "ung2r",
+        "ungqr",
+        "unm2r",
+        "unmqr"
+      ],
+      "status": "representation",
+      "api": "qr_in_place / Householder / triangular solve",
+      "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
+      "note": "Fortran 36シンボル・4型・両 ABI を接続済み。A/TAU の係数変換、Q の生成・左右適用と GEQRS を提供。非負対角版は LAPACK gauge の reflector を生成。内部配列を確保し、各入口の算法名と同一の Netlib 実装を使う保証はない。"
     }
   ]
 }

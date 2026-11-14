@@ -44,7 +44,7 @@ reflector_complex!(c64, f64);
 
 // Normalize before forming differences or squares. All scalar arithmetic is
 // performed on components, avoiding overflow in complex division at extremes.
-unsafe fn generate<T: ReflectorScalar>(
+pub(crate) unsafe fn generate<T: ReflectorScalar>(
     n: isize,
     a: *mut T,
     x: *mut T,

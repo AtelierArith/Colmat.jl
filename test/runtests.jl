@@ -14,6 +14,7 @@ include("abi.jl")
 include("lapack_native.jl")
 include("householder.jl")
 include("qr_compact.jl")
+include("qr_standard.jl")
 include("lbt_inventory.jl")
 include("support_matrix.jl")
 
