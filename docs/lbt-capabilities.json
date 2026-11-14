@@ -362,20 +362,6 @@
     },
     {
       "routines": [
-        "gehrd",
-        "gehd2",
-        "orghr",
-        "unghr",
-        "ormhr",
-        "unmhr"
-      ],
-      "status": "representation",
-      "api": "hessenberg_in_place / householder",
-      "source": "faer/src/linalg/evd/hessenberg.rs",
-      "note": "ILO/IHI の部分行列と H/TAU の保存形式を変換"
-    },
-    {
-      "routines": [
         "hseqr",
         "lahqr",
         "laqr0",
@@ -1100,6 +1086,20 @@
       "api": "QR / LQ / SVD / RZ / triangular solve",
       "source": "faer/src/linalg/solvers.rs",
       "note": "Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。"
+    },
+    {
+      "routines": [
+        "gehd2",
+        "gehrd",
+        "orghr",
+        "ormhr",
+        "unghr",
+        "unmhr"
+      ],
+      "status": "composition",
+      "api": "Householder generation / native matrix-vector application",
+      "source": "faer/src/linalg/householder.rs",
+      "note": "Fortran 16シンボル・4型・両 ABI を接続済み。LAPACK gauge の reflector と native 適用から Hessenberg 還元、Q の明示生成・左右適用を構成。ILO/IHI の部分範囲、外部 A/TAU と相互運用。GEHRD/GEHD2 は共通経路で内部配列を確保する。"
     }
   ]
 }

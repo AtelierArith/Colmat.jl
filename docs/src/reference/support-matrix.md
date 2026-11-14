@@ -214,3 +214,17 @@ GETSLS は最適・最小 query の値が一致する構成です。SVD の full
 固定列、rank-deficient と過少決定の最小ノルム解、特異値・右特異ベクトル、
 TRANS/共役、残差配置、極小/極大尺度、padding、最小 workspace と query、
 空・ゼロ入力、28シンボルの LBT 登録を検証します。
+
+## Hessenberg 接続（#293）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+GEHRD/GEHD2、ORGHR/UNGHR、ORMHR/UNMHR の16シンボルを4型・両整数 ABI に接続しました。
+LAPACK gauge の reflector 生成と native GEMV による左右適用で A/TAU を構成し、
+複素 subdiagonal を実数にします。GEHRD/GEHD2 は共通経路で、ブロック化の差はありません。
+ILO/IHI の部分範囲に対応し、Q はその範囲外で恒等変換です。
+内部で反射・Q 生成用の配列を確保します。
+
+`test/hessenberg.jl` は Julia ラッパー、両 ABI の具体的な C 署名、
+外部 OpenBLAS の因子と Q との相互運用、A=Q*H*Q'、直交性、active range 外の
+保存、空・1×1、左右・転置・共役、padding、最小 workspace と query、
+不正範囲と LBT 登録を検証します。
