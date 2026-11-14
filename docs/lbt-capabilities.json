@@ -989,23 +989,6 @@
     },
     {
       "routines": [
-        "tzrzf",
-        "tzrqf",
-        "larz",
-        "larzb",
-        "larzt",
-        "ormrz",
-        "unmrz",
-        "latrz",
-        "latzm"
-      ],
-      "status": "composition",
-      "api": "QR/LQ / householder",
-      "source": "faer/src/linalg/householder.rs",
-      "note": "専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証"
-    },
-    {
-      "routines": [
         "sytri2",
         "sytri2x",
         "sytrs2",
@@ -1100,6 +1083,23 @@
       "api": "adjoint QR / Householder / triangular solve",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
       "note": "Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。"
+    },
+    {
+      "routines": [
+        "larz",
+        "larzb",
+        "larzt",
+        "latrz",
+        "latzm",
+        "ormrz",
+        "tzrqf",
+        "tzrzf",
+        "unmrz"
+      ],
+      "status": "composition",
+      "api": "Householder generation / native GEMV and GEMM",
+      "source": "faer/src/linalg/householder.rs",
+      "note": "Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。"
     }
   ]
 }

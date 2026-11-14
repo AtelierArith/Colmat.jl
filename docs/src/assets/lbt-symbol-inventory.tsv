@@ -627,8 +627,8 @@ LAPACKE_ctrttp	LAPACKE	trttp	c	公開機能の合成候補・直接 API はな�
 LAPACKE_ctrttp_work	LAPACKE	trttp	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_ctz_nancheck	LAPACKE	tz_nancheck	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_ctz_trans	LAPACKE	tz_trans	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_ctzrzf	LAPACKE	tzrzf	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_ctzrzf_work	LAPACKE	tzrzf	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_ctzrzf	LAPACKE	tzrzf	c	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_ctzrzf_work	LAPACKE	tzrzf	c	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cunbdb	LAPACKE	unbdb	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cunbdb_work	LAPACKE	unbdb	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cuncsd	LAPACKE	uncsd	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -665,8 +665,8 @@ LAPACKE_cunmqr	LAPACKE	unmqr	c	対応機能あり・保存形式の変換が必�
 LAPACKE_cunmqr_work	LAPACKE	unmqr	c	対応機能あり・保存形式の変換が必要	false	false	qr_in_place / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 36シンボル・4型・両 ABI を接続済み。A/TAU の係数変換、Q の生成・左右適用と GEQRS を提供。複素通常版と非負対角版は LAPACK gauge の reflector を生成し実数 beta を保持。内部配列を確保し、各入口の算法名と同一の Netlib 実装を使う保証はない。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cunmrq	LAPACKE	unmrq	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cunmrq_work	LAPACKE	unmrq	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_cunmrz	LAPACKE	unmrz	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_cunmrz_work	LAPACKE	unmrz	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_cunmrz	LAPACKE	unmrz	c	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_cunmrz_work	LAPACKE	unmrz	c	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cunmtr	LAPACKE	unmtr	c	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cunmtr_work	LAPACKE	unmtr	c	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_cupgtr	LAPACKE	upgtr	c	対応機能あり・保存形式の変換が必要	false	false	tridiag / householder	faer/src/linalg/evd/tridiag.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -961,8 +961,8 @@ LAPACKE_dormqr	LAPACKE	ormqr	d	対応機能あり・保存形式の変換が必�
 LAPACKE_dormqr_work	LAPACKE	ormqr	d	対応機能あり・保存形式の変換が必要	false	false	qr_in_place / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 36シンボル・4型・両 ABI を接続済み。A/TAU の係数変換、Q の生成・左右適用と GEQRS を提供。複素通常版と非負対角版は LAPACK gauge の reflector を生成し実数 beta を保持。内部配列を確保し、各入口の算法名と同一の Netlib 実装を使う保証はない。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dormrq	LAPACKE	ormrq	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dormrq_work	LAPACKE	ormrq	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_dormrz	LAPACKE	ormrz	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_dormrz_work	LAPACKE	ormrz	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_dormrz	LAPACKE	ormrz	d	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_dormrz_work	LAPACKE	ormrz	d	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dormtr	LAPACKE	ormtr	d	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dormtr_work	LAPACKE	ormtr	d	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dpb_nancheck	LAPACKE	pb_nancheck	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -1297,8 +1297,8 @@ LAPACKE_dtrttp	LAPACKE	trttp	d	公開機能の合成候補・直接 API はな�
 LAPACKE_dtrttp_work	LAPACKE	trttp	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dtz_nancheck	LAPACKE	tz_nancheck	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_dtz_trans	LAPACKE	tz_trans	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_dtzrzf	LAPACKE	tzrzf	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_dtzrzf_work	LAPACKE	tzrzf	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_dtzrzf	LAPACKE	tzrzf	d	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_dtzrzf_work	LAPACKE	tzrzf	d	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_get_nancheck	LAPACKE	get_nancheck	other	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_ilaver	LAPACKE	ilaver	other	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_lsame	LAPACKE	lsame	other	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -1591,8 +1591,8 @@ LAPACKE_sormqr	LAPACKE	ormqr	s	対応機能あり・保存形式の変換が必�
 LAPACKE_sormqr_work	LAPACKE	ormqr	s	対応機能あり・保存形式の変換が必要	false	false	qr_in_place / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 36シンボル・4型・両 ABI を接続済み。A/TAU の係数変換、Q の生成・左右適用と GEQRS を提供。複素通常版と非負対角版は LAPACK gauge の reflector を生成し実数 beta を保持。内部配列を確保し、各入口の算法名と同一の Netlib 実装を使う保証はない。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sormrq	LAPACKE	ormrq	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sormrq_work	LAPACKE	ormrq	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_sormrz	LAPACKE	ormrz	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_sormrz_work	LAPACKE	ormrz	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_sormrz	LAPACKE	ormrz	s	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_sormrz_work	LAPACKE	ormrz	s	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sormtr	LAPACKE	ormtr	s	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_sormtr_work	LAPACKE	ormtr	s	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_spb_nancheck	LAPACKE	pb_nancheck	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -1923,8 +1923,8 @@ LAPACKE_strttp	LAPACKE	trttp	s	公開機能の合成候補・直接 API はな�
 LAPACKE_strttp_work	LAPACKE	trttp	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_stz_nancheck	LAPACKE	tz_nancheck	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_stz_trans	LAPACKE	tz_trans	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_stzrzf	LAPACKE	tzrzf	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_stzrzf_work	LAPACKE	tzrzf	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_stzrzf	LAPACKE	tzrzf	s	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_stzrzf_work	LAPACKE	tzrzf	s	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_xerbla	LAPACKE	xerbla	other	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_z_nancheck	LAPACKE	_nancheck	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zbbcsd	LAPACKE	bbcsd	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2558,8 +2558,8 @@ LAPACKE_ztrttp	LAPACKE	trttp	z	公開機能の合成候補・直接 API はな�
 LAPACKE_ztrttp_work	LAPACKE	trttp	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_ztz_nancheck	LAPACKE	tz_nancheck	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_ztz_trans	LAPACKE	tz_trans	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_ztzrzf	LAPACKE	tzrzf	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_ztzrzf_work	LAPACKE	tzrzf	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_ztzrzf	LAPACKE	tzrzf	z	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_ztzrzf_work	LAPACKE	tzrzf	z	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zunbdb	LAPACKE	unbdb	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zunbdb_work	LAPACKE	unbdb	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zuncsd	LAPACKE	uncsd	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2596,8 +2596,8 @@ LAPACKE_zunmqr	LAPACKE	unmqr	z	対応機能あり・保存形式の変換が必�
 LAPACKE_zunmqr_work	LAPACKE	unmqr	z	対応機能あり・保存形式の変換が必要	false	false	qr_in_place / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 36シンボル・4型・両 ABI を接続済み。A/TAU の係数変換、Q の生成・左右適用と GEQRS を提供。複素通常版と非負対角版は LAPACK gauge の reflector を生成し実数 beta を保持。内部配列を確保し、各入口の算法名と同一の Netlib 実装を使う保証はない。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zunmrq	LAPACKE	unmrq	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zunmrq_work	LAPACKE	unmrq	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_zunmrz	LAPACKE	unmrz	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_zunmrz_work	LAPACKE	unmrz	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_zunmrz	LAPACKE	unmrz	z	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_zunmrz_work	LAPACKE	unmrz	z	公開機能の合成候補・直接 API はなし	false	false	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zunmtr	LAPACKE	unmtr	z	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zunmtr_work	LAPACKE	unmtr	z	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zupgtr	LAPACKE	upgtr	z	対応機能あり・保存形式の変換が必要	false	false	tridiag / householder	faer/src/linalg/evd/tridiag.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -3124,9 +3124,9 @@ clarot_	Fortran	larot	c	対応する独立公開 API なし	false	false	—	faer
 clarrv_	Fortran	larrv	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 clartg_	Fortran	lartg	c	対応機能あり・保存形式の変換が必要	false	false	JacobiRotation::rotg / make_givens	faer/src/linalg/jacobi.rs	係数の共役・符号・r の規約を変換。modified Givens rotmg/rotm は別物
 clartv_	Fortran	lartv	c	公開機能の合成候補・直接 API はなし	false	false	JacobiRotation / apply_on_the_left/right	faer/src/linalg/jacobi.rs	複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要
-clarz_	Fortran	larz	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-clarzb_	Fortran	larzb	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-clarzt_	Fortran	larzt	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+clarz_	Fortran	larz	c	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+clarzb_	Fortran	larzb	c	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+clarzt_	Fortran	larzt	c	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 clascl_	Fortran	lascl	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 claset_	Fortran	laset	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 clasr_	Fortran	lasr	c	公開機能の合成候補・直接 API はなし	false	false	JacobiRotation / apply_on_the_left/right	faer/src/linalg/jacobi.rs	複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要
@@ -3152,9 +3152,9 @@ clatps_	Fortran	latps	c	対応する独立公開 API なし	false	false	—	faer
 clatrd_	Fortran	latrd	c	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換
 clatrs3_	Fortran	latrs3	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない
 clatrs_	Fortran	latrs	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない
-clatrz_	Fortran	latrz	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+clatrz_	Fortran	latrz	c	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 clatsqr_	Fortran	latsqr	c	対応機能あり・保存形式の変換が必要	false	false	Qr / ColPivQr / householder	faer/src/linalg/qr/no_pivoting/factor.rs	reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要
-clatzm_	Fortran	latzm	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+clatzm_	Fortran	latzm	c	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 claunhr_col_getrfnp2_	Fortran	launhr_col_getrfnp2	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 claunhr_col_getrfnp_	Fortran	launhr_col_getrfnp	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 clauu2_	Fortran	lauu2	c	対応する公開数値機能あり	false	false	triangular::matmul	faer/src/linalg/matmul/triangular.rs	三角因子とその転置/共役の積を構成
@@ -3316,8 +3316,8 @@ ctrtri_	Fortran	trtri	c	対応する公開数値機能あり	false	false	triangu
 ctrtrs_	Fortran	trtrs	c	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	unit diagonal・転置・共役を変換。trtrs は特異対角検査も必要
 ctrttf_	Fortran	trttf	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理
 ctrttp_	Fortran	trttp	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理
-ctzrqf_	Fortran	tzrqf	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-ctzrzf_	Fortran	tzrzf	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+ctzrqf_	Fortran	tzrqf	c	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+ctzrzf_	Fortran	tzrzf	c	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 cunbdb1_	Fortran	unbdb1	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 cunbdb2_	Fortran	unbdb2	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 cunbdb3_	Fortran	unbdb3	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -3353,7 +3353,7 @@ cunmqr_	Fortran	unmqr	c	対応機能あり・保存形式の変換が必要	true
 cunmr2_	Fortran	unmr2	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 cunmr3_	Fortran	unmr3	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 cunmrq_	Fortran	unmrq	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
-cunmrz_	Fortran	unmrz	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+cunmrz_	Fortran	unmrz	c	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 cunmtr_	Fortran	unmtr	c	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換
 cupgtr_	Fortran	upgtr	c	対応機能あり・保存形式の変換が必要	false	false	tridiag / householder	faer/src/linalg/evd/tridiag.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
 cupmtr_	Fortran	upmtr	c	対応機能あり・保存形式の変換が必要	false	false	tridiag / householder	faer/src/linalg/evd/tridiag.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
@@ -3609,9 +3609,9 @@ dlartgp_	Fortran	lartgp	d	対応機能あり・保存形式の変換が必要	fa
 dlartgs_	Fortran	lartgs	d	対応機能あり・保存形式の変換が必要	false	false	JacobiRotation::rotg / make_givens	faer/src/linalg/jacobi.rs	係数の共役・符号・r の規約を変換。modified Givens rotmg/rotm は別物
 dlartv_	Fortran	lartv	d	公開機能の合成候補・直接 API はなし	false	false	JacobiRotation / apply_on_the_left/right	faer/src/linalg/jacobi.rs	複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要
 dlaruv_	Fortran	laruv	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-dlarz_	Fortran	larz	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-dlarzb_	Fortran	larzb	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-dlarzt_	Fortran	larzt	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+dlarz_	Fortran	larz	d	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+dlarzb_	Fortran	larzb	d	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+dlarzt_	Fortran	larzt	d	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 dlas2_	Fortran	las2	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 dlascl_	Fortran	lascl	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 dlasd0_	Fortran	lasd0	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -3661,9 +3661,9 @@ dlatps_	Fortran	latps	d	対応する独立公開 API なし	false	false	—	faer
 dlatrd_	Fortran	latrd	d	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換
 dlatrs3_	Fortran	latrs3	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない
 dlatrs_	Fortran	latrs	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない
-dlatrz_	Fortran	latrz	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+dlatrz_	Fortran	latrz	d	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 dlatsqr_	Fortran	latsqr	d	対応機能あり・保存形式の変換が必要	false	false	Qr / ColPivQr / householder	faer/src/linalg/qr/no_pivoting/factor.rs	reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要
-dlatzm_	Fortran	latzm	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+dlatzm_	Fortran	latzm	d	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 dlauu2_	Fortran	lauu2	d	対応する公開数値機能あり	false	false	triangular::matmul	faer/src/linalg/matmul/triangular.rs	三角因子とその転置/共役の積を構成
 dlauum_	Fortran	lauum	d	対応する公開数値機能あり	false	false	triangular::matmul	faer/src/linalg/matmul/triangular.rs	三角因子とその転置/共役の積を構成
 dmax_	Fortran	max	d	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ
@@ -3707,7 +3707,7 @@ dormqr_	Fortran	ormqr	d	対応機能あり・保存形式の変換が必要	true
 dormr2_	Fortran	ormr2	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 dormr3_	Fortran	ormr3	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 dormrq_	Fortran	ormrq	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
-dormrz_	Fortran	ormrz	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+dormrz_	Fortran	ormrz	d	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 dormtr_	Fortran	ormtr	d	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換
 dpbcon_	Fortran	pbcon	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない
 dpbequ_	Fortran	pbequ	d	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
@@ -3915,8 +3915,8 @@ dtrtri_	Fortran	trtri	d	対応する公開数値機能あり	false	false	triangu
 dtrtrs_	Fortran	trtrs	d	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	unit diagonal・転置・共役を変換。trtrs は特異対角検査も必要
 dtrttf_	Fortran	trttf	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理
 dtrttp_	Fortran	trttp	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理
-dtzrqf_	Fortran	tzrqf	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-dtzrzf_	Fortran	tzrzf	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+dtzrqf_	Fortran	tzrqf	d	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+dtzrzf_	Fortran	tzrzf	d	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 dzamax_	Fortran	zamax	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 dzamin_	Fortran	zamin	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 dzasum_	Fortran	asum	z	公開機能の合成候補・直接 API はなし	true	true	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ
@@ -4264,9 +4264,9 @@ slartgp_	Fortran	lartgp	s	対応機能あり・保存形式の変換が必要	fa
 slartgs_	Fortran	lartgs	s	対応機能あり・保存形式の変換が必要	false	false	JacobiRotation::rotg / make_givens	faer/src/linalg/jacobi.rs	係数の共役・符号・r の規約を変換。modified Givens rotmg/rotm は別物
 slartv_	Fortran	lartv	s	公開機能の合成候補・直接 API はなし	false	false	JacobiRotation / apply_on_the_left/right	faer/src/linalg/jacobi.rs	複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要
 slaruv_	Fortran	laruv	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
-slarz_	Fortran	larz	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-slarzb_	Fortran	larzb	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-slarzt_	Fortran	larzt	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+slarz_	Fortran	larz	s	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+slarzb_	Fortran	larzb	s	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+slarzt_	Fortran	larzt	s	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 slas2_	Fortran	las2	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 slascl_	Fortran	lascl	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 slasd0_	Fortran	lasd0	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -4315,9 +4315,9 @@ slatps_	Fortran	latps	s	対応する独立公開 API なし	false	false	—	faer
 slatrd_	Fortran	latrd	s	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換
 slatrs3_	Fortran	latrs3	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない
 slatrs_	Fortran	latrs	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない
-slatrz_	Fortran	latrz	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+slatrz_	Fortran	latrz	s	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 slatsqr_	Fortran	latsqr	s	対応機能あり・保存形式の変換が必要	false	false	Qr / ColPivQr / householder	faer/src/linalg/qr/no_pivoting/factor.rs	reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要
-slatzm_	Fortran	latzm	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+slatzm_	Fortran	latzm	s	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 slauu2_	Fortran	lauu2	s	対応する公開数値機能あり	false	false	triangular::matmul	faer/src/linalg/matmul/triangular.rs	三角因子とその転置/共役の積を構成
 slauum_	Fortran	lauum	s	対応する公開数値機能あり	false	false	triangular::matmul	faer/src/linalg/matmul/triangular.rs	三角因子とその転置/共役の積を構成
 smax_	Fortran	max	s	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ
@@ -4361,7 +4361,7 @@ sormqr_	Fortran	ormqr	s	対応機能あり・保存形式の変換が必要	true
 sormr2_	Fortran	ormr2	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 sormr3_	Fortran	ormr3	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 sormrq_	Fortran	ormrq	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
-sormrz_	Fortran	ormrz	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+sormrz_	Fortran	ormrz	s	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 sormtr_	Fortran	ormtr	s	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換
 spbcon_	Fortran	pbcon	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない
 spbequ_	Fortran	pbequ	s	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
@@ -4565,8 +4565,8 @@ strtri_	Fortran	trtri	s	対応する公開数値機能あり	false	false	triangu
 strtrs_	Fortran	trtrs	s	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	unit diagonal・転置・共役を変換。trtrs は特異対角検査も必要
 strttf_	Fortran	trttf	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理
 strttp_	Fortran	trttp	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理
-stzrqf_	Fortran	tzrqf	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-stzrzf_	Fortran	tzrzf	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+stzrqf_	Fortran	tzrqf	s	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+stzrzf_	Fortran	tzrzf	s	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 xaxpy_	Fortran	xaxpy	other	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 xcopy_	Fortran	xcopy	other	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 xdotc_	Fortran	xdotc	other	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
@@ -4914,9 +4914,9 @@ zlarot_	Fortran	larot	z	対応する独立公開 API なし	false	false	—	faer
 zlarrv_	Fortran	larrv	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlartg_	Fortran	lartg	z	対応機能あり・保存形式の変換が必要	false	false	JacobiRotation::rotg / make_givens	faer/src/linalg/jacobi.rs	係数の共役・符号・r の規約を変換。modified Givens rotmg/rotm は別物
 zlartv_	Fortran	lartv	z	公開機能の合成候補・直接 API はなし	false	false	JacobiRotation / apply_on_the_left/right	faer/src/linalg/jacobi.rs	複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要
-zlarz_	Fortran	larz	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-zlarzb_	Fortran	larzb	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-zlarzt_	Fortran	larzt	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+zlarz_	Fortran	larz	z	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+zlarzb_	Fortran	larzb	z	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+zlarzt_	Fortran	larzt	z	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 zlascl_	Fortran	lascl	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 zlaset_	Fortran	laset	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装
 zlasr_	Fortran	lasr	z	公開機能の合成候補・直接 API はなし	false	false	JacobiRotation / apply_on_the_left/right	faer/src/linalg/jacobi.rs	複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要
@@ -4943,9 +4943,9 @@ zlatps_	Fortran	latps	z	対応する独立公開 API なし	false	false	—	faer
 zlatrd_	Fortran	latrd	z	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換
 zlatrs3_	Fortran	latrs3	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない
 zlatrs_	Fortran	latrs	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない
-zlatrz_	Fortran	latrz	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+zlatrz_	Fortran	latrz	z	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 zlatsqr_	Fortran	latsqr	z	対応機能あり・保存形式の変換が必要	false	false	Qr / ColPivQr / householder	faer/src/linalg/qr/no_pivoting/factor.rs	reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要
-zlatzm_	Fortran	latzm	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+zlatzm_	Fortran	latzm	z	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 zlaunhr_col_getrfnp2_	Fortran	launhr_col_getrfnp2	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlaunhr_col_getrfnp_	Fortran	launhr_col_getrfnp	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zlauu2_	Fortran	lauu2	z	対応する公開数値機能あり	false	false	triangular::matmul	faer/src/linalg/matmul/triangular.rs	三角因子とその転置/共役の積を構成
@@ -5104,8 +5104,8 @@ ztrtri_	Fortran	trtri	z	対応する公開数値機能あり	false	false	triangu
 ztrtrs_	Fortran	trtrs	z	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	unit diagonal・転置・共役を変換。trtrs は特異対角検査も必要
 ztrttf_	Fortran	trttf	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理
 ztrttp_	Fortran	trttp	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut とコピー	faer/src/mat/matref.rs	LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理
-ztzrqf_	Fortran	tzrqf	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
-ztzrzf_	Fortran	tzrzf	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+ztzrqf_	Fortran	tzrqf	z	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
+ztzrzf_	Fortran	tzrzf	z	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 zunbdb1_	Fortran	unbdb1	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zunbdb2_	Fortran	unbdb2	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
 zunbdb3_	Fortran	unbdb3	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない
@@ -5141,7 +5141,7 @@ zunmqr_	Fortran	unmqr	z	対応機能あり・保存形式の変換が必要	true
 zunmr2_	Fortran	unmr2	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 zunmr3_	Fortran	unmr3	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 zunmrq_	Fortran	unmrq	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
-zunmrz_	Fortran	unmrz	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ / householder	faer/src/linalg/householder.rs	専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証
+zunmrz_	Fortran	unmrz	z	公開機能の合成候補・直接 API はなし	true	true	Householder generation / native GEMV and GEMM	faer/src/linalg/householder.rs	Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。
 zunmtr_	Fortran	unmtr	z	対応機能あり・保存形式の変換が必要	false	false	tridiag_in_place / householder	faer/src/linalg/evd/tridiag.rs	三重対角と reflector の保存形式を変換
 zupgtr_	Fortran	upgtr	z	対応機能あり・保存形式の変換が必要	false	false	tridiag / householder	faer/src/linalg/evd/tridiag.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要
 zupmtr_	Fortran	upmtr	z	対応機能あり・保存形式の変換が必要	false	false	tridiag / householder	faer/src/linalg/evd/tridiag.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要

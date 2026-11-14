@@ -178,3 +178,17 @@ LAPACK 契約に従い workspace query を提供しません。
 最小ヘッダー query、ブロック端、外部 OpenBLAS 因子との双方向相互運用、
 左右・転置・共役、leading dimension の padding、空・矩形・階数落ち、
 GELQS の残差と最小ノルム性、56シンボルの LBT 登録を検証します。
+
+## RZ 接続（#304）
+
+Julia 1.13.3 / x86_64-apple-darwin と同じ固定 colmat-rs revision で、
+TZRZF/TZRQF/LATRZ、ORMRZ/UNMRZ、LARZ/LATZM、LARZT/LARZB の
+32シンボルを4型・両整数 ABI に接続しました。upper trapezoid の
+`A = [R 0] Z` を後ろの行から構成し、疎な反射を native GEMV/GEMM で適用します。
+LARZT/LARZB は LAPACK の backward・行保存を扱い、複素 T の共役も変換します。
+単反射・ブロック反射とも作用しない中央領域を保持し、内部配列を確保します。
+
+`test/rz.jl` は両 ABI の直接呼び出し、Julia ラッパー、外部 OpenBLAS の
+因子・適用との相互運用、query と最小合法 workspace、padding、正負 stride、
+分離された C1/C2、L=0 と暗黙成分に重なる尾部、中央領域を NaN にした入力、
+直交性・再構成・共役適用と LBT 登録を検証します。
