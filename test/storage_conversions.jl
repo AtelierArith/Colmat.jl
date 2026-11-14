@@ -92,6 +92,12 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
                 info,
             )
         end
+        if info[]<0
+            diagnostic=Libdl.dlsym(
+                Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error
+            )
+            @test ccall(diagnostic, Cint, ()) == -info[]
+        end
         info[]
     end
 end

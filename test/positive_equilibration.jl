@@ -74,6 +74,12 @@ for (T, R, p) in (
         @test s[1]==s[end]==777
         @test cond[1]==cond[3]==amax[1]==amax[3]==777
         @test info[1]==info[3]==-777
+        if info[2]<0
+            diagnostic=Libdl.dlsym(
+                Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error
+            )
+            @test ccall(diagnostic, Cint, ()) == -info[2]
+        end
         return (; s=s[2:(end - 1)], cond=cond[2], amax=amax[2], info=info[2])
     end
 end

@@ -87,7 +87,8 @@ macro_rules! exports {
   }
   unsafe fn [<$p gbequ_impl $suffix>](m:*const $i,n:*const $i,kl:*const $i,ku:*const $i,a:*const $t,ld:*const $i,r:*mut $r,c:*mut $r,rc:*mut $r,cc:*mut $r,amax:*mut $r,info:*mut $i,radix:bool) {
    *info=0;let(m,n,kl,ku,ld)=(*m as isize,*n as isize,*kl as isize,*ku as isize,*ld as isize);
-   check!(info,1=>m>=0,2=>n>=0,3=>kl>=0,4=>ku>=0,6=>ld>=kl+ku+1);
+   check!(info,1=>m>=0,2=>n>=0,3=>kl>=0,4=>ku>=0,
+       6=>kl.checked_add(ku).and_then(|v|v.checked_add(1)).is_some_and(|required|ld>=required));
    *info=[<$p general_equil $suffix>](m as usize,n as usize,a,ld as usize,r,c,rc,cc,amax,Some((kl as usize,ku as usize)),radix);
   }
  }};

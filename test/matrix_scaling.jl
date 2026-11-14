@@ -50,6 +50,12 @@ for (T, R, p) in (
             pointer(info, 2),
         )
         @test info[1]==info[3]==-777
+        if info[2]<0
+            diagnostic=Libdl.dlsym(
+                Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error
+            )
+            @test ccall(diagnostic, Cint, ()) == -info[2]
+        end
         return info[2]
     end
 end

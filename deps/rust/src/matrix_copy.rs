@@ -20,7 +20,10 @@ unsafe fn copy<T: Scalar>(
     b: *mut T,
     ldb: usize,
 ) {
-    for j in 0..n {
+    if m == 0 || n == 0 {
+        return;
+    }
+    for j in 0..if u == b'L' { n.min(m) } else { n } {
         let (start, end) = selected(u, m, j);
         if start == end {
             continue;
@@ -59,9 +62,10 @@ macro_rules! exports {
             #[no_mangle]
             pub unsafe extern "C" fn [<$p lacpy $suffix>](u:*const u8,m:*const $i,n:*const $i,
                 a:*const $t,lda:*const $i,b:*mut $t,ldb:*const $i) {
-                let (m,n,la,lb)=(*m as isize,*n as isize,*lda as isize,*ldb as isize);
-                check!(2=>m>=0,3=>n>=0,5=>la>=m.max(1),7=>lb>=m.max(1));
-                copy(flag(u),m as usize,n as usize,a,la as usize,b,lb as usize);
+                let (u,m,n,la,lb)=(flag(u),*m as isize,*n as isize,*lda as isize,*ldb as isize);
+                let output_rows=if u==b'U' {m.min(n)}else{m};
+                check!(2=>m>=0,3=>n>=0,5=>la>=m.max(1),7=>lb>=output_rows.max(1));
+                copy(u,m as usize,n as usize,a,la as usize,b,lb as usize);
             }
             #[no_mangle]
             pub unsafe extern "C" fn [<$p laset $suffix>](u:*const u8,m:*const $i,n:*const $i,

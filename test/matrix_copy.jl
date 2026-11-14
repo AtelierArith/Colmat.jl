@@ -14,10 +14,9 @@ for (T, p) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "
         n,
         alpha=($T(-0.0)),
         beta=($T(NaN)),
+        library=Colmat.backend_library(),
     )
-        f = Libdl.dlsym(
-            Libdl.dlopen(Colmat.backend_library()), Symbol($p * family * "_" * $suffix)
-        )
+        f = Libdl.dlsym(Libdl.dlopen(library), Symbol($p * family * "_" * $suffix))
         if family == "lacpy"
             ccall(
                 f,
@@ -89,5 +88,18 @@ end
         direct_matrix_copy!(family, a, b, J; uplo=u, m, n, alpha, beta)
         @test isequal(a, before)
         @test isequal(b, expected)
+    end
+end
+
+@testset "LACPY upper rectangular destination uses only min(M,N) rows" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
+        m, n=11, 10
+        a=T[T <: Complex ? T(i+3j, i-j) : T(i+3j) for i in 1:m, j in 1:n]
+        b=zeros(T, n, n)
+        direct_matrix_copy!("lacpy", a, b, J; uplo=('U'), m, n)
+        @test b==triu(a)[1:n, 1:n]
+        c=zeros(T, n, n)
+        LinearAlgebra.LAPACK.lacpy!(c, a, 'U')
+        @test c==b
     end
 end

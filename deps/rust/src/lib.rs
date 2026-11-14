@@ -29,6 +29,8 @@ mod matrix_extensions;
 mod matrix_norms;
 mod matrix_permutation;
 mod matrix_scaling;
+#[cfg(test)]
+mod matrix_transform_edges;
 mod pivoted_cholesky;
 mod positive_equilibration;
 mod precision_conversion;
@@ -41,6 +43,7 @@ mod schur;
 mod selected_selfadjoint;
 mod storage_conversions;
 mod storage_layout;
+mod symmetric_equilibration;
 mod threading;
 mod triangular_lapack;
 mod tridiagonal_evd;

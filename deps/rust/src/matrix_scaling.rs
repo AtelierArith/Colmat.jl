@@ -51,8 +51,9 @@ macro_rules! exports {
                 4=>from!=0.0&&!from.is_nan(),5=>!to.is_nan(),6=>m>=0,7=>n>=0&&(!symmetric||m==n));
             if band {
                 check!(info,2=>kl>=0&&kl<=(m-1).max(0),3=>ku>=0&&ku<=(n-1).max(0)&&(!symmetric||kl==ku));
-                let required=match kind {b'B'=>kl+1,b'Q'=>ku+1,_=>2*kl+ku+1};
-                check!(info,9=>ld>=required);
+                let required=match kind {b'B'=>Some(kl+1),b'Q'=>Some(ku+1),
+                    _=>kl.checked_mul(2).and_then(|v|v.checked_add(ku)).and_then(|v|v.checked_add(1))};
+                check!(info,9=>required.is_some_and(|required|ld>=required));
             }else{check!(info,9=>ld>=m.max(1));}
             if m==0||n==0 {return;}
             let small=<$r>::MIN_POSITIVE;

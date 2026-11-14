@@ -18,6 +18,7 @@ macro_rules! exports {
   pub unsafe extern "C" fn [<$p lacp2 $suffix>](u:*const u8,m:*const $i,n:*const $i,a:*const $r,la:*const $i,b:*mut $t,lb:*const $i) {
    let(u,m,n,la,lb)=(flag(u),*m as isize,*n as isize,*la as isize,*lb as isize);
    check!(2=>m>=0,3=>n>=0,5=>la>=m.max(1),7=>lb>=m.max(1));
+   if m==0||n==0 {return;}
    for j in 0..n {
     let(start,end)=match u {b'U'=>(0,m.min(j+1)),b'L'=>(j.min(m),m),_=>(0,m)};
     if start==end {continue;}

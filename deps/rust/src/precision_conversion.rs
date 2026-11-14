@@ -48,6 +48,9 @@ unsafe fn convert<T: Convert<U>, U>(
     b: *mut U,
     lb: usize,
 ) -> bool {
+    if m == 0 || n == 0 {
+        return true;
+    }
     for j in 0..n {
         let (start, end) = match triangle {
             Some(true) => (0, m.min(j + 1)),

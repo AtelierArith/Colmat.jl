@@ -40,7 +40,7 @@ macro_rules! exports {
   #[no_mangle]
   pub unsafe extern "C" fn [<$p pbequ $suffix>](u:*const u8,n:*const $i,kd:*const $i,a:*const $t,ld:*const $i,s:*mut $r,cond:*mut $r,amax:*mut $r,info:*mut $i) {
    *info=0;let(u,n,kd,ld)=(flag(u),*n as isize,*kd as isize,*ld as isize);
-   check!(info,1=>uplo(u),2=>n>=0,3=>kd>=0,5=>ld>=kd+1);
+   check!(info,1=>uplo(u),2=>n>=0,3=>kd>=0,5=>kd.checked_add(1).is_some_and(|required|ld>=required));
    let row=if u==b'U' {kd as usize}else{0};
    *info=[<$p diagonal_equil $suffix>](n as usize,a,s,cond,amax,false,|i|row+i*ld as usize);
   }
