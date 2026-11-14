@@ -94,6 +94,20 @@ pub(crate) fn eigen<T: Scalar>(
 
 use crate::kernels::flag;
 use paste::paste;
+unsafe fn accumulate<T: Scalar>(z: *const T, n: usize, ld: isize, vectors: &Mat<T>) -> Mat<T> {
+    let mut result = Mat::<T>::zeros(n, n);
+    crate::threading::with_par(|par| {
+        colmat::linalg::matmul::matmul(
+            result.as_mut(),
+            colmat::Accum::Replace,
+            crate::lapack::input_ref(z, n, n, ld),
+            vectors.as_ref(),
+            T::o(),
+            par,
+        );
+    });
+    result
+}
 macro_rules! qr_exports {
     ($p:ident,$t:ty,$r:ty,$i:ty,$suffix:tt,$id:expr) => { paste! {
         #[no_mangle]
@@ -112,7 +126,7 @@ macro_rules! qr_exports {
                 Ok((values,vectors))=>{
                     if mode!=b'N' {
                         let vectors=Mat::<$t>::from_fn(size,size,|i,j| <$t as Scalar>::real(vectors[(i,j)] as f64));
-                        let result=if mode==b'V' { &crate::lapack::input(z,size,size,ld) * &vectors } else { vectors };
+                        let result=if mode==b'V' { accumulate(z,size,ld,&vectors) } else { vectors };
                         crate::lapack::output(&result,z,ld);
                     }
                     for i in 0..size { *d.add(i)=values[i]; }
@@ -225,7 +239,7 @@ macro_rules! positive_exports {
                 Ok((values,vectors))=>{
                     if mode!=b'N' {
                         let vectors=Mat::<$t>::from_fn(size,size,|i,j| <$t as Scalar>::real(vectors[(i,j)] as f64));
-                        let result=if mode==b'V' { &crate::lapack::input(z,size,size,ld) * &vectors } else { vectors };
+                        let result=if mode==b'V' { accumulate(z,size,ld,&vectors) } else { vectors };
                         crate::lapack::output(&result,z,ld);
                     }
                     for i in 0..size { *d.add(i)=values[i]; }
@@ -314,7 +328,7 @@ macro_rules! dc_real_exports {
             match eigen::<$r>(std::slice::from_raw_parts(d,size),std::slice::from_raw_parts(e,size-1),mode!=b'N',true) {
                 Ok((values,vectors))=>{
                     if mode!=b'N' {
-                        let result=if mode==b'V' { &crate::lapack::input(z,size,size,ld)*&vectors }else{vectors};
+                        let result=if mode==b'V' { accumulate(z,size,ld,&vectors) }else{vectors};
                         crate::lapack::output(&result,z,ld);
                     }
                     for i in 0..size { *d.add(i)=values[i]; }
@@ -347,7 +361,7 @@ macro_rules! dc_complex_exports {
                 Ok((values,vectors))=>{
                     if mode!=b'N' {
                         let vectors=Mat::<$t>::from_fn(size,size,|i,j| <$t as Scalar>::real(vectors[(i,j)] as f64));
-                        let result=if mode==b'V' { &crate::lapack::input(z,size,size,ld)*&vectors }else{vectors};
+                        let result=if mode==b'V' { accumulate(z,size,ld,&vectors) }else{vectors};
                         crate::lapack::output(&result,z,ld);
                     }
                     for i in 0..size { *d.add(i)=values[i]; }
