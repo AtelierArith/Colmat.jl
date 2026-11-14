@@ -452,3 +452,29 @@ native scratch は別に確保します。query は入力行列と固有ベク�
 160次元の D&C、expert fallback、通常 Julia API と30シンボルの登録を検証します。
 隔離プロセスでは fallback 不足の診断と通常経路が fallback を使わないことを確認します。
 STEBZ/STEIN はこの接続に含めません。
+
+
+## 三角行列の LAPACK solve/inverse/product（#270）
+
+TRTRS/TRTRI/TRTI2/LAUUM/LAUU2 の4型、計20 Fortran シンボルを両整数 ABI に接続しました。
+TRTRS は借用した A と B に native triangular solve を適用し、UPLO/TRANS/DIAG を変換します。
+TRTRI/TRTI2 は native triangular inverse、LAUUM/LAUU2 は native triangular matmul を使います。
+TRTI2 は TRTRI と共通の inverse kernel、LAUU2 は LAUUM と共通の product kernel です。
+名前ごとの独立した blocked/unblocked 算法を提供するという意味ではありません。
+
+A の反対側の三角と padding は入力で参照せず、出力でも保持します。
+DIAG=U は実際の対角を読まず、inverse 出力でもその対角を変更しません。
+TRTRS/TRTRI は最初のゼロ対角を正の INFO で返し、B/A を変更しません。
+TRTRS は NRHS=0 でもこの特異対角検査を行います。
+TRTI2 は Reference LAPACK と同じく非特異性を仮定し、正の INFO を返しません。
+
+LAUUM/LAUU2 は上三角なら U Uᴴ、下三角なら Lᴴ L を計算します。
+複素対角も含めて数学的な三角積を計算し、出力の対角の虚部はゼロにします。
+solve は入力と出力を借用します。inverse/product は借用した入力から内部の
+n×n 出力行列を作って指定三角だけを書き戻し、入力全体のコピーは作りません。
+これらの入口に caller workspace や workspace query はありません。
+
+`test/triangular_lapack.jl` は4型・両 ABI・UPLO/TRANS/DIAG、空・1要素・80次元、
+複数/ゼロ右辺、unit diagonal と反対三角の NaN、padding、外部 inverse との相互運用、
+左右の inverse residual、三角積、特異 INFO、不正引数・整数幅、通常 Julia API と
+20シンボルの LBT 登録を検証します。既存 BLAS TRSV/TRSM の経路はこの接続の対象外です。
