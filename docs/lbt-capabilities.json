@@ -160,32 +160,6 @@
     },
     {
       "routines": [
-        "gelqf",
-        "gelq2",
-        "gelqt",
-        "gelqt3",
-        "gelq",
-        "gelqs",
-        "orglq",
-        "unglq",
-        "orgl2",
-        "ungl2",
-        "ormlq",
-        "unmlq",
-        "orml2",
-        "unml2",
-        "gemlq",
-        "gemlqt",
-        "laswlq",
-        "lamswlq"
-      ],
-      "status": "representation",
-      "api": "lq_in_place / householder",
-      "source": "faer/src/linalg/lq/no_pivoting/factor.rs",
-      "note": "reflector と L の保存形式を変換。LAPACK の各 blocked/short-wide アルゴリズムを再現する保証はない"
-    },
-    {
-      "routines": [
         "geqlf",
         "geql2",
         "gerqf",
@@ -1100,6 +1074,32 @@
       "api": "QR / reflector application / residual column norms",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
       "note": "Fortran 4型・LP64/ILP64 を接続済み。GEQP3/GEQPF は固定 JPVT と置換方向を変換。GEQP3RK は残差列ノルムを再計算して KMAX/ABSTOL/RELTOL による途中停止と付随右辺の更新を実装。native の対角値による rank 判定とは区別する。内部作業配列を確保する。"
+    },
+    {
+      "routines": [
+        "gelq",
+        "gelq2",
+        "gelqf",
+        "gelqs",
+        "gelqt",
+        "gelqt3",
+        "gemlq",
+        "gemlqt",
+        "lamswlq",
+        "laswlq",
+        "orgl2",
+        "orglq",
+        "orml2",
+        "ormlq",
+        "ungl2",
+        "unglq",
+        "unml2",
+        "unmlq"
+      ],
+      "status": "composition",
+      "api": "adjoint QR / Householder / triangular solve",
+      "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
+      "note": "Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。"
     }
   ]
 }

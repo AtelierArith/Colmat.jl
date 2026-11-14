@@ -9,6 +9,7 @@ mod householder;
 mod kernels;
 mod lapack;
 mod lapack_symmetric;
+mod lq;
 mod qr;
 mod qr_pivoted;
 mod threading;
