@@ -130,13 +130,22 @@
     },
     {
       "routines": [
+        "geqrt",
+        "geqrt2",
+        "geqrt3",
+        "gemqrt"
+      ],
+      "status": "representation",
+      "api": "qr_in_place / block Householder",
+      "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
+      "note": "Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。"
+    },
+    {
+      "routines": [
         "geqrf",
         "geqr2",
         "geqrfp",
         "geqr2p",
-        "geqrt",
-        "geqrt2",
-        "geqrt3",
         "geqr",
         "geqrs",
         "orgqr",
@@ -148,7 +157,6 @@
         "orm2r",
         "unm2r",
         "gemqr",
-        "gemqrt",
         "geqp3",
         "geqpf",
         "geqp3rk",

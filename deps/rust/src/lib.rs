@@ -9,6 +9,7 @@ mod householder;
 mod kernels;
 mod lapack;
 mod lapack_symmetric;
+mod qr;
 mod threading;
 
 use std::cell::Cell;

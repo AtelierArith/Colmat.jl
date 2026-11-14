@@ -3,7 +3,7 @@ use crate::kernels::*;
 use colmat::{c32, c64};
 use paste::paste;
 
-trait ReflectorScalar: Scalar {
+pub(crate) trait ReflectorScalar: Scalar {
     const EPS: f64;
     const SAFE: f64;
     fn im(self) -> f64;
@@ -117,7 +117,7 @@ unsafe fn generate<T: ReflectorScalar>(
 
 // WORK is the LAPACK caller's length-N (left) or length-M (right) buffer.
 // GEMV uses the native colmat multiplication path, including conjugation.
-unsafe fn apply<T: Scalar>(
+pub(crate) unsafe fn apply<T: Scalar>(
     side: u8,
     m: isize,
     n: isize,
@@ -250,7 +250,7 @@ unsafe fn basis<T: Scalar>(
     }
     out
 }
-unsafe fn factor<T: Scalar>(
+pub(crate) unsafe fn factor<T: Scalar>(
     direct: u8,
     store: u8,
     n: usize,
@@ -295,7 +295,7 @@ unsafe fn factor<T: Scalar>(
         *t.offset(j as isize + j as isize * ldt) = tj;
     }
 }
-unsafe fn apply_block<T: Scalar>(
+pub(crate) unsafe fn apply_block<T: Scalar>(
     side: u8,
     tr: u8,
     direct: u8,
