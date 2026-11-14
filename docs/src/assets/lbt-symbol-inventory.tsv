@@ -499,8 +499,8 @@ LAPACKE_csyconv	LAPACKE	syconv	c	対応する独立公開 API なし	false	false
 LAPACKE_csyconv_work	LAPACKE	syconv	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_csyequb	LAPACKE	syequb	c	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_csyequb_work	LAPACKE	syequb	c	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_csyr	LAPACKE	syr	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_csyr_work	LAPACKE	syr	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_csyr	LAPACKE	syr	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_csyr_work	LAPACKE	syr	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_csyrfs	LAPACKE	syrfs	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_csyrfs_work	LAPACKE	syrfs	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_csysv	LAPACKE	sysv	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	複素対称（非 Hermitian）のこの契約を満たす公開 solver はない。複素 Hermitian HE 系と区別する; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2430,8 +2430,8 @@ LAPACKE_zsyconv	LAPACKE	syconv	z	対応する独立公開 API なし	false	false
 LAPACKE_zsyconv_work	LAPACKE	syconv	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zsyequb	LAPACKE	syequb	z	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zsyequb_work	LAPACKE	syequb	z	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_zsyr	LAPACKE	syr	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-LAPACKE_zsyr_work	LAPACKE	syr	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_zsyr	LAPACKE	syr	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+LAPACKE_zsyr_work	LAPACKE	syr	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zsyrfs	LAPACKE	syrfs	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zsyrfs_work	LAPACKE	syrfs	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 LAPACKE_zsysv	LAPACKE	sysv	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	複素対称（非 Hermitian）のこの契約を満たす公開 solver はない。複素 Hermitian HE 系と区別する; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2618,21 +2618,21 @@ cblas_cdotu	CBLAS	dotu	c	公開機能の合成候補・直接 API はなし	fals
 cblas_cdotu_sub	CBLAS	dotu	c	公開機能の合成候補・直接 API はなし	true	true	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_cgbmv	CBLAS	gbmv	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_cgeadd	CBLAS	geadd	c	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cgemm	CBLAS	gemm	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cgemm3m	CBLAS	gemm3m	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cgemm	CBLAS	gemm	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cgemm3m	CBLAS	gemm3m	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_cgemm_batch	CBLAS	gemm_batch	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cgemmt	CBLAS	gemmt	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cgemmtr	CBLAS	gemmtr	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cgemv	CBLAS	gemv	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cgerc	CBLAS	gerc	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cgeru	CBLAS	geru	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cgemmt	CBLAS	gemmt	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cgemmtr	CBLAS	gemmtr	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cgemv	CBLAS	gemv	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cgerc	CBLAS	gerc	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cgeru	CBLAS	geru	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_chbmv	CBLAS	hbmv	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_chemm	CBLAS	hemm	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_chemv	CBLAS	hemv	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cher	CBLAS	her	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cher2	CBLAS	her2	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cher2k	CBLAS	her2k	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_cherk	CBLAS	herk	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_chemm	CBLAS	hemm	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_chemv	CBLAS	hemv	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cher	CBLAS	her	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cher2	CBLAS	her2	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cher2k	CBLAS	her2k	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_cherk	CBLAS	herk	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_chpmv	CBLAS	hpmv	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_chpr	CBLAS	hpr	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_chpr2	CBLAS	hpr2	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2643,15 +2643,15 @@ cblas_cscal	CBLAS	scal	c	公開機能の合成候補・直接 API はなし	fals
 cblas_csrot	CBLAS	real_rot	c	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_csscal	CBLAS	real_scal	c	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_cswap	CBLAS	swap	c	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_csymm	CBLAS	symm	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_csyr2k	CBLAS	syr2k	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_csyrk	CBLAS	syrk	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_csymm	CBLAS	symm	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_csyr2k	CBLAS	syr2k	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_csyrk	CBLAS	syrk	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ctbmv	CBLAS	tbmv	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ctbsv	CBLAS	tbsv	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ctpmv	CBLAS	tpmv	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ctpsv	CBLAS	tpsv	c	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ctrmm	CBLAS	trmm	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ctrmv	CBLAS	trmv	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ctrmm	CBLAS	trmm	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ctrmv	CBLAS	trmv	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ctrsm	CBLAS	trsm	c	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ctrsv	CBLAS	trsv	c	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_damax	CBLAS	amax	d	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2664,12 +2664,12 @@ cblas_dcopy	CBLAS	copy	d	公開機能の合成候補・直接 API はなし	fals
 cblas_ddot	CBLAS	dot	d	公開機能の合成候補・直接 API はなし	true	true	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dgbmv	CBLAS	gbmv	d	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dgeadd	CBLAS	geadd	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dgemm	CBLAS	gemm	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dgemm	CBLAS	gemm	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dgemm_batch	CBLAS	gemm_batch	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dgemmt	CBLAS	gemmt	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dgemmtr	CBLAS	gemmtr	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dgemv	CBLAS	gemv	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dger	CBLAS	ger	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dgemmt	CBLAS	gemmt	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dgemmtr	CBLAS	gemmtr	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dgemv	CBLAS	gemv	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dger	CBLAS	ger	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dimatcopy	CBLAS	imatcopy	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dnrm2	CBLAS	nrm2	d	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_domatcopy	CBLAS	omatcopy	d	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2685,18 +2685,18 @@ cblas_dspr	CBLAS	spr	d	対応機能あり・保存形式の変換が必要	false
 cblas_dspr2	CBLAS	spr2	d	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dsum	CBLAS	sum	d	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dswap	CBLAS	swap	d	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dsymm	CBLAS	symm	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dsymv	CBLAS	symv	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dsyr	CBLAS	syr	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dsyr2	CBLAS	syr2	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dsyr2k	CBLAS	syr2k	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dsyrk	CBLAS	syrk	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dsymm	CBLAS	symm	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dsymv	CBLAS	symv	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dsyr	CBLAS	syr	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dsyr2	CBLAS	syr2	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dsyr2k	CBLAS	syr2k	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dsyrk	CBLAS	syrk	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dtbmv	CBLAS	tbmv	d	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dtbsv	CBLAS	tbsv	d	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dtpmv	CBLAS	tpmv	d	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dtpsv	CBLAS	tpsv	d	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dtrmm	CBLAS	trmm	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_dtrmv	CBLAS	trmv	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dtrmm	CBLAS	trmm	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_dtrmv	CBLAS	trmv	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dtrsm	CBLAS	trsm	d	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dtrsv	CBLAS	trsv	d	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_dzamax	CBLAS	zamax	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2742,12 +2742,12 @@ cblas_sdot	CBLAS	dot	s	公開機能の合成候補・直接 API はなし	true	t
 cblas_sdsdot	CBLAS	dsdot	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_sgbmv	CBLAS	gbmv	s	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_sgeadd	CBLAS	geadd	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_sgemm	CBLAS	gemm	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_sgemm	CBLAS	gemm	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_sgemm_batch	CBLAS	gemm_batch	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_sgemmt	CBLAS	gemmt	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_sgemmtr	CBLAS	gemmtr	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_sgemv	CBLAS	gemv	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_sger	CBLAS	ger	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_sgemmt	CBLAS	gemmt	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_sgemmtr	CBLAS	gemmtr	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_sgemv	CBLAS	gemv	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_sger	CBLAS	ger	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_simatcopy	CBLAS	imatcopy	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_snrm2	CBLAS	nrm2	s	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_somatcopy	CBLAS	omatcopy	s	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2762,18 +2762,18 @@ cblas_sspr	CBLAS	spr	s	対応機能あり・保存形式の変換が必要	false
 cblas_sspr2	CBLAS	spr2	s	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ssum	CBLAS	sum	s	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_sswap	CBLAS	swap	s	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ssymm	CBLAS	symm	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ssymv	CBLAS	symv	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ssyr	CBLAS	syr	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ssyr2	CBLAS	syr2	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ssyr2k	CBLAS	syr2k	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ssyrk	CBLAS	syrk	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ssymm	CBLAS	symm	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ssymv	CBLAS	symv	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ssyr	CBLAS	syr	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ssyr2	CBLAS	syr2	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ssyr2k	CBLAS	syr2k	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ssyrk	CBLAS	syrk	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_stbmv	CBLAS	tbmv	s	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_stbsv	CBLAS	tbsv	s	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_stpmv	CBLAS	tpmv	s	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_stpsv	CBLAS	tpsv	s	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_strmm	CBLAS	trmm	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_strmv	CBLAS	trmv	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_strmm	CBLAS	trmm	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_strmv	CBLAS	trmv	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_strsm	CBLAS	trsm	s	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_strsv	CBLAS	trsv	s	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_xerbla	CBLAS	xerbla	other	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2787,21 +2787,21 @@ cblas_zdotu_sub	CBLAS	dotu	z	公開機能の合成候補・直接 API はなし	
 cblas_zdscal	CBLAS	real_scal	z	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zgbmv	CBLAS	gbmv	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zgeadd	CBLAS	geadd	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zgemm	CBLAS	gemm	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zgemm3m	CBLAS	gemm3m	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zgemm	CBLAS	gemm	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zgemm3m	CBLAS	gemm3m	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zgemm_batch	CBLAS	gemm_batch	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zgemmt	CBLAS	gemmt	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zgemmtr	CBLAS	gemmtr	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zgemv	CBLAS	gemv	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zgerc	CBLAS	gerc	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zgeru	CBLAS	geru	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zgemmt	CBLAS	gemmt	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zgemmtr	CBLAS	gemmtr	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zgemv	CBLAS	gemv	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zgerc	CBLAS	gerc	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zgeru	CBLAS	geru	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zhbmv	CBLAS	hbmv	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zhemm	CBLAS	hemm	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zhemv	CBLAS	hemv	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zher	CBLAS	her	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zher2	CBLAS	her2	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zher2k	CBLAS	her2k	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zherk	CBLAS	herk	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zhemm	CBLAS	hemm	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zhemv	CBLAS	hemv	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zher	CBLAS	her	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zher2	CBLAS	her2	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zher2k	CBLAS	her2k	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zherk	CBLAS	herk	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zhpmv	CBLAS	hpmv	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zhpr	CBLAS	hpr	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zhpr2	CBLAS	hpr2	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
@@ -2809,15 +2809,15 @@ cblas_zimatcopy	CBLAS	imatcopy	z	公開機能の合成候補・直接 API はな
 cblas_zomatcopy	CBLAS	omatcopy	z	公開機能の合成候補・直接 API はなし	false	false	MatRef/MatMut と conversion/permutation	faer/src/mat/matref.rs	コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zscal	CBLAS	scal	z	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_zswap	CBLAS	swap	z	公開機能の合成候補・直接 API はなし	false	false	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zsymm	CBLAS	symm	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zsyr2k	CBLAS	syr2k	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_zsyrk	CBLAS	syrk	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zsymm	CBLAS	symm	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zsyr2k	CBLAS	syr2k	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_zsyrk	CBLAS	syrk	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ztbmv	CBLAS	tbmv	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ztbsv	CBLAS	tbsv	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ztpmv	CBLAS	tpmv	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ztpsv	CBLAS	tpsv	z	対応機能あり・保存形式の変換が必要	false	false	matmul / triangular_solve	faer/src/linalg/matmul/mod.rs	専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ztrmm	CBLAS	trmm	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
-cblas_ztrmv	CBLAS	trmv	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ztrmm	CBLAS	trmm	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
+cblas_ztrmv	CBLAS	trmv	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ztrsm	CBLAS	trsm	z	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 cblas_ztrsv	CBLAS	trsv	z	対応する公開数値機能あり	false	false	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある
 ccopy_	Fortran	copy	c	公開機能の合成候補・直接 API はなし	true	true	行列/ベクトル view と還元・演算	faer/src/linalg/reductions/mod.rs	基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ
@@ -2867,13 +2867,13 @@ cgelsx_	Fortran	gelsx	c	公開機能の合成候補・直接 API はなし	true	
 cgelsy_	Fortran	gelsy	c	公開機能の合成候補・直接 API はなし	true	true	QR / LQ / SVD / RZ / triangular solve	faer/src/linalg/solvers.rs	Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。
 cgemlq_	Fortran	gemlq	c	公開機能の合成候補・直接 API はなし	true	true	adjoint QR / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。
 cgemlqt_	Fortran	gemlqt	c	公開機能の合成候補・直接 API はなし	true	true	adjoint QR / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。
-cgemm3m_	Fortran	gemm3m	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-cgemm_	Fortran	gemm	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-cgemmt_	Fortran	gemmt	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-cgemmtr_	Fortran	gemmtr	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+cgemm3m_	Fortran	gemm3m	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+cgemm_	Fortran	gemm	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+cgemmt_	Fortran	gemmt	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+cgemmtr_	Fortran	gemmtr	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
 cgemqr_	Fortran	gemqr	c	対応機能あり・保存形式の変換が必要	false	false	Qr / ColPivQr / householder	faer/src/linalg/qr/no_pivoting/factor.rs	reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要
 cgemqrt_	Fortran	gemqrt	c	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
-cgemv_	Fortran	gemv	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+cgemv_	Fortran	gemv	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 cgeql2_	Fortran	geql2	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 cgeqlf_	Fortran	geqlf	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 cgeqp3_	Fortran	geqp3	c	公開機能の合成候補・直接 API はなし	true	true	QR / reflector application / residual column norms	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 4型・LP64/ILP64 を接続済み。GEQP3/GEQPF は固定 JPVT と置換方向を変換。GEQP3RK は残差列ノルムを再計算して KMAX/ABSTOL/RELTOL による途中停止と付随右辺の更新を実装。native の対角値による rank 判定とは区別する。内部作業配列を確保する。
@@ -2888,11 +2888,11 @@ cgeqrs_	Fortran	geqrs	c	対応機能あり・保存形式の変換が必要	true
 cgeqrt2_	Fortran	geqrt2	c	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
 cgeqrt3_	Fortran	geqrt3	c	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
 cgeqrt_	Fortran	geqrt	c	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
-cgerc_	Fortran	gerc	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+cgerc_	Fortran	gerc	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 cgerfs_	Fortran	gerfs	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 cgerq2_	Fortran	gerq2	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 cgerqf_	Fortran	gerqf	c	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
-cgeru_	Fortran	geru	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+cgeru_	Fortran	geru	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 cgesc2_	Fortran	gesc2	c	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 cgesdd_	Fortran	gesdd	c	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
 cgesv_	Fortran	gesv	c	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
@@ -2967,13 +2967,13 @@ chegv_	Fortran	hegv	c	一部機能のみ・追加の契約実装が必要	true	t
 chegv_2stage_	Fortran	hegv_2stage	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 chegvd_	Fortran	hegvd	c	一部機能のみ・追加の契約実装が必要	true	true	Cholesky + triangular congruence + self_adjoint_evd	faer/src/linalg/evd/mod.rs	SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続
 chegvx_	Fortran	hegvx	c	一部機能のみ・追加の契約実装が必要	true	true	Cholesky + triangular congruence + self_adjoint_evd	faer/src/linalg/evd/mod.rs	SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続
-chemm_	Fortran	hemm	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-chemv_	Fortran	hemv	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-cher2_	Fortran	her2	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-cher2k_	Fortran	her2k	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-cher_	Fortran	her	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+chemm_	Fortran	hemm	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+chemv_	Fortran	hemv	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+cher2_	Fortran	her2	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+cher2k_	Fortran	her2k	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+cher_	Fortran	her	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 cherfs_	Fortran	herfs	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-cherk_	Fortran	herk	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+cherk_	Fortran	herk	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 chesv_	Fortran	hesv	c	対応機能あり・保存形式の変換が必要	true	true	cholesky::lblt::factor / solve / inverse (Partial pivoting)	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	Fortran 32シンボル・実 SY/複素 HE・両 ABI を接続済み。native の分離 D と最終置換を classic IPIV と interleaved な A へ変換し、外部因子も読み込む。UPLO=U は反転基底で処理する。TRF/TF2、TRS/TRS2、TRI/TRI2/TRI2X、SV は共通 native 経路と内部 scratch を使用。TRF/SV query は1、TRI2 query はmax(1,N)、TRI2X の NB は hint。複素対称 SY 系は対象外。
 chesv_aa_	Fortran	hesv_aa	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 chesv_aa_2stage_	Fortran	hesv_aa_2stage	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
@@ -3232,13 +3232,13 @@ csyconv_	Fortran	syconv	c	対応する独立公開 API なし	false	false	—	fa
 csyconvf_	Fortran	syconvf	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 csyconvf_rook_	Fortran	syconvf_rook	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 csyequb_	Fortran	syequb	c	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
-csymm_	Fortran	symm	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-csymv_	Fortran	symv	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-csyr2_	Fortran	syr2	c	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-csyr2k_	Fortran	syr2k	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-csyr_	Fortran	syr	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+csymm_	Fortran	symm	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+csymv_	Fortran	symv	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+csyr2_	Fortran	syr2	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+csyr2k_	Fortran	syr2k	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+csyr_	Fortran	syr	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 csyrfs_	Fortran	syrfs	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-csyrk_	Fortran	syrk	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+csyrk_	Fortran	syrk	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 csysv_	Fortran	sysv	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	複素対称（非 Hermitian）のこの契約を満たす公開 solver はない。複素 Hermitian HE 系と区別する
 csysv_aa_	Fortran	sysv_aa	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 csysv_aa_2stage_	Fortran	sysv_aa_2stage	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
@@ -3302,8 +3302,8 @@ ctrcon_	Fortran	trcon	c	対応する独立公開 API なし	false	false	—	faer
 ctrevc3_	Fortran	trevc3	c	対応機能あり・保存形式の変換が必要	false	false	eigenvectors_from_schur_real/cplx	faer/src/linalg/evd/mod.rs	公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要
 ctrevc_	Fortran	trevc	c	対応機能あり・保存形式の変換が必要	false	false	eigenvectors_from_schur_real/cplx	faer/src/linalg/evd/mod.rs	公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要
 ctrexc_	Fortran	trexc	c	対応する公開数値機能あり	false	false	reorder_schur_real/cplx	faer/src/linalg/evd/mod.rs	実 Schur の 1x1/2x2 block と index/rejection を変換
-ctrmm_	Fortran	trmm	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-ctrmv_	Fortran	trmv	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+ctrmm_	Fortran	trmm	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+ctrmv_	Fortran	trmv	c	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 ctrrfs_	Fortran	trrfs	c	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 ctrsen_	Fortran	trsen	c	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない
 ctrsm_	Fortran	trsm	c	対応する公開数値機能あり	true	true	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない
@@ -3416,12 +3416,12 @@ dgelsx_	Fortran	gelsx	d	公開機能の合成候補・直接 API はなし	true	
 dgelsy_	Fortran	gelsy	d	公開機能の合成候補・直接 API はなし	true	true	QR / LQ / SVD / RZ / triangular solve	faer/src/linalg/solvers.rs	Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。
 dgemlq_	Fortran	gemlq	d	公開機能の合成候補・直接 API はなし	true	true	adjoint QR / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。
 dgemlqt_	Fortran	gemlqt	d	公開機能の合成候補・直接 API はなし	true	true	adjoint QR / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。
-dgemm_	Fortran	gemm	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-dgemmt_	Fortran	gemmt	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-dgemmtr_	Fortran	gemmtr	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+dgemm_	Fortran	gemm	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+dgemmt_	Fortran	gemmt	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+dgemmtr_	Fortran	gemmtr	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
 dgemqr_	Fortran	gemqr	d	対応機能あり・保存形式の変換が必要	false	false	Qr / ColPivQr / householder	faer/src/linalg/qr/no_pivoting/factor.rs	reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要
 dgemqrt_	Fortran	gemqrt	d	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
-dgemv_	Fortran	gemv	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+dgemv_	Fortran	gemv	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 dgeql2_	Fortran	geql2	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 dgeqlf_	Fortran	geqlf	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 dgeqp3_	Fortran	geqp3	d	公開機能の合成候補・直接 API はなし	true	true	QR / reflector application / residual column norms	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 4型・LP64/ILP64 を接続済み。GEQP3/GEQPF は固定 JPVT と置換方向を変換。GEQP3RK は残差列ノルムを再計算して KMAX/ABSTOL/RELTOL による途中停止と付随右辺の更新を実装。native の対角値による rank 判定とは区別する。内部作業配列を確保する。
@@ -3436,7 +3436,7 @@ dgeqrs_	Fortran	geqrs	d	対応機能あり・保存形式の変換が必要	true
 dgeqrt2_	Fortran	geqrt2	d	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
 dgeqrt3_	Fortran	geqrt3	d	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
 dgeqrt_	Fortran	geqrt	d	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
-dger_	Fortran	ger	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+dger_	Fortran	ger	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 dgerfs_	Fortran	gerfs	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 dgerq2_	Fortran	gerq2	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 dgerqf_	Fortran	gerqf	d	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
@@ -3826,13 +3826,13 @@ dsygv_	Fortran	sygv	d	一部機能のみ・追加の契約実装が必要	true	t
 dsygv_2stage_	Fortran	sygv_2stage	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 dsygvd_	Fortran	sygvd	d	一部機能のみ・追加の契約実装が必要	true	true	Cholesky + triangular congruence + self_adjoint_evd	faer/src/linalg/evd/mod.rs	SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続
 dsygvx_	Fortran	sygvx	d	一部機能のみ・追加の契約実装が必要	true	true	Cholesky + triangular congruence + self_adjoint_evd	faer/src/linalg/evd/mod.rs	SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続
-dsymm_	Fortran	symm	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-dsymv_	Fortran	symv	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-dsyr2_	Fortran	syr2	d	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-dsyr2k_	Fortran	syr2k	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-dsyr_	Fortran	syr	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+dsymm_	Fortran	symm	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+dsymv_	Fortran	symv	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+dsyr2_	Fortran	syr2	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+dsyr2k_	Fortran	syr2k	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+dsyr_	Fortran	syr	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 dsyrfs_	Fortran	syrfs	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-dsyrk_	Fortran	syrk	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+dsyrk_	Fortran	syrk	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 dsysv_	Fortran	sysv	d	対応機能あり・保存形式の変換が必要	true	true	cholesky::lblt::factor / solve / inverse (Partial pivoting)	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	Fortran 32シンボル・実 SY/複素 HE・両 ABI を接続済み。native の分離 D と最終置換を classic IPIV と interleaved な A へ変換し、外部因子も読み込む。UPLO=U は反転基底で処理する。TRF/TF2、TRS/TRS2、TRI/TRI2/TRI2X、SV は共通 native 経路と内部 scratch を使用。TRF/SV query は1、TRI2 query はmax(1,N)、TRI2X の NB は hint。複素対称 SY 系は対象外。
 dsysv_aa_	Fortran	sysv_aa	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 dsysv_aa_2stage_	Fortran	sysv_aa_2stage	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
@@ -3901,8 +3901,8 @@ dtrcon_	Fortran	trcon	d	対応する独立公開 API なし	false	false	—	faer
 dtrevc3_	Fortran	trevc3	d	対応機能あり・保存形式の変換が必要	false	false	eigenvectors_from_schur_real/cplx	faer/src/linalg/evd/mod.rs	公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要
 dtrevc_	Fortran	trevc	d	対応機能あり・保存形式の変換が必要	false	false	eigenvectors_from_schur_real/cplx	faer/src/linalg/evd/mod.rs	公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要
 dtrexc_	Fortran	trexc	d	対応する公開数値機能あり	false	false	reorder_schur_real/cplx	faer/src/linalg/evd/mod.rs	実 Schur の 1x1/2x2 block と index/rejection を変換
-dtrmm_	Fortran	trmm	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-dtrmv_	Fortran	trmv	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+dtrmm_	Fortran	trmm	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+dtrmv_	Fortran	trmv	d	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 dtrrfs_	Fortran	trrfs	d	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 dtrsen_	Fortran	trsen	d	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない
 dtrsm_	Fortran	trsm	d	対応する公開数値機能あり	true	true	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない
@@ -4071,12 +4071,12 @@ sgelsx_	Fortran	gelsx	s	公開機能の合成候補・直接 API はなし	true	
 sgelsy_	Fortran	gelsy	s	公開機能の合成候補・直接 API はなし	true	true	QR / LQ / SVD / RZ / triangular solve	faer/src/linalg/solvers.rs	Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。
 sgemlq_	Fortran	gemlq	s	公開機能の合成候補・直接 API はなし	true	true	adjoint QR / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。
 sgemlqt_	Fortran	gemlqt	s	公開機能の合成候補・直接 API はなし	true	true	adjoint QR / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。
-sgemm_	Fortran	gemm	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-sgemmt_	Fortran	gemmt	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-sgemmtr_	Fortran	gemmtr	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+sgemm_	Fortran	gemm	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+sgemmt_	Fortran	gemmt	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+sgemmtr_	Fortran	gemmtr	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
 sgemqr_	Fortran	gemqr	s	対応機能あり・保存形式の変換が必要	false	false	Qr / ColPivQr / householder	faer/src/linalg/qr/no_pivoting/factor.rs	reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要
 sgemqrt_	Fortran	gemqrt	s	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
-sgemv_	Fortran	gemv	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+sgemv_	Fortran	gemv	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 sgeql2_	Fortran	geql2	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 sgeqlf_	Fortran	geqlf	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 sgeqp3_	Fortran	geqp3	s	公開機能の合成候補・直接 API はなし	true	true	QR / reflector application / residual column norms	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 4型・LP64/ILP64 を接続済み。GEQP3/GEQPF は固定 JPVT と置換方向を変換。GEQP3RK は残差列ノルムを再計算して KMAX/ABSTOL/RELTOL による途中停止と付随右辺の更新を実装。native の対角値による rank 判定とは区別する。内部作業配列を確保する。
@@ -4091,7 +4091,7 @@ sgeqrs_	Fortran	geqrs	s	対応機能あり・保存形式の変換が必要	true
 sgeqrt2_	Fortran	geqrt2	s	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
 sgeqrt3_	Fortran	geqrt3	s	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
 sgeqrt_	Fortran	geqrt	s	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
-sger_	Fortran	ger	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+sger_	Fortran	ger	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 sgerfs_	Fortran	gerfs	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 sgerq2_	Fortran	gerq2	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 sgerqf_	Fortran	gerqf	s	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
@@ -4476,13 +4476,13 @@ ssygv_	Fortran	sygv	s	一部機能のみ・追加の契約実装が必要	true	t
 ssygv_2stage_	Fortran	sygv_2stage	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 ssygvd_	Fortran	sygvd	s	一部機能のみ・追加の契約実装が必要	true	true	Cholesky + triangular congruence + self_adjoint_evd	faer/src/linalg/evd/mod.rs	SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続
 ssygvx_	Fortran	sygvx	s	一部機能のみ・追加の契約実装が必要	true	true	Cholesky + triangular congruence + self_adjoint_evd	faer/src/linalg/evd/mod.rs	SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続
-ssymm_	Fortran	symm	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-ssymv_	Fortran	symv	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-ssyr2_	Fortran	syr2	s	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-ssyr2k_	Fortran	syr2k	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-ssyr_	Fortran	syr	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+ssymm_	Fortran	symm	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+ssymv_	Fortran	symv	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+ssyr2_	Fortran	syr2	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+ssyr2k_	Fortran	syr2k	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+ssyr_	Fortran	syr	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 ssyrfs_	Fortran	syrfs	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-ssyrk_	Fortran	syrk	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+ssyrk_	Fortran	syrk	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 ssysv_	Fortran	sysv	s	対応機能あり・保存形式の変換が必要	true	true	cholesky::lblt::factor / solve / inverse (Partial pivoting)	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	Fortran 32シンボル・実 SY/複素 HE・両 ABI を接続済み。native の分離 D と最終置換を classic IPIV と interleaved な A へ変換し、外部因子も読み込む。UPLO=U は反転基底で処理する。TRF/TF2、TRS/TRS2、TRI/TRI2/TRI2X、SV は共通 native 経路と内部 scratch を使用。TRF/SV query は1、TRI2 query はmax(1,N)、TRI2X の NB は hint。複素対称 SY 系は対象外。
 ssysv_aa_	Fortran	sysv_aa	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 ssysv_aa_2stage_	Fortran	sysv_aa_2stage	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
@@ -4551,8 +4551,8 @@ strcon_	Fortran	trcon	s	対応する独立公開 API なし	false	false	—	faer
 strevc3_	Fortran	trevc3	s	対応機能あり・保存形式の変換が必要	false	false	eigenvectors_from_schur_real/cplx	faer/src/linalg/evd/mod.rs	公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要
 strevc_	Fortran	trevc	s	対応機能あり・保存形式の変換が必要	false	false	eigenvectors_from_schur_real/cplx	faer/src/linalg/evd/mod.rs	公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要
 strexc_	Fortran	trexc	s	対応する公開数値機能あり	false	false	reorder_schur_real/cplx	faer/src/linalg/evd/mod.rs	実 Schur の 1x1/2x2 block と index/rejection を変換
-strmm_	Fortran	trmm	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-strmv_	Fortran	trmv	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+strmm_	Fortran	trmm	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+strmv_	Fortran	trmv	s	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 strrfs_	Fortran	trrfs	s	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 strsen_	Fortran	trsen	s	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない
 strsm_	Fortran	trsm	s	対応する公開数値機能あり	true	true	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない
@@ -4658,13 +4658,13 @@ zgelsx_	Fortran	gelsx	z	公開機能の合成候補・直接 API はなし	true	
 zgelsy_	Fortran	gelsy	z	公開機能の合成候補・直接 API はなし	true	true	QR / LQ / SVD / RZ / triangular solve	faer/src/linalg/solvers.rs	Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。
 zgemlq_	Fortran	gemlq	z	公開機能の合成候補・直接 API はなし	true	true	adjoint QR / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。
 zgemlqt_	Fortran	gemlqt	z	公開機能の合成候補・直接 API はなし	true	true	adjoint QR / Householder / triangular solve	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。
-zgemm3m_	Fortran	gemm3m	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zgemm_	Fortran	gemm	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zgemmt_	Fortran	gemmt	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zgemmtr_	Fortran	gemmtr	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+zgemm3m_	Fortran	gemm3m	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+zgemm_	Fortran	gemm	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+zgemmt_	Fortran	gemmt	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+zgemmtr_	Fortran	gemmtr	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
 zgemqr_	Fortran	gemqr	z	対応機能あり・保存形式の変換が必要	false	false	Qr / ColPivQr / householder	faer/src/linalg/qr/no_pivoting/factor.rs	reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要
 zgemqrt_	Fortran	gemqrt	z	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
-zgemv_	Fortran	gemv	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+zgemv_	Fortran	gemv	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 zgeql2_	Fortran	geql2	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 zgeqlf_	Fortran	geqlf	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 zgeqp3_	Fortran	geqp3	z	公開機能の合成候補・直接 API はなし	true	true	QR / reflector application / residual column norms	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran 4型・LP64/ILP64 を接続済み。GEQP3/GEQPF は固定 JPVT と置換方向を変換。GEQP3RK は残差列ノルムを再計算して KMAX/ABSTOL/RELTOL による途中停止と付随右辺の更新を実装。native の対角値による rank 判定とは区別する。内部作業配列を確保する。
@@ -4679,11 +4679,11 @@ zgeqrs_	Fortran	geqrs	z	対応機能あり・保存形式の変換が必要	true
 zgeqrt2_	Fortran	geqrt2	z	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
 zgeqrt3_	Fortran	geqrt3	z	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
 zgeqrt_	Fortran	geqrt	z	対応機能あり・保存形式の変換が必要	true	true	qr_in_place / block Householder	faer/src/linalg/qr/no_pivoting/factor.rs	Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。
-zgerc_	Fortran	gerc	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+zgerc_	Fortran	gerc	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 zgerfs_	Fortran	gerfs	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 zgerq2_	Fortran	gerq2	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
 zgerqf_	Fortran	gerqf	z	公開機能の合成候補・直接 API はなし	false	false	QR/LQ と軸の反転	faer/src/linalg/qr/no_pivoting/factor.rs	専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証
-zgeru_	Fortran	geru	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+zgeru_	Fortran	geru	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 zgesc2_	Fortran	gesc2	z	公開機能の合成候補・直接 API はなし	true	true	FullPivLu rank truncation + guarded triangular solve / matmul	faer/src/linalg/lu/full_pivoting/factor.rs	GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続
 zgesdd_	Fortran	gesdd	z	対応する公開数値機能あり	true	true	svd / thin_svd / svd_scratch	faer/src/linalg/svd/mod.rs	U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない
 zgesv_	Fortran	gesv	z	対応する公開数値機能あり	true	true	PartialPivLu / lu_in_place / solve	faer/src/linalg/lu/partial_pivoting/factor.rs	最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない
@@ -4758,13 +4758,13 @@ zhegv_	Fortran	hegv	z	一部機能のみ・追加の契約実装が必要	true	t
 zhegv_2stage_	Fortran	hegv_2stage	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 zhegvd_	Fortran	hegvd	z	一部機能のみ・追加の契約実装が必要	true	true	Cholesky + triangular congruence + self_adjoint_evd	faer/src/linalg/evd/mod.rs	SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続
 zhegvx_	Fortran	hegvx	z	一部機能のみ・追加の契約実装が必要	true	true	Cholesky + triangular congruence + self_adjoint_evd	faer/src/linalg/evd/mod.rs	SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続
-zhemm_	Fortran	hemm	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zhemv_	Fortran	hemv	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zher2_	Fortran	her2	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zher2k_	Fortran	her2k	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zher_	Fortran	her	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+zhemm_	Fortran	hemm	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+zhemv_	Fortran	hemv	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+zher2_	Fortran	her2	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+zher2k_	Fortran	her2k	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+zher_	Fortran	her	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 zherfs_	Fortran	herfs	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-zherk_	Fortran	herk	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+zherk_	Fortran	herk	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 zhesv_	Fortran	hesv	z	対応機能あり・保存形式の変換が必要	true	true	cholesky::lblt::factor / solve / inverse (Partial pivoting)	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	Fortran 32シンボル・実 SY/複素 HE・両 ABI を接続済み。native の分離 D と最終置換を classic IPIV と interleaved な A へ変換し、外部因子も読み込む。UPLO=U は反転基底で処理する。TRF/TF2、TRS/TRS2、TRI/TRI2/TRI2X、SV は共通 native 経路と内部 scratch を使用。TRF/SV query は1、TRI2 query はmax(1,N)、TRI2X の NB は hint。複素対称 SY 系は対象外。
 zhesv_aa_	Fortran	hesv_aa	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 zhesv_aa_2stage_	Fortran	hesv_aa_2stage	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
@@ -5020,13 +5020,13 @@ zsyconv_	Fortran	syconv	z	対応する独立公開 API なし	false	false	—	fa
 zsyconvf_	Fortran	syconvf	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない
 zsyconvf_rook_	Fortran	syconvf_rook	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 zsyequb_	Fortran	syequb	z	公開機能の合成候補・直接 API はなし	false	false	reduction と scale	faer/src/linalg/reductions/mod.rs	行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要
-zsymm_	Fortran	symm	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zsymv_	Fortran	symv	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zsyr2_	Fortran	syr2	z	対応する公開数値機能あり	false	false	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zsyr2k_	Fortran	syr2k	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-zsyr_	Fortran	syr	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+zsymm_	Fortran	symm	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+zsymv_	Fortran	symv	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+zsyr2_	Fortran	syr2	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm.
+zsyr2k_	Fortran	syr2k	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+zsyr_	Fortran	syr	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 zsyrfs_	Fortran	syrfs	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
-zsyrk_	Fortran	syrk	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+zsyrk_	Fortran	syrk	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 zsysv_	Fortran	sysv	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/cholesky/bunch_kaufman/factor.rs	複素対称（非 Hermitian）のこの契約を満たす公開 solver はない。複素 Hermitian HE 系と区別する
 zsysv_aa_	Fortran	sysv_aa	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
 zsysv_aa_2stage_	Fortran	sysv_aa_2stage	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する
@@ -5090,8 +5090,8 @@ ztrcon_	Fortran	trcon	z	対応する独立公開 API なし	false	false	—	faer
 ztrevc3_	Fortran	trevc3	z	対応機能あり・保存形式の変換が必要	false	false	eigenvectors_from_schur_real/cplx	faer/src/linalg/evd/mod.rs	公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要
 ztrevc_	Fortran	trevc	z	対応機能あり・保存形式の変換が必要	false	false	eigenvectors_from_schur_real/cplx	faer/src/linalg/evd/mod.rs	公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要
 ztrexc_	Fortran	trexc	z	対応する公開数値機能あり	false	false	reorder_schur_real/cplx	faer/src/linalg/evd/mod.rs	実 Schur の 1x1/2x2 block と index/rejection を変換
-ztrmm_	Fortran	trmm	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
-ztrmv_	Fortran	trmv	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない
+ztrmm_	Fortran	trmm	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
+ztrmv_	Fortran	trmv	z	対応する公開数値機能あり	true	true	matmul / triangular::matmul	faer/src/linalg/matmul/mod.rs	形状・三角部分・共役・係数を変換する。
 ztrrfs_	Fortran	trrfs	z	対応する独立公開 API なし	false	false	—	faer/src/linalg/mod.rs	iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない
 ztrsen_	Fortran	trsen	z	一部機能のみ・追加の契約実装が必要	false	false	Schur と reorder_schur	faer/src/linalg/evd/mod.rs	並べ替えはあるが条件推定 S/SEP はない
 ztrsm_	Fortran	trsm	z	対応する公開数値機能あり	true	true	triangular_solve / triangular_inverse	faer/src/linalg/triangular_solve.rs	TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない

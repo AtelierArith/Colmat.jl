@@ -5,9 +5,6 @@
       "routines": [
         "gemm",
         "gemv",
-        "gemm3m",
-        "gemmt",
-        "gemmtr",
         "symm",
         "symv",
         "hemm",
@@ -16,9 +13,7 @@
         "geru",
         "gerc",
         "syr",
-        "syr2",
         "her",
-        "her2",
         "syrk",
         "syr2k",
         "herk",
@@ -29,7 +24,20 @@
       "status": "native",
       "api": "matmul / triangular::matmul",
       "source": "faer/src/linalg/matmul/mod.rs",
-      "note": "形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない"
+      "note": "形状・三角部分・共役・係数を変換する。"
+    },
+    {
+      "routines": [
+        "gemm3m",
+        "gemmt",
+        "gemmtr",
+        "syr2",
+        "her2"
+      ],
+      "status": "native",
+      "api": "matmul / triangular::matmul",
+      "source": "faer/src/linalg/matmul/mod.rs",
+      "note": "Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm."
     },
     {
       "routines": [

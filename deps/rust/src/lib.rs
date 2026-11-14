@@ -9,6 +9,7 @@ mod advanced_svd;
 mod balance;
 mod bunch_kaufman;
 mod complete_pivot_lu;
+mod dense_extensions;
 mod generalized_eigen;
 mod generalized_hessenberg;
 mod generalized_selfadjoint;

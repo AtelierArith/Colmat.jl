@@ -634,3 +634,27 @@ query は M、行列、固有値・固有ベクトルを変更しません。
 `test/selected_selfadjoint.jl` で4型・両 ABI、UPLO、A/I/V、重複・ゼロ・
 区間端、workspace・INFO・IFAIL、不正引数、空配列、整数幅、極小/極大
 スケール、複素対角の無視領域、LBT 登録と数値呼び出しを検証します。
+
+## dense BLAS 拡張と rank-2 update（#276）
+
+GEMMT/GEMMTR と SYR2 の4型、複素 HER2 と GEMM3M の2型、計16 Fortran
+シンボルを両整数 ABI に接続しました。GEMMT/GEMMTR は native の三角出力
+matmul を使い、指定三角部分だけを更新します。全行列の積を確保してから
+切り出す方法ではなく、反対側の三角部分と leading-dimension の余白を保持します。
+N/T/C を独立に扱い、beta=0 では出力の古い値を読みません。
+alpha=0 または K=0 では A/B を読まず、指定三角部分の beta 倍だけを行います。
+
+SYR2/HER2 は native の rank-1 三角積を2回適用し、正負のベクトル stride
+を直接借用します。SYR2 は複素数でも転置積であり、HER2 だけが共役を使います。
+非ゼロ alpha の HER2 は古い対角の実部だけを読み、出力の虚部を0にします。
+alpha=0 のときは入力ベクトルも A も読み書きせず、対角も保持します。
+不正引数は既存 BLAS と同じ `colmat_blas_last_error()` に引数位置を記録します。
+
+GEMM3M は通常の native GEMM に接続して同じ積和の算術契約を提供します。
+3回の実数乗算から構成する固有算法、他実装との演算順序や bit 一致を提供する
+という意味ではありません。CBLAS 共通入口の接続は別 Issue #271 です。
+
+`test/dense_extensions.jl` は4型・両 ABI、独立したスカラー積和、N/T/C、
+複素係数、空/矩形、正負 stride、alpha/beta=0、無視領域の NaN、実対角、
+引数診断、整数幅、LBT 登録先と実呼び出しを検証します。Rust の null pointer
+テストで、不要なオペランドや alpha=0/beta=1 の C を参照しない経路も確認します。
