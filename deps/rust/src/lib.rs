@@ -5,6 +5,7 @@
 #![allow(clippy::too_many_arguments, clippy::missing_safety_doc)]
 
 mod abi;
+mod balance;
 mod bunch_kaufman;
 mod generalized_eigen;
 mod generalized_hessenberg;

@@ -261,7 +261,7 @@
       "status": "representation",
       "api": "balance_in_place_with / balance_eigenvectors_in_place",
       "source": "faer/src/linalg/evd/balance.rs",
-      "note": "最終 perm/scale を ILO/IHI/SCALE の swap encoding に変換。左右の逆変換を区別"
+      "note": "GEBAL/GEBAK の8 Fortran シンボルを両 ABI に接続。native の最終 perm/scale を ILO/IHI/SCALE の swap encoding に変換し、左右の逆変換を区別。C API は別途接続"
     },
     {
       "routines": [
