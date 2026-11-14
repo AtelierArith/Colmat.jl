@@ -409,10 +409,10 @@
         "ggev3",
         "gegv"
       ],
-      "status": "native",
+      "status": "representation",
       "api": "gevd_real / gevd_cplx",
       "source": "faer/src/linalg/gevd/mod.rs",
-      "note": "左右ベクトルと homogeneous alpha/beta、実数 conjugate pair を変換"
+      "note": "Fortran 12シンボル・4型・両 ABI を接続済み。native GEVD の homogeneous alpha/beta と左右固有ベクトルを変換する。実数 transpose-left の共役対の虚部列を反転して LAPACK adjoint-left へ揃え、最大成分ノルムで正規化。各 driver は共通 native 経路で内部配列・scratch を確保する。"
     },
     {
       "routines": [
@@ -421,7 +421,7 @@
       "status": "conditional",
       "api": "gevd_real/cplx",
       "source": "faer/src/linalg/gevd/mod.rs",
-      "note": "一般化固有値はあるが expert balancing・condition estimates の全出力は対応しない"
+      "note": "Fortran 4シンボル・4型・両 ABI を接続済み。BALANC=N/SENSE=N は native GEVD と ILO/IHI、LSCALE/RSCALE、元の尺度の Schur A/B、ABNRM/BBNRM を構成。その他の balance/condition mode は保存した既存 ILP64 バックエンドへ委譲し、LP64 呼び出しでは整数スカラーと所有する IWORK/BWORK を変換。ロード前の ILP64 expert backend を必須とし、欠落は登録前に診断する。"
     },
     {
       "routines": [

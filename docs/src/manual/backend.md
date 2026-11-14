@@ -70,6 +70,12 @@ GEEVX の `SENSE=N` は native、`SENSE=E/V/B` の条件数推定は登録前の
 その整数 ABI に既存 GEEVX の転送先がなければ、expert モードは利用できず負の INFO
 で戻ります。`load_backend()` を再実行しても Colmat 自身を fallback として保存しません。
 
+GGEV/GGEV3/GEGV と GGEVX の `BALANC=N/SENSE=N` は native GEVD を使います。
+GGEVX のその他の balance/condition mode は保存した ILP64 backend へ委譲し、
+LP64 呼び出しでは整数を変換します。そのため、Colmat をロードする前に4型の
+ILP64 GGEVX が必要です。通常の Julia は OpenBLAS を提供します。不足時には
+LBT 登録の変更前に設定エラーで停止します。
+
 SYEVR/HEEVR は全スペクトルを計算して `RANGE=A/I/V` の結果を選択します。
 colmat-rs に MRRR や Sturm-count の公開 API があるという意味ではありません。
 ドライバーごとの数値実装・保存形式・未対応機能は

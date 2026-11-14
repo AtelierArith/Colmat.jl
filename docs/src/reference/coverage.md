@@ -41,7 +41,7 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 `cblas_cdot{u,c}_sub` / `cblas_zdot{u,c}_sub` も提供します。
 CBLAS 全体の互換ライブラリを提供するものではありません。
 
-この構成では LP64・ILP64 それぞれ456シンボル（BLAS 112、LAPACK 344）を LBT に登録します。
+この構成では LP64・ILP64 それぞれ472シンボル（BLAS 112、LAPACK 360）を LBT に登録します。
 登録を調べるには次を実行します。
 
 ```jldoctest
@@ -54,7 +54,7 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 456 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 472 for l in libs)
 true
 ```
 
@@ -102,10 +102,12 @@ Level 1 の引数規約はルーチンごとに異なります。
 | POTRF / POTRF2 / POTF2 / POTRS / POTRI / POSV | LLT・三角求解 |
 | GESDD / GESVD | SVD、full/thin/overwrite の変換 |
 | GEEV / GEEVX | 一般 EVD・balance・左右固有ベクトル・Schur |
+| GGEV / GGEV3 / GEGV / GGEVX | 一般化 EVD・homogeneous α/β・左右固有ベクトル |
 | SYEV / HEEV / SYEVD / HEEVD | 自己随伴 EVD |
 | SYEVR / HEEVR | 全自己随伴 EVD からの範囲選択 |
 
 実数の SY 系と複素数の HE 系は型ごとの同じ系列として数えます。
 GEEVX の条件数推定は既存 backend に委譲し、native 対応は SENSE=N です。
+GGEVX は BALANC=N/SENSE=N が native で、その他のモードは既存 ILP64 backend へ委譲します。
 全 LBT シンボルについての対応候補・公開 API 不足・契約の差は
 [LBT と colmat-rs の全ルーチン対応表](@ref)に列挙します。
