@@ -206,7 +206,7 @@ function report(path, rows)
         for row in rows
             println(
                 io,
-                "| `$(row.api)` | $(join(row.results," | ")) | $(join(unique(row.routes)," / ")) | $(row.rust) |",
+                "| `$(row.api)` | $(join(row.results," | ")) | $(join(unique(row.routes)," / ")) | $(all(==("Colmat"), row.routes) ? replace(row.rust, "（未接続）" => "（接続済み）") : row.rust) |",
             )
         end
         println(io, "\n## 入口シンボルと実際のライブラリ\n")

@@ -1,9 +1,9 @@
 """
     Colmat
 
-BLAS backend powered by Rust's colmat. Loading the package installs LP64 and
+BLAS/LAPACK backend powered by Rust's colmat. Loading the package installs LP64 and
 ILP64 forwards in libblastrampoline. Use ordinary Julia arrays and LinearAlgebra;
-unprovided BLAS and LAPACK routines retain their existing backend.
+unprovided BLAS/LAPACK routines retain their existing backend.
 """
 module Colmat
 

@@ -1,4 +1,4 @@
-//! BLAS ABI adapter for Julia's libblastrampoline.
+//! BLAS/LAPACK ABI adapter for Julia's libblastrampoline.
 //!
 //! All arrays are borrowed for the duration of a call. No Julia runtime or RustCall
 //! is involved. Unexported BLAS/LAPACK symbols stay on the previous LBT backend.
@@ -6,6 +6,8 @@
 
 mod abi;
 mod kernels;
+mod lapack;
+mod lapack_symmetric;
 mod threading;
 
 use std::cell::Cell;
@@ -24,7 +26,7 @@ pub extern "C" fn colmat_blas_last_error() -> i32 {
 
 #[no_mangle]
 pub extern "C" fn colmat_blas_abi_version() -> i32 {
-    1
+    2
 }
 
 #[cfg(test)]

@@ -23,6 +23,7 @@ makedocs(;
             "スレッド設定" => "manual/threading.md",
         ],
         "リファレンス" => [
+            "LBT 全ルーチン対応表" => "reference/lbt-inventory.md",
             "BLAS 対応範囲" => "reference/coverage.md",
             "Julia API の実測対応表" => "reference/support-matrix.md",
             "公開 API" => "reference/api.md",

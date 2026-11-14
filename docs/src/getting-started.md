@@ -59,5 +59,5 @@ julia> F = svd(A); F.U * Diagonal(F.S) * F.Vt ≈ A
 true
 ```
 
-これらの分解・求解は既存の LAPACK バックエンドで実行します。
+これらの LU・SVD ドライバーは colmat-rs の分解・求解へ接続します。
 転送の境界は[バックエンドとフォールバック](@ref)で説明します。

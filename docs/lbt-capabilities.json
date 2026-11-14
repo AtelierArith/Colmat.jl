@@ -1,0 +1,1081 @@
+{
+  "scope": "public API at pinned deps/upstream.toml revision; not a proof of ABI equivalence",
+  "groups": [
+    {
+      "routines": [
+        "gemm",
+        "gemv",
+        "gemm3m",
+        "gemmt",
+        "gemmtr",
+        "symm",
+        "symv",
+        "hemm",
+        "hemv",
+        "ger",
+        "geru",
+        "gerc",
+        "syr",
+        "syr2",
+        "her",
+        "her2",
+        "syrk",
+        "syr2k",
+        "herk",
+        "her2k",
+        "trmm",
+        "trmv"
+      ],
+      "status": "native",
+      "api": "matmul / triangular::matmul",
+      "source": "faer/src/linalg/matmul/mod.rs",
+      "note": "形状・三角部分・共役・係数の変換が必要。gemm3m の専用アルゴリズムを提供するという意味ではない"
+    },
+    {
+      "routines": [
+        "trsm",
+        "trsv",
+        "trtrs",
+        "trtri",
+        "trti2"
+      ],
+      "status": "native",
+      "api": "triangular_solve / triangular_inverse",
+      "source": "faer/src/linalg/triangular_solve.rs",
+      "note": "unit diagonal・転置・共役を変換。trtrs は特異対角検査も必要"
+    },
+    {
+      "routines": [
+        "getrf",
+        "getrf2",
+        "getf2",
+        "getrs",
+        "getri",
+        "gesv"
+      ],
+      "status": "native",
+      "api": "PartialPivLu / lu_in_place / solve",
+      "source": "faer/src/linalg/lu/partial_pivoting/factor.rs",
+      "note": "最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない"
+    },
+    {
+      "routines": [
+        "getc2",
+        "gesc2"
+      ],
+      "status": "conditional",
+      "api": "FullPivLu",
+      "source": "faer/src/linalg/lu/full_pivoting/factor.rs",
+      "note": "完全ピボット LU はある。GETC2 の小ピボット摂動と GESC2 のオーバーフロー回避 SCALE は別途必要"
+    },
+    {
+      "routines": [
+        "potrf",
+        "potrf2",
+        "potf2",
+        "potrs",
+        "potri",
+        "posv"
+      ],
+      "status": "native",
+      "api": "Llt / cholesky_in_place / solve",
+      "source": "faer/src/linalg/cholesky/llt/factor.rs",
+      "note": "上三角入力は下三角へ共役変換し INFO を変換"
+    },
+    {
+      "routines": [
+        "pstrf",
+        "pstf2"
+      ],
+      "status": "representation",
+      "api": "pivoted LLT",
+      "source": "faer/src/linalg/cholesky/llt_pivoting/factor.rs",
+      "note": "rank stop と置換を LAPACK の PIV/RANK/TOL へ変換"
+    },
+    {
+      "routines": [
+        "sytrf",
+        "sytf2",
+        "sytrs",
+        "sytri",
+        "sysv",
+        "hetrf",
+        "hetf2",
+        "hetrs",
+        "hetri",
+        "hesv"
+      ],
+      "status": "representation",
+      "api": "Lblt / Bunch-Kaufman",
+      "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
+      "note": "分離 D と 1x1/2x2 ピボットを LAPACK 形式へ変換。複素対称 SY 系は対象外"
+    },
+    {
+      "routines": [
+        "sytrf_rook",
+        "hetrf_rook",
+        "sytf2_rook",
+        "hetf2_rook",
+        "sytri_rook",
+        "hetri_rook",
+        "sytrs_rook",
+        "hetrs_rook",
+        "sysv_rook",
+        "hesv_rook"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
+      "note": "標準 Bunch-Kaufman はあるが rook pivoting の独立公開 API はない"
+    },
+    {
+      "routines": [
+        "geqrf",
+        "geqr2",
+        "geqrfp",
+        "geqr2p",
+        "geqrt",
+        "geqrt2",
+        "geqrt3",
+        "geqr",
+        "geqrs",
+        "orgqr",
+        "ungqr",
+        "org2r",
+        "ung2r",
+        "ormqr",
+        "unmqr",
+        "orm2r",
+        "unm2r",
+        "gemqr",
+        "gemqrt",
+        "geqp3",
+        "geqpf",
+        "geqp3rk",
+        "getsqrhrt",
+        "latsqr",
+        "orgtsqr",
+        "ungtsqr",
+        "orgtsqr_row",
+        "ungtsqr_row",
+        "orhr_col",
+        "unhr_col"
+      ],
+      "status": "representation",
+      "api": "Qr / ColPivQr / householder",
+      "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
+      "note": "reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要"
+    },
+    {
+      "routines": [
+        "gelqf",
+        "gelq2",
+        "gelqt",
+        "gelqt3",
+        "gelq",
+        "gelqs",
+        "orglq",
+        "unglq",
+        "orgl2",
+        "ungl2",
+        "ormlq",
+        "unmlq",
+        "orml2",
+        "unml2",
+        "gemlq",
+        "gemlqt",
+        "laswlq",
+        "lamswlq"
+      ],
+      "status": "representation",
+      "api": "lq_in_place / householder",
+      "source": "faer/src/linalg/lq/no_pivoting/factor.rs",
+      "note": "reflector と L の保存形式を変換。LAPACK の各 blocked/short-wide アルゴリズムを再現する保証はない"
+    },
+    {
+      "routines": [
+        "geqlf",
+        "geql2",
+        "gerqf",
+        "gerq2",
+        "orgql",
+        "ungql",
+        "org2l",
+        "ung2l",
+        "orgql",
+        "ungql",
+        "orgrq",
+        "ungrq",
+        "orgr2",
+        "ungr2",
+        "ormql",
+        "unmql",
+        "orm2l",
+        "unm2l",
+        "ormrq",
+        "unmrq",
+        "ormr2",
+        "unmr2"
+      ],
+      "status": "composition",
+      "api": "QR/LQ と軸の反転",
+      "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
+      "note": "専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証"
+    },
+    {
+      "routines": [
+        "gels",
+        "gelsd",
+        "gelss",
+        "gelsy",
+        "gelsx",
+        "gelst",
+        "getsls"
+      ],
+      "status": "conditional",
+      "api": "SolveLstsq / Qr / Svd",
+      "source": "faer/src/linalg/solvers.rs",
+      "note": "最小二乗・最小ノルム機能はある。RCOND・数値 rank・残差配置・固定 JPVT・過少決定の契約を個別に変換"
+    },
+    {
+      "routines": [
+        "gesvd",
+        "gesdd"
+      ],
+      "status": "native",
+      "api": "svd / thin_svd / svd_scratch",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない"
+    },
+    {
+      "routines": [
+        "gesvdx",
+        "gesvdq",
+        "gesvj",
+        "gejsv"
+      ],
+      "status": "conditional",
+      "api": "Svd と選択・rank 判定",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "標準 SVD から一部の出力は構成可能。Jacobi SVD・preconditioned SVD・expert flag の同一契約はない"
+    },
+    {
+      "routines": [
+        "gebrd",
+        "gebd2",
+        "orgbr",
+        "ungbr",
+        "ormbr",
+        "unmbr",
+        "labrd"
+      ],
+      "status": "representation",
+      "api": "bidiag_in_place / householder",
+      "source": "faer/src/linalg/svd/bidiag.rs",
+      "note": "二重対角と左右 reflector・TAU の保存形式を変換"
+    },
+    {
+      "routines": [
+        "bdsqr",
+        "bdsdc",
+        "bdsvdx",
+        "lasq1"
+      ],
+      "status": "conditional",
+      "api": "bidiagonal_svd",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない"
+    },
+    {
+      "routines": [
+        "geev",
+        "geevx"
+      ],
+      "status": "conditional",
+      "api": "evd_real / evd_cplx / balance",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応"
+    },
+    {
+      "routines": [
+        "gebal",
+        "gebak"
+      ],
+      "status": "representation",
+      "api": "balance_in_place_with / balance_eigenvectors_in_place",
+      "source": "faer/src/linalg/evd/balance.rs",
+      "note": "最終 perm/scale を ILO/IHI/SCALE の swap encoding に変換。左右の逆変換を区別"
+    },
+    {
+      "routines": [
+        "syev",
+        "heev",
+        "syevd",
+        "heevd"
+      ],
+      "status": "native",
+      "api": "self_adjoint_evd",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない"
+    },
+    {
+      "routines": [
+        "syevr",
+        "heevr",
+        "syevx",
+        "heevx"
+      ],
+      "status": "composition",
+      "api": "self_adjoint_evd と全スペクトルからの選択",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "部分範囲は全固有値からフィルター可能。MRRR・Sturm count・inverse iteration の直接 API はない"
+    },
+    {
+      "routines": [
+        "sytrd",
+        "hetrd",
+        "sytd2",
+        "hetd2",
+        "orgtr",
+        "ungtr",
+        "ormtr",
+        "unmtr",
+        "latrd"
+      ],
+      "status": "representation",
+      "api": "tridiag_in_place / householder",
+      "source": "faer/src/linalg/evd/tridiag.rs",
+      "note": "三重対角と reflector の保存形式を変換"
+    },
+    {
+      "routines": [
+        "stev",
+        "stevd",
+        "steqr",
+        "stedc",
+        "sterf",
+        "pteqr"
+      ],
+      "status": "native",
+      "api": "tridiagonal_self_adjoint_evd",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "三重対角 eigensolver はある。固有ベクトルへの既存 Q の適用や作業配列は変換が必要"
+    },
+    {
+      "routines": [
+        "stevr",
+        "stevx",
+        "stegr",
+        "stemr"
+      ],
+      "status": "composition",
+      "api": "tridiagonal_self_adjoint_evd と全スペクトルからの選択",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "専用 MRRR/選択範囲エンジンはない。数学的出力の合成候補"
+    },
+    {
+      "routines": [
+        "stebz",
+        "stein"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "Sturm-count bisection と inverse iteration の独立公開 API はない"
+    },
+    {
+      "routines": [
+        "sygv",
+        "hegv",
+        "sygvd",
+        "hegvd",
+        "sygvx",
+        "hegvx"
+      ],
+      "status": "conditional",
+      "api": "self_adjoint_generalized_eigen",
+      "source": "faer/src/linalg/solvers.rs",
+      "note": "正定値 pencil の固有値・固有ベクトルはある。ITYPE=2/3・選択範囲・上三角入力は追加変換が必要"
+    },
+    {
+      "routines": [
+        "sygst",
+        "hegst",
+        "sygs2",
+        "hegs2"
+      ],
+      "status": "composition",
+      "api": "Cholesky と三角 solve/matmul",
+      "source": "faer/src/linalg/triangular_solve.rs",
+      "note": "一般化自己随伴問題の標準形への変換を構成可能。独立 LAPACK ABI はない"
+    },
+    {
+      "routines": [
+        "gehrd",
+        "gehd2",
+        "orghr",
+        "unghr",
+        "ormhr",
+        "unmhr"
+      ],
+      "status": "representation",
+      "api": "hessenberg_in_place / householder",
+      "source": "faer/src/linalg/evd/hessenberg.rs",
+      "note": "ILO/IHI の部分行列と H/TAU の保存形式を変換"
+    },
+    {
+      "routines": [
+        "hseqr",
+        "lahqr",
+        "laqr0",
+        "laqr4",
+        "gees"
+      ],
+      "status": "conditional",
+      "api": "hessenberg_schur_real/cplx",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "Schur 計算はある。GEES の SELECT callback・並べ替え・active range を個別に接続"
+    },
+    {
+      "routines": [
+        "geesx",
+        "trsen"
+      ],
+      "status": "conditional",
+      "api": "Schur と reorder_schur",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "並べ替えはあるが条件推定 S/SEP はない"
+    },
+    {
+      "routines": [
+        "trevc",
+        "trevc3"
+      ],
+      "status": "representation",
+      "api": "eigenvectors_from_schur_real/cplx",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要"
+    },
+    {
+      "routines": [
+        "trexc",
+        "laexc"
+      ],
+      "status": "native",
+      "api": "reorder_schur_real/cplx",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "実 Schur の 1x1/2x2 block と index/rejection を変換"
+    },
+    {
+      "routines": [
+        "ggev",
+        "ggev3",
+        "gegv"
+      ],
+      "status": "native",
+      "api": "gevd_real / gevd_cplx",
+      "source": "faer/src/linalg/gevd/mod.rs",
+      "note": "左右ベクトルと homogeneous alpha/beta、実数 conjugate pair を変換"
+    },
+    {
+      "routines": [
+        "ggevx"
+      ],
+      "status": "conditional",
+      "api": "gevd_real/cplx",
+      "source": "faer/src/linalg/gevd/mod.rs",
+      "note": "一般化固有値はあるが expert balancing・condition estimates の全出力は対応しない"
+    },
+    {
+      "routines": [
+        "gges",
+        "gges3",
+        "gegs",
+        "hgeqz"
+      ],
+      "status": "conditional",
+      "api": "QZ",
+      "source": "faer/src/linalg/gevd/qz_real/mod.rs",
+      "note": "generalized Schur はある。sorting callback・active range・Schur vector 初期化の ABI は追加実装"
+    },
+    {
+      "routines": [
+        "ggesx",
+        "tgsen"
+      ],
+      "status": "conditional",
+      "api": "QZ reorder",
+      "source": "faer/src/linalg/gevd/reorder.rs",
+      "note": "並べ替えはあるが expert condition estimates の同一出力はない"
+    },
+    {
+      "routines": [
+        "gghrd",
+        "gghd3"
+      ],
+      "status": "native",
+      "api": "generalized_hessenberg",
+      "source": "faer/src/linalg/gevd/gen_hessenberg/mod.rs",
+      "note": "Hessenberg-triangular reduction の Q/Z と部分範囲を変換"
+    },
+    {
+      "routines": [
+        "tgexc",
+        "tgex2"
+      ],
+      "status": "native",
+      "api": "generalized reorder_schur_real/cplx",
+      "source": "faer/src/linalg/gevd/reorder.rs",
+      "note": "pencil の block swap/rejection と index を変換"
+    },
+    {
+      "routines": [
+        "tgevc"
+      ],
+      "status": "conditional",
+      "api": "gevd / QZ",
+      "source": "faer/src/linalg/gevd/mod.rs",
+      "note": "一般化固有ベクトルはあるが既存 Schur pencil からの独立 helper の同一契約は未接続"
+    },
+    {
+      "routines": [
+        "ggqrf",
+        "ggrqf",
+        "gglse",
+        "ggglm"
+      ],
+      "status": "composition",
+      "api": "QR/LQ/SVD と三角 solve",
+      "source": "faer/src/linalg/solvers.rs",
+      "note": "専用 constrained least-squares/generalized QR API はない。合成と rank/INFO の追加実装が必要"
+    },
+    {
+      "routines": [
+        "copy",
+        "swap",
+        "scal",
+        "axpy",
+        "axpby",
+        "dot",
+        "dotu",
+        "dotc",
+        "nrm2",
+        "asum",
+        "iamax",
+        "iamin",
+        "amax",
+        "amin",
+        "max",
+        "min",
+        "sum",
+        "real_scal",
+        "real_rot"
+      ],
+      "status": "composition",
+      "api": "行列/ベクトル view と還元・演算",
+      "source": "faer/src/linalg/reductions/mod.rs",
+      "note": "基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ"
+    },
+    {
+      "routines": [
+        "rot",
+        "rotg",
+        "lartg",
+        "lartgp",
+        "lartgs"
+      ],
+      "status": "representation",
+      "api": "JacobiRotation::rotg / make_givens",
+      "source": "faer/src/linalg/jacobi.rs",
+      "note": "係数の共役・符号・r の規約を変換。modified Givens rotmg/rotm は別物"
+    },
+    {
+      "routines": [
+        "rotm",
+        "rotmg"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/jacobi.rs",
+      "note": "modified Givens rotation の公開 API はない"
+    },
+    {
+      "routines": [
+        "lange",
+        "lansy",
+        "lanhe",
+        "lantr",
+        "lanhs",
+        "lanst"
+      ],
+      "status": "composition",
+      "api": "norm_l2 / norm_max / reduction",
+      "source": "faer/src/linalg/reductions/mod.rs",
+      "note": "Frobenius は norm_l2。LAPACK の induced 1/∞ norm と colmat の elementwise norm_l1 を同一視しない"
+    },
+    {
+      "routines": [
+        "lacpy",
+        "laset",
+        "lascl",
+        "laswp",
+        "lapmr",
+        "lapmt",
+        "lacgv",
+        "lacp2",
+        "lag2d",
+        "lag2s",
+        "lag2c",
+        "lag2z",
+        "lat2s",
+        "lat2c",
+        "lacrm",
+        "larcm",
+        "imatcopy",
+        "omatcopy",
+        "geadd"
+      ],
+      "status": "composition",
+      "api": "MatRef/MatMut と conversion/permutation",
+      "source": "faer/src/mat/matref.rs",
+      "note": "コピー・尺度変更・精度変換・行列変換は adapter で合成。LAPACK の飽和・overflow 診断は追加実装"
+    },
+    {
+      "routines": [
+        "larfg",
+        "larfgp",
+        "larf",
+        "larft",
+        "larfb",
+        "larfx",
+        "larfy"
+      ],
+      "status": "representation",
+      "api": "make_householder_in_place / block Householder",
+      "source": "faer/src/linalg/householder.rs",
+      "note": "tau の逆数/共役・implicit leading one・positive gauge の変換が必要"
+    },
+    {
+      "routines": [
+        "lauum",
+        "lauu2"
+      ],
+      "status": "native",
+      "api": "triangular::matmul",
+      "source": "faer/src/linalg/matmul/triangular.rs",
+      "note": "三角因子とその転置/共役の積を構成"
+    },
+    {
+      "routines": [
+        "tftri",
+        "tptri"
+      ],
+      "status": "representation",
+      "api": "triangular_inverse",
+      "source": "faer/src/linalg/triangular_inverse.rs",
+      "note": "RFP/packed から通常格納への変換が必要"
+    },
+    {
+      "routines": [
+        "gbmv",
+        "sbmv",
+        "hbmv",
+        "spmv",
+        "hpmv",
+        "spr",
+        "spr2",
+        "hpr",
+        "hpr2",
+        "tbmv",
+        "tbsv",
+        "tpmv",
+        "tpsv"
+      ],
+      "status": "representation",
+      "api": "matmul / triangular_solve",
+      "source": "faer/src/linalg/matmul/mod.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "gbtrf",
+        "gbtf2",
+        "gbtrs",
+        "gbsv",
+        "gttrf",
+        "gttrs",
+        "gtts2",
+        "gtsv"
+      ],
+      "status": "representation",
+      "api": "dense PartialPivLu",
+      "source": "faer/src/linalg/lu/partial_pivoting/factor.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "pbtrf",
+        "pbtf2",
+        "pbtrs",
+        "pbsv"
+      ],
+      "status": "representation",
+      "api": "dense Llt",
+      "source": "faer/src/linalg/cholesky/llt/factor.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "pptrf",
+        "pptrs",
+        "pptri",
+        "ppsv",
+        "pftrf",
+        "pftrs",
+        "pftri",
+        "pbstf",
+        "pttrf",
+        "pttrs",
+        "ptts2",
+        "ptsv"
+      ],
+      "status": "representation",
+      "api": "dense Llt/Ldlt",
+      "source": "faer/src/linalg/cholesky/llt/factor.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "sptrf",
+        "sptrs",
+        "sptri",
+        "spsv",
+        "hptrf",
+        "hptrs",
+        "hptri",
+        "hpsv"
+      ],
+      "status": "representation",
+      "api": "dense Lblt",
+      "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "sbev",
+        "sbevd",
+        "sbevx",
+        "hbev",
+        "hbevd",
+        "hbevx",
+        "spev",
+        "spevd",
+        "spevx",
+        "hpev",
+        "hpevd",
+        "hpevx"
+      ],
+      "status": "representation",
+      "api": "self_adjoint_evd",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "sbgv",
+        "sbgvd",
+        "sbgvx",
+        "hbgv",
+        "hbgvd",
+        "hbgvx",
+        "spgv",
+        "spgvd",
+        "spgvx",
+        "hpgv",
+        "hpgvd",
+        "hpgvx"
+      ],
+      "status": "representation",
+      "api": "self_adjoint_generalized_eigen",
+      "source": "faer/src/linalg/solvers.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "sbtrd",
+        "hbtrd",
+        "sptrd",
+        "hptrd",
+        "opgtr",
+        "upgtr",
+        "opmtr",
+        "upmtr"
+      ],
+      "status": "representation",
+      "api": "tridiag / householder",
+      "source": "faer/src/linalg/evd/tridiag.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "tbtrs",
+        "tptrs",
+        "tfsm"
+      ],
+      "status": "representation",
+      "api": "triangular_solve",
+      "source": "faer/src/linalg/triangular_solve.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "sfrk",
+        "hfrk"
+      ],
+      "status": "representation",
+      "api": "triangular::matmul",
+      "source": "faer/src/linalg/matmul/triangular.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "spgst",
+        "hpgst",
+        "sbgst",
+        "hbgst"
+      ],
+      "status": "representation",
+      "api": "dense generalized self-adjoint composition",
+      "source": "faer/src/linalg/solvers.rs",
+      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+    },
+    {
+      "routines": [
+        "gecon",
+        "gbcon",
+        "gtcon",
+        "pocon",
+        "pbcon",
+        "ppcon",
+        "ptcon",
+        "sycon",
+        "hecon",
+        "spcon",
+        "hpcon",
+        "trcon",
+        "tbcon",
+        "tpcon",
+        "lacn2",
+        "lacon",
+        "trsna",
+        "tgsna",
+        "disna"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/mod.rs",
+      "note": "対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない"
+    },
+    {
+      "routines": [
+        "gerfs",
+        "gbrfs",
+        "gtrfs",
+        "porfs",
+        "pbrfs",
+        "pprfs",
+        "ptrfs",
+        "syrfs",
+        "herfs",
+        "sprfs",
+        "hprfs",
+        "trrfs",
+        "tbrfs",
+        "tprfs",
+        "gesvx",
+        "gbsvx",
+        "gtsvx",
+        "posvx",
+        "pbsvx",
+        "ppsvx",
+        "ptsvx",
+        "sysvx",
+        "hesvx",
+        "spsvx",
+        "hpsvx"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/mod.rs",
+      "note": "iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない"
+    },
+    {
+      "routines": [
+        "trsyl",
+        "trsyl3",
+        "tgsyl",
+        "tgsy2",
+        "lasy2",
+        "laln2",
+        "latrs",
+        "latrs3",
+        "latbs",
+        "latps",
+        "latdf"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/mod.rs",
+      "note": "専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない"
+    },
+    {
+      "routines": [
+        "ggsvd",
+        "ggsvd3",
+        "ggsvp",
+        "ggsvp3",
+        "tgsja",
+        "bbcsd",
+        "orcsd",
+        "orcsd2by1",
+        "uncsd",
+        "uncsd2by1",
+        "orbdb",
+        "unbdb"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/mod.rs",
+      "note": "GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない"
+    },
+    {
+      "routines": [
+        "gedmd",
+        "gedmdq"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/mod.rs",
+      "note": "Dynamic Mode Decomposition の公開 API はない"
+    },
+    {
+      "routines": [
+        "lartv",
+        "largv",
+        "lar2v",
+        "lasr"
+      ],
+      "status": "composition",
+      "api": "JacobiRotation / apply_on_the_left/right",
+      "source": "faer/src/linalg/jacobi.rs",
+      "note": "複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要"
+    },
+    {
+      "routines": [
+        "langb",
+        "langt",
+        "lanhb",
+        "lanhf",
+        "lanhp",
+        "lanht",
+        "lansb",
+        "lansf",
+        "lansp",
+        "lantb",
+        "lantp"
+      ],
+      "status": "representation",
+      "api": "matrix reductions",
+      "source": "faer/src/linalg/reductions/mod.rs",
+      "note": "band/packed/RFP/tridiagonal 格納を解釈してノルムを構成。誘導 1/∞ norm と elementwise norm の差に注意"
+    },
+    {
+      "routines": [
+        "tpttf",
+        "tpttr",
+        "trttf",
+        "trttp",
+        "tfttp",
+        "tfttr"
+      ],
+      "status": "composition",
+      "api": "MatRef/MatMut とコピー",
+      "source": "faer/src/mat/matref.rs",
+      "note": "LAPACK packed/RFP/triangle の格納変換。native solver ではなく adapter 側の配置処理"
+    },
+    {
+      "routines": [
+        "geequ",
+        "geequb",
+        "gbequ",
+        "gbequb",
+        "poequ",
+        "poequb",
+        "pbequ",
+        "ppequ",
+        "syequb",
+        "heequb"
+      ],
+      "status": "composition",
+      "api": "reduction と scale",
+      "source": "faer/src/linalg/reductions/mod.rs",
+      "note": "行列の尺度計算は還元から構成できる候補。Netlib の power-of-radix/SCOND/AMAX と安全範囲の検証が別途必要"
+    },
+    {
+      "routines": [
+        "tzrzf",
+        "tzrqf",
+        "larz",
+        "larzb",
+        "larzt",
+        "ormrz",
+        "unmrz",
+        "latrz",
+        "latzm"
+      ],
+      "status": "composition",
+      "api": "QR/LQ / householder",
+      "source": "faer/src/linalg/householder.rs",
+      "note": "専用 RZ factorization API はない。軸変換と reflector の追加構成候補であり契約の互換性は未検証"
+    },
+    {
+      "routines": [
+        "sytri2",
+        "sytri2x",
+        "sytrs2",
+        "hetri2",
+        "hetri2x",
+        "hetrs2"
+      ],
+      "status": "representation",
+      "api": "Lblt / inverse / solve",
+      "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
+      "note": "標準 Bunch-Kaufman と数学的には対応。分離 D と LAPACK の因子保存の変換が必要。複素対称 SY 系は対象外"
+    },
+    {
+      "routines": [
+        "tpqrt",
+        "tpqrt2",
+        "tpmqrt",
+        "tplqt",
+        "tplqt2",
+        "tpmlqt",
+        "tprfb"
+      ],
+      "status": "representation",
+      "api": "QR/LQ と block Householder",
+      "source": "faer/src/linalg/householder.rs",
+      "note": "triangular-pentagonal 専用 API はない。構造付き入力と T/reflector 表現の変換を要する接続候補"
+    },
+    {
+      "routines": [
+        "orm22",
+        "unm22"
+      ],
+      "status": "composition",
+      "api": "block matmul",
+      "source": "faer/src/linalg/matmul/mod.rs",
+      "note": "2x2 block orthogonal/unitary 行列の適用はブロック積で構成可能。専用 LAPACK 入口はない"
+    }
+  ]
+}

@@ -12,8 +12,8 @@
 | RustCall でバインディングを生成する | Cargo で BLAS ABI 共有ライブラリをビルドする |
 | 専用の分解・疎行列・反復法・NPY API を使う | これらの Colmat API は削除。利用側で対応する Julia API を選ぶ |
 
-通常配列の `lu` / `svd` などは既存の LAPACK を使います。
-旧版の Rust colmat 分解と同じ実装を選択する移行先という意味ではありません。
+通常配列の LU・SVD・一般／自己随伴固有値・Cholesky は LAPACK ABI を経由して
+colmat-rs の分解を使います。旧専用型 API の互換層を提供する変更ではありません。
 
 ## 旧資料
 

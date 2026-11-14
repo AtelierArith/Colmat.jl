@@ -14,8 +14,9 @@ backend_library() = abspath(_library)
 """
     load_backend(; verbose=false)
 
-Install Colmat's LP64 and ILP64 BLAS symbols in libblastrampoline for this process.
-Existing forwards for unprovided routines (including LAPACK) are preserved.
+Install Colmat's LP64 and ILP64 BLAS/LAPACK symbols in libblastrampoline for this process.
+Existing forwards for unprovided routines are preserved. GEEVX uses the saved
+backend for expert condition estimates; its SENSE=N path runs in colmat.
 Call again to select Colmat after loading another BLAS provider. Configure the
 backend before starting concurrent BLAS work.
 """
@@ -29,8 +30,26 @@ function load_backend(; verbose::Bool=false)
             _handle[] = Libdl.dlopen(path, Libdl.RTLD_LAZY | Libdl.RTLD_LOCAL)
         end
         abi = ccall(Libdl.dlsym(_handle[], :colmat_blas_abi_version), Cint, ())
-        abi == 1 ||
+        abi == 2 ||
             error("Unsupported Colmat BLAS ABI $abi; rebuild Colmat and restart Julia.")
+        # Expert GEEVX condition estimates have no matching public colmat API.
+        # Retain the previous implementation for SENSE=E/V/B; SENSE=N is native.
+        register = Libdl.dlsym(_handle[], :colmat_lapack_set_expert_fallback)
+        for (id, prefix) in enumerate(("s", "d", "c", "z")), interface in (:lp64, :ilp64)
+            symbol = prefix * "geevx_"
+            previous = BLAS.lbt_find_backing_library(symbol, interface)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, interface)
+                ccall(
+                    register,
+                    Cvoid,
+                    (Cint, Cint, Ptr{Cvoid}),
+                    id - 1,
+                    interface === :ilp64 ? 64 : 32,
+                    pointer,
+                )
+            end
+        end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
         # Detect ILP64 first, then LP64, preserving the existing fallback table.
         for suffix in ("64_", "")
