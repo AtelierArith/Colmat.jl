@@ -15,6 +15,7 @@ mod lq;
 mod qr;
 mod qr_pivoted;
 mod rz;
+mod schur;
 mod threading;
 
 use std::cell::Cell;
