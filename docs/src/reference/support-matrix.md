@@ -104,3 +104,22 @@ LARFB は内部で basis と次数の二乗の明示的な反射行列を確保�
 呼び出し側の最小合法 WORK で動作しますが、作業領域だけを使う実装や
 LAPACK と同じ計算量・割り当て量を保証するものではありません。
 この接続は Fortran ABI に限定し、LAPACKE は別タスクです。
+
+## Compact QR 接続（#290）
+
+Julia 1.13.3 / x86_64-apple-darwin と上記固定 colmat-rs revision で、
+通常の `qr(A)`、`Matrix(F.Q)`、Q/Q' の左右適用を Colmat の
+GEQRT/GEMQRT 入口に接続しました。既存 Linux snapshot の未接続という
+記録は、その時点の結果として保持しています。
+
+`test/qr_compact.jl` は4型、LP64/ILP64 の具体的な C 署名、NB=1/2/4、
+GEQRT2/GEQRT3、外部 OpenBLAS の因子との双方向相互運用、leading dimension、
+空行列、ゼロ列・従属列、極小尺度、不正引数を検証します。
+これらの入口には LWORK query はありません。WORK は標準の最小長で実行します。
+
+native QR は各 active column に適用し、実数の native 係数の逆数から
+LAPACK の T を構成します。これにより、native の rank 処理がゼロ列を
+詰める場合も LAPACK の対角位置を保ちます。複素 R の対角位相を保持し、
+Q と R の積・外部 LAPACK による反射適用を検証します。
+GEQRT3 も共通の数値経路を使い、Netlib の再帰算法とは異なります。
+内部配列を確保し、GEMQRT は各ブロックを明示的に展開します。

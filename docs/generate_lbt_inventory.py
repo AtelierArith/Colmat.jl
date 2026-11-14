@@ -134,6 +134,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     'GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。','',
     '## 今回接続した LAPACK','',
     '| 系列 | 数値処理 | 制約 |','|---|---|---|',
+    '| GEQRT / GEQRT2 / GEQRT3 / GEMQRT | native QR の係数変換とブロック反射適用 | 内部配列を確保。GEQRT3 は共通経路を使用 |',
     '| GETRF / GETRF2 / GETF2 / GETRS / GETRI / GESV | colmat-rs LU・三角 solve | 最終置換を IPIV に変換 |',
     '| POTRF / POTRF2 / POTF2 / POTRS / POTRI / POSV | colmat-rs LLT・三角 solve | UPLO と INFO を変換 |',
     '| GESDD / GESVD | colmat-rs SVD | full/thin/overwrite と VT を変換。両 driver は共通 native SVD に接続 |',
