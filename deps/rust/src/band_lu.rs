@@ -93,6 +93,78 @@ pub(crate) unsafe fn factor<T: Scalar>(
     (pivots, info)
 }
 
+unsafe fn solve<T: Scalar>(
+    n: usize,
+    kl: usize,
+    ku: usize,
+    ab: *const T,
+    ld: usize,
+    pivots: &[usize],
+    b: *mut T,
+    ldb: usize,
+    nrhs: usize,
+    tr: u8,
+) {
+    if n == 0 || nrhs == 0 {
+        return;
+    }
+    let kv = kl + ku;
+    let swap = |j: usize| {
+        for c in 0..nrhs {
+            std::ptr::swap(b.add(j + c * ldb), b.add(pivots[j] + c * ldb));
+        }
+    };
+    if tr == b'N' {
+        for j in 0..n {
+            swap(j);
+            let km = kl.min(n - j - 1);
+            if km > 0 {
+                let left = MatRef::from_raw_parts(ab.add(kv + 1 + j * ld), km, 1, 1, 0);
+                let right = MatRef::from_raw_parts(b.add(j), 1, nrhs, 0, ldb as isize);
+                let target = MatMut::from_raw_parts_mut(b.add(j + 1), km, nrhs, 1, ldb as isize);
+                crate::threading::with_par(|par| {
+                    colmat::linalg::matmul::matmul_with_conj(
+                        target,
+                        Accum::Add,
+                        left,
+                        Conj::No,
+                        right,
+                        Conj::No,
+                        -T::o(),
+                        par,
+                    );
+                });
+            }
+        }
+    }
+    for c in 0..nrhs {
+        crate::structured_triangular::solve_upper_band(n, kv, ab, ld, b.add(c * ldb), tr);
+    }
+    if tr != b'N' {
+        for j in (0..n).rev() {
+            let km = kl.min(n - j - 1);
+            if km > 0 {
+                let left = MatRef::from_raw_parts(ab.add(kv + 1 + j * ld), 1, km, 0, 1);
+                let right = MatRef::from_raw_parts(b.add(j + 1), km, nrhs, 1, ldb as isize);
+                let target = MatMut::from_raw_parts_mut(b.add(j), 1, nrhs, 0, ldb as isize);
+                crate::threading::with_par(|par| {
+                    colmat::linalg::matmul::matmul_with_conj(
+                        target,
+                        Accum::Add,
+                        left,
+                        if tr == b'C' { Conj::Yes } else { Conj::No },
+                        right,
+                        Conj::No,
+                        -T::o(),
+                        par,
+                    );
+                });
+            }
+            swap(j);
+        }
+    }
+}
+
 macro_rules! exports {
     ($p:ident,$t:ty,$i:ty,$suffix:tt) => {
         paste::paste! {
@@ -127,6 +199,46 @@ macro_rules! exports {
                 ab: *mut $t, ld: *const $i, piv: *mut $i, info: *mut $i,
             ) {
                 [<$p gbtrf $suffix>](m,n,kl,ku,ab,ld,piv,info);
+            }
+            #[no_mangle]
+            pub unsafe extern "C" fn [<$p gbtrs $suffix>](
+                tr: *const u8, n: *const $i, kl: *const $i, ku: *const $i,
+                nrhs: *const $i, ab: *const $t, ld: *const $i, piv: *const $i,
+                b: *mut $t, ldb: *const $i, info: *mut $i,
+            ) {
+                *info=0;
+                let (tr,n,kl,ku,nrhs,ld,ldb)=(crate::kernels::flag(tr),*n as isize,*kl as isize,*ku as isize,*nrhs as isize,*ld as isize,*ldb as isize);
+                let required=kl.checked_mul(2).and_then(|v|v.checked_add(ku)).and_then(|v|v.checked_add(1));
+                for (arg,valid) in [
+                    (1,crate::kernels::trans(tr)),(2,n>=0),(3,kl>=0),(4,ku>=0),
+                    (5,nrhs>=0),(7,required.is_some_and(|required|ld>=required)),
+                    (10,ldb>=n.max(1)),
+                ] {
+                    if !valid { crate::lapack::bad(&mut *info,arg);return; }
+                }
+                if n==0 || nrhs==0 { return; }
+                let pivots: Vec<usize>=(0..n as usize).map(|j|(*piv.add(j) as usize)-1).collect();
+                solve(n as usize,kl as usize,ku as usize,ab,ld as usize,&pivots,b,ldb as usize,nrhs as usize,tr);
+            }
+            #[no_mangle]
+            pub unsafe extern "C" fn [<$p gbsv $suffix>](
+                n: *const $i, kl: *const $i, ku: *const $i, nrhs: *const $i,
+                ab: *mut $t, ld: *const $i, piv: *mut $i, b: *mut $t,
+                ldb: *const $i, info: *mut $i,
+            ) {
+                *info=0;
+                let required=(*kl as isize).checked_mul(2).and_then(|v|v.checked_add(*ku as isize)).and_then(|v|v.checked_add(1));
+                for (arg,valid) in [
+                    (1,*n>=0),(2,*kl>=0),(3,*ku>=0),(4,*nrhs>=0),
+                    (6,required.is_some_and(|required|*ld as isize>=required)),
+                    (9,*ldb>=(*n).max(1)),
+                ] {
+                    if !valid { crate::lapack::bad(&mut *info,arg);return; }
+                }
+                [<$p gbtrf $suffix>](n,n,kl,ku,ab,ld,piv,info);
+                if *info==0 {
+                    [<$p gbtrs $suffix>](b"N".as_ptr(),n,kl,ku,nrhs,ab,ld,piv,b,ldb,info);
+                }
             }
         }
     };
@@ -286,6 +398,107 @@ mod tests {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn band_solve_recovers_known_rhs_for_all_transposes() {
+        for n in 1usize..8 {
+            for kl in 0usize..4 {
+                for ku in 0usize..4 {
+                    let kv = kl + ku;
+                    let ld = kl + kv + 2;
+                    let ldb = n + 2;
+                    let mut original = vec![0.0f64; n * n];
+                    let mut ab = vec![f64::NAN; ld * n];
+                    for j in 0..n {
+                        for i in j.saturating_sub(ku)..n.min(j + kl + 1) {
+                            let value = if i == j {
+                                12.0
+                            } else {
+                                (i as f64 - j as f64) / 4.0
+                            };
+                            original[i + j * n] = value;
+                            ab[kv + i - j + j * ld] = value;
+                        }
+                    }
+                    let (p, info) = unsafe { factor(n, n, kl, ku, ab.as_mut_ptr(), ld) };
+                    assert_eq!(info, 0);
+                    for tr in [b'N', b'T', b'C'] {
+                        let mut b = vec![999.0; ldb * 2];
+                        for c in 0..2 {
+                            for i in 0..n {
+                                b[i + c * ldb] = (0..n)
+                                    .map(|j| {
+                                        let a = if tr == b'N' {
+                                            original[i + j * n]
+                                        } else {
+                                            original[j + i * n]
+                                        };
+                                        a * (1.0 + j as f64 / 8.0 + c as f64)
+                                    })
+                                    .sum();
+                            }
+                        }
+                        unsafe {
+                            solve(n, kl, ku, ab.as_ptr(), ld, &p, b.as_mut_ptr(), ldb, 2, tr);
+                        }
+                        for c in 0..2 {
+                            for i in 0..n {
+                                let expected = 1.0 + i as f64 / 8.0 + c as f64;
+                                assert!((b[i + c * ldb] - expected).abs() < 1e-12);
+                            }
+                            assert_eq!(&b[n + c * ldb..(c + 1) * ldb], &[999.0, 999.0]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn complex_band_solve_reverses_pivots_and_conjugates_both_factors() {
+        use colmat::c64;
+        let z = c64::new(0.0, 0.0);
+        let original = [
+            z,
+            c64::new(3.0, 2.0),
+            z,
+            c64::new(2.0, -1.0),
+            c64::new(4.0, 1.0),
+            c64::new(6.0, -2.0),
+            z,
+            c64::new(5.0, 1.0),
+            c64::new(7.0, 3.0),
+        ];
+        let mut ab = [c64::new(f64::NAN, f64::NAN); 12];
+        for j in 0usize..3 {
+            for i in j.saturating_sub(1)..3.min(j + 2) {
+                ab[2 + i - j + j * 4] = original[i + j * 3];
+            }
+        }
+        let (p, info) = unsafe { factor(3, 3, 1, 1, ab.as_mut_ptr(), 4) };
+        assert_eq!(info, 0);
+        assert_eq!(p[0], 1);
+        let x = [c64::new(1.0, 2.0), c64::new(3.0, -1.0), c64::new(-2.0, 1.0)];
+        for tr in [b'N', b'T', b'C'] {
+            let mut b = [z; 3];
+            for i in 0..3 {
+                for j in 0..3 {
+                    let a = if tr == b'N' {
+                        original[i + j * 3]
+                    } else {
+                        original[j + i * 3]
+                    };
+                    b[i] += if tr == b'C' { a.cj() } else { a } * x[j];
+                }
+            }
+            unsafe {
+                solve(3, 1, 1, ab.as_ptr(), 4, &p, b.as_mut_ptr(), 3, 1, tr);
+            }
+            for i in 0..3 {
+                assert!((b[i] - x[i]).magnitude() < 1e-12);
             }
         }
     }

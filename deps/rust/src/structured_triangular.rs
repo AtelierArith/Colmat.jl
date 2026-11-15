@@ -182,6 +182,29 @@ unsafe fn apply<T: Scalar>(
         }
     }
 }
+/// Internal LAPACK adapter: an upper band factor with a contiguous RHS.
+/// Argument validation and zero-size handling belong to the caller.
+pub(crate) unsafe fn solve_upper_band<T: Scalar>(
+    n: usize,
+    width: usize,
+    a: *const T,
+    ld: usize,
+    x: *mut T,
+    tr: u8,
+) {
+    apply(
+        false,
+        tr,
+        false,
+        n,
+        a,
+        Storage::Band { width, ld },
+        x,
+        1,
+        true,
+    );
+}
+
 macro_rules! check {($($arg:expr=>$valid:expr),+)=>{$(if !$valid{crate::invalid($arg);return;})+};}
 macro_rules! exports {
  ($p:ident,$t:ty,$i:ty,$suffix:tt,$band:ident,$packed:ident,$solve:expr)=>{paste!{
