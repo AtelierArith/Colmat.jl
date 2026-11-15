@@ -48,7 +48,7 @@ pub(crate) unsafe fn factor<T: GeneralizedScalar + ReflectorScalar, R: PtReal>(
             return j + 1;
         }
         let original = *e.add(j);
-        if original == T::z() {
+        if original == T::z() && !pivot.re().is_nan() {
             continue;
         }
         let (normalized_d, normalized_e) = if pivot.re().is_finite() {
@@ -187,6 +187,249 @@ mod tests {
                 factor::<f64, f64>(2, d.as_mut_ptr(), std::ptr::null_mut()),
                 1
             );
+        }
+    }
+}
+
+fn band_fits<T: Scalar>(n: usize) -> bool {
+    n.checked_mul(2)
+        .and_then(|count| count.checked_mul(std::mem::size_of::<T>()))
+        .is_some_and(|bytes| bytes <= isize::MAX as usize)
+}
+fn stride_fits<T: Scalar>(nrhs: usize, ldb: isize) -> bool {
+    nrhs <= 1 || ldb.checked_mul(if T::COMPLEX { 2 } else { 1 }).is_some()
+}
+// Canonical T/R pairs are (f32,f32),(f64,f64),(c32,f32),(c64,f64).
+unsafe fn solve<T: GeneralizedScalar + ReflectorScalar, R: PtReal>(
+    n: usize,
+    nrhs: usize,
+    upper: bool,
+    d: *const R,
+    e: *const T,
+    b: *mut T,
+    ldb: usize,
+) {
+    if n == 0 || nrhs == 0 {
+        return;
+    }
+    let mut band = vec![T::z(); 2 * n];
+    for j in 0..n - 1 {
+        band[2 * j + 1] = if upper { (*e.add(j)).cj() } else { *e.add(j) };
+    }
+    for c in 0..nrhs {
+        crate::structured_triangular::solve_unit_lower_band(
+            n,
+            1,
+            band.as_ptr(),
+            2,
+            b.add(c * ldb),
+            b'N',
+        );
+    }
+    let components = if T::COMPLEX { 2 } else { 1 };
+    let raw = b.cast::<R>();
+    let column_stride = if nrhs == 1 { 0 } else { ldb * components };
+    for j in 0..n {
+        let pivot = *d.add(j);
+        let normalized = if pivot.re().is_finite() && pivot.re() != 0.0 {
+            let shift = -(exponent(pivot.re().abs()) + 1);
+            for c in 0..nrhs {
+                for part in 0..components {
+                    let entry = raw.add((j + c * ldb) * components + part);
+                    *entry = scale_pow2(*entry, shift);
+                }
+            }
+            scale_pow2(pivot, shift)
+        } else {
+            for c in 0..nrhs {
+                for part in 0..components {
+                    let entry = raw.add((j + c * ldb) * components + part);
+                    *entry = *entry / pivot;
+                }
+            }
+            R::o()
+        };
+        for part in 0..components {
+            crate::threading::with_par(|par| {
+                colmat::linalg::triangular_solve::solve_lower_triangular_in_place(
+                    MatRef::from_raw_parts(&normalized, 1, 1, 1, 1),
+                    MatMut::from_raw_parts_mut(
+                        raw.add(j * components + part),
+                        1,
+                        nrhs,
+                        0,
+                        column_stride as isize,
+                    ),
+                    par,
+                );
+            });
+        }
+    }
+    for c in 0..nrhs {
+        crate::structured_triangular::solve_unit_lower_band(
+            n,
+            1,
+            band.as_ptr(),
+            2,
+            b.add(c * ldb),
+            b'C',
+        );
+    }
+}
+macro_rules! valid {($info:expr,$($arg:expr=>$test:expr),+)=>{$(if !$test{crate::lapack::bad(&mut *$info,$arg);return;})+};}
+macro_rules! common_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt)=>{paste::paste!{
+    #[no_mangle]
+    pub unsafe extern "C" fn [<$p pttrf $s>](n:*const $i,d:*mut $r,e:*mut $t,info:*mut $i) {
+        *info=0;valid!(info,1=>*n>=0);if *n==0{return;}
+        *info=factor(*n as usize,d,e)as $i;
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn [<$p ptsv $s>](n:*const $i,nrhs:*const $i,d:*mut $r,e:*mut $t,b:*mut $t,ldb:*const $i,info:*mut $i) {
+        *info=0;valid!(info,1=>*n>=0,2=>*nrhs>=0,6=>*ldb>=(*n).max(1));
+        let(n,k)=(*n as usize,*nrhs as usize);if n==0{return;}
+        if k>0 {valid!(info,1=>band_fits::<$t>(n),6=>stride_fits::<$t>(k,*ldb as isize));}
+        *info=factor(n,d,e)as $i;
+        if *info==0{solve(n,k,false,d,e,b,*ldb as usize);}
+    }
+}};}
+macro_rules! real_exports {($p:ident,$t:ty,$i:ty,$s:tt)=>{
+    common_exports!($p,$t,$t,$i,$s);
+    paste::paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p pttrs $s>](n:*const $i,nrhs:*const $i,d:*const $t,e:*const $t,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;valid!(info,1=>*n>=0,2=>*nrhs>=0,6=>*ldb>=(*n).max(1));
+            let(n,k)=(*n as usize,*nrhs as usize);if n==0||k==0{return;}
+            valid!(info,1=>band_fits::<$t>(n),6=>stride_fits::<$t>(k,*ldb as isize));
+            solve(n,k,false,d,e,b,*ldb as usize);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p ptts2 $s>](n:*const $i,nrhs:*const $i,d:*const $t,e:*const $t,b:*mut $t,ldb:*const $i) {
+            for(arg,test)in[(1,*n>=0),(2,*nrhs>=0),(6,*ldb>=(*n).max(1))]{if !test{crate::invalid(arg);return;}}
+            let(n,k)=(*n as usize,*nrhs as usize);if n==0||k==0{return;}
+            for(arg,test)in[(1,band_fits::<$t>(n)),(6,stride_fits::<$t>(k,*ldb as isize))]{if !test{crate::invalid(arg);return;}}
+            solve(n,k,false,d,e,b,*ldb as usize);
+        }
+    }
+};}
+macro_rules! complex_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt)=>{
+    common_exports!($p,$t,$r,$i,$s);
+    paste::paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p pttrs $s>](u:*const u8,n:*const $i,nrhs:*const $i,d:*const $r,e:*const $t,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;let u=crate::kernels::flag(u);valid!(info,1=>crate::kernels::uplo(u),2=>*n>=0,3=>*nrhs>=0,7=>*ldb>=(*n).max(1));
+            let(n,k)=(*n as usize,*nrhs as usize);if n==0||k==0{return;}
+            valid!(info,2=>band_fits::<$t>(n),7=>stride_fits::<$t>(k,*ldb as isize));
+            solve(n,k,u==b'U',d,e,b,*ldb as usize);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p ptts2 $s>](iu:*const $i,n:*const $i,nrhs:*const $i,d:*const $r,e:*const $t,b:*mut $t,ldb:*const $i) {
+            for(arg,test)in[(1,matches!(*iu,0|1)),(2,*n>=0),(3,*nrhs>=0),(7,*ldb>=(*n).max(1))]{if !test{crate::invalid(arg);return;}}
+            let(n,k)=(*n as usize,*nrhs as usize);if n==0||k==0{return;}
+            for(arg,test)in[(2,band_fits::<$t>(n)),(7,stride_fits::<$t>(k,*ldb as isize))]{if !test{crate::invalid(arg);return;}}
+            solve(n,k,*iu==1,d,e,b,*ldb as usize);
+        }
+    }
+};}
+real_exports!(s, f32, i32, _);
+real_exports!(d, f64, i32, _);
+complex_exports!(c, colmat::c32, f32, i32, _);
+complex_exports!(z, colmat::c64, f64, i32, _);
+real_exports!(s, f32, i64, _64_);
+real_exports!(d, f64, i64, _64_);
+complex_exports!(c, colmat::c32, f32, i64, _64_);
+complex_exports!(z, colmat::c64, f64, i64, _64_);
+
+#[cfg(test)]
+mod solve_tests {
+    use super::*;
+    #[test]
+    fn nan_pivot_propagates_even_with_zero_off_diagonal() {
+        unsafe {
+            let mut d = [f64::NAN, 2.0];
+            let mut e = [0.0f64];
+            assert_eq!(factor(2, d.as_mut_ptr(), e.as_mut_ptr()), 0);
+            assert!(d[1].is_nan());
+            assert!(e[0].is_nan());
+        }
+    }
+    #[test]
+    fn tiny_and_max_diagonal_scaling_remains_representable() {
+        unsafe {
+            for value in [f64::from_bits(1), f64::MAX] {
+                let d = [value];
+                let mut b = [value];
+                solve::<f64, f64>(
+                    1,
+                    1,
+                    false,
+                    d.as_ptr(),
+                    std::ptr::null(),
+                    b.as_mut_ptr(),
+                    usize::MAX,
+                );
+                assert_eq!(b, [1.0]);
+            }
+            let tiny = f32::from_bits(1);
+            let d = [tiny];
+            let mut b = [colmat::c32::new(tiny, -tiny)];
+            solve::<colmat::c32, f32>(1, 1, false, d.as_ptr(), std::ptr::null(), b.as_mut_ptr(), 1);
+            assert_eq!(b, [colmat::c32::new(1.0, -1.0)]);
+        }
+    }
+    #[test]
+    fn complex_upper_and_lower_use_distinct_conjugation() {
+        use colmat::c64;
+        let d = [2.0f64, 3.0];
+        let e = [c64::new(0.25, 0.5)];
+        let x = [c64::new(1.0, 2.0), c64::new(-1.0, 1.0)];
+        for upper in [false, true] {
+            let lower = if upper { e[0].cj() } else { e[0] };
+            let a00 = c64::new(d[0], 0.0);
+            let a10 = lower * d[0];
+            let a11 = c64::new(d[1] + lower.magnitude().powi(2) * d[0], 0.0);
+            let mut b = [a00 * x[0] + a10.cj() * x[1], a10 * x[0] + a11 * x[1]];
+            unsafe {
+                solve(2, 1, upper, d.as_ptr(), e.as_ptr(), b.as_mut_ptr(), 2);
+            }
+            for i in 0..2 {
+                assert!((b[i] - x[i]).magnitude() < 1e-14);
+            }
+        }
+    }
+    #[test]
+    fn zero_rhs_and_ilp64_argument_checks_need_no_arrays() {
+        unsafe {
+            let mut info = 777i64;
+            let large = (1i64 << 32) + 1;
+            zpttrs_64_(
+                b"U".as_ptr(),
+                &large,
+                &0,
+                std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                &large,
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            zpttrf_64_(
+                &(-large),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut info,
+            );
+            assert_eq!(info, -1);
+            assert_eq!(crate::colmat_blas_last_error(), 1);
+            zptts2_64_(
+                &2,
+                &0,
+                &0,
+                std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                &1,
+            );
+            assert_eq!(crate::colmat_blas_last_error(), 1);
         }
     }
 }
