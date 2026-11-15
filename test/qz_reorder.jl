@@ -1,5 +1,12 @@
 using Test, LinearAlgebra, Random, Libdl, Colmat
 
+# Earlier LAPACK argument tests may leave the thread-local diagnostic set.
+# Begin this independent group with a clean state; every direct call below
+# consumes and checks the diagnostic produced by that call.
+ccall(
+    Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error), Cint, ()
+)
+
 for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
     J in (Int32, Int64)
 
@@ -45,6 +52,8 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         wantz=true,
         query=false,
         pointer=nothing,
+        lwork_override=nothing,
+        liwork_override=nothing,
     )
         n=size(a, 2)
         ar=fill($T(777), n)
@@ -56,8 +65,13 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         pl=fill($R(777), 1)
         pr=copy(pl)
         dif=fill($R(777), 2)
-        work=fill($T(777), max(1, 4n*n+4n+16))
-        iw=fill($J(-777), max(1, 2n*n+n+6))
+        work=fill(
+            $T(777), isnothing(lwork_override) ? max(1, 4n*n+4n+16) : max(1, lwork_override)
+        )
+        iw=fill(
+            $J(-777),
+            isnothing(liwork_override) ? max(1, 2n*n+n+6) : max(1, liwork_override),
+        )
         f=if isnothing(pointer)
             Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), $(QuoteNode(symbol)))
         else
@@ -86,9 +100,9 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
             pr,
             dif,
             work,
-            query ? -1 : length(work),
+            query ? -1 : (isnothing(lwork_override) ? length(work) : lwork_override),
             iw,
-            length(iw),
+            isnothing(liwork_override) ? length(iw) : liwork_override,
             info,
         )
         return (;
@@ -565,6 +579,8 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         integer_query=false,
         use_callback=true,
         pointer=nothing,
+        lwork_override=nothing,
+        liwork_override=nothing,
     )
         n=size(a, 2)
         ar=fill($T(777), n)
@@ -574,9 +590,14 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         info=Ref{$J}(-777)
         rconde=fill($R(777), 2)
         rcondv=copy(rconde)
-        work=fill($T(777), max(1, 4n*n+8n+16))
+        work=fill(
+            $T(777), isnothing(lwork_override) ? max(1, 4n*n+8n+16) : max(1, lwork_override)
+        )
         rw=fill($R(777), max(1, 8n))
-        iw=fill($J(-777), max(1, 2n*n+n+8))
+        iw=fill(
+            $J(-777),
+            isnothing(liwork_override) ? max(1, 2n*n+n+8) : max(1, liwork_override),
+        )
         bw=fill($J(-777), max(1, n))
         f=if isnothing(pointer)
             Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), $(QuoteNode(symbol)))
@@ -606,10 +627,14 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
             rconde,
             rcondv,
             work,
-            query ? -1 : length(work),
+            query ? -1 : (isnothing(lwork_override) ? length(work) : lwork_override),
             $(rwargs...),
             iw,
-            integer_query ? -1 : length(iw),
+            if integer_query
+                -1
+            else
+                (isnothing(liwork_override) ? length(iw) : liwork_override)
+            end,
             bw,
             info,
             1,

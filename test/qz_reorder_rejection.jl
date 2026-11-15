@@ -66,3 +66,43 @@ end
         @test result.pl==result.pr==R(777) && result.dif==fill(R(777), 2)
     end
 end
+
+@testset "QZ reorder exact minimum workspace payloads" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        J in (Int32, Int64), n in (0, 1, 4),
+        family in (:tgsen, :ggesx)
+
+        minimum=if family===:tgsen
+            (T<:Real ? 4n+16 : 1)
+        else
+            (n==0 ? 1 : (T<:Real ? max(8n, 6n+16) : 2n))
+        end
+        a=Matrix(Diagonal(T[iseven(i) ? -i : i for i in 1:n]))
+        b=Matrix{T}(I, n, n)
+        q=copy(b)
+        z=copy(b)
+        call=(lw, liw)->if family===:tgsen
+            direct_tgsen!(
+            a, b, q, z, iseven.(1:n), J; lwork_override=lw, liwork_override=liw
+        )
+        else
+            direct_ggesx!(a, b, q, z, J; lwork_override=lw, liwork_override=liw)
+        end
+        result=call(minimum, 1)
+        @test result.info==result.diagnostic==0
+        @test length(result.work)==minimum && length(result.iw)==1
+        @test result.work[1]==minimum && result.iw[1]==1
+        olda=copy(a)
+        oldb=copy(b)
+        oldq=copy(q)
+        oldz=copy(z)
+        result=call(minimum-1, 1)
+        @test result.info == (T<:Real ? -22 : -21)
+        @test result.diagnostic == (T<:Real ? 22 : 21)
+        @test a==olda && b==oldb && q==oldq && z==oldz
+        result=call(minimum, 0)
+        expected=family===:tgsen && T<:Complex ? 23 : 24
+        @test result.info == -expected && result.diagnostic==expected
+        @test a==olda && b==oldb && q==oldq && z==oldz
+    end
+end
