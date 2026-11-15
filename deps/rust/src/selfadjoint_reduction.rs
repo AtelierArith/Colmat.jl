@@ -2,8 +2,11 @@
 use crate::generalized_selfadjoint::{hermitian, GeneralizedScalar};
 use crate::householder::ReflectorScalar;
 use crate::kernels::Scalar;
+use crate::kernels::{flag, matrix_addressable};
+use crate::lapack::LapackInt;
 use colmat::dyn_stack::{MemBuffer, MemStack};
 use colmat::Mat;
+use paste::paste;
 
 // Native real reflectors have LAPACK's real-beta gauge. Complex native
 // reflectors need a separate real-E gauge adaptation before being exposed.
@@ -230,6 +233,128 @@ pub(crate) unsafe fn ordinary<T: ReflectorScalar + GeneralizedScalar, R: Scalar>
         composition(lower, n, n, a, lda, Some(d), e, tau, None);
     }
 }
+
+unsafe fn factor_driver<T: ReflectorScalar + GeneralizedScalar, R: Scalar, I: LapackInt>(
+    u: u8,
+    n: isize,
+    a: *mut T,
+    lda: isize,
+    d: *mut R,
+    e: *mut R,
+    tau: *mut T,
+    work: *mut T,
+    lwork: Option<isize>,
+    info: *mut I,
+) {
+    *info = I::from_i64(0);
+    for (arg, valid) in [
+        (1, matches!(u, b'U' | b'L')),
+        (2, n >= 0),
+        (4, lda >= n.max(1)),
+    ] {
+        if !valid {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return;
+        }
+    }
+    if let Some(lw) = lwork {
+        *work = T::o();
+        if lw != -1 && lw < 1 {
+            *info = I::from_i64(-9);
+            crate::invalid(9);
+            return;
+        }
+        if lw == -1 {
+            return;
+        }
+    }
+    if n == 0 {
+        return;
+    }
+    if !matrix_addressable::<T>(n, n, lda) {
+        *info = I::from_i64(-4);
+        crate::invalid(4);
+        return;
+    }
+    ordinary(u == b'L', n as usize, a, lda, d, e, tau);
+}
+unsafe fn panel_driver<T: ReflectorScalar + GeneralizedScalar, R: Scalar>(
+    u: u8,
+    n: isize,
+    nb: isize,
+    a: *mut T,
+    lda: isize,
+    e: *mut R,
+    tau: *mut T,
+    w: *mut T,
+    ldw: isize,
+) {
+    for (arg, valid) in [
+        (1, matches!(u, b'U' | b'L')),
+        (2, n >= 0),
+        (3, nb >= 0 && nb <= n),
+        (5, lda >= n.max(1)),
+        (9, ldw >= n.max(1)),
+    ] {
+        if !valid {
+            crate::invalid(arg);
+            return;
+        }
+    }
+    if n == 0 || nb == 0 {
+        return;
+    }
+    for (arg, valid) in [
+        (5, matrix_addressable::<T>(n, n, lda)),
+        (9, matrix_addressable::<T>(n, nb, ldw)),
+    ] {
+        if !valid {
+            crate::invalid(arg);
+            return;
+        }
+    }
+    composition(
+        u == b'L',
+        n as usize,
+        nb as usize,
+        a,
+        lda,
+        None,
+        e,
+        tau,
+        Some((w, ldw)),
+    );
+}
+macro_rules! exports {
+    ($p:ident,$trd:ident,$td2:ident,$t:ty,$r:ty,$i:ty,$suffix:tt)=>{paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $trd $suffix>](u:*const u8,n:*const $i,a:*mut $t,lda:*const $i,
+            d:*mut $r,e:*mut $r,tau:*mut $t,work:*mut $t,lwork:*const $i,info:*mut $i) {
+            factor_driver(flag(u),*n as isize,a,*lda as isize,d,e,tau,work,Some(*lwork as isize),info);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $td2 $suffix>](u:*const u8,n:*const $i,a:*mut $t,lda:*const $i,
+            d:*mut $r,e:*mut $r,tau:*mut $t,info:*mut $i) {
+            factor_driver(flag(u),*n as isize,a,*lda as isize,d,e,tau,std::ptr::null_mut(),None,info);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p latrd $suffix>](u:*const u8,n:*const $i,nb:*const $i,a:*mut $t,
+            lda:*const $i,e:*mut $r,tau:*mut $t,w:*mut $t,ldw:*const $i) {
+            panel_driver(flag(u),*n as isize,*nb as isize,a,*lda as isize,e,tau,w,*ldw as isize);
+        }
+    }};
+}
+macro_rules! abi {
+    ($i:ty,$suffix:tt) => {
+        exports!(s, sytrd, sytd2, f32, f32, $i, $suffix);
+        exports!(d, sytrd, sytd2, f64, f64, $i, $suffix);
+        exports!(c, hetrd, hetd2, colmat::c32, f32, $i, $suffix);
+        exports!(z, hetrd, hetd2, colmat::c64, f64, $i, $suffix);
+    };
+}
+abi!(i32, "_");
+abi!(i64, "_64_");
 
 #[cfg(test)]
 mod tests {
