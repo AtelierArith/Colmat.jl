@@ -26,9 +26,18 @@ julia> Colmat.set_num_threads(saved)
 初期値は `using Colmat` した時点の `BLAS.get_num_threads()` の値です。
 `Colmat.set_num_threads(n)` は `1:typemax(Cint)` の整数を受け取り、
 範囲外には `ArgumentError` を返します。
-`Colmat.get_num_threads()` は Colmat の設定値を返します。
-`BLAS.get_num_threads()` はロード済みライブラリ全体を対象にするため、
-Colmat だけを変更した場合は値が一致しないことがあります。
+`Colmat.get_num_threads()` は Colmat 自身の設定値を返します。
+`BLAS.get_num_threads()` は LBT が保持する値を返すため、両者は別物です。
+`Colmat.set_num_threads(n)` だけを呼んでも LBT の記録値は更新されません。
+
+```julia
+BLAS.set_num_threads(8)     # colmat=8, BLAS.get_num_threads() == 8
+Colmat.set_num_threads(3)   # colmat=3, BLAS.get_num_threads() は 8 のまま
+```
+
+逆向きの `BLAS.set_num_threads(n)` は、LBT に登録済みの各バックエンドの setter を
+呼ぶため、Colmat の設定値も `n` になります。全体を揃えたいときは
+`BLAS.set_num_threads(n)` を使ってください。
 
 ## 実行幅とプール
 
