@@ -249,3 +249,147 @@ mod rfp_tests {
         }
     }
 }
+
+fn fits_dense<T: GeneralizedScalar>(n: usize) -> bool {
+    n.checked_mul(n)
+        .and_then(|count| count.checked_mul(std::mem::size_of::<T>()))
+        .is_some_and(|bytes| bytes <= isize::MAX as usize)
+}
+fn rfp_flag<T: GeneralizedScalar>(trr: u8) -> bool {
+    trr == b'N' || trr == if T::COMPLEX { b'C' } else { b'T' }
+}
+macro_rules! valid {($info:expr,$($arg:expr=>$test:expr),+)=>{$(if !$test{crate::lapack::bad(&mut *$info,$arg);return;})+};}
+macro_rules! packed_factor_export {($p:ident,$family:ident,$op:ident,$t:ty,$i:ty,$s:tt)=>{paste::paste!{
+    #[no_mangle]
+    pub unsafe extern "C" fn [<$p $family $s>](u:*const u8,n:*const $i,a:*mut $t,info:*mut $i) {
+        *info=0;let u=crate::kernels::flag(u);valid!(info,1=>crate::kernels::uplo(u),2=>*n>=0);
+        let n=*n as usize;if n==0{return;}valid!(info,2=>fits_dense::<$t>(n));
+        *info=$op(n,u==b'L',TriangleStorage::Packed,a)as $i;
+    }
+}};}
+macro_rules! rfp_factor_export {($p:ident,$family:ident,$op:ident,$t:ty,$i:ty,$s:tt)=>{paste::paste!{
+    #[no_mangle]
+    pub unsafe extern "C" fn [<$p $family $s>](trr:*const u8,u:*const u8,n:*const $i,a:*mut $t,info:*mut $i) {
+        *info=0;let(trr,u)=(crate::kernels::flag(trr),crate::kernels::flag(u));
+        valid!(info,1=>rfp_flag::<$t>(trr),2=>crate::kernels::uplo(u),3=>*n>=0);
+        let n=*n as usize;if n==0{return;}valid!(info,3=>fits_dense::<$t>(n));
+        *info=$op(n,u==b'L',TriangleStorage::Rfp{transposed:trr!=b'N'},a)as $i;
+    }
+}};}
+macro_rules! exports {($p:ident,$t:ty,$i:ty,$s:tt)=>{
+    packed_factor_export!($p,pptrf,factor,$t,$i,$s);packed_factor_export!($p,pptri,inverse,$t,$i,$s);
+    rfp_factor_export!($p,pftrf,factor,$t,$i,$s);rfp_factor_export!($p,pftri,inverse,$t,$i,$s);
+    paste::paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p pptrs $s>](u:*const u8,n:*const $i,nrhs:*const $i,a:*const $t,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;let u=crate::kernels::flag(u);
+            valid!(info,1=>crate::kernels::uplo(u),2=>*n>=0,3=>*nrhs>=0,6=>*ldb>=(*n).max(1));
+            let(n,nrhs)=(*n as usize,*nrhs as usize);if n==0||nrhs==0{return;}valid!(info,2=>fits_dense::<$t>(n));
+            solve(n,nrhs,u==b'L',TriangleStorage::Packed,a,b,*ldb as usize);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p pftrs $s>](trr:*const u8,u:*const u8,n:*const $i,nrhs:*const $i,a:*const $t,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;let(trr,u)=(crate::kernels::flag(trr),crate::kernels::flag(u));
+            valid!(info,1=>rfp_flag::<$t>(trr),2=>crate::kernels::uplo(u),3=>*n>=0,4=>*nrhs>=0,7=>*ldb>=(*n).max(1));
+            let(n,nrhs)=(*n as usize,*nrhs as usize);if n==0||nrhs==0{return;}valid!(info,3=>fits_dense::<$t>(n));
+            solve(n,nrhs,u==b'L',TriangleStorage::Rfp{transposed:trr!=b'N'},a,b,*ldb as usize);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p ppsv $s>](u:*const u8,n:*const $i,nrhs:*const $i,a:*mut $t,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;let flag=crate::kernels::flag(u);
+            valid!(info,1=>crate::kernels::uplo(flag),2=>*n>=0,3=>*nrhs>=0,6=>*ldb>=(*n).max(1));
+            [<$p pptrf $s>](u,n,a,info);if *info==0{[<$p pptrs $s>](u,n,nrhs,a,b,ldb,info);}
+        }
+    }
+};}
+exports!(s, f32, i32, _);
+exports!(d, f64, i32, _);
+exports!(c, colmat::c32, i32, _);
+exports!(z, colmat::c64, i32, _);
+exports!(s, f32, i64, _64_);
+exports!(d, f64, i64, _64_);
+exports!(c, colmat::c32, i64, _64_);
+exports!(z, colmat::c64, i64, _64_);
+
+#[cfg(test)]
+mod abi_tests {
+    use super::*;
+    use crate::kernels::Scalar;
+    #[test]
+    fn empty_rhs_and_unrepresentable_workspace_do_not_read_arrays() {
+        unsafe {
+            let mut info = 777i64;
+            dpptrf_64_(b"L".as_ptr(), &0, std::ptr::null_mut(), &mut info);
+            assert_eq!(info, 0);
+            dpptrs_64_(
+                b"U".as_ptr(),
+                &((1i64 << 32) + 1),
+                &0,
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                &((1i64 << 32) + 1),
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            dpftrs_64_(
+                b"T".as_ptr(),
+                b"L".as_ptr(),
+                &((1i64 << 32) + 1),
+                &0,
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                &((1i64 << 32) + 1),
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            dpptrf_64_(b"L".as_ptr(), &i64::MAX, std::ptr::null_mut(), &mut info);
+            assert_eq!(info, -2);
+            assert_eq!(crate::colmat_blas_last_error(), 2);
+            dpftrf_64_(
+                b"N".as_ptr(),
+                b"L".as_ptr(),
+                &(-(1i64 << 32) + 1),
+                std::ptr::null_mut(),
+                &mut info,
+            );
+            assert_eq!(info, -3);
+            assert_eq!(crate::colmat_blas_last_error(), 3);
+            zpftrf_64_(
+                b"T".as_ptr(),
+                b"L".as_ptr(),
+                &0,
+                std::ptr::null_mut(),
+                &mut info,
+            );
+            assert_eq!(info, -1);
+            assert_eq!(crate::colmat_blas_last_error(), 1);
+        }
+    }
+    #[test]
+    fn complex_rfp_folded_and_conjugate_transposed_layouts_solve() {
+        use colmat::c64;
+        let x = [c64::new(1.0, 1.0), c64::new(2.0, -1.0)];
+        for lower in [false, true] {
+            for transposed in [false, true] {
+                let off = c64::new(1.0, if lower ^ transposed { -2.0 } else { 2.0 });
+                let mut a = if lower {
+                    [c64::new(3.0, f64::NAN), c64::new(4.0, f64::NAN), off]
+                } else {
+                    [off, c64::new(3.0, f64::NAN), c64::new(4.0, f64::NAN)]
+                };
+                let mut b = [
+                    c64::new(4.0, 0.0) * x[0] + c64::new(1.0, 2.0) * x[1],
+                    c64::new(1.0, -2.0) * x[0] + c64::new(3.0, 0.0) * x[1],
+                ];
+                let layout = TriangleStorage::Rfp { transposed };
+                unsafe {
+                    assert_eq!(factor(2, lower, layout, a.as_mut_ptr()), 0);
+                    solve(2, 1, lower, layout, a.as_ptr(), b.as_mut_ptr(), 2);
+                }
+                for i in 0..2 {
+                    assert!((b[i] - x[i]).magnitude() < 1e-13);
+                }
+            }
+        }
+    }
+}
