@@ -142,17 +142,15 @@ unsafe fn compute<T: SchurVectors, R: Scalar, I: LapackInt>(
     *info = I::from_i64(0);
     let left = matches!(side, b'L' | b'B');
     let right = matches!(side, b'R' | b'B');
-    let minimum = match n.max(0).checked_mul(if T::COMPLEX { 2 } else { 3 }) {
-        Some(v) if core::mem::size_of::<I>() != 4 || v <= i32::MAX as isize => v.max(1),
-        _ => {
-            failure(info, 4);
-            return true;
-        }
-    };
+    let minimum = n
+        .max(0)
+        .checked_mul(if T::COMPLEX { 2 } else { 3 })
+        .filter(|&v| core::mem::size_of::<I>() != 4 || v <= i32::MAX as isize)
+        .map(|v| v.max(1));
     let real_min = n.max(1);
     let query = blocked && (lwork == -1 || (T::COMPLEX && lrwork == -1));
     if blocked {
-        *work = crate::lapack::workspace::<T>(minimum);
+        *work = crate::lapack::workspace::<T>(minimum.unwrap_or(1));
         if T::COMPLEX {
             *rwork = crate::lapack::workspace::<R>(real_min);
         }
@@ -170,6 +168,12 @@ unsafe fn compute<T: SchurVectors, R: Scalar, I: LapackInt>(
             return true;
         }
     }
+    // Header errors keep their LAPACK precedence even when 3*N or 2*N
+    // cannot be represented by the caller's integer ABI.
+    let Some(minimum) = minimum else {
+        failure(info, 4);
+        return true;
+    };
     // Real TREVC3 checks LWORK before writing M/SELECT; complex TREVC3
     // checks it after MM, as do the original LAPACK routines.
     if blocked && !T::COMPLEX && !query && lwork < minimum {
@@ -589,6 +593,28 @@ mod tests {
                 &mut info
             ));
             assert_eq!((info, m), (0, 0));
+            assert!(compute::<f64, f64, i32>(
+                true,
+                b'?',
+                b'A',
+                core::ptr::null_mut(),
+                i32::MAX as isize,
+                nil,
+                i32::MAX as isize,
+                nil,
+                1,
+                nil,
+                1,
+                i32::MAX as isize,
+                &mut m,
+                &mut work,
+                -1,
+                nil,
+                0,
+                &mut info
+            ));
+            assert_eq!(info, -1);
+            assert_eq!(crate::colmat_blas_last_error(), 1);
             // A full-spectrum query does not allocate n columns or read T/Q.
             assert!(compute::<f64, f64, i64>(
                 true,
