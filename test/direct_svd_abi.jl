@@ -113,15 +113,55 @@ function direct_svd_minimum(T, family, job, m, n)
     )
 end
 
-function direct_svd_fixture(T, J, original, family, job)
+function direct_svd_fixture(
+    T, J, original, family, job; right=(family==:gesvd && job=='O' ? 'S' : job)
+)
     m, n = size(original)
     r = min(m, n)
     a = factor_abi_matrix(original)
-    u = factor_abi_matrix(zeros(T, max(1, m), max(1, m)))
-    vt = factor_abi_matrix(zeros(T, max(1, n), max(1, n)))
+    if family==:gesvd
+        ucols=if job=='A'
+            m
+        elseif job=='S'
+            r
+        else
+            0
+        end
+        vtrows=if right=='A'
+            n
+        elseif right=='S'
+            r
+        else
+            0
+        end
+    else
+        ucols=if job=='A' || (job=='O' && m<n)
+            m
+        elseif job=='S'
+            r
+        else
+            0
+        end
+        vtrows=if job=='A' || (job=='O' && m>=n)
+            n
+        elseif job=='S'
+            r
+        else
+            0
+        end
+    end
+    u=factor_abi_matrix(zeros(T, ucols>0 ? max(1, m) : 1, max(1, ucols)))
+    vt=factor_abi_matrix(zeros(T, max(1, vtrows), vtrows>0 ? max(1, n) : 1))
     sg, s = factor_abi_integer(real(T), max(1, r))
     wg, work = factor_abi_integer(T, direct_svd_minimum(T, family, job, m, n))
-    rg, rwork = factor_abi_integer(real(T), max(1, 32max(m, n, 1)^2))
+    # LAPACK 3.12.1 CGESDD RWORK contract (these nonempty fixtures have
+    # aspect ratio 4/3). CGESVD and values-only CGESDD require 5*min(M,N).
+    real_work=if T<:Complex
+        family==:gesvd || job=='N' ? 5r : max(5r*r+5r, 2max(m, n)*r+2r*r+r)
+    else
+        1
+    end
+    rg, rwork=factor_abi_integer(real(T), max(1, real_work))
     pg, iwork = factor_abi_integer(J, max(1, 8r))
     ig, info = factor_abi_integer(J)
     return (; a, u, vt, sg, s, wg, work, rg, rwork, pg, iwork, ig, info)
@@ -193,6 +233,9 @@ end
             direct_svd_execute(f, family, J, x, m, n, job, right, -1)
             @test x.info[1] == 0 && real(x.work[1]) >= minimum
             @test x.a.data == original
+            @test all(iszero, x.u.data) &&
+                all(iszero, x.vt.data) &&
+                all(==(factor_abi_sentinel(real(T))), x.s)
             direct_svd_guards(x)
             direct_svd_execute(f, family, J, x, m, n, job, right, minimum-1)
             @test x.info[1] == -(family == :gesvd ? 13 : 12)
@@ -206,6 +249,7 @@ end
                 reference, family, Int64, y, m, n, job, right, length(y.work)
             )
             @test y.info[1] == 0
+            direct_svd_guards(y)
             r = min(m, n)
             @test x.s[1:r] ≈ y.s[1:r]
             @test issorted(x.s[1:r]; rev=true) && all(>=(0), x.s[1:r])
@@ -224,9 +268,13 @@ end
                 @test left' * left ≈ Matrix{T}(I, r, r)
                 @test right_vectors * right_vectors' ≈ Matrix{T}(I, r, r)
             end
+            if job=='A' && r>0
+                @test x.u.data'*x.u.data ≈ Matrix{T}(I, m, m)
+                @test x.vt.data*x.vt.data' ≈ Matrix{T}(I, n, n)
+            end
             direct_svd_guards(x)
             if family == :gesvd && job == 'O' && r > 0
-                x = direct_svd_fixture(T, J, original, family, 'S')
+                x = direct_svd_fixture(T, J, original, family, 'S'; right=('O'))
                 direct_svd_execute(f, family, J, x, m, n, 'S', 'O', length(x.work))
                 @test x.info[1] == 0
                 @test x.u.data[1:m, 1:r] * Diagonal(x.s[1:r]) * x.a.data[1:r, :] ≈ original

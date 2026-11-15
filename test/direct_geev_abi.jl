@@ -89,6 +89,9 @@ end
             direct_geev_call(f, T, J, x, n, left, right, -1)
             @test x.info[1]==0 && real(x.work[1])>=minimum
             @test x.a.data==original
+            @test all(iszero, x.left.data) &&
+                all(iszero, x.right.data) &&
+                all(==(factor_abi_sentinel(T)), x.w)
             direct_geev_guards(x)
             direct_geev_call(f, T, J, x, n, left, right, minimum-1)
             @test x.info[1]==-(T<:Complex ? 12 : 13) && x.a.data==original
@@ -103,6 +106,7 @@ end
             @test x.info[1]==0
             direct_geev_call(reference, T, Int64, y, n, left, right, length(y.work))
             @test y.info[1]==0
+            direct_geev_guards(y)
             values=T<:Real ? complex.(x.w[1:n], x.wi[1:n]) : x.w[1:n]
             expected=T<:Real ? complex.(y.w[1:n], y.wi[1:n]) : y.w[1:n]
             tol=2000eps(real(T))*max(1, n)
@@ -125,6 +129,8 @@ end
                     @test all(
                         isapprox(norm(v), 1; atol=tol, rtol=tol) for v in eachcol(vectors)
                     )
+                elseif job=='N'
+                    @test all(iszero, output)
                 end
             end
             direct_geev_guards(x)

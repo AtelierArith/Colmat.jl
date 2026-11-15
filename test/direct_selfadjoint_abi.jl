@@ -76,15 +76,21 @@ function direct_selfadjoint_minima(T, family, n, job)
     end
     return job=='V' ? (1+6n+2n*n, 1, 3+5n) : (2n+1, 1, 1)
 end
-function direct_selfadjoint_fixture(T, J, original, family, job)
+function direct_selfadjoint_fixture(T, J, original, family, job; selected=size(original, 1))
     n=size(original, 1)
     lw, lrw, liw=direct_selfadjoint_minima(T, family, n, job)
     a=factor_abi_matrix(original)
-    z=factor_abi_matrix(zeros(T, max(1, n), max(1, n)))
+    z=factor_abi_matrix(
+        zeros(
+            T,
+            family==:evr && job=='V' ? max(1, n) : 1,
+            family==:evr && job=='V' ? max(1, selected) : 1,
+        ),
+    )
     wg, work=factor_abi_integer(T, lw)
     rg, rwork=factor_abi_integer(real(T), lrw)
     pg, iwork=factor_abi_integer(J, liw)
-    sg, support=factor_abi_integer(J, max(1, 2n))
+    sg, support=factor_abi_integer(J, family==:evr && job=='V' ? 2max(1, selected) : 1)
     vg, values=factor_abi_integer(real(T), max(1, n))
     mg, count=factor_abi_integer(J)
     ig, info=factor_abi_integer(J)
@@ -131,10 +137,35 @@ end
             reference=Libdl.dlsym(reference_library, symbol*"_64_")
             noise=randn(T, n, n)
             original=Matrix(Diagonal(T.(1:n)))+real(T)(0.05)*(noise+noise')
-            x=direct_selfadjoint_fixture(T, J, original, family, job)
             y=direct_selfadjoint_fixture(T, Int64, original, family, job)
             il, iu=n<=1 ? (1, n) : (2, n-1)
             vl, vu=real(T)(0.5), real(T)(2.5)
+            direct_selfadjoint_call(
+                reference,
+                Val(family),
+                T,
+                Int64,
+                y,
+                n,
+                job,
+                uplo,
+                range,
+                vl,
+                vu,
+                il,
+                iu,
+                length(y.work),
+                length(y.rwork),
+                length(y.iwork),
+            )
+            @test y.info[1]==0
+            direct_selfadjoint_guards(y)
+            selected=family==:evr ? Int(y.count[1]) : n
+            0<=selected<=n || error("Reference returned invalid selected dimension")
+            x=direct_selfadjoint_fixture(T, J, original, family, job; selected)
+            saved_count, saved_support, saved_values=copy(x.count),
+            copy(x.support),
+            copy(x.values)
             lw, lrw, liw=length(x.work), length(x.rwork), length(x.iwork)
             call(lw, lrw, liw; j=job, u=uplo) = direct_selfadjoint_call(
                 f, Val(family), T, J, x, n, j, u, range, vl, vu, il, iu, lw, lrw, liw
@@ -142,6 +173,10 @@ end
             call(-1, lrw, liw)
             @test x.info[1]==0 && real(x.work[1])>=lw
             @test x.a.data==original
+            @test x.count==saved_count &&
+                x.support==saved_support &&
+                x.values==saved_values &&
+                all(iszero, x.z.data)
             if family!=:ev
                 @test x.iwork[1]>=liw
                 T<:Complex && @test x.rwork[1]>=lrw
@@ -172,25 +207,6 @@ end
             @test factor_abi_diagnostic() == -x.info[1]
             call(lw, lrw, liw)
             @test x.info[1]==0
-            direct_selfadjoint_call(
-                reference,
-                Val(family),
-                T,
-                Int64,
-                y,
-                n,
-                job,
-                uplo,
-                range,
-                vl,
-                vu,
-                il,
-                iu,
-                length(y.work),
-                length(y.rwork),
-                length(y.iwork),
-            )
-            @test y.info[1]==0
             count=family==:evr ? Int(x.count[1]) : n
             @test 0<=count<=n
             family==:evr && @test count==y.count[1]
