@@ -126,6 +126,122 @@ unsafe fn exchange<T: ReorderScalar, I: LapackInt>(
         *info = I::from_i64(1);
     }
 }
+// TGEX2 exchanges exactly two adjacent diagonal blocks. Unlike TGEXC,
+// its real workspace argument has no query mode.
+unsafe fn adjacent<T: ReorderScalar, I: LapackInt>(
+    wantq: bool,
+    wantz: bool,
+    n: isize,
+    a: *mut T,
+    lda: isize,
+    b: *mut T,
+    ldb: isize,
+    q: *mut T,
+    ldq: isize,
+    z: *mut T,
+    ldz: isize,
+    j1: isize,
+    n1: isize,
+    n2: isize,
+    work: Option<(*mut T, isize)>,
+    info: *mut I,
+) {
+    *info = I::from_i64(0);
+    if n <= 1 || n1 <= 0 || n2 <= 0 {
+        return;
+    }
+    if !T::COMPLEX && (n1 > n || j1.checked_add(n1).is_some_and(|x| x > n)) {
+        return;
+    }
+    let Some(m) = n1.checked_add(n2) else {
+        invalid(info, 14);
+        return;
+    };
+    if let Some((pointer, length)) = work {
+        let need = n
+            .checked_mul(m)
+            .zip(m.checked_mul(m).and_then(|x| x.checked_mul(2)))
+            .map(|(x, y)| x.max(y).max(1));
+        let Some(need) = need else {
+            invalid(info, 16);
+            return;
+        };
+        if length < need {
+            *pointer = T::real(need as f64);
+            invalid(info, 16);
+            return;
+        }
+    }
+    for (arg, ok) in [
+        (5, lda >= n && matrix_addressable::<T>(n, n, lda)),
+        (7, ldb >= n && matrix_addressable::<T>(n, n, ldb)),
+        (
+            9,
+            ldq >= 1 && (!wantq || (ldq >= n && matrix_addressable::<T>(n, n, ldq))),
+        ),
+        (
+            11,
+            ldz >= 1 && (!wantz || (ldz >= n && matrix_addressable::<T>(n, n, ldz))),
+        ),
+        (12, j1 >= 1 && j1.checked_add(m - 1).is_some_and(|x| x <= n)),
+        (13, n1 <= 2),
+        (14, n2 <= 2),
+    ] {
+        if !ok {
+            invalid(info, arg);
+            return;
+        }
+    }
+    let start = j1 - 1;
+    // The explicit real block sizes must describe the actual Schur blocks;
+    // otherwise a multi-step move could partially mutate a requested single swap.
+    if !T::COMPLEX {
+        let width = |index: isize| -> isize {
+            if index + 1 < n && *a.offset(index + 1 + index * lda) != T::z() {
+                2
+            } else {
+                1
+            }
+        };
+        if first(n, start, a, lda) != Some(start) || width(start) != n1 || width(start + n1) != n2 {
+            *info = I::from_i64(1);
+            return;
+        }
+    }
+    let result = crate::qz_reorder::move_pair(
+        n as usize,
+        (start + n1) as usize,
+        start as usize,
+        a,
+        lda,
+        b,
+        ldb,
+        wantq.then_some((q, ldq)),
+        wantz.then_some((z, ldz)),
+    );
+    if result.rejected {
+        *info = I::from_i64(1);
+    }
+}
+macro_rules! adjacent_real_exports {($p:ident,$t:ty,$i:ty,$s:tt)=>{paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p tgex2 $s>](wq:*const $i,wz:*const $i,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,q:*mut $t,ldq:*const $i,z:*mut $t,ldz:*const $i,j1:*const $i,n1:*const $i,n2:*const $i,work:*mut $t,lwork:*const $i,info:*mut $i) {
+        adjacent((*wq).val()!=0,(*wz).val()!=0,(*n).val(),a,(*lda).val(),b,(*ldb).val(),q,(*ldq).val(),z,(*ldz).val(),(*j1).val(),(*n1).val(),(*n2).val(),Some((work,(*lwork).val())),info);
+    }
+}};}
+macro_rules! adjacent_complex_exports {($p:ident,$t:ty,$i:ty,$s:tt)=>{paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p tgex2 $s>](wq:*const $i,wz:*const $i,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,q:*mut $t,ldq:*const $i,z:*mut $t,ldz:*const $i,j1:*const $i,info:*mut $i) {
+        adjacent((*wq).val()!=0,(*wz).val()!=0,(*n).val(),a,(*lda).val(),b,(*ldb).val(),q,(*ldq).val(),z,(*ldz).val(),(*j1).val(),1,1,None,info);
+    }
+}};}
+adjacent_real_exports!(s, f32, i32, _);
+adjacent_real_exports!(d, f64, i32, _);
+adjacent_real_exports!(s, f32, i64, _64_);
+adjacent_real_exports!(d, f64, i64, _64_);
+adjacent_complex_exports!(c, colmat::c32, i32, _);
+adjacent_complex_exports!(z, colmat::c64, i32, _);
+adjacent_complex_exports!(c, colmat::c32, i64, _64_);
+adjacent_complex_exports!(z, colmat::c64, i64, _64_);
+
 macro_rules! real_exports {($p:ident,$t:ty,$i:ty,$s:tt)=>{paste!{
     #[no_mangle] pub unsafe extern "C" fn [<$p tgexc $s>](wq:*const $i,wz:*const $i,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,q:*mut $t,ldq:*const $i,z:*mut $t,ldz:*const $i,ifst:*mut $i,ilst:*mut $i,work:*mut $t,lwork:*const $i,info:*mut $i) {
         exchange((*wq).val()!=0,(*wz).val()!=0,(*n).val(),a,(*lda).val(),b,(*ldb).val(),q,(*ldq).val(),z,(*ldz).val(),ifst,ilst,Some((work,(*lwork).val())),info);
@@ -209,6 +325,83 @@ mod tests {
                 assert_eq!(b[i + j * ld].re(), 777.0);
             }
         }
+    }
+    fn adjacent_abi<T: ReorderScalar, I: LapackInt>(tol: f64) {
+        let mut a = [T::real(1.0), T::z(), T::real(0.25), T::real(3.0)];
+        let mut b = [T::o(), T::z(), T::z(), T::o()];
+        let mut dummy = T::real(777.0);
+        let mut work = [T::real(777.0); 8];
+        let mut info = I::from_i64(-777);
+        unsafe {
+            adjacent(
+                false,
+                false,
+                2,
+                a.as_mut_ptr(),
+                2,
+                b.as_mut_ptr(),
+                2,
+                &mut dummy,
+                1,
+                &mut dummy,
+                1,
+                1,
+                1,
+                1,
+                if T::COMPLEX {
+                    None
+                } else {
+                    Some((work.as_mut_ptr(), 8))
+                },
+                &mut info,
+            );
+        }
+        assert_eq!(info.val(), 0);
+        assert_eq!(crate::colmat_blas_last_error(), 0);
+        assert!((a[0] / b[0] - T::real(3.0)).magnitude() < tol);
+        assert!((a[3] / b[3] - T::real(1.0)).magnitude() < tol);
+        assert_eq!(dummy.re(), 777.0);
+    }
+    #[test]
+    fn adjacent_all_scalar_and_integer_widths() {
+        adjacent_abi::<f32, i32>(1e-4);
+        adjacent_abi::<f32, i64>(1e-4);
+        adjacent_abi::<f64, i32>(1e-11);
+        adjacent_abi::<f64, i64>(1e-11);
+        adjacent_abi::<colmat::c32, i32>(1e-4);
+        adjacent_abi::<colmat::c32, i64>(1e-4);
+        adjacent_abi::<colmat::c64, i32>(1e-11);
+        adjacent_abi::<colmat::c64, i64>(1e-11);
+    }
+    #[test]
+    fn adjacent_real_workspace_is_not_a_query() {
+        let mut scalar = 777.0f64;
+        let mut work = 777.0;
+        let mut info = -777i64;
+        unsafe {
+            adjacent(
+                false,
+                false,
+                2,
+                &mut scalar,
+                2,
+                &mut scalar,
+                2,
+                &mut scalar,
+                1,
+                &mut scalar,
+                1,
+                1,
+                1,
+                1,
+                Some((&mut work, -1)),
+                &mut info,
+            );
+        }
+        assert_eq!(info, -16);
+        assert_eq!(crate::colmat_blas_last_error(), 16);
+        assert_eq!(work, 8.0);
+        assert_eq!(scalar, 777.0);
     }
     #[test]
     fn all_scalar_and_integer_widths() {
