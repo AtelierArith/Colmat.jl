@@ -133,6 +133,129 @@ exports!(d, f64, f64, i64, _64_);
 exports!(c, f32, colmat::c32, i64, _64_);
 exports!(z, f64, colmat::c64, i64, _64_);
 
+unsafe fn bdsvdx<R: Scalar, I: LapackInt>(
+    uplo: u8,
+    job: u8,
+    range: u8,
+    n: isize,
+    d: *const R,
+    e: *const R,
+    vl: *const R,
+    vu: *const R,
+    il: *const I,
+    iu: *const I,
+    ns: *mut I,
+    s: *mut R,
+    z: *mut R,
+    ldz: isize,
+    iwork: *mut I,
+    info: *mut I,
+) {
+    *info = I::from_i64(0);
+    let twice = n.checked_mul(2);
+    for (arg, ok) in [
+        (1, matches!(uplo, b'U' | b'L')),
+        (2, matches!(job, b'N' | b'V')),
+        (3, matches!(range, b'A' | b'V' | b'I')),
+        (4, n >= 0),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return;
+        }
+    }
+    if n > 0 {
+        let bad = if range == b'V' {
+            if (*vl).re() < 0.0 {
+                Some(7)
+            } else if (*vu).re() <= (*vl).re() {
+                Some(8)
+            } else {
+                None
+            }
+        } else if range == b'I' {
+            if (*il).val() < 1 || (*il).val() > n {
+                Some(9)
+            } else if (*iu).val() < (*il).val() || (*iu).val() > n {
+                Some(10)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(arg) = bad {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return;
+        }
+    }
+    if ldz < 1 || (job == b'V' && twice.is_none_or(|rows| ldz < rows)) {
+        *info = I::from_i64(-14);
+        crate::invalid(14);
+        return;
+    }
+    *ns = I::from_i64(0);
+    if n == 0 {
+        return;
+    }
+    if !matrix_addressable::<R>(n, n, n)
+        || (job == b'V' && !matrix_addressable::<R>(twice.unwrap(), n, ldz))
+    {
+        *info = I::from_i64(-14);
+        crate::invalid(14);
+        return;
+    }
+    let n = n as usize;
+    let diagonal = std::slice::from_raw_parts(d, n).to_vec();
+    let off = if n == 1 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(e, n - 1).to_vec()
+    };
+    let Ok((values, u, v)) = crate::bidiagonal_svd::decompose(&diagonal, &off, uplo == b'U', false)
+    else {
+        *info = I::from_i64(2 * n as i64 + 1);
+        return;
+    };
+    let selected: Vec<usize> = (0..n)
+        .filter(|&j| match range {
+            b'V' => {
+                if n == 1 {
+                    (*vl).re() < values[j].re() && values[j].re() <= (*vu).re()
+                } else {
+                    (*vl).re() <= values[j].re() && values[j].re() < (*vu).re()
+                }
+            }
+            b'I' => j + 1 >= (*il).val() as usize && j < (*iu).val() as usize,
+            _ => true,
+        })
+        .collect();
+    // Reference sorts in decreasing order. Its N=1 quick path uses
+    // (VL,VU], whereas the general path selects [VL,VU).
+    for (out, &j) in selected.iter().enumerate() {
+        *s.add(out) = values[j];
+        if job == b'V' {
+            for i in 0..n {
+                *z.offset(i as isize + out as isize * ldz) = u[(i, j)];
+                *z.offset((i + n) as isize + out as isize * ldz) = v[(i, j)];
+            }
+            *iwork.add(out) = I::from_i64(0);
+        }
+    }
+    *ns = I::from_i64(selected.len() as i64);
+}
+macro_rules! selected_exports {($p:ident,$r:ty,$i:ty,$s:tt)=>{paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p bdsvdx $s>](uplo:*const u8,job:*const u8,range:*const u8,n:*const $i,d:*const $r,e:*const $r,vl:*const $r,vu:*const $r,il:*const $i,iu:*const $i,ns:*mut $i,s:*mut $r,z:*mut $r,ldz:*const $i,_work:*mut $r,iwork:*mut $i,info:*mut $i) {
+        bdsvdx(flag(uplo),flag(job),flag(range),*n as isize,d,e,vl,vu,il,iu,ns,s,z,*ldz as isize,iwork,info);
+    }
+}};}
+selected_exports!(s, f32, i32, _);
+selected_exports!(d, f64, i32, _);
+selected_exports!(s, f32, i64, _64_);
+selected_exports!(d, f64, i64, _64_);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,5 +366,99 @@ mod tests {
         accumulation::<f32, colmat::c32, i64>(colmat::c32::new(0.0, 0.25), 1e-4);
         accumulation::<f64, colmat::c64, i32>(colmat::c64::new(0.0, 0.25), 1e-11);
         accumulation::<f64, colmat::c64, i64>(colmat::c64::new(0.0, 0.25), 1e-11);
+    }
+    fn selected_contract<R: Scalar, I: LapackInt>(tol: f64) {
+        for n in [1usize, 3] {
+            for upper in [false, true] {
+                for job in [b'N', b'V'] {
+                    for range in [b'A', b'V', b'I'] {
+                        let d: Vec<R> = if n == 1 {
+                            vec![R::real(-4.0)]
+                        } else {
+                            vec![R::real(4.0), R::real(-2.0), R::z()]
+                        };
+                        let e = vec![R::z(); n.saturating_sub(1)];
+                        let lo = R::real(2.0);
+                        let hi = R::real(4.0);
+                        let il = I::from_i64(1);
+                        let iu = I::from_i64(n.min(2) as i64);
+                        let mut ns = [I::from_i64(-777); 3];
+                        let mut info = I::from_i64(-777);
+                        let mut s = vec![R::real(777.0); n + 2];
+                        let ld = 2 * n + 2;
+                        let mut z = vec![R::real(777.0); ld * (n + 1)];
+                        let mut iw = vec![I::from_i64(-777); 12 * n];
+                        unsafe {
+                            bdsvdx(
+                                if upper { b'U' } else { b'L' },
+                                job,
+                                range,
+                                n as isize,
+                                d.as_ptr(),
+                                e.as_ptr(),
+                                &lo,
+                                &hi,
+                                &il,
+                                &iu,
+                                &mut ns[1],
+                                s.as_mut_ptr().add(1),
+                                z.as_mut_ptr(),
+                                ld as isize,
+                                iw.as_mut_ptr(),
+                                &mut info,
+                            );
+                        }
+                        assert_eq!(info.val(), 0);
+                        assert_eq!(ns[0].val(), -777);
+                        assert_eq!(ns[2].val(), -777);
+                        let expected: Vec<f64> = if n == 1 {
+                            vec![4.0]
+                        } else {
+                            match range {
+                                b'V' => vec![2.0],
+                                b'I' => vec![4.0, 2.0],
+                                _ => vec![4.0, 2.0, 0.0],
+                            }
+                        };
+                        assert_eq!(ns[1].val(), expected.len() as isize);
+                        for (j, &value) in expected.iter().enumerate() {
+                            assert!((s[j + 1].re() - value).abs() < tol);
+                            if job == b'V' {
+                                assert_eq!(iw[j].val(), 0);
+                                for i in 0..n {
+                                    assert!(
+                                        (d[i] * z[i + n + j * ld] - s[j + 1] * z[i + j * ld])
+                                            .magnitude()
+                                            < tol
+                                    );
+                                }
+                                let normu: f64 = (0..n).map(|i| z[i + j * ld].re().powi(2)).sum();
+                                let normv: f64 =
+                                    (0..n).map(|i| z[i + n + j * ld].re().powi(2)).sum();
+                                assert!((normu - 1.0).abs() < tol);
+                                assert!((normv - 1.0).abs() < tol);
+                            }
+                        }
+                        assert_eq!(s[0].re(), 777.0);
+                        assert_eq!(s[n + 1].re(), 777.0);
+                        if job == b'N' {
+                            assert!(z.iter().all(|x| x.re() == 777.0));
+                        }
+                        for j in 0..n + 1 {
+                            for i in 2 * n..ld {
+                                assert_eq!(z[i + j * ld].re(), 777.0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn selected_values_vectors_and_boundary_contracts() {
+        selected_contract::<f32, i32>(1e-4);
+        selected_contract::<f32, i64>(1e-4);
+        selected_contract::<f64, i32>(1e-11);
+        selected_contract::<f64, i64>(1e-11);
     }
 }
