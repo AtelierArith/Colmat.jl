@@ -57,6 +57,7 @@ mod reverse_qr;
 mod rfp_rank;
 mod rz;
 mod schur;
+mod schur_reorder;
 mod schur_vectors;
 mod selected_selfadjoint;
 mod selfadjoint_reduction;
