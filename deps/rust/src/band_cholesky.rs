@@ -19,10 +19,16 @@ unsafe fn step<T: GeneralizedScalar>(
     // Hermitian diagonal imaginary components are not input data.
     *diagonal = T::diagonal(diagonal);
     let nan = (*diagonal).re().is_nan();
+    if nan && !split {
+        return false;
+    }
     let status = crate::lapack::cholesky(MatMut::from_raw_parts_mut(diagonal, 1, 1, 1, 1));
     // Reference PBSTF does not classify a NaN as a non-positive pivot.
     if status != 0 && !(split && nan) {
         return false;
+    }
+    if nan {
+        *diagonal = T::real(f64::NAN);
     }
     if count == 0 {
         return true;
@@ -266,6 +272,129 @@ mod tests {
             let mut ab = [colmat::c64::new(4.0, f64::NAN)];
             assert_eq!(factor(true, 1, 0, ab.as_mut_ptr(), 1, false), 0);
             assert_eq!(ab, [colmat::c64::new(2.0, 0.0)]);
+        }
+    }
+}
+
+unsafe fn solve<T: GeneralizedScalar>(
+    lower: bool,
+    n: usize,
+    width: usize,
+    ab: *const T,
+    ld: usize,
+    b: *mut T,
+    ldb: usize,
+    nrhs: usize,
+) {
+    for c in 0..nrhs {
+        let x = b.add(c * ldb);
+        if lower {
+            crate::structured_triangular::solve_lower_band(n, width, ab, ld, x, b'N');
+            crate::structured_triangular::solve_lower_band(n, width, ab, ld, x, b'C');
+        } else {
+            crate::structured_triangular::solve_upper_band(n, width, ab, ld, x, b'C');
+            crate::structured_triangular::solve_upper_band(n, width, ab, ld, x, b'N');
+        }
+    }
+}
+macro_rules! valid {($info:expr,$($arg:expr=>$test:expr),+)=>{$(if !$test{crate::lapack::bad(&mut *$info,$arg);return;})+};}
+macro_rules! factor_export {($p:ident,$name:ident,$t:ty,$i:ty,$s:tt,$split:expr)=>{paste::paste!{
+    #[no_mangle]
+    pub unsafe extern "C" fn [<$p $name $s>](u:*const u8,n:*const $i,k:*const $i,ab:*mut $t,ld:*const $i,info:*mut $i) {
+        *info=0;let u=crate::kernels::flag(u);
+        valid!(info,1=>crate::kernels::uplo(u),2=>*n>=0,3=>*k>=0,
+            5=>(*k as isize).checked_add(1).is_some_and(|required|*ld as isize>=required));
+        if *n==0{return;}
+        *info=factor(u==b'L',*n as usize,*k as usize,ab,*ld as usize,$split)as $i;
+    }
+}};}
+macro_rules! exports {($p:ident,$t:ty,$i:ty,$s:tt)=>{
+    factor_export!($p,pbtrf,$t,$i,$s,false);
+    factor_export!($p,pbtf2,$t,$i,$s,false);
+    factor_export!($p,pbstf,$t,$i,$s,true);
+    paste::paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p pbtrs $s>](u:*const u8,n:*const $i,k:*const $i,nrhs:*const $i,ab:*const $t,ld:*const $i,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;let u=crate::kernels::flag(u);
+            valid!(info,1=>crate::kernels::uplo(u),2=>*n>=0,3=>*k>=0,4=>*nrhs>=0,
+                6=>(*k as isize).checked_add(1).is_some_and(|required|*ld as isize>=required),8=>*ldb>=(*n).max(1));
+            if *n==0||*nrhs==0{return;}
+            solve(u==b'L',*n as usize,*k as usize,ab,*ld as usize,b,*ldb as usize,*nrhs as usize);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p pbsv $s>](u:*const u8,n:*const $i,k:*const $i,nrhs:*const $i,ab:*mut $t,ld:*const $i,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;let flag=crate::kernels::flag(u);
+            valid!(info,1=>crate::kernels::uplo(flag),2=>*n>=0,3=>*k>=0,4=>*nrhs>=0,
+                6=>(*k as isize).checked_add(1).is_some_and(|required|*ld as isize>=required),8=>*ldb>=(*n).max(1));
+            [<$p pbtrf $s>](u,n,k,ab,ld,info);
+            if *info==0{[<$p pbtrs $s>](u,n,k,nrhs,ab,ld,b,ldb,info);}
+        }
+    }
+};}
+exports!(s, f32, i32, _);
+exports!(d, f64, i32, _);
+exports!(c, colmat::c32, i32, _);
+exports!(z, colmat::c64, i32, _);
+exports!(s, f32, i64, _64_);
+exports!(d, f64, i64, _64_);
+exports!(c, colmat::c32, i64, _64_);
+exports!(z, colmat::c64, i64, _64_);
+
+#[cfg(test)]
+mod solve_tests {
+    use super::*;
+    use crate::kernels::Scalar;
+    #[test]
+    fn complex_band_solve_uses_both_conjugated_and_unconjugated_factors() {
+        use colmat::c64;
+        let a = [
+            c64::new(4.0, 0.0),
+            c64::new(1.0, -2.0),
+            c64::new(0.0, 0.0),
+            c64::new(1.0, 2.0),
+            c64::new(8.0, 0.0),
+            c64::new(2.0, -1.0),
+            c64::new(0.0, 0.0),
+            c64::new(2.0, 1.0),
+            c64::new(9.0, 0.0),
+        ];
+        let x = [c64::new(1.0, 1.0), c64::new(2.0, -1.0), c64::new(-1.0, 2.0)];
+        for lower in [false, true] {
+            let mut ab = [c64::new(f64::NAN, f64::NAN); 9];
+            let mut b = [c64::new(0.0, 0.0); 3];
+            for j in 0usize..3 {
+                ab[2 + j * 3] = c64::new(777.0, 0.0);
+                for i in 0..3 {
+                    b[i] += a[i + j * 3] * x[j];
+                }
+                let (first, end) = if lower {
+                    (j, 3.min(j + 2))
+                } else {
+                    (j.saturating_sub(1), j + 1)
+                };
+                for i in first..end {
+                    ab[(if lower { i - j } else { 1 + i - j }) + j * 3] = a[i + j * 3];
+                }
+            }
+            unsafe {
+                assert_eq!(factor(lower, 3, 1, ab.as_mut_ptr(), 3, false), 0);
+                solve(lower, 3, 1, ab.as_ptr(), 3, b.as_mut_ptr(), 3, 1);
+            }
+            for i in 0..3 {
+                assert!((b[i] - x[i]).magnitude() < 1e-12);
+            }
+            for j in 0..3 {
+                assert_eq!(ab[2 + j * 3], c64::new(777.0, 0.0));
+            }
+        }
+    }
+    #[test]
+    fn nan_pivots_distinguish_ordinary_and_split_contracts() {
+        unsafe {
+            let mut a = [f64::NAN];
+            assert_eq!(factor(true, 1, 0, a.as_mut_ptr(), 1, false), 1);
+            assert_eq!(factor(true, 1, 0, a.as_mut_ptr(), 1, true), 0);
+            assert!(a[0].is_nan());
         }
     }
 }
