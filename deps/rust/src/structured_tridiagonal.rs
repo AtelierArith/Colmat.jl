@@ -660,6 +660,30 @@ mod tests {
         band_check::<colmat::c64, i64>(colmat::c64::new(0.0, 1.0), 3e-11);
     }
     #[test]
+    fn band_headers_do_not_touch_unused_arrays() {
+        unsafe {
+            let nil = core::ptr::null_mut::<f64>();
+            let mut info = 777i32;
+            for (v, u, n, kd, ldab, ldq, expected) in [
+                (b'?', b'L', 3, 2, 3, 3, -1),
+                (b'V', b'?', 3, 2, 3, 3, -2),
+                (b'V', b'L', -1, 2, 3, 3, -3),
+                (b'V', b'L', 3, -1, 3, 3, -4),
+                (b'V', b'L', 3, 2, 2, 3, -6),
+                (b'V', b'L', 3, 2, 3, 2, -10),
+                (b'N', b'L', 3, 2, 3, 0, -10),
+                (b'N', b'L', 3, isize::MAX, 3, 1, -6),
+                (b'V', b'L', 0, 2, 3, 1, 0),
+                (b'N', b'U', 0, 2, 3, 1, 0),
+            ] {
+                band::<f64, f64, i32>(v, u, n, kd, nil, ldab, nil, nil, nil, ldq, &mut info);
+                assert_eq!(info, expected);
+                let diagnostic = crate::colmat_blas_last_error();
+                assert_eq!(diagnostic, -expected);
+            }
+        }
+    }
+    #[test]
     fn packed_headers_quick_returns_and_zero_coefficients() {
         unsafe {
             let nil = core::ptr::null_mut::<f64>();
