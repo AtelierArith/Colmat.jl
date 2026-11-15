@@ -12,6 +12,20 @@ pub(crate) unsafe fn factor<T: Scalar>(
     ab: *mut T,
     ld: usize,
 ) -> (Vec<usize>, usize) {
+    factor_steps(m, n, kl, ku, ab, ld, false, |_, _, _, _| {})
+}
+
+/// GTSV stops at its first singular pivot and updates B during elimination.
+pub(crate) unsafe fn factor_steps<T: Scalar>(
+    m: usize,
+    n: usize,
+    kl: usize,
+    ku: usize,
+    ab: *mut T,
+    ld: usize,
+    stop_on_singular: bool,
+    mut step: impl FnMut(usize, usize, usize, *const T),
+) -> (Vec<usize>, usize) {
     if m == 0 || n == 0 {
         return (Vec::new(), 0);
     }
@@ -46,6 +60,9 @@ pub(crate) unsafe fn factor<T: Scalar>(
         if singular != 0 {
             if info == 0 {
                 info = j + 1;
+            }
+            if stop_on_singular {
+                return (pivots, info);
             }
             continue;
         }
@@ -89,11 +106,12 @@ pub(crate) unsafe fn factor<T: Scalar>(
                 );
             });
         }
+        step(j, j + pivot, km, column.add(1));
     }
     (pivots, info)
 }
 
-unsafe fn solve<T: Scalar>(
+pub(crate) unsafe fn solve<T: Scalar>(
     n: usize,
     kl: usize,
     ku: usize,
