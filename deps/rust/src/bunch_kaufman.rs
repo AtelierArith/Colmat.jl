@@ -520,3 +520,168 @@ inverse_driver_exports!(s, sy, f32, i64, _64_);
 inverse_driver_exports!(d, sy, f64, i64, _64_);
 inverse_driver_exports!(c, he, colmat::c32, i64, _64_);
 inverse_driver_exports!(z, he, colmat::c64, i64, _64_);
+
+// Packed storage shares the same LAPACK pivot encoding and native LDL
+// implementation as dense storage. Only the selected triangle is staged.
+unsafe fn packed_read<T: BkScalar>(uplo: u8, n: usize, ap: *const T) -> Vec<T> {
+    let mut dense = vec![T::z(); n * n];
+    let mut k = 0;
+    for j in 0..n {
+        let rows = if uplo == b'L' { j..n } else { 0..j + 1 };
+        for i in rows {
+            dense[i + j * n] = if i == j {
+                T::diagonal(ap.add(k))
+            } else {
+                *ap.add(k)
+            };
+            k += 1;
+        }
+    }
+    dense
+}
+unsafe fn packed_write<T: BkScalar>(uplo: u8, n: usize, ap: *mut T, dense: &[T]) {
+    let mut k = 0;
+    for j in 0..n {
+        let rows = if uplo == b'L' { j..n } else { 0..j + 1 };
+        for i in rows {
+            *ap.add(k) = dense[i + j * n];
+            k += 1;
+        }
+    }
+}
+fn packed_fits<T>(n: isize) -> bool {
+    n >= 0
+        && n.checked_mul(n)
+            .and_then(|v| v.checked_mul(core::mem::size_of::<T>() as isize))
+            .is_some()
+}
+macro_rules! packed_exports {
+    ($p:ident,$kind:ident,$t:ty,$i:ty,$s:tt)=>{paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind trf $s>](uplo:*const u8,n:*const $i,ap:*mut $t,ipiv:*mut $i,info:*mut $i) {
+            *info=0;let (up,nn)=(flag(uplo),*n as isize);
+            for (arg,ok) in [(1,matches!(up,b'U'|b'L')),(2,packed_fits::<$t>(nn))] {if !ok {*info=-arg;crate::invalid(arg as i32);return;}}
+            if nn==0 {return;}
+            let mut dense=packed_read(up,nn as usize,ap);
+            let (pivots,err)=factor_lapack(up,nn as usize,dense.as_mut_ptr(),nn,false);
+            packed_write(up,nn as usize,ap,&dense);
+            for j in 0..nn as usize {*ipiv.add(j)=pivots[j] as $i;}
+            *info=err as $i;
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind trs $s>](uplo:*const u8,n:*const $i,nrhs:*const $i,ap:*const $t,ipiv:*const $i,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;let (up,nn,nr,lb)=(flag(uplo),*n as isize,*nrhs as isize,*ldb as isize);
+            for (arg,ok) in [(1,matches!(up,b'U'|b'L')),(2,nn>=0),(3,nr>=0),(7,lb>=nn.max(1))] {if !ok {*info=-arg;crate::invalid(arg as i32);return;}}
+            if nn==0||nr==0 {return;}
+            if !packed_fits::<$t>(nn) {*info=-2;crate::invalid(2);return;}
+            if !crate::kernels::matrix_addressable::<$t>(nn,nr,lb) {*info=-7;crate::invalid(7);return;}
+            let dense=packed_read(up,nn as usize,ap);
+            let pivots:Vec<isize>=(0..nn as usize).map(|j| *ipiv.add(j) as isize).collect();
+            solve_lapack(up,nn as usize,nr as usize,dense.as_ptr(),nn,&pivots,b,lb);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind tri $s>](uplo:*const u8,n:*const $i,ap:*mut $t,ipiv:*const $i,_work:*mut $t,info:*mut $i) {
+            *info=0;let (up,nn)=(flag(uplo),*n as isize);
+            for (arg,ok) in [(1,matches!(up,b'U'|b'L')),(2,packed_fits::<$t>(nn))] {if !ok {*info=-arg;crate::invalid(arg as i32);return;}}
+            if nn==0 {return;}
+            let mut dense=packed_read(up,nn as usize,ap);
+            let pivots:Vec<isize>=(0..nn as usize).map(|j| *ipiv.add(j) as isize).collect();
+            *info=inverse_lapack(up,nn as usize,dense.as_mut_ptr(),nn,&pivots) as $i;
+            if *info==0 {packed_write(up,nn as usize,ap,&dense);}
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind sv $s>](uplo:*const u8,n:*const $i,nrhs:*const $i,ap:*mut $t,ipiv:*mut $i,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;let (up,nn,nr,lb)=(flag(uplo),*n as isize,*nrhs as isize,*ldb as isize);
+            for (arg,ok) in [(1,matches!(up,b'U'|b'L')),(2,nn>=0),(3,nr>=0),(7,lb>=nn.max(1))] {if !ok {*info=-arg;crate::invalid(arg as i32);return;}}
+            if nn!=0 && nr!=0 && !crate::kernels::matrix_addressable::<$t>(nn,nr,lb) {*info=-7;crate::invalid(7);return;}
+            [<$p $kind trf $s>](uplo,n,ap,ipiv,info);
+            if *info==0 {[<$p $kind trs $s>](uplo,n,nrhs,ap,ipiv,b,ldb,info);}
+        }
+    }};
+}
+packed_exports!(s, sp, f32, i32, _);
+packed_exports!(d, sp, f64, i32, _);
+packed_exports!(c, hp, colmat::c32, i32, _);
+packed_exports!(z, hp, colmat::c64, i32, _);
+packed_exports!(s, sp, f32, i64, _64_);
+packed_exports!(d, sp, f64, i64, _64_);
+packed_exports!(c, hp, colmat::c32, i64, _64_);
+packed_exports!(z, hp, colmat::c64, i64, _64_);
+
+#[cfg(test)]
+mod packed_tests {
+    use super::*;
+    use crate::kernels::Scalar;
+    macro_rules! check {
+        ($name:ident,$p:ident,$kind:ident,$t:ty,$i:ty,$s:tt,$imag:expr,$tol:expr)=>{paste!{
+            #[test] fn $name() {unsafe {
+                for up in [b'L',b'U'] {
+                    let n=2 as $i;let nr=1 as $i;let mut info=99 as $i;
+                    let off=<$t>::real(2.0)+$imag;
+                    let stored=if up==b'L' {off} else {off.cj()};
+                    let mut ap=[<$t>::real(777.0),<$t>::z(),stored,<$t>::z(),<$t>::real(777.0)];
+                    let mut piv=[-777 as $i;4];
+                    [<$p $kind trf $s>](&up,&n,ap.as_mut_ptr().add(1),piv.as_mut_ptr().add(1),&mut info);
+                    assert_eq!(info,0);assert!(piv[1]<0 && piv[2]<0);
+                    assert_eq!(piv[0],-777);assert_eq!(piv[3],-777);
+                    assert_eq!(ap[0],<$t>::real(777.0));assert_eq!(ap[4],<$t>::real(777.0));
+                    let mut rhs=[<$t>::real(3.0),<$t>::real(5.0),<$t>::real(777.0)];
+                    [<$p $kind trs $s>](&up,&n,&nr,ap.as_ptr().add(1),piv.as_ptr().add(1),rhs.as_mut_ptr(),&n,&mut info);
+                    assert_eq!(info,0);
+                    assert!((off.cj()*rhs[1]-<$t>::real(3.0)).magnitude()<$tol);
+                    assert!((off*rhs[0]-<$t>::real(5.0)).magnitude()<$tol);
+                    assert_eq!(rhs[2],<$t>::real(777.0));
+                    [<$p $kind tri $s>](&up,&n,ap.as_mut_ptr().add(1),piv.as_ptr().add(1),core::ptr::null_mut(),&mut info);
+                    assert_eq!(info,0);
+                    assert!(ap[1].magnitude()<$tol && ap[3].magnitude()<$tol);
+                    assert!((ap[2]*stored.cj()-<$t>::o()).magnitude()<$tol);
+                    assert_eq!(ap[0],<$t>::real(777.0));assert_eq!(ap[4],<$t>::real(777.0));
+                }
+            }}
+        }};
+    }
+    check!(real32_lp, s, sp, f32, i32, _, 0.0, 1e-5);
+    check!(real32_ilp, s, sp, f32, i64, _64_, 0.0, 1e-5);
+    check!(real64_lp, d, sp, f64, i32, _, 0.0, 1e-13);
+    check!(real64_ilp, d, sp, f64, i64, _64_, 0.0, 1e-13);
+    check!(
+        complex32_lp,
+        c,
+        hp,
+        colmat::c32,
+        i32,
+        _,
+        colmat::c32::new(0.0, 0.5),
+        1e-5
+    );
+    check!(
+        complex32_ilp,
+        c,
+        hp,
+        colmat::c32,
+        i64,
+        _64_,
+        colmat::c32::new(0.0, 0.5),
+        1e-5
+    );
+    check!(
+        complex64_lp,
+        z,
+        hp,
+        colmat::c64,
+        i32,
+        _,
+        colmat::c64::new(0.0, 0.5),
+        1e-13
+    );
+    check!(
+        complex64_ilp,
+        z,
+        hp,
+        colmat::c64,
+        i64,
+        _64_,
+        colmat::c64::new(0.0, 0.5),
+        1e-13
+    );
+}
