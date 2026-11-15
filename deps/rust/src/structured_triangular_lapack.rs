@@ -179,6 +179,9 @@ unsafe fn packed_solve<T: Scalar, I: LapackInt>(
     }
     let lower = u == b'L';
     let unit = d == b'U';
+    if unit && n == 1 {
+        return;
+    }
     if !unit {
         let singular = diagonal_zero(n as usize, lower, TriangleStorage::Packed, a);
         if singular != 0 {
@@ -241,6 +244,9 @@ unsafe fn band_solve<T: Scalar, I: LapackInt>(
     }
     let lower = u == b'L';
     let unit = d == b'U';
+    if unit && (n == 1 || kd == 0) {
+        return;
+    }
     let rows = if lower { kd.min(n - 1) + 1 } else { kd + 1 };
     if !unit && !matrix_addressable::<T>(if lower { 1 } else { kd + 1 }, n, lda) {
         error(info, 8);
@@ -366,16 +372,19 @@ unsafe fn rfp_solve<T: Scalar>(
     if m == 0 || n == 0 {
         return;
     }
+    let alpha = *alpha;
+    let order = if side == b'L' { m } else { n };
+    if d == b'U' && order == 1 && alpha == T::o() {
+        return;
+    }
     if !matrix_addressable::<T>(m, n, ldb) {
         crate::invalid(11);
         return;
     }
-    let alpha = *alpha;
     if alpha == T::z() {
         crate::kernels::scale(m, n, T::z(), b, ldb);
         return;
     }
-    let order = if side == b'L' { m } else { n };
     if !fits::<T>(order) {
         crate::invalid(if side == b'L' { 6 } else { 7 });
         return;
@@ -422,6 +431,49 @@ mod tests {
     use super::*;
     fn verify<T: Scalar>(imag: T, tolerance: f64) {
         unsafe {
+            for u in [b'L', b'U'] {
+                let mut info = 99i64;
+                packed_solve::<T, i64>(
+                    u,
+                    b'C',
+                    b'U',
+                    1,
+                    2,
+                    core::ptr::null(),
+                    core::ptr::null_mut(),
+                    isize::MAX,
+                    &mut info,
+                );
+                assert_eq!(info, 0);
+                band_solve::<T, i64>(
+                    u,
+                    b'T',
+                    b'U',
+                    5,
+                    0,
+                    2,
+                    core::ptr::null(),
+                    isize::MAX,
+                    core::ptr::null_mut(),
+                    5,
+                    &mut info,
+                );
+                assert_eq!(info, 0);
+                rfp_solve::<T>(
+                    b'N',
+                    b'L',
+                    u,
+                    b'C',
+                    b'U',
+                    1,
+                    2,
+                    &T::o(),
+                    core::ptr::null(),
+                    core::ptr::null_mut(),
+                    isize::MAX,
+                );
+            }
+
             for n in [0usize, 1, 2, 5, 6] {
                 for lower in [false, true] {
                     for unit in [false, true] {
