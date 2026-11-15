@@ -66,3 +66,37 @@ end
         @test moved≈expected rtol=tol atol=tol
     end
 end
+
+@testset "QZ reordering preserves regular infinite eigenvalues" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        J in (Int32, Int64),
+        family in (:tgsen, :ggesx)
+
+        R=typeof(real(zero(T)))
+        tol=R===Float32 ? 1e-3 : 1e-10
+        a=Matrix(Diagonal(T[-1, 2, 3]))
+        b=Matrix(Diagonal(T[1, 0, 1]))
+        olda=copy(a)
+        oldb=copy(b)
+        q=Matrix{T}(I, 3, 3)
+        z=copy(q)
+        result=if family===:tgsen
+            direct_tgsen!(a, b, q, z, [false, true, false], J)
+        else
+            direct_ggesx!(a, b, q, z, J)
+        end
+        @test result.info==result.diagnostic==0
+        @test count(iszero, result.beta)==1
+        k=only(findall(iszero, result.beta))
+        @test !iszero(result.alpha[k]) && isfinite(result.alpha[k])
+        if family===:tgsen
+            @test k==result.m==1
+        else
+            @test result.sdim==1 && real(result.alpha[1]/result.beta[1])<0
+        end
+        @test q*a*z'≈olda rtol=tol atol=tol
+        @test q*b*z'≈oldb rtol=tol atol=tol
+        @test q'*q≈Matrix{T}(I, 3, 3) rtol=tol atol=tol
+        @test z'*z≈Matrix{T}(I, 3, 3) rtol=tol atol=tol
+    end
+end
