@@ -121,9 +121,106 @@ pub(crate) unsafe fn move_pair<T: ReorderScalar>(
     }
 }
 
+/// Stable partition of whole Schur blocks, using the original selection mask.
+/// Either selected row of a real conjugate pair selects both rows. On refusal,
+/// the caller retains the factors after the last accepted adjacent exchange.
+pub(crate) unsafe fn select_blocks<T: ReorderScalar>(
+    n: usize,
+    selected: &[bool],
+    s: *mut T,
+    lds: isize,
+    t: *mut T,
+    ldt: isize,
+    q: Option<(*mut T, isize)>,
+    z: Option<(*mut T, isize)>,
+) -> (usize, bool) {
+    assert_eq!(selected.len(), n);
+    let mut widths = Vec::new();
+    let mut total = 0;
+    let mut k = 0;
+    while k < n {
+        let width =
+            if !T::COMPLEX && k + 1 < n && *s.offset(k as isize + 1 + k as isize * lds) != T::z() {
+                2
+            } else {
+                1
+            };
+        let take = selected[k..k + width].iter().any(|&x| x);
+        if take {
+            total += width;
+        }
+        widths.push((k, width, take));
+        k += width;
+    }
+    let mut target = 0;
+    for (from, width, take) in widths {
+        if take {
+            if from != target && move_pair(n, from, target, s, lds, t, ldt, q, z).rejected {
+                return (total, true);
+            }
+            target += width;
+        }
+    }
+    (total, false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn selection<T: ReorderScalar>(tol: f64) {
+        let n = 4;
+        let mut s = vec![T::z(); n * n];
+        let mut t = s.clone();
+        for i in 0..n {
+            s[i + i * n] = T::real((i + 1) as f64);
+            t[i + i * n] = T::o();
+        }
+        let result = unsafe {
+            select_blocks(
+                n,
+                &[false, true, false, true],
+                s.as_mut_ptr(),
+                n as isize,
+                t.as_mut_ptr(),
+                n as isize,
+                None,
+                None,
+            )
+        };
+        assert_eq!(result, (2, false));
+        for (i, value) in [2.0, 4.0, 1.0, 3.0].into_iter().enumerate() {
+            assert!((s[i + i * n] / t[i + i * n] - T::real(value)).magnitude() < tol);
+        }
+    }
+    #[test]
+    fn stable_selected_partition() {
+        selection::<f32>(1e-4);
+        selection::<f64>(1e-11);
+        selection::<colmat::c32>(1e-4);
+        selection::<colmat::c64>(1e-11);
+    }
+    #[test]
+    fn selection_of_second_conjugate_row_moves_whole_pair() {
+        let mut s = [4.0f64, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0];
+        let mut t = [1.0f64, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        assert_eq!(
+            unsafe {
+                select_blocks(
+                    3,
+                    &[false, false, true],
+                    s.as_mut_ptr(),
+                    3,
+                    t.as_mut_ptr(),
+                    3,
+                    None,
+                    None,
+                )
+            },
+            (2, false)
+        );
+        assert!(s[1].abs() > 0.5);
+        assert!((s[8] / t[8] - 4.0).abs() < 1e-11);
+    }
     fn check<T: ReorderScalar>(imaginary: T, tolerance: f64) {
         for (from, to) in [(0, 2), (2, 0), (1, 1)] {
             let n = 3;
