@@ -37,6 +37,7 @@ mod packed_cholesky;
 mod packed_updates;
 mod pivoted_cholesky;
 mod positive_equilibration;
+mod positive_tridiagonal;
 mod precision_conversion;
 mod qr;
 mod qr_pivoted;
