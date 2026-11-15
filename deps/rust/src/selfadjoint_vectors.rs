@@ -80,6 +80,49 @@ unsafe fn execute<T: Scalar>(
         );
     }
 }
+// Packed factors contain only reflector tails: do not read diagonal,
+// tridiagonal entries, or any tail belonging to a zero coefficient.
+pub(crate) unsafe fn packed_execute<T: Scalar>(
+    side: u8,
+    lower: bool,
+    tr: u8,
+    m: usize,
+    n: usize,
+    ap: *const T,
+    tau: *const T,
+    c: *mut T,
+    ldc: isize,
+) {
+    let nq = if side == b'L' { m } else { n };
+    let storage = crate::structured_evd::Storage::Packed;
+    let factors: Vec<_> = (0..nq.saturating_sub(1))
+        .map(|step| {
+            let j = if lower { step } else { nq - 2 - step };
+            let coefficient = *tau.add(j);
+            let start = if lower { j + 1 } else { 0 };
+            let len = if lower { nq - start } else { j + 1 };
+            let mut vector = Vec::new();
+            if coefficient != T::z() {
+                vector = vec![T::o(); len];
+                if lower {
+                    for k in 1..len {
+                        vector[k] = *ap.add(storage.index(nq, true, start + k, j));
+                    }
+                } else {
+                    for k in 0..len - 1 {
+                        vector[k] = *ap.add(storage.index(nq, false, k, j + 1));
+                    }
+                }
+            }
+            Factor {
+                start,
+                vector,
+                tau: coefficient,
+            }
+        })
+        .collect();
+    execute(side, tr, m, n, &factors, c, ldc);
+}
 unsafe fn error<I: LapackInt>(info: *mut I, arg: i64) {
     *info = I::from_i64(-arg);
     crate::invalid(arg as i32);

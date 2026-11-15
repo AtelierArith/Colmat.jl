@@ -70,6 +70,7 @@ mod structured_generalized_selected;
 mod structured_selected_evd;
 mod structured_triangular;
 mod structured_triangular_lapack;
+mod structured_tridiagonal;
 mod symmetric_equilibration;
 mod threading;
 mod triangular_lapack;
