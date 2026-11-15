@@ -9,6 +9,7 @@ mod advanced_svd;
 mod balance;
 mod band_cholesky;
 mod band_lu;
+mod block_unitary;
 mod bunch_kaufman;
 mod complete_pivot_lu;
 mod complex_auxiliary;
