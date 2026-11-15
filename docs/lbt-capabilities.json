@@ -257,15 +257,39 @@
     },
     {
       "routines": [
-        "bdsqr",
-        "bdsdc",
-        "bdsvdx",
+        "bdsqr"
+      ],
+      "status": "representation",
+      "api": "native bidiagonal_svd / real and complex factor accumulation",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "Four Fortran symbols connected for both integer ABIs. Convert native U/V into VT <- V^T VT, U <- U U_s and C <- U_s^T C; the bidiagonal input itself is real even for complex factor arrays. Upper/lower storage, empty/singleton and real singular values are preserved. Uses owned full factors and native rotation-based composition; does not claim identical LAPACK iteration diagnostics or workspace arithmetic. Caller WORK is preserved on native success. C API remains separate."
+    },
+    {
+      "routines": [
+        "bdsdc"
+      ],
+      "status": "conditional",
+      "api": "native bidiagonal_svd / preserved compact reference BDSDC",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "Two Fortran symbols connected for both integer ABIs. COMPQ=N/I use native bidiagonal SVD and owned full factors (including values-only mode). COMPQ=P retains the existing ILP64 LAPACK implementation because its compact divide-and-conquer tree is not a dense U/V pair. LP64 marshals integer outputs and copies only slots written by the reference. Compact mode requires an existing ILP64 LAPACK backend; it is not native compact support."
+    },
+    {
+      "routines": [
+        "bdsvdx"
+      ],
+      "status": "composition",
+      "api": "native bidiagonal_svd / singular-triplet selection",
+      "source": "faer/src/linalg/svd/mod.rs",
+      "note": "Two Fortran symbols connected for both integer ABIs. Select all, value-range or indexed triplets from native full bidiagonal SVD and store Z=[U;V]. Values are descending, following executable LAPACK behavior despite conflicting prose. The general value interval is [VL,VU); the reference singleton shortcut uses (VL,VU]. This is full-spectrum composition, not native bisection/inverse iteration or partial-spectrum performance."
+    },
+    {
+      "routines": [
         "lasq1"
       ],
       "status": "conditional",
-      "api": "bidiagonal_svd",
+      "api": "native bidiagonal_dqds / preserved reference LASQ1 recovery",
       "source": "faer/src/linalg/svd/mod.rs",
-      "note": "二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない"
+      "note": "Two Fortran symbols connected for both integer ABIs. Call the public real dqds operation with linear caller-owned native scratch; on success D contains descending values, E and caller WORK are unchanged. Native nonconvergence (including zero-diagonal or squared-range limitations) retains the original inputs and calls the preserved ILP64 LASQ1 to retain its specific INFO, D/E intermediate factors and WORK diagnostics. Recovery requires an existing ILP64 LAPACK backend. No workspace query exists."
     },
     {
       "routines": [

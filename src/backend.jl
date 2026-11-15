@@ -179,6 +179,19 @@ function load_backend(; verbose::Bool=false)
                 "Colmat compact BDSDC requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
+        # LASQ1 failure statuses/intermediate factors require its reference algorithm.
+        register_lasq=Libdl.dlsym(_handle[], :colmat_lasq_set_fallback)
+        has_lasq=Libdl.dlsym(_handle[], :colmat_lasq_has_fallback)
+        for (id, symbol) in enumerate(("slasq1_", "dlasq1_"))
+            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous!==nothing && realpath(previous.libname)!=realpath(path)
+                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_lasq, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
+            end
+            ccall(has_lasq, Cint, (Cint,), id-1)!=0 || error(
+                "Colmat LASQ1 recovery requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
         register_vx=Libdl.dlsym(_handle[], :colmat_selfadjoint_vx_set_fallback)
         has_vx=Libdl.dlsym(_handle[], :colmat_selfadjoint_vx_has_fallback)
         for (id, symbol) in enumerate(("ssyevx_", "dsyevx_", "cheevx_", "zheevx_"))

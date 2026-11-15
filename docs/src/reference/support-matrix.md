@@ -1258,3 +1258,27 @@ TPRFB は INFO を持たず、不正引数を backend の診断コードで通�
 参照 OpenBLAS 0.3.30 の row-forward-left TPRFB には WORK の stride に LDB を
 使う不具合があるため、参照比較では LDWORK=LDB とし、Native は異なる stride でも
 検証します。独立した安全な再現は `reproducers/openblas-tprfb-workspace.jl` にあります。
+
+## 二重対角 SVD と dqds
+
+BDSQR（4型）、BDSDC・BDSVDX・LASQ1（実2型）の10 Fortran シンボルを
+両 ABI に接続します。各 ABI は1196シンボル（BLAS 202、LAPACK 994）です。
+
+BDSQR は native の実 U/V から既存の VT・U・C への積を構成します。
+BDSDC の COMPQ=N/I は native bidiagonal SVD、COMPQ=P は参照 LAPACK の
+compact tree を保持します。後者を密な U/V で代用しません。
+BDSVDX は全特異値分解から範囲を選ぶ合成で、部分スペクトル算法と同じ計算量を
+意味しません。値は降順です。値区間は一般に [VL,VU) ですが、参照実装の
+N=1 shortcut は (VL,VU] であり、この挙動も検証します。
+
+LASQ1 は公開 bidiagonal_dqds と linear scratch を使います。成功時は D のみを
+更新します。native が収束しない場合は、保持された元の D/E から参照 LASQ1 を
+呼び、専用の INFO・中間因子・WORK 出力を保ちます。零対角や squared-factor の
+範囲制約もこの recovery の対象です。compact BDSDC と LASQ1 recovery には既存の
+ILP64 LAPACK backend が必要です。
+
+BDSQR・BDSDC・BDSVDX の native 経路は密な因子と内部 scratch を所有します。
+BDSDC の値のみモードでも因子を計算します。この系列には LWORK/query はなく、
+caller WORK の最小長は参照 ABI に従います。Native の成功経路では caller WORK を
+保持します。対応する Julia テストは `test/bidiagonal_svd.jl`、`bidiagonal_dc.jl`、
+`bidiagonal_selected.jl`、`bidiagonal_values.jl`、`bidiagonal_abi.jl` です。

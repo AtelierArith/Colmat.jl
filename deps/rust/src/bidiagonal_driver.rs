@@ -39,6 +39,23 @@ unsafe fn bdsqr<R: Scalar, T: Scalar, I: LapackInt>(
     if n == 0 {
         return;
     }
+    // The reference singleton path reads no U or C, and reads VT only
+    // when correcting a negative diagonal. Their unused strides need not
+    // describe an addressable full matrix.
+    if n == 1 {
+        if (*d).re() < 0.0 {
+            if !matrix_addressable::<T>(1, ncvt, ldvt) {
+                *info = I::from_i64(-9);
+                crate::invalid(9);
+                return;
+            }
+            for j in 0..ncvt as usize {
+                *vt.offset(j as isize * ldvt) = -*vt.offset(j as isize * ldvt);
+            }
+        }
+        *d = R::real((*d).re().abs());
+        return;
+    }
     for (arg, ok) in [
         (2, matrix_addressable::<R>(n, 1, n)),
         (9, matrix_addressable::<T>(n, ncvt, ldvt)),
@@ -53,15 +70,6 @@ unsafe fn bdsqr<R: Scalar, T: Scalar, I: LapackInt>(
         }
     }
     let n = n as usize;
-    if n == 1 {
-        if (*d).re() < 0.0 {
-            *d = -*d;
-            for j in 0..ncvt as usize {
-                *vt.offset(j as isize * ldvt) = -*vt.offset(j as isize * ldvt);
-            }
-        }
-        return;
-    }
     let diagonal = std::slice::from_raw_parts(d, n).to_vec();
     let offdiagonal = std::slice::from_raw_parts(e, n - 1).to_vec();
     let Ok((values, left, right)) =
@@ -432,6 +440,78 @@ dc_exports!(s, f32, i32, _, 0);
 dc_exports!(d, f64, i32, _, 1);
 dc_exports!(s, f32, i64, _64_, 0);
 dc_exports!(d, f64, i64, _64_, 1);
+
+static LASQ_FALLBACKS: [AtomicPtr<c_void>; 2] = [const { AtomicPtr::new(std::ptr::null_mut()) }; 2];
+#[no_mangle]
+pub extern "C" fn colmat_lasq_set_fallback(id: i32, pointer: *mut c_void) {
+    if let Some(slot) = LASQ_FALLBACKS.get(id as usize) {
+        slot.store(pointer, Ordering::Release);
+    }
+}
+#[no_mangle]
+pub extern "C" fn colmat_lasq_has_fallback(id: i32) -> i32 {
+    LASQ_FALLBACKS
+        .get(id as usize)
+        .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
+}
+unsafe fn lasq1<R: Scalar + colmat::traits::RealField, I: LapackInt>(
+    id: usize,
+    n: isize,
+    d: *mut R,
+    e: *mut R,
+    work: *mut R,
+    info: *mut I,
+) {
+    *info = I::from_i64(0);
+    if n < 0 || !matrix_addressable::<R>(n, 6, n.max(1)) {
+        *info = I::from_i64(-1);
+        crate::invalid(1);
+        return;
+    }
+    if n == 0 {
+        return;
+    }
+    let count = n as usize;
+    let diagonal = std::slice::from_raw_parts_mut(d, count);
+    let off = if count == 1 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(e, count - 1)
+    };
+    let mut memory =
+        colmat::dyn_stack::MemBuffer::new(colmat::linalg::svd::bidiagonal_dqds_scratch::<R>(count));
+    if colmat::linalg::svd::bidiagonal_dqds(
+        diagonal,
+        off,
+        colmat::dyn_stack::MemStack::new(&mut memory),
+    )
+    .is_ok()
+    {
+        return;
+    }
+    // Native dqds preserves both input arrays on failure. Keep the reference
+    // LASQ1 recovery status, D/E intermediate factors and WORK diagnostics.
+    let pointer = LASQ_FALLBACKS[id].load(Ordering::Acquire);
+    assert!(
+        !pointer.is_null(),
+        "Colmat LASQ1 recovery fallback must be configured before use"
+    );
+    let call: unsafe extern "C" fn(*const i64, *mut R, *mut R, *mut R, *mut i64) =
+        std::mem::transmute(pointer);
+    let mut result = 0i64;
+    let ni = n as i64;
+    call(&ni, d, e, work, &mut result);
+    *info = I::from_i64(result);
+}
+macro_rules! lasq_exports {($p:ident,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p lasq1 $s>](n:*const $i,d:*mut $r,e:*mut $r,work:*mut $r,info:*mut $i) {
+        lasq1($id,*n as isize,d,e,work,info);
+    }
+}};}
+lasq_exports!(s, f32, i32, _, 0);
+lasq_exports!(d, f64, i32, _, 1);
+lasq_exports!(s, f32, i64, _64_, 0);
+lasq_exports!(d, f64, i64, _64_, 1);
 
 #[cfg(test)]
 mod tests {
