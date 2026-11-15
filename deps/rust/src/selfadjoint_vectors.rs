@@ -151,7 +151,7 @@ unsafe fn factors_addressable<T: Scalar>(lower: bool, n: isize, lda: isize, tau:
     }
     true
 }
-unsafe fn generate<T: Scalar, I: LapackInt>(
+pub(crate) unsafe fn generate<T: Scalar, I: LapackInt>(
     u: u8,
     n: isize,
     a: *mut T,
