@@ -407,6 +407,81 @@ mod tests {
             }
         }
     }
+    fn extreme_reflectors<T: ReflectorScalar>(imaginary: T, tolerance: f64) {
+        unsafe {
+            let single = T::EPS > 1e-10;
+            for scale in if single {
+                [1e-38, 1e30]
+            } else {
+                [1e-310, 1e300]
+            } {
+                let input = [
+                    T::real(2.0 * scale) + imaginary * T::real(scale),
+                    T::real(0.5 * scale) - imaginary * T::real(0.25 * scale),
+                    T::real(-scale),
+                ];
+                let normalized: Vec<T> = input
+                    .iter()
+                    .map(|x| T::parts(x.re() / scale, x.im() / scale))
+                    .collect();
+                let norm = normalized
+                    .iter()
+                    .fold(0.0f64, |value, x| value.hypot(x.re()).hypot(x.im()));
+                let mut stored = [T::real(777.0); 7];
+                for i in 0..3 {
+                    stored[2 * i] = input[i];
+                }
+                let tau = reflector(3, stored.as_mut_ptr(), 2);
+                let v = [T::o(), stored[2], stored[4]];
+                let dot = (0..3).fold(T::z(), |sum, i| sum + v[i].cj() * normalized[i]);
+                assert!((stored[0].re() / scale + norm).abs() < tolerance);
+                for i in 0..3 {
+                    let value = normalized[i] - tau.cj() * v[i] * dot;
+                    assert!(
+                        (value
+                            - if i == 0 {
+                                T::real(stored[0].re() / scale)
+                            } else {
+                                T::z()
+                            })
+                        .magnitude()
+                            < tolerance
+                    );
+                }
+                for i in [1, 3, 5, 6] {
+                    assert_eq!(stored[i], T::real(777.0));
+                }
+            }
+            // A representable tail can be below the native panel's tiny-tail
+            // cutoff even after normalizing the head. Its LAPACK tail survives.
+            let tiny = if single { 1e-40 } else { 1e-310 };
+            let alpha = T::o() + imaginary;
+            let mut data = [alpha, T::real(tiny)];
+            let tau = reflector(2, data.as_mut_ptr(), 1);
+            let beta = -alpha.magnitude();
+            let expected = divide(T::real(tiny), alpha - T::real(beta));
+            assert!(data[1] != T::z());
+            assert!((data[1].re() / tiny - expected.re() / tiny).abs() < tolerance * 100.0);
+            assert!((data[1].im() / tiny - expected.im() / tiny).abs() < tolerance * 100.0);
+            assert!((tau - (T::o() - alpha / T::real(beta))).magnitude() < tolerance);
+        }
+    }
+    #[test]
+    fn real32_extreme_gauges() {
+        extreme_reflectors(0.0f32, 5e-5);
+    }
+    #[test]
+    fn real64_extreme_gauges() {
+        extreme_reflectors(0.0f64, 1e-11);
+    }
+    #[test]
+    fn complex32_extreme_gauges() {
+        extreme_reflectors(colmat::c32::new(0.0, 1.0), 5e-5);
+    }
+    #[test]
+    fn complex64_extreme_gauges() {
+        extreme_reflectors(colmat::c64::new(0.0, 1.0), 1e-11);
+    }
     fn reconstruction<T: ReflectorScalar>(imaginary: T, tol: f64) {
         unsafe {
             for m in [0, 1, 2, 4, 7] {
