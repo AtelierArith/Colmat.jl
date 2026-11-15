@@ -251,3 +251,158 @@ end
         end
     end
 end
+
+@testset "QL/RQ queries, argument diagnostics and unused prefixes" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        J in (Int32, Int64), rq in (false, true),
+        blocked in (false, true)
+
+        a=fill(T(NaN), 7, 3)
+        minimum=rq ? 5 : 3
+        cases=[((; m=-1), 1), ((; n=-1), 2), ((; lda=4), 4)]
+        blocked&&push!(cases, ((; lwork=minimum-1), 7))
+        for (kw, arg) in cases
+            r=direct_reverse_factor!(copy(a), J, Val(rq), Val(blocked); m=5, n=3, kw...)
+            @test r.info == -arg
+            @test r.diagnostic == arg
+            @test r.guard==fill(J(-777), 2)
+        end
+        if blocked
+            before=copy(a)
+            r=direct_reverse_factor!(a, J, Val(rq), Val(true); m=5, n=3, lwork=-1)
+            @test r.info==r.diagnostic==0
+            @test real(r.work[2])==minimum
+            @test isequal(a, before)
+        end
+        m, n=rq ? (3, 5) : (5, 3)
+        tau=zeros(T, 2)
+        source=fill(T(NaN), m+2, n)
+        cases=[((; m=-1), 1), ((; n=-1), 2), ((; k=-1), 3), ((; k=4), 3), ((; lda=m-1), 5)]
+        blocked&&push!(cases, ((; lwork=2), 8))
+        for (kw, arg) in cases
+            r=direct_reverse_generate!(
+                copy(source), tau, J, Val(rq), Val(blocked); m, n, k=2, kw...
+            )
+            @test r.info == -arg
+            @test r.diagnostic == arg
+            @test r.guard==fill(J(-777), 2)
+        end
+        if blocked
+            before=copy(source)
+            r=direct_reverse_generate!(
+                source, tau, J, Val(rq), Val(true); m, n, k=2, lwork=-1
+            )
+            @test r.info==r.diagnostic==0
+            @test real(r.work[2])==3
+            @test isequal(source, before)
+        end
+        factors=fill(T(NaN), rq ? 4 : 7, rq ? 5 : 2)
+        c=fill(T(NaN), 7, 3)
+        cases=[
+            ((; side=('?')), 1),
+            ((; trans=('?')), 2),
+            ((; m=-1), 3),
+            ((; n=-1), 4),
+            ((; k=-1), 5),
+            ((; k=6), 5),
+            ((; lda=rq ? 1 : 4), 7),
+            ((; ldc=4), 10),
+        ]
+        blocked&&push!(cases, ((; lwork=2), 12))
+        for (kw, arg) in cases
+            before=copy(c)
+            r=direct_reverse_apply!(
+                factors, tau, c, J, Val(rq), Val(blocked); m=5, n=3, k=2, kw...
+            )
+            @test r.info == -arg
+            @test r.diagnostic == arg
+            @test r.guard==fill(J(-777), 2)
+            @test isequal(c, before)
+        end
+        if blocked
+            r=direct_reverse_apply!(
+                factors, tau, c, J, Val(rq), Val(true); m=5, n=3, k=2, lwork=-1
+            )
+            @test r.info==r.diagnostic==0
+            @test real(r.work[2])==3
+        end
+        huge=Int(typemax(J))
+        before=copy(c)
+        r=direct_reverse_apply!(
+            factors, tau, c, J, Val(rq), Val(blocked); m=5, n=3, k=2, lda=huge, ldc=huge
+        )
+        @test r.info==r.diagnostic==0
+        @test isequal(c, before)
+        # Only a length-one prefix reflector is active. Neither A nor
+        # later C columns are referenced, so both large strides are unused.
+        factors=fill(T(NaN), 7, 5)
+        coefficients=zeros(T, 5)
+        coefficients[1]=T(2)
+        c=ones(T, 3, 5)
+        r=direct_reverse_apply!(
+            factors,
+            coefficients,
+            c,
+            J,
+            Val(rq),
+            Val(blocked);
+            side=('R'),
+            m=3,
+            n=5,
+            k=5,
+            lda=huge,
+            ldc=huge,
+        )
+        @test r.info==r.diagnostic==0
+        @test c[:, 1]==fill(T(-1), 3)
+        @test c[:, 2:end]==ones(T, 3, 4)
+    end
+end
+@testset "All QL/RQ symbols through LBT" begin
+    rng=MersenneTwister(6303)
+    library=BLAS.libblastrampoline
+    for (T, prefix) in
+        ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
+        J in (Int32, Int64), rq in (false, true),
+        blocked in (false, true)
+
+        org=T<:Complex ? "ung" : "org"
+        orm=T<:Complex ? "unm" : "orm"
+        families=(
+            rq ? (blocked ? "gerqf" : "gerq2") : (blocked ? "geqlf" : "geql2"),
+            org*(rq ? (blocked ? "rq" : "r2") : (blocked ? "ql" : "2l")),
+            orm*(rq ? (blocked ? "rq" : "r2") : (blocked ? "ql" : "2l")),
+        )
+        for family in families
+            provider=BLAS.lbt_find_backing_library(
+                prefix*family*"_", J===Int32 ? :lp64 : :ilp64
+            )
+            @test provider!==nothing
+            @test realpath(provider.libname)==realpath(Colmat.backend_library())
+        end
+        m, n=8, 3
+        k=min(m, n)
+        order=rq ? n : m
+        tol=2000eps(real(T))
+        original=randn(rng, T, m, n)
+        a=copy(original)
+        factor=direct_reverse_factor!(a, J, Val(rq), Val(blocked); m, n, library)
+        @test factor.info==factor.diagnostic==0
+        tau=view(factor.tau, 2:(length(factor.tau) - 1))
+        triangular=[(rq ? j-i>=n-m : i-j>=m-n) ? a[i, j] : zero(T) for i in 1:m, j in 1:n]
+        q=reverse_qr_storage(a, rq, m, n, k, order, order)
+        r=direct_reverse_generate!(
+            q, tau, J, Val(rq), Val(blocked); m=order, n=order, k, library
+        )
+        @test r.info==r.diagnostic==0
+        q=q[1:order, :]
+        @test (rq ? triangular*q : q*triangular)≈original atol=tol rtol=tol
+        opstorage=reverse_qr_storage(a, rq, m, n, k, rq ? k : order, rq ? order : k)
+        c=Matrix{T}(I, order, order)
+        r=direct_reverse_apply!(
+            opstorage, tau, c, J, Val(rq), Val(blocked); m=order, n=order, k, library
+        )
+        @test r.info==r.diagnostic==0
+        @test c≈q atol=tol rtol=tol
+    end
+end
