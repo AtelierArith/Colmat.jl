@@ -63,6 +63,92 @@ unsafe fn split<T: GeneralizedScalar>(
     }
     s
 }
+fn lower_storage<T: GeneralizedScalar>(matrix: &Mat<T>, width: usize) -> (Vec<T>, usize) {
+    let n = matrix.nrows();
+    let actual = width.min(n.saturating_sub(1));
+    let ld = actual + 1;
+    let mut data = vec![T::z(); ld * n];
+    for j in 0..n {
+        for i in j..n.min(j + actual + 1) {
+            data[i - j + j * ld] = matrix[(i, j)];
+        }
+    }
+    (data, ld)
+}
+unsafe fn commit_split<T: GeneralizedScalar>(
+    n: usize,
+    width: usize,
+    lower: bool,
+    b: *mut T,
+    ld: usize,
+    factor: &[T],
+    ldf: usize,
+) {
+    let actual = width.min(n.saturating_sub(1));
+    for j in 0..n {
+        for i in j..n.min(j + actual + 1) {
+            let value = factor[i - j + j * ldf];
+            if lower {
+                *b.add(i - j + j * ld) = value;
+            } else {
+                *b.add(width - (i - j) + i * ld) = value.cj();
+            }
+        }
+    }
+}
+pub(crate) unsafe fn eigen<T: GeneralizedScalar + ReflectorScalar>(
+    job: u8,
+    n: usize,
+    ka: usize,
+    kb: usize,
+    lower: bool,
+    ab: *const T,
+    lda: usize,
+    bb: *mut T,
+    ldb: usize,
+) -> Result<
+    crate::generalized_selfadjoint_drivers::NativeResult<T>,
+    crate::generalized_selfadjoint_drivers::Failure,
+> {
+    use crate::generalized_selfadjoint_drivers::{Failure, NativeResult};
+    if n == 0 {
+        return Ok(NativeResult {
+            values: Vec::new(),
+            vectors: Mat::zeros(0, 0),
+            reduced: Mat::zeros(0, 0),
+        });
+    }
+    let a = band(n, ka, lower, ab, lda);
+    let b = band(n, kb, lower, bb, ldb);
+    let (aa, la) = lower_storage(&a, ka);
+    let (mut factor, lf) = lower_storage(&b, kb);
+    // The declared KB determines PBSTF's split even when KB exceeds N.
+    // A compact lower stage suffices: no actual column has more than N rows.
+    let status = crate::band_cholesky::factor(true, n, kb, factor.as_mut_ptr(), lf, true);
+    if status != 0 {
+        commit_split(n, kb, lower, bb, ldb, &factor, lf);
+        return Err(Failure::NonPositive(status));
+    }
+    let (c, x) = standardize(n, ka, kb, true, aa.as_ptr(), la, factor.as_ptr(), lf)
+        .ok_or(Failure::Native)?;
+    let (values, vectors) =
+        crate::lapack::selfadj(c.as_ref(), job == b'V').map_err(|_| Failure::Native)?;
+    let vectors = if job == b'V' {
+        multiply(x.as_ref(), b'N', vectors.as_ref(), b'N')
+    } else {
+        vectors
+    };
+    if !values.iter().all(|v| v.is_finite()) || !vectors.as_ref().is_all_finite() {
+        return Err(Failure::Native);
+    }
+    commit_split(n, kb, lower, bb, ldb, &factor, lf);
+    Ok(NativeResult {
+        values,
+        vectors,
+        reduced: c,
+    })
+}
+
 /// Return C=X^H A X and X^H B X=I, retaining the requested A bandwidth.
 /// Input BB is the saved PBSTF factor S, with B=S^H S.
 pub(crate) unsafe fn standardize<T: GeneralizedScalar + ReflectorScalar>(
@@ -395,6 +481,103 @@ mod tests {
             assert_eq!(info, -expected);
             assert_eq!(crate::colmat_blas_last_error(), expected as i32);
         }
+    }
+    fn eigensystem<T: GeneralizedScalar + ReflectorScalar>(phase: T, tol: f64) {
+        for n in [0usize, 1, 5, 9] {
+            for ka in [0usize, 1, 3, n + 1] {
+                for kb in 0..=ka.min(2) {
+                    for lower in [false, true] {
+                        let a = Mat::<T>::from_fn(n, n, |i, j| {
+                            if i == j {
+                                T::real(1.0 + i as f64 * 0.1)
+                            } else if i > j && i - j <= ka {
+                                phase
+                            } else if j > i && j - i <= ka {
+                                phase.cj()
+                            } else {
+                                T::z()
+                            }
+                        });
+                        let b = Mat::<T>::from_fn(n, n, |i, j| {
+                            if i == j {
+                                T::real(3.0)
+                            } else if i > j && i - j <= kb {
+                                phase
+                            } else if j > i && j - i <= kb {
+                                phase.cj()
+                            } else {
+                                T::z()
+                            }
+                        });
+                        let (lda, ldb) = (ka + 3, kb + 3);
+                        let mut ab = vec![T::real(f64::NAN); lda * n];
+                        let mut bb = vec![T::real(f64::NAN); ldb * n];
+                        for j in 0..n {
+                            for i in 0..n {
+                                if (lower && i >= j && i - j <= ka)
+                                    || (!lower && i <= j && j - i <= ka)
+                                {
+                                    let row = if lower { i - j } else { ka - (j - i) };
+                                    ab[row + j * lda] = a[(i, j)];
+                                }
+                                if (lower && i >= j && i - j <= kb)
+                                    || (!lower && i <= j && j - i <= kb)
+                                {
+                                    let row = if lower { i - j } else { kb - (j - i) };
+                                    bb[row + j * ldb] = b[(i, j)];
+                                }
+                            }
+                        }
+                        let result = match unsafe {
+                            eigen(
+                                b'V',
+                                n,
+                                ka,
+                                kb,
+                                lower,
+                                ab.as_ptr(),
+                                lda,
+                                bb.as_mut_ptr(),
+                                ldb,
+                            )
+                        } {
+                            Ok(x) => x,
+                            Err(_) => panic!(
+                                "positive definite band eigenproblem failed: n={n},ka={ka},kb={kb}"
+                            ),
+                        };
+                        assert!(result.values.windows(2).all(|v| v[0] <= v[1]));
+                        let az = multiply(a.as_ref(), b'N', result.vectors.as_ref(), b'N');
+                        let bz = multiply(b.as_ref(), b'N', result.vectors.as_ref(), b'N');
+                        let gram = multiply(result.vectors.as_ref(), b'C', bz.as_ref(), b'N');
+                        let s = unsafe { split(n, kb, lower, bb.as_ptr(), ldb) };
+                        let rebuilt = multiply(s.as_ref(), b'C', s.as_ref(), b'N');
+                        for j in 0..n {
+                            for i in 0..n {
+                                assert!(
+                                    (az[(i, j)] - bz[(i, j)] * T::real(result.values[j]))
+                                        .magnitude()
+                                        < tol
+                                );
+                                assert!(
+                                    (gram[(i, j)] - if i == j { T::o() } else { T::z() })
+                                        .magnitude()
+                                        < tol
+                                );
+                                assert!((rebuilt[(i, j)] - b[(i, j)]).magnitude() < tol);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn band_eigenpairs_and_split_outputs_all_types() {
+        eigensystem::<f32>(0.1, 3e-4);
+        eigensystem::<f64>(0.1, 1e-11);
+        eigensystem::<colmat::c32>(colmat::c32::new(0.1, 0.15), 5e-4);
+        eigensystem::<colmat::c64>(colmat::c64::new(0.1, 0.15), 1e-11);
     }
     fn check<T: GeneralizedScalar + ReflectorScalar>(phase: T, tol: f64) {
         for n in [0usize, 1, 4, 7] {
