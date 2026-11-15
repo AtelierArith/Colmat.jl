@@ -93,6 +93,53 @@ pub(crate) unsafe fn factor<T: Scalar>(
     (pivots, info)
 }
 
+macro_rules! exports {
+    ($p:ident,$t:ty,$i:ty,$suffix:tt) => {
+        paste::paste! {
+            #[no_mangle]
+            pub unsafe extern "C" fn [<$p gbtrf $suffix>](
+                m: *const $i, n: *const $i, kl: *const $i, ku: *const $i,
+                ab: *mut $t, ld: *const $i, piv: *mut $i, info: *mut $i,
+            ) {
+                *info = 0;
+                let (m,n,kl,ku,ld) = (*m as isize,*n as isize,*kl as isize,*ku as isize,*ld as isize);
+                for (arg, valid) in [(1,m>=0),(2,n>=0),(3,kl>=0),(4,ku>=0)] {
+                    if !valid {
+                        crate::lapack::bad(&mut *info,arg);
+                        return;
+                    }
+                }
+                let required = kl.checked_mul(2).and_then(|v|v.checked_add(ku)).and_then(|v|v.checked_add(1));
+                if !required.is_some_and(|required|ld>=required) {
+                    crate::lapack::bad(&mut *info,6);
+                    return;
+                }
+                if m==0 || n==0 { return; }
+                let (p,err)=factor(m as usize,n as usize,kl as usize,ku as usize,ab,ld as usize);
+                for (j, p) in p.iter().enumerate() {
+                    *piv.add(j) = (*p+1) as $i;
+                }
+                *info=err as $i;
+            }
+            #[no_mangle]
+            pub unsafe extern "C" fn [<$p gbtf2 $suffix>](
+                m: *const $i, n: *const $i, kl: *const $i, ku: *const $i,
+                ab: *mut $t, ld: *const $i, piv: *mut $i, info: *mut $i,
+            ) {
+                [<$p gbtrf $suffix>](m,n,kl,ku,ab,ld,piv,info);
+            }
+        }
+    };
+}
+exports!(s, f32, i32, _);
+exports!(d, f64, i32, _);
+exports!(c, colmat::c32, i32, _);
+exports!(z, colmat::c64, i32, _);
+exports!(s, f32, i64, _64_);
+exports!(d, f64, i64, _64_);
+exports!(c, colmat::c32, i64, _64_);
+exports!(z, colmat::c64, i64, _64_);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,6 +149,68 @@ mod tests {
         let (p, info) = unsafe { factor::<f64>(0, 7, 2, 3, std::ptr::null_mut(), 8) };
         assert!(p.is_empty());
         assert_eq!(info, 0);
+    }
+
+    #[test]
+    fn complex_pivot_uses_component_one_norm_and_first_ties() {
+        use colmat::c64;
+        // |1+i|_1=2 exceeds |1.5|_1, even though its modulus is smaller.
+        let mut ab = [c64::new(99.0, 0.0); 3];
+        ab[1] = c64::new(1.5, 0.0);
+        ab[2] = c64::new(1.0, 1.0);
+        let (p, info) = unsafe { factor(2, 1, 1, 0, ab.as_mut_ptr(), 3) };
+        assert_eq!(p, [1]);
+        assert_eq!(info, 0);
+        assert_eq!(ab[1], c64::new(1.0, 1.0));
+        assert_eq!(ab[2], c64::new(0.75, -0.75));
+        ab[1] = c64::new(2.0, 0.0);
+        ab[2] = c64::new(1.0, 1.0);
+        let (p, _) = unsafe { factor(2, 1, 1, 0, ab.as_mut_ptr(), 3) };
+        assert_eq!(p, [0]);
+    }
+
+    #[test]
+    fn fortran_entries_preserve_integer_width_and_argument_precedence() {
+        unsafe {
+            let mut info = 17i64;
+            let mut pivot = 123i64;
+            dgbtrf_64_(
+                &((1i64 << 32) + 1),
+                &0,
+                &0,
+                &0,
+                std::ptr::null_mut(),
+                &1,
+                &mut pivot,
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            assert_eq!(pivot, 123);
+            dgbtf2_64_(
+                &(-(1i64 << 32) + 1),
+                &-1,
+                &-1,
+                &-1,
+                std::ptr::null_mut(),
+                &0,
+                &mut pivot,
+                &mut info,
+            );
+            assert_eq!(info, -1);
+            assert_eq!(crate::colmat_blas_last_error(), 1);
+            dgbtrf_64_(
+                &0,
+                &0,
+                &i64::MAX,
+                &0,
+                std::ptr::null_mut(),
+                &i64::MAX,
+                &mut pivot,
+                &mut info,
+            );
+            assert_eq!(info, -6);
+            assert_eq!(crate::colmat_blas_last_error(), 6);
+        }
     }
 
     #[test]
