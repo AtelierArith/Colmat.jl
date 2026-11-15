@@ -1258,3 +1258,30 @@ TPRFB は INFO を持たず、不正引数を backend の診断コードで通�
 参照 OpenBLAS 0.3.30 の row-forward-left TPRFB には WORK の stride に LDB を
 使う不具合があるため、参照比較では LDWORK=LDB とし、Native は異なる stride でも
 検証します。独立した安全な再現は `reproducers/openblas-tprfb-workspace.jl` にあります。
+
+## Generalized Schur ブロックの移動と選択
+
+Issue #307 は TGEXC/TGEX2/TGSEN/GGESX の16 Fortran シンボルを
+4型・LP64/ILP64 に接続します。各 ABI は1202シンボル
+（BLAS 202、LAPACK 1000）です。native revision は
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` のままです。
+
+TGEXC/TGEX2 と TGSEN IJOB=0 は公開 generalized Schur reorder を使います。
+実数共役対のどちらかを選択すると2×2ブロック全体を移動し、交換が拒否された場合も
+最後に受理された変換後の因子と位置を保持します。TGSEN の homogeneous α/β は
+保存した因子から公開 `schur_eigenvalues_real` で取り出し、再分解しません。
+β=0 の無限固有値を保持し、参照ルーチンの正規化と複素ルーチンの早期終了を区別します。
+固有値抽出が拒否された場合は、未変更の元因子を保存済み LAPACK に渡します。
+
+GGESX SENSE=N は既存の native dense QZ/選択経路を使います。
+TGSEN IJOB=1:5 と GGESX SENSE=E/V/B の条件・分離推定は
+登録前の ILP64 LAPACK に委譲します。native が同じ推定量を提供するとは主張しません。
+LP64 では SELECT と整数作業領域を変換し、未使用の出力領域を保持します。
+GGESX の選択 callback も64 bit LOGICAL に変換し、スレッドごとの状態と
+入れ子からの復元で異なる呼び出しの callback が混ざらないようにします。
+内部行列と scratch を所有するため、割り当てなしの処理や専用 native expert driver と
+同じ計算量・性能を意味しません。
+
+`test/qz_reorder.jl` は両 ABI、実数1×1/2×2の移動、外部因子への Q/Z 更新、
+配列余白と未使用因子、条件推定の参照 LAPACK 比較、query と最小 WORK、
+および LBT の転送先と実呼び出しを検証します。

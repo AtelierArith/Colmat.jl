@@ -29,7 +29,7 @@ Band/packed selected EVD also retains ILP64 expert entries for positive ABSTOL,
 native failures and value-range endpoints within a precision-based guard of native eigenvalues.
 Selected and QR-preconditioned SVD save ILP64 entries for native failures and
 GESVDQ condition estimation; independent Jacobi drivers remain on the existing backend.
-TGSEN runs reorder-only calls in colmat and saves ILP64 LAPACK entries for
+TGSEN reorder-only and GGESX SENSE=N calls run in colmat, with ILP64 LAPACK entries for
 condition and separation estimates, with integer conversion for LP64 callers.
 Call again to select Colmat after loading another BLAS provider. Configure the
 backend before starting concurrent BLAS work.
@@ -201,11 +201,20 @@ function load_backend(; verbose::Bool=false)
                 "Colmat band/packed selected EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
-        # TGSEN condition estimates use the original ILP64 LAPACK entry;
+        # TGSEN and GGESX condition estimates use the original ILP64 LAPACK entry;
         # Rust widens LP64 logical selections and integer workspace.
         register_qz = Libdl.dlsym(_handle[], :colmat_qz_reorder_set_fallback)
         has_qz = Libdl.dlsym(_handle[], :colmat_qz_reorder_has_fallback)
-        for (id, symbol) in enumerate(("stgsen_", "dtgsen_", "ctgsen_", "ztgsen_"))
+        for (id, symbol) in enumerate((
+            "stgsen_",
+            "dtgsen_",
+            "ctgsen_",
+            "ztgsen_",
+            "sggesx_",
+            "dggesx_",
+            "cggesx_",
+            "zggesx_",
+        ))
             previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
             if previous !== nothing && realpath(previous.libname) != realpath(path)
                 pointer = BLAS.lbt_get_forward(symbol, :ilp64)

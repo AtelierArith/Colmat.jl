@@ -497,3 +497,277 @@ end
         @test a[1, 1]/b[1, 1]≈T(3)
     end
 end
+
+for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
+    J in (Int32, Int64)
+
+    R=typeof(real(zero(T)))
+    callback=Symbol("qz_expert_select_", prefix, "_", J)
+    callback_pointer=Symbol(callback, "_pointer")
+    if T<:Real
+        @eval function $callback(ar::Ptr{$T}, ai::Ptr{$T}, beta::Ptr{$T})::$J
+            return unsafe_load(ar)*unsafe_load(beta)<0 ? typemax($J) : zero($J)
+        end
+        @eval const $callback_pointer=@cfunction($callback, $J, (Ptr{$T}, Ptr{$T}, Ptr{$T}))
+    else
+        @eval function $callback(ar::Ptr{$T}, beta::Ptr{$T})::$J
+            return real(unsafe_load(ar)*conj(unsafe_load(beta)))<0 ? typemax($J) : zero($J)
+        end
+        @eval const $callback_pointer=@cfunction($callback, $J, (Ptr{$T}, Ptr{$T}))
+    end
+    eigtypes=T<:Real ? [:(Ptr{$T}), :(Ptr{$T}), :(Ptr{$T})] : [:(Ptr{$T}), :(Ptr{$T})]
+    eigargs=T<:Real ? [:ar, :ai, :beta] : [:ar, :beta]
+    rwtypes=T<:Real ? [] : [:(Ptr{$R})]
+    rwargs=T<:Real ? [] : [:rw]
+    signature=Expr(
+        :tuple,
+        :(Ref{UInt8}),
+        :(Ref{UInt8}),
+        :(Ref{UInt8}),
+        :(Ptr{Cvoid}),
+        :(Ref{UInt8}),
+        :(Ref{$J}),
+        :(Ptr{$T}),
+        :(Ref{$J}),
+        :(Ptr{$T}),
+        :(Ref{$J}),
+        :(Ref{$J}),
+        eigtypes...,
+        :(Ptr{$T}),
+        :(Ref{$J}),
+        :(Ptr{$T}),
+        :(Ref{$J}),
+        :(Ptr{$R}),
+        :(Ptr{$R}),
+        :(Ptr{$T}),
+        :(Ref{$J}),
+        rwtypes...,
+        :(Ptr{$J}),
+        :(Ref{$J}),
+        :(Ptr{$J}),
+        :(Ref{$J}),
+        :(Csize_t),
+        :(Csize_t),
+        :(Csize_t),
+        :(Csize_t),
+    )
+    symbol=Symbol(prefix*"ggesx_"*(J===Int64 ? "64_" : ""))
+    @eval function direct_ggesx!(
+        a::Matrix{$T},
+        b::Matrix{$T},
+        q::Matrix{$T},
+        z::Matrix{$T},
+        ::Type{$J};
+        sense=('N'),
+        sorting=true,
+        want=true,
+        query=false,
+        integer_query=false,
+        use_callback=true,
+        pointer=nothing,
+    )
+        n=size(a, 2)
+        ar=fill($T(777), n)
+        ai=copy(ar)
+        beta=copy(ar)
+        sdim=Ref{$J}(-777)
+        info=Ref{$J}(-777)
+        rconde=fill($R(777), 2)
+        rcondv=copy(rconde)
+        work=fill($T(777), max(1, 4n*n+8n+16))
+        rw=fill($R(777), max(1, 8n))
+        iw=fill($J(-777), max(1, 2n*n+n+8))
+        bw=fill($J(-777), max(1, n))
+        f=if isnothing(pointer)
+            Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), $(QuoteNode(symbol)))
+        else
+            pointer
+        end
+        ccall(
+            f,
+            Cvoid,
+            $signature,
+            want ? 'V' : 'N',
+            want ? 'V' : 'N',
+            sorting ? 'S' : 'N',
+            use_callback ? $callback_pointer : C_NULL,
+            sense,
+            n,
+            a,
+            max(1, size(a, 1)),
+            b,
+            max(1, size(b, 1)),
+            sdim,
+            $(eigargs...),
+            q,
+            max(1, size(q, 1)),
+            z,
+            max(1, size(z, 1)),
+            rconde,
+            rcondv,
+            work,
+            query ? -1 : length(work),
+            $(rwargs...),
+            iw,
+            integer_query ? -1 : length(iw),
+            bw,
+            info,
+            1,
+            1,
+            1,
+            1,
+        )
+        diagnostic=ccall(
+            Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error),
+            Cint,
+            (),
+        )
+        return (;
+            alpha=($T<:Real ? complex.(ar, ai) : ar),
+            beta,
+            sdim=sdim[],
+            info=info[],
+            rconde,
+            rcondv,
+            work,
+            iw,
+            bw,
+            diagnostic,
+        )
+    end
+end
+
+@testset "GGESX native sort and preserved expert estimates" begin
+    Random.seed!(3071)
+    external=only(
+        filter(
+            l->l.interface==:ilp64 && occursin("openblas", lowercase(basename(l.libname))),
+            BLAS.get_config().loaded_libs,
+        ),
+    )
+    reference=Libdl.dlopen(external.libname)
+    for (T, prefix) in
+        ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
+        J in (Int32, Int64), sense in ('N', 'E', 'V', 'B'), n in (0, 1, 4, 9),
+        want in (false, true)
+
+        R=typeof(real(zero(T)))
+        tol=R===Float32 ? 2e-3 : 2e-10
+        left=Matrix(qr(randn(T, n, n)).Q)
+        right=Matrix(qr(randn(T, n, n)).Q)
+        d=Matrix(Diagonal(T[iseven(i) ? -i : i for i in 1:n]))
+        if T<:Real && n>=4
+            d[1, 1]=d[2, 2]=-1
+            d[2, 1]=1
+            d[1, 2]=-1
+        end
+        olda=left*d*right'
+        oldb=left*Diagonal(T[1+i/(2max(1, n)) for i in 1:n])*right'
+        a=fill(T(777), n+2, n)
+        b=copy(a)
+        a[1:n, :]=olda
+        b[1:n, :]=oldb
+        q=want ? fill(T(777), n+2, n) : fill(T(777), 1, 1)
+        z=copy(q)
+        ar=copy(a)
+        br=copy(b)
+        qref=copy(q)
+        zref=copy(z)
+        result=direct_ggesx!(a, b, q, z, J; sense, want)
+        oracle=direct_ggesx!(
+            ar,
+            br,
+            qref,
+            zref,
+            Int64;
+            sense,
+            want,
+            pointer=Libdl.dlsym(reference, Symbol(prefix*"ggesx_64_")),
+        )
+        @test result.info==result.diagnostic==oracle.info==0
+        @test result.sdim==oracle.sdim
+        if n>0
+            values=result.alpha ./ result.beta
+            expected=oracle.alpha ./ oracle.beta
+            @test all(x->any(y->isapprox(x, y; rtol=tol, atol=tol), expected), values)
+            @test all(real.(values[1:result.sdim]) .< 0)
+            @test all(real.(values[(result.sdim + 1):end]) .>= 0)
+        end
+        @test all(==(T(777)), a[(n + 1):end, :]) && all(==(T(777)), b[(n + 1):end, :])
+        if want
+            qq=q[1:n, :]
+            zz=z[1:n, :]
+            @test qq*a[1:n, :]*zz' ≈ olda rtol=tol atol=tol
+            @test qq*b[1:n, :]*zz' ≈ oldb rtol=tol atol=tol
+            @test qq'*qq ≈ Matrix{T}(I, n, n) rtol=tol atol=tol
+            @test zz'*zz ≈ Matrix{T}(I, n, n) rtol=tol atol=tol
+            @test all(==(T(777)), q[(n + 1):end, :]) && all(==(T(777)), z[(n + 1):end, :])
+        else
+            @test q==z==fill(T(777), 1, 1)
+        end
+        if sense in ('E', 'B') && n>0
+            @test result.rconde ≈ oracle.rconde rtol=tol atol=tol
+        else
+            @test result.rconde==fill(R(777), 2)
+        end
+        if sense in ('V', 'B') && n>0
+            @test result.rcondv ≈ oracle.rcondv rtol=tol atol=tol
+        else
+            @test result.rcondv==fill(R(777), 2)
+        end
+        @test result.iw[1]==oracle.iw[1]
+    end
+end
+
+@testset "GGESX queries unused callbacks and LBT calls" begin
+    for (T, prefix) in
+        ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
+        J in (Int32, Int64)
+
+        for sense in ('N', 'E', 'V', 'B'), integer_query in (false, true)
+            a=Matrix(Diagonal(T[-1, 3]))
+            b=Matrix{T}(I, 2, 2)
+            q=copy(b)
+            z=copy(b)
+            olda=copy(a)
+            result=direct_ggesx!(
+                a,
+                b,
+                q,
+                z,
+                J;
+                sense,
+                use_callback=false,
+                query=(!integer_query),
+                integer_query,
+            )
+            @test result.info==result.diagnostic==0
+            @test result.sdim == -777
+            @test a==olda && b==q==z==Matrix{T}(I, 2, 2)
+            @test result.iw[1]==(sense=='N' ? 1 : (T<:Real ? 8 : 4))
+            @test all(==(T(777)), result.beta)
+        end
+        a=Matrix(Diagonal(T[-1, 3]))
+        b=Matrix{T}(I, 2, 2)
+        q=copy(b)
+        z=copy(b)
+        olda=copy(a)
+        result=direct_ggesx!(a, b, q, z, J; sorting=false, use_callback=false)
+        @test result.info==result.diagnostic==result.sdim==0
+        @test all(==(-777), result.bw)
+        @test q*a*z'≈olda
+        result=direct_ggesx!(a, b, q, z, J; sense=('E'), sorting=false, use_callback=false)
+        @test result.info == -5 && result.diagnostic==5
+        @test result.work[1]==T(777)
+        interface=J===Int64 ? :ilp64 : :lp64
+        symbol=prefix*"ggesx_"
+        provider=BLAS.lbt_find_backing_library(symbol, interface)
+        @test realpath(provider.libname)==realpath(Colmat.backend_library())
+        pointer=BLAS.lbt_get_forward(symbol, interface)
+        a=copy(olda)
+        b=Matrix{T}(I, 2, 2)
+        result=direct_ggesx!(a, b, q, z, J; pointer, sense=('B'))
+        @test result.info==result.diagnostic==0 && result.sdim==1
+        @test real(result.alpha[1]/result.beta[1])<0
+    end
+end

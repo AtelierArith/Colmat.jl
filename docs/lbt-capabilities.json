@@ -487,9 +487,9 @@
         "tgsen"
       ],
       "status": "conditional",
-      "api": "QZ reorder",
+      "api": "generalized reorder_schur / schur_eigenvalues_real / QZ",
       "source": "faer/src/linalg/gevd/reorder.rs",
-      "note": "並べ替えはあるが expert condition estimates の同一出力はない"
+      "note": "Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。"
     },
     {
       "routines": [
@@ -509,7 +509,7 @@
       "status": "native",
       "api": "generalized reorder_schur_real/cplx",
       "source": "faer/src/linalg/gevd/reorder.rs",
-      "note": "pencil の block swap/rejection と index を変換"
+      "note": "Fortran 8シンボル・4型・両 ABI を接続済み。public generalized reorder_schur の block swap/rejection と位置を Fortran index に変換し、S/T と要求された Q/Z の最終有効状態を返す。実数 1×1/2×2 と複素 1×1、実数 TGEXC query、query を持たない実数 TGEX2 の最小 WORK を扱う。内部行列・scratch を別途確保する。"
     },
     {
       "routines": [

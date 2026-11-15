@@ -517,6 +517,126 @@ selected_complex_exports!(c, colmat::c32, f32, i64, _64_, 2);
 selected_complex_exports!(z, colmat::c64, f64, i32, _, 3);
 selected_complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
 
+// A Fortran ILP64 callback must return a complete i64 LOGICAL. Reinterpreting
+// an LP64 callback can leave its high word undefined. Each calling thread owns
+// its adapter, and nested calls restore the previous callback on return.
+macro_rules! callback_bridge {
+    ($p:ident,$t:ty,$($arg:ident),+) => {paste!{
+        type [<$p:camel Selector32>] = unsafe extern "C" fn($($arg:*const $t),+)->i32;
+        type [<$p:camel Selector64>] = unsafe extern "C" fn($($arg:*const $t),+)->i64;
+        std::thread_local! {static [<$p:upper _SELECTOR>]:std::cell::Cell<Option<[<$p:camel Selector32>]>>=const {std::cell::Cell::new(None)};}
+        struct [<$p:camel SelectorGuard>](Option<[<$p:camel Selector32>]>);
+        impl [<$p:camel SelectorGuard>] {
+            fn new(callback:Option<[<$p:camel Selector32>]>)->Self {Self([<$p:upper _SELECTOR>].with(|slot|slot.replace(callback)))}
+        }
+        impl Drop for [<$p:camel SelectorGuard>] {fn drop(&mut self) {[<$p:upper _SELECTOR>].with(|slot|slot.set(self.0));}}
+        unsafe extern "C" fn [<$p selector64>]($($arg:*const $t),+)->i64 {
+            let callback=[<$p:upper _SELECTOR>].with(|slot|slot.get()).expect("GGESX SORT=S requires SELCTG");
+            i64::from(callback($($arg),+)!=0)
+        }
+    }};
+}
+callback_bridge!(s, f32, ar, ai, beta);
+callback_bridge!(d, f64, ar, ai, beta);
+callback_bridge!(c, colmat::c32, alpha, beta);
+callback_bridge!(z, colmat::c64, alpha, beta);
+macro_rules! ggesx_real_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste!{
+#[no_mangle]
+pub unsafe extern "C" fn [<$p ggesx $s>](jobvsl:*const u8,jobvsr:*const u8,sort:*const u8,select:Option<unsafe extern "C" fn(*const $t,*const $t,*const $t)->$i>,sense:*const u8,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,sdim:*mut $i,ar:*mut $t,ai:*mut $t,beta:*mut $t,vsl:*mut $t,ldvsl:*const $i,vsr:*mut $t,ldvsr:*const $i,rconde:*mut $r,rcondv:*mut $r,work:*mut $t,lwork:*const $i,iwork:*mut $i,liwork:*const $i,bwork:*mut $i,info:*mut $i) {
+    let(jq,jz,sorting,sens)=(crate::kernels::flag(jobvsl),crate::kernels::flag(jobvsr),crate::kernels::flag(sort),crate::kernels::flag(sense));
+    let(nn,la,lb,lq,lz,lw,liw)=((*n).val(),(*lda).val(),(*ldb).val(),(*ldvsl).val(),(*ldvsr).val(),(*lwork).val(),(*liwork).val());
+    *info=0;
+    for(arg,ok)in[(1,matches!(jq,b'N'|b'V')),(2,matches!(jz,b'N'|b'V')),(3,matches!(sorting,b'N'|b'S')),(5,matches!(sens,b'N'|b'E'|b'V'|b'B')&&(sorting==b'S'||sens==b'N')),(6,nn>=0),(8,la>=nn.max(1)),(10,lb>=nn.max(1)),(16,lq>=1&&(jq==b'N'||lq>=nn)),(18,lz>=1&&(jz==b'N'||lz>=nn))] {if !ok {invalid(info,arg);return;}}
+    if sens==b'N' {
+        let minimum=if nn==0 {Some(1)} else if false {nn.checked_mul(2)} else {nn.checked_mul(8).zip(nn.checked_mul(6).and_then(|x|x.checked_add(16))).map(|(a,b)|a.max(b))};
+        let Some(minimum)=minimum else {invalid(info,22);return;};
+        *work=<$t>::real(minimum as f64);*iwork=1;
+        let query=lw== -1||liw== -1;
+        if !query {
+            if lw<minimum {invalid(info,22);return;}
+            // ZGGESX uses argument 24 for LIWORK as well (RWORK precedes IWORK).
+            if liw<1 {invalid(info,24);return;}
+        }
+        if query {return;}
+        for(arg,ok)in[(8,matrix_addressable::<$t>(nn,nn,la)),(10,matrix_addressable::<$t>(nn,nn,lb)),(16,jq==b'N'||matrix_addressable::<$t>(nn,nn,lq)),(18,jz==b'N'||matrix_addressable::<$t>(nn,nn,lz))] {if !ok {invalid(info,arg);return;}}
+        crate::qz::[<$p gges $s>](jobvsl,jobvsr,sort,select,n,a,lda,b,ldb,sdim,ar,ai,beta,vsl,ldvsl,vsr,ldvsr,work,lwork,bwork,info);
+        return;
+    }
+    // Exact expert estimates stay on the saved original LAPACK implementation.
+    for(arg,ok)in[(8,matrix_addressable::<$t>(nn,nn,la)),(10,matrix_addressable::<$t>(nn,nn,lb)),(16,jq==b'N'||matrix_addressable::<$t>(nn,nn,lq)),(18,jz==b'N'||matrix_addressable::<$t>(nn,nn,lz))] {if !ok {invalid(info,arg);return;}}
+    let pointer=EXPERT[4+$id].load(Ordering::Acquire);
+    assert!(!pointer.is_null(),"initialize GGESX expert fallback before use");
+    let(n64,la64,lb64,lq64,lz64,lw64,liw64)=(nn as i64,la as i64,lb as i64,lq as i64,lz as i64,lw as i64,liw as i64);
+    let narrow=std::mem::size_of::<$i>()==4;
+    let _guard=if narrow {Some([<$p:camel SelectorGuard>]::new(std::mem::transmute(select)))} else {None};
+    let selector64:Option<[<$p:camel Selector64>]>=if narrow {select.map(|_|[<$p selector64>] as [<$p:camel Selector64>])} else {std::mem::transmute(select)};
+    let mut iw64=Vec::new();let mut bw64=Vec::new();
+    let(iwptr,bwptr)=if narrow {
+        iw64.resize(liw.max(1) as usize,i64::MIN);
+        bw64.resize(if lw== -1||liw== -1 {0} else {nn as usize},i64::MIN);
+        (iw64.as_mut_ptr(),bw64.as_mut_ptr())
+    } else {(iwork.cast::<i64>(),bwork.cast::<i64>())};
+    let(mut dim64,mut err64)=(0i64,0i64);
+    let fallback:unsafe extern "C" fn(*const u8,*const u8,*const u8,Option<[<$p:camel Selector64>]>,*const u8,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut i64,*mut $t,*mut $t,*mut $t,*mut $t,*const i64,*mut $t,*const i64,*mut $r,*mut $r,*mut $t,*const i64,*mut i64,*const i64,*mut i64,*mut i64,usize,usize,usize,usize)=std::mem::transmute(pointer);
+    fallback(jobvsl,jobvsr,sort,selector64,sense,&n64,a,&la64,b,&lb64,&mut dim64,ar,ai,beta,vsl,&lq64,vsr,&lz64,rconde,rcondv,work,&lw64,iwptr,&liw64,bwptr,&mut err64,1,1,1,1);
+    if lw!= -1 && liw!= -1 && err64>=0 {*sdim=dim64 as $i;}*info=err64 as $i;
+    for(k,value)in iw64.into_iter().enumerate() {if value!=i64::MIN {*iwork.add(k)=value as $i;}}
+    for(k,value)in bw64.into_iter().enumerate() {if value!=i64::MIN {*bwork.add(k)=value as $i;}}
+}
+}};}
+macro_rules! ggesx_complex_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste!{
+#[no_mangle]
+pub unsafe extern "C" fn [<$p ggesx $s>](jobvsl:*const u8,jobvsr:*const u8,sort:*const u8,select:Option<unsafe extern "C" fn(*const $t,*const $t)->$i>,sense:*const u8,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,sdim:*mut $i,ar:*mut $t,beta:*mut $t,vsl:*mut $t,ldvsl:*const $i,vsr:*mut $t,ldvsr:*const $i,rconde:*mut $r,rcondv:*mut $r,work:*mut $t,lwork:*const $i,rwork:*mut $r,iwork:*mut $i,liwork:*const $i,bwork:*mut $i,info:*mut $i) {
+    let(jq,jz,sorting,sens)=(crate::kernels::flag(jobvsl),crate::kernels::flag(jobvsr),crate::kernels::flag(sort),crate::kernels::flag(sense));
+    let(nn,la,lb,lq,lz,lw,liw)=((*n).val(),(*lda).val(),(*ldb).val(),(*ldvsl).val(),(*ldvsr).val(),(*lwork).val(),(*liwork).val());
+    *info=0;
+    for(arg,ok)in[(1,matches!(jq,b'N'|b'V')),(2,matches!(jz,b'N'|b'V')),(3,matches!(sorting,b'N'|b'S')),(5,matches!(sens,b'N'|b'E'|b'V'|b'B')&&(sorting==b'S'||sens==b'N')),(6,nn>=0),(8,la>=nn.max(1)),(10,lb>=nn.max(1)),(15,lq>=1&&(jq==b'N'||lq>=nn)),(17,lz>=1&&(jz==b'N'||lz>=nn))] {if !ok {invalid(info,arg);return;}}
+    if sens==b'N' {
+        let minimum=if nn==0 {Some(1)} else if true {nn.checked_mul(2)} else {nn.checked_mul(8).zip(nn.checked_mul(6).and_then(|x|x.checked_add(16))).map(|(a,b)|a.max(b))};
+        let Some(minimum)=minimum else {invalid(info,21);return;};
+        *work=<$t>::real(minimum as f64);*iwork=1;
+        let query=lw== -1||liw== -1;
+        if !query {
+            if lw<minimum {invalid(info,21);return;}
+            // ZGGESX uses argument 24 for LIWORK as well (RWORK precedes IWORK).
+            if liw<1 {invalid(info,24);return;}
+        }
+        if query {return;}
+        for(arg,ok)in[(8,matrix_addressable::<$t>(nn,nn,la)),(10,matrix_addressable::<$t>(nn,nn,lb)),(15,jq==b'N'||matrix_addressable::<$t>(nn,nn,lq)),(17,jz==b'N'||matrix_addressable::<$t>(nn,nn,lz))] {if !ok {invalid(info,arg);return;}}
+        crate::qz::[<$p gges $s>](jobvsl,jobvsr,sort,select,n,a,lda,b,ldb,sdim,ar,beta,vsl,ldvsl,vsr,ldvsr,work,lwork,rwork,bwork,info);
+        return;
+    }
+    // Exact expert estimates stay on the saved original LAPACK implementation.
+    for(arg,ok)in[(8,matrix_addressable::<$t>(nn,nn,la)),(10,matrix_addressable::<$t>(nn,nn,lb)),(15,jq==b'N'||matrix_addressable::<$t>(nn,nn,lq)),(17,jz==b'N'||matrix_addressable::<$t>(nn,nn,lz))] {if !ok {invalid(info,arg);return;}}
+    let pointer=EXPERT[4+$id].load(Ordering::Acquire);
+    assert!(!pointer.is_null(),"initialize GGESX expert fallback before use");
+    let(n64,la64,lb64,lq64,lz64,lw64,liw64)=(nn as i64,la as i64,lb as i64,lq as i64,lz as i64,lw as i64,liw as i64);
+    let narrow=std::mem::size_of::<$i>()==4;
+    let _guard=if narrow {Some([<$p:camel SelectorGuard>]::new(std::mem::transmute(select)))} else {None};
+    let selector64:Option<[<$p:camel Selector64>]>=if narrow {select.map(|_|[<$p selector64>] as [<$p:camel Selector64>])} else {std::mem::transmute(select)};
+    let mut iw64=Vec::new();let mut bw64=Vec::new();
+    let(iwptr,bwptr)=if narrow {
+        iw64.resize(liw.max(1) as usize,i64::MIN);
+        bw64.resize(if lw== -1||liw== -1 {0} else {nn as usize},i64::MIN);
+        (iw64.as_mut_ptr(),bw64.as_mut_ptr())
+    } else {(iwork.cast::<i64>(),bwork.cast::<i64>())};
+    let(mut dim64,mut err64)=(0i64,0i64);
+    let fallback:unsafe extern "C" fn(*const u8,*const u8,*const u8,Option<[<$p:camel Selector64>]>,*const u8,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut i64,*mut $t,*mut $t,*mut $t,*const i64,*mut $t,*const i64,*mut $r,*mut $r,*mut $t,*const i64,*mut $r,*mut i64,*const i64,*mut i64,*mut i64,usize,usize,usize,usize)=std::mem::transmute(pointer);
+    fallback(jobvsl,jobvsr,sort,selector64,sense,&n64,a,&la64,b,&lb64,&mut dim64,ar,beta,vsl,&lq64,vsr,&lz64,rconde,rcondv,work,&lw64,rwork,iwptr,&liw64,bwptr,&mut err64,1,1,1,1);
+    if lw!= -1 && liw!= -1 && err64>=0 {*sdim=dim64 as $i;}*info=err64 as $i;
+    for(k,value)in iw64.into_iter().enumerate() {if value!=i64::MIN {*iwork.add(k)=value as $i;}}
+    for(k,value)in bw64.into_iter().enumerate() {if value!=i64::MIN {*bwork.add(k)=value as $i;}}
+}
+}};}
+ggesx_real_exports!(s, f32, f32, i32, _, 0);
+ggesx_real_exports!(s, f32, f32, i64, _64_, 0);
+ggesx_real_exports!(d, f64, f64, i32, _, 1);
+ggesx_real_exports!(d, f64, f64, i64, _64_, 1);
+ggesx_complex_exports!(c, colmat::c32, f32, i32, _, 2);
+ggesx_complex_exports!(c, colmat::c32, f32, i64, _64_, 2);
+ggesx_complex_exports!(z, colmat::c64, f64, i32, _, 3);
+ggesx_complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
+
 macro_rules! real_exports {($p:ident,$t:ty,$i:ty,$s:tt)=>{paste!{
     #[no_mangle] pub unsafe extern "C" fn [<$p tgexc $s>](wq:*const $i,wz:*const $i,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,q:*mut $t,ldq:*const $i,z:*mut $t,ldz:*const $i,ifst:*mut $i,ilst:*mut $i,work:*mut $t,lwork:*const $i,info:*mut $i) {
         exchange((*wq).val()!=0,(*wz).val()!=0,(*n).val(),a,(*lda).val(),b,(*ldb).val(),q,(*ldq).val(),z,(*ldz).val(),ifst,ilst,Some((work,(*lwork).val())),info);
@@ -539,6 +659,36 @@ complex_exports!(z, colmat::c64, i64, _64_);
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn callback_bridge_restores_nested_and_thread_local_contexts() {
+        unsafe extern "C" fn yes(_: *const f64, _: *const f64, _: *const f64) -> i32 {
+            i32::MIN
+        }
+        unsafe extern "C" fn no(_: *const f64, _: *const f64, _: *const f64) -> i32 {
+            0
+        }
+        let p = std::ptr::null();
+        assert!(D_SELECTOR.with(|slot| slot.get().is_none()));
+        {
+            let _outer = DSelectorGuard::new(Some(yes));
+            assert_eq!(unsafe { dselector64(p, p, p) }, 1);
+            {
+                let _inner = DSelectorGuard::new(Some(no));
+                assert_eq!(unsafe { dselector64(p, p, p) }, 0);
+            }
+            assert_eq!(unsafe { dselector64(p, p, p) }, 1);
+            std::thread::spawn(|| {
+                let p = std::ptr::null();
+                assert!(D_SELECTOR.with(|slot| slot.get().is_none()));
+                let _guard = DSelectorGuard::new(Some(no));
+                assert_eq!(unsafe { dselector64(p, p, p) }, 0);
+            })
+            .join()
+            .unwrap();
+            assert_eq!(unsafe { dselector64(p, p, p) }, 1);
+        }
+        assert!(D_SELECTOR.with(|slot| slot.get().is_none()));
+    }
     fn abi<T: ReorderScalar, I: LapackInt>(tol: f64) {
         let n = 3;
         let ld = 5;
