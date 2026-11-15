@@ -86,6 +86,25 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.rows[0]['execution_evidence_status'] = 'direct_call_witness'
         self.assertEqual(registration_digest(self.rows), digest)
 
+class RepositoryExecutionEvidenceTests(unittest.TestCase):
+    def test_committed_inventory_matches_verified_execution_snapshot(self):
+        import csv
+        import json
+        import re
+        from lbt_execution import load_execution
+        root = Path(__file__).resolve().parents[2]
+        rows = list(csv.DictReader((root / 'docs/src/assets/lbt-symbol-inventory.tsv').open(), delimiter='\t'))
+        snapshot = root / 'docs/src/assets/lapack-abi-execution.json'
+        self.assertTrue(snapshot.is_file(), 'The execution snapshot must be committed')
+        native = re.search(r'^revision\s*=\s*"([0-9a-f]+)"', (root / 'deps/upstream.toml').read_text(), re.MULTILINE).group(1)
+        executed, data = load_execution(root, rows, native)
+        self.assertEqual(len(executed), 1086)
+        catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
+        self.assertEqual(catalogued, set(executed))
+        for row in rows:
+            if row['symbol'] in executed:
+                self.assertEqual(row['execution_evidence'], execution_fields(row['symbol'], executed, data)['execution_evidence'])
+
 
 if __name__ == '__main__':
     unittest.main()
