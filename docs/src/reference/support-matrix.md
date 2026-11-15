@@ -821,6 +821,9 @@ caller WORK は保持します。caller WORK が内部割り当て量を制限�
 
 ## Band/packed/RFP BLAS（#281）
 
+検証に使用する colmat-rs は、main の依存更新に合わせた
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` です。
+
 48 Fortran canonical シンボルを両整数 ABI に追加しました。GBMV、SBMV/SPMV、SPR/SPR2、
 TBMV/TBSV/TPMV/TPSV は4型、HBMV/HPMV/HPR/HPR2 は定義された複素2型を扱います。
 SSFRK/DSFRK/CHFRK/ZHFRK の4入口も含みます。各 ABI の対応数は882（BLAS 202、LAPACK 680）です。
