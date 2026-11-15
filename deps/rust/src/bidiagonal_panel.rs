@@ -24,7 +24,7 @@ pub(crate) unsafe fn panel<T: ReflectorScalar, R: Scalar>(
     if m == 0 || n == 0 || nb == 0 {
         return;
     }
-    let mut matrix = MatRef::from_raw_parts(a, m, n, 1, lda).to_owned();
+    let mut matrix = MatRef::from_raw_parts(a, m, n, 1, if n == 1 { 0 } else { lda }).to_owned();
     let ld = matrix.col_stride();
     let base = matrix.as_mut().as_ptr_mut();
     let mut work = vec![T::z(); m.max(n)];
@@ -214,12 +214,13 @@ unsafe fn driver<T: ReflectorScalar, R: Scalar>(
     if m == 0 || n == 0 || nb == 0 {
         return;
     }
-    for (arg, elements) in [
-        (5, lda.checked_mul(n)),
-        (11, ldx.checked_mul(nb)),
-        (13, ldy.checked_mul(nb)),
-        (3, m.checked_mul(n)),
-    ] {
+    for (arg, rows, cols, ld) in [(5, m, n, lda), (11, m, nb, ldx), (13, n, nb, ldy)] {
+        if !crate::kernels::matrix_addressable::<T>(rows, cols, ld) {
+            crate::invalid(arg);
+            return;
+        }
+    }
+    for (arg, elements) in [(3, m.checked_mul(n))] {
         if elements
             .and_then(|x| x.checked_mul(std::mem::size_of::<T>() as isize))
             .is_none()

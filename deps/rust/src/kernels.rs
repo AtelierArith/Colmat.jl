@@ -112,6 +112,21 @@ pub unsafe fn get<T: Scalar>(a: *const T, ld: isize, i: isize, j: isize, t: u8) 
         v
     }
 }
+// Extent through the last referenced element, excluding the final column's
+// unused padding. In particular, a one-column matrix never uses its LD.
+pub(crate) fn matrix_addressable<T>(rows: isize, cols: isize, ld: isize) -> bool {
+    if rows < 0 || cols < 0 || ld < 0 {
+        return false;
+    }
+    if rows == 0 || cols == 0 {
+        return true;
+    }
+    (cols - 1)
+        .checked_mul(ld)
+        .and_then(|x| x.checked_add(rows))
+        .and_then(|x| x.checked_mul(std::mem::size_of::<T>() as isize))
+        .is_some()
+}
 pub unsafe fn scale<T: Scalar>(m: isize, n: isize, beta: T, c: *mut T, ldc: isize) {
     if beta == T::o() {
         return;

@@ -89,7 +89,7 @@ unsafe fn execute<T: Scalar>(
             1,
             tau,
             c.offset(offset),
-            ldc,
+            if cols == 1 { 0 } else { ldc },
             work.as_mut_ptr(),
         );
     }
@@ -152,17 +152,37 @@ unsafe fn apply<T: Scalar, I: LapackInt>(
         *work = T::o();
         return;
     }
-    let (count, _) = geometry(q, order as usize, k as usize);
-    if !fits::<T>(ldc, n) {
+    let (count, shift) = geometry(q, order as usize, k as usize);
+    if count == 0 {
+        return;
+    }
+    if !fits::<T>(count as isize, 1) {
+        error(info, 6);
+        return;
+    }
+    if (0..count).all(|j| *tau.add(j) == T::z()) {
+        return;
+    }
+    if !crate::kernels::matrix_addressable::<T>(m, n, ldc) {
         error(info, 11);
         return;
     }
-    if count > 0
-        && (!fits::<T>(lda, if q { count as isize } else { order })
-            || !fits::<T>(order, count as isize))
-    {
+    if !fits::<T>(order, count as isize) {
         error(info, 8);
         return;
+    }
+    for j in 0..count {
+        if *tau.add(j) != T::z() && j + shift + 1 < order as usize {
+            let (rows, cols) = if q {
+                (order, j as isize + 1)
+            } else {
+                (j as isize + 1, order)
+            };
+            if !crate::kernels::matrix_addressable::<T>(rows, cols, lda) {
+                error(info, 8);
+                return;
+            }
+        }
     }
     let factors = gather(q, order as usize, k as usize, a, lda, tau);
     execute(side, tr, m as usize, n as usize, &factors, c, ldc);
@@ -215,7 +235,7 @@ unsafe fn generate<T: Scalar, I: LapackInt>(
         *work = T::o();
         return;
     }
-    if !fits::<T>(lda, n) {
+    if !crate::kernels::matrix_addressable::<T>(m, n, lda) {
         error(info, 6);
         return;
     }

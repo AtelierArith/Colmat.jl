@@ -251,9 +251,9 @@
         "labrd"
       ],
       "status": "representation",
-      "api": "bidiag_in_place / householder",
+      "api": "native bidiag panels / LAPACK reflector gauge / native GEMV updates",
       "source": "faer/src/linalg/svd/bidiag.rs",
-      "note": "二重対角と左右 reflector・TAU の保存形式を変換"
+      "note": "20 Fortran シンボルを両 ABI に接続。各 active column/row を正規化して native bidiag_in_place の1列 panel を使い、複素 beta と reciprocal coefficient の慣習を LAPACK の実数 D/E・複素 TAUQ/TAUP・保存ベクトルへ変換する。GEBRD/GEBD2 は共通 unblocked 合成。LABRD は所有する working matrix を逐次更新し、caller A22 を保持したまま先頭 NB 行/列と deferred X/Y を返す。Q/P は同じ保存形式から native GEMV/rank-one 更新で生成・左右適用する。caller WORK の最小長/query を扱うが内部領域は別途確保。4型・両 ABI・上下二重対角・矩形・外部因子相互運用を検証。C ABI は別タスク。"
     },
     {
       "routines": [

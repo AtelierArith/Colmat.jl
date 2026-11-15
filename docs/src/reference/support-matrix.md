@@ -1084,3 +1084,42 @@ Reference-LAPACK 3.12.1 の prose は最小長の M/N を実行コードと逆�
 では OpenBLAS 0.3.30 が NQ=5 の左右両方で LWORK=2 に INFO=-12、LWORK=5 に成功を返します。
 テストはこの実行契約を使い、異なるブロック幅、未使用三角の NaN、unitary な置換・位相行列と一般の
 構造付き行列、独立 scalar 積、C/Q/WORK/INFO の guard と全4入口の数値 LBT 呼び出しを検証します。
+
+## 二重対角化と左右 Householder（#295）
+
+colmat-rs `4e6ed0e34659147a5c744ab6431f150e78db6f82` の native bidiagonal panel と行列積を使い、
+GEBD2/GEBRD/LABRD、実 ORGBR/ORMBR・複素 UNGBR/UNMBR の20 Fortran canonical シンボルを
+両整数 ABI に接続しました。各 ABI の対応数は1026（BLAS 202、LAPACK 824）です。C ABI は別タスクです。
+
+各 active column/row を最大成分で正規化して native `bidiag_in_place` の1列 panel に渡します。
+native は Hermitian な反射と複素 beta を使い、LAPACK は実数 beta と複素 tau を使うため、
+反射ベクトルの tail を `(alpha-beta_native)/(alpha-beta_LAPACK)` 倍して保存形式を変換します。
+正規化した成分で計算し、native の tiny-tail 判定でも表現可能な LAPACK tail を維持します。
+実数 D/E と実数・複素 TAUQ/TAUP を区別し、右側の保存ベクトルは必要な共役を戻します。
+非有限入力では scalar 変換段階で既存 Householder adapter の IEEE 演算経路を使います。
+
+GEBD2/GEBRD はこの panel と native GEMV/rank-one 更新を交互に適用する共通の unblocked 合成です。
+M>=N は upper、M<N は lower bidiagonal を返します。GEBRD が専用の blocked bidiagonalization を
+使うという主張ではありません。GEBRD の最小・推奨 WORK は空問題なら1、それ以外は max(M,N) で、
+query は A/D/E/TAU を読みません。GEBD2 の caller WORK は保持し、内部更新領域を別途確保します。
+反射 panel と明示的な更新用領域は O(max(M,N)) で、native 内部にも作業領域を確保します。
+
+LABRD は所有する O(M*N) の working matrix で先頭 NB 段を還元し、caller の先頭 NB 行/列だけへ戻します。
+caller A22 は更新せず保持し、`A22 -= V2*Y2ᴴ + X2*U2ᴴ` に必要な X/Y の下側区間を返します。
+X/Y の leading scratch と padding は保持します。存在しない最後の反射因子・副対角出力も変更しません。
+Reference-LAPACK の複素 singleton/最終段では head が実数 beta ではなく元の値に残る場合も区別します。
+LABRD には INFO/query 引数がなく、不正引数は他の補助入口と同じ thread-local 診断から取得できます。
+
+Q/P の生成・適用は上下二重対角で異なる反射開始位置、実 N/T と複素 N/C、SIDE=L/R を区別します。
+ORGBR/UNGBR は Q または Pᴴ の full/thin slice を A に返します。保存された非零反射の tail だけを
+内部領域へ退避して A を出力へ置き換え、零 tau では未参照の A を読みません。
+ORMBR/UNMBR は外部の LAPACK 因子も使用できます。反射の snapshot は O(NQ*min(NQ,K)) で、
+caller WORK の最小長とは別に確保します。query と空問題では数学的な入力を読みません。
+最小長の整数は単精度で不足しない向きに丸め、アドレス計算できない領域を配列借用前に検出します。
+
+検証では4型・両 ABI、矩形・階数落ち・零行列、A≈Q*B*Pᴴ と直交性、full/thin Q/P、左右・共役、
+OpenBLAS の因子/生成/適用との双方向相互運用、LABRD の部分還元と X/Y 更新積、query と最小 WORK、
+INFO と補助診断、padding/guard、全20入口の数値 LBT 呼び出しを確認します。
+極小/巨大スケールでは正規化した BigFloat 再構成も独立に照合します。
+1列では使わない LDA/LDC/LDX/LDY の巨大値を許容し、最後の参照要素までの領域で検査します。
+零 tau の反射は A を読まず、全反射が零なら適用先 C も参照しません。

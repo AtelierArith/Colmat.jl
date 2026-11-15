@@ -43,7 +43,7 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 `cblas_cdot{u,c}_sub` / `cblas_zdot{u,c}_sub` も提供します。
 CBLAS 全体の互換ライブラリを提供するものではありません。
 
-この構成では LP64・ILP64 それぞれ1006シンボル（BLAS 202、LAPACK 804）を LBT に登録します。
+この構成では LP64・ILP64 それぞれ1026シンボル（BLAS 202、LAPACK 824）を LBT に登録します。
 登録を調べるには次を実行します。
 
 ```jldoctest
@@ -56,7 +56,7 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 1006 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 1026 for l in libs)
 true
 ```
 

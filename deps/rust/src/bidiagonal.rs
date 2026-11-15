@@ -165,7 +165,7 @@ pub(crate) unsafe fn reduce<T: ReflectorScalar, R: Scalar>(
     let mut work = vec![T::z(); m.max(n)];
     if m >= n {
         for j in 0..n {
-            let diagonal = a.offset(j as isize * (lda + 1));
+            let diagonal = a.offset(j as isize * lda + j as isize);
             let tq = reflector(m - j, diagonal, 1);
             *tauq.add(j) = tq;
             *d.add(j) = R::real((*diagonal).re());
@@ -180,7 +180,7 @@ pub(crate) unsafe fn reduce<T: ReflectorScalar, R: Scalar>(
         }
     } else {
         for j in 0..m {
-            let diagonal = a.offset(j as isize * (lda + 1));
+            let diagonal = a.offset(j as isize * lda + j as isize);
             *taup.add(j) = right(m - j - 1, n - j, diagonal, lda, work.as_mut_ptr());
             *d.add(j) = R::real((*diagonal).re());
             if j + 1 < m {
@@ -240,7 +240,12 @@ unsafe fn driver<T: ReflectorScalar, R: Scalar, I: crate::lapack::LapackInt>(
         return;
     }
     let bytes = std::mem::size_of::<T>() as isize;
-    for (arg, count) in [(4, n.checked_mul(lda)), (1, Some(m)), (2, Some(n))] {
+    if !crate::kernels::matrix_addressable::<T>(m, n, lda) {
+        *info = I::from_i64(-4);
+        crate::invalid(4);
+        return;
+    }
+    for (arg, count) in [(1, Some(m)), (2, Some(n))] {
         if count.and_then(|x| x.checked_mul(bytes)).is_none() {
             *info = I::from_i64(-arg);
             crate::invalid(arg as i32);
@@ -684,5 +689,179 @@ mod tests {
     #[test]
     fn complex64_reflector_gauge() {
         check(colmat::c64::new(0.0, 1.0), 1e-12);
+    }
+}
+
+#[cfg(test)]
+mod stride_tests {
+    #[test]
+    fn zero_tau_application_does_not_reference_matrix_arrays() {
+        unsafe {
+            let tau = [0.0f64; 2];
+            let mut work = [0.0];
+            let mut info = -99i64;
+            crate::bidiagonal_vectors::dormbr_64_(
+                b"Q".as_ptr(),
+                b"L".as_ptr(),
+                b"N".as_ptr(),
+                &3,
+                &1,
+                &2,
+                std::ptr::null(),
+                &i64::MAX,
+                tau.as_ptr(),
+                std::ptr::null_mut(),
+                &i64::MAX,
+                work.as_mut_ptr(),
+                &1,
+                &mut info,
+            );
+            assert_eq!(info, 0);
+        }
+    }
+    #[test]
+    fn zero_tau_later_column_does_not_reference_its_large_offset() {
+        unsafe {
+            let a = [-5.0f64, 0.5, 0.0];
+            let tau = [1.6, 0.0];
+            let mut c = [2.0, 3.0, 4.0];
+            let mut work = [0.0];
+            let mut info = -99i64;
+            crate::bidiagonal_vectors::dormbr_64_(
+                b"Q".as_ptr(),
+                b"L".as_ptr(),
+                b"N".as_ptr(),
+                &3,
+                &1,
+                &2,
+                a.as_ptr(),
+                &i64::MAX,
+                tau.as_ptr(),
+                c.as_mut_ptr(),
+                &i64::MAX,
+                work.as_mut_ptr(),
+                &1,
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            assert!((c[0] + 3.6).abs() < 1e-14);
+            assert!((c[1] - 0.2).abs() < 1e-14);
+            assert_eq!(c[2], 4.0);
+        }
+    }
+    #[test]
+    fn single_factor_column_accepts_an_unused_huge_lda() {
+        unsafe {
+            let mut a = [3.0f64, 4.0, 777.0];
+            let mut d = [777.0];
+            let mut e = [777.0];
+            let mut tq = [777.0];
+            let mut tp = [777.0];
+            let mut info = -99i64;
+            super::dgebd2_64_(
+                &2,
+                &1,
+                a.as_mut_ptr(),
+                &i64::MAX,
+                d.as_mut_ptr(),
+                e.as_mut_ptr(),
+                tq.as_mut_ptr(),
+                tp.as_mut_ptr(),
+                std::ptr::null_mut(),
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            assert_eq!(d[0], -5.0);
+            assert_eq!(a[2], 777.0);
+        }
+    }
+    #[test]
+    fn single_generated_column_accepts_an_unused_huge_lda() {
+        unsafe {
+            let mut a = [-5.0f64, 0.5, 777.0];
+            let tau = [1.6];
+            let mut work = [0.0];
+            let mut info = -99i64;
+            crate::bidiagonal_vectors::dorgbr_64_(
+                b"Q".as_ptr(),
+                &2,
+                &1,
+                &1,
+                a.as_mut_ptr(),
+                &i64::MAX,
+                tau.as_ptr(),
+                work.as_mut_ptr(),
+                &1,
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            assert!((a[0] + 0.6).abs() < 1e-14);
+            assert!((a[1] + 0.8).abs() < 1e-14);
+            assert_eq!(a[2], 777.0);
+        }
+    }
+    #[test]
+    fn single_rhs_accepts_unused_huge_source_and_output_strides() {
+        unsafe {
+            let a = [-5.0f64, 0.5];
+            let tau = [1.6];
+            let mut c = [2.0, 3.0, 777.0];
+            let mut work = [0.0];
+            let mut info = -99i64;
+            crate::bidiagonal_vectors::dormbr_64_(
+                b"Q".as_ptr(),
+                b"L".as_ptr(),
+                b"N".as_ptr(),
+                &2,
+                &1,
+                &1,
+                a.as_ptr(),
+                &i64::MAX,
+                tau.as_ptr(),
+                c.as_mut_ptr(),
+                &i64::MAX,
+                work.as_mut_ptr(),
+                &1,
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            assert!((c[0] + 3.6).abs() < 1e-14);
+            assert!((c[1] - 0.2).abs() < 1e-14);
+            assert_eq!(c[2], 777.0);
+        }
+    }
+    #[test]
+    fn single_panel_column_accepts_unused_huge_leading_dimensions() {
+        unsafe {
+            let mut a = [3.0f64, 4.0, 777.0];
+            let mut d = [777.0];
+            let mut e = [777.0];
+            let mut tq = [777.0];
+            let mut tp = [777.0];
+            let mut x = [777.0; 2];
+            let mut y = [777.0];
+            crate::bidiagonal_panel::dlabrd_64_(
+                &2,
+                &1,
+                &1,
+                a.as_mut_ptr(),
+                &i64::MAX,
+                d.as_mut_ptr(),
+                e.as_mut_ptr(),
+                tq.as_mut_ptr(),
+                tp.as_mut_ptr(),
+                x.as_mut_ptr(),
+                &i64::MAX,
+                y.as_mut_ptr(),
+                &i64::MAX,
+            );
+            assert_eq!(crate::colmat_blas_last_error(), 0);
+            assert_eq!(d[0], -5.0);
+            assert_eq!(a[2], 777.0);
+            assert_eq!(e, [777.0]);
+            assert_eq!(tp, [777.0]);
+            assert_eq!(x, [777.0; 2]);
+            assert_eq!(y, [777.0]);
+        }
     }
 }
