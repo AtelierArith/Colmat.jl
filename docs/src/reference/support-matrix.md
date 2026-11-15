@@ -1238,3 +1238,23 @@ blocked/unblocked の名前は共通の unblocked 合成経路を使い、専用
 Q の直交性、薄い／完全な Q、OpenBLAS 因子との双方向相互利用、左右適用と共役、
 workspace query・最小 work・引数診断、配列と整数出力の guard、未使用の巨大 stride、
 および全48シンボルの LBT 呼び出しを検証します。
+
+## Triangular-pentagonal QR/LQ と Q の適用
+
+TPQRT/TPQRT2、TPLQT/TPLQT2、TPMQRT/TPMLQT、TPRFB の28 Fortran
+シンボルを4型・LP64/ILP64 に接続します。各 ABI は1186シンボル
+（BLAS 202、LAPACK 984）です。上三角と pentagonal tail を積み重ねた QR、
+その随伴を使う LQ、compact Householder の生成・適用を合成します。
+専用 native triangular-pentagonal API や参照実装と同じ blocking 性能を
+意味しません。内部行列・scratch を別途確保し、caller WORK は保持します。
+
+TPRFB は左右、normal/adjoint、forward/backward、column/row storage に対応します。
+指定しない三角・構造的ゼロ・leading-dimension padding を読み書きしません。
+この系列には LWORK／workspace query がなく、TPQRT2/TPLQT2 には WORK 引数もありません。
+TPRFB は INFO を持たず、不正引数を backend の診断コードで通知します。
+
+`test/pentagonal.jl` は参照 LAPACK との因子・T の相互利用、再構成、Q の直交性、
+および elementary Householder 積から独立に求めた TPRFB の数値結果を検証します。
+参照 OpenBLAS 0.3.30 の row-forward-left TPRFB には WORK の stride に LDB を
+使う不具合があるため、参照比較では LDWORK=LDB とし、Native は異なる stride でも
+検証します。独立した安全な再現は `reproducers/openblas-tprfb-workspace.jl` にあります。
