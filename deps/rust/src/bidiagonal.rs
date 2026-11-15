@@ -16,7 +16,7 @@ fn divide<T: ReflectorScalar>(a: T, b: T) -> T {
 /// LAPACK instead requires real beta and a complex tau. Both vectors are
 /// proportional to x-tail, so rescale the native tail by
 /// (alpha-beta_native)/(alpha-beta_lapack), then convert the scalar coefficient.
-unsafe fn reflector<T: ReflectorScalar>(n: usize, a: *mut T, inc: isize) -> T {
+pub(crate) unsafe fn reflector<T: ReflectorScalar>(n: usize, a: *mut T, inc: isize) -> T {
     if n == 0 {
         return T::z();
     }

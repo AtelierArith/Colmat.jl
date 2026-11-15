@@ -10,6 +10,8 @@ mod balance;
 mod band_cholesky;
 mod band_lu;
 mod bidiagonal;
+mod bidiagonal_panel;
+mod bidiagonal_vectors;
 mod block_unitary;
 mod bunch_kaufman;
 mod complete_pivot_lu;
