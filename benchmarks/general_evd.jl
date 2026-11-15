@@ -193,8 +193,89 @@ function diagnostics(pointer, x, path)
     end
 end
 
+const PHASES=(
+    "balance",
+    "balanced_norm",
+    "native_evd_combined",
+    "hessenberg",
+    "schur",
+    "left_unbalance",
+    "left_output_copy",
+    "right_unbalance",
+    "right_output_copy",
+    "balance_metadata",
+    "reserved10",
+    "reserved11",
+    "eigenvectors",
+    "form_q",
+    "total",
+)
+function capture_native(pointer, x, capture)
+    raw=zeros(UInt64, 9+5length(PHASES))
+    function once()
+        reset!(x)
+        ccall(capture.begin_capture, Cint, ())==0 || error("Native capture already active")
+        try
+            native_evd!(pointer, x.a, x)
+        finally
+            ccall(capture.end_capture, Cint, (Ptr{UInt64}, Csize_t), raw, length(raw))==0 ||
+                error("Native capture snapshot failed")
+        end
+        x.info[]==0 || error("Native profiling call failed")
+        raw[1]==1 && raw[2]==length(PHASES) || error("Native profiling schema mismatch")
+        phases=[
+            Dict(
+                "name"=>name,
+                "allocations"=>raw[10 + 5(i - 1)],
+                "allocated_bytes"=>raw[11 + 5(i - 1)],
+                "frees"=>raw[12 + 5(i - 1)],
+                "freed_bytes"=>raw[13 + 5(i - 1)],
+                "inclusive_ns"=>raw[14 + 5(i - 1)],
+            ) for (i, name) in enumerate(PHASES)
+        ]
+        sum(p["allocations"] for p in phases)==raw[3] ||
+            error("Allocation snapshot inconsistent")
+        sum(p["allocated_bytes"] for p in phases)==raw[4] ||
+            error("Allocation byte snapshot inconsistent")
+        sum(p["frees"] for p in phases)==raw[5] || error("Free snapshot inconsistent")
+        sum(p["freed_bytes"] for p in phases)==raw[6] ||
+            error("Free byte snapshot inconsistent")
+        return Dict(
+            "allocations"=>raw[3],
+            "allocated_bytes"=>raw[4],
+            "frees"=>raw[5],
+            "freed_bytes"=>raw[6],
+            "baseline_live_bytes"=>raw[7],
+            "ending_live_bytes"=>raw[8],
+            "extra_peak_live_bytes"=>raw[9],
+            "phases"=>phases,
+        )
+    end
+    once() # Initialize profiler clocks and any remaining native caches.
+    captures=[once() for _ in 1:5]
+    return Dict(
+        "captures"=>captures,
+        "median_allocations"=>median([c["allocations"] for c in captures]),
+        "median_allocated_bytes"=>median([c["allocated_bytes"] for c in captures]),
+        "median_extra_peak_live_bytes"=>median([
+            c["extra_peak_live_bytes"] for c in captures
+        ]),
+    )
+end
+
 function run_case(
-    ::Type{T}, pointer, x, left, right, bal, threads, fixture, cold; samples=10, seconds=0.1
+    ::Type{T},
+    pointer,
+    x,
+    left,
+    right,
+    bal,
+    threads,
+    fixture,
+    cold,
+    capture;
+    samples=10,
+    seconds=0.1,
 ) where {T}
     n=x.n
     quality(T, x)
@@ -225,6 +306,15 @@ function run_case(
     )
     hasproperty(cold, :compile_time) && (row["cold_compile_seconds"]=cold.compile_time)
     merge!(row, quality(T, x))
+    row["timing_build"]=if isnothing(capture)
+        "production"
+    else
+        "profiling feature, capture disabled during wall timing"
+    end
+    if !isnothing(capture)
+        row["native_profile"]=capture_native(pointer, x, capture)
+        row["native_allocation_measurement"]="Rust GlobalAlloc requests; not Julia allocations, RSS or OS stacks"
+    end
     return row
 end
 function main(args=ARGS)
@@ -236,6 +326,21 @@ function main(args=ARGS)
         joinpath(ROOT, "deps/usr/lib/libcolmat_blas."*Libdl.dlext),
     )
     handle=Libdl.dlopen(library, Libdl.RTLD_LAZY|Libdl.RTLD_LOCAL)
+    has_profile=Libdl.dlsym(handle, :colmat_evd_profile_begin; throw_error=false)
+    has_profile = has_profile!==nothing && has_profile!=C_NULL
+    if has_profile && !("--native-profile" in args)
+        error(
+            "Profiling library requires --native-profile; do not label its wall time as production",
+        )
+    end
+    capture=if "--native-profile" in args
+        (
+            begin_capture=Libdl.dlsym(handle, :colmat_evd_profile_begin),
+            end_capture=Libdl.dlsym(handle, :colmat_evd_profile_end),
+        )
+    else
+        nothing
+    end
     setter=Libdl.dlsym(handle, :colmat_blas_set_num_threads)
     getter=Libdl.dlsym(handle, :colmat_blas_get_num_threads)
     rows=Dict{String,Any}[]
@@ -269,7 +374,17 @@ function main(args=ARGS)
             push!(
                 rows,
                 Base.invokelatest(
-                    run_case, T, pointer, x, left, right, bal, threads, fixture, cold
+                    run_case,
+                    T,
+                    pointer,
+                    x,
+                    left,
+                    right,
+                    bal,
+                    threads,
+                    fixture,
+                    cold,
+                    capture,
                 ),
             )
             println(

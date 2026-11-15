@@ -586,6 +586,7 @@ macro_rules! general_real {
                 if n < 2 {
                     return Ok(());
                 }
+                let reduction = crate::evd_profile::Scope::new(3);
                 crate::threading::with_par(|par| {
                     let bs = recommended_block_size::<Self>(n - 1, n - 1);
                     let mut coeff = Mat::<Self>::zeros(bs, n - 1);
@@ -608,7 +609,9 @@ macro_rules! general_real {
                         a[(i, j)] = Self::z();
                     }
                 }
+                drop(reduction);
                 crate::threading::with_par(|par| {
+                    let _measure = crate::evd_profile::Scope::new(4);
                     let mut mem = MemBuffer::new(hessenberg_schur_scratch::<Self>(
                         n,
                         false,
@@ -689,6 +692,7 @@ macro_rules! general_complex {
                 if n < 2 {
                     return Ok(());
                 }
+                let reduction = crate::evd_profile::Scope::new(3);
                 crate::threading::with_par(|par| {
                     let bs = recommended_block_size::<Self>(n - 1, n - 1);
                     let mut coeff = Mat::<Self>::zeros(bs, n - 1);
@@ -711,7 +715,9 @@ macro_rules! general_complex {
                         a[(i, j)] = Self::z();
                     }
                 }
+                drop(reduction);
                 crate::threading::with_par(|par| {
+                    let _measure = crate::evd_profile::Scope::new(4);
                     let mut mem = MemBuffer::new(hessenberg_schur_scratch::<Self>(
                         n,
                         false,
@@ -817,23 +823,43 @@ unsafe fn general_driver<T: General>(
     if n == 0 {
         return Ok((vec![], vec![], 0, 0, vec![], 0.0));
     }
-    let (p, s, lo, hi) = T::balance(input_mut(a, n, n, la), job)?;
+    let (p, s, lo, hi) = {
+        let _measure = crate::evd_profile::Scope::new(0);
+        T::balance(input_mut(a, n, n, la), job)?
+    };
     let abnrm;
     let e = {
         let mat = input_ref(a, n, n, la);
-        abnrm = (0..n)
-            .map(|j| (0..n).map(|i| mat[(i, j)].magnitude()).sum::<f64>())
-            .fold(0.0f64, f64::max);
+        abnrm = {
+            let _measure = crate::evd_profile::Scope::new(1);
+            (0..n)
+                .map(|j| (0..n).map(|i| mat[(i, j)].magnitude()).sum::<f64>())
+                .fold(0.0f64, f64::max)
+        };
+        let _measure = crate::evd_profile::Scope::new(2);
         T::eigen(mat, jl == b'V', jr == b'V')?
     };
     T::schur(input_mut(a, n, n, la))?;
     if jl == b'V' {
-        output(&unbalance(&e.left, &p, &s, true, &e.wi), vl, ll);
+        let transformed = {
+            let _measure = crate::evd_profile::Scope::new(5);
+            unbalance(&e.left, &p, &s, true, &e.wi)
+        };
+        let _measure = crate::evd_profile::Scope::new(6);
+        output(&transformed, vl, ll);
     }
     if jr == b'V' {
-        output(&unbalance(&e.right, &p, &s, false, &e.wi), vr, lr);
+        let transformed = {
+            let _measure = crate::evd_profile::Scope::new(7);
+            unbalance(&e.right, &p, &s, false, &e.wi)
+        };
+        let _measure = crate::evd_profile::Scope::new(8);
+        output(&transformed, vr, lr);
     }
-    let encoded = crate::balance::encode_scale(&p, s, lo, hi);
+    let encoded = {
+        let _measure = crate::evd_profile::Scope::new(9);
+        crate::balance::encode_scale(&p, s, lo, hi)
+    };
     Ok((e.w, e.wi, lo, hi, encoded, abnrm))
 }
 
@@ -841,6 +867,7 @@ macro_rules! eigen_exports{
 ($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr,($($wi:ident:$wity:ty,)?),($($extra:ident:$ext:ty,)*),($($gextra:ident:$gext:ty,)*))=>{paste::paste!{
 #[no_mangle]
 pub unsafe extern "C" fn [<$p geevx $s>](bal:*const u8,jl:*const u8,jr:*const u8,sense:*const u8,n:*const $i,a:*mut $t,lda:*const $i,w:*mut $t,$($wi:$wity,)?vl:*mut $t,ldvl:*const $i,vr:*mut $t,ldvr:*const $i,ilo:*mut $i,ihi:*mut $i,scale:*mut $r,abnrm:*mut $r,rconde:*mut $r,rcondv:*mut $r,work:*mut $t,lwork:*const $i,$($extra:$ext,)*info:*mut $i){
+ let _measure_total=crate::evd_profile::Scope::new(14);
  let (b0,l0,r0,se,n0,la0,ll0,lr0,lw0)=(flag(bal),flag(jl),flag(jr),flag(sense),(*n).val(),(*lda).val(),(*ldvl).val(),(*ldvr).val(),(*lwork).val());
  let offset=if <$t>::COMPLEX{0}else{1};
  valid!(info,1=>matches!(b0,b'N'|b'P'|b'S'|b'B'),2=>matches!(l0,b'N'|b'V'),3=>matches!(r0,b'N'|b'V'),4=>matches!(se,b'N'|b'E'|b'V'|b'B') && (!matches!(se,b'E'|b'B') || (l0==b'V' && r0==b'V')),5=>n0>=0,7=>la0>=n0.max(1),10+offset=>ll0>=1 && (l0!=b'V'||ll0>=n0),12+offset=>lr0>=1 && (r0!=b'V'||lr0>=n0));
@@ -880,6 +907,7 @@ pub unsafe extern "C" fn [<$p geevx $s>](bal:*const u8,jl:*const u8,jr:*const u8
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p geev $s>](jl:*const u8,jr:*const u8,n:*const $i,a:*mut $t,lda:*const $i,w:*mut $t,$($wi:$wity,)?vl:*mut $t,ldvl:*const $i,vr:*mut $t,ldvr:*const $i,work:*mut $t,lwork:*const $i,$($gextra:$gext,)*info:*mut $i){
+ let _measure_total=crate::evd_profile::Scope::new(14);
  *info=0;let(jl,jr,nn,la,ll,lr,lw)=(flag(jl),flag(jr),(*n).val(),(*lda).val(),(*ldvl).val(),(*ldvr).val(),(*lwork).val());let off=if <$t>::COMPLEX{0}else{1};
  valid!(info,1=>matches!(jl,b'N'|b'V'),2=>matches!(jr,b'N'|b'V'),3=>nn>=0,5=>la>=1.max(nn),8+off=>ll>=1&&(jl!=b'V'||ll>=nn),10+off=>lr>=1&&(jr!=b'V'||lr>=nn),12+off=>lw== -1||lw>=1.max(if <$t>::COMPLEX{2*nn}else if jl==b'V'||jr==b'V'{4*nn}else{3*nn}));
  *work=workspace::<$t>(1.max(4*nn));if lw== -1{return;}

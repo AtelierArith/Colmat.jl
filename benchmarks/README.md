@@ -32,3 +32,27 @@ Julia allocation sampling and BenchmarkTools memory counts only describe the
 Julia caller. Native allocation counters and per-stage measurements are still
 required before evaluating the optimization in #318. The quick run checks all four scalar types at one size/mode; it is a harness
 check, not a general performance conclusion.
+
+## Rust allocation and phase capture
+
+Build the same source separately with `--features profile-general-evd`, then
+supply that library with `COLMAT_EVD_LIBRARY` and add `--native-profile` to the
+benchmark command. Keep the production and profiling libraries in different
+paths; do not replace a library while a Julia process is using it. The feature
+is off by default, including its C capture exports and global allocator.
+
+Each case warms the profiler and records five individual captures. The counters
+intercept successful Rust GlobalAlloc allocation/zeroed/reallocation requests
+and logical frees. Requested byte volume and extra peak live payload bytes are
+not allocator bookkeeping, process RSS, direct C malloc or OS thread-stack
+measurements. Reallocation counts as replacing the old request with a new one.
+Native worker allocations are attributed to the active caller phase. Snapshot
+collection waits for in-flight counter updates before checking phase totals.
+
+Phase times are inclusive instrumentation measurements. `total` encloses the
+whole native entry and must not be added to its subphases. Before optimization,
+`native_evd_combined` is the public high-level EVD call and already includes one
+reduction/Schur calculation and requested vectors. The separately tagged
+`hessenberg`/`schur` are the extra pass used to return A. Do not label the combined
+API's time or shared scratch allocation as eigenvectors alone. Use production
+builds for wall-time comparisons; profiling builds add allocator/clock overhead.

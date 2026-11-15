@@ -7,6 +7,9 @@ rust-version = "1.89"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+profile-general-evd = []
+
 [dependencies]
 colmat = { path = "../colmat-rs/faer", default-features = false, features = ["std", "rayon", "threadteam"] }
 threadteam = { version = "0.6.0", default-features = false, features = ["parallel"] }
