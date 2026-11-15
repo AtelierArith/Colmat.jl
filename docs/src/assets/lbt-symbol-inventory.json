@@ -9,5 +9,19 @@
     "CBLAS": 212
   },
   "lp64": 1288,
-  "ilp64": 1288
+  "ilp64": 1288,
+  "capability_assessments": {
+    "unverified": 1918,
+    "conditional": 194,
+    "composition": 1303,
+    "representation": 1191,
+    "native": 450,
+    "unsupported": 90
+  },
+  "execution_evidence": {
+    "not_catalogued": 5146
+  },
+  "independent_algorithm_assessments": {
+    "not_assessed": 5146
+  }
 }

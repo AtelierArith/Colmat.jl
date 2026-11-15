@@ -1,0 +1,376 @@
+{
+  "baseline_wrapper_revision": "3c850a88a05b3c09eadd84d3722b1704cf1421f1",
+  "baseline_native_revision": "e1c83482f5a61449d30e989808c3ba5f751ec391",
+  "baseline_tsv_sha256": "3ed76587a3ae9834690333efe80bc08804e76d8d464272dfad3028dbe6b0915d",
+  "reassessment_native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+  "policy_sha256": "5727d391148ca868b7be149c3996cdb1b7153ea06d754807d37d922447a52d58",
+  "generated_at": "2026-11-15T18:10:18.645004+00:00",
+  "issue_snapshot_saved_at": "2026-11-15T17:50:48.731648+00:00",
+  "issue_snapshot_sha256": "4782c7b07dcdd38ef64c024f43762c2ae386eef8dfe3dbca75f395569b1ff1f6",
+  "canonical_symbols": 5146,
+  "original_implementation_issue_count": 51,
+  "rook_followup_issue": 372,
+  "summary": {
+    "original_candidates": 2910,
+    "original_positive": 3098,
+    "reassessed_positive": 3138,
+    "additions": [
+      "LAPACKE_chetrf_rook",
+      "LAPACKE_chetrf_rook_work",
+      "LAPACKE_chetrs_rook",
+      "LAPACKE_chetrs_rook_work",
+      "LAPACKE_dsysv_rook",
+      "LAPACKE_dsysv_rook_work",
+      "LAPACKE_dsytrf_rook",
+      "LAPACKE_dsytrf_rook_work",
+      "LAPACKE_dsytrs_rook",
+      "LAPACKE_dsytrs_rook_work",
+      "LAPACKE_ssysv_rook",
+      "LAPACKE_ssysv_rook_work",
+      "LAPACKE_ssytrf_rook",
+      "LAPACKE_ssytrf_rook_work",
+      "LAPACKE_ssytrs_rook",
+      "LAPACKE_ssytrs_rook_work",
+      "LAPACKE_zhetrf_rook",
+      "LAPACKE_zhetrf_rook_work",
+      "LAPACKE_zhetrs_rook",
+      "LAPACKE_zhetrs_rook_work",
+      "chesv_rook_",
+      "chetf2_rook_",
+      "chetrf_rook_",
+      "chetri_rook_",
+      "chetrs_rook_",
+      "dsysv_rook_",
+      "dsytf2_rook_",
+      "dsytrf_rook_",
+      "dsytri_rook_",
+      "dsytrs_rook_",
+      "ssysv_rook_",
+      "ssytf2_rook_",
+      "ssytrf_rook_",
+      "ssytri_rook_",
+      "ssytrs_rook_",
+      "zhesv_rook_",
+      "zhetf2_rook_",
+      "zhetrf_rook_",
+      "zhetri_rook_",
+      "zhetrs_rook_"
+    ],
+    "removed": [],
+    "unverified_original_exclusions": 1918,
+    "additions_by_interface": {
+      "Fortran": 20,
+      "LAPACKE": 20
+    },
+    "baseline_numerical_lapacke": 148
+  },
+  "coverage_tsv_sha256": "ce9bda2871ab0197785371b18a2173175b60d7ff058e63edfa2735c760850faa",
+  "issue_snapshots": [
+    {
+      "number": 264,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/264",
+      "updated_at": "2026-11-14T06:55:27Z",
+      "body_sha256": "316de9861c0d67afd346a1814c3adcc4cb59f4c91f89d7a0efc742c20edc993e"
+    },
+    {
+      "number": 265,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/265",
+      "updated_at": "2026-11-14T10:11:39Z",
+      "body_sha256": "b4c69dcddeb30a5c60ba0318013a281654d6ab710b8c7f08412fec294b421f2c"
+    },
+    {
+      "number": 266,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/266",
+      "updated_at": "2026-11-14T11:20:13Z",
+      "body_sha256": "a979a238fde9a34661b224f8c86d68b5fbfeeadf215426ad039fd0a970544696"
+    },
+    {
+      "number": 267,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/267",
+      "updated_at": "2026-11-14T11:47:18Z",
+      "body_sha256": "79b29f90976674c97465b5f950a0e2d6e5eb71895c42cc356c5052f1f2d15aa7"
+    },
+    {
+      "number": 268,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/268",
+      "updated_at": "2026-11-14T12:16:25Z",
+      "body_sha256": "6e09194cb0bdb54a2d3a878298541341246127a1de5f3ee506145af10a2cc910"
+    },
+    {
+      "number": 269,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/269",
+      "updated_at": "2026-11-14T09:02:17Z",
+      "body_sha256": "d2635d85a2fadab2056cc116f4903783f3ff1d78942713f4f9e9c3bf696f0ae3"
+    },
+    {
+      "number": 270,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/270",
+      "updated_at": "2026-11-14T12:28:48Z",
+      "body_sha256": "da2d63fe4dea33cc25258bf1ad8820cf28f4b7c9a3179e074b0f173cdb51cc6f"
+    },
+    {
+      "number": 271,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/271",
+      "updated_at": "2026-11-14T06:18:55Z",
+      "body_sha256": "606fe5b79f7d9dcfcf5e0a95322af1fa15310d19c0c1d114f16b267389bdd57e"
+    },
+    {
+      "number": 272,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/272",
+      "updated_at": "2026-11-14T13:50:17Z",
+      "body_sha256": "355d392e1375616f4a0c2b4a01ce803ca6e00be54be5ccb57ace049be4daf8f7"
+    },
+    {
+      "number": 273,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/273",
+      "updated_at": "2026-11-14T14:18:45Z",
+      "body_sha256": "12a35a55e55673706c14c9f50c1ad8613f27026618f57b66b8b401cf16f3e7b0"
+    },
+    {
+      "number": 274,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/274",
+      "updated_at": "2026-11-14T14:26:54Z",
+      "body_sha256": "6ba0b92f73d58884266dac1f5eaf8a32a9a299b3bf7000c2f578e73f7ca6c7e0"
+    },
+    {
+      "number": 275,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/275",
+      "updated_at": "2026-11-14T12:39:05Z",
+      "body_sha256": "3469844aaad63d384f83fde12626aea4cf4033b31404be9cc4e996018e3a3642"
+    },
+    {
+      "number": 276,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/276",
+      "updated_at": "2026-11-14T14:37:15Z",
+      "body_sha256": "0e86cb2e74909bfd126c10fd6d459eba66d787bdbb290e95541e67d30a2987d7"
+    },
+    {
+      "number": 277,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/277",
+      "updated_at": "2026-11-14T14:49:46Z",
+      "body_sha256": "ca40b2734b0d73219dc3da0c8a395f3cc237914e80affeafbf23cfb1411fae56"
+    },
+    {
+      "number": 278,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/278",
+      "updated_at": "2026-11-14T15:16:11Z",
+      "body_sha256": "5c8dfa036314af0dcbf90bb5adf1a394348a49496883d3a532d6bec10d2b027d"
+    },
+    {
+      "number": 279,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/279",
+      "updated_at": "2026-11-14T15:56:07Z",
+      "body_sha256": "4c04d349fdfd07e9fe8319a86ca4bdf85185129bc62940d9471aa09e70b0af79"
+    },
+    {
+      "number": 280,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/280",
+      "updated_at": "2026-11-14T17:22:50Z",
+      "body_sha256": "b64f7f8b23c4e0913588f9be0cac01a78f949af9c99f71db9d53031b97ae3077"
+    },
+    {
+      "number": 281,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/281",
+      "updated_at": "2026-11-15T02:22:10Z",
+      "body_sha256": "83d9eaa1cdb7af5d0440bd4f29834f9a2f3365639ae3d74f43c3996ff0b48650"
+    },
+    {
+      "number": 282,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/282",
+      "updated_at": "2026-11-15T02:47:32Z",
+      "body_sha256": "a78fe70d09fb6a6e17f2a0a9451cd216cccf72de59f9c0f986d5ea98106ff9b7"
+    },
+    {
+      "number": 283,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/283",
+      "updated_at": "2026-11-15T03:10:35Z",
+      "body_sha256": "ec2aadfdbda1be7c33553cd489260f9e8ff196b2648f724101c289c0a259e815"
+    },
+    {
+      "number": 284,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/284",
+      "updated_at": "2026-11-15T03:35:35Z",
+      "body_sha256": "311f79e184075e1a82584c385befb48ed49d45f4c90b679d94aaf22296aea915"
+    },
+    {
+      "number": 285,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/285",
+      "updated_at": "2026-11-15T04:23:48Z",
+      "body_sha256": "a0c5b7f0474203946fcdf9c6c48e8be7ea411b6b99b0c8b56829fd6e674db093"
+    },
+    {
+      "number": 286,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/286",
+      "updated_at": "2026-11-15T05:22:44Z",
+      "body_sha256": "93667e411fd41e853a8bf7d4cab5c4e88a8a2726b520594f916e30355cc0955e"
+    },
+    {
+      "number": 287,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/287",
+      "updated_at": "2026-11-15T05:40:59Z",
+      "body_sha256": "719972a7b270157750fc32c472a8c878ffe489b4b9560fc33509f9f1670904c5"
+    },
+    {
+      "number": 288,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/288",
+      "updated_at": "2026-11-14T06:19:30Z",
+      "body_sha256": "77eea0db4abae762e5dd528c3b0be96b27a3d6bc4a38332ddac420651be07171"
+    },
+    {
+      "number": 289,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/289",
+      "updated_at": "2026-11-14T07:16:35Z",
+      "body_sha256": "3ab58762c120855e4dc0742c96179bdc586901e52b9f1fc601a90bd4d8041b46"
+    },
+    {
+      "number": 290,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/290",
+      "updated_at": "2026-11-14T07:03:38Z",
+      "body_sha256": "f4a638f4f1e89077f9dae6165e0ecc818126eaa8dc7ce8a7c6271c690d88c84c"
+    },
+    {
+      "number": 291,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/291",
+      "updated_at": "2026-11-14T07:47:31Z",
+      "body_sha256": "2859c25b55c70e78a2311a711cb539a57069e7c4ecd926cfa917a9fc530a877c"
+    },
+    {
+      "number": 292,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/292",
+      "updated_at": "2026-11-14T13:04:36Z",
+      "body_sha256": "8fd0cf6332150bd170656a8fcc15324ef1a99b274ea366b3fc20357957c966c8"
+    },
+    {
+      "number": 293,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/293",
+      "updated_at": "2026-11-14T08:36:08Z",
+      "body_sha256": "234d002586edb1df29ca172002940c3a6c70d846ed6592ed8805380a5f8351c4"
+    },
+    {
+      "number": 294,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/294",
+      "updated_at": "2026-11-14T09:19:48Z",
+      "body_sha256": "e2ca46cb6261802da560137c20e045f47edb100ef6e845db6b4e4db10f9e76d7"
+    },
+    {
+      "number": 295,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/295",
+      "updated_at": "2026-11-15T06:40:55Z",
+      "body_sha256": "f107683e9307ce64a249d7735bb80906cd3d6128e4b2e868cc1ecfb0e493f9ec"
+    },
+    {
+      "number": 296,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/296",
+      "updated_at": "2026-11-15T07:24:27Z",
+      "body_sha256": "19a18fc64135dc48b2c1fc980f8e13e3903977c6d1d6443ad8c03cb994fc5523"
+    },
+    {
+      "number": 297,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/297",
+      "updated_at": "2026-11-15T07:39:17Z",
+      "body_sha256": "a08bb8cc2310cb3b70e437cf7107afc0365d14c92ee846fa8a8ba2e61d12233c"
+    },
+    {
+      "number": 298,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/298",
+      "updated_at": "2026-11-15T08:01:56Z",
+      "body_sha256": "0627902e87a8f53826eb9678d1a7fcbd74d74ec2d0cd6660a44d314fcb6bf554"
+    },
+    {
+      "number": 299,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/299",
+      "updated_at": "2026-11-14T07:29:44Z",
+      "body_sha256": "e4312be00d30eb3623c399f1dd8454323c844329c561dfb1dea87e3d2c3c3677"
+    },
+    {
+      "number": 300,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/300",
+      "updated_at": "2026-11-14T08:54:00Z",
+      "body_sha256": "43fa035f7b58e3f8dbe9f60f2575d537ae4374810636e50aa4417508e6c5ae26"
+    },
+    {
+      "number": 301,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/301",
+      "updated_at": "2026-11-14T09:42:40Z",
+      "body_sha256": "2d456862a469241acfe61e953299e6d95c1ee5964940943f3152ecef05b1083c"
+    },
+    {
+      "number": 302,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/302",
+      "updated_at": "2026-11-15T08:33:07Z",
+      "body_sha256": "1ef2cd6124d50e64130080c7f01e4cbd56084698eb9afb029ba244391c369fa6"
+    },
+    {
+      "number": 303,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/303",
+      "updated_at": "2026-11-15T09:03:42Z",
+      "body_sha256": "89d3413d7918ec7781d89441b6e9e230de9dce535b748ed41286ceef293e0cc3"
+    },
+    {
+      "number": 304,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/304",
+      "updated_at": "2026-11-14T08:02:33Z",
+      "body_sha256": "2006c0592fc199ceb10b471f924b4b1a55f69644a1a1e55d9360b601ba21fd71"
+    },
+    {
+      "number": 305,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/305",
+      "updated_at": "2026-11-15T09:49:17Z",
+      "body_sha256": "0eb21bf372fdb2a2fb54c6a65c04fd4d9cec95967901862af4625dcf6b803bc8"
+    },
+    {
+      "number": 306,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/306",
+      "updated_at": "2026-11-14T06:20:01Z",
+      "body_sha256": "06534cd8b24d2fc59f9765947ef9a9d6247a6af53f3d9b5354fa255801bd3d74"
+    },
+    {
+      "number": 307,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/307",
+      "updated_at": "2026-11-15T13:12:18Z",
+      "body_sha256": "d03d4d2f5478314398e80c7931a76a52b82666364ea408e7e0f49854ac39e099"
+    },
+    {
+      "number": 308,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/308",
+      "updated_at": "2026-11-15T14:58:20Z",
+      "body_sha256": "dfd0562da4038502ffc97b4681dfbbccf0fb3b3d642155ca61c101e066f52f31"
+    },
+    {
+      "number": 309,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/309",
+      "updated_at": "2026-11-15T15:17:38Z",
+      "body_sha256": "552f3589a4009fba50f74dabeae6979d11af4f7c797219ea30d138434eb278e9"
+    },
+    {
+      "number": 310,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/310",
+      "updated_at": "2026-11-14T08:24:51Z",
+      "body_sha256": "3caafadd16fd2b147d6d3f505ec414aa2aa9fca8c6929525d2936d2b01e68f60"
+    },
+    {
+      "number": 311,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/311",
+      "updated_at": "2026-11-15T15:45:48Z",
+      "body_sha256": "68426a1a965b2f295dcdd0eeb049516a27c7b53ab2c87f5e14be4ba5cde59a01"
+    },
+    {
+      "number": 312,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/312",
+      "updated_at": "2026-11-15T17:30:13Z",
+      "body_sha256": "4e9bddc2a8b7bbbe58a5d7411efce30db613c331dd0d0dc26e841737202ba470"
+    },
+    {
+      "number": 313,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/313",
+      "updated_at": "2026-11-14T06:20:07Z",
+      "body_sha256": "9d31754b4e99fc82a2a825b2c68865204c185e8701c2bad83b1aed068f0d162d"
+    },
+    {
+      "number": 314,
+      "url": "https://github.com/AtelierArith/Colmat.jl/issues/314",
+      "updated_at": "2026-11-14T06:20:08Z",
+      "body_sha256": "76f155e8618abc5174462edd4ae36928ca76b26ca4eaeb05315f4a200a9691b0"
+    }
+  ]
+}
