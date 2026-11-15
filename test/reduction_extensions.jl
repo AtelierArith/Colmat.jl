@@ -71,8 +71,25 @@ function scalar_value_reference(family, x, n, inc)
     return total
 end
 
+# OpenBLAS 0.3.30's single-precision SUM kernel (SUM_K from
+# kernel/arm/sum.c, compiled for x86_64) mis-reduces SIMD lanes: one-hot
+# inputs come back as 0 or 3 instead of 1.  Only use the fallback as a
+# reference when it passes this exact check.
+function reference_sum_is_exact(reference, ::Type{T}) where {T}
+    n=16
+    x=zeros(T, n + 2)
+    for i in 1:n
+        fill!(x, zero(T))
+        x[i + 1]=one(T)
+        direct_extension_value("sum", x, Int64; n, inc=1, library=reference)==one(T) ||
+            return false
+    end
+    return true
+end
+
 @testset "BLAS real value extensions and stride contracts" begin
     reference=reduction_reference()
+    trusted_sum=Dict{DataType,Bool}()
     rng=MersenneTwister(277)
     for T in (Float32, Float64),
         J in (Int32, Int64),
@@ -90,7 +107,10 @@ end
         actual=direct_extension_value(family, x, J; n, inc)
         tolerance=8eps(T)*sum(abs, values)
         @test isapprox(actual, expected; atol=tolerance, rtol=0)
-        if inc>=0
+        trusted=family!="sum" || get!(trusted_sum, T) do
+            reference_sum_is_exact(reference, T)
+        end
+        if inc>=0 && trusted
             external=direct_extension_value(family, x, Int64; n, inc, library=reference)
             @test isapprox(actual, external; atol=tolerance, rtol=0)
         end
