@@ -28,7 +28,7 @@ unsafe fn unpack<T: GeneralizedScalar>(
     }
     result
 }
-unsafe fn pack<T: GeneralizedScalar>(n: usize, lower: bool, a: *mut T, matrix: &Mat<T>) {
+pub(crate) unsafe fn pack<T: GeneralizedScalar>(n: usize, lower: bool, a: *mut T, matrix: &Mat<T>) {
     for j in 0..n {
         let (offset, stride, _) = TriangleStorage::Packed.segment(n, lower, j);
         let first = if lower { j } else { 0 };
@@ -40,7 +40,7 @@ unsafe fn pack<T: GeneralizedScalar>(n: usize, lower: bool, a: *mut T, matrix: &
 }
 // Stage packed input so native EVD refusal can dispatch to the original packed
 // LAPACK driver without exposing a partially standardized caller matrix.
-unsafe fn packed_eigen<T: GeneralizedScalar>(
+pub(crate) unsafe fn packed_eigen<T: GeneralizedScalar>(
     kind: u8,
     job: u8,
     lower: bool,
