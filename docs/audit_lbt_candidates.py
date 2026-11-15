@@ -49,6 +49,11 @@ def reconcile(baseline, current, issues, rook_issue):
                 name = symbol.removeprefix("LAPACKE_").removesuffix("_work") + "_"
                 numeric = {n for n, tokens in mentions.items() if name in tokens}
                 basis = "LAPACKE shared ABI #288; numerical owners from Fortran counterpart"
+                if not numeric and name in old and old[name]["adapter_lp64"] == old[name]["adapter_ilp64"] == "true":
+                    numeric.add(262)
+                    basis = "LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)"
+                if historical and not numeric:
+                    raise ValueError(f"Unowned numerical counterpart: {symbol}")
             elif interface == "CBLAS":
                 owners.add(271)
                 basis = "CBLAS shared ABI #271"
@@ -71,7 +76,8 @@ def reconcile(baseline, current, issues, rook_issue):
                           reassessed_positive=len(positive),
                           additions=sorted(additions), removed=sorted(removed),
                           unverified_original_exclusions=sum(s not in original_positive and r["capability_status"] == "unverified" for s, r in now.items()),
-                          additions_by_interface=dict(Counter(now[s]["interface"] for s in additions)))
+                          additions_by_interface=dict(Counter(now[s]["interface"] for s in additions)),
+                          baseline_numerical_lapacke=sum(row["historical_candidate"] == "true" and row["interface"] == "LAPACKE" and row["numerical_issues"] == "262" for row in coverage))
 
 
 def main():

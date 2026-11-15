@@ -34,6 +34,17 @@ class CandidateAuditTests(unittest.TestCase):
         self.assertEqual(lookup["LAPACKE_dsytrf_work"]["numerical_issues"], "266")
         self.assertEqual(lookup["dsytrf_rook_"]["owner_issues"], "372")
 
+    def test_already_connected_numerics_are_attributed_to_baseline(self):
+        old, current, issues = self.fixture()
+        old.append(dict(symbol="dgetrf_", interface="Fortran", family="getrf", colmat_api="公開機能あり", adapter_lp64="true", adapter_ilp64="true"))
+        old.append(dict(symbol="LAPACKE_dgetrf_work", interface="LAPACKE", family="getrf", colmat_api="公開機能あり", adapter_lp64="false", adapter_ilp64="false"))
+        current += [{**row, "capability_status": "representation"} for row in old[-2:]]
+        coverage, summary = reconcile(old, current, issues, 372)
+        entry=next(row for row in coverage if row["symbol"]=="LAPACKE_dgetrf_work")
+        self.assertEqual(entry["owner_issues"],"288")
+        self.assertEqual(entry["numerical_issues"],"262")
+        self.assertEqual(summary["baseline_numerical_lapacke"],1)
+
     def test_unowned_fortran_and_duplicate_canonical_are_rejected(self):
         old, current, issues = self.fixture()
         issues[266]["body"] = ""
@@ -61,6 +72,8 @@ class CandidateAuditTests(unittest.TestCase):
         historical = [row for row in coverage if row["historical_candidate"] == "true"]
         self.assertEqual(len(historical), 2910)
         self.assertTrue(all(row["owner_issues"] for row in historical))
+        self.assertTrue(all(row["numerical_issues"] for row in historical if row["interface"] == "LAPACKE"))
+        self.assertEqual(report["summary"]["baseline_numerical_lapacke"],148)
         self.assertEqual(report["summary"]["removed"], [])
         self.assertEqual(len(report["summary"]["additions"]), 40)
         self.assertEqual(report["summary"]["additions_by_interface"], {"Fortran": 20, "LAPACKE": 20})

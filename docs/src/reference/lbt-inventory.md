@@ -1495,7 +1495,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 元の #262 snapshot (`3c850a88a05b3c09eadd84d3722b1704cf1421f1` / native `e1c83482f5a61449d30e989808c3ba5f751ec391`) の2,910候補・51件の履歴を保持します。
 [全 canonical の担当再照合 TSV](../assets/lbt-candidate-coverage.tsv) と [監査条件・元の Issue 本文 hash JSON](../assets/lbt-candidate-audit.json) を別に記録します。
-Fortran/CBLAS は元の明示リスト、LAPACKE は #288 の共通 ABI 範囲と Fortran counterpart の数値 Issue に対応付けます。共通 ABI の担当は数値処理の実装・検証の証明ではありません。
+Fortran/CBLAS は元の明示リスト、LAPACKE は #288 の共通 ABI 範囲と Fortran counterpart の数値 Issue に対応付けます。148件の LAPACKE 候補の数値 counterpart は基準時点で接続済みの #262 に帰属します。共通 ABI の担当と、数値 counterpart の登録は、全契約の実装・検証の証明ではありません。
 公開 rook pivoting を見落としていた40候補（Fortran 20・LAPACKE 20）を追加し、[Issue #372](https://github.com/AtelierArith/Colmat.jl/issues/372) で追跡します。元の基準にも公開 enum/field が存在する分類訂正であり、新たな native API の追加ではありません。旧基準の候補集合は訂正により2,950になります。
 元の肯定的な API 判定から除外したシンボルは0です。旧非対応分類のうち1,918件は未照合へ分離し、独立公開 API の不存在として候補から落としません。これらを数値実装済み・追加機能確認済みとは判定しません。
 

@@ -46,10 +46,10 @@ LAPACKE_cgees	LAPACKE	true	false	composition	288	300	LAPACKE shared ABI #288; nu
 LAPACKE_cgees_work	LAPACKE	true	false	composition	288	300	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgeesx	LAPACKE	true	false	conditional	288	312	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgeesx_work	LAPACKE	true	false	conditional	288	312	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgeev	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgeev_work	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgeevx	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgeevx_work	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cgeev	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgeev_work	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgeevx	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgeevx_work	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cgehrd	LAPACKE	true	false	composition	288	293	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgehrd_work	LAPACKE	true	false	composition	288	293	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgejsv	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -98,12 +98,12 @@ LAPACKE_cgerfs	LAPACKE	false	false	unverified			outside original candidate cohor
 LAPACKE_cgerfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cgerqf	LAPACKE	true	false	composition	288	303	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgerqf_work	LAPACKE	true	false	composition	288	303	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgesdd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgesdd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgesv	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgesv_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgesvd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgesvd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cgesdd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgesdd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgesv	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgesv_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgesvd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgesvd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cgesvdq	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgesvdq_work	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgesvdx	LAPACKE	true	false	composition	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -112,16 +112,16 @@ LAPACKE_cgesvj	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; n
 LAPACKE_cgesvj_work	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgesvx	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cgesvx_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_cgetf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetrf	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetrf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetrf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetrf_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetri	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetri_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetrs	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cgetrs_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cgetf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetrf	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetrf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetrf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetrf_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetri	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetri_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetrs	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cgetrs_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cgetsls	LAPACKE	true	false	composition	288	310	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgetsls_work	LAPACKE	true	false	composition	288	310	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cgetsqrhrt	LAPACKE	true	false	composition	288	302	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -209,18 +209,18 @@ LAPACKE_checon_3_work	LAPACKE	false	false	unverified			outside original candidat
 LAPACKE_checon_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cheequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cheequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cheev	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cheev	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cheev_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cheev_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_cheev_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cheevd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cheev_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cheevd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cheevd_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cheevd_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_cheevd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cheevr	LAPACKE	true	false	composition	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cheevd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cheevr	LAPACKE	true	false	composition	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cheevr_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cheevr_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_cheevr_work	LAPACKE	true	false	composition	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cheevr_work	LAPACKE	true	false	composition	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cheevx	LAPACKE	true	false	composition	288	274	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cheevx_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cheevx_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
@@ -415,18 +415,18 @@ LAPACKE_cpoequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; 
 LAPACKE_cpoequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_cporfs	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cporfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_cposv	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cposv_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cposv	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cposv_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cposvx	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cposvx_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_cpotrf	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cpotrf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cpotrf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cpotrf_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cpotri	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cpotri_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cpotrs	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_cpotrs_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_cpotrf	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cpotrf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cpotrf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cpotrf_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cpotri	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cpotri_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cpotrs	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_cpotrs_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_cpp_nancheck	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cpp_trans	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_cppcon	LAPACKE	false	false	unverified			outside original candidate cohort
@@ -499,8 +499,8 @@ LAPACKE_csyconv	LAPACKE	false	false	unverified			outside original candidate coho
 LAPACKE_csyconv_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_csyequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_csyequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_csyr	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_csyr_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_csyr	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_csyr_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_csyrfs	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_csyrfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_csysv	LAPACKE	false	false	unsupported			outside original candidate cohort
@@ -726,10 +726,10 @@ LAPACKE_dgees	LAPACKE	true	false	composition	288	300	LAPACKE shared ABI #288; nu
 LAPACKE_dgees_work	LAPACKE	true	false	composition	288	300	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgeesx	LAPACKE	true	false	conditional	288	312	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgeesx_work	LAPACKE	true	false	conditional	288	312	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgeev	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgeev_work	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgeevx	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgeevx_work	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dgeev	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgeev_work	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgeevx	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgeevx_work	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dgehrd	LAPACKE	true	false	composition	288	293	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgehrd_work	LAPACKE	true	false	composition	288	293	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgejsv	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -778,12 +778,12 @@ LAPACKE_dgerfs	LAPACKE	false	false	unverified			outside original candidate cohor
 LAPACKE_dgerfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dgerqf	LAPACKE	true	false	composition	288	303	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgerqf_work	LAPACKE	true	false	composition	288	303	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgesdd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgesdd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgesv	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgesv_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgesvd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgesvd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dgesdd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgesdd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgesv	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgesv_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgesvd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgesvd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dgesvdq	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgesvdq_work	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgesvdx	LAPACKE	true	false	composition	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -792,16 +792,16 @@ LAPACKE_dgesvj	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; n
 LAPACKE_dgesvj_work	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgesvx	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dgesvx_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_dgetf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetrf	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetrf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetrf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetrf_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetri	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetri_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetrs	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dgetrs_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dgetf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetrf	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetrf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetrf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetrf_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetri	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetri_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetrs	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dgetrs_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dgetsls	LAPACKE	true	false	composition	288	310	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgetsls_work	LAPACKE	true	false	composition	288	310	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dgetsqrhrt	LAPACKE	true	false	composition	288	302	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -1001,18 +1001,18 @@ LAPACKE_dpoequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; 
 LAPACKE_dpoequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dporfs	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dporfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_dposv	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dposv_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dposv	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dposv_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dposvx	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dposvx_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_dpotrf	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dpotrf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dpotrf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dpotrf_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dpotri	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dpotri_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dpotrs	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dpotrs_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dpotrf	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dpotrf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dpotrf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dpotrf_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dpotri	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dpotri_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dpotrs	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dpotrs_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dpp_nancheck	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dpp_trans	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dppcon	LAPACKE	false	false	unverified			outside original candidate cohort
@@ -1143,18 +1143,18 @@ LAPACKE_dsyconv	LAPACKE	false	false	unverified			outside original candidate coho
 LAPACKE_dsyconv_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dsyequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dsyequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dsyev	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dsyev	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dsyev_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dsyev_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_dsyev_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dsyevd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dsyev_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dsyevd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dsyevd_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dsyevd_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_dsyevd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_dsyevr	LAPACKE	true	false	composition	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dsyevd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_dsyevr	LAPACKE	true	false	composition	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dsyevr_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dsyevr_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_dsyevr_work	LAPACKE	true	false	composition	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_dsyevr_work	LAPACKE	true	false	composition	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_dsyevx	LAPACKE	true	false	composition	288	274	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_dsyevx_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_dsyevx_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
@@ -1356,10 +1356,10 @@ LAPACKE_sgees	LAPACKE	true	false	composition	288	300	LAPACKE shared ABI #288; nu
 LAPACKE_sgees_work	LAPACKE	true	false	composition	288	300	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgeesx	LAPACKE	true	false	conditional	288	312	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgeesx_work	LAPACKE	true	false	conditional	288	312	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgeev	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgeev_work	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgeevx	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgeevx_work	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_sgeev	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgeev_work	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgeevx	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgeevx_work	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_sgehrd	LAPACKE	true	false	composition	288	293	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgehrd_work	LAPACKE	true	false	composition	288	293	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgejsv	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -1408,12 +1408,12 @@ LAPACKE_sgerfs	LAPACKE	false	false	unverified			outside original candidate cohor
 LAPACKE_sgerfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_sgerqf	LAPACKE	true	false	composition	288	303	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgerqf_work	LAPACKE	true	false	composition	288	303	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgesdd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgesdd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgesv	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgesv_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgesvd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgesvd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_sgesdd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgesdd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgesv	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgesv_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgesvd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgesvd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_sgesvdq	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgesvdq_work	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgesvdx	LAPACKE	true	false	composition	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -1422,16 +1422,16 @@ LAPACKE_sgesvj	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; n
 LAPACKE_sgesvj_work	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgesvx	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_sgesvx_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_sgetf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetrf	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetrf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetrf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetrf_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetri	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetri_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetrs	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sgetrs_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_sgetf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetrf	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetrf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetrf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetrf_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetri	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetri_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetrs	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sgetrs_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_sgetsls	LAPACKE	true	false	composition	288	310	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgetsls_work	LAPACKE	true	false	composition	288	310	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sgetsqrhrt	LAPACKE	true	false	composition	288	302	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -1631,18 +1631,18 @@ LAPACKE_spoequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; 
 LAPACKE_spoequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_sporfs	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_sporfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_sposv	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_sposv_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_sposv	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_sposv_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_sposvx	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_sposvx_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_spotrf	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_spotrf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_spotrf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_spotrf_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_spotri	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_spotri_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_spotrs	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_spotrs_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_spotrf	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_spotrf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_spotrf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_spotrf_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_spotri	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_spotri_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_spotrs	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_spotrs_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_spp_nancheck	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_spp_trans	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_sppcon	LAPACKE	false	false	unverified			outside original candidate cohort
@@ -1769,18 +1769,18 @@ LAPACKE_ssyconv	LAPACKE	false	false	unverified			outside original candidate coho
 LAPACKE_ssyconv_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_ssyequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_ssyequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_ssyev	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_ssyev	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_ssyev_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_ssyev_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_ssyev_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_ssyevd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_ssyev_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_ssyevd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_ssyevd_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_ssyevd_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_ssyevd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_ssyevr	LAPACKE	true	false	composition	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_ssyevd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_ssyevr	LAPACKE	true	false	composition	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_ssyevr_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_ssyevr_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_ssyevr_work	LAPACKE	true	false	composition	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_ssyevr_work	LAPACKE	true	false	composition	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_ssyevx	LAPACKE	true	false	composition	288	274	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_ssyevx_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_ssyevx_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
@@ -1977,10 +1977,10 @@ LAPACKE_zgees	LAPACKE	true	false	composition	288	300	LAPACKE shared ABI #288; nu
 LAPACKE_zgees_work	LAPACKE	true	false	composition	288	300	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgeesx	LAPACKE	true	false	conditional	288	312	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgeesx_work	LAPACKE	true	false	conditional	288	312	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgeev	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgeev_work	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgeevx	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgeevx_work	LAPACKE	true	false	conditional	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zgeev	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgeev_work	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgeevx	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgeevx_work	LAPACKE	true	false	conditional	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zgehrd	LAPACKE	true	false	composition	288	293	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgehrd_work	LAPACKE	true	false	composition	288	293	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgejsv	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -2029,12 +2029,12 @@ LAPACKE_zgerfs	LAPACKE	false	false	unverified			outside original candidate cohor
 LAPACKE_zgerfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zgerqf	LAPACKE	true	false	composition	288	303	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgerqf_work	LAPACKE	true	false	composition	288	303	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgesdd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgesdd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgesv	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgesv_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgesvd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgesvd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zgesdd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgesdd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgesv	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgesv_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgesvd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgesvd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zgesvdq	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgesvdq_work	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgesvdx	LAPACKE	true	false	composition	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -2043,16 +2043,16 @@ LAPACKE_zgesvj	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; n
 LAPACKE_zgesvj_work	LAPACKE	true	false	conditional	288	273	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgesvx	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zgesvx_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_zgetf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetrf	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetrf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetrf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetrf_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetri	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetri_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetrs	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zgetrs_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zgetf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetrf	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetrf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetrf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetrf_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetri	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetri_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetrs	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zgetrs_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zgetsls	LAPACKE	true	false	composition	288	310	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgetsls_work	LAPACKE	true	false	composition	288	310	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zgetsqrhrt	LAPACKE	true	false	composition	288	302	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
@@ -2140,18 +2140,18 @@ LAPACKE_zhecon_3_work	LAPACKE	false	false	unverified			outside original candidat
 LAPACKE_zhecon_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zheequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zheequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zheev	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zheev	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zheev_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zheev_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_zheev_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zheevd	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zheev_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zheevd	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zheevd_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zheevd_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_zheevd_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zheevr	LAPACKE	true	false	composition	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zheevd_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zheevr	LAPACKE	true	false	composition	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zheevr_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zheevr_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_zheevr_work	LAPACKE	true	false	composition	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zheevr_work	LAPACKE	true	false	composition	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zheevx	LAPACKE	true	false	composition	288	274	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zheevx_2stage	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zheevx_2stage_work	LAPACKE	false	false	unverified			outside original candidate cohort
@@ -2346,18 +2346,18 @@ LAPACKE_zpoequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; 
 LAPACKE_zpoequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zporfs	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zporfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_zposv	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zposv_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zposv	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zposv_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zposvx	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zposvx_work	LAPACKE	false	false	unverified			outside original candidate cohort
-LAPACKE_zpotrf	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zpotrf2	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zpotrf2_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zpotrf_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zpotri	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zpotri_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zpotrs	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zpotrs_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zpotrf	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zpotrf2	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zpotrf2_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zpotrf_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zpotri	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zpotri_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zpotrs	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zpotrs_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zpp_nancheck	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zpp_trans	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zppcon	LAPACKE	false	false	unverified			outside original candidate cohort
@@ -2430,8 +2430,8 @@ LAPACKE_zsyconv	LAPACKE	false	false	unverified			outside original candidate coho
 LAPACKE_zsyconv_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zsyequb	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
 LAPACKE_zsyequb_work	LAPACKE	true	false	composition	288	280	LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zsyr	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
-LAPACKE_zsyr_work	LAPACKE	true	false	native	288		LAPACKE shared ABI #288; numerical owners from Fortran counterpart
+LAPACKE_zsyr	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
+LAPACKE_zsyr_work	LAPACKE	true	false	native	288	262	LAPACKE shared ABI #288; numerical counterpart already registered at #262 (not full-contract verification)
 LAPACKE_zsyrfs	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zsyrfs_work	LAPACKE	false	false	unverified			outside original candidate cohort
 LAPACKE_zsysv	LAPACKE	false	false	unsupported			outside original candidate cohort
