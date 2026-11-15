@@ -746,9 +746,9 @@
         "ptsv"
       ],
       "status": "representation",
-      "api": "dense Llt/Ldlt",
-      "source": "faer/src/linalg/cholesky/llt/factor.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "api": "native LDL panels / unit band triangular_solve / real matmul",
+      "source": "faer/src/linalg/cholesky/ldlt/factor.rs",
+      "note": "16 Fortran シンボルを両 ABI に接続。実数 D と実数/複素 E を保持し、各列を2の冪で正規化して native LDL panel の確定した第1列と native real Schur update を使う。solve は O(n) の unit band と実数対角 solve を合成し、複素 upper/lower の共役を区別する。full dense 展開はしない。外部因子の再利用、非正定値 INFO・途中出力、極小/巨大値、空・ゼロ RHS、混合 ABI を検証。参照 complex PTTS2 のゼロ RHS 書換えと N=1 の逆数あふれは単独再現を残し、Native は未使用配列を触らず正規化で有限解を保つ。C ABI は別タスク。"
     },
     {
       "routines": [

@@ -226,6 +226,27 @@ pub(crate) unsafe fn solve_lower_band<T: Scalar>(
     );
 }
 
+pub(crate) unsafe fn solve_unit_lower_band<T: Scalar>(
+    n: usize,
+    width: usize,
+    a: *const T,
+    ld: usize,
+    x: *mut T,
+    tr: u8,
+) {
+    apply(
+        true,
+        tr,
+        true,
+        n,
+        a,
+        Storage::Band { width, ld },
+        x,
+        1,
+        true,
+    );
+}
+
 macro_rules! check {($($arg:expr=>$valid:expr),+)=>{$(if !$valid{crate::invalid($arg);return;})+};}
 macro_rules! exports {
  ($p:ident,$t:ty,$i:ty,$suffix:tt,$band:ident,$packed:ident,$solve:expr)=>{paste!{

@@ -984,3 +984,42 @@ native kernel の計画にも内部確保があります。保存形式に比例
 確認します。scalar 積による元問題の再構成・既知解・inverse 残差、外部因子の相互運用、
 非正定値/ゼロ対角 INFO、空・ゼロ RHS、padding/guard、全28入口の数値 LBT 呼び出し、
 引数検証順序と INFO/整数幅を検証します。
+
+## 正定値三重対角 LDL と solve（#285）
+
+colmat-rs `4e6ed0e34659147a5c744ab6431f150e78db6f82` の native LDL・乗算・三角 solve を使い、
+PTTRF/PTTRS/PTTS2/PTSV の16 Fortran canonical シンボルを両整数 ABI に接続しました。
+各 ABI の対応数は978（BLAS 202、LAPACK 776）です。4型を扱い、複素入口でも D は実数配列です。
+C ABI は別タスクです。
+
+因子化は実数 D と実数/複素 E を保持します。各消去段で列を2の冪により正規化し、native LDL panel の
+確定済み第1列から multiplier を取り出します。仮の残りの対角は元問題の pivot として扱いません。
+D の更新は複素 E の実部・虚部を使う native real 乗算で計算し、常に実数配列へ戻します。
+最初の非正定値 pivot で INFO を返し、それ以降の E と B を変更しません。
+非有限値の境界では成分ごとの IEEE 除算を変換段階で扱い、NaN の伝播も参照と照合します。
+
+solve は O(n) の unit lower band を作り、native unit 三角 solve、実数対角 solve、共役転置 solve を合成します。
+複素 UPLO=U では E の共役から始め、U**H*D*U の意味を保ちます。
+UPLO=L は L*D*L**H です。PTTS2 の複素 IUPLO は1が upper、0が lower で、実数入口には UPLO 引数がありません。
+対角 solve も D と B の成分を同じ2の冪で正規化し、表現可能な極小 pivot の逆数あふれを避けます。
+複素 B の実部・虚部は実数 kernel で処理します。外部因子の solve は両方向で相互運用を確認しています。
+
+PTSV は NRHS=0 でも因子化し、非正定値 INFO を検出します。B は触りません。
+solve は N=0 または NRHS=0 なら D/E/B を読みません。引数検証は先に行います。
+PTTS2 は INFO 引数を持たず、不正引数を他の補助入口と同じ thread-local 診断に記録します。
+これらの入口には caller workspace/query 引数がありません。
+
+full dense 展開は行いません。因子化の作業領域は一定サイズの panel で、solve は O(n) の band 領域を確保します。
+演算量は因子化が O(n)、solve が O(n*NRHS) です。native kernel の内部確保もあり、無割り当ては保証しません。
+内部領域や複素成分の stride がアドレス可能な大きさを超える場合は、配列に触れる前に引数を診断します。
+1 RHS では使わない column stride の巨大値による計算を行いません。
+
+OpenBLAS 0.3.30 の複素 PTTS2 は NRHS=0 でも第1列を書き換える場合があります。
+また N=1 の PTTS2 は 1/D の尺度変更により、極小 D で表現可能な解が Inf になる差を確認しました。
+[Colmat を読み込まない単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-ptts2-boundaries.jl)
+には安全に確保したダミー列と1要素問題を残しています。差分参照だけにダミー列を渡し、
+Colmat の未使用 B は全要素の不変を検証します。極小/巨大値は独立した期待値・BigFloat と照合します。
+
+テストは4型・両 ABI、実数 D と複素 E の再構成、upper/lower と複数 RHS、外部因子の再利用、
+非正定値 INFO と途中 D/E/B、n=0/1、subnormal と巨大 multiplier、非有限値、guard、
+全16入口の数値 LBT 呼び出し、引数検証順序、INFO/整数幅と巨大な未使用 stride を確認します。
