@@ -43,7 +43,7 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 `cblas_cdot{u,c}_sub` / `cblas_zdot{u,c}_sub` も提供します。
 CBLAS 全体の互換ライブラリを提供するものではありません。
 
-この構成では LP64・ILP64 それぞれ1258シンボル（BLAS 202、LAPACK 1056）を LBT に登録します。
+この構成では LP64・ILP64 それぞれ1272シンボル（BLAS 202、LAPACK 1070）を LBT に登録します。
 登録を調べるには次を実行します。
 
 ```jldoctest
@@ -56,7 +56,7 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 1258 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 1272 for l in libs)
 true
 ```
 
@@ -82,6 +82,7 @@ Colmat が提供しません。未接続の LAPACK は既存バックエンド�
 | GEEV / GEEVX / SYEV / HEEV 系 | 入力を借用して固有値分解を実行。balance と Schur 形の生成も呼び出し側バッファで実行 |
 | GGEV / GGHRD 系 | 入力を借用し、Schur 形・Hessenberg 形を呼び出し側バッファへ書き戻す |
 | HSEQR / GEES / HGEQZ / GGES 系 | 入力の Hessenberg 行列・三角行列を借用し、スケーリングとブロック変換を in-place で実行。Q/Z は出力領域へ書き込む |
+| TREXC / LAEXC / TRSEN / GEESX | 公開 Schur block move と既存 GEES を使用し、block index・選択順・Q 更新・拒否時の途中状態を変換。S/SEP・RCONDE/RCONDV は元の ILP64 LAPACK、整数配列・callback は ABI 変換 |
 | TREVC / TREVC3 | 公開 Schur 固有ベクトル helper、反転した転置/随伴形式による左側、選択列と back-transform を合成。native 拒否は保存した元の LAPACK を使用 |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder と保存因子の固有値抽出。条件・分離推定は保存した既存 ILP64 LAPACK。内部行列・scratch と整数 ABI 変換用領域を確保 |
 | band/packed 三重対角化・Q 生成/適用 | native 三重対角化と packed reflector 適用を合成。AP/TAU は外部 LAPACK と相互利用でき、band は既存 X への Q の右乗算も実行 |

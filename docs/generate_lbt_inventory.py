@@ -142,6 +142,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| GGEV / GGEV3 / GEGV / GGEVX | colmat-rs GEVD・homogeneous α/β・左右固有ベクトル | GGEVX は BALANC=N/SENSE=N が native。その他は既存 ILP64 backend と整数 ABI 変換 |',
     '| SYEV / HEEV / SYEVD / HEEVD | colmat-rs 自己随伴 EVD | ドライバー名と同じ Netlib 算法を実行する保証はない |',
     '| LARFG / LARFGP / LARF / LARFX / LARFY / LARFT / LARFB | Rust reflector 生成・native GEMV/SYMV/GEMM | LAPACK 係数・F/B・C/R を変換。LARFB は内部配列を確保 |',
+    '| TREXC / LAEXC / TRSEN / GEESX | native checked Schur moves・既存 GEES | 条件推定は保存した元の ILP64 routine。拒否時の index と全選択 SDIM、整数作業配列と callback の ABI を変換 |',
     '| TREVC / TREVC3 | public Schur eigenvectors・反転随伴・back-transform | SIDE L/R/B・HOWMNY A/B/S・実数対の SELECT/M と max-component 正規化。native 拒否は保存した元の LAPACK |',
     '| TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |',
     '| SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |',

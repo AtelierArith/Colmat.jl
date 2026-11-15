@@ -31,6 +31,9 @@ Selected and QR-preconditioned SVD save ILP64 entries for native failures and
 GESVDQ condition estimation; independent Jacobi drivers remain on the existing backend.
 TGSEN reorder-only and GGESX SENSE=N calls run in colmat, with ILP64 LAPACK entries for
 condition and separation estimates, with integer conversion for LP64 callers.
+Ordinary Schur reordering uses native block swaps; TRSEN JOB=N and GEESX SENSE=N
+run natively, with saved ILP64 entries for other condition estimates. LP64
+integer workspaces and LOGICAL SELECT callbacks are converted explicitly.
 Structured generalized EVD also saves original ILP64 entries for numerical recovery,
 positive ABSTOL, and precision guards at selected value boundaries.
 Call again to select Colmat after loading another BLAS provider. Configure the
@@ -288,6 +291,27 @@ function load_backend(; verbose::Bool=false)
             end
             ccall(has_vectors, Cint, (Cint,), id - 1) != 0 || error(
                 "Colmat Schur eigenvectors require an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
+        register_schur_expert = Libdl.dlsym(_handle[], :colmat_schur_expert_set_fallback)
+        has_schur_expert = Libdl.dlsym(_handle[], :colmat_schur_expert_has_fallback)
+        for (id, symbol) in enumerate((
+            "strsen_",
+            "dtrsen_",
+            "ctrsen_",
+            "ztrsen_",
+            "sgeesx_",
+            "dgeesx_",
+            "cgeesx_",
+            "zgeesx_",
+        ))
+            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_schur_expert, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
+            end
+            ccall(has_schur_expert, Cint, (Cint,), id - 1) != 0 || error(
+                "Colmat Schur expert estimates require an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.

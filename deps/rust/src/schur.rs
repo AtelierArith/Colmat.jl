@@ -730,6 +730,12 @@ unsafe fn general_schur<T: SchurScalar>(
             }
             i += size;
         }
+        if info == n + 1 {
+            // A rejected move retains the full selected dimension, as returned
+            // by LAPACK TRSEN. Successful rotations preserve this flag count;
+            // the number already collected at the front is only a prefix.
+            sdim = chosen.iter().filter(|&&take| take).count();
+        }
         (w, wi) = spectrum(borrow(&h));
         for i in 0..n {
             w[i] = w[i] * T::real(scale);

@@ -1375,3 +1375,41 @@ collective query、実数/複素で異なる検査順序を保持します。que
 `test/schur_vectors*.jl` は左右の独立残差、実数共役対の packing と正規化、M/MM、
 SELECT、back-transform、空・単一要素・ゼロ・重複固有値、極小/極大スケール、厳密な
 最小 work・query・不足時 INFO、格納 guard と実際の LBT 転送を検証します。
+
+
+## 通常 Schur block の並べ替えと条件推定（Issue #312）
+
+TREXC/LAEXC/TRSEN/GEESX の14 Fortran シンボルを LP64/ILP64 に接続します。
+TREXC/TRSEN/GEESX は4型、LAEXC は実数2型です。各 ABI は1272シンボル
+（BLAS 202、LAPACK 1070）で、native revision は
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` のままです。
+
+TREXC/LAEXC は公開 native checked Schur move を使い、1x1/2x2 の block 交換、
+既存 Q への変換の蓄積、実数 IFST/ILST の先頭行補正と最終位置を保持します。
+複素 TREXC の IFST/ILST は入力専用として保持します。拒否した交換を取り消し、
+最後に成功した交換までの T/Q と現在位置を返します。LAEXC は N または block 幅が
+ゼロの場合にデータを参照しません。内部では所有 Schur 行列と必要な Q を確保します。
+
+TRSEN JOB=N は SELECT を変更せず、実数共役対をまとめて安定選択し、M と固有値、
+必要な Q を返します。虚部は off-diagonal の平方根を別々に計算し、大きい実部の隣の
+小さい虚部を相対スケーリングで失わないようにします。LWORK=-1 だけが query で、
+LIWORK=-1 単独は実数版の不足引数です。実数 JOB=N の最小 WORK は max(1,N)、
+複素 JOB=N は1、実数 IWORK は1です。
+
+GEESX SENSE=N は既存 native GEES と同じ数値経路を使います。交換拒否時の SDIM は
+移動済み prefix ではなく全選択列数を返すよう GEES 共通処理も修正しました。
+SORT=N や query では SELECT を呼びません。実数 GEESX は LWORK/LIWORK のどちらかが
+-1 なら collective query、複素版は LWORK=-1 だけが query です。native 経路の query は
+その経路で十分な最小 WORK を返し、参照実装の block size による推奨値とは限りません。
+
+S/SEP と RCONDE/RCONDV の公開 native 数値 API はないため、TRSEN JOB=E/V/B と
+GEESX SENSE=E/V/B は保存した元の ILP64 routine を使います。LP64 では SELECT、M、
+SDIM、INFO と整数・論理作業配列を変換し、IWORK/BWORK は書き込み済み slot だけ戻します。
+SELECT callback の LOGICAL 戻り値は thread-local guard で変換し、入れ子呼び出し後に
+外側の callback を復元します。元の routine の不正引数 INFO は adapter の診断にも記録し、
+正の数値的拒否を不正引数として扱いません。
+
+`test/ordinary_schur_*.jl` は4型と両 ABI、全 block サイズと移動方向、選択順、相似変換、
+Q の直交/ユニタリ性、有限値での拒否と途中状態、全選択列数、最小 workspace と query、
+元の条件推定、callback の元の単位・実数対・入れ子呼び出し、未参照出力・padding・
+整数 guard、および各入口の実際の LBT 転送を検証します。

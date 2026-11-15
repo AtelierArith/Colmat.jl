@@ -427,7 +427,7 @@
       "status": "conditional",
       "api": "Schur と reorder_schur",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "並べ替えはあるが条件推定 S/SEP はない"
+      "note": "8 Fortran シンボル・4型・両 ABI を接続済み。TRSEN JOB=N は native Schur block move による安定選択、M、固有値抽出と Q 更新。GEESX SENSE=N は既存 native GEES 経路。交換拒否時の SDIM は移動済み prefix でなく全選択列数を返す（GEES 共通処理も修正）。S/SEP と RCONDE/RCONDV の公開 native API はなく、JOB/SENSE E/V/B は保存済み元の ILP64 routine に委譲する。LP64 IWORK/BWORK は書き込み済み slot だけ変換し、SELECT callback は thread-local guard で LOGICAL ABI を変換して入れ子呼び出し後に復元する。TRSEN は LWORK=-1 だけ、実数 GEESX は LWORK/LIWORK の collective query。内部所有行列/scratch を確保する。C ABI は別タスク。"
     },
     {
       "routines": [
@@ -447,7 +447,7 @@
       "status": "native",
       "api": "reorder_schur_real/cplx",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "実 Schur の 1x1/2x2 block と index/rejection を変換"
+      "note": "6 Fortran シンボル・TREXC は4型、LAEXC は実数2型・両整数 ABI を接続済み。公開 checked Schur move の1x1/2x2交換、任意の移動距離、Q 更新、実数 IFST/ILST の先頭行補正と最終位置、複素 index 入力の保持、拒否時の最後の成功状態を変換する。LAEXC のゼロ block quick return と固定 WORK を保持。所有 Schur 行列と必要な Q を確保する。C ABI は別タスク。"
     },
     {
       "routines": [
