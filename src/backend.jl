@@ -268,6 +268,28 @@ function load_backend(; verbose::Bool=false)
                 "Colmat structured generalized EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
+        # Schur eigenvector helpers preserve the original driver on refusal.
+        register_vectors = Libdl.dlsym(_handle[], :colmat_schur_vectors_set_fallback)
+        has_vectors = Libdl.dlsym(_handle[], :colmat_schur_vectors_has_fallback)
+        for (id, symbol) in enumerate((
+            "strevc_",
+            "dtrevc_",
+            "ctrevc_",
+            "ztrevc_",
+            "strevc3_",
+            "dtrevc3_",
+            "ctrevc3_",
+            "ztrevc3_",
+        ))
+            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_vectors, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
+            end
+            ccall(has_vectors, Cint, (Cint,), id - 1) != 0 || error(
+                "Colmat Schur eigenvectors require an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
         # Detect ILP64 first, then LP64, preserving the existing fallback table.
         for suffix in ("64_", "")

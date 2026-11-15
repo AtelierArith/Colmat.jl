@@ -1347,3 +1347,31 @@ SBTRD/HBTRD も所有行列へ展開して同じ reduction を用い、D/E と b
 固定 WORK の最小領域、INFO、空/単一要素、ゼロ・階数1・重複スペクトル、leading dimension、
 未使用 band 領域、Q と行列 padding を検証します。`test/structured_tridiagonal_*.jl` は
 A≈Q*T*Qᴴ、QᴴQ≈I、外部 AP/TAU との相互利用、既存行列の更新と LBT の実転送を確認します。
+
+
+## Schur 形式からの左右固有ベクトル（Issue #311）
+
+TREVC/TREVC3 の8 Fortran シンボルを4型・LP64/ILP64 に接続します。
+各 ABI は1258シンボル（BLAS 202、LAPACK 1056）で、native revision は
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` のままです。
+
+右側は公開 `eigenvectors_from_schur_real/cplx` を使います。左側は Schur 形式の
+反転した転置/随伴を上三角形式として同じ helper に渡し、行・列を元の順へ戻します。
+実数2x2ブロックでは正の虚部に対応する列対の順序と左側の共役を明示します。
+Schur 形を再計算せず、入力 T の指定三角と実数の第一副対角だけを読みます。
+
+SIDE=L/R/B、HOWMNY=A/B/S、実数対の SELECT の標準化、M/MM、Q*X と Q*Y の
+back-transform を保持します。単独列の最大 abs1 成分、実数対の最大 |re|+|im| を1へ
+正規化します。指定外の VL/VR、選択外の列、T と padding を変更しません。
+SELECT は HOWMNY=S の実数対だけ書き換え、複素 SELECT は入力専用です。
+
+TREVC3 は同じ native helper と行列積を共有し、Netlib 固有の blocked back-substitution
+算法を実装したという意味ではありません。固定 WORK と最小合法 LWORK/LRWORK、
+collective query、実数/複素で異なる検査順序を保持します。query はこの経路で十分な
+最小領域を返し、参照 LAPACK の block size に基づく推奨値と一致する保証はありません。
+所有行列と native scratch は O(n²) です。native 拒否時は VL/VR を変更する前に保存済みの
+元の ILP64 TREVC/TREVC3 へ渡し、LP64 の SELECT/M/INFO は専用整数領域で変換します。
+
+`test/schur_vectors*.jl` は左右の独立残差、実数共役対の packing と正規化、M/MM、
+SELECT、back-transform、空・単一要素・ゼロ・重複固有値、極小/極大スケール、厳密な
+最小 work・query・不足時 INFO、格納 guard と実際の LBT 転送を検証します。
