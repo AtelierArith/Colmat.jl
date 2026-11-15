@@ -483,3 +483,114 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod rejection_tests {
+    use super::*;
+    fn check<T: MoveScalar, I: LapackInt>(rows: [[f64; 4]; 4]) {
+        unsafe {
+            for want in [false, true] {
+                let ld = 6;
+                let mut t = vec![T::real(777.0); ld * 4];
+                let mut q = t.clone();
+                for j in 0..4 {
+                    for i in 0..4 {
+                        t[i + j * ld] = T::real(rows[i][j]);
+                        q[i + j * ld] = if i == j { T::o() } else { T::z() };
+                    }
+                }
+                let old_t = t.clone();
+                let old_q = q.clone();
+                let mut info = [I::from_i64(-777); 3];
+                laexc(
+                    want,
+                    4,
+                    t.as_mut_ptr(),
+                    ld as isize,
+                    if want {
+                        q.as_mut_ptr()
+                    } else {
+                        core::ptr::null_mut()
+                    },
+                    if want { ld as isize } else { 1 },
+                    1,
+                    2,
+                    2,
+                    info.as_mut_ptr().add(1),
+                );
+                assert_eq!(info[1].val(), 1);
+                assert_eq!(info[0].val(), -777);
+                assert_eq!(info[2].val(), -777);
+                assert_eq!(
+                    t.iter().map(|x| x.re().to_bits()).collect::<Vec<_>>(),
+                    old_t.iter().map(|x| x.re().to_bits()).collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    q.iter().map(|x| x.re().to_bits()).collect::<Vec<_>>(),
+                    old_q.iter().map(|x| x.re().to_bits()).collect::<Vec<_>>()
+                );
+                for from in [1, 2] {
+                    for to in [3, 4] {
+                        let mut first = I::from_i64(from);
+                        let mut last = I::from_i64(to);
+                        trexc(
+                            if want { b'V' } else { b'N' },
+                            4,
+                            t.as_mut_ptr(),
+                            ld as isize,
+                            if want {
+                                q.as_mut_ptr()
+                            } else {
+                                core::ptr::null_mut()
+                            },
+                            if want { ld as isize } else { 1 },
+                            &mut first,
+                            &mut last,
+                            info.as_mut_ptr().add(1),
+                        );
+                        assert_eq!((info[1].val(), first.val(), last.val()), (1, 1, 1));
+                        assert_eq!(
+                            t.iter().map(|x| x.re().to_bits()).collect::<Vec<_>>(),
+                            old_t.iter().map(|x| x.re().to_bits()).collect::<Vec<_>>()
+                        );
+                        assert_eq!(
+                            q.iter().map(|x| x.re().to_bits()).collect::<Vec<_>>(),
+                            old_q.iter().map(|x| x.re().to_bits()).collect::<Vec<_>>()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn finite_rejected_swaps_preserve_t_q_and_return_current_position() {
+        // These finite standardized windows were independently executed with
+        // original OpenBLAS DLAEXC/SLAEXC: INFO=1 and bitwise unchanged T/Q.
+        let real64 = [
+            [
+                1.0,
+                7.1362384635298e+44,
+                -3.7414441915671115e+50,
+                -3.622271631530685e-71,
+            ],
+            [
+                -7.24454326306137e-71,
+                1.0,
+                -4.7477838728798994e-66,
+                -5.795634610449096e-70,
+            ],
+            [0.0, 0.0, 1.5, 2.535301200456459e+30],
+            [0.0, 0.0, -2.8698592549372254e-42, 1.5],
+        ];
+        let real32 = [
+            [1.0, 0.5, 8.881784e-16, 536870900.0],
+            [-3.3881318e-21, 1.0, 128.0, 5.421011e-20],
+            [0.0, 0.0, 1.000061, 5.684342e-14],
+            [0.0, 0.0, -67108864.0, 1.000061],
+        ];
+        check::<f64, i32>(real64);
+        check::<f64, i64>(real64);
+        check::<f32, i32>(real32);
+        check::<f32, i64>(real32);
+    }
+}
