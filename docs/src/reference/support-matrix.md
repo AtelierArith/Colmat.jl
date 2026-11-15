@@ -1447,3 +1447,31 @@ query、引数順序、厳密な rank failure を検査します。LBT の provi
 実際に取得して各16入口を両 ABI で呼ぶ検査を含みます。実装の driver 更新順序は
 Reference LAPACK v3.12.1 `SRC/dgglse.f` / `SRC/dggglm.f` を参照し、出典と BSD-3-Clause
 license を `deps/rust/src/constrained_least_squares.rs` と `deps/rust/licenses/` に記録しています。
+
+
+## GEEVX の expert mode と能力確認（Issue #316）
+
+`SENSE=N` の native 経路を保ち、`SENSE=E/V/B` は保存した元の実装へ委譲します。
+LP64 の元の実装がある場合はそのまま呼び、ない場合は保存した ILP64 実装を使います。
+`N/LDA/LDVL/LDVR/LWORK` を拡張し、`ILO/IHI/INFO` と実数 IWORK を検査付きで戻します。
+query や参照しない IWORK slot、出力を元の実装が書かなかった場合は呼び出し側の値を保持します。
+複素 RWORK は同じ実数型の scratch として渡します。内部 TREVC3 query が RWORK を更新する場合があります。
+
+`load_backend()` は4型の元の ILP64 GEEVX を LBT 変更前に確認し、不足すれば設定エラーを返します。
+既存の LP64 実装がない通常の Julia 環境でも、ILP64 実装を通して合法な expert mode を利用できます。
+`SENSE='?'` や E/B で左右両方の固有ベクトルを要求しない組み合わせは、引数4の不正として扱います。
+再登録時に Colmat の各 GEEVX 自身を fallback として保存しません。
+
+低水準 DLL を直接利用する場合、expert call の前に元の実装を登録する必要があります。
+`colmat_lapack_has_expert_fallback(id,bits)` は id=0/1/2/3（s/d/c/z）、bits=32/64 を受け、
+利用可能なら1を返します。LP64 では保存した ILP64 経路も利用可能性に含みます。
+未設定のまま合法な expert call を行った場合は、INFO と計算出力を変更せず、
+`colmat_blas_last_error()` に設定診断 -1 を記録します。外部整数出力が ABI の範囲外なら診断 -2 です。
+通常の Julia では登録時の検査がこの未設定状態を防ぎます。独自の LAPACK INFO 値を追加せず、
+条件推定を計算せずに成功値を返すことや、C ABI を越える例外の unwind を行いません。
+
+4型・両 integer ABI、通常計算/query、balance・左右固有ベクトル・全 SENSE、
+最小 WORK、不正引数の順序、padding/整数 guard を検査します。独立参照と左右の残差・
+非ゼロ正規化・条件推定を比較し、LP64 の直接委譲はテスト専用 OpenBLAS32_jll でも検査します。
+ILP64 のみで LP64 を処理する構成、元の実装の消去と回復、初回登録前の欠落を独立プロセスで確認します。
+数値 API の依存 revision は `4e6ed0e34659147a5c744ab6431f150e78db6f82`、登録数は各 ABI 1,288 のままです。

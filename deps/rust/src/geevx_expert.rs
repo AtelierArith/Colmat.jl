@@ -185,6 +185,12 @@ mod tests {
             *hi = 3;
             *iwork = 2;
             *iwork.add(3) = -2;
+            if *lwork == 28 {
+                *iwork = i64::MAX;
+            }
+            if *lwork == 29 {
+                *lo = i64::MAX;
+            }
         }
     }
     struct Probe {
@@ -290,7 +296,18 @@ mod tests {
             assert_eq!(short.work[0], 27.0);
             assert_eq!(crate::colmat_blas_last_error(), 21);
         }
-        assert_eq!(CALLS.load(Ordering::Relaxed), 2);
+        unsafe {
+            for workspace in [28, 29] {
+                let overflow = call(b'B', workspace);
+                assert_eq!(
+                    (overflow.info, overflow.lo, overflow.hi),
+                    (-777, -777, -777)
+                );
+                assert_eq!(overflow.iw, [777; 6]);
+                assert_eq!(crate::colmat_blas_last_error(), -2);
+            }
+        }
+        assert_eq!(CALLS.load(Ordering::Relaxed), 4);
     }
     #[test]
     fn auxiliary_copy_preserves_unwritten_slots_and_rejects_overflow() {

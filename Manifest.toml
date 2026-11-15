@@ -2,7 +2,7 @@
 
 julia_version = "1.13.3"
 manifest_format = "2.1"
-project_hash = "cdd5e080ab7316eb667a99d50b5f03a8846604c7"
+project_hash = "77ca927bcfdee43f2ac9fd47b86391acbe622d02"
 
 [[deps.ANSIColoredPrinters]]
 git-tree-sha1 = "574baf8110975760d391c710b6341da1afa48d8c"
@@ -237,6 +237,13 @@ git-tree-sha1 = "0b1b4a83773cfdefa5d9dc0322e4c0624ce88b5b"
 registries = "General"
 uuid = "c7aee132-11e1-519c-8219-0a43005e73c2"
 version = "20.12.2+0"
+
+[[deps.OpenBLAS32_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "3c812b90a90447c4f011f669e0336a710be67b7a"
+registries = "General"
+uuid = "656ef2d0-ae68-5445-9ca0-591084a874a2"
+version = "0.3.30+1"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
