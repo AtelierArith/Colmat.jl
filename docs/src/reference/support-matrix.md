@@ -1324,3 +1324,26 @@ packed の N=1・空値域では Z=1 を返し IFAIL は保持するという PE
 WORK の初期値に依存した未正規化ベクトルを返します。安全な余裕領域での独立再現を
 `reproducers/openblas-sbgvd-singleton-workspace.jl` に保存しました。参照比較の当該経路だけに
 余裕を持たせ、native は最小領域と独立した残差・B 正規化で検証します。
+
+
+## band/packed 三重対角化と packed Q（Issue #309）
+
+SBTRD/HBTRD/SPTRD/HPTRD と OPGTR/UPGTR/OPMTR/UPMTR の16 Fortran シンボルを
+4型・LP64/ILP64 に接続します。各 ABI は1250シンボル（BLAS 202、LAPACK 1048）です。
+native revision は `4e6ed0e34659147a5c744ab6431f150e78db6f82` のままです。
+
+SPTRD/HPTRD は選択三角だけを所有行列へ展開し、既存 native reduction の実 beta gauge を
+LAPACK の packed AP/TAU 形式へ戻します。複素対角の虚部を読みません。Q の生成・適用は
+既存の native Householder 適用を共有し、packed 尾部を直接集めます。暗黙の1、対角、
+三重対角成分、係数ゼロの reflector の尾部を読みません。AP/TAU は参照 LAPACK で生成した
+因子とも相互利用でき、OPMTR/UPMTR は左右適用・転置/共役転置に対応します。
+
+SBTRD/HBTRD も所有行列へ展開して同じ reduction を用い、D/E と band の対角・隣接対角を
+返します。VECT=V は Q、VECT=U は呼び出し元の X に対する X*Q、VECT=N は Q を参照しません。
+複素 E は列位相を Q に反映して非負の実数へ戻します。KD=0/1 の実数経路は元の
+三重対角形と恒等 Q を保持します。専用 band bulge chase と同じ計算量や性能は主張せず、
+所有行列の領域は O(n²) です。
+
+固定 WORK の最小領域、INFO、空/単一要素、ゼロ・階数1・重複スペクトル、leading dimension、
+未使用 band 領域、Q と行列 padding を検証します。`test/structured_tridiagonal_*.jl` は
+A≈Q*T*Qᴴ、QᴴQ≈I、外部 AP/TAU との相互利用、既存行列の更新と LBT の実転送を確認します。

@@ -818,9 +818,9 @@
         "upmtr"
       ],
       "status": "representation",
-      "api": "tridiag / householder",
+      "api": "native tridiag / Householder generation and application",
       "source": "faer/src/linalg/evd/tridiag.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "note": "16 Fortran シンボル・4型・両 ABI を接続済み。SPTRD/HPTRD は packed を所有 dense 行列へ展開し、既存 native 三重対角化の実 beta gauge と LAPACK AP/TAU 形式へ変換する。OPGTR/UPGTR/OPMTR/UPMTR は packed reflector の有効な尾部だけを読み、native Householder 適用を共有。係数ゼロの尾部・対角・三重対角成分は Q の生成/適用で参照しない。SBTRD/HBTRD は band を展開して同じ reduction を合成し、D/E と VECT=V の Q、VECT=U の X*Q を返す。VECT=N は Q を参照しない。複素 band の E は非負に位相調整。固定 WORK・INFO・格納 guard を検証。内部所有行列は O(n²)、専用 band bulge chase と同じ性能は主張しない。C ABI は別タスク。"
     },
     {
       "routines": [
