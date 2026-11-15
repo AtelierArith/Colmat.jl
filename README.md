@@ -55,7 +55,7 @@ LU・Cholesky・求解・逆行列・SVD・一般/自己随伴固有値・Schur/
 | geev / geevx | 一般固有値・左右固有ベクトル・balance |
 | syev / heev / syevd / heevd / syevr / heevr | 自己随伴固有値と A/I/V 範囲選択 |
 
-未提供の BLAS / LAPACK は既存バックエンドを維持します。QR などはまだ未接続です。
+未提供の BLAS / LAPACK は既存バックエンドを維持します。
 `geevx` は `SENSE=N` が native で、条件数推定は既存バックエンドへ委譲します。
 SVD と自己随伴 EVD の複数ドライバーは共通の native 分解へ接続し、Netlib の各算法の
 同一実行を保証しません。範囲選択は全自己随伴 EVD からの選択で、native MRRR ではありません。

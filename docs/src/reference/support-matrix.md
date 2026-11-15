@@ -1475,3 +1475,28 @@ query や参照しない IWORK slot、出力を元の実装が書かなかった
 非ゼロ正規化・条件推定を比較し、LP64 の直接委譲はテスト専用 OpenBLAS32_jll でも検査します。
 ILP64 のみで LP64 を処理する構成、元の実装の消去と回復、初回登録前の欠落を独立プロセスで確認します。
 数値 API の依存 revision は `4e6ed0e34659147a5c744ab6431f150e78db6f82`、登録数は各 ABI 1,288 のままです。
+
+
+## Direct LP64/ILP64 execution evidence (#317)
+
+The normal full suite checks completed project-owned foreign calls for all
+1,086 forwarded LAPACK canonical entries in each integer ABI. The
+[execution snapshot](../assets/lapack-abi-execution.json) records exact source
+and native revisions, platform, Julia version, binary hash, source hashes and
+individual DLL/LBT routes and signatures. Linux/macOS CI saves separate
+artifacts from the same gate.
+
+The original 76-symbol driver baseline additionally tests guarded integer and
+floating outputs, padded leading dimensions, empty/rectangular/singular cases,
+query and exact minimum work, solves/inverses, SVD full/thin/overwrite modes,
+left/right eigenvectors and selfadjoint index/value selections. OpenBLAS calls
+use independent ILP64 signatures; reconstruction, residuals and orthogonality
+are checked against original inputs. The isolated C caller checks wrong-width
+INFO writes in both directions, with a real protected-page crash confined to a
+child process.
+
+`direct_call_witness` means a concrete entry call returned. It does not claim
+all options, the identity of Netlib algorithms or native sanitizer coverage.
+The importer rejects stale production/worker/test sources, native revisions,
+manifests, registration inventories and missing integer ABIs. Other symbols
+remain `not_catalogued`, which does not mean they were never tested.

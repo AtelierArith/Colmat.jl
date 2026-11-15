@@ -1491,6 +1491,20 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `zsum` / CBLAS | `cblas_dzsum` | [未照合](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/mod.rs) | 規則未登録。公開 API の意味・型・保存形式・オプションとの対応は未照合。名称や suffix/prefix は不存在の根拠ではない。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `zsum1` / Fortran | `dzsum1_` | [未照合](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/mod.rs) | 規則未登録。公開 API の意味・型・保存形式・オプションとの対応は未照合。名称や suffix/prefix は不存在の根拠ではない。 |
 
+## Direct ABI execution evidence (#317)
+
+`direct_call_witness` covers 1,086 canonical entries, with LP64 and ILP64 recorded separately.
+The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
+LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
+The collector observes project-owned pointer ccalls. High-level standard-library calls, isolated child processes and static symbol/library ccalls are excluded. Consult the individual source/signature/route witnesses and the numerical tests together.
+
+```sh
+julia --project -e 'using Pkg; Pkg.test(; allow_reresolve=false)'
+python3 docs/import_abi_execution.py test-output/abi-execution.toml
+```
+
+Linux/macOS CI collects the same evidence during the ordinary full suite and saves separate ABI artifacts.
+
 ## 元の候補集合と51件の再照合
 
 元の #262 snapshot (`3c850a88a05b3c09eadd84d3722b1704cf1421f1` / native `e1c83482f5a61449d30e989808c3ba5f751ec391`) の2,910候補・51件の履歴を保持します。
@@ -1506,7 +1520,7 @@ Fortran/CBLAS は元の明示リスト、LAPACKE は #288 の共通 ABI 範囲�
 | `capability_status` / `colmat_api` | 公開数値機能の意味上の対応・保存形式・部分対応・未照合を分類 |
 | `capability_evidence` / `evidence_status` | 確認 revision・型・格納・オプション・確認方法・公開ソース・理由。記録不足の不存在判定は採用しない |
 | `adapter_lp64` / `adapter_ilp64` | 現在の LBT 登録内容を実測。公開 API の有無とは別 |
-| `execution_evidence_status` / `execution_evidence` | canonical 入口ごとの実行証拠の登録。現在は `not_catalogued`。既存の系列別テストが未実行という意味ではなく、#317 の個別登録と区別 |
+| `execution_evidence_status` / `execution_evidence` | `direct_call_witness` records a completed concrete call through a DLL or LBT entry. It does not certify every option, numerical contract or independent algorithm. `not_catalogued` does not mean untested. |
 | `independent_algorithm_status` | 専用の独立算法の確認状態。現在は `not_assessed`。基本 solver や API の存在から専用算法を推論しない |
 
 ## 再生成と網羅性検査
