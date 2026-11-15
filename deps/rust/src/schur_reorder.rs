@@ -403,7 +403,7 @@ macro_rules! trsen_real_exports {($p:ident,$t:ty,$id:expr,$i:ty,$s:tt)=>{paste!{
         let f:unsafe extern "C" fn(*const u8,*const u8,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $t,*mut $t,*mut i64,*mut $t,*mut $t,*mut $t,*const i64,*mut i64,*const i64,*mut i64,usize,usize)=core::mem::transmute(expert($id));
         f(job,comp,selected.as_ptr(),&n,t,&ldt,q,&ldq,w,wi,&mut count,condition,sep,work,&lwork,ip,&liwork,&mut status,1,1);
         for (j,&v) in owned.iter().enumerate() {if v!=i64::MIN {let value=<$i as LapackInt>::from_i64(v);if value.val() as i64!=v {fail(info,17);return;}*iwork.add(j)=value;}}
-        if count!=i64::MIN {*m=count as $i;}*info=status as $i;
+        if count!=i64::MIN {*m=count as $i;}*info=status as $i;if status<0 {crate::invalid((-status) as i32);}
     }
 }};}
 macro_rules! trsen_complex_exports {($p:ident,$t:ty,$r:ty,$id:expr,$i:ty,$s:tt)=>{paste!{
@@ -413,7 +413,7 @@ macro_rules! trsen_complex_exports {($p:ident,$t:ty,$r:ty,$id:expr,$i:ty,$s:tt)=
         let(n,ldt,ldq,lwork)=(*n as i64,*ldt as i64,*ldq as i64,*lwork as i64);let(mut count,mut status)=(i64::MIN,0i64);
         let f:unsafe extern "C" fn(*const u8,*const u8,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $t,*mut i64,*mut $r,*mut $r,*mut $t,*const i64,*mut i64,usize,usize)=core::mem::transmute(expert($id));
         f(job,comp,selected.as_ptr(),&n,t,&ldt,q,&ldq,w,&mut count,condition,sep,work,&lwork,&mut status,1,1);
-        if count!=i64::MIN {*m=count as $i;}*info=status as $i;
+        if count!=i64::MIN {*m=count as $i;}*info=status as $i;if status<0 {crate::invalid((-status) as i32);}
     }
 }};}
 macro_rules! trsen_abi {
@@ -506,7 +506,7 @@ macro_rules! geesx_real_exports {($p:ident,$t:ty,$id:expr,$guard:ident,$bridge:i
         f(job,sort,callback,sense,&n,a,&lda,&mut count,wr,wi,vs,&ldvs,rconde,rcondv,work,&lwork,ip,&liwork,bp,&mut status,1,1,1);
         for (k,&v) in integer.iter().enumerate() {if v!=i64::MIN {let value=<$i as LapackInt>::from_i64(v);if value.val() as i64!=v {fail(info,18);return;}*iwork.add(k)=value;}}
         for (k,&v) in logical.iter().enumerate() {if v!=i64::MIN {*bwork.add(k)=v as $i;}}
-        if count!=i64::MIN {*sdim=count as $i;}*info=status as $i;
+        if count!=i64::MIN {*sdim=count as $i;}*info=status as $i;if status<0 {crate::invalid((-status) as i32);}
     }
 }};}
 macro_rules! geesx_complex_exports {($p:ident,$t:ty,$r:ty,$id:expr,$guard:ident,$bridge:ident,$i:ty,$s:tt)=>{paste!{
@@ -530,7 +530,7 @@ macro_rules! geesx_complex_exports {($p:ident,$t:ty,$r:ty,$id:expr,$guard:ident,
         let f:unsafe extern "C" fn(*const u8,*const u8,Option<unsafe extern "C" fn(*const $t)->i64>,*const u8,*const i64,*mut $t,*const i64,*mut i64,*mut $t,*mut $t,*const i64,*mut $r,*mut $r,*mut $t,*const i64,*mut $r,*mut i64,*mut i64,usize,usize,usize)=core::mem::transmute(expert(4+$id));
         f(job,sort,callback,sense,&n,a,&lda,&mut count,w,vs,&ldvs,rconde,rcondv,work,&lwork,rwork,bp,&mut status,1,1,1);
         for (k,&v) in logical.iter().enumerate() {if v!=i64::MIN {*bwork.add(k)=v as $i;}}
-        if count!=i64::MIN {*sdim=count as $i;}*info=status as $i;
+        if count!=i64::MIN {*sdim=count as $i;}*info=status as $i;if status<0 {crate::invalid((-status) as i32);}
     }
 }};}
 macro_rules! geesx_abi {
