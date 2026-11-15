@@ -1,0 +1,42 @@
+{
+  "profile-before.toml.gz": {
+    "captures": 3840,
+    "hashes_and_phase_totals": "passed",
+    "nonzero_live_deltas": 21,
+    "max_absolute_live_delta_bytes": 80,
+    "live_vs_request_boundary_mismatches": 5,
+    "max_absolute_boundary_difference_bytes": 24,
+    "participants": {
+      "1": {
+        "captures": 1920,
+        "boundary_mismatches": 0,
+        "nonzero_live_deltas": 0
+      },
+      "2": {
+        "captures": 1920,
+        "boundary_mismatches": 5,
+        "nonzero_live_deltas": 21
+      }
+    }
+  },
+  "profile-after.toml.gz": {
+    "captures": 3840,
+    "hashes_and_phase_totals": "passed",
+    "nonzero_live_deltas": 37,
+    "max_absolute_live_delta_bytes": 72,
+    "live_vs_request_boundary_mismatches": 31,
+    "max_absolute_boundary_difference_bytes": 48,
+    "participants": {
+      "1": {
+        "captures": 1920,
+        "boundary_mismatches": 0,
+        "nonzero_live_deltas": 0
+      },
+      "2": {
+        "captures": 1920,
+        "boundary_mismatches": 31,
+        "nonzero_live_deltas": 37
+      }
+    }
+  }
+}

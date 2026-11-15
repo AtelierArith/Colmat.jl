@@ -129,3 +129,32 @@ residuals, normalization, unrequested outputs and nonfinite-input INFO.
 Subnormal comparisons explicitly account for smallest-component rounding when
 restoring eigenvalues. Existing direct GEEV and GEEVX expert/boundary/process
 regressions continue to cover retained estimates and integer bridging.
+
+
+A separate archive audit verifies every compressed/raw SHA-256 and each of the
+3,840 captures' phase totals in both profiling runs. Live-byte snapshots and
+counted requests have independent capture boundaries: asynchronous worker
+allocation/free events can cross the begin/end transition. With participant
+setting 2, the before run had five live-vs-request boundary differences (maximum
+24 bytes) and the after run had 31 (maximum 48 bytes). Nonzero end-minus-start
+live deltas occurred in 21/37 captures respectively (maximum 80/72 bytes).
+With participant setting 1, all 1,920 captures in each run had zero live delta
+and no boundary discrepancy. These are observed differences, not a universal
+error bound; live/peak payload is a window observation and is not a leak test.
+The full audit is `capture-audit.json`; reproduce it with:
+
+```sh
+python3 benchmarks/audit_general_evd.py benchmarks/results/issue-318
+```
+
+The full `Pkg.test(; allow_reresolve=false)` passed at
+`98312084c4b449421bb000fb23097c6c7e8c3d4a`, including standard BLAS/LAPACK and
+concurrent caller regressions. The all-entry/provenance gate passed 209 checks
+and recorded 1,086 LAPACK canonical entries in both integer ABIs against 202
+source/build/test hashes. The README example and 293 profiling-feature Rust
+tests also passed. Later documentation and execution-snapshot updates reuse
+this evidence only when all recorded source hashes still match.
+
+After importing the execution snapshot, all 18 Python regressions, 15 actual-LBT
+inventory checks and the documentation build passed. Forwarding remains 1,288
+entries per integer ABI; independent-algorithm classifications are unchanged.
