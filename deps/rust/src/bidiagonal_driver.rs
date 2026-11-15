@@ -256,6 +256,183 @@ selected_exports!(d, f64, i32, _);
 selected_exports!(s, f32, i64, _64_);
 selected_exports!(d, f64, i64, _64_);
 
+use std::ffi::c_void;
+use std::sync::atomic::{AtomicPtr, Ordering};
+static BDSDC_FALLBACKS: [AtomicPtr<c_void>; 2] =
+    [const { AtomicPtr::new(std::ptr::null_mut()) }; 2];
+#[no_mangle]
+pub extern "C" fn colmat_bdsdc_set_fallback(id: i32, pointer: *mut c_void) {
+    if let Some(slot) = BDSDC_FALLBACKS.get(id as usize) {
+        slot.store(pointer, Ordering::Release);
+    }
+}
+#[no_mangle]
+pub extern "C" fn colmat_bdsdc_has_fallback(id: i32) -> i32 {
+    BDSDC_FALLBACKS
+        .get(id as usize)
+        .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
+}
+unsafe fn bdsdc<R: Scalar, I: LapackInt>(
+    id: usize,
+    uplo: u8,
+    comp: u8,
+    n: isize,
+    d: *mut R,
+    e: *mut R,
+    u: *mut R,
+    ldu: isize,
+    vt: *mut R,
+    ldvt: isize,
+    q: *mut R,
+    iq: *mut I,
+    work: *mut R,
+    iwork: *mut I,
+    info: *mut I,
+) {
+    *info = I::from_i64(0);
+    for (arg, ok) in [
+        (1, matches!(uplo, b'U' | b'L')),
+        (2, matches!(comp, b'N' | b'I' | b'P')),
+        (3, n >= 0),
+        (7, ldu >= if comp == b'I' { n.max(1) } else { 1 }),
+        (9, ldvt >= if comp == b'I' { n.max(1) } else { 1 }),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return;
+        }
+    }
+    if n == 0 {
+        return;
+    }
+    if !matrix_addressable::<R>(n, n, n)
+        || (comp == b'I'
+            && (!matrix_addressable::<R>(n, n, ldu) || !matrix_addressable::<R>(n, n, ldvt)))
+    {
+        *info = I::from_i64(-3);
+        crate::invalid(3);
+        return;
+    }
+    if comp == b'P' {
+        // Preserve LAPACK's implementation-specific compact divide-and-conquer
+        // tree. A dense U/V pair cannot stand in for this representation.
+        let pointer = BDSDC_FALLBACKS[id].load(Ordering::Acquire);
+        assert!(
+            !pointer.is_null(),
+            "Colmat BDSDC compact fallback must be configured before use"
+        );
+        let call: unsafe extern "C" fn(
+            *const u8,
+            *const u8,
+            *const i64,
+            *mut R,
+            *mut R,
+            *mut R,
+            *const i64,
+            *mut R,
+            *const i64,
+            *mut R,
+            *mut i64,
+            *mut R,
+            *mut i64,
+            *mut i64,
+        ) = std::mem::transmute(pointer);
+        let (ni, lu, lv) = (n as i64, ldu as i64, ldvt as i64);
+        let mut result = 0i64;
+        if std::mem::size_of::<I>() == 8 {
+            call(
+                &uplo,
+                &comp,
+                &ni,
+                d,
+                e,
+                u,
+                &lu,
+                vt,
+                &lv,
+                q,
+                iq.cast(),
+                work,
+                iwork.cast(),
+                &mut result,
+            );
+        } else {
+            let n = n as usize;
+            // This is an allocation upper bound, not a claim about SMLSIZ.
+            // Copy back only entries actually written by the reference, so
+            // callers need only its documented compact integer extent.
+            let levels = usize::BITS as usize - n.leading_zeros() as usize;
+            let mut integers = vec![i64::MIN; n * 3 * (levels + 2)];
+            let mut scratch = vec![i64::MIN; n * 8];
+            call(
+                &uplo,
+                &comp,
+                &ni,
+                d,
+                e,
+                u,
+                &lu,
+                vt,
+                &lv,
+                q,
+                integers.as_mut_ptr(),
+                work,
+                scratch.as_mut_ptr(),
+                &mut result,
+            );
+            for (j, &value) in integers.iter().enumerate() {
+                if value != i64::MIN {
+                    *iq.add(j) = I::from_i64(value);
+                }
+            }
+            for (j, &value) in scratch.iter().enumerate() {
+                if value != i64::MIN {
+                    *iwork.add(j) = I::from_i64(value);
+                }
+            }
+        }
+        *info = I::from_i64(result);
+        return;
+    }
+    let n = n as usize;
+    let diagonal = std::slice::from_raw_parts(d, n).to_vec();
+    let off = if n == 1 {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(e, n - 1).to_vec()
+    };
+    let Ok((values, left, right)) =
+        crate::bidiagonal_svd::decompose(&diagonal, &off, uplo == b'U', true)
+    else {
+        *info = I::from_i64(1);
+        return;
+    };
+    for i in 0..n {
+        *d.add(i) = values[i];
+    }
+    for i in 0..n - 1 {
+        *e.add(i) = R::z();
+    }
+    if comp == b'I' {
+        for j in 0..n {
+            for i in 0..n {
+                *u.offset(i as isize + j as isize * ldu) = left[(i, j)];
+                *vt.offset(i as isize + j as isize * ldvt) = right[(j, i)];
+            }
+        }
+    }
+}
+macro_rules! dc_exports {($p:ident,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p bdsdc $s>](uplo:*const u8,comp:*const u8,n:*const $i,d:*mut $r,e:*mut $r,u:*mut $r,ldu:*const $i,vt:*mut $r,ldvt:*const $i,q:*mut $r,iq:*mut $i,work:*mut $r,iwork:*mut $i,info:*mut $i) {
+        bdsdc($id,flag(uplo),flag(comp),*n as isize,d,e,u,*ldu as isize,vt,*ldvt as isize,q,iq,work,iwork,info);
+    }
+}};}
+dc_exports!(s, f32, i32, _, 0);
+dc_exports!(d, f64, i32, _, 1);
+dc_exports!(s, f32, i64, _64_, 0);
+dc_exports!(d, f64, i64, _64_, 1);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -460,5 +637,92 @@ mod tests {
         selected_contract::<f32, i64>(1e-4);
         selected_contract::<f64, i32>(1e-11);
         selected_contract::<f64, i64>(1e-11);
+    }
+    fn dc_contract<R: Scalar, I: LapackInt>(tol: f64) {
+        for n in [1usize, 7, 40] {
+            for upper in [false, true] {
+                for comp in [b'N', b'I'] {
+                    let diagonal: Vec<R> = (0..n)
+                        .map(|i| {
+                            R::real(if i % 2 == 0 {
+                                -(i as f64 + 1.0)
+                            } else {
+                                i as f64 + 1.0
+                            })
+                        })
+                        .collect();
+                    let off = vec![R::real(0.25); n.saturating_sub(1)];
+                    let mut d = diagonal.clone();
+                    let mut e = off.clone();
+                    let ld = n + 2;
+                    let mut u = vec![R::real(777.0); ld * n];
+                    let mut vt = u.clone();
+                    let mut q = vec![R::real(777.0); 1];
+                    let mut iq = vec![I::from_i64(-777); 1];
+                    let mut work = vec![R::real(777.0); 3 * n * n + 4 * n];
+                    let mut iw = vec![I::from_i64(-777); 8 * n];
+                    let mut info = I::from_i64(-777);
+                    unsafe {
+                        bdsdc(
+                            0,
+                            if upper { b'U' } else { b'L' },
+                            comp,
+                            n as isize,
+                            d.as_mut_ptr(),
+                            e.as_mut_ptr(),
+                            u.as_mut_ptr(),
+                            ld as isize,
+                            vt.as_mut_ptr(),
+                            ld as isize,
+                            q.as_mut_ptr(),
+                            iq.as_mut_ptr(),
+                            work.as_mut_ptr(),
+                            iw.as_mut_ptr(),
+                            &mut info,
+                        );
+                    }
+                    assert_eq!(info.val(), 0);
+                    assert_eq!(crate::colmat_blas_last_error(), 0);
+                    assert_eq!(q[0].re(), 777.0);
+                    assert_eq!(iq[0].val(), -777);
+                    assert!(work.iter().all(|x| x.re() == 777.0));
+                    assert!(iw.iter().all(|x| x.val() == -777));
+                    assert!(e.iter().all(|x| x.re() == 0.0));
+                    if comp == b'N' {
+                        assert!(u.iter().chain(&vt).all(|x| x.re() == 777.0));
+                        continue;
+                    }
+                    for j in 0..n {
+                        for i in 0..n {
+                            let mut product = R::z();
+                            for k in 0..n {
+                                product = product + u[i + k * ld] * d[k] * vt[k + j * ld];
+                            }
+                            let expected = if i == j {
+                                diagonal[i]
+                            } else if (upper && j == i + 1) || (!upper && i == j + 1) {
+                                off[i.min(j)]
+                            } else {
+                                R::z()
+                            };
+                            assert!((product - expected).magnitude() < tol * n as f64);
+                        }
+                    }
+                    for j in 0..n {
+                        for i in n..ld {
+                            assert_eq!(u[i + j * ld].re(), 777.0);
+                            assert_eq!(vt[i + j * ld].re(), 777.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn divide_and_conquer_explicit_and_values_contracts() {
+        dc_contract::<f32, i32>(1e-4);
+        dc_contract::<f32, i64>(1e-4);
+        dc_contract::<f64, i32>(1e-11);
+        dc_contract::<f64, i64>(1e-11);
     }
 }
