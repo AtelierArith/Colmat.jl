@@ -28,5 +28,11 @@ jobs:
         run: python3 -m unittest discover -s docs/tests -v
       - name: Julia tests
         run: julia --project -e 'using Pkg; Pkg.test()'
+      - name: Save actual ABI execution evidence
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: abi-execution-${{ matrix.os }}
+          path: test-output/abi-execution.toml
+          if-no-files-found: error
       - name: README example
         run: julia --project examples/poc.jl

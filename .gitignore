@@ -11,3 +11,5 @@
 
 # Python audit command caches
 __pycache__/
+
+/test-output/
