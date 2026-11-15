@@ -1146,3 +1146,22 @@ workspace query を実装していますが、参照実装と同じブロック�
 `test/selfadjoint_reduction.jl` は4型・両整数 ABI、選択三角と配列の余白、
 三重対角分解の再構成、Q の左右適用・転置／共役転置、OpenBLAS 因子との相互運用、
 query・引数診断、および LATRD の部分 panel と deferred update を検証します。
+
+
+## Packed Bunch–Kaufman
+
+Issue #297 は実数 SPTRF/SPTRS/SPTRI/SPSV と複素数 HPTRF/HPTRS/HPTRI/HPSV の
+16 Fortran シンボルを両整数 ABI に接続します。各 ABI は1062シンボル
+（BLAS 202、LAPACK 860）です。colmat-rs revision は
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` です。
+
+選択した packed 三角部分だけを内部の dense 配列へ変換し、既存の dense
+Bunch–Kaufman と native LDL・1×1/2×2 IPIV 変換を共有します。
+solve/inverse は外部 LAPACK の packed 因子にも対応します。複素数は Hermitian
+系列だけが対象です。Hermitian 対角の虚部は参照せず、出力の対角は実数です。
+保存形式の変換と native 処理の scratch は内部で所有し、packed 配列や右辺の余白に
+書き込みません。これらのルーチンに workspace query は定義されていません。
+
+`test/packed_bunch_kaufman.jl` は4型・LP64/ILP64、上下 packed、2×2 pivot、
+特異 INFO、空行列、0/1/複数右辺、OpenBLAS 因子との双方向の相互運用、
+solve/inverse 残差、LBT driver、引数診断、整数出力と配列周囲の guard 値を検証します。

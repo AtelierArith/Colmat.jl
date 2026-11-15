@@ -762,9 +762,9 @@
         "hpsv"
       ],
       "status": "representation",
-      "api": "dense Lblt",
+      "api": "native LDL factor / solve / inverse + LAPACK pivot conversion",
       "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "note": "Sixteen real-symmetric/complex-Hermitian packed Fortran symbols connected for both integer ABIs. Selected packed triangles are staged into owned dense storage, sharing native LDL and LAPACK 1x1/2x2 IPIV conversion with dense Bunch-Kaufman. Factor, solve, inverse and driver preserve packed boundaries and RHS padding; Hermitian diagonal imaginary components are not read. Complex-symmetric SP is not claimed. Internal temporary storage is owned by the adapter; no caller workspace query is defined for these routines. C API is separate."
     },
     {
       "routines": [

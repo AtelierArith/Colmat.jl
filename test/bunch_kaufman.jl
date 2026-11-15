@@ -1,4 +1,11 @@
 using Test, LinearAlgebra, Random, Libdl, Colmat
+function bk_diagnostic()
+    return ccall(
+        Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error),
+        Cint,
+        (),
+    )
+end
 for (T, p, kind) in (
         (Float32, "s", "sy"),
         (Float64, "d", "sy"),
@@ -398,6 +405,7 @@ end
         @test a==saved
         info, _=direct_bk_inverse!(a, piv, Val(:tri2); uplo, lwork_override=2)
         @test info == -7 && a==saved
+        @test bk_diagnostic()==7
         for original in (zeros(T, 3, 3), Matrix(Diagonal(T[1, 0, 2])))
             a=copy(original)
             rhs=ones(T, 3, 2)
@@ -434,8 +442,10 @@ end
         @test isequal(a, before)
         _, info, _, _=direct_bk_factor!(a, J; uplo=('?'))
         @test info == -1 && isequal(a, before)
+        @test bk_diagnostic()==1
         rectangle=ones(T, 2, 3)
         @test direct_bk_factor!(rectangle, J; uplo)[2] == -4
+        @test bk_diagnostic()==4
         original=bk_input(T, 5)
         a=copy(original)
         if T<:Complex
@@ -448,15 +458,19 @@ end
         b=ones(T, 5, 1)
         saved=copy(b)
         @test direct_bk_solve!(a, piv, b; uplo=('?')) == -1
+        @test bk_diagnostic()==1
         @test b==saved
         @test direct_bk_solve!(a, piv, ones(T, 4, 1); uplo) == -8
+        @test bk_diagnostic()==8
         for family in (:tri, :tri2, :tri2x)
             before=copy(a)
             @test first(direct_bk_inverse!(a, piv, Val(family); uplo=('?'))) == -1
+            @test bk_diagnostic()==1
             @test a==before
         end
         @test direct_bk_driver!(copy(original), copy(b), J; uplo, lwork_override=0)[2] ==
             -10
+        @test bk_diagnostic()==10
         prefix=if T===Float32
             "s"
         elseif T===Float64
