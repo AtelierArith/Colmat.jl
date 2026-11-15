@@ -22,9 +22,11 @@ mod generalized_eigen;
 mod generalized_hessenberg;
 mod generalized_selfadjoint;
 mod generalized_selfadjoint_drivers;
+mod geqr;
 mod givens;
 mod hessenberg;
 mod householder;
+mod householder_reconstruction;
 mod kernels;
 mod lapack;
 mod lapack_symmetric;
@@ -65,6 +67,8 @@ mod threading;
 mod triangular_lapack;
 mod tridiagonal_evd;
 mod tridiagonal_lu;
+mod tsqr;
+mod tsqr_driver;
 
 use std::cell::Cell;
 
