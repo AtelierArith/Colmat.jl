@@ -92,10 +92,13 @@ end
             direct_geev_guards(x)
             direct_geev_call(f, T, J, x, n, left, right, minimum-1)
             @test x.info[1]==-(T<:Complex ? 12 : 13) && x.a.data==original
+            @test factor_abi_diagnostic() == -x.info[1]
             direct_geev_call(f, T, J, x, n, '?', right, minimum)
             @test x.info[1]==-1 && x.a.data==original
+            @test factor_abi_diagnostic() == -x.info[1]
             direct_geev_call(f, T, J, x, n, left, '?', minimum)
             @test x.info[1]==-2 && x.a.data==original
+            @test factor_abi_diagnostic() == -x.info[1]
             direct_geev_call(f, T, J, x, n, left, right, minimum)
             @test x.info[1]==0
             direct_geev_call(reference, T, Int64, y, n, left, right, length(y.work))

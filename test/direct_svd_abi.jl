@@ -196,6 +196,7 @@ end
             direct_svd_guards(x)
             direct_svd_execute(f, family, J, x, m, n, job, right, minimum-1)
             @test x.info[1] == -(family == :gesvd ? 13 : 12)
+            @test factor_abi_diagnostic() == -x.info[1]
             @test x.a.data == original
             direct_svd_guards(x)
             direct_svd_execute(f, family, J, x, m, n, job, right, minimum)

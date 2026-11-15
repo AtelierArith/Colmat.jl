@@ -142,6 +142,14 @@ function factor_abi_integer_guards(storage)
     @test first(storage) == last(storage) == eltype(storage)(0x13579)
 end
 
+function factor_abi_diagnostic()
+    return ccall(
+        Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error),
+        Cint,
+        (),
+    )
+end
+
 @testset "Direct LU and Cholesky integer ABI contracts" begin
     Random.seed!(317)
     handle = Libdl.dlopen(Colmat.backend_library())
@@ -196,6 +204,7 @@ end
                 @test a.data == saved
                 factor_abi_getri(entry("getri"), J, a.data, 4, piv, work, 3, info)
                 @test info[1] == -6
+                @test factor_abi_diagnostic() == -info[1]
                 @test a.data == saved
                 factor_abi_getri(entry("getri"), J, a.data, 4, piv, work, 4, info)
                 @test info[1] == 0
@@ -207,11 +216,13 @@ end
                 saved = copy(a.storage)
                 factor_abi_lu(entry(family), J, a.data, -1, 4, piv, info)
                 @test info[1] == -1
+                @test factor_abi_diagnostic() == -info[1]
                 factor_abi_lu(entry(family), J, a.data, 0, 4, piv, info)
                 @test info[1] == 0 && a.storage == saved
                 if J == Int64
                     factor_abi_lu(entry(family), J, a.data, Int64(1) << 32, 0, piv, info)
                     @test info[1] == -4 && a.storage == saved
+                    @test factor_abi_diagnostic() == -info[1]
                 end
             end
             a, b = factor_abi_matrix(original), factor_abi_matrix(rhs)
@@ -244,6 +255,7 @@ end
                 saved = copy(a.storage)
                 factor_abi_chol(entry(family), J, a.data, 4, info, '?')
                 @test info[1] == -1 && a.storage == saved
+                @test factor_abi_diagnostic() == -info[1]
                 factor_abi_chol(entry(family), J, a.data, 0, info, uplo)
                 @test info[1] == 0 && a.storage == saved
                 bad = factor_abi_matrix(T[1 2; 2 1])

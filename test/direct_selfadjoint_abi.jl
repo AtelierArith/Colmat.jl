@@ -150,21 +150,26 @@ end
             # Test each workspace length independently to preserve argument precedence.
             call(lw-1, lrw, liw)
             @test x.info[1]==-(family==:evr ? 18 : 8)
+            @test factor_abi_diagnostic() == -x.info[1]
             @test x.a.data==original
             if family!=:ev
                 call(lw, lrw, liw-1)
                 @test x.info[1]==-(
                     family==:evr ? (T<:Complex ? 22 : 20) : (T<:Complex ? 12 : 10)
                 )
+                @test factor_abi_diagnostic() == -x.info[1]
                 if T<:Complex
                     call(lw, lrw-1, liw)
                     @test x.info[1]==-(family==:evr ? 20 : 10)
+                    @test factor_abi_diagnostic() == -x.info[1]
                 end
             end
             call(lw, lrw, liw; j=('?'))
             @test x.info[1]==-1 && x.a.data==original
+            @test factor_abi_diagnostic() == -x.info[1]
             call(lw, lrw, liw; u=('?'))
             @test x.info[1]==-(family==:evr ? 3 : 2) && x.a.data==original
+            @test factor_abi_diagnostic() == -x.info[1]
             call(lw, lrw, liw)
             @test x.info[1]==0
             direct_selfadjoint_call(
