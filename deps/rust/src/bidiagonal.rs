@@ -203,9 +203,202 @@ pub(crate) unsafe fn reduce<T: ReflectorScalar, R: Scalar>(
     }
 }
 
+unsafe fn driver<T: ReflectorScalar, R: Scalar, I: crate::lapack::LapackInt>(
+    m: isize,
+    n: isize,
+    a: *mut T,
+    lda: isize,
+    d: *mut R,
+    e: *mut R,
+    tauq: *mut T,
+    taup: *mut T,
+    work: *mut T,
+    lwork: Option<isize>,
+    info: *mut I,
+) {
+    *info = I::from_i64(0);
+    for (arg, valid) in [(1, m >= 0), (2, n >= 0), (4, lda >= m.max(1))] {
+        if !valid {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return;
+        }
+    }
+    if let Some(lw) = lwork {
+        let minimum = if m.min(n) == 0 { 1 } else { m.max(n) };
+        *work = crate::lapack::workspace::<T>(minimum);
+        if lw != -1 && lw < minimum {
+            *info = I::from_i64(-10);
+            crate::invalid(10);
+            return;
+        }
+        if lw == -1 {
+            return;
+        }
+    }
+    if m == 0 || n == 0 {
+        return;
+    }
+    let bytes = std::mem::size_of::<T>() as isize;
+    for (arg, count) in [(4, n.checked_mul(lda)), (1, Some(m)), (2, Some(n))] {
+        if count.and_then(|x| x.checked_mul(bytes)).is_none() {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return;
+        }
+    }
+    reduce(m as usize, n as usize, a, lda, d, e, tauq, taup);
+}
+use paste::paste;
+macro_rules! exports {
+    ($p:ident,$t:ty,$r:ty,$i:ty,$suffix:tt)=>{paste!{
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p gebd2 $suffix>](m:*const $i,n:*const $i,a:*mut $t,
+            lda:*const $i,d:*mut $r,e:*mut $r,tauq:*mut $t,taup:*mut $t,_work:*mut $t,info:*mut $i) {
+            driver(*m as isize,*n as isize,a,*lda as isize,d,e,tauq,taup,std::ptr::null_mut(),None,info);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p gebrd $suffix>](m:*const $i,n:*const $i,a:*mut $t,
+            lda:*const $i,d:*mut $r,e:*mut $r,tauq:*mut $t,taup:*mut $t,work:*mut $t,
+            lwork:*const $i,info:*mut $i) {
+            driver(*m as isize,*n as isize,a,*lda as isize,d,e,tauq,taup,work,Some(*lwork as isize),info);
+        }
+    }};
+}
+macro_rules! abi {
+    ($i:ty,$suffix:tt) => {
+        exports!(s, f32, f32, $i, $suffix);
+        exports!(d, f64, f64, $i, $suffix);
+        exports!(c, colmat::c32, f32, $i, $suffix);
+        exports!(z, colmat::c64, f64, $i, $suffix);
+    };
+}
+abi!(i32, "_");
+abi!(i64, "_64_");
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    macro_rules! abi_test {
+        ($name:ident,$bd2:ident,$brd:ident,$t:ty,$r:ty,$i:ty) => {
+            #[test]
+            fn $name() {
+                unsafe {
+                    let mut work = [<$t>::real(777.0); 5];
+                    let mut info = [777 as $i; 3];
+                    $brd(
+                        &3,
+                        &2,
+                        std::ptr::null_mut(),
+                        &5,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        work.as_mut_ptr().add(1),
+                        &-1,
+                        info.as_mut_ptr().add(1),
+                    );
+                    assert_eq!(info, [777, 0, 777]);
+                    assert_eq!(
+                        work,
+                        [
+                            <$t>::real(777.0),
+                            <$t>::real(3.0),
+                            <$t>::real(777.0),
+                            <$t>::real(777.0),
+                            <$t>::real(777.0)
+                        ]
+                    );
+                    for blocked in [false, true] {
+                        let mut a = [<$t>::real(777.0); 10];
+                        for j in 0..2 {
+                            for i in 0..3 {
+                                a[i + 5 * j] = <$t>::real((i + 1 + j * 3) as f64);
+                            }
+                        }
+                        let mut d = [777.0 as $r; 4];
+                        let mut e = [777.0 as $r; 3];
+                        let mut tq = [<$t>::real(777.0); 4];
+                        let mut tp = tq;
+                        if blocked {
+                            $brd(
+                                &3,
+                                &2,
+                                a.as_mut_ptr(),
+                                &5,
+                                d.as_mut_ptr().add(1),
+                                e.as_mut_ptr().add(1),
+                                tq.as_mut_ptr().add(1),
+                                tp.as_mut_ptr().add(1),
+                                work.as_mut_ptr().add(1),
+                                &3,
+                                info.as_mut_ptr().add(1),
+                            );
+                        } else {
+                            $bd2(
+                                &3,
+                                &2,
+                                a.as_mut_ptr(),
+                                &5,
+                                d.as_mut_ptr().add(1),
+                                e.as_mut_ptr().add(1),
+                                tq.as_mut_ptr().add(1),
+                                tp.as_mut_ptr().add(1),
+                                std::ptr::null_mut(),
+                                info.as_mut_ptr().add(1),
+                            );
+                        }
+                        assert_eq!(info, [777, 0, 777]);
+                        assert!((d[1] as f64 + 14.0f64.sqrt()).abs() < 1e-5);
+                        assert_eq!((d[0], d[3], e[0], e[2]), (777.0, 777.0, 777.0, 777.0));
+                        for i in [3, 4, 8, 9] {
+                            assert_eq!(a[i], <$t>::real(777.0));
+                        }
+                        for v in [&tq, &tp] {
+                            assert_eq!(v[0], <$t>::real(777.0));
+                            assert_eq!(v[3], <$t>::real(777.0));
+                        }
+                    }
+                    $brd(
+                        &3,
+                        &2,
+                        std::ptr::null_mut(),
+                        &5,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        work.as_mut_ptr(),
+                        &2,
+                        info.as_mut_ptr().add(1),
+                    );
+                    assert_eq!(info, [777, -10, 777]);
+                    $bd2(
+                        &0,
+                        &4,
+                        std::ptr::null_mut(),
+                        &1,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        info.as_mut_ptr().add(1),
+                    );
+                    assert_eq!(info, [777, 0, 777]);
+                }
+            }
+        };
+    }
+    abi_test!(s32, sgebd2_, sgebrd_, f32, f32, i32);
+    abi_test!(d32, dgebd2_, dgebrd_, f64, f64, i32);
+    abi_test!(c32, cgebd2_, cgebrd_, colmat::c32, f32, i32);
+    abi_test!(z32, zgebd2_, zgebrd_, colmat::c64, f64, i32);
+    abi_test!(s64, sgebd2_64_, sgebrd_64_, f32, f32, i64);
+    abi_test!(d64, dgebd2_64_, dgebrd_64_, f64, f64, i64);
+    abi_test!(c64, cgebd2_64_, cgebrd_64_, colmat::c32, f32, i64);
+    abi_test!(z64, zgebd2_64_, zgebrd_64_, colmat::c64, f64, i64);
     fn multiply_reflector<T: Scalar>(matrix: &mut [T], n: usize, v: &[T], tau: T) {
         for i in 0..n {
             let dot = (0..n).fold(T::z(), |sum, j| sum + matrix[i + j * n] * v[j]);
