@@ -435,9 +435,9 @@
         "trevc3"
       ],
       "status": "representation",
-      "api": "eigenvectors_from_schur_real/cplx",
+      "api": "eigenvectors_from_schur_real/cplx + reverse-adjoint left vectors",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "公開 helper は右側向け。左右双方・HOWMNY/SELECT/BACKTRANSFORM を満たすには追加構成が必要"
+      "note": "8 Fortran シンボル・4型・両 ABI を接続済み。右側は公開 Schur eigenvector helper、左側は反転した転置/随伴 Schur 形式から生成し元の列順へ戻す。SIDE L/R/B、HOWMNY A/B/S、SELECT の実数2x2対の標準化と M/MM、back-transform、実数共役対の packing、最大成分による正規化を変換。TREVC3 は同じ native helper と行列積を共有し、固有の blocked back-substitution 算法を主張しない。query はこの合成経路の最小 WORK/RWORK を返し、内部所有行列/scratch は O(n²)。native 拒否時は保存した元の ILP64 TREVC/TREVC3 に委譲し、LP64 SELECT/M/INFO を変換する。C ABI は別タスク。"
     },
     {
       "routines": [

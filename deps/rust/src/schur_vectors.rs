@@ -406,6 +406,87 @@ mod tests {
             }
         }
     }
+    unsafe extern "C" fn mock_original_dtrevc(
+        side: *const u8,
+        how: *const u8,
+        selected: *mut i64,
+        n: *const i64,
+        t: *mut f64,
+        ldt: *const i64,
+        vl: *mut f64,
+        ldvl: *const i64,
+        vr: *mut f64,
+        ldvr: *const i64,
+        mm: *const i64,
+        m: *mut i64,
+        work: *mut f64,
+        info: *mut i64,
+        side_len: usize,
+        how_len: usize,
+    ) {
+        let ok = *side == b'B'
+            && *how == b'S'
+            && *n == 2
+            && *ldt == 2
+            && *ldvl == 2
+            && *ldvr == 2
+            && *mm == 2
+            && *selected == 1
+            && *selected.add(1) == 0
+            && *t == 1.0
+            && *t.add(1) == 1.0
+            && side_len == 1
+            && how_len == 1;
+        *info = if ok { 0 } else { 123 };
+        *m = 2;
+        for i in 0..4 {
+            *vl.add(i) = 10.0 + i as f64;
+            *vr.add(i) = 20.0 + i as f64;
+        }
+        *work = 123.0;
+    }
+    #[test]
+    fn refusal_uses_original_ilp64_without_overwriting_lp64_guards() {
+        unsafe {
+            colmat_schur_vectors_set_fallback(1, mock_original_dtrevc as *const () as *mut c_void);
+            // Deliberately non-standard 2x2 block exercises dispatch, rather
+            // than attributing a numerical defect to the native helper.
+            let mut t = [1.0, 1.0, 2.0, 1.0];
+            let old = t;
+            let mut selected = [-777i32, 0, 1, -777];
+            let mut m = [-777i32; 3];
+            let mut info = [-777i32; 3];
+            let mut vl = [777.0; 6];
+            let mut vr = [777.0; 6];
+            let mut work = [777.0; 8];
+            dtrevc_(
+                &b'B',
+                &b'S',
+                selected.as_mut_ptr().add(1),
+                &2,
+                t.as_mut_ptr(),
+                &2,
+                vl.as_mut_ptr().add(1),
+                &2,
+                vr.as_mut_ptr().add(1),
+                &2,
+                &2,
+                m.as_mut_ptr().add(1),
+                work.as_mut_ptr().add(1),
+                info.as_mut_ptr().add(1),
+            );
+            colmat_schur_vectors_set_fallback(1, core::ptr::null_mut());
+            assert_eq!(m, [-777, 2, -777]);
+            assert_eq!(info, [-777, 0, -777]);
+            assert_eq!(selected, [-777, 1, 0, -777]);
+            assert_eq!(t, old);
+            assert_eq!(vl, [777.0, 10.0, 11.0, 12.0, 13.0, 777.0]);
+            assert_eq!(vr, [777.0, 20.0, 21.0, 22.0, 23.0, 777.0]);
+            assert_eq!(work[0], 777.0);
+            assert_eq!(work[1], 123.0);
+            assert_eq!(work[7], 777.0);
+        }
+    }
     #[test]
     fn real_selection_query_and_workspace_order() {
         unsafe {
