@@ -49,6 +49,7 @@ mod qr;
 mod qr_pivoted;
 mod qz;
 mod reduction_extensions;
+mod reverse_qr;
 mod rfp_rank;
 mod rz;
 mod schur;
