@@ -32,6 +32,12 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(classify("expert", "d", groups, self.revision, overrides)["status"], "conditional")
         self.assertEqual(classify("factor", "c", groups, self.revision, overrides)["algorithm_status"], "not_assessed")
 
+    def test_single_and_double_precision_can_have_distinct_option_support(self):
+        groups={"factor":dict(status="native",api="synthetic factor",source="factor.rs",note="synthetic double-precision contract")}
+        overrides=[dict(routines=["factor"],scalars=["s"],status="conditional",api="synthetic restricted factor",source="factor.rs",note="synthetic single-precision option restriction")]
+        self.assertEqual(classify("factor","s",groups,self.revision,overrides)["status"],"conditional")
+        self.assertEqual(classify("factor","d",groups,self.revision,overrides)["status"],"native")
+
     def test_current_policy_preserves_precision_and_rook_distinctions(self):
         import json
         policy = json.loads((Path(__file__).resolve().parents[1] / "lbt-capabilities.json").read_text())
