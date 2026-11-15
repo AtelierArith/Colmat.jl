@@ -18,7 +18,7 @@
 end
 
 @testset "Thread configuration" begin
-    @test Colmat.get_num_threads() == 1
+    @test Colmat.get_num_threads() == BLAS.get_num_threads()
     for n in (2, 1)
         BLAS.set_num_threads(n)
         @test Colmat.get_num_threads() == n

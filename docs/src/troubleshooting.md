@@ -41,8 +41,10 @@ cat deps/upstream.toml
 ## スレッド数が一致しない
 
 `Colmat.get_num_threads()` は Colmat の設定値、`BLAS.get_num_threads()` は LBT が
-認識するライブラリ全体の値です。他のバックエンドも揃える場合は
-`BLAS.set_num_threads(n)` を使います。詳細は[スレッド設定](@ref)を参照してください。
+保持する値です。`Colmat.set_num_threads(n)` は LBT の記録値を更新しないため、
+Colmat だけを変更すると両者が一致しないことがあります。登録済みの各バックエンドを
+まとめて揃える場合は `BLAS.set_num_threads(n)` を使います。詳細は
+[スレッド設定](@ref)を参照してください。
 
 ## 旧版の名前が見つからない
 

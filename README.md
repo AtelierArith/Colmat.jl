@@ -43,7 +43,7 @@ LP64 / ILP64、Float32 / Float64 / ComplexF32 / ComplexF64 を提供します。
 一部のベクトル演算と三角求解はこのパッケージの Rust 互換層で実装しています。
 LU・Cholesky・求解・逆行列・SVD・一般/自己随伴固有値・Schur/QZ・一般化 Hessenberg・
 最小二乗は入力配列をコピーせず、呼び出し側のメモリを借用して処理します。
-初期スレッド数は1です。設定した並列実行幅は行列積に適用されます。
+初期スレッド数はロード時の `BLAS.get_num_threads()` を引き継ぎます。設定した並列実行幅は行列積に適用されます。
 
 通常配列の `lu`・`svd`・`eigen`・`cholesky` を colmat-rs に接続します。
 
