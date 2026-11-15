@@ -7,6 +7,7 @@
 mod abi;
 mod advanced_svd;
 mod balance;
+mod band_lu;
 mod bunch_kaufman;
 mod complete_pivot_lu;
 mod complex_auxiliary;
