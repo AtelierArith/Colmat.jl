@@ -40,7 +40,7 @@ unsafe fn solve<T: Scalar>(
         (true, true) => solve_unit_upper_triangular_in_place_with_conj(matrix, conj, rhs, par),
     });
 }
-unsafe fn inverse<T: Scalar>(u: u8, unit: bool, n: usize, a: *mut T, ld: isize) {
+pub(crate) unsafe fn inverse<T: Scalar>(u: u8, unit: bool, n: usize, a: *mut T, ld: isize) {
     use colmat::linalg::triangular_inverse::*;
     let mut result = Mat::<T>::zeros(n, n);
     {

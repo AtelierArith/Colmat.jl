@@ -59,6 +59,7 @@ mod structured_blas;
 mod structured_evd;
 mod structured_selected_evd;
 mod structured_triangular;
+mod structured_triangular_lapack;
 mod symmetric_equilibration;
 mod threading;
 mod triangular_lapack;

@@ -1,4 +1,11 @@
 using Test, LinearAlgebra, Random, Libdl, Colmat
+function triangular_diagnostic()
+    return ccall(
+        Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error),
+        Cint,
+        (),
+    )
+end
 
 for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
     J in (Int32, Int64)
@@ -49,6 +56,9 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
             ldb,
             info,
         )
+        if info[]<0
+            @test triangular_diagnostic()==-info[]
+        end
         info[]
     end
     @eval function direct_triangular_matrix!(
@@ -86,6 +96,9 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
                 lda,
                 info,
             )
+        end
+        if info[]<0
+            @test triangular_diagnostic()==-info[]
         end
         info[]
     end

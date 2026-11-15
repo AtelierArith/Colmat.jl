@@ -687,7 +687,7 @@
       "status": "representation",
       "api": "triangular_inverse",
       "source": "faer/src/linalg/triangular_inverse.rs",
-      "note": "RFP/packed から通常格納への変換が必要"
+      "note": "Eight packed/RFP Fortran inverse symbols connected for both integer ABIs. Selected triangles are staged into owned dense storage and passed to native triangular inverse. RFP N/T/C and odd/even layouts are converted; unit diagonals are not read or overwritten. Singular diagonal INFO leaves the input unchanged. Internal storage is O(n^2); C API is separate."
     },
     {
       "routines": [
@@ -831,7 +831,7 @@
       "status": "representation",
       "api": "triangular_solve",
       "source": "faer/src/linalg/triangular_solve.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "note": "Twelve band/packed/RFP Fortran solve symbols connected for both integer ABIs. Selected triangles are staged into owned dense storage for native triangular solves; right-sided TFSM uses transposed native views. Band width, packed/RFP coordinates, complex transpose/conjugation and unit diagonals are explicit. TBTRS/TPTRS check singular diagonals before solving, including zero RHS columns. TFSM alpha=0 avoids A and old B reads. Internal dense storage is O(n^2); C API is separate."
     },
     {
       "routines": [
