@@ -81,3 +81,22 @@ end
         @test all(==(R(777)), r.work)
     end
 end
+
+@testset "LASQ1 recovery retains relative accuracy beyond squared normal range" begin
+    for (R, small) in ((Float32, Float32(1e-22)), (Float64, 1e-161)), J in (Int32, Int64)
+        expected=R[hypot(one(R), R(0.25)), small / hypot(one(R), R(0.25))]
+        outcomes=[]
+        for (library, K) in ((Colmat.backend_library(), J), (lasq_reference(), Int64))
+            d=R[small, 1]
+            e=R[0.25, 777]
+            r=direct_lasq1!(d, e, K; library)
+            @test r.info==r.diagnostic==0
+            @test all(isapprox.(d, expected; rtol=20eps(R), atol=0))
+            @test r.guard==fill(K(-777), 2)
+            @test e==R[0.25, 777]
+            @test r.work[[1, end]]==fill(R(777), 2)
+            push!(outcomes, (d=copy(d), e=copy(e), work=r.work))
+        end
+        @test outcomes[1]==outcomes[2]
+    end
+end

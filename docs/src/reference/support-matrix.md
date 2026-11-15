@@ -1282,3 +1282,11 @@ BDSDC の値のみモードでも因子を計算します。この系列には L
 caller WORK の最小長は参照 ABI に従います。Native の成功経路では caller WORK を
 保持します。対応する Julia テストは `test/bidiagonal_svd.jl`、`bidiagonal_dc.jl`、
 `bidiagonal_selected.jl`、`bidiagonal_values.jl`、`bidiagonal_abi.jl` です。
+
+BDSQR の native 失敗時には D/E と既存因子を保持し、INFO は残った非零 E の個数を返します。
+
+極端な尺度の参照 oracle は、Reference-LAPACK 3.12.1 の BDSQR が使う絶対
+safe-minimum deflation 閾値を避けるため、正規化した入力で計算して特異値を
+元の尺度に戻します。Native 側には元の入力を渡し、通常・subnormal 双方の
+再構成を同じ許容誤差で検証します。LASQ1 では、正規化後の二乗値が subnormal
+になる場合の相対精度喪失も検証し、参照 recovery で精度を保ちます。

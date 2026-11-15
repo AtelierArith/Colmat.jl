@@ -107,4 +107,49 @@ mod tests {
     fn bidiagonal_native_f64() {
         reconstruction::<f64>(1e-11);
     }
+    fn scaling<R: Scalar>(scales: &[R], epsilon: f64, minimum: f64) {
+        let n = 7;
+        for &scale in scales {
+            for upper in [false, true] {
+                let d: Vec<R> = (0..n)
+                    .map(|i| {
+                        R::real((1.0 + (i + 1) as f64 / 10.0) * if i % 2 == 0 { -1.0 } else { 1.0 })
+                            * scale
+                    })
+                    .collect();
+                let e = vec![R::real(0.125) * scale; n - 1];
+                let (values, u, v) = decompose(&d, &e, upper, false).unwrap();
+                let tolerance = 3000.0 * epsilon + 20.0 * n as f64 * minimum / scale.re();
+                for j in 0..n {
+                    for i in 0..n {
+                        let mut actual = 0.0;
+                        for k in 0..n {
+                            actual +=
+                                u[(i, k)].re() * (values[k].re() / scale.re()) * v[(j, k)].re();
+                        }
+                        let expected = if i == j {
+                            d[i].re() / scale.re()
+                        } else if (upper && j == i + 1) || (!upper && i == j + 1) {
+                            e[i.min(j)].re() / scale.re()
+                        } else {
+                            0.0
+                        };
+                        assert!((actual-expected).abs()<tolerance,"scale={} upper={upper} at {i},{j}: actual={actual}, expected={expected}, tolerance={tolerance}",scale.re());
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn scale_real32() {
+        scaling(
+            &[1e-30f32, 1e30, 1e-40],
+            f32::EPSILON as f64,
+            f32::from_bits(1) as f64,
+        );
+    }
+    #[test]
+    fn scale_real64() {
+        scaling(&[1e-300f64, 1e300, 1e-320], f64::EPSILON, f64::from_bits(1));
+    }
 }

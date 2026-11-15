@@ -75,7 +75,10 @@ unsafe fn bdsqr<R: Scalar, T: Scalar, I: LapackInt>(
     let Ok((values, left, right)) =
         crate::bidiagonal_svd::decompose(&diagonal, &offdiagonal, uplo == b'U', false)
     else {
-        *info = I::from_i64(1);
+        // No external factor has been committed. Report the number of
+        // off-diagonals still present in the retained input bidiagonal.
+        let remaining = offdiagonal.iter().filter(|x| **x != R::z()).count();
+        *info = I::from_i64(remaining.max(1) as i64);
         return;
     };
     let mut out_vt = vec![T::z(); n * ncvt as usize];
@@ -804,5 +807,52 @@ mod tests {
         dc_contract::<f32, i64>(1e-4);
         dc_contract::<f64, i32>(1e-11);
         dc_contract::<f64, i64>(1e-11);
+    }
+    fn failure_count<R: Scalar, T: Scalar, I: LapackInt>(large: R) {
+        let mut d = vec![large; 3];
+        let mut e = vec![large; 2];
+        let mut u = vec![T::real(777.0); 15];
+        let mut vt = u.clone();
+        let mut c = u.clone();
+        let mut info = [I::from_i64(-777); 3];
+        unsafe {
+            bdsqr(
+                b'U',
+                3,
+                3,
+                3,
+                2,
+                d.as_mut_ptr(),
+                e.as_mut_ptr(),
+                vt.as_mut_ptr(),
+                5,
+                u.as_mut_ptr(),
+                5,
+                c.as_mut_ptr(),
+                5,
+                &mut info[1],
+            );
+        }
+        // Finite entries have an unrepresentable largest singular value.
+        // The owned native stage fails without committing any external output.
+        // BDSQR INFO counts the still nonzero off-diagonal entries.
+        assert_eq!(info[1].val(), 2);
+        assert_eq!(info[0].val(), -777);
+        assert_eq!(info[2].val(), -777);
+        assert!(d.iter().all(|x| *x == large));
+        assert!(e.iter().all(|x| *x == large));
+        assert!(u.iter().chain(&vt).chain(&c).all(|x| x.re() == 777.0));
+        assert_eq!(crate::colmat_blas_last_error(), 0);
+    }
+    #[test]
+    fn bdsqr_failure_counts_unconverged_offdiagonals() {
+        failure_count::<f32, f32, i32>(f32::MAX);
+        failure_count::<f32, f32, i64>(f32::MAX);
+        failure_count::<f64, f64, i32>(f64::MAX);
+        failure_count::<f64, f64, i64>(f64::MAX);
+        failure_count::<f32, colmat::c32, i32>(f32::MAX);
+        failure_count::<f32, colmat::c32, i64>(f32::MAX);
+        failure_count::<f64, colmat::c64, i32>(f64::MAX);
+        failure_count::<f64, colmat::c64, i64>(f64::MAX);
     }
 }

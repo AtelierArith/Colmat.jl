@@ -1,6 +1,6 @@
 {
   "julia": "1.13.3",
-  "revision": "c09681dd765a2691f3af22e09bce311d9207af7b",
+  "revision": "af254211f3238017238081d861a6eba3ec04ac58",
   "repository": "https://github.com/tensor4all/colmat-rs.git",
   "symbols": 5146,
   "interfaces": {
