@@ -4,7 +4,7 @@ use crate::kernels::{flag, matrix_addressable, Scalar};
 use crate::lapack::LapackInt;
 use paste::paste;
 
-unsafe fn factor<T: ReflectorScalar>(
+pub(crate) unsafe fn factor<T: ReflectorScalar>(
     rq: bool,
     m: usize,
     n: usize,
@@ -132,6 +132,27 @@ unsafe fn execute<T: Scalar>(
         );
     }
 }
+// The caller supplies the last k rows of an RQ factor, as in ORMRQ/UNMRQ.
+pub(crate) unsafe fn apply_rq<T: Scalar>(
+    side: u8,
+    tr: u8,
+    m: usize,
+    n: usize,
+    k: usize,
+    a: *const T,
+    lda: isize,
+    tau: *const T,
+    c: *mut T,
+    ldc: isize,
+) {
+    if m == 0 || n == 0 || k == 0 {
+        return;
+    }
+    let order = if side == b'L' { m } else { n };
+    let factors = gather(true, order, k, a, lda, tau, 0);
+    execute(side, tr, m, n, &factors, c, ldc);
+}
+
 unsafe fn generate<T: Scalar>(
     rq: bool,
     m: usize,

@@ -1413,3 +1413,37 @@ SELECT callback の LOGICAL 戻り値は thread-local guard で変換し、入�
 Q の直交/ユニタリ性、有限値での拒否と途中状態、全選択列数、最小 workspace と query、
 元の条件推定、callback の元の単位・実数対・入れ子呼び出し、未参照出力・padding・
 整数 guard、および各入口の実際の LBT 転送を検証します。
+
+
+## 一般化 QR と等式制約付き driver（Issue #314）
+
+`GGQRF/GGRQF/GGLSE/GGGLM` の全16 Fortran シンボルを実数・複素数4型、
+LP64/ILP64 の両方で接続します。依存 revision は
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` のままです。
+
+GGQRF は `A=Q R, B=Q T Z`、GGRQF は `A=R Q, B=Z T Q` を、既存の native-backed
+QR/RQ と Q の適用から構成します。返す reflector は元の LAPACK の ORG/UNGQR/RQ
+からも Q を生成でき、矩形・空・ゼロ・階数1入力の両行列を再構成できます。
+複素数の Q 適用には転置ではなく随伴を使います。三角 solve は公開 native solve を使い、
+complex scalar の直接除算で分母を二乗して極端値が NaN になる経路を避けます。
+
+GGLSE は `min ||c-Ax||₂, Bx=d`、GGGLM は `min ||y||₂, Ax+By=d` を解きます。
+それぞれ `0≤P≤N≤M+P`、`0≤M≤N≤M+P` の次元制約を検査します。
+最初の制約系 triangular factor が厳密に特異なら `INFO=1`、残る自由変数の
+triangular factor が厳密に特異なら `INFO=2` です。これは rank-revealing tolerance
+による数値階数推定ではありません。失敗時は既に行った因子化・右辺変換を保持し、
+まだ求めていない解を成功値として返しません。C/D の残差・中間解 payload も破壊的に更新します。
+
+`LWORK=-1` は query で、入力行列・右辺・解・TAU を変更しません。
+GGQRF/GGRQF の最小 WORK は `max(1,N,M,P)`、GGLSE/GGGLM は通常 `M+N+P`、
+解く系の N が0なら1です。query は adapter の合法な最小値を返し、Netlib の
+block-size による推奨値との一致は要求しません。補助行列・係数・native scratch は
+adapter 内で別途確保します。専用 colmat-rs driver や Netlib と同じ算法・性能を
+提供するという意味ではありません。
+
+独立参照の元の OpenBLAS driver に対する解の比較に加え、制約残差、自由方向の
+stationarity、最小ノルム性、外部 Q による再構成、WORK/INFO/TAU と padding の境界、
+query、引数順序、厳密な rank failure を検査します。LBT の provider と関数ポインタを
+実際に取得して各16入口を両 ABI で呼ぶ検査を含みます。実装の driver 更新順序は
+Reference LAPACK v3.12.1 `SRC/dgglse.f` / `SRC/dggglm.f` を参照し、出典と BSD-3-Clause
+license を `deps/rust/src/constrained_least_squares.rs` と `deps/rust/licenses/` に記録しています。

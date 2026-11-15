@@ -5,7 +5,7 @@ using Libdl
 
 # Observe the fallback before Colmat's __init__ changes the process-wide table.
 const fallback_rotm = BLAS.lbt_get_forward("drotm_", :ilp64)
-const fallback_lapack = BLAS.lbt_get_forward("dggglm_", :ilp64)
+const fallback_lapack = BLAS.lbt_get_forward("dggsvd3_", :ilp64)
 using Colmat
 
 include("backend.jl")
@@ -53,6 +53,11 @@ include("qr_pivoted.jl")
 include("lq.jl")
 include("rz.jl")
 include("least_squares.jl")
+include("generalized_qr_drivers.jl")
+include("generalized_qr_pairs.jl")
+include("generalized_qr_boundaries.jl")
+include("generalized_qr_lbt.jl")
+include("generalized_qr_extremes.jl")
 include("hessenberg.jl")
 include("schur.jl")
 include("schur_vectors.jl")

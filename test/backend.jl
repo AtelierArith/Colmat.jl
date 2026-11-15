@@ -12,9 +12,9 @@
         @test lib.complex_retstyle == :normal
     end
     @test BLAS.lbt_get_forward("drotm_", :ilp64) == fallback_rotm
-    @test BLAS.lbt_get_forward("dggglm_", :ilp64) == fallback_lapack
+    @test BLAS.lbt_get_forward("dggsvd3_", :ilp64) == fallback_lapack
     @test Colmat.load_backend() === nothing
-    @test BLAS.lbt_get_forward("dggglm_", :ilp64) == fallback_lapack
+    @test BLAS.lbt_get_forward("dggsvd3_", :ilp64) == fallback_lapack
 end
 
 @testset "Thread configuration" begin
