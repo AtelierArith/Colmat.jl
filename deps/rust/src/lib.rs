@@ -41,6 +41,8 @@ mod matrix_scaling;
 mod matrix_transform_edges;
 mod packed_cholesky;
 mod packed_updates;
+mod pentagonal;
+mod pentagonal_driver;
 mod pivoted_cholesky;
 mod positive_equilibration;
 mod positive_tridiagonal;
