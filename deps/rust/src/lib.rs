@@ -65,6 +65,8 @@ mod threading;
 mod triangular_lapack;
 mod tridiagonal_evd;
 mod tridiagonal_lu;
+mod tsqr;
+mod tsqr_driver;
 
 use std::cell::Cell;
 
