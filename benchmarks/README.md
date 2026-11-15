@@ -29,9 +29,9 @@ The diagnostic report runs Profile (including C frames), JET and AllocCheck.
 AllocCheck cannot prove through the runtime foreign-function pointer and reports
 that call as unresolved; this does not establish that Rust is allocation-free.
 Julia allocation sampling and BenchmarkTools memory counts only describe the
-Julia caller. Native allocation counters and per-stage measurements are still
-required before evaluating the optimization in #318. The quick run checks all four scalar types at one size/mode; it is a harness
-check, not a general performance conclusion.
+Julia caller. The opt-in Rust counters below measure native allocation separately. The quick
+run checks all four scalar types at one size/mode; it is a harness check, not a
+general performance conclusion.
 
 ## Rust allocation and phase capture
 
@@ -56,3 +56,14 @@ reduction/Schur calculation and requested vectors. The separately tagged
 `hessenberg`/`schur` are the extra pass used to return A. Do not label the combined
 API's time or shared scratch allocation as eigenvectors alone. Use production
 builds for wall-time comparisons; profiling builds add allocator/clock overhead.
+
+After the shared-Schur change (`9a80a2b`), `native_evd_combined` encloses the
+shared low-level composition, and `hessenberg`, `schur`, `form_q` and
+`eigenvectors` are nested within it. These are inclusive times and must not be
+added to the combined time. In the baseline those Hessenberg/Schur tags describe
+the additional pass outside the high-level EVD call. Scratch is allocated once
+for the maximum of the sequential phases and reused; its allocation is charged
+to the enclosing phase, rather than pretending it belongs to only one kernel.
+
+Full measurements and comparison limits are documented in
+[`docs/audits/issue-318-general-evd.md`](../docs/audits/issue-318-general-evd.md).

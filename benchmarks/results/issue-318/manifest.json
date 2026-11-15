@@ -1,0 +1,18 @@
+{
+  "production-before.toml.gz": {
+    "uncompressed_sha256": "ae51138f3dfa1f5118fd30cc0f8a6b86aa67672a5d2987191bd0e505637d5575",
+    "compressed_sha256": "83b8f2351b3eac9b955861f1e0ec4c065d378ac6cf3c96f5115aac73808d8447"
+  },
+  "production-after.toml.gz": {
+    "uncompressed_sha256": "d83c2a341dcba2ac3b4b0fab85b18db47d87d2c4ebbb2937902cf5d888f36ce7",
+    "compressed_sha256": "2ef5ef31a6afe4b34700661366318eb8891260cdc81c1ba545ebcb161c87fe7b"
+  },
+  "profile-before.toml.gz": {
+    "uncompressed_sha256": "496bdc51cff3191e6260305a143124d5fd7a390f3add89bfd086e4c496b3de85",
+    "compressed_sha256": "5ef6fef3a165a6138707dd1e2efeca595c7891a0c76cd19269edb180825b4e9f"
+  },
+  "profile-after.toml.gz": {
+    "uncompressed_sha256": "ca1339b6276f8f3cfd4cf8d94395e0a4e1f4604ce6ce88ef6aded74fe7d9f7c8",
+    "compressed_sha256": "0484d7a6d4a5bcfa9d8aa12ad35457d9175b094d0b0a7a498431ed22d147e01f"
+  }
+}
