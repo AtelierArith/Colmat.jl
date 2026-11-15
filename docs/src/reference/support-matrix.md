@@ -1165,3 +1165,24 @@ solve/inverse は外部 LAPACK の packed 因子にも対応します。複素�
 `test/packed_bunch_kaufman.jl` は4型・LP64/ILP64、上下 packed、2×2 pivot、
 特異 INFO、空行列、0/1/複数右辺、OpenBLAS 因子との双方向の相互運用、
 solve/inverse 残差、LBT driver、引数診断、整数出力と配列周囲の guard 値を検証します。
+
+
+## Band/packed/RFP 三角 solve/inverse
+
+Issue #298 は TBTRS/TPTRS/TPTRI/TFTRI/TFSM の20 Fortran シンボルを
+4型・両整数 ABI に接続します。各 ABI は1082シンボル（BLAS 202、LAPACK 880）です。
+colmat-rs revision は `4e6ed0e34659147a5c744ab6431f150e78db6f82` です。
+
+選択した band/packed/RFP 三角部分を内部で所有する dense 配列へ変換し、
+native triangular solve/inverse を使用します。変換と作業領域の記憶量は O(n²) です。
+TFSM の右適用は行列と右辺の転置 view を使い、複素共役を別に指定します。
+RFP の奇数・偶数サイズと実数 N/T・複素数 N/C 格納を扱います。
+unit diagonal は読み込まず、inverse でも元の格納値を保持します。
+TBTRS/TPTRS は右辺0列でも非 unit 対角の特異性を検査し、正の INFO を返します。
+TFSM は BLAS と同様に特異性検査の INFO を定義せず、alpha=0 では A と元の B を読みません。
+これらのルーチンに workspace query は定義されていません。
+
+`test/structured_triangular_lapack.jl` は4型・両整数 ABI、保存形式、
+UPLO/DIAG/TRANS/TRANSR/SIDE、空行列・冗長 band 幅・複数右辺、
+solve/inverse 残差、外部 LAPACK との比較、不正引数、特異 INFO、
+alpha=0、配列の余白と整数出力 guard、および全20シンボルの LBT 経由呼び出しを検証します。
