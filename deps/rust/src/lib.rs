@@ -50,6 +50,7 @@ mod selected_selfadjoint;
 mod storage_conversions;
 mod storage_layout;
 mod structured_blas;
+mod structured_evd;
 mod structured_triangular;
 mod symmetric_equilibration;
 mod threading;
