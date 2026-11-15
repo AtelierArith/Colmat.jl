@@ -475,25 +475,21 @@ unsafe fn lasq1<R: Scalar + colmat::traits::RealField, I: LapackInt>(
         return;
     }
     let count = n as usize;
-    let diagonal = std::slice::from_raw_parts_mut(d, count);
+    let diagonal = std::slice::from_raw_parts(d, count);
     let off = if count == 1 {
         &[]
     } else {
         std::slice::from_raw_parts(e, count - 1)
     };
-    let mut memory =
-        colmat::dyn_stack::MemBuffer::new(colmat::linalg::svd::bidiagonal_dqds_scratch::<R>(count));
-    if colmat::linalg::svd::bidiagonal_dqds(
-        diagonal,
-        off,
-        colmat::dyn_stack::MemStack::new(&mut memory),
-    )
-    .is_ok()
-    {
+    if let Ok(values) = crate::bidiagonal_svd::dqds_values(diagonal, off) {
+        for (i, value) in values.into_iter().enumerate() {
+            *d.add(i) = value;
+        }
         return;
     }
-    // Native dqds preserves both input arrays on failure. Keep the reference
-    // LASQ1 recovery status, D/E intermediate factors and WORK diagnostics.
+    // Rejected native results (including successful but underresolved values,
+    // colmat-rs#209) have not changed caller D/E. Preserve reference LASQ1
+    // recovery status, intermediate factors and WORK diagnostics.
     let pointer = LASQ_FALLBACKS[id].load(Ordering::Acquire);
     assert!(
         !pointer.is_null(),

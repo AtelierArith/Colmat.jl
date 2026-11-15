@@ -1290,3 +1290,9 @@ safe-minimum deflation 閾値を避けるため、正規化した入力で計算
 元の尺度に戻します。Native 側には元の入力を渡し、通常・subnormal 双方の
 再構成を同じ許容誤差で検証します。LASQ1 では、正規化後の二乗値が subnormal
 になる場合の相対精度喪失も検証し、参照 recovery で精度を保ちます。
+
+colmat-rs の [#209](https://github.com/tensor4all/colmat-rs/issues/209) に対しては、
+D を所有する作業配列で計算し、正規化された二乗特異値が対象精度の normal 範囲に
+あることを確認してから caller D に戻す回避策を LAPACK 境界で使います。
+拒否した成功結果も元の D/E から参照 recovery に回します。独立した Rust MWE は
+`reproducers/native-dqds-relative-accuracy/` に保存しています。

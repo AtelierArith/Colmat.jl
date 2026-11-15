@@ -289,7 +289,7 @@
       "status": "conditional",
       "api": "native bidiagonal_dqds / preserved reference LASQ1 recovery",
       "source": "faer/src/linalg/svd/mod.rs",
-      "note": "Two Fortran symbols connected for both integer ABIs. Call the public real dqds operation with linear caller-owned native scratch; on success D contains descending values, E and caller WORK are unchanged. Native nonconvergence (including zero-diagonal or squared-range limitations) retains the original inputs and calls the preserved ILP64 LASQ1 to retain its specific INFO, D/E intermediate factors and WORK diagnostics. Recovery requires an existing ILP64 LAPACK backend. No workspace query exists."
+      "note": "Two Fortran symbols connected for both integer ABIs. Call the public real dqds operation with linear caller-owned native scratch; accepted native success commits descending D, E and caller WORK are unchanged. Native nonconvergence or rejected successful results (including zero-diagonal or squared-range limitations; colmat-rs#209) retains the original inputs and calls the preserved ILP64 LASQ1 to retain its specific INFO, D/E intermediate factors and WORK diagnostics. Recovery requires an existing ILP64 LAPACK backend. No workspace query exists."
     },
     {
       "routines": [

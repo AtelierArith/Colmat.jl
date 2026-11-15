@@ -1,0 +1,7 @@
+[package]
+name = "dqds-relative-accuracy-mwe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+colmat = { git = "https://github.com/tensor4all/colmat-rs.git", rev = "b3c26c2d6041c08cceaf61d55c52c963c969da6b", default-features = false, features = ["std", "linalg"] }

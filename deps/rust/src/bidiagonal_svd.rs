@@ -37,6 +37,43 @@ pub(crate) fn decompose<R: Scalar>(
     Ok((values, u, v))
 }
 
+// Work around tensor4all/colmat-rs#209 at the LAPACK boundary until a fixed
+// native revision is selected. Keep original inputs for exact LASQ1 recovery.
+pub(crate) fn dqds_values<R: Scalar + colmat::traits::RealField>(
+    diagonal: &[R],
+    offdiagonal: &[R],
+) -> Result<Vec<R>, ()> {
+    let n = diagonal.len();
+    let mut values = diagonal.to_vec();
+    let mut memory = MemBuffer::new(bidiagonal_dqds_scratch::<R>(n));
+    bidiagonal_dqds(&mut values, offdiagonal, MemStack::new(&mut memory)).map_err(|_| ())?;
+    let scale = diagonal
+        .iter()
+        .chain(offdiagonal)
+        .fold(0.0f64, |s, x| s.max(x.magnitude()));
+    // Real Scalar ABI instantiations are f32 and f64. Evaluate the range
+    // criterion in f64 but enforce the source precision's normal minimum.
+    let minimum = if std::mem::size_of::<R>() == 4 {
+        f32::MIN_POSITIVE as f64
+    } else {
+        f64::MIN_POSITIVE
+    };
+    if !values.iter().all(|x| {
+        if !x.re().is_finite() {
+            return false;
+        }
+        if n <= 1 {
+            return true;
+        }
+        let normalized = x.re() / scale;
+        let square = normalized * normalized;
+        x.re() > 0.0 && square.is_finite() && square >= minimum
+    }) {
+        return Err(());
+    }
+    Ok(values)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +188,13 @@ mod tests {
     #[test]
     fn scale_real64() {
         scaling(&[1e-300f64, 1e300, 1e-320], f64::EPSILON, f64::from_bits(1));
+    }
+    #[test]
+    fn dqds_boundary_rejects_underresolved_success() {
+        assert!(dqds_values(&[1e-22f32, 1.0], &[0.25]).is_err());
+        assert!(dqds_values(&[1e-161f64, 1.0], &[0.25]).is_err());
+        let s = dqds_values(&[3.0f64, 4.0], &[1.0]).unwrap();
+        assert!((s[0] - 18.0f64.sqrt()).abs() < 1e-12);
+        assert!((s[1] - 8.0f64.sqrt()).abs() < 1e-12);
     }
 }
