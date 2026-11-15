@@ -5,7 +5,7 @@ using Libdl
 
 # Observe the fallback before Colmat's __init__ changes the process-wide table.
 const fallback_rotm = BLAS.lbt_get_forward("drotm_", :ilp64)
-const fallback_lapack = BLAS.lbt_get_forward("dggglm_", :ilp64)
+const fallback_lapack = BLAS.lbt_get_forward("dggsvd3_", :ilp64)
 using Colmat
 
 include("backend.jl")
