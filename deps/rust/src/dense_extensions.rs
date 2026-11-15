@@ -105,7 +105,7 @@ unsafe fn gemmt<T: Scalar>(
         lc,
     );
 }
-unsafe fn rank2<T: GeneralizedScalar>(
+pub(crate) unsafe fn rank2<T: GeneralizedScalar>(
     u: u8,
     n: isize,
     alpha: T,
