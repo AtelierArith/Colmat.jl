@@ -1037,10 +1037,10 @@
         "tpmlqt",
         "tprfb"
       ],
-      "status": "representation",
-      "api": "QR/LQ と block Householder",
+      "status": "composition",
+      "api": "native-backed QR of triangular-pentagonal stacks / compact Householder factor and application",
       "source": "faer/src/linalg/householder.rs",
-      "note": "triangular-pentagonal 専用 API はない。構造付き入力と T/reflector 表現の変換を要する接続候補"
+      "note": "Twenty-eight Fortran symbols connected for both integer ABIs. QR stages the selected upper triangle and pentagonal tail; LQ uses the adjoint stack. Standard Householder QR and compact block factors preserve LAPACK reflector conventions. Block application supports left/right, forward/backward, column/row storage and normal/adjoint operations, ignoring structural zeros and the unused triangle. Blocked names compose native-backed operations with owned temporary storage; they do not claim dedicated triangular-pentagonal kernels or reference blocking performance. No entry has a workspace query; factor2 has no WORK argument. C API remains separate."
     },
     {
       "routines": [
