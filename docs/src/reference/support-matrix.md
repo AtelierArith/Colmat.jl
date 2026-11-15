@@ -913,3 +913,42 @@ OpenBLAS 0.3.30 の GTSV は NRHS=0 でも B の第1列へ後退代入する場�
 [Colmat を読み込まない単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-gtsv-zero-rhs.jl)
 を保存しています。差分参照では必ずダミー列を確保し、範囲外アクセスを避けます。
 この場合の参照比較は因子と INFO を対象にし、Colmat の B は全要素の不変を独立に検証します。
+
+## Band Cholesky と split Cholesky（#283）
+
+colmat-rs `4e6ed0e34659147a5c744ab6431f150e78db6f82` を使い、
+PBTRF/PBTF2/PBTRS/PBSV/PBSTF の20 Fortran canonical シンボルを両整数 ABI に接続しました。
+各 ABI の対応数は934（BLAS 202、LAPACK 732）です。4型を扱い、C ABI は別タスクです。
+
+PBTRF と PBTF2 は同じ unblocked な合成処理です。有効な band 区間だけを使い、
+対角の native LLT、native 三角 solve による尺度変更、selected-triangle な native rank update を
+順に適用します。専用の blocked band kernel があるという主張ではありません。
+full dense 行列へ展開せず、上下格納・幅0・寸法以上の宣言幅を扱います。
+Hermitian 対角の虚部を入力として読まず、rank update 後の対角虚部も0に戻します。
+後続 pivot の非正定値 INFO で停止した場合も、この更新済み部分の契約を維持します。
+PBTF2/PBSTF の参照 unblocked 処理と同様に、NaN の実対角は非正定値と判定せず伝播させます。
+
+PBTRS は lower では L、L**H、upper では U**H、U を順に解きます。
+OpenBLAS の因子を Colmat で解く経路と、その逆を検証しています。
+PBSV は NRHS=0 でも因子化し、非正定値 INFO を返します。因子化失敗時と NRHS=0 の B は不変です。
+これらの入口に caller workspace/query 引数はありません。
+
+PBSTF は通常の Cholesky への単純な置き換えではありません。
+後半を逆順に消去して前半へ寄与を反映し、更新後の前半を順方向に因子化します。
+上三角の前半・下三角の後半・境界を跨ぐ部分を持つ S を保存し、A=S**H*S を構成します。
+UPLO は入力・出力の保存位置を指定し、lower 格納でもこの split 因子の意味を変えません。
+
+参照 PBSTF は split point m=(n+kd)/2 が n を超える場合、宣言された N より先の列も処理します。
+[Colmat を読み込まない単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-pbstf-redundant-width.jl)
+では、安全に確保したダミー列を使い、N=1 に対して INFO=2 が返る挙動を示します。
+Colmat は m=min(n,(n+kd)/2) とし、実在する列だけを使います。この場合の外部比較は行わず、
+全幅で S**H*S の独立再構成と未使用列の不変を検証します。
+
+因子化は O(n*min(kd,n)²) の演算と O(min(kd,n)) の vector snapshot を使います。
+skew-strided な更新先の未使用半分が元 vector と重なる場合も、snapshot によって
+native 乗算の入力・出力 view の alias を避けます。solve は有効 row の gather 領域を使います。
+native kernel の実行計画にも内部確保があり、無割り当ては保証しません。
+
+テストは4型・両 ABI・上下・幅0・空入力、通常と split の独立再構成、
+既知解と外部因子の相互運用、非正定値 INFO と途中出力、NaN の対角、padding/未使用列、
+全20入口の数値 LBT 呼び出し、引数検証順序と INFO/整数幅を確認します。
