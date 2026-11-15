@@ -35,6 +35,11 @@ class ClassificationTests(unittest.TestCase):
     def test_current_policy_preserves_precision_and_rook_distinctions(self):
         import json
         policy = json.loads((Path(__file__).resolve().parents[1] / "lbt-capabilities.json").read_text())
+        import re
+        upstream=(Path(__file__).resolve().parents[2] / "deps/upstream.toml").read_text()
+        pin=re.search(r'^revision\s*=\s*"([a-f0-9]{40})"',upstream,re.MULTILINE)
+        self.assertIsNotNone(pin)
+        self.assertEqual(policy["assessment_revision"],pin.group(1))
         groups = {name: group for group in policy["groups"] for name in group["routines"]}
         def current(family, scalar):
             return classify(family, scalar, groups, policy["assessment_revision"], policy["scalar_overrides"])
