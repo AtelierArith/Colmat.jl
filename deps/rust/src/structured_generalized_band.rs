@@ -5,7 +5,7 @@ use crate::householder::ReflectorScalar;
 use crate::schur::multiply;
 use colmat::Mat;
 
-unsafe fn band<T: GeneralizedScalar>(
+pub(crate) unsafe fn band<T: GeneralizedScalar>(
     n: usize,
     width: usize,
     lower: bool,
@@ -63,7 +63,10 @@ unsafe fn split<T: GeneralizedScalar>(
     }
     s
 }
-fn lower_storage<T: GeneralizedScalar>(matrix: &Mat<T>, width: usize) -> (Vec<T>, usize) {
+pub(crate) fn lower_storage<T: GeneralizedScalar>(
+    matrix: &Mat<T>,
+    width: usize,
+) -> (Vec<T>, usize) {
     let n = matrix.nrows();
     let actual = width.min(n.saturating_sub(1));
     let ld = actual + 1;
@@ -98,7 +101,7 @@ fn split_diagonals_touched(n: usize, width: usize, failed: usize) -> Vec<bool> {
     }
     touched
 }
-unsafe fn commit_split<T: GeneralizedScalar>(
+pub(crate) unsafe fn commit_split<T: GeneralizedScalar>(
     n: usize,
     width: usize,
     lower: bool,

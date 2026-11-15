@@ -183,6 +183,154 @@ unsafe fn packed<T: GeneralizedScalar + ReflectorScalar, R: Scalar, I: LapackInt
     true
 }
 
+unsafe fn band_selected<T: GeneralizedScalar + ReflectorScalar, R: Scalar, I: LapackInt>(
+    job: u8,
+    mode: u8,
+    u: u8,
+    n: isize,
+    ka: isize,
+    kb: isize,
+    ab: *mut T,
+    lda: isize,
+    bb: *mut T,
+    ldb: isize,
+    q: *mut T,
+    ldq: isize,
+    vl: *const R,
+    vu: *const R,
+    il: *const I,
+    iu: *const I,
+    abstol: *const R,
+    m: *mut I,
+    w: *mut R,
+    z: *mut T,
+    ldz: isize,
+    ifail: *mut I,
+    info: *mut I,
+) -> bool {
+    *info = I::from_i64(0);
+    for (arg, ok) in [
+        (1, matches!(job, b'N' | b'V')),
+        (2, matches!(mode, b'A' | b'V' | b'I')),
+        (3, matches!(u, b'U' | b'L')),
+        (4, n >= 0),
+        (5, ka >= 0),
+        (6, kb >= 0 && kb <= ka),
+        (8, ka.checked_add(1).is_some_and(|k| lda >= k)),
+        (10, kb.checked_add(1).is_some_and(|k| ldb >= k)),
+        (12, ldq >= 1 && (job == b'N' || ldq >= n)),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    let selected = match range(mode, n, vl, vu, il, iu, [2, 14, 15, 16]) {
+        Ok(s) => s,
+        Err(arg) => {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    };
+    if ldz < 1 || (job == b'V' && ldz < n) {
+        *info = I::from_i64(-21);
+        crate::invalid(21);
+        return true;
+    }
+    *m = I::from_i64(0);
+    if n == 0 {
+        return true;
+    }
+    let rowsa = if u == b'L' { (ka + 1).min(n) } else { ka + 1 };
+    let rowsb = if u == b'L' { (kb + 1).min(n) } else { kb + 1 };
+    for (arg, ok) in [
+        (4, matrix_addressable::<T>(n, n, n)),
+        (8, matrix_addressable::<T>(rowsa, n, lda)),
+        (10, matrix_addressable::<T>(rowsb, n, ldb)),
+        (12, job == b'N' || matrix_addressable::<T>(n, n, ldq)),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    if !((*abstol).re() <= 0.0) {
+        return false;
+    }
+    use crate::structured_generalized_band as bg;
+    let size = n as usize;
+    let lower = u == b'L';
+    let a = bg::band(size, ka as usize, lower, ab, lda as usize);
+    let b = bg::band(size, kb as usize, lower, bb, ldb as usize);
+    let (aa, la) = bg::lower_storage(&a, ka as usize);
+    let (mut staged, lb) = bg::lower_storage(&b, kb as usize);
+    let Ok(result) = bg::eigen(
+        job,
+        size,
+        ka as usize,
+        kb as usize,
+        true,
+        aa.as_ptr(),
+        la,
+        staged.as_mut_ptr(),
+        lb,
+    ) else {
+        return false;
+    };
+    if ambiguous::<T>(&result.values, selected) {
+        return false;
+    }
+    let spectrum = Spectrum {
+        values: result.values,
+        vectors: result.vectors,
+    };
+    let indices = spectrum.selected(selected);
+    if job == b'V' && !matrix_addressable::<T>(n, indices.len() as isize, ldz) {
+        *info = I::from_i64(-21);
+        crate::invalid(21);
+        return true;
+    }
+    for (column, &source) in indices.iter().enumerate() {
+        *w.add(column) = R::real(spectrum.values[source]);
+        if job == b'V' {
+            for row in 0..size {
+                *z.offset(row as isize + column as isize * ldz) = spectrum.vectors[(row, source)];
+            }
+            *ifail.add(column) = I::from_i64(0);
+        }
+    }
+    // A diagonal reduction is tridiagonal. The full generalized eigenbasis is
+    // a valid accumulated Q: Q^H A Q=diag(values) and Q^H B Q=I. Its selected
+    // columns form Z. This is the same full-spectrum representation used by
+    // the ordinary band/packed selected EVD adapter, not a partial eigensolver.
+    if job == b'V' {
+        crate::lapack::output(&spectrum.vectors, q, ldq);
+    }
+    spectrum.write_diagonal_reduction(
+        lower,
+        crate::structured_evd::Storage::Band {
+            width: ka as usize,
+            ld: lda as usize,
+        },
+        ab,
+    );
+    bg::commit_split(
+        size,
+        kb as usize,
+        lower,
+        bb,
+        ldb as usize,
+        &staged,
+        lb,
+        None,
+    );
+    *m = I::from_i64(indices.len() as i64);
+    true
+}
+
 macro_rules! real_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
     #[no_mangle] pub unsafe extern "C" fn [<$p spgvx $s>](kind:*const $i,job:*const u8,mode:*const u8,u:*const u8,n:*const $i,ap:*mut $t,bp:*mut $t,vl:*const $r,vu:*const $r,il:*const $i,iu:*const $i,abstol:*const $r,m:*mut $i,w:*mut $r,z:*mut $t,ldz:*const $i,work:*mut $t,iwork:*mut $i,ifail:*mut $i,info:*mut $i) {
         if packed((*kind).val(),flag(job),flag(mode),flag(u),(*n).val(),ap,bp,vl,vu,il,iu,abstol,m,w,z,(*ldz).val(),ifail,info) {return;}
@@ -227,6 +375,168 @@ complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
 mod tests {
     use super::*;
     use colmat::Mat;
+    fn band_ranges<T: GeneralizedScalar + ReflectorScalar, R: Scalar, I: LapackInt>(tol: f64) {
+        for u in [b'U', b'L'] {
+            for (mode, empty) in [(b'A', false), (b'I', false), (b'V', false), (b'V', true)] {
+                let mut a = [
+                    T::real(777.0),
+                    T::real(1.0),
+                    T::real(4.0),
+                    T::real(9.0),
+                    T::real(777.0),
+                ];
+                let mut b = [
+                    T::real(777.0),
+                    T::real(1.0),
+                    T::real(2.0),
+                    T::real(3.0),
+                    T::real(777.0),
+                ];
+                let mut q = vec![T::real(777.0); 17];
+                let mut z = q.clone();
+                let mut w = [R::real(777.0); 5];
+                let mut fail = [I::from_i64(-777); 5];
+                let mut m = [I::from_i64(-777); 3];
+                let mut info = I::from_i64(-777);
+                let (lo, hi) = if empty {
+                    (R::real(5.0), R::real(6.0))
+                } else {
+                    (R::real(1.5), R::real(2.5))
+                };
+                assert!(unsafe {
+                    band_selected(
+                        b'V',
+                        mode,
+                        u,
+                        3,
+                        0,
+                        0,
+                        a.as_mut_ptr().add(1),
+                        1,
+                        b.as_mut_ptr().add(1),
+                        1,
+                        q.as_mut_ptr().add(1),
+                        5,
+                        &lo,
+                        &hi,
+                        &I::from_i64(2),
+                        &I::from_i64(3),
+                        &R::z(),
+                        &mut m[1],
+                        w.as_mut_ptr().add(1),
+                        z.as_mut_ptr().add(1),
+                        5,
+                        fail.as_mut_ptr().add(1),
+                        &mut info,
+                    )
+                });
+                assert_eq!(info.val(), 0);
+                assert_eq!(crate::colmat_blas_last_error(), 0);
+                let chosen: Vec<usize> = if empty {
+                    Vec::new()
+                } else if mode == b'A' {
+                    vec![0, 1, 2]
+                } else if mode == b'I' {
+                    vec![1, 2]
+                } else {
+                    vec![1]
+                };
+                assert_eq!(m[1].val(), chosen.len() as isize);
+                assert_eq!(m[0].val(), -777);
+                assert_eq!(m[2].val(), -777);
+                for j in 0..3 {
+                    for i in 0..3 {
+                        let mut qa = T::z();
+                        let mut qb = T::z();
+                        for k in 0..3 {
+                            let product = q[1 + k + i * 5].cj() * q[1 + k + j * 5];
+                            qa = qa + product * T::real(((k + 1) * (k + 1)) as f64);
+                            qb = qb + product * T::real((k + 1) as f64);
+                        }
+                        assert!((qa - if i == j { a[1 + i] } else { T::z() }).magnitude() < tol);
+                        assert!((qb - if i == j { T::o() } else { T::z() }).magnitude() < tol);
+                    }
+                }
+                for (col, &source) in chosen.iter().enumerate() {
+                    assert!((w[col + 1].re() - (source + 1) as f64).abs() < tol);
+                    assert_eq!(fail[col + 1].val(), 0);
+                    for row in 0..3 {
+                        assert!((z[1 + row + col * 5] - q[1 + row + source * 5]).magnitude() < tol);
+                    }
+                }
+                for col in 0..3 {
+                    for row in 0..5 {
+                        if row >= 3 {
+                            assert_eq!(q[1 + row + col * 5].re(), 777.0);
+                        }
+                        if row >= 3 || col >= chosen.len() {
+                            assert_eq!(z[1 + row + col * 5].re(), 777.0);
+                        }
+                    }
+                }
+                for arr in [&q, &z] {
+                    assert_eq!(arr[0].re(), 777.0);
+                    assert_eq!(arr[16].re(), 777.0);
+                }
+                for k in chosen.len() + 1..5 {
+                    assert_eq!(w[k].re(), 777.0);
+                    assert_eq!(fail[k].val(), -777);
+                }
+                assert_eq!(a[0].re(), 777.0);
+                assert_eq!(a[4].re(), 777.0);
+                assert_eq!(b[0].re(), 777.0);
+                assert_eq!(b[4].re(), 777.0);
+            }
+        }
+    }
+    #[test]
+    fn selected_band_basis_and_output_bounds_all_abis() {
+        band_ranges::<f32, f32, i32>(1e-3);
+        band_ranges::<f32, f32, i64>(1e-3);
+        band_ranges::<f64, f64, i32>(1e-11);
+        band_ranges::<f64, f64, i64>(1e-11);
+        band_ranges::<colmat::c32, f32, i32>(1e-3);
+        band_ranges::<colmat::c32, f32, i64>(1e-3);
+        band_ranges::<colmat::c64, f64, i32>(1e-11);
+        band_ranges::<colmat::c64, f64, i64>(1e-11);
+    }
+    #[test]
+    fn selected_band_singleton_has_full_q_but_no_empty_z_or_ifail() {
+        let (mut a, mut b) = (8.0f64, 2.0f64);
+        let (mut q, mut z, mut w) = (777.0f64, 777.0f64, 777.0f64);
+        let (mut m, mut info, mut fail) = (-777i64, -777i64, -777i64);
+        assert!(unsafe {
+            band_selected(
+                b'V',
+                b'V',
+                b'L',
+                1,
+                0,
+                0,
+                &mut a,
+                isize::MAX,
+                &mut b,
+                isize::MAX,
+                &mut q,
+                isize::MAX,
+                &5.0,
+                &6.0,
+                std::ptr::null(),
+                std::ptr::null(),
+                &0.0,
+                &mut m,
+                &mut w,
+                &mut z,
+                isize::MAX,
+                &mut fail,
+                &mut info,
+            )
+        });
+        assert_eq!((m, info, fail), (0, 0, -777));
+        assert_eq!((w, z), (777.0, 777.0));
+        assert!((q.abs() - 1.0 / 2.0f64.sqrt()).abs() < 1e-12);
+        assert!((a - 4.0).abs() < 1e-12);
+    }
     fn native_ranges<T: GeneralizedScalar + ReflectorScalar, R: Scalar, I: LapackInt>(tol: f64) {
         for lower in [false, true] {
             for kind in 1..=3 {
@@ -434,3 +744,39 @@ mod tests {
         assert_eq!((w, z), (777.0, 1.0));
     }
 }
+
+macro_rules! band_real_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p sbgvx $s>](job:*const u8,mode:*const u8,u:*const u8,n:*const $i,ka:*const $i,kb:*const $i,ab:*mut $t,lda:*const $i,bb:*mut $t,ldb:*const $i,q:*mut $t,ldq:*const $i,vl:*const $r,vu:*const $r,il:*const $i,iu:*const $i,abstol:*const $r,m:*mut $i,w:*mut $r,z:*mut $t,ldz:*const $i,work:*mut $t,iwork:*mut $i,ifail:*mut $i,info:*mut $i) {
+        if band_selected(flag(job),flag(mode),flag(u),(*n).val(),(*ka).val(),(*kb).val(),ab,(*lda).val(),bb,(*ldb).val(),q,(*ldq).val(),vl,vu,il,iu,abstol,m,w,z,(*ldz).val(),ifail,info) {return;}
+        let f:unsafe extern "C" fn(*const u8,*const u8,*const u8,*const i64,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $t,*const i64,*const $r,*const $r,*const i64,*const i64,*const $r,*mut i64,*mut $r,*mut $t,*const i64,*mut $t,*mut i64,*mut i64,*mut i64,usize,usize,usize)=std::mem::transmute(crate::structured_generalized::fallback(24+$id));
+        let nn=(*n).val()as usize;let vectors=flag(job)==b'V';let narrow=std::mem::size_of::<$i>()==4;
+        let mut iw=Vec::new();let mut failed=Vec::new();let(ip,fp)=if narrow {iw.resize(5*nn,i64::MIN);failed.resize(if vectors {nn} else {0},i64::MIN);(iw.as_mut_ptr(),failed.as_mut_ptr())} else {(iwork.cast::<i64>(),ifail.cast::<i64>())};
+        let(lo,hi)=if flag(mode)==b'I' {((*il).val()as i64,(*iu).val()as i64)} else {(1,nn as i64)};let(mut count,mut status)=(0i64,0i64);
+        f(job,mode,u,&(nn as i64),&((*ka).val()as i64),&((*kb).val()as i64),ab,&((*lda).val()as i64),bb,&((*ldb).val()as i64),q,&((*ldq).val()as i64),vl,vu,&lo,&hi,abstol,&mut count,w,z,&((*ldz).val()as i64),work,ip,fp,&mut status,1,1,1);
+        *m=count as $i;*info=status as $i;
+        for(k,value)in iw.into_iter().enumerate() {if value!=i64::MIN {*iwork.add(k)=value as $i;}}
+        for(k,value)in failed.into_iter().enumerate() {if value!=i64::MIN {*ifail.add(k)=value as $i;}}
+    }
+}};}
+
+macro_rules! band_complex_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p hbgvx $s>](job:*const u8,mode:*const u8,u:*const u8,n:*const $i,ka:*const $i,kb:*const $i,ab:*mut $t,lda:*const $i,bb:*mut $t,ldb:*const $i,q:*mut $t,ldq:*const $i,vl:*const $r,vu:*const $r,il:*const $i,iu:*const $i,abstol:*const $r,m:*mut $i,w:*mut $r,z:*mut $t,ldz:*const $i,work:*mut $t,rwork:*mut $r,iwork:*mut $i,ifail:*mut $i,info:*mut $i) {
+        if band_selected(flag(job),flag(mode),flag(u),(*n).val(),(*ka).val(),(*kb).val(),ab,(*lda).val(),bb,(*ldb).val(),q,(*ldq).val(),vl,vu,il,iu,abstol,m,w,z,(*ldz).val(),ifail,info) {return;}
+        let f:unsafe extern "C" fn(*const u8,*const u8,*const u8,*const i64,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $t,*const i64,*const $r,*const $r,*const i64,*const i64,*const $r,*mut i64,*mut $r,*mut $t,*const i64,*mut $t,*mut $r,*mut i64,*mut i64,*mut i64,usize,usize,usize)=std::mem::transmute(crate::structured_generalized::fallback(24+$id));
+        let nn=(*n).val()as usize;let vectors=flag(job)==b'V';let narrow=std::mem::size_of::<$i>()==4;
+        let mut iw=Vec::new();let mut failed=Vec::new();let(ip,fp)=if narrow {iw.resize(5*nn,i64::MIN);failed.resize(if vectors {nn} else {0},i64::MIN);(iw.as_mut_ptr(),failed.as_mut_ptr())} else {(iwork.cast::<i64>(),ifail.cast::<i64>())};
+        let(lo,hi)=if flag(mode)==b'I' {((*il).val()as i64,(*iu).val()as i64)} else {(1,nn as i64)};let(mut count,mut status)=(0i64,0i64);
+        f(job,mode,u,&(nn as i64),&((*ka).val()as i64),&((*kb).val()as i64),ab,&((*lda).val()as i64),bb,&((*ldb).val()as i64),q,&((*ldq).val()as i64),vl,vu,&lo,&hi,abstol,&mut count,w,z,&((*ldz).val()as i64),work,rwork,ip,fp,&mut status,1,1,1);
+        *m=count as $i;*info=status as $i;
+        for(k,value)in iw.into_iter().enumerate() {if value!=i64::MIN {*iwork.add(k)=value as $i;}}
+        for(k,value)in failed.into_iter().enumerate() {if value!=i64::MIN {*ifail.add(k)=value as $i;}}
+    }
+}};}
+band_real_exports!(s, f32, f32, i32, _, 0);
+band_real_exports!(s, f32, f32, i64, _64_, 0);
+band_real_exports!(d, f64, f64, i32, _, 1);
+band_real_exports!(d, f64, f64, i64, _64_, 1);
+band_complex_exports!(c, colmat::c32, f32, i32, _, 2);
+band_complex_exports!(c, colmat::c32, f32, i64, _64_, 2);
+band_complex_exports!(z, colmat::c64, f64, i32, _, 3);
+band_complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
