@@ -1,7 +1,7 @@
 //! Generalized QR/RQ compositions using the existing native-backed QR and RQ.
 //! GGQRF: A = Q R, B = Q T Z. GGRQF: A = R Q, B = Z T Q.
 use crate::householder::ReflectorScalar;
-use crate::kernels::{matrix_addressable, Scalar};
+use crate::kernels::matrix_addressable;
 use crate::lapack::LapackInt;
 use paste::paste;
 
@@ -60,6 +60,8 @@ unsafe fn pair_driver<T: ReflectorScalar, I: LapackInt>(
     info: *mut I,
 ) {
     *info = I::from_i64(0);
+    let minimum = first.max(second).max(third).max(1);
+    *work = crate::lapack::workspace::<T>(minimum);
     let (ar, ac, br, bc) = if rq {
         (first, third, second, third)
     } else {
@@ -77,12 +79,10 @@ unsafe fn pair_driver<T: ReflectorScalar, I: LapackInt>(
             return;
         }
     }
-    let minimum = first.max(second).max(third).max(1);
     if lwork != -1 && lwork < minimum {
         error(info, 11);
         return;
     }
-    *work = crate::lapack::workspace::<T>(minimum);
     if lwork == -1 {
         return;
     }
@@ -139,6 +139,7 @@ exports!(z, colmat::c64, i64, _64_);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kernels::Scalar;
     fn identity<T: Scalar>(n: usize) -> Vec<T> {
         (0..n * n)
             .map(|i| if i / n == i % n { T::o() } else { T::z() })

@@ -10,15 +10,16 @@
 //! SPDX-License-Identifier: BSD-3-Clause
 //! Full terms: ../licenses/LAPACK-BSD-3-Clause.txt.
 use crate::householder::ReflectorScalar;
-use crate::kernels::{matrix_addressable, trmatrix, Scalar};
+use crate::kernels::matrix_addressable;
 use crate::lapack::LapackInt;
+use colmat::{MatMut, MatRef};
 use paste::paste;
 
 unsafe fn error<I: LapackInt>(info: *mut I, arg: i64) {
     *info = I::from_i64(-arg);
     crate::invalid(arg as i32);
 }
-unsafe fn solve<T: Scalar>(n: usize, a: *const T, lda: isize, b: *mut T) -> bool {
+unsafe fn solve<T: ReflectorScalar>(n: usize, a: *const T, lda: isize, b: *mut T) -> bool {
     // TRTRS detects all zero diagonals before overwriting its right-hand side.
     for i in 0..n {
         if *a.offset(i as isize * (lda + 1)) == T::z() {
@@ -26,20 +27,15 @@ unsafe fn solve<T: Scalar>(n: usize, a: *const T, lda: isize, b: *mut T) -> bool
         }
     }
     if n > 0 {
-        trmatrix(
-            b'L',
-            b'U',
-            b'N',
-            b'N',
-            n as isize,
-            1,
-            T::o(),
-            a,
-            lda,
-            b,
-            n as isize,
-            true,
-        );
+        // The public native solve uses scaled complex reciprocals; operator `/`
+        // on the FFI complex scalar squares its denominator at extreme scales.
+        crate::threading::with_par(|par| {
+            colmat::linalg::triangular_solve::solve_upper_triangular_in_place(
+                MatRef::from_raw_parts(a, n, n, 1, lda),
+                MatMut::from_raw_parts_mut(b, n, 1, 1, n as isize),
+                par,
+            );
+        });
     }
     true
 }
@@ -327,6 +323,7 @@ exports!(z, colmat::c64, i64, _64_);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kernels::Scalar;
     fn near<T: Scalar>(x: T, y: T, tol: f64) {
         assert!(
             (x - y).abs1() < tol * (1.0 + y.abs1()),
@@ -485,5 +482,29 @@ mod tests {
         unsafe {
             check::<colmat::c64>(1e-12);
         }
+    }
+}
+
+#[cfg(test)]
+mod scaled_solve_tests {
+    use super::*;
+    fn check<T: ReflectorScalar>(scales: &[f64]) {
+        for &scale in scales {
+            let a = [T::parts(2.0 * scale, 0.2 * scale)];
+            let mut b = [T::parts(0.4 * scale, 0.8 * scale)];
+            unsafe {
+                assert!(solve(1, a.as_ptr(), 1, b.as_mut_ptr()));
+            }
+            let expected = T::parts(0.96 / 4.04, 1.52 / 4.04);
+            assert!((b[0] - expected).abs1() < 100.0 * T::EPS);
+        }
+    }
+    #[test]
+    fn complex32_extreme_division() {
+        check::<colmat::c32>(&[1.0, 1e-38, 1e30]);
+    }
+    #[test]
+    fn complex64_extreme_division() {
+        check::<colmat::c64>(&[1.0, 1e-308, 1e300]);
     }
 }

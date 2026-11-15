@@ -528,9 +528,9 @@
         "ggglm"
       ],
       "status": "composition",
-      "api": "QR/LQ/SVD と三角 solve",
-      "source": "faer/src/linalg/solvers.rs",
-      "note": "専用 constrained least-squares/generalized QR API はない。合成と rank/INFO の追加実装が必要"
+      "api": "native-backed QR/RQ・reflector apply・三角 solve の合成",
+      "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
+      "note": "Fortran 16シンボル・4型・両 ABI を接続済み。GGQRF/GGRQF は既存 QR/RQ と Q 適用を合成し、外部の ORG/UNGQR/RQ と互換な reflector を返す。GGLSE/GGGLM は同じ因子から等式制約・最小ノルム解を求め、2種類の厳密な triangular rank failure を INFO=1/2 に分離する。query、最小 WORK、C/D の破壊的 payload を扱う。専用 public driver・rank-revealing 判定・Netlib と同一算法/性能は主張せず、内部行列・係数・scratch を別途確保する。"
     },
     {
       "routines": [

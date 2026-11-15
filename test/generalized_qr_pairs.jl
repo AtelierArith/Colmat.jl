@@ -13,6 +13,9 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         thirddim,
         ::Type{$J};
         library=Colmat.backend_library(),
+        pointer=nothing,
+        lda=size(a, 1),
+        ldb=size(b, 1),
         lwork=max(1, firstdim, seconddim, thirddim),
     )
         ar, ac, br, bc=if $rq
@@ -24,8 +27,13 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         tb=fill($T(777), min(br, bc)+2)
         w=fill($T(777), max(1, lwork)+2)
         info=fill($J(-777), 3)
+        f=if isnothing(pointer)
+            Libdl.dlsym(Libdl.dlopen(library), $(QuoteNode(sym)))
+        else
+            pointer
+        end
         ccall(
-            Libdl.dlsym(Libdl.dlopen(library), $(QuoteNode(sym))),
+            f,
             Cvoid,
             (
                 Ref{$J},
@@ -45,10 +53,10 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
             seconddim,
             thirddim,
             a,
-            size(a, 1),
+            lda,
             view(ta, 2:(length(ta) - 1)),
             b,
-            size(b, 1),
+            ldb,
             view(tb, 2:(length(tb) - 1)),
             view(w, 2:(length(w) - 1)),
             lwork,
@@ -56,7 +64,13 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         )
         @test info[[1, 3]]==[$J(-777), $J(-777)]
         @test ta[[1, end]]==tb[[1, end]]==w[[1, end]]==[$T(777), $T(777)]
-        (; info=info[2], workspace=real(w[2]), ta=ta[2:(end - 1)], tb=tb[2:(end - 1)])
+        (;
+            info=info[2],
+            workspace=real(w[2]),
+            diagnostic=generalized_qr_diagnostic(),
+            ta=ta[2:(end - 1)],
+            tb=tb[2:(end - 1)],
+        )
     end
 end
 for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),

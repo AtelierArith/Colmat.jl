@@ -1,4 +1,12 @@
 using Test, LinearAlgebra, Random, Libdl, Colmat
+function generalized_qr_diagnostic()
+    return ccall(
+        Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error),
+        Cint,
+        (),
+    )
+end
+generalized_qr_diagnostic()
 function generalized_qr_reference()
     return only(
         filter(
@@ -27,13 +35,18 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
             ::Type{$J};
             lwork=firstdim+seconddim+p,
             library=Colmat.backend_library(),
+            pointer=nothing,
             lda=size(a, 1),
             ldb=size(b, 1),
         )
             guard=$T(777)
             w=fill(guard, max(1, lwork)+2)
             info=fill($J(-777), 3)
-            f=Libdl.dlsym(Libdl.dlopen(library), $(QuoteNode(sym)))
+            f=if isnothing(pointer)
+                Libdl.dlsym(Libdl.dlopen(library), $(QuoteNode(sym)))
+            else
+                pointer
+            end
             ccall(
                 f,
                 Cvoid,
@@ -69,7 +82,7 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
             @test info[[1, 3]]==[$J(-777), $J(-777)]
             @test w[[1, end]]==[guard, guard]
             @test rhs[[1, end]]==second[[1, end]]==last[[1, end]]==[guard, guard]
-            (; info=info[2], workspace=real(w[2]))
+            (; info=info[2], workspace=real(w[2]), diagnostic=generalized_qr_diagnostic())
         end
     end
 end
