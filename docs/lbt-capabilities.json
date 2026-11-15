@@ -292,7 +292,7 @@
       "status": "conditional",
       "api": "evd_real / evd_cplx / balance",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "固有値・左右固有ベクトル・balance はある。GEEVX の condition estimate は非対応"
+      "note": "公開 native API は固有値・左右固有ベクトル・balance を提供する。GEEVX の条件推定は native API にないため、Fortran SENSE=E/V/B は保存した同じ整数 ABI の backend を優先し、LP64 に元の実装がなければ ILP64 に整数を変換して委譲する。4型の元の ILP64 GEEVX を登録前に要求し、不足時は LBT の変更前に設定エラーにする。SENSE=N は native のまま。"
     },
     {
       "routines": [

@@ -69,9 +69,12 @@ workspace query は LAPACK の `lwork=-1` 等を受け付けますが、native �
 一般 EVD は native balance、左右固有ベクトル計算、Schur 計算を使用します。
 現在は返却する Schur 形式を得るための処理を追加実行するため、性能上の制約があります。
 
-GEEVX の `SENSE=N` は native、`SENSE=E/V/B` の条件数推定は登録前の転送先を呼びます。
-その整数 ABI に既存 GEEVX の転送先がなければ、expert モードは利用できず負の INFO
-で戻ります。`load_backend()` を再実行しても Colmat 自身を fallback として保存しません。
+GEEVX の `SENSE=N` は native、`SENSE=E/V/B` の条件数推定は保存した元の実装を使います。
+同じ整数 ABI の実装を優先し、LP64 に元の GEEVX がない場合は、整数を変換して
+保存した ILP64 実装へ委譲します。Colmat のロード前に4型の ILP64 GEEVX が必要です。
+不足時は LBT の変更前に設定エラーで停止します。合法な expert mode を不正な
+`SENSE` として報告しません。`load_backend()` の再実行では Colmat 自身を
+元の backend として保存せず、既存の実装を保持します。
 
 GGEV/GGEV3/GEGV と GGEVX の `BALANC=N/SENSE=N` は native GEVD を使います。
 GGEVX のその他の balance/condition mode は保存した ILP64 backend へ委譲し、

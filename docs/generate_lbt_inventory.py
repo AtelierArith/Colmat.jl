@@ -87,7 +87,7 @@ for line in raw.splitlines():
     if interface != 'Fortran':
         note += '; C ABI/row-major/enum/戻り値を別途変換する必要がある'
     if family == 'geevx' and lp == ilp == 'true':
-        note += '; 現行 native は SENSE=N。条件数推定は登録時に保持した backend へ委譲。該当 ABI に既存転送先がない場合は利用不可'
+        note += '; 現行 native は SENSE=N。条件数推定は保存した元の backend へ委譲。LP64 の元の実装がなければ ILP64 に整数を変換。元の ILP64 GEEVX が不足する構成は LBT 登録前に拒否'
     rows.append(dict(symbol=symbol, interface=interface, family=family, scalar=scalar,
         colmat_api=LABELS[group['status']], adapter_lp64=lp, adapter_ilp64=ilp,
         entry=group['api'], source=source, contract=note,
@@ -138,7 +138,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| GETRF / GETRF2 / GETF2 / GETRS / GETRI / GESV | colmat-rs LU・三角 solve | 最終置換を IPIV に変換 |',
     '| POTRF / POTRF2 / POTF2 / POTRS / POTRI / POSV | colmat-rs LLT・三角 solve | UPLO と INFO を変換 |',
     '| GESDD / GESVD | colmat-rs SVD | full/thin/overwrite と VT を変換。両 driver は共通 native SVD に接続 |',
-    '| GEEV / GEEVX | colmat-rs balance・EVD・Schur | GEEVX は SENSE=N が native。その他は既存 backend |',
+    '| GEEV / GEEVX | colmat-rs balance・EVD・Schur | GEEVX は SENSE=N が native。expert は元の実装、LP64 は必要に応じ ILP64 へ整数変換。ILP64 実装を登録前に要求 |',
     '| GGEV / GGEV3 / GEGV / GGEVX | colmat-rs GEVD・homogeneous α/β・左右固有ベクトル | GGEVX は BALANC=N/SENSE=N が native。その他は既存 ILP64 backend と整数 ABI 変換 |',
     '| SYEV / HEEV / SYEVD / HEEVD | colmat-rs 自己随伴 EVD | ドライバー名と同じ Netlib 算法を実行する保証はない |',
     '| LARFG / LARFGP / LARF / LARFX / LARFY / LARFT / LARFB | Rust reflector 生成・native GEMV/SYMV/GEMM | LAPACK 係数・F/B・C/R を変換。LARFB は内部配列を確保 |',
