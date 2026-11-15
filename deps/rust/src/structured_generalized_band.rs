@@ -75,6 +75,29 @@ fn lower_storage<T: GeneralizedScalar>(matrix: &Mat<T>, width: usize) -> (Vec<T>
     }
     (data, ld)
 }
+fn split_diagonals_touched(n: usize, width: usize, failed: usize) -> Vec<bool> {
+    let middle = (n / 2 + width / 2 + (n % 2 + width % 2) / 2).min(n);
+    let mut touched = vec![false; n];
+    for j in (middle..n).rev() {
+        touched[j] = true;
+        if j + 1 == failed {
+            return touched;
+        }
+        for i in j.saturating_sub(width)..j {
+            touched[i] = true;
+        }
+    }
+    for j in 0..middle {
+        touched[j] = true;
+        if j + 1 == failed {
+            return touched;
+        }
+        for i in j + 1..middle.min(j.saturating_add(width).saturating_add(1)) {
+            touched[i] = true;
+        }
+    }
+    touched
+}
 unsafe fn commit_split<T: GeneralizedScalar>(
     n: usize,
     width: usize,
@@ -83,10 +106,16 @@ unsafe fn commit_split<T: GeneralizedScalar>(
     ld: usize,
     factor: &[T],
     ldf: usize,
+    diagonal: Option<&[bool]>,
 ) {
     let actual = width.min(n.saturating_sub(1));
     for j in 0..n {
         for i in j..n.min(j + actual + 1) {
+            // A Hermitian input's ignored imaginary diagonal is never read.
+            // Do not overwrite diagonal slots the partial PBSTF never reached.
+            if i == j && diagonal.is_some_and(|mask| !mask[i]) {
+                continue;
+            }
             let value = factor[i - j + j * ldf];
             if lower {
                 *b.add(i - j + j * ld) = value;
@@ -126,7 +155,8 @@ pub(crate) unsafe fn eigen<T: GeneralizedScalar + ReflectorScalar>(
     // A compact lower stage suffices: no actual column has more than N rows.
     let status = crate::band_cholesky::factor(true, n, kb, factor.as_mut_ptr(), lf, true);
     if status != 0 {
-        commit_split(n, kb, lower, bb, ldb, &factor, lf);
+        let touched = split_diagonals_touched(n, kb, status);
+        commit_split(n, kb, lower, bb, ldb, &factor, lf, Some(&touched));
         return Err(Failure::NonPositive(status));
     }
     let (c, x) = standardize(n, ka, kb, true, aa.as_ptr(), la, factor.as_ptr(), lf)
@@ -141,7 +171,7 @@ pub(crate) unsafe fn eigen<T: GeneralizedScalar + ReflectorScalar>(
     if !values.iter().all(|v| v.is_finite()) || !vectors.as_ref().is_all_finite() {
         return Err(Failure::Native);
     }
-    commit_split(n, kb, lower, bb, ldb, &factor, lf);
+    commit_split(n, kb, lower, bb, ldb, &factor, lf, None);
     Ok(NativeResult {
         values,
         vectors,
@@ -286,6 +316,135 @@ pub(crate) unsafe fn standardize<T: GeneralizedScalar + ReflectorScalar>(
     }
 }
 
+unsafe fn output_band<T: GeneralizedScalar>(
+    matrix: &Mat<T>,
+    width: usize,
+    lower: bool,
+    p: *mut T,
+    ld: usize,
+) {
+    let n = matrix.nrows();
+    for j in 0..n {
+        let rows = if lower {
+            j..n.min(j.saturating_add(width).saturating_add(1))
+        } else {
+            j.saturating_sub(width)..j + 1
+        };
+        for i in rows {
+            let row = if lower { i - j } else { width - (j - i) };
+            *p.add(row + j * ld) = matrix[(i, j)];
+        }
+    }
+}
+unsafe fn eigen_driver<
+    T: GeneralizedScalar + ReflectorScalar,
+    R: crate::kernels::Scalar,
+    I: crate::lapack::LapackInt,
+>(
+    job: u8,
+    u: u8,
+    n: isize,
+    ka: isize,
+    kb: isize,
+    ab: *mut T,
+    lda: isize,
+    bb: *mut T,
+    ldb: isize,
+    w: *mut R,
+    z: *mut T,
+    ldz: isize,
+    info: *mut I,
+) -> bool {
+    *info = I::from_i64(0);
+    for (arg, ok) in [
+        (1, matches!(job, b'N' | b'V')),
+        (2, matches!(u, b'L' | b'U')),
+        (3, n >= 0),
+        (4, ka >= 0),
+        (5, kb >= 0 && kb <= ka),
+        (7, ka.checked_add(1).is_some_and(|k| lda >= k)),
+        (9, kb.checked_add(1).is_some_and(|k| ldb >= k)),
+        (12, ldz >= 1 && (job == b'N' || ldz >= n)),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    if n == 0 {
+        return true;
+    }
+    let rowsa = if u == b'L' { (ka + 1).min(n) } else { ka + 1 };
+    let rowsb = if u == b'L' { (kb + 1).min(n) } else { kb + 1 };
+    for (arg, ok) in [
+        (3, crate::kernels::matrix_addressable::<T>(n, n, n)),
+        (7, crate::kernels::matrix_addressable::<T>(rowsa, n, lda)),
+        (9, crate::kernels::matrix_addressable::<T>(rowsb, n, ldb)),
+        (
+            12,
+            job == b'N' || crate::kernels::matrix_addressable::<T>(n, n, ldz),
+        ),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    match eigen(
+        job,
+        n as usize,
+        ka as usize,
+        kb as usize,
+        u == b'L',
+        ab,
+        lda as usize,
+        bb,
+        ldb as usize,
+    ) {
+        Ok(result) => {
+            for (i, value) in result.values.into_iter().enumerate() {
+                *w.add(i) = R::real(value);
+            }
+            output_band(&result.reduced, ka as usize, u == b'L', ab, lda as usize);
+            if job == b'V' {
+                crate::lapack::output(&result.vectors, z, ldz);
+            }
+            true
+        }
+        Err(crate::generalized_selfadjoint_drivers::Failure::NonPositive(index)) => {
+            *info = I::from_i64(n as i64 + index as i64);
+            true
+        }
+        Err(crate::generalized_selfadjoint_drivers::Failure::Native) => false,
+    }
+}
+macro_rules! gv_real_exports {($p:ident,$t:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p sbgv $s>](job:*const u8,u:*const u8,n:*const $i,ka:*const $i,kb:*const $i,ab:*mut $t,lda:*const $i,bb:*mut $t,ldb:*const $i,w:*mut $t,z:*mut $t,ldz:*const $i,work:*mut $t,info:*mut $i) {
+        use crate::lapack::LapackInt;
+        if eigen_driver(crate::kernels::flag(job),crate::kernels::flag(u),(*n).val(),(*ka).val(),(*kb).val(),ab,(*lda).val(),bb,(*ldb).val(),w,z,(*ldz).val(),info) {return;}
+        let f:unsafe extern "C" fn(*const u8,*const u8,*const i64,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $t,*mut $t,*const i64,*mut $t,*mut i64,usize,usize)=std::mem::transmute(crate::structured_generalized::fallback(16+$id));
+        let mut status=0i64;f(job,u,&((*n).val() as i64),&((*ka).val() as i64),&((*kb).val() as i64),ab,&((*lda).val() as i64),bb,&((*ldb).val() as i64),w,z,&((*ldz).val() as i64),work,&mut status,1,1);*info=status as $i;
+    }
+}};}
+macro_rules! gv_complex_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p hbgv $s>](job:*const u8,u:*const u8,n:*const $i,ka:*const $i,kb:*const $i,ab:*mut $t,lda:*const $i,bb:*mut $t,ldb:*const $i,w:*mut $r,z:*mut $t,ldz:*const $i,work:*mut $t,rwork:*mut $r,info:*mut $i) {
+        use crate::lapack::LapackInt;
+        if eigen_driver(crate::kernels::flag(job),crate::kernels::flag(u),(*n).val(),(*ka).val(),(*kb).val(),ab,(*lda).val(),bb,(*ldb).val(),w,z,(*ldz).val(),info) {return;}
+        let f:unsafe extern "C" fn(*const u8,*const u8,*const i64,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $r,*mut $t,*const i64,*mut $t,*mut $r,*mut i64,usize,usize)=std::mem::transmute(crate::structured_generalized::fallback(16+$id));
+        let mut status=0i64;f(job,u,&((*n).val() as i64),&((*ka).val() as i64),&((*kb).val() as i64),ab,&((*lda).val() as i64),bb,&((*ldb).val() as i64),w,z,&((*ldz).val() as i64),work,rwork,&mut status,1,1);*info=status as $i;
+    }
+}};}
+gv_real_exports!(s, f32, i32, _, 0);
+gv_real_exports!(d, f64, i32, _, 1);
+gv_real_exports!(s, f32, i64, _64_, 0);
+gv_real_exports!(d, f64, i64, _64_, 1);
+gv_complex_exports!(c, colmat::c32, f32, i32, _, 2);
+gv_complex_exports!(z, colmat::c64, f64, i32, _, 3);
+gv_complex_exports!(c, colmat::c32, f32, i64, _64_, 2);
+gv_complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
+
 unsafe fn driver<T: GeneralizedScalar + ReflectorScalar, I: crate::lapack::LapackInt>(
     vect: u8,
     u: u8,
@@ -349,21 +508,7 @@ unsafe fn driver<T: GeneralizedScalar + ReflectorScalar, I: crate::lapack::Lapac
     ) else {
         return false;
     };
-    for j in 0..n as usize {
-        let rows = if u == b'L' {
-            j..(n as usize).min(j.saturating_add(ka as usize).saturating_add(1))
-        } else {
-            j.saturating_sub(ka as usize)..j + 1
-        };
-        for i in rows {
-            let row = if u == b'L' {
-                i - j
-            } else {
-                ka as usize - (j - i)
-            };
-            *ab.offset(row as isize + j as isize * lda) = c[(i, j)];
-        }
-    }
+    output_band(&c, ka as usize, u == b'L', ab, lda as usize);
     if vect == b'V' {
         crate::lapack::output(&transform, x, ldx);
     }
@@ -397,6 +542,116 @@ complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn gv_abi<
+        T: GeneralizedScalar + ReflectorScalar,
+        R: crate::kernels::Scalar,
+        I: crate::lapack::LapackInt,
+    >(
+        tol: f64,
+    ) {
+        for u in [b'U', b'L'] {
+            for job in [b'N', b'V'] {
+                let mut a = T::real(3.0);
+                let mut b = T::real(2.0);
+                let mut w = R::real(777.0);
+                let mut z = T::real(777.0);
+                let mut info = [I::from_i64(-777); 3];
+                assert!(unsafe {
+                    eigen_driver(
+                        job,
+                        u,
+                        1,
+                        0,
+                        0,
+                        &mut a,
+                        isize::MAX,
+                        &mut b,
+                        isize::MAX,
+                        &mut w,
+                        if job == b'V' {
+                            &mut z
+                        } else {
+                            std::ptr::null_mut()
+                        },
+                        isize::MAX,
+                        &mut info[1],
+                    )
+                });
+                assert_eq!(info[1].val(), 0);
+                assert_eq!(info[0].val(), -777);
+                assert_eq!(info[2].val(), -777);
+                assert_eq!(crate::colmat_blas_last_error(), 0);
+                assert!((w.re() - 1.5).abs() < tol);
+                assert!((b.re() - 2.0f64.sqrt()).abs() < tol);
+                if job == b'V' {
+                    assert!((z.magnitude() - 1.0 / 2.0f64.sqrt()).abs() < tol);
+                } else {
+                    assert_eq!(z.re(), 777.0);
+                }
+            }
+            let mut a = [
+                T::real(777.0),
+                T::real(3.0),
+                T::real(5.0),
+                T::real(7.0),
+                T::real(777.0),
+            ];
+            let olda = a;
+            let mut b = [
+                T::real(777.0),
+                T::parts(4.0, if T::COMPLEX { f64::NAN } else { 0.0 }),
+                T::parts(-1.0, if T::COMPLEX { f64::NAN } else { 0.0 }),
+                T::parts(9.0, if T::COMPLEX { f64::NAN } else { 0.0 }),
+                T::real(777.0),
+            ];
+            let mut w = [R::real(777.0); 5];
+            let mut z = [T::real(777.0); 11];
+            let mut info = I::from_i64(-777);
+            assert!(unsafe {
+                eigen_driver(
+                    b'V',
+                    u,
+                    3,
+                    0,
+                    0,
+                    a.as_mut_ptr().add(1),
+                    1,
+                    b.as_mut_ptr().add(1),
+                    1,
+                    w.as_mut_ptr().add(1),
+                    z.as_mut_ptr().add(1),
+                    3,
+                    &mut info,
+                )
+            });
+            assert_eq!(info.val(), 5);
+            assert_eq!(a, olda);
+            assert_eq!(crate::colmat_blas_last_error(), 0);
+            assert!(w.iter().all(|x| x.re() == 777.0));
+            assert!(z.iter().all(|x| x.re() == 777.0));
+            assert_eq!(b[0].re(), 777.0);
+            assert_eq!(b[4].re(), 777.0);
+            assert_eq!(b[1].re(), 4.0);
+            if T::COMPLEX {
+                assert!(b[1].im().is_nan());
+            }
+            assert_eq!(b[2].im(), 0.0);
+            assert_eq!(b[3].im(), 0.0);
+            assert_eq!(b[2].re(), -1.0);
+            assert!((b[3].re() - 3.0).abs() < tol);
+        }
+    }
+    #[test]
+    fn band_gv_abis_and_nonpositive_split_order() {
+        gv_abi::<f32, f32, i32>(1e-4);
+        gv_abi::<f32, f32, i64>(1e-4);
+        gv_abi::<f64, f64, i32>(1e-11);
+        gv_abi::<f64, f64, i64>(1e-11);
+        gv_abi::<colmat::c32, f32, i32>(1e-4);
+        gv_abi::<colmat::c32, f32, i64>(1e-4);
+        gv_abi::<colmat::c64, f64, i32>(1e-11);
+        gv_abi::<colmat::c64, f64, i64>(1e-11);
+    }
     fn abi<T: GeneralizedScalar + ReflectorScalar, I: crate::lapack::LapackInt>(tol: f64) {
         for u in [b'U', b'L'] {
             for vect in [b'N', b'V'] {
