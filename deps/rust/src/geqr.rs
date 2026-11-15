@@ -241,3 +241,157 @@ exports!(s, f32, i64, _64_);
 exports!(d, f64, i64, _64_);
 exports!(c, colmat::c32, i64, _64_);
 exports!(z, colmat::c64, i64, _64_);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn verify<T: ReflectorScalar>(imag: T, tolerance: f64) {
+        unsafe {
+            for (m, n) in [(0usize, 4usize), (7, 0), (1, 1), (5, 8), (9, 3), (70, 3)] {
+                for minimal in [false, true] {
+                    let lda = m + 2;
+                    let k = m.min(n);
+                    let mut a = vec![T::real(777.0); lda * n];
+                    let mut original = vec![T::z(); m * n];
+                    for j in 0..n {
+                        for i in 0..m {
+                            let x = T::real(((i * 13 + j * 17 + i * j) % 29) as f64 / 19.0 - 0.7)
+                                + imag * T::real(((i * 7 + j * 11) % 13) as f64 / 23.0);
+                            a[i + j * lda] = x;
+                            original[i + j * m] = x;
+                        }
+                    }
+                    let mut t = vec![T::real(777.0); 65536];
+                    let mut work = vec![T::z(); 4096];
+                    let mut info = 99i64;
+                    factor(
+                        m as isize,
+                        n as isize,
+                        a.as_mut_ptr(),
+                        lda as isize,
+                        t.as_mut_ptr(),
+                        if minimal { (n + 5) as isize } else { 65536 },
+                        work.as_mut_ptr(),
+                        if minimal { n.max(1) as isize } else { 4096 },
+                        &mut info,
+                    );
+                    assert_eq!(info, 0);
+                    assert_eq!(t[3], T::real(777.0));
+                    assert_eq!(t[4], T::real(777.0));
+                    let mut q = vec![T::z(); m * m];
+                    for i in 0..m {
+                        q[i + i * m] = T::o();
+                    }
+                    apply(
+                        b'L',
+                        b'N',
+                        m as isize,
+                        m as isize,
+                        k as isize,
+                        a.as_ptr(),
+                        lda as isize,
+                        t.as_ptr(),
+                        65536,
+                        q.as_mut_ptr(),
+                        m.max(1) as isize,
+                        work.as_mut_ptr(),
+                        4096,
+                        &mut info,
+                    );
+                    assert_eq!(info, 0);
+                    for j in 0..n {
+                        for i in 0..m {
+                            let qr = (0..k.min(j + 1))
+                                .fold(T::z(), |s, l| s + q[i + l * m] * a[l + j * lda]);
+                            assert!((qr - original[i + j * m]).magnitude() < tolerance);
+                        }
+                        for i in m..lda {
+                            assert_eq!(a[i + j * lda], T::real(777.0));
+                        }
+                    }
+                    for j in 0..m {
+                        for i in 0..m {
+                            let dot =
+                                (0..m).fold(T::z(), |s, l| s + q[l + i * m].cj() * q[l + j * m]);
+                            assert!(
+                                (dot - if i == j { T::o() } else { T::z() }).magnitude()
+                                    < tolerance
+                            );
+                        }
+                    }
+                    for side in [b'L', b'R'] {
+                        for tr in [b'N', if T::COMPLEX { b'C' } else { b'T' }] {
+                            let (rows, cols) = if side == b'L' { (m, 3) } else { (3, m) };
+                            let ldc = rows + 2;
+                            let mut c = vec![T::real(777.0); ldc * cols];
+                            for j in 0..cols {
+                                for i in 0..rows {
+                                    c[i + j * ldc] = T::real((i + j + 1) as f64 / 29.0)
+                                        + imag * T::real((i + 2 * j) as f64 / 47.0);
+                                }
+                            }
+                            let before = c.clone();
+                            let op = |i: usize, j: usize| {
+                                if tr == b'N' {
+                                    q[i + j * m]
+                                } else {
+                                    q[j + i * m].cj()
+                                }
+                            };
+                            apply(
+                                side,
+                                tr,
+                                rows as isize,
+                                cols as isize,
+                                k as isize,
+                                a.as_ptr(),
+                                lda as isize,
+                                t.as_ptr(),
+                                65536,
+                                c.as_mut_ptr(),
+                                ldc as isize,
+                                work.as_mut_ptr(),
+                                4096,
+                                &mut info,
+                            );
+                            assert_eq!(info, 0);
+                            for j in 0..cols {
+                                for i in 0..rows {
+                                    let expected = if side == b'L' {
+                                        (0..m)
+                                            .fold(T::z(), |s, l| s + op(i, l) * before[l + j * ldc])
+                                    } else {
+                                        (0..m)
+                                            .fold(T::z(), |s, l| s + before[i + l * ldc] * op(l, j))
+                                    };
+                                    assert!(
+                                        (c[i + j * ldc] - expected).magnitude() < tolerance * 10.0
+                                    );
+                                }
+                                for i in rows..ldc {
+                                    assert_eq!(c[i + j * ldc], T::real(777.0));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn real32() {
+        verify(0.0f32, 5e-5);
+    }
+    #[test]
+    fn real64() {
+        verify(0.0f64, 5e-13);
+    }
+    #[test]
+    fn complex32() {
+        verify(colmat::c32::new(0.0, 1.0), 5e-5);
+    }
+    #[test]
+    fn complex64() {
+        verify(colmat::c64::new(0.0, 1.0), 5e-13);
+    }
+}
