@@ -51,6 +51,7 @@ mod qr;
 mod qr_pivoted;
 mod qz;
 mod qz_reorder;
+mod qz_reorder_driver;
 mod reduction_extensions;
 mod reverse_qr;
 mod rfp_rank;
