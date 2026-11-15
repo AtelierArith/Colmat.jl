@@ -433,6 +433,90 @@ adjacent_complex_exports!(z, colmat::c64, i32, _);
 adjacent_complex_exports!(c, colmat::c32, i64, _64_);
 adjacent_complex_exports!(z, colmat::c64, i64, _64_);
 
+use std::ffi::c_void;
+use std::sync::atomic::{AtomicPtr, Ordering};
+static EXPERT: [AtomicPtr<c_void>; 8] = [const { AtomicPtr::new(std::ptr::null_mut()) }; 8];
+#[no_mangle]
+pub extern "C" fn colmat_qz_reorder_set_fallback(id: i32, pointer: *mut c_void) {
+    if let Some(slot) = EXPERT.get(id as usize) {
+        slot.store(pointer, Ordering::Release);
+    }
+}
+#[no_mangle]
+pub extern "C" fn colmat_qz_reorder_has_fallback(id: i32) -> i32 {
+    EXPERT
+        .get(id as usize)
+        .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
+}
+macro_rules! selected_real_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste!{
+#[no_mangle]
+pub unsafe extern "C" fn [<$p tgsen $s>](ijob:*const $i,wq:*const $i,wz:*const $i,select:*const $i,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,ar:*mut $t,ai:*mut $t,beta:*mut $t,q:*mut $t,ldq:*const $i,z:*mut $t,ldz:*const $i,m:*mut $i,pl:*mut $r,pr:*mut $r,dif:*mut $r,work:*mut $t,lwork:*const $i,iwork:*mut $i,liwork:*const $i,info:*mut $i) {
+    let(job,nn,la,lb,lq,lz,lw,liw)=((*ijob).val(),(*n).val(),(*lda).val(),(*ldb).val(),(*ldq).val(),(*ldz).val(),(*lwork).val(),(*liwork).val());
+    let(wantq,wantz)=((*wq).val()!=0,(*wz).val()!=0);
+    *info=0;
+    for(arg,ok)in[(1,(0..=5).contains(&job)),(5,nn>=0),(7,la>=nn.max(1)),(9,lb>=nn.max(1)),(14,lq>=1&&(!wantq||lq>=nn)),(16,lz>=1&&(!wantz||lz>=nn))] {
+        if !ok {invalid(info,arg);return;}
+    }
+    if job==0 && selected(wantq,wantz,select,nn,a,la,b,lb,ar,ai,beta,q,lq,z,lz,m,work,lw,iwork,liw,<$r>::MIN_POSITIVE as f64,info) {return;}
+    // Expert estimates, and native extraction refusal, run the saved ILP64
+    // routine from the original factors. SELECT is read-only; LP64 integer
+    // workspace copies back only slots actually written by LAPACK.
+    for(arg,ok)in[(7,matrix_addressable::<$t>(nn,nn,la)),(9,matrix_addressable::<$t>(nn,nn,lb)),(14,!wantq||matrix_addressable::<$t>(nn,nn,lq)),(16,!wantz||matrix_addressable::<$t>(nn,nn,lz))] {if !ok {invalid(info,arg);return;}}
+    let pointer=EXPERT[$id].load(Ordering::Acquire);
+    assert!(!pointer.is_null(),"initialize QZ reorder expert fallback before use");
+    let(job64,wq64,wz64,n64,la64,lb64,lq64,lz64,lw64,liw64)=(job as i64,i64::from(wantq),i64::from(wantz),nn as i64,la as i64,lb as i64,lq as i64,lz as i64,lw as i64,liw as i64);
+    let mut selected64=Vec::new();let mut workspace64=Vec::new();
+    let (selptr,iwptr)=if std::mem::size_of::<$i>()==8 {(select.cast::<i64>(),iwork.cast::<i64>())} else {
+        selected64.extend((0..nn as usize).map(|k|(*select.add(k)).val() as i64));
+        workspace64.resize(liw.max(1) as usize,i64::MIN);
+        (selected64.as_ptr(),workspace64.as_mut_ptr())
+    };
+    let(mut m64,mut info64)=(0i64,0i64);
+    let fallback:unsafe extern "C" fn(*const i64,*const i64,*const i64,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $t,*mut $t,*mut $t,*mut $t,*const i64,*mut $t,*const i64,*mut i64,*mut $r,*mut $r,*mut $r,*mut $t,*const i64,*mut i64,*const i64,*mut i64)=std::mem::transmute(pointer);
+    fallback(&job64,&wq64,&wz64,selptr,&n64,a,&la64,b,&lb64,ar,ai,beta,q,&lq64,z,&lz64,&mut m64,pl,pr,dif,work,&lw64,iwptr,&liw64,&mut info64);
+    *m=m64 as $i;*info=info64 as $i;
+    for(k,value)in workspace64.into_iter().enumerate() {if value!=i64::MIN {*iwork.add(k)=value as $i;}}
+}
+}};}
+macro_rules! selected_complex_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste!{
+#[no_mangle]
+pub unsafe extern "C" fn [<$p tgsen $s>](ijob:*const $i,wq:*const $i,wz:*const $i,select:*const $i,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,ar:*mut $t,beta:*mut $t,q:*mut $t,ldq:*const $i,z:*mut $t,ldz:*const $i,m:*mut $i,pl:*mut $r,pr:*mut $r,dif:*mut $r,work:*mut $t,lwork:*const $i,iwork:*mut $i,liwork:*const $i,info:*mut $i) {
+    let(job,nn,la,lb,lq,lz,lw,liw)=((*ijob).val(),(*n).val(),(*lda).val(),(*ldb).val(),(*ldq).val(),(*ldz).val(),(*lwork).val(),(*liwork).val());
+    let(wantq,wantz)=((*wq).val()!=0,(*wz).val()!=0);
+    *info=0;
+    for(arg,ok)in[(1,(0..=5).contains(&job)),(5,nn>=0),(7,la>=nn.max(1)),(9,lb>=nn.max(1)),(13,lq>=1&&(!wantq||lq>=nn)),(15,lz>=1&&(!wantz||lz>=nn))] {
+        if !ok {invalid(info,arg);return;}
+    }
+    if job==0 && selected(wantq,wantz,select,nn,a,la,b,lb,ar,std::ptr::null_mut(),beta,q,lq,z,lz,m,work,lw,iwork,liw,<$r>::MIN_POSITIVE as f64,info) {return;}
+    // Expert estimates, and native extraction refusal, run the saved ILP64
+    // routine from the original factors. SELECT is read-only; LP64 integer
+    // workspace copies back only slots actually written by LAPACK.
+    for(arg,ok)in[(7,matrix_addressable::<$t>(nn,nn,la)),(9,matrix_addressable::<$t>(nn,nn,lb)),(13,!wantq||matrix_addressable::<$t>(nn,nn,lq)),(15,!wantz||matrix_addressable::<$t>(nn,nn,lz))] {if !ok {invalid(info,arg);return;}}
+    let pointer=EXPERT[$id].load(Ordering::Acquire);
+    assert!(!pointer.is_null(),"initialize QZ reorder expert fallback before use");
+    let(job64,wq64,wz64,n64,la64,lb64,lq64,lz64,lw64,liw64)=(job as i64,i64::from(wantq),i64::from(wantz),nn as i64,la as i64,lb as i64,lq as i64,lz as i64,lw as i64,liw as i64);
+    let mut selected64=Vec::new();let mut workspace64=Vec::new();
+    let (selptr,iwptr)=if std::mem::size_of::<$i>()==8 {(select.cast::<i64>(),iwork.cast::<i64>())} else {
+        selected64.extend((0..nn as usize).map(|k|(*select.add(k)).val() as i64));
+        workspace64.resize(liw.max(1) as usize,i64::MIN);
+        (selected64.as_ptr(),workspace64.as_mut_ptr())
+    };
+    let(mut m64,mut info64)=(0i64,0i64);
+    let fallback:unsafe extern "C" fn(*const i64,*const i64,*const i64,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $t,*mut $t,*mut $t,*const i64,*mut $t,*const i64,*mut i64,*mut $r,*mut $r,*mut $r,*mut $t,*const i64,*mut i64,*const i64,*mut i64)=std::mem::transmute(pointer);
+    fallback(&job64,&wq64,&wz64,selptr,&n64,a,&la64,b,&lb64,ar,beta,q,&lq64,z,&lz64,&mut m64,pl,pr,dif,work,&lw64,iwptr,&liw64,&mut info64);
+    *m=m64 as $i;*info=info64 as $i;
+    for(k,value)in workspace64.into_iter().enumerate() {if value!=i64::MIN {*iwork.add(k)=value as $i;}}
+}
+}};}
+selected_real_exports!(s, f32, f32, i32, _, 0);
+selected_real_exports!(s, f32, f32, i64, _64_, 0);
+selected_real_exports!(d, f64, f64, i32, _, 1);
+selected_real_exports!(d, f64, f64, i64, _64_, 1);
+selected_complex_exports!(c, colmat::c32, f32, i32, _, 2);
+selected_complex_exports!(c, colmat::c32, f32, i64, _64_, 2);
+selected_complex_exports!(z, colmat::c64, f64, i32, _, 3);
+selected_complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
+
 macro_rules! real_exports {($p:ident,$t:ty,$i:ty,$s:tt)=>{paste!{
     #[no_mangle] pub unsafe extern "C" fn [<$p tgexc $s>](wq:*const $i,wz:*const $i,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,q:*mut $t,ldq:*const $i,z:*mut $t,ldz:*const $i,ifst:*mut $i,ilst:*mut $i,work:*mut $t,lwork:*const $i,info:*mut $i) {
         exchange((*wq).val()!=0,(*wz).val()!=0,(*n).val(),a,(*lda).val(),b,(*ldb).val(),q,(*ldq).val(),z,(*ldz).val(),ifst,ilst,Some((work,(*lwork).val())),info);
