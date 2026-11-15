@@ -1123,3 +1123,26 @@ INFO と補助診断、padding/guard、全20入口の数値 LBT 呼び出しを�
 極小/巨大スケールでは正規化した BigFloat 再構成も独立に照合します。
 1列では使わない LDA/LDC/LDX/LDY の巨大値を許容し、最後の参照要素までの領域で検査します。
 零 tau の反射は A を読まず、全反射が零なら適用先 C も参照しません。
+
+
+## 自己随伴三重対角化と Q の生成・適用
+
+Issue #296 では SYTRD/HETRD、SYTD2/HETD2、LATRD、ORGTR/UNGTR、ORMTR/UNMTR の
+20 Fortran シンボルを LP64/ILP64 に接続しました。各 ABI は1046シンボル
+（BLAS 202、LAPACK 844）です。使用した colmat-rs revision は
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` です。
+
+通常スケールの実数還元は native `tridiag_in_place` を使用します。
+複素数の実数 E への gauge 変換と極端な実数スケールでは、正規化した native
+Householder panel と native GEMV/Hermitian rank-2 update を合成します。
+上三角・下三角それぞれの reflector 保存形式に変換し、参照しない三角部分や
+Hermitian 対角の虚部を読みません。Q は保存した reflector から生成・適用し、
+LATRD は後続の対称 rank-2k 更新に必要な W を返します。
+
+作業用行列は内部で所有します。TRD の最小合法 LWORK は1、ORGTR/UNGTR は
+`max(1,n-1)`、ORMTR/UNMTR は左適用で `max(1,n)`、右適用で `max(1,m)` です。
+workspace query を実装していますが、参照実装と同じブロック算法や性能を主張しません。
+
+`test/selfadjoint_reduction.jl` は4型・両整数 ABI、選択三角と配列の余白、
+三重対角分解の再構成、Q の左右適用・転置／共役転置、OpenBLAS 因子との相互運用、
+query・引数診断、および LATRD の部分 panel と deferred update を検証します。
