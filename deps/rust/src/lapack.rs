@@ -484,7 +484,7 @@ pub struct GeneralResult<T: Scalar> {
     left: Mat<T>,
     right: Mat<T>,
 }
-pub trait General: Scalar {
+pub trait General: crate::householder::ReflectorScalar {
     fn eigen(a: MatRef<'_, Self>, left: bool, right: bool) -> Result<GeneralResult<Self>, ()>;
     fn balance(a: MatMut<'_, Self>, job: u8) -> Result<(Vec<usize>, Vec<f64>, usize, usize), ()>;
     fn schur(a: MatMut<'_, Self>) -> Result<(), ()>;
@@ -744,7 +744,13 @@ general_real!(f64);
 general_complex!(colmat::c32, f32);
 general_complex!(colmat::c64, f64);
 
-fn unbalance<T: Scalar>(v: &Mat<T>, p: &[usize], s: &[f64], left: bool, wi: &[f64]) -> Mat<T> {
+fn unbalance<T: crate::householder::ReflectorScalar>(
+    v: &Mat<T>,
+    p: &[usize],
+    s: &[f64],
+    left: bool,
+    wi: &[f64],
+) -> Mat<T> {
     let n = v.nrows();
     let mut out = Mat::zeros(n, v.ncols());
     for j in 0..v.ncols() {
@@ -765,7 +771,10 @@ fn unbalance<T: Scalar>(v: &Mat<T>, p: &[usize], s: &[f64], left: bool, wi: &[f6
         if norm != 0.0 {
             for c in j..j + cols {
                 for i in 0..n {
-                    out[(i, c)] /= T::real(norm);
+                    // Divide components by the real norm: complex division can
+                    // overflow when squaring a large real denominator.
+                    let value = out[(i, c)];
+                    out[(i, c)] = T::parts(value.re() / norm, value.im() / norm);
                 }
             }
         }
@@ -978,4 +987,43 @@ pub unsafe fn symmetric_driver<T: Scalar, R: Scalar, I: LapackInt>(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod balanced_normalization_regression {
+    use super::*;
+    use crate::householder::ReflectorScalar;
+
+    fn check<T: ReflectorScalar>(exponent: i32) {
+        let vectors = Mat::from_fn(2, 2, |i, j| {
+            if i == 0 {
+                T::parts(if j == 0 { 0.6 } else { -0.6 }, 0.8)
+            } else {
+                T::parts(0.3, -0.5)
+            }
+        });
+        for left in [false, true] {
+            let factor = 2.0f64.powi(if left { -exponent } else { exponent });
+            let output = unbalance(&vectors, &[0, 1], &[factor, 1.0], left, &[0.0, 0.0]);
+            for j in 0..2 {
+                let mut norm = 0.0f64;
+                for i in 0..2 {
+                    let z = output[(i, j)];
+                    assert!(
+                        z.re().is_finite() && z.im().is_finite(),
+                        "non-finite normalized component"
+                    );
+                    norm = norm.hypot(z.magnitude());
+                }
+                assert!((norm - 1.0).abs() <= 32.0 * T::EPS);
+                assert!((output[(0, j)].re() - 1.0).abs() <= 32.0 * T::EPS);
+                assert!(output[(0, j)].im().abs() <= 32.0 * T::EPS);
+            }
+        }
+    }
+    #[test]
+    fn complex_balanced_vectors_keep_finite_unit_norm_at_large_scale() {
+        check::<colmat::c32>(80);
+        check::<colmat::c64>(664);
+    }
 }
