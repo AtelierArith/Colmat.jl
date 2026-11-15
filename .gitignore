@@ -8,3 +8,6 @@
 /docs/package-lock.json
 
 /deps/usr/
+
+# Python audit command caches
+__pycache__/

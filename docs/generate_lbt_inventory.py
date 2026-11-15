@@ -10,11 +10,14 @@ import json
 import re
 import subprocess
 import tomllib
+from lbt_classification import classify as classify_capability
 
 ROOT = Path(__file__).resolve().parent.parent
 UPSTREAM = tomllib.loads((ROOT / 'deps/upstream.toml').read_text())
 SOURCE = ROOT / 'deps/colmat-rs'
 POLICY = json.loads((ROOT / 'docs/lbt-capabilities.json').read_text())
+if POLICY['assessment_revision'] != UPSTREAM['revision']:
+    raise RuntimeError('Capability policy needs review for the current native revision')
 GROUPS = {}
 for group in POLICY['groups']:
     for name in group['routines']:
@@ -25,7 +28,8 @@ LABELS = {
     'representation': '対応機能あり・保存形式の変換が必要',
     'composition': '公開機能の合成候補・直接 API はなし',
     'conditional': '一部機能のみ・追加の契約実装が必要',
-    'unsupported': '対応する独立公開 API なし',
+    'unsupported': '対応する独立公開 API なし（確認範囲付き）',
+    'unverified': '未照合・根拠不足',
 }
 SPECIAL = {
     'scnrm2': ('nrm2', 'c'), 'dznrm2': ('nrm2', 'z'),
@@ -60,25 +64,8 @@ def routine(symbol):
 
 
 def classify(family, scalar):
-    group = GROUPS.get(family)
-    if group is not None:
-        group = dict(group)
-        if scalar in 'cz' and family.startswith(('sy','sp')) and family in {
-            'sytrf','sytf2','sytrs','sytri','sysv','sytri2','sytri2x','sytrs2','sygv','sygvd','sygvx','syev','syevd','syevr','syevx','sytrd','sytd2','sptrf','sptrs','sptri','spsv'
-        }:
-            group.update(status='unsupported', api='—', note='複素対称（非 Hermitian）のこの契約を満たす公開 solver はない。複素 Hermitian HE 系と区別する')
-        return group
-    # The public API catalogue has no independently callable analogue for these
-    # auxiliaries/algorithms. No inference from "SVD internally uses it" is made.
-    if family.endswith('_2stage') or '_aa' in family or family.endswith(('_rk','_rook','_3','_3x')):
-        note = '特定の two-stage / Aasen / rook / rank-k 保存方式の公開 API はない。標準 driver の数学的存在と区別する'
-    elif family.startswith(('la','il','iparm','xerbla','lsame','orbdb','unbdb','tp','tz')):
-        note = 'LAPACK 固有の補助処理・内部アルゴリズムまたは保存形式に対応する独立公開 API は確認できない'
-    elif family.endswith(('_trans','_nancheck')) or family == 'nancheck':
-        note = 'LAPACKE の入力検査・row/column-major 変換 helper は colmat の公開ルーチンとして提供されない。adapter 側の処理'
-    else:
-        note = '固定 revision の公開 API catalogue に同じ契約の独立ルーチンはない。数学的に自作・合成できないという意味ではない'
-    return dict(status='unsupported', api='—', source='faer/src/linalg/mod.rs', note=note)
+    return classify_capability(family, scalar, GROUPS, UPSTREAM['revision'],
+                               POLICY.get('scalar_overrides', []))
 
 
 raw = subprocess.check_output(
@@ -92,6 +79,10 @@ for line in raw.splitlines():
     source = group['source']
     if not (SOURCE / source).is_file():
         raise RuntimeError(f'Missing evidence source: {source}')
+    if group['evidence']:
+        for evidence_source in group['evidence']['sources']:
+            if not (SOURCE / evidence_source).is_file():
+                raise RuntimeError(f'Missing reviewed source: {evidence_source}')
     note = group['note']
     if interface != 'Fortran':
         note += '; C ABI/row-major/enum/戻り値を別途変換する必要がある'
@@ -99,7 +90,11 @@ for line in raw.splitlines():
         note += '; 現行 native は SENSE=N。条件数推定は登録時に保持した backend へ委譲。該当 ABI に既存転送先がない場合は利用不可'
     rows.append(dict(symbol=symbol, interface=interface, family=family, scalar=scalar,
         colmat_api=LABELS[group['status']], adapter_lp64=lp, adapter_ilp64=ilp,
-        entry=group['api'], source=source, contract=note))
+        entry=group['api'], source=source, contract=note,
+        capability_status=group['status'], evidence_status=group['evidence_status'],
+        capability_evidence=json.dumps(group['evidence'], ensure_ascii=False, separators=(',', ':')) if group['evidence'] else '',
+        execution_evidence_status='not_catalogued', execution_evidence='',
+        independent_algorithm_status=group['algorithm_status']))
 assert len(rows) == len({r['symbol'] for r in rows})
 assets = ROOT / 'docs/src/assets'
 assets.mkdir(exist_ok=True)
@@ -110,7 +105,10 @@ meta = dict(julia=subprocess.check_output(['julia','--startup-file=no','-e','pri
     revision=UPSTREAM['revision'], repository=UPSTREAM['repository'], symbols=len(rows),
     interfaces=dict(Counter(r['interface'] for r in rows)),
     lp64=sum(r['adapter_lp64']=='true' for r in rows),
-    ilp64=sum(r['adapter_ilp64']=='true' for r in rows))
+    ilp64=sum(r['adapter_ilp64']=='true' for r in rows),
+    capability_assessments=dict(Counter(r['capability_status'] for r in rows)),
+    execution_evidence=dict(Counter(r['execution_evidence_status'] for r in rows)),
+    independent_algorithm_assessments=dict(Counter(r['independent_algorithm_status'] for r in rows)))
 (assets/'lbt-symbol-inventory.json').write_text(json.dumps(meta,ensure_ascii=False,indent=2)+'\n')
 lines = ['# LBT と colmat-rs の全ルーチン対応表','',
     '## 調査範囲と判定','',
@@ -123,7 +121,9 @@ lines = ['# LBT と colmat-rs の全ルーチン対応表','',
     '- **保存形式の変換が必要**: reflector・置換・band/packed 等の差がある。まだ adapter があるとは限らない。',
     '- **合成候補**: 公開 kernel を組み合わせれば数学的出力を作れる候補。LAPACK 固有の算法・精度保証・計算量まで同等とは判定しない。',
     '- **一部機能のみ**: 基本分解はあるが condition estimate・固定 pivot・expert flag 等が不足する。',
-    '- **対応する独立公開 API なし**: 同じ契約を持つ公開関数は提供されていない。内部 kernel の存在や自作可能性と区別する。',
+    '- **対応する独立公開 API なし（確認範囲付き）**: revision・型・保存形式・オプション・意味上の確認方法を記録した範囲での判定。数学的に自作できないという意味ではない。',
+    '- **未照合・根拠不足**: 未登録 family、名前に基づく推測、確認記録が不足する旧非対応分類。公開 API の不存在を意味しない。',
+    '- `capability_status` と `capability_evidence` は公開機能の判定、`adapter_lp64/ilp64` は実際の ABI 接続、`execution_evidence_status` は入口ごとの実行証拠の登録状態、`independent_algorithm_status` は独立算法の確認を別々に記録する。`not_catalogued` は未実行という意味ではない。`not_assessed` から独立算法の有無を推論しない。',
     '- `adapter` は実際の LBT 登録内容。数値機能の存在、ABI の接続、実行済み検証を混同しない。','',
     '## 全シンボルの機械可読一覧','',
     '[全シンボル TSV](../assets/lbt-symbol-inventory.tsv) は **1シンボル1行**で、名称・C/Fortran ABI・型・公開機能判定・LP64/ILP64 接続状態・ソース根拠・制約を収録します。',
@@ -163,9 +163,23 @@ for status in LABELS.values():
         url=f"https://github.com/tensor4all/colmat-rs/blob/{UPSTREAM['revision']}/{source}"
         lines.append(f'| `{family}` / {abi} | {symbols} | [{entry}]({url}) | {note} |')
     lines += ['']
+lines += ['## 元の候補集合と51件の再照合','',
+    '元の #262 snapshot (`3c850a88a05b3c09eadd84d3722b1704cf1421f1` / native `e1c83482f5a61449d30e989808c3ba5f751ec391`) の2,910候補・51件の履歴を保持します。',
+    '[全 canonical の担当再照合 TSV](../assets/lbt-candidate-coverage.tsv) と [監査条件・元の Issue 本文 hash JSON](../assets/lbt-candidate-audit.json) を別に記録します。',
+    'Fortran/CBLAS は元の明示リスト、LAPACKE は #288 の共通 ABI 範囲と Fortran counterpart の数値 Issue に対応付けます。共通 ABI の担当は数値処理の実装・検証の証明ではありません。',
+    '公開 rook pivoting を見落としていた40候補（Fortran 20・LAPACKE 20）を追加し、[Issue #372](https://github.com/AtelierArith/Colmat.jl/issues/372) で追跡します。元の基準にも公開 enum/field が存在する分類訂正であり、新たな native API の追加ではありません。旧基準の候補集合は訂正により2,950になります。',
+    '元の肯定的な API 判定から除外したシンボルは0です。旧非対応分類のうち1,918件は未照合へ分離し、独立公開 API の不存在として候補から落としません。これらを数値実装済み・追加機能確認済みとは判定しません。','',
+    '### 判定と証拠の別列','',
+    '| 列 | 意味 |','|---|---|',
+    '| `capability_status` / `colmat_api` | 公開数値機能の意味上の対応・保存形式・部分対応・未照合を分類 |',
+    '| `capability_evidence` / `evidence_status` | 確認 revision・型・格納・オプション・確認方法・公開ソース・理由。記録不足の不存在判定は採用しない |',
+    '| `adapter_lp64` / `adapter_ilp64` | 現在の LBT 登録内容を実測。公開 API の有無とは別 |',
+    '| `execution_evidence_status` / `execution_evidence` | canonical 入口ごとの実行証拠の登録。現在は `not_catalogued`。既存の系列別テストが未実行という意味ではなく、#317 の個別登録と区別 |',
+    '| `independent_algorithm_status` | 専用の独立算法の確認状態。現在は `not_assessed`。基本 solver や API の存在から専用算法を推論しない |','']
 lines += ['## 再生成と網羅性検査','',
-    '公開 API の判断は `docs/lbt-capabilities.json` に保持し、実際のシンボル集合は LBT から取得します。分類にない補助ルーチンは「独立公開 API なし」として列挙し、黙って除外しません。','',
-    '```sh','python3 docs/generate_lbt_inventory.py','julia --project=test test/lbt_inventory.jl','```','',
+    '公開 API の判断は `docs/lbt-capabilities.json` に保持し、実際のシンボル集合は LBT から取得します。規則未登録のルーチンと根拠が不足する旧非対応判定は「未照合・根拠不足」として保持します。suffix/prefix は不存在の証拠にしません。','',
+    '```sh','python3 docs/generate_lbt_inventory.py','julia --project=test test/lbt_inventory.jl','python3 -m unittest discover -s docs/tests -v','```','',
+    '候補再照合の再生成には、固定 snapshot の TSV（`git show 3c850a88a05b3c09eadd84d3722b1704cf1421f1:docs/src/assets/lbt-symbol-inventory.tsv`）と元の51件の Issue 本文を保存した JSON を `python3 docs/audit_lbt_candidates.py --baseline-tsv ORIGINAL.tsv --issue-snapshot docs/audits/issue-263-scope-snapshot.json --rook-issue 372` に渡します。出力は本文 hash と取得時点を記録し、過去の本文と現行 snapshot を混同しません。','',
     'この監査は固定ソースの公開 API 対応表です。公開機能が後から追加された場合は分類規則と制約を読み直して更新してください。']
 (ROOT/'docs/src/reference/lbt-inventory.md').write_text('\n'.join(lines)+'\n')
 print(json.dumps(meta,ensure_ascii=False))

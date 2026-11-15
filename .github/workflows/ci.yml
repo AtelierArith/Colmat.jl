@@ -24,6 +24,8 @@ jobs:
         run: |
           cargo fmt --manifest-path deps/rust/Cargo.toml --check
           cargo test --manifest-path deps/rust/Cargo.toml --locked
+      - name: Inventory classification regressions
+        run: python3 -m unittest discover -s docs/tests -v
       - name: Julia tests
         run: julia --project -e 'using Pkg; Pkg.test()'
       - name: README example

@@ -137,10 +137,27 @@
         "sysv_rook",
         "hesv_rook"
       ],
-      "status": "unsupported",
-      "api": "—",
+      "status": "representation",
+      "api": "Bunch-Kaufman cholesky_in_place with LbltParams.pivoting=Rook/RookDiag",
       "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
-      "note": "標準 Bunch-Kaufman はあるが rook pivoting の独立公開 API はない"
+      "note": "公開の rook pivoting 数値経路あり。LAPACK ROOK の IPIV・保存形式・swap 契約との照合と adapter は未実装。専用 Fortran routine と同一算法・同一 pivot 列を主張しない。複素 SY/SP は Hermitian と別契約。",
+      "evidence": {
+        "revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+        "scalars": [
+          "s",
+          "d",
+          "c",
+          "z"
+        ],
+        "storage": "dense self-adjoint native factor; Fortran dense/packed conversion requires an adapter",
+        "options": "LbltParams.pivoting=PivotingStrategy::Rook or RookDiag",
+        "method": "Reviewed the public PivotingStrategy enum, public LbltParams.pivoting field, cholesky_in_place contract and the real/complex rook tests in the owning module.",
+        "sources": [
+          "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
+          "faer/src/linalg/cholesky/bunch_kaufman/mod.rs"
+        ],
+        "reason": "Public rook numerical capability is present; this is a representation candidate, not proof of LAPACK ROOK ABI or pivot interoperability."
+      }
     },
     {
       "routines": [
@@ -375,10 +392,15 @@
         "stebz",
         "stein"
       ],
-      "status": "unsupported",
-      "api": "—",
+      "status": "unverified",
+      "api": "未照合",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "Sturm-count bisection と inverse iteration の独立公開 API はない"
+      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: Sturm-count bisection と inverse iteration の独立公開 API はない",
+      "prior_assessment": {
+        "status": "unsupported",
+        "note": "Sturm-count bisection と inverse iteration の独立公開 API はない",
+        "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
+      }
     },
     {
       "routines": [
@@ -597,10 +619,15 @@
         "rotm",
         "rotmg"
       ],
-      "status": "unsupported",
-      "api": "—",
+      "status": "unverified",
+      "api": "未照合",
       "source": "faer/src/linalg/jacobi.rs",
-      "note": "modified Givens rotation の公開 API はない"
+      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: modified Givens rotation の公開 API はない",
+      "prior_assessment": {
+        "status": "unsupported",
+        "note": "modified Givens rotation の公開 API はない",
+        "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
+      }
     },
     {
       "routines": [
@@ -877,10 +904,15 @@
         "tgsna",
         "disna"
       ],
-      "status": "unsupported",
-      "api": "—",
+      "status": "unverified",
+      "api": "未照合",
       "source": "faer/src/linalg/mod.rs",
-      "note": "対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない"
+      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: 対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない",
+      "prior_assessment": {
+        "status": "unsupported",
+        "note": "対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない",
+        "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
+      }
     },
     {
       "routines": [
@@ -910,10 +942,15 @@
         "spsvx",
         "hpsvx"
       ],
-      "status": "unsupported",
-      "api": "—",
+      "status": "unverified",
+      "api": "未照合",
       "source": "faer/src/linalg/mod.rs",
-      "note": "iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない"
+      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない",
+      "prior_assessment": {
+        "status": "unsupported",
+        "note": "iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない",
+        "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
+      }
     },
     {
       "routines": [
@@ -929,10 +966,15 @@
         "latps",
         "latdf"
       ],
-      "status": "unsupported",
-      "api": "—",
+      "status": "unverified",
+      "api": "未照合",
       "source": "faer/src/linalg/mod.rs",
-      "note": "専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない"
+      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: 専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない",
+      "prior_assessment": {
+        "status": "unsupported",
+        "note": "専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない",
+        "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
+      }
     },
     {
       "routines": [
@@ -949,20 +991,30 @@
         "orbdb",
         "unbdb"
       ],
-      "status": "unsupported",
-      "api": "—",
+      "status": "unverified",
+      "api": "未照合",
       "source": "faer/src/linalg/mod.rs",
-      "note": "GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない"
+      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない",
+      "prior_assessment": {
+        "status": "unsupported",
+        "note": "GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない",
+        "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
+      }
     },
     {
       "routines": [
         "gedmd",
         "gedmdq"
       ],
-      "status": "unsupported",
-      "api": "—",
+      "status": "unverified",
+      "api": "未照合",
       "source": "faer/src/linalg/mod.rs",
-      "note": "Dynamic Mode Decomposition の公開 API はない"
+      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: Dynamic Mode Decomposition の公開 API はない",
+      "prior_assessment": {
+        "status": "unsupported",
+        "note": "Dynamic Mode Decomposition の公開 API はない",
+        "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
+      }
     },
     {
       "routines": [
@@ -1179,6 +1231,54 @@
       "api": "native Llt / triangular_solve",
       "source": "faer/src/linalg/cholesky/llt/factor.rs",
       "note": "28 Fortran シンボルを両 ABI に接続。packed/RFP の三角格納を所有された O(n²) 作業行列へ変換し、native LLT・Cholesky solve を使う。inverse は単位行列を native solve して保存三角を戻す。UPLO、実 N/T・複素 N/C、odd/even の RFP と folded block の共役を扱い、対角虚部を読まない。外部因子の solve/inverse 相互運用、非正定値 INFO、空・ゼロ RHS を検証。caller storage は native LLT の反対三角 scratch と共有しない。C ABI は別タスク。"
+    }
+  ],
+  "assessment_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+  "scalar_overrides": [
+    {
+      "routines": [
+        "spsv",
+        "sptrf",
+        "sptri",
+        "sptrs",
+        "sysv",
+        "sytf2",
+        "sytrf",
+        "sytri",
+        "sytri2",
+        "sytri2x",
+        "sytrs",
+        "sytrs2",
+        "sytrf_rook",
+        "sytf2_rook",
+        "sytri_rook",
+        "sytrs_rook",
+        "sysv_rook"
+      ],
+      "scalars": [
+        "c",
+        "z"
+      ],
+      "status": "unsupported",
+      "api": "—",
+      "source": "faer/src/linalg/cholesky/bunch_kaufman/mod.rs",
+      "note": "確認範囲: 公開 Bunch-Kaufman factor/solve は複素 Hermitian LDL^H 契約。複素対称 LDL^T とその IPIV/因子を渡す SY/SP 系とは異なる。一般 LU から同じ compact factor 契約が得られるとは判定しない。",
+      "evidence": {
+        "revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+        "scalars": [
+          "c",
+          "z"
+        ],
+        "storage": "Fortran complex-symmetric dense/packed upper/lower compact LDL^T with block IPIV",
+        "options": "SY/SP factorization, solve, inverse and rook variants; transpose symmetry rather than Hermitian adjoint symmetry",
+        "method": "Read the public Bunch-Kaufman module equation P A P^T=L B L^H, the factor kernel conjugated updates and real diagonals, and the solve conjugation contract. Compared the required LDL^T factor payload semantically; a generic complex signature or a general LU solver does not establish that contract.",
+        "sources": [
+          "faer/src/linalg/cholesky/bunch_kaufman/mod.rs",
+          "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
+          "faer/src/linalg/cholesky/bunch_kaufman/solve.rs"
+        ],
+        "reason": "The reviewed public factor/solve family requires self-adjoint input and adjoint factors; complex transpose-symmetric compact factors are not exposed by it. This is bounded to the named family and options, not a statement that the mathematics cannot be implemented."
+      }
     }
   ]
 }
