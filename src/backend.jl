@@ -244,6 +244,10 @@ function load_backend(; verbose::Bool=false)
             (17, "dsbgv_"),
             (18, "chbgv_"),
             (19, "zhbgv_"),
+            (20, "ssbgvd_"),
+            (21, "dsbgvd_"),
+            (22, "chbgvd_"),
+            (23, "zhbgvd_"),
         )
             previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
             if previous !== nothing && realpath(previous.libname) != realpath(path)

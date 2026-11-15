@@ -420,6 +420,140 @@ unsafe fn eigen_driver<
         Err(crate::generalized_selfadjoint_drivers::Failure::Native) => false,
     }
 }
+fn dc_workspace(n: isize, vectors: bool, complex: bool) -> Option<(isize, isize, isize)> {
+    if n <= 1 {
+        return Some(if complex {
+            (1 + n, 1 + n, 1)
+        } else {
+            (1, 1, 1)
+        });
+    }
+    if vectors {
+        let square = n.checked_mul(n)?.checked_mul(2)?;
+        let real = n.checked_mul(5)?.checked_add(square)?.checked_add(1)?;
+        let iw = n.checked_mul(5)?.checked_add(3)?;
+        Some((
+            if complex { square } else { real },
+            if complex { real } else { 1 },
+            iw,
+        ))
+    } else if complex {
+        Some((n, n, 1))
+    } else {
+        Some((n.checked_mul(2)?, 1, 1))
+    }
+}
+unsafe fn eigen_dc<
+    T: GeneralizedScalar + ReflectorScalar,
+    R: crate::kernels::Scalar,
+    I: crate::lapack::LapackInt,
+>(
+    job: u8,
+    u: u8,
+    n: isize,
+    ka: isize,
+    kb: isize,
+    ab: *mut T,
+    lda: isize,
+    bb: *mut T,
+    ldb: isize,
+    w: *mut R,
+    z: *mut T,
+    ldz: isize,
+    work: *mut T,
+    lwork: isize,
+    rwork: Option<(*mut R, isize)>,
+    iwork: *mut I,
+    liwork: isize,
+    info: *mut I,
+) -> bool {
+    *info = I::from_i64(0);
+    for (arg, ok) in [
+        (1, matches!(job, b'N' | b'V')),
+        (2, matches!(u, b'L' | b'U')),
+        (3, n >= 0),
+        (4, ka >= 0),
+        (5, kb >= 0 && kb <= ka),
+        (7, ka.checked_add(1).is_some_and(|k| lda >= k)),
+        (9, kb.checked_add(1).is_some_and(|k| ldb >= k)),
+        (12, ldz >= 1 && (job == b'N' || ldz >= n)),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    let Some((nw, nr, ni)) = dc_workspace(n, job == b'V', T::COMPLEX) else {
+        *info = I::from_i64(-14);
+        crate::invalid(14);
+        return true;
+    };
+    let max = if std::mem::size_of::<I>() == 4 {
+        i32::MAX as isize
+    } else {
+        isize::MAX
+    };
+    for (arg, size) in [(14, nw), (16, nr), (if T::COMPLEX { 18 } else { 16 }, ni)] {
+        if size > max {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    *work = crate::lapack::workspace::<T>(nw);
+    *iwork = I::from_i64(ni as i64);
+    if let Some((p, _)) = rwork {
+        *p = crate::lapack::workspace::<R>(nr);
+    }
+    let query = lwork == -1 || liwork == -1 || rwork.is_some_and(|(_, len)| len == -1);
+    for (arg, ok) in [
+        (14, query || lwork >= nw),
+        (16, query || rwork.is_none_or(|(_, len)| len >= nr)),
+        (if T::COMPLEX { 18 } else { 16 }, query || liwork >= ni),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    if query {
+        return true;
+    }
+    eigen_driver(job, u, n, ka, kb, ab, lda, bb, ldb, w, z, ldz, info)
+}
+macro_rules! gvd_real_exports {($p:ident,$t:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p sbgvd $s>](job:*const u8,u:*const u8,n:*const $i,ka:*const $i,kb:*const $i,ab:*mut $t,lda:*const $i,bb:*mut $t,ldb:*const $i,w:*mut $t,z:*mut $t,ldz:*const $i,work:*mut $t,lwork:*const $i,iwork:*mut $i,liwork:*const $i,info:*mut $i) {
+        use crate::lapack::LapackInt;
+        if eigen_dc(crate::kernels::flag(job),crate::kernels::flag(u),(*n).val(),(*ka).val(),(*kb).val(),ab,(*lda).val(),bb,(*ldb).val(),w,z,(*ldz).val(),work,(*lwork).val(),None,iwork,(*liwork).val(),info) {return;}
+        let f:unsafe extern "C" fn(*const u8,*const u8,*const i64,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $t,*mut $t,*const i64,*mut $t,*const i64,*mut i64,*const i64,*mut i64,usize,usize)=std::mem::transmute(crate::structured_generalized::fallback(20+$id));
+        let(_,_,need)=dc_workspace((*n).val(),crate::kernels::flag(job)==b'V',false).unwrap();
+        let mut scratch=Vec::new();let(iw,len)=if std::mem::size_of::<$i>()==8 {(iwork.cast::<i64>(),(*liwork).val() as i64)} else {scratch.resize(need as usize,i64::MIN);(scratch.as_mut_ptr(),need as i64)};
+        let mut status=0i64;f(job,u,&((*n).val() as i64),&((*ka).val() as i64),&((*kb).val() as i64),ab,&((*lda).val() as i64),bb,&((*ldb).val() as i64),w,z,&((*ldz).val() as i64),work,&((*lwork).val() as i64),iw,&len,&mut status,1,1);*info=status as $i;
+        for(k,value)in scratch.into_iter().enumerate(){if value!=i64::MIN{*iwork.add(k)=value as $i;}}
+    }
+}};}
+macro_rules! gvd_complex_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p hbgvd $s>](job:*const u8,u:*const u8,n:*const $i,ka:*const $i,kb:*const $i,ab:*mut $t,lda:*const $i,bb:*mut $t,ldb:*const $i,w:*mut $r,z:*mut $t,ldz:*const $i,work:*mut $t,lwork:*const $i,rwork:*mut $r,lrwork:*const $i,iwork:*mut $i,liwork:*const $i,info:*mut $i) {
+        use crate::lapack::LapackInt;
+        if eigen_dc(crate::kernels::flag(job),crate::kernels::flag(u),(*n).val(),(*ka).val(),(*kb).val(),ab,(*lda).val(),bb,(*ldb).val(),w,z,(*ldz).val(),work,(*lwork).val(),Some((rwork,(*lrwork).val())),iwork,(*liwork).val(),info) {return;}
+        let f:unsafe extern "C" fn(*const u8,*const u8,*const i64,*const i64,*const i64,*mut $t,*const i64,*mut $t,*const i64,*mut $r,*mut $t,*const i64,*mut $t,*const i64,*mut $r,*const i64,*mut i64,*const i64,*mut i64,usize,usize)=std::mem::transmute(crate::structured_generalized::fallback(20+$id));
+        let(_,_,need)=dc_workspace((*n).val(),crate::kernels::flag(job)==b'V',true).unwrap();
+        let mut scratch=Vec::new();let(iw,len)=if std::mem::size_of::<$i>()==8 {(iwork.cast::<i64>(),(*liwork).val() as i64)} else {scratch.resize(need as usize,i64::MIN);(scratch.as_mut_ptr(),need as i64)};
+        let mut status=0i64;f(job,u,&((*n).val() as i64),&((*ka).val() as i64),&((*kb).val() as i64),ab,&((*lda).val() as i64),bb,&((*ldb).val() as i64),w,z,&((*ldz).val() as i64),work,&((*lwork).val() as i64),rwork,&((*lrwork).val() as i64),iw,&len,&mut status,1,1);*info=status as $i;
+        for(k,value)in scratch.into_iter().enumerate(){if value!=i64::MIN{*iwork.add(k)=value as $i;}}
+    }
+}};}
+gvd_real_exports!(s, f32, i32, _, 0);
+gvd_real_exports!(d, f64, i32, _, 1);
+gvd_real_exports!(s, f32, i64, _64_, 0);
+gvd_real_exports!(d, f64, i64, _64_, 1);
+gvd_complex_exports!(c, colmat::c32, f32, i32, _, 2);
+gvd_complex_exports!(z, colmat::c64, f64, i32, _, 3);
+gvd_complex_exports!(c, colmat::c32, f32, i64, _64_, 2);
+gvd_complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
+
 macro_rules! gv_real_exports {($p:ident,$t:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
     #[no_mangle] pub unsafe extern "C" fn [<$p sbgv $s>](job:*const u8,u:*const u8,n:*const $i,ka:*const $i,kb:*const $i,ab:*mut $t,lda:*const $i,bb:*mut $t,ldb:*const $i,w:*mut $t,z:*mut $t,ldz:*const $i,work:*mut $t,info:*mut $i) {
         use crate::lapack::LapackInt;
@@ -542,6 +676,176 @@ complex_exports!(z, colmat::c64, f64, i64, _64_, 3);
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn dc_abi<
+        T: GeneralizedScalar + ReflectorScalar,
+        R: crate::kernels::Scalar,
+        I: crate::lapack::LapackInt,
+    >(
+        tol: f64,
+    ) {
+        for n in [0isize, 1, 3] {
+            for job in [b'N', b'V'] {
+                let (nw, nr, ni) = if n == 0 {
+                    (1, 1, 1)
+                } else if n == 1 {
+                    if T::COMPLEX {
+                        (2, 2, 1)
+                    } else {
+                        (1, 1, 1)
+                    }
+                } else if job == b'V' {
+                    if T::COMPLEX {
+                        (18, 34, 18)
+                    } else {
+                        (34, 1, 18)
+                    }
+                } else if T::COMPLEX {
+                    (3, 3, 1)
+                } else {
+                    (6, 1, 1)
+                };
+                for which in 0..if T::COMPLEX { 3 } else { 2 } {
+                    let mut work = [T::real(777.0); 3];
+                    let mut rw = [R::real(777.0); 3];
+                    let mut iw = [I::from_i64(-777); 3];
+                    let mut info = I::from_i64(-777);
+                    assert!(unsafe {
+                        eigen_dc(
+                            job,
+                            b'L',
+                            n,
+                            0,
+                            0,
+                            std::ptr::null_mut(),
+                            1,
+                            std::ptr::null_mut(),
+                            1,
+                            std::ptr::null_mut(),
+                            std::ptr::null_mut(),
+                            n.max(1),
+                            &mut work[1],
+                            if which == 0 { -1 } else { 0 },
+                            if T::COMPLEX {
+                                Some((&mut rw[1], if which == 2 { -1 } else { 0 }))
+                            } else {
+                                None
+                            },
+                            &mut iw[1],
+                            if which == 1 { -1 } else { 0 },
+                            &mut info,
+                        )
+                    });
+                    assert_eq!(info.val(), 0);
+                    assert_eq!(crate::colmat_blas_last_error(), 0);
+                    assert_eq!(work[1].re(), nw as f64);
+                    assert_eq!(iw[1].val(), ni);
+                    if T::COMPLEX {
+                        assert_eq!(rw[1].re(), nr as f64);
+                    }
+                    for k in [0usize, 2] {
+                        assert_eq!(work[k].re(), 777.0);
+                        assert_eq!(rw[k].re(), 777.0);
+                        assert_eq!(iw[k].val(), -777);
+                    }
+                }
+                let cases = if T::COMPLEX {
+                    vec![
+                        (nw - 1, nr, ni, 14),
+                        (nw, nr - 1, ni, 16),
+                        (nw, nr, ni - 1, 18),
+                    ]
+                } else {
+                    vec![(nw - 1, nr, ni, 14), (nw, nr, ni - 1, 16)]
+                };
+                for (lw, lr, li, arg) in cases {
+                    let mut work = T::real(777.0);
+                    let mut rw = R::real(777.0);
+                    let mut iw = I::from_i64(-777);
+                    let mut info = I::from_i64(-777);
+                    assert!(unsafe {
+                        eigen_dc(
+                            job,
+                            b'L',
+                            n,
+                            0,
+                            0,
+                            std::ptr::null_mut(),
+                            1,
+                            std::ptr::null_mut(),
+                            1,
+                            std::ptr::null_mut(),
+                            std::ptr::null_mut(),
+                            n.max(1),
+                            &mut work,
+                            lw,
+                            if T::COMPLEX {
+                                Some((&mut rw, lr))
+                            } else {
+                                None
+                            },
+                            &mut iw,
+                            li,
+                            &mut info,
+                        )
+                    });
+                    assert_eq!(info.val(), -arg);
+                    assert_eq!(crate::colmat_blas_last_error(), arg as i32);
+                }
+            }
+        }
+        let mut a = T::real(3.0);
+        let mut b = T::real(2.0);
+        let mut w = R::real(777.0);
+        let mut z = T::real(777.0);
+        let mut work = [T::real(777.0); 2];
+        let mut rw = [R::real(777.0); 2];
+        let mut iw = I::from_i64(-777);
+        let mut info = I::from_i64(-777);
+        let size = if T::COMPLEX { 2 } else { 1 };
+        assert!(unsafe {
+            eigen_dc(
+                b'V',
+                b'L',
+                1,
+                0,
+                0,
+                &mut a,
+                isize::MAX,
+                &mut b,
+                isize::MAX,
+                &mut w,
+                &mut z,
+                isize::MAX,
+                work.as_mut_ptr(),
+                size,
+                if T::COMPLEX {
+                    Some((rw.as_mut_ptr(), 2))
+                } else {
+                    None
+                },
+                &mut iw,
+                1,
+                &mut info,
+            )
+        });
+        assert_eq!(info.val(), 0);
+        assert_eq!(crate::colmat_blas_last_error(), 0);
+        assert!((w.re() - 1.5).abs() < tol);
+        assert!((z.magnitude() - 1.0 / 2.0f64.sqrt()).abs() < tol);
+        assert_eq!(work[0].re(), size as f64);
+        assert_eq!(iw.val(), 1);
+    }
+    #[test]
+    fn band_gvd_workspace_queries_and_abi_boundaries() {
+        dc_abi::<f32, f32, i32>(1e-4);
+        dc_abi::<f32, f32, i64>(1e-4);
+        dc_abi::<f64, f64, i32>(1e-11);
+        dc_abi::<f64, f64, i64>(1e-11);
+        dc_abi::<colmat::c32, f32, i32>(1e-4);
+        dc_abi::<colmat::c32, f32, i64>(1e-4);
+        dc_abi::<colmat::c64, f64, i32>(1e-11);
+        dc_abi::<colmat::c64, f64, i64>(1e-11);
+    }
     fn gv_abi<
         T: GeneralizedScalar + ReflectorScalar,
         R: crate::kernels::Scalar,
