@@ -873,3 +873,43 @@ off-diagonal block に NaN が伝播する差も確認しました。Colmat は�
 有限 A に置き換えます。
 [Colmat を読み込まない単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-sfrk-zero-product.jl)
 には、NaN を置いた A と有限 A の結果を出力する診断を残しています。
+
+## Band・一般三重対角 LU と solve（#282）
+
+colmat-rs `4e6ed0e34659147a5c744ab6431f150e78db6f82` の native LU・乗算・
+三角 solve を使い、GBTRF/GBTF2/GBTRS/GBSV と GTTRF/GTTRS/GTTS2/GTSV の
+32 Fortran canonical シンボルを両整数 ABI に接続しました。
+各 ABI の対応数は914（BLAS 202、LAPACK 712）です。4型を扱い、CBLAS/LAPACKE は別タスクです。
+
+band の因子化は保存された有効列を native partial-pivoting LU に渡します。
+その列の pivot を残りの有効列へ適用し、skew-strided な band 内の領域を native 外積で更新します。
+L の旧列へ後続の行交換を適用しないため、LAPACK の段階ごとの IPIV と fill-in を保持します。
+GBTF2 と GBTRF は同じ unblocked な合成処理であり、専用の blocked band LU 算法を
+備えるという主張ではありません。矩形、帯域幅0・寸法以上の幅、特異 INFO、未使用 padding を扱います。
+
+solve は L の pivot と消去を順に適用し、U を native の有効区間の積と対角 solve で解きます。
+転置・複素共役転置では U、L、行交換の順序を反転し、両因子の共役を扱います。
+OpenBLAS の因子を Colmat で解く経路と、その逆を検証しています。
+
+三重対角は4行の band 作業領域へ変換し、DL の乗数、D、DU、DU2 と隣接 pivot を保存します。
+GTTRF は特異箇所を INFO に記録して因子化を続けます。GTSV は最初の特異 pivot で停止し、
+それまでに消去された B を返します。GTSV の DL は乗数ではなく U の第2上対角で、
+最後の DL 要素は保持します。NRHS=0 でも因子化と特異 INFO の検出は行い、B は読み書きしません。
+GTTS2 は INFO 引数を持たず、ITRANS=0/1/2 を N/T/C として扱います。
+不正引数は他の補助入口と同様の thread-local 診断に記録します。
+これらの入口に caller workspace/query 引数はありません。
+
+full dense 行列への展開はありません。band 因子化の列処理には帯域幅に比例する
+native LU の作業領域と O(min(m,n)) の pivot 領域を確保します。
+solve は pivot の O(n) 領域と必要な有効 row の gather 領域を使います。
+三重対角の因子化・solve・driver はさらに O(n) の4行 band 領域を確保します。
+native kernel の実行計画にも内部確保があり、無割り当てを保証するものではありません。
+
+テストは4型・両 ABI、因子からの独立な再構成、既知解・残差、境界 pivot、
+特異 driver の途中出力、外部因子の相互運用、全32入口の数値 LBT 呼び出し、
+INFO/整数幅、引数検証順序、空入力、保存領域の guard を含みます。
+
+OpenBLAS 0.3.30 の GTSV は NRHS=0 でも B の第1列へ後退代入する場合があります。
+[Colmat を読み込まない単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-gtsv-zero-rhs.jl)
+を保存しています。差分参照では必ずダミー列を確保し、範囲外アクセスを避けます。
+この場合の参照比較は因子と INFO を対象にし、Colmat の B は全要素の不変を独立に検証します。

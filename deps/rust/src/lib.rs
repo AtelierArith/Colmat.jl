@@ -7,6 +7,7 @@
 mod abi;
 mod advanced_svd;
 mod balance;
+mod band_lu;
 mod bunch_kaufman;
 mod complete_pivot_lu;
 mod complex_auxiliary;
@@ -51,6 +52,7 @@ mod symmetric_equilibration;
 mod threading;
 mod triangular_lapack;
 mod tridiagonal_evd;
+mod tridiagonal_lu;
 
 use std::cell::Cell;
 

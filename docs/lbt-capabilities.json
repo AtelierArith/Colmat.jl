@@ -722,9 +722,9 @@
         "gtsv"
       ],
       "status": "representation",
-      "api": "dense PartialPivLu",
+      "api": "native column PartialPivLu / rank-one matmul / interval triangular_solve",
       "source": "faer/src/linalg/lu/partial_pivoting/factor.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "note": "32 Fortran シンボルを両 ABI に接続。band の格納列を native LU で因子化し、行交換と skew-strided 外積更新で LAPACK の interleaved IPIV・fill-in を保持する。三重対角は4行 band の O(n) 領域へ変換し、DL/D/DU/DU2 と隣接 pivot を入出力する。外部因子から N/T/C solve が可能。GTSV は最初の特異 pivot で停止し、途中 B と第2上対角を保存する DL の独自契約も扱う。full dense 展開はしない。C ABI は別タスク。"
     },
     {
       "routines": [
