@@ -1060,3 +1060,27 @@ Reference-LAPACK 3.12.1 と OpenBLAS 0.3.30 の BEVD は N=1・UPLO=U・KD>0 の
 仕様上の AB(KD+1,1) の代わりに AB(1,1) を読みます。
 [Colmat を読み込まない4型の単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-bevd-singleton-upper.jl)
 を残し、この境界は独立した1要素の固有値と残差で検証します。Colmat は仕様上の対角を読みます。
+
+## ブロック直交・ユニタリ行列の適用（#287）
+
+colmat-rs `4e6ed0e34659147a5c744ab6431f150e78db6f82` の native 構造付き行列積で
+SORM22/DORM22/CUNM22/ZUNM22 の4 Fortran シンボルを両整数 ABI に接続しました。
+各 ABI の対応数は1006（BLAS 202、LAPACK 804）です。C ABI は別タスクです。
+
+Q の行区分は (N1,N2)、列区分は (N2,N1) です。Q11/Q22 は長方形、Q12 は lower、
+Q21 は upper として native rectangular/triangular matmul で適用します。指定しない三角は読みません。
+左右適用、実数の N/T、複素数の N/C と空ブロックを扱い、空ブロックでは残った単一の三角積を実行します。
+同じ形の O(m*n) の結果を所有し、全ブロックの計算後に C の有効領域だけへ戻します。
+Q の full dense 展開はしません。最小 caller WORK でも native 内部の確保は別途必要です。
+
+query は Q/C に触れず m*n を WORK(1) に返し、単精度では不足しない向きに丸めます。
+実計算の最小長は Reference-LAPACK の実行コードに合わせた NQ（左なら M、右なら N）で、
+一方のブロックが空なら1です。M=0 または N=0 の quick return も引数検証を先に行い、WORK(1)=1 を返します。
+片方のブロックが空の場合も実計算後は WORK(1)=1、通常の実計算後は m*n を返します。
+領域・推奨長のアドレス計算が表現できない場合は、配列を借用する前に対応引数を診断します。
+
+Reference-LAPACK 3.12.1 の prose は最小長の M/N を実行コードと逆に記載しています。
+[Colmat を読み込まない4型の単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-orm22-workspace.jl)
+では OpenBLAS 0.3.30 が NQ=5 の左右両方で LWORK=2 に INFO=-12、LWORK=5 に成功を返します。
+テストはこの実行契約を使い、異なるブロック幅、未使用三角の NaN、unitary な置換・位相行列と一般の
+構造付き行列、独立 scalar 積、C/Q/WORK/INFO の guard と全4入口の数値 LBT 呼び出しを検証します。
