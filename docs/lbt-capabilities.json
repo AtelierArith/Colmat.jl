@@ -802,9 +802,9 @@
         "hpgvx"
       ],
       "status": "representation",
-      "api": "self_adjoint_generalized_eigen",
-      "source": "faer/src/linalg/solvers.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "api": "native LLT / split-factor solves / self_adjoint_evd",
+      "source": "faer/src/linalg/evd/mod.rs",
+      "note": "24 Fortran シンボル・4型・両 ABI を接続済み。packed は三角 Cholesky、band は PBSTF split 因子を保存し、合同変換・native 全 EVD・B 正規化を合成する。GVD も共通の native EVD を使用し、同名 divide-and-conquer 算法とは主張しない。GVX は A/I/V を選択し、band の全基底 Q は一般化固有ベクトル、AB は対角三重対角形を返す。正の ABSTOL・native 失敗・値域端点の precision guard は保存した元の ILP64 driver に委譲し、LP64 IWORK/IFAIL を書き込み済み slot だけ変換する。O(n²) の所有行列と scratch を確保。C ABI は別タスク。"
     },
     {
       "routines": [
@@ -851,9 +851,9 @@
         "hbgst"
       ],
       "status": "representation",
-      "api": "dense generalized self-adjoint composition",
-      "source": "faer/src/linalg/solvers.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "api": "factorized triangular/split B + native triangular_solve / matmul / reflectors",
+      "source": "faer/src/linalg/triangular_solve.rs",
+      "note": "8 Fortran シンボル・4型・両 ABI を接続済み。packed GST は外部の三角 Cholesky 因子を読み、ITYPE=1/2/3 を合同変換する。band GST は PBSTF split 因子 S を読み、native block triangular solve と reflector 合成で C=X^H A X と X^H B X=I を作り、元の帯幅内に保存する。指定外三角・padding と BB を保持し、複素 Hermitian 対角は実部だけを読む。dense 内部行列を確保し、専用 band bulge-chasing と同じ性能ではない。band の native 拒否は保存した ILP64 driver を使う。C ABI は別タスク。"
     },
     {
       "routines": [
