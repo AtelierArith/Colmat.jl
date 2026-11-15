@@ -40,9 +40,16 @@ explicitly. A Julia-only caller was unsuitable on macOS because Julia converts
 the protected-page fault into `ReadOnlyMemoryError` and exits normally with an
 error status, losing evidence of the original terminating signal.
 
+The 70,133 new focused checks pass together with the 80,960 existing GEEVX
+checks. Invalid-argument tests read and assert the TLS diagnostic immediately;
+the diagnostic is consumed on read, preventing state from leaking to later
+tests. Full-suite validation remains pending.
+
 Native sanitizer execution has not been performed for this change. The local
 Rust toolchains are stable/beta/versioned releases, with no nightly installed;
-Rust's unstable `-Z sanitizer` flags cannot be claimed as executed. The C guard
+The active `rustc 1.99.1` (`58cf8f9c3`, x86_64-apple-darwin, LLVM 23.1.1)
+rejects `rustc -Z help` with “the option `Z` is only accepted on the nightly
+compiler.” Thus `-Z sanitizer` cannot be claimed as executed. The C guard
 page witness covers integer-write ABI mismatch, not general Rust memory safety,
 Julia GC interactions or arbitrary numerical workspace errors.
 
