@@ -32,8 +32,7 @@ pub unsafe fn input_ref_transposed<'a, T: Scalar>(
 }
 pub unsafe fn output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize) {
     // The destination is column-major, so a contiguous source is a single copy.
-    if a.row_stride() == 1 && a.col_stride() == a.nrows() as isize && ld == a.nrows() as isize
-    {
+    if a.row_stride() == 1 && a.col_stride() == a.nrows() as isize && ld == a.nrows() as isize {
         std::ptr::copy_nonoverlapping(a.as_ptr(), p, a.nrows() * a.ncols());
         return;
     }
