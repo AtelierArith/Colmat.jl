@@ -11,6 +11,7 @@ import re
 import subprocess
 import tomllib
 from lbt_classification import classify as classify_capability
+from lbt_execution import load_execution, execution_fields
 
 ROOT = Path(__file__).resolve().parent.parent
 UPSTREAM = tomllib.loads((ROOT / 'deps/upstream.toml').read_text())
@@ -96,6 +97,9 @@ for line in raw.splitlines():
         execution_evidence_status='not_catalogued', execution_evidence='',
         independent_algorithm_status=group['algorithm_status']))
 assert len(rows) == len({r['symbol'] for r in rows})
+executed, execution_provenance = load_execution(ROOT, rows, UPSTREAM['revision'])
+for row in rows:
+    row.update(execution_fields(row['symbol'], executed, execution_provenance))
 assets = ROOT / 'docs/src/assets'
 assets.mkdir(exist_ok=True)
 with (assets/'lbt-symbol-inventory.tsv').open('w') as out:
@@ -108,6 +112,7 @@ meta = dict(julia=subprocess.check_output(['julia','--startup-file=no','-e','pri
     ilp64=sum(r['adapter_ilp64']=='true' for r in rows),
     capability_assessments=dict(Counter(r['capability_status'] for r in rows)),
     execution_evidence=dict(Counter(r['execution_evidence_status'] for r in rows)),
+    execution_source_revision=execution_provenance['revision'] if execution_provenance else None,
     independent_algorithm_assessments=dict(Counter(r['independent_algorithm_status'] for r in rows)))
 (assets/'lbt-symbol-inventory.json').write_text(json.dumps(meta,ensure_ascii=False,indent=2)+'\n')
 lines = ['# LBT と colmat-rs の全ルーチン対応表','',
@@ -163,6 +168,16 @@ for status in LABELS.values():
         url=f"https://github.com/tensor4all/colmat-rs/blob/{UPSTREAM['revision']}/{source}"
         lines.append(f'| `{family}` / {abi} | {symbols} | [{entry}]({url}) | {note} |')
     lines += ['']
+lines += ['## Direct ABI execution evidence (#317)','',
+    f"`direct_call_witness` covers {len(executed):,} canonical entries, with LP64 and ILP64 recorded separately.",
+    'The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.',
+    'LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.',
+    'The collector observes project-owned pointer ccalls. High-level standard-library calls, isolated child processes and static symbol/library ccalls are excluded. Consult the individual source/signature/route witnesses and the numerical tests together.','',
+    '```sh',
+    "julia --project -e 'using Pkg; Pkg.test(; allow_reresolve=false)'",
+    'python3 docs/import_abi_execution.py test-output/abi-execution.toml',
+    '```','',
+    'Linux/macOS CI collects the same evidence during the ordinary full suite and saves separate ABI artifacts.','']
 lines += ['## 元の候補集合と51件の再照合','',
     '元の #262 snapshot (`3c850a88a05b3c09eadd84d3722b1704cf1421f1` / native `e1c83482f5a61449d30e989808c3ba5f751ec391`) の2,910候補・51件の履歴を保持します。',
     '[全 canonical の担当再照合 TSV](../assets/lbt-candidate-coverage.tsv) と [監査条件・元の Issue 本文 hash JSON](../assets/lbt-candidate-audit.json) を別に記録します。',
@@ -174,7 +189,7 @@ lines += ['## 元の候補集合と51件の再照合','',
     '| `capability_status` / `colmat_api` | 公開数値機能の意味上の対応・保存形式・部分対応・未照合を分類 |',
     '| `capability_evidence` / `evidence_status` | 確認 revision・型・格納・オプション・確認方法・公開ソース・理由。記録不足の不存在判定は採用しない |',
     '| `adapter_lp64` / `adapter_ilp64` | 現在の LBT 登録内容を実測。公開 API の有無とは別 |',
-    '| `execution_evidence_status` / `execution_evidence` | canonical 入口ごとの実行証拠の登録。現在は `not_catalogued`。既存の系列別テストが未実行という意味ではなく、#317 の個別登録と区別 |',
+    '| `execution_evidence_status` / `execution_evidence` | `direct_call_witness` records a completed concrete call through a DLL or LBT entry. It does not certify every option, numerical contract or independent algorithm. `not_catalogued` does not mean untested. |',
     '| `independent_algorithm_status` | 専用の独立算法の確認状態。現在は `not_assessed`。基本 solver や API の存在から専用算法を推論しない |','']
 lines += ['## 再生成と網羅性検査','',
     '公開 API の判断は `docs/lbt-capabilities.json` に保持し、実際のシンボル集合は LBT から取得します。規則未登録のルーチンと根拠が不足する旧非対応判定は「未照合・根拠不足」として保持します。suffix/prefix は不存在の証拠にしません。','',

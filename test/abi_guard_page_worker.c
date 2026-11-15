@@ -10,6 +10,7 @@
 
 typedef void (*potrf64)(const char *, const int64_t *, double *, const int64_t *, int64_t *, size_t);
 typedef void (*wrong_potrf32)(const char *, const int64_t *, double *, const int64_t *, int32_t *, size_t);
+typedef void (*wrong_info64)(const char *, const int32_t *, double *, const int32_t *, int64_t *, size_t);
 int main(int argc, char **argv) {
     if (argc != 3) return 2;
     struct rlimit limit = {0, 0};
@@ -39,6 +40,17 @@ int main(int argc, char **argv) {
         fflush(stdout);
         ((wrong_potrf32)entry)(&uplo, &n, &a, &lda, info, 1);
         return 9; /* Returning is a failed crash witness. */
+    } else if (!strcmp(argv[2], "narrow")) {
+        void *narrow_entry = dlsym(library, "dpotrf_");
+        if (!narrow_entry) return 11;
+        int32_t n32 = 0, lda32 = 1;
+        int64_t *info = (int64_t *)(memory + page - sizeof(int64_t));
+        *info = INT64_C(0x1357913579);
+        int64_t expected = *info;
+        memset(&expected, 0, sizeof(int32_t));
+        ((wrong_info64)narrow_entry)(&uplo, &n32, &a, &lda32, info, 1);
+        if (*info == 0 || *info != expected) return 12;
+        puts("NARROW_INFO_WRITE_DETECTED");
     } else return 10;
     dlclose(library);
     munmap(memory, 2 * page);

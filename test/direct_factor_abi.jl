@@ -134,12 +134,15 @@ function factor_abi_guards(x)
         !(2 <= i <= x.m + 1 && 2 <= j <= x.n + 1)
     )
 end
+function factor_abi_sentinel(::Type{T}) where {T}
+    return T(T <: Integer && sizeof(T)>4 ? 0x1357913579 : 0x13579)
+end
 function factor_abi_integer(::Type{J}, n=1) where {J}
-    storage = fill(J(0x13579), n + 2)
+    storage=fill(factor_abi_sentinel(J), n+2)
     return storage, @view(storage[2:(n + 1)])
 end
 function factor_abi_integer_guards(storage)
-    @test first(storage) == last(storage) == eltype(storage)(0x13579)
+    @test first(storage)==last(storage)==factor_abi_sentinel(eltype(storage))
 end
 
 function factor_abi_diagnostic()

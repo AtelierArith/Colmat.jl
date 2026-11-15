@@ -10,7 +10,29 @@ function repository_revision()
     end
 end
 const initial_head = repository_revision()
-for file in ("test/runtests.jl", "test/abi_execution_evidence.jl")
+function source_files()
+    files=String[]
+    for (directory, suffixes) in
+        (("src", (".jl",)), ("test", (".jl", ".c")), ("deps/rust/src", (".rs",)))
+        for (path, _, names) in walkdir(joinpath(root, directory)), name in names
+            any(endswith(name, suffix) for suffix in suffixes) || continue
+            push!(files, relpath(joinpath(path, name), root))
+        end
+    end
+    append!(
+        files,
+        [
+            "Project.toml",
+            "test/Project.toml",
+            "deps/upstream.toml",
+            "deps/build.jl",
+            "deps/rust/Cargo.toml",
+            "deps/rust/Cargo.lock",
+        ],
+    )
+    return sort!(unique(files))
+end
+for file in source_files()
     source_hashes[file]=bytes2hex(sha256(read(joinpath(root, file))))
 end
 const addresses = Dict{UInt,Vector{Tuple{String,Int,String}}}()
@@ -128,7 +150,7 @@ function include_traced(mod, path)
     if !startswith(file, joinpath(root, "test")*"/")
         return Base.include(mod, file)
     end
-    source_hashes[relpath(file, root)]=bytes2hex(sha256(read(file)))
+    get!(source_hashes, relpath(file, root), bytes2hex(sha256(read(file))))
     old=get(task_local_storage(), :abi_evidence_file, nothing)
     task_local_storage(:abi_evidence_file, file)
     try
@@ -178,6 +200,7 @@ function finalize()
         @test repository_revision()==initial_head
         @test initial_head=="source_archive" ||
             isempty(read(`git -C $root status --porcelain --untracked-files=no`, String))
+        @test Set(source_files())==Set(keys(source_hashes))
         for (file, digest) in source_hashes
             @test bytes2hex(sha256(read(joinpath(root, file))))==digest
         end

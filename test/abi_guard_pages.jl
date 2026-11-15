@@ -20,6 +20,16 @@ using Test, Colmat
             )
             @test success(control)
             @test occursin("VALID_WIDTH_CONTROL_PASSED", String(take!(control_output)))
+            narrow_output=IOBuffer()
+            narrow=run(
+                pipeline(
+                    ignorestatus(`$executable $library narrow`);
+                    stdout=narrow_output,
+                    stderr=narrow_output,
+                ),
+            )
+            @test success(narrow)
+            @test occursin("NARROW_INFO_WRITE_DETECTED", String(take!(narrow_output)))
             if success(control)
                 crash = run(
                     pipeline(
