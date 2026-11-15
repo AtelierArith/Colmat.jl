@@ -26,12 +26,12 @@ fn fallback(id: usize) -> *mut c_void {
     );
     pointer
 }
-struct NativeResult<T: GeneralizedScalar> {
-    values: Vec<f64>,
-    vectors: Mat<T>,
-    reduced: Mat<T>,
+pub(crate) struct NativeResult<T: GeneralizedScalar> {
+    pub(crate) values: Vec<f64>,
+    pub(crate) vectors: Mat<T>,
+    pub(crate) reduced: Mat<T>,
 }
-enum Failure {
+pub(crate) enum Failure {
     NonPositive(usize),
     Native,
 }
@@ -62,7 +62,7 @@ unsafe fn restore<T: GeneralizedScalar>(saved: &[T], u: u8, n: usize, b: *mut T,
         }
     }
 }
-unsafe fn native<T: GeneralizedScalar>(
+pub(crate) unsafe fn native<T: GeneralizedScalar>(
     kind: u8,
     job: u8,
     u: u8,
