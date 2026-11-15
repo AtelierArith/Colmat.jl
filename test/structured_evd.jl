@@ -132,6 +132,11 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         infop=view(info, 2:2)
         f = Libdl.dlsym(Libdl.dlopen(library), $(QuoteNode(symbol)))
         ccall(f, Cvoid, $(Expr(:tuple, signature...)), $(arguments...))
+        diagnostic=ccall(
+            Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error),
+            Cint,
+            (),
+        )
         return (;
             input,
             a=ap,
@@ -144,6 +149,7 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
             rwork,
             iwork,
             failed,
+            diagnostic,
             count=count[2],
             info=info[2],
             count_guard=count[[1, 3]],
@@ -186,6 +192,7 @@ function structured_evd_guards(r, T, J)
     @test r.failed[[1, end]]==J[777, 777]
     @test r.count_guard==J[-777, -777]
     @test r.info_guard==J[-777, -777]
+    @test r.diagnostic==max(0, -r.info)
 end
 
 @testset "Structured EVD four types and both direct integer ABIs" begin
