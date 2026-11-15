@@ -1,9 +1,63 @@
 //! Checked generalized Schur moves over the public native real/complex APIs.
 use crate::kernels::Scalar;
 use colmat::dyn_stack::{MemBuffer, MemStack};
-use colmat::{Mat, MatMut};
+use colmat::{Col, Mat, MatMut, MatRef};
 
-pub(crate) trait ReorderScalar: Scalar {
+pub(crate) trait SchurValues: Scalar {
+    fn homogeneous(
+        s: MatRef<'_, Self>,
+        t: MatRef<'_, Self>,
+    ) -> Result<(Vec<Self>, Vec<Self>, Vec<Self>), usize>;
+}
+macro_rules! real_values {
+    ($t:ty) => {
+        impl SchurValues for $t {
+            fn homogeneous(
+                s: MatRef<'_, Self>,
+                t: MatRef<'_, Self>,
+            ) -> Result<(Vec<Self>, Vec<Self>, Vec<Self>), usize> {
+                let mut ar = Col::<Self>::zeros(s.nrows());
+                let mut ai = Col::<Self>::zeros(s.nrows());
+                let mut be = Col::<Self>::zeros(s.nrows());
+                colmat::linalg::gevd::schur_eigenvalues_real(
+                    s,
+                    t,
+                    ar.as_mut(),
+                    ai.as_mut(),
+                    be.as_mut(),
+                )
+                .map_err(|error| error.position)?;
+                Ok((
+                    (0..s.nrows()).map(|i| ar[i]).collect(),
+                    (0..s.nrows()).map(|i| ai[i]).collect(),
+                    (0..s.nrows()).map(|i| be[i]).collect(),
+                ))
+            }
+        }
+    };
+}
+macro_rules! complex_values {
+    ($t:ty) => {
+        impl SchurValues for $t {
+            fn homogeneous(
+                s: MatRef<'_, Self>,
+                t: MatRef<'_, Self>,
+            ) -> Result<(Vec<Self>, Vec<Self>, Vec<Self>), usize> {
+                Ok((
+                    (0..s.nrows()).map(|i| s[(i, i)]).collect(),
+                    vec![Self::z(); s.nrows()],
+                    (0..s.nrows()).map(|i| t[(i, i)]).collect(),
+                ))
+            }
+        }
+    };
+}
+real_values!(f32);
+real_values!(f64);
+complex_values!(colmat::c32);
+complex_values!(colmat::c64);
+
+pub(crate) trait ReorderScalar: SchurValues {
     fn native_move(
         s: MatMut<'_, Self>,
         t: MatMut<'_, Self>,
@@ -164,9 +218,56 @@ pub(crate) unsafe fn select_blocks<T: ReorderScalar>(
     (total, false)
 }
 
+/// Extract without rerunning QZ or changing the saved factors. Inactive lower
+/// triangles are never read, so caller padding cannot affect the eigenvalues.
+pub(crate) unsafe fn saved_values<T: SchurValues>(
+    n: usize,
+    s: *const T,
+    lds: isize,
+    t: *const T,
+    ldt: isize,
+) -> Result<(Vec<T>, Vec<T>, Vec<T>), usize> {
+    let ss = Mat::<T>::from_fn(n, n, |i, j| {
+        if i <= j + usize::from(!T::COMPLEX) {
+            *s.offset(i as isize + j as isize * lds)
+        } else {
+            T::z()
+        }
+    });
+    let tt = Mat::<T>::from_fn(n, n, |i, j| {
+        if i <= j {
+            *t.offset(i as isize + j as isize * ldt)
+        } else {
+            T::z()
+        }
+    });
+    T::homogeneous(ss.as_ref(), tt.as_ref())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn saved_real_conjugates_and_infinite_value() {
+        let s = [0.0f64, 1.0, 777.0, -1.0, 0.0, 0.0, 0.0, 0.0, 3.0];
+        let t = [1.0f64, 777.0, 777.0, 0.0, 1.0, 777.0, 0.0, 0.0, 0.0];
+        let (ar, ai, be) = unsafe { saved_values(3, s.as_ptr(), 3, t.as_ptr(), 3) }.unwrap();
+        assert!(ar[0].abs() < 1e-14 && ar[1].abs() < 1e-14);
+        assert!((ai[0] / be[0] - 1.0).abs() < 1e-14);
+        assert!((ai[1] / be[1] + 1.0).abs() < 1e-14);
+        assert_eq!((ar[2], ai[2], be[2]), (3.0, 0.0, 0.0));
+        assert_eq!(s[2], 777.0);
+        assert_eq!(t[1], 777.0);
+    }
+    #[test]
+    fn saved_complex_homogeneous_values_keep_phase() {
+        let s = [colmat::c64::new(2.0, 3.0)];
+        let t = [colmat::c64::new(0.0, 0.0)];
+        let (ar, ai, be) = unsafe { saved_values(1, s.as_ptr(), 1, t.as_ptr(), 1) }.unwrap();
+        assert_eq!(ar, s);
+        assert_eq!(be, t);
+        assert_eq!(ai[0], colmat::c64::new(0.0, 0.0));
+    }
     fn selection<T: ReorderScalar>(tol: f64) {
         let n = 4;
         let mut s = vec![T::z(); n * n];

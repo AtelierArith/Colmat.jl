@@ -126,6 +126,197 @@ unsafe fn exchange<T: ReorderScalar, I: LapackInt>(
         *info = I::from_i64(1);
     }
 }
+/// Reorder-only TGSEN implementation. Returns false only when homogeneous
+/// extraction needs the saved LAPACK implementation; staged changes have then
+/// not been committed to the caller's factors.
+unsafe fn selected<T: ReorderScalar, I: LapackInt>(
+    wantq: bool,
+    wantz: bool,
+    select: *const I,
+    n: isize,
+    a: *mut T,
+    lda: isize,
+    b: *mut T,
+    ldb: isize,
+    ar: *mut T,
+    ai: *mut T,
+    beta: *mut T,
+    q: *mut T,
+    ldq: isize,
+    z: *mut T,
+    ldz: isize,
+    m: *mut I,
+    work: *mut T,
+    lwork: isize,
+    iwork: *mut I,
+    liwork: isize,
+    safmin: f64,
+    info: *mut I,
+) -> bool {
+    *info = I::from_i64(0);
+    let shift = if T::COMPLEX { 1 } else { 0 };
+    for (arg, ok) in [
+        (5, n >= 0),
+        (7, lda >= n.max(1)),
+        (9, ldb >= n.max(1)),
+        (14 - shift, ldq >= 1 && (!wantq || ldq >= n)),
+        (16 - shift, ldz >= 1 && (!wantz || ldz >= n)),
+    ] {
+        if !ok {
+            invalid(info, arg);
+            return true;
+        }
+    }
+    *m = I::from_i64(0);
+    let need = if T::COMPLEX {
+        Some(1)
+    } else {
+        n.checked_mul(4).and_then(|x| x.checked_add(16))
+    };
+    let Some(need) = need else {
+        invalid(info, 22 - shift);
+        return true;
+    };
+    *work = T::real(need as f64);
+    *iwork = I::from_i64(1);
+    let query = lwork == -1 || liwork == -1;
+    // IJOB=0 queries do not inspect SELECT or any matrix entries.
+    if query {
+        return true;
+    }
+    for (arg, ok) in [
+        (22 - shift, lwork >= need),
+        (24 - shift, liwork >= 1),
+        (7, matrix_addressable::<T>(n, n, lda)),
+        (9, matrix_addressable::<T>(n, n, ldb)),
+        (14 - shift, !wantq || matrix_addressable::<T>(n, n, ldq)),
+        (16 - shift, !wantz || matrix_addressable::<T>(n, n, ldz)),
+    ] {
+        if !ok {
+            invalid(info, arg);
+            return true;
+        }
+    }
+    if n == 0 {
+        return true;
+    }
+    let size = n as usize;
+    let mask: Vec<bool> = (0..size).map(|i| (*select.add(i)).val() != 0).collect();
+    let copy = |p: *mut T, ld: isize, lower: usize| -> Vec<T> {
+        (0..size * size)
+            .map(|index| {
+                let (i, j) = (index % size, index / size);
+                if i <= j + lower {
+                    *p.offset(i as isize + j as isize * ld)
+                } else {
+                    T::z()
+                }
+            })
+            .collect()
+    };
+    let mut aa = copy(a, lda, usize::from(!T::COMPLEX));
+    let mut bb = copy(b, ldb, 0);
+    let mut qq = if wantq {
+        copy(q, ldq, size)
+    } else {
+        Vec::new()
+    };
+    let mut zz = if wantz {
+        copy(z, ldz, size)
+    } else {
+        Vec::new()
+    };
+    // Complex reference TGSEN publishes the original diagonals before moving
+    // blocks and retains those values on a rejected exchange or trivial mask.
+    let original_complex = if T::COMPLEX {
+        Some((
+            (0..size).map(|i| aa[i + i * size]).collect::<Vec<T>>(),
+            (0..size).map(|i| bb[i + i * size]).collect::<Vec<T>>(),
+        ))
+    } else {
+        None
+    };
+    let (count, rejected) = crate::qz_reorder::select_blocks(
+        size,
+        &mask,
+        aa.as_mut_ptr(),
+        n,
+        bb.as_mut_ptr(),
+        n,
+        wantq.then_some((qq.as_mut_ptr(), n)),
+        wantz.then_some((zz.as_mut_ptr(), n)),
+    );
+    // Reference TGSEN normalizes rows and the corresponding Q columns.
+    for k in 0..size {
+        let singleton = T::COMPLEX
+            || ((k == 0 || aa[k + (k - 1) * size] == T::z())
+                && (k + 1 == size || aa[k + 1 + k * size] == T::z()));
+        if singleton && (!T::COMPLEX || (!rejected && count > 0 && count < size)) {
+            let diag = bb[k + k * size];
+            let mag = diag.magnitude();
+            let phase = if T::COMPLEX {
+                if mag > safmin {
+                    diag.cj() / T::real(mag)
+                } else {
+                    T::o()
+                }
+            } else if diag.re().is_sign_negative() {
+                -T::o()
+            } else {
+                T::o()
+            };
+            for j in k..size {
+                aa[k + j * size] = aa[k + j * size] * phase;
+                bb[k + j * size] = bb[k + j * size] * phase;
+            }
+            if wantq {
+                for i in 0..size {
+                    qq[i + k * size] = qq[i + k * size] * phase.cj();
+                }
+            }
+            if T::COMPLEX {
+                bb[k + k * size] = T::real(if mag > safmin { mag } else { 0.0 });
+            }
+        }
+    }
+    let Ok((mut values, imag, mut betas)) =
+        crate::qz_reorder::saved_values(size, aa.as_ptr(), n, bb.as_ptr(), n)
+    else {
+        return false;
+    };
+    if T::COMPLEX && (rejected || count == 0 || count == size) {
+        let (old_values, old_betas) = original_complex.unwrap();
+        values = old_values;
+        betas = old_betas;
+    }
+    for j in 0..size {
+        for i in 0..size {
+            if i <= j + usize::from(!T::COMPLEX) {
+                *a.offset(i as isize + j as isize * lda) = aa[i + j * size];
+            }
+            if i <= j {
+                *b.offset(i as isize + j as isize * ldb) = bb[i + j * size];
+            }
+            if wantq {
+                *q.offset(i as isize + j as isize * ldq) = qq[i + j * size];
+            }
+            if wantz {
+                *z.offset(i as isize + j as isize * ldz) = zz[i + j * size];
+            }
+        }
+    }
+    for i in 0..size {
+        *ar.add(i) = values[i];
+        if !T::COMPLEX {
+            *ai.add(i) = imag[i];
+        }
+        *beta.add(i) = betas[i];
+    }
+    *m = I::from_i64(count as i64);
+    *info = I::from_i64(i64::from(rejected));
+    true
+}
+
 // TGEX2 exchanges exactly two adjacent diagonal blocks. Unlike TGEXC,
 // its real workspace argument has no query mode.
 unsafe fn adjacent<T: ReorderScalar, I: LapackInt>(
@@ -325,6 +516,167 @@ mod tests {
                 assert_eq!(b[i + j * ld].re(), 777.0);
             }
         }
+    }
+    fn selected_abi<T: ReorderScalar, I: LapackInt>(tol: f64) {
+        let mut a = [T::real(-1.0), T::z(), T::z(), T::real(-3.0)];
+        let mut b = [-T::o(), T::z(), T::z(), -T::o()];
+        let mut q = [T::o(), T::z(), T::z(), T::o()];
+        let mut z = q;
+        let mask = [I::from_i64(0), I::from_i64(1)];
+        let mut ar = [T::real(777.0); 2];
+        let mut ai = ar;
+        let mut beta = ar;
+        let mut m = I::from_i64(-777);
+        let mut iw = I::from_i64(-777);
+        let mut work = [T::real(777.0); 24];
+        let mut info = I::from_i64(-777);
+        let olda = a;
+        let oldb = b;
+        let ok = unsafe {
+            selected(
+                true,
+                true,
+                mask.as_ptr(),
+                2,
+                a.as_mut_ptr(),
+                2,
+                b.as_mut_ptr(),
+                2,
+                ar.as_mut_ptr(),
+                ai.as_mut_ptr(),
+                beta.as_mut_ptr(),
+                q.as_mut_ptr(),
+                2,
+                z.as_mut_ptr(),
+                2,
+                &mut m,
+                work.as_mut_ptr(),
+                24,
+                &mut iw,
+                1,
+                f64::MIN_POSITIVE,
+                &mut info,
+            )
+        };
+        assert!(ok);
+        assert_eq!(info.val(), 0);
+        assert_eq!(m.val(), 1);
+        assert_eq!(iw.val(), 1);
+        assert_eq!(crate::colmat_blas_last_error(), 0);
+        for (i, value) in [3.0, 1.0].into_iter().enumerate() {
+            assert!((ar[i] / beta[i] - T::real(value)).magnitude() < tol);
+            assert!(beta[i].re() >= 0.0);
+        }
+        for old in [olda, oldb] {
+            let current = if old == olda { a } else { b };
+            for j in 0..2 {
+                for i in 0..2 {
+                    let mut value = T::z();
+                    for k in 0..2 {
+                        for l in 0..2 {
+                            value = value + q[i + k * 2] * current[k + l * 2] * z[j + l * 2].cj();
+                        }
+                    }
+                    assert!((value - old[i + j * 2]).magnitude() < tol);
+                }
+            }
+        }
+        if T::COMPLEX {
+            assert_eq!(ai[0].re(), 777.0);
+        } else {
+            assert_eq!(ai[0].re(), 0.0);
+        }
+    }
+    #[test]
+    fn selected_all_scalar_and_integer_widths() {
+        selected_abi::<f32, i32>(1e-4);
+        selected_abi::<f32, i64>(1e-4);
+        selected_abi::<f64, i32>(1e-11);
+        selected_abi::<f64, i64>(1e-11);
+        selected_abi::<colmat::c32, i32>(1e-4);
+        selected_abi::<colmat::c32, i64>(1e-4);
+        selected_abi::<colmat::c64, i32>(1e-11);
+        selected_abi::<colmat::c64, i64>(1e-11);
+    }
+    #[test]
+    fn selected_complex_trivial_mask_keeps_original_phase() {
+        type C = colmat::c64;
+        for take in [0i64, 1] {
+            let mut a = C::new(2.0, 3.0);
+            let mut b = C::new(-1.0, 2.0);
+            let (olda, oldb) = (a, b);
+            let mut ar = C::new(777.0, 0.0);
+            let mut beta = ar;
+            let mut work = ar;
+            let mut m = -777i64;
+            let mut iw = -777i64;
+            let mut info = -777i64;
+            assert!(unsafe {
+                selected(
+                    false,
+                    false,
+                    &take,
+                    1,
+                    &mut a,
+                    1,
+                    &mut b,
+                    1,
+                    &mut ar,
+                    std::ptr::null_mut(),
+                    &mut beta,
+                    std::ptr::null_mut(),
+                    1,
+                    std::ptr::null_mut(),
+                    1,
+                    &mut m,
+                    &mut work,
+                    1,
+                    &mut iw,
+                    1,
+                    f64::MIN_POSITIVE,
+                    &mut info,
+                )
+            });
+            assert_eq!((a, b, ar, beta), (olda, oldb, olda, oldb));
+            assert_eq!((m, info), (take, 0));
+        }
+    }
+    #[test]
+    fn selected_query_reads_no_matrices_or_mask() {
+        let mut dummy = 777.0f64;
+        let mut m = -777i64;
+        let mut work = 777.0;
+        let mut iw = -777i64;
+        let mut info = -777i64;
+        assert!(unsafe {
+            selected(
+                false,
+                false,
+                std::ptr::null(),
+                3,
+                std::ptr::null_mut(),
+                3,
+                std::ptr::null_mut(),
+                3,
+                &mut dummy,
+                &mut dummy,
+                &mut dummy,
+                std::ptr::null_mut(),
+                1,
+                std::ptr::null_mut(),
+                1,
+                &mut m,
+                &mut work,
+                -1,
+                &mut iw,
+                0,
+                f64::MIN_POSITIVE,
+                &mut info,
+            )
+        });
+        assert_eq!((m, iw, info), (0, 1, 0));
+        assert_eq!(work, 28.0);
+        assert_eq!(dummy, 777.0);
     }
     fn adjacent_abi<T: ReorderScalar, I: LapackInt>(tol: f64) {
         let mut a = [T::real(1.0), T::z(), T::real(0.25), T::real(3.0)];
