@@ -734,9 +734,9 @@
         "pbsv"
       ],
       "status": "representation",
-      "api": "dense Llt",
+      "api": "native diagonal Llt / triangular_solve / triangular::matmul",
       "source": "faer/src/linalg/cholesky/llt/factor.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "note": "16 Fortran シンボルを両 ABI に接続。保存区間だけを native LLT・三角 solve・selected-triangle rank update で処理し、full dense 展開はしない。PBTRF/PBTF2 は同じ unblocked 合成で、専用 blocked band kernel の主張ではない。上下・実対角・非正定値 INFO・外部因子と相互運用する solve を検証。O(min(kd,n)) の vector snapshot を内部確保。C ABI は別タスク。"
     },
     {
       "routines": [
@@ -747,7 +747,6 @@
         "pftrf",
         "pftrs",
         "pftri",
-        "pbstf",
         "pttrf",
         "pttrs",
         "ptts2",
@@ -1163,6 +1162,15 @@
       "api": "Householder generation / native matrix-vector application",
       "source": "faer/src/linalg/householder.rs",
       "note": "Fortran 16シンボル・4型・両 ABI を接続済み。LAPACK gauge の reflector と native 適用から Hessenberg 還元、Q の明示生成・左右適用を構成。ILO/IHI の部分範囲、外部 A/TAU と相互運用。GEHRD/GEHD2 は共通経路で内部配列を確保する。"
+    },
+    {
+      "routines": [
+        "pbstf"
+      ],
+      "status": "representation",
+      "api": "native diagonal Llt / triangular_solve / triangular::matmul",
+      "source": "faer/src/linalg/cholesky/llt/factor.rs",
+      "note": "4 Fortran シンボルを両 ABI に接続。後半を逆順に消去して前半を更新し、前半を順方向に因子化する split Cholesky を合成する。通常 POTRF への置き換えではなく、S の上三角・下三角・跨ぎ部分から A=S^H*S を独立再構成する。split point は min(n,(n+kd)/2) とし、余分な宣言幅でも存在しない列を読まない。参照 PBSTF が m>n の場合に範囲外列を読む差を単独再現と文書に記録。C ABI は別タスク。"
     }
   ]
 }

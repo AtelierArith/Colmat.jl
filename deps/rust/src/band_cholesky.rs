@@ -10,7 +10,6 @@ unsafe fn step<T: GeneralizedScalar>(
     first: usize,
     count: usize,
     backwards: bool,
-    split: bool,
     ab: *mut T,
     ld: usize,
 ) -> bool {
@@ -19,12 +18,9 @@ unsafe fn step<T: GeneralizedScalar>(
     // Hermitian diagonal imaginary components are not input data.
     *diagonal = T::diagonal(diagonal);
     let nan = (*diagonal).re().is_nan();
-    if nan && !split {
-        return false;
-    }
     let status = crate::lapack::cholesky(MatMut::from_raw_parts_mut(diagonal, 1, 1, 1, 1));
-    // Reference PBSTF does not classify a NaN as a non-positive pivot.
-    if status != 0 && !(split && nan) {
+    // Reference PBTF2/PBSTF do not classify NaNs as non-positive pivots.
+    if status != 0 && !nan {
         return false;
     }
     if nan {
@@ -73,6 +69,14 @@ unsafe fn step<T: GeneralizedScalar>(
             par,
         );
     });
+    // HER makes every updated diagonal real even if the rank-one vector is
+    // zero. Preserve that partial-output contract before a later pivot fails.
+    if T::COMPLEX {
+        for i in first..first + count {
+            let diagonal = ab.add(row + i * ld);
+            *diagonal = T::diagonal(diagonal);
+        }
+    }
     true
 }
 pub(crate) unsafe fn factor<T: GeneralizedScalar>(
@@ -96,14 +100,14 @@ pub(crate) unsafe fn factor<T: GeneralizedScalar>(
     if split {
         for j in (middle..n).rev() {
             let count = width.min(j);
-            if !step(lower, width, j, j - count, count, true, true, ab, ld) {
+            if !step(lower, width, j, j - count, count, true, ab, ld) {
                 return j + 1;
             }
         }
     }
     for j in 0..middle {
         let count = width.min(middle - j - 1);
-        if !step(lower, width, j, j + 1, count, false, split, ab, ld) {
+        if !step(lower, width, j, j + 1, count, false, ab, ld) {
             return j + 1;
         }
     }
@@ -345,6 +349,19 @@ mod solve_tests {
     use super::*;
     use crate::kernels::Scalar;
     #[test]
+    fn zero_rank_update_cleans_unvisited_hermitian_diagonals() {
+        use colmat::c64;
+        let mut a = [c64::new(f64::NAN, f64::NAN); 9];
+        a[0] = c64::new(1.0, f64::NAN);
+        a[1] = c64::new(0.0, 0.0);
+        a[2] = c64::new(0.0, 0.0);
+        a[3] = c64::new(-1.0, f64::NAN);
+        a[4] = c64::new(0.0, 0.0);
+        a[6] = c64::new(1.0, f64::NAN);
+        assert_eq!(unsafe { factor(true, 3, 2, a.as_mut_ptr(), 3, false) }, 2);
+        assert_eq!(a[6], c64::new(1.0, 0.0));
+    }
+    #[test]
     fn complex_band_solve_uses_both_conjugated_and_unconjugated_factors() {
         use colmat::c64;
         let a = [
@@ -389,10 +406,10 @@ mod solve_tests {
         }
     }
     #[test]
-    fn nan_pivots_distinguish_ordinary_and_split_contracts() {
+    fn nan_pivots_propagate_in_ordinary_and_split_contracts() {
         unsafe {
             let mut a = [f64::NAN];
-            assert_eq!(factor(true, 1, 0, a.as_mut_ptr(), 1, false), 1);
+            assert_eq!(factor(true, 1, 0, a.as_mut_ptr(), 1, false), 0);
             assert_eq!(factor(true, 1, 0, a.as_mut_ptr(), 1, true), 0);
             assert!(a[0].is_nan());
         }
