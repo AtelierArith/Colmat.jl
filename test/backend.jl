@@ -11,7 +11,7 @@
         @test lib.f2c == :plain
         @test lib.complex_retstyle == :normal
     end
-    @test BLAS.lbt_get_forward("dgbmv_", :ilp64) == fallback_gbmv
+    @test BLAS.lbt_get_forward("drotm_", :ilp64) == fallback_rotm
     @test BLAS.lbt_get_forward("dggglm_", :ilp64) == fallback_lapack
     @test Colmat.load_backend() === nothing
     @test BLAS.lbt_get_forward("dggglm_", :ilp64) == fallback_lapack

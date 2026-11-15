@@ -817,3 +817,50 @@ caller WORK は保持します。caller WORK が内部割り当て量を制限�
 追加した10種類の focused test は各入口の直接 Int32/Int64 呼び出し、guard、空/矩形、
 独立 scalar/BigFloat 参照、保存形式の往復、NaN/signed zero、極端な有限値、既存 LAPACK を検証します。
 `test/matrix_transforms_lbt.jl` は112 canonical シンボルすべてを両 ABI の LBT 入口から数値実行します。
+
+
+## Band/packed/RFP BLAS（#281）
+
+48 Fortran canonical シンボルを両整数 ABI に追加しました。GBMV、SBMV/SPMV、SPR/SPR2、
+TBMV/TBSV/TPMV/TPSV は4型、HBMV/HPMV/HPR/HPR2 は定義された複素2型を扱います。
+SSFRK/DSFRK/CHFRK/ZHFRK の4入口も含みます。各 ABI の対応数は882（BLAS 202、LAPACK 680）です。
+CBLAS/LAPACKE の追加はそれぞれの Issue で扱います。
+
+GBMV は band の有効な column 区間を native 外積・内積に渡し、転置・共役と負 stride を
+変換します。対称・Hermitian の band/packed 積も保存された column だけから両側への寄与を
+計算します。Hermitian の対角虚部は読みません。複素 SBMV/SPMV と SPR/SPR2 は複素対称であり、
+Hermitian の共役規則へ置き換えません。HPR の alpha は実数、HPR2 は複素数です。
+packed rank update は格納三角だけを更新し、HPR/HPR2 の実行時は対角虚部を0に戻します。
+alpha=0 では配列に触れず、対角の正規化も行いません。
+
+三角 band/packed 積は O(n) の native X snapshot を確保し、solve は解いた成分を順に使います。
+no-transpose は参照 Netlib と同じくゼロ列を飛ばし、その列の行列要素を読みません。
+転置・共役では保存された column を native 内積に使い、no-transpose の必要な row は
+内部 native 領域へ gather します。unit diagonal は格納値を読みません。幅0の unit band と
+1要素の unit packed 演算は、NaN や signed zero の成分ビットも保持します。
+非 unit の特異対角を事前検査して独自 INFO を返す処理はなく、BLAS の浮動小数点演算として扱います。
+
+これらの band/packed 処理は full dense 行列へ展開しません。一般 band は出力 vector の長さを m とすると O(m+n*(kl+ku+1))、
+三角・対称 band は O(n*(k+1))、packed は O(n²) の演算量です。
+必要な snapshot/gather は vector または有効 row の長さに比例し、native kernel 自身も
+stride と実行計画に応じて作業領域を確保します。内部割り当てがないという保証ではありません。
+
+SFRK/HFRK は RFP の保存形式を O(n²) の native 三角行列へ展開し、selected-triangle rank-k
+乗算を行って RFP に戻します。RFP の偶数/奇数、UPLO、実数 N/T・複素 N/C と A の転置を扱います。
+beta=0 は旧 C、alpha=0 または k=0 は A を読みません。
+ゼロ積かつ beta=1 は C を保持し、ゼロ積かつ beta=0 は全 physical RFP 要素を0にします。
+その他の HFRK では対角の実部だけを読み、physical 出力の対角虚部を正の0にします。
+これらは caller workspace 引数を持たず、内部メモリ確保量を caller が指定する API ではありません。
+
+テストでは全48入口を Int32/Int64 の直接 C 署名と数値 LBT 呼び出しで検証します。
+保存形式の independent packing、scalar 参照、solve の再構成、空・幅0・矩形・上下・転置・共役、
+負 stride、padding/guard、unit/Hermitian 対角の NaN、極端な整数幅を確認します。
+通常の有限入力は既存 OpenBLAS とも照合します。巨大な空入力や singleton increment には、
+大きな配列を確保しない Rust テストも用意しています。
+
+OpenBLAS 0.3.30 の complex SPR/SPR2 には負 stride の開始位置に関する差があり、
+[単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-packed-negative-stride.jl)
+を残しています。Colmat の負 stride 呼び出しはそのまま検証し、差分参照側では同じ論理 vector を
+正 stride に並べて比較します。no-transpose の三角演算についても、ゼロに掛かる列の NaN は
+最適化された provider で伝播する場合があります。Colmat は参照 Netlib のゼロ列スキップを保ち、
+当該テストの差分参照には計算結果を変えない有限の列を置いた行列を使います。

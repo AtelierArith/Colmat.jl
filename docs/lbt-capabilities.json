@@ -706,9 +706,9 @@
         "tpsv"
       ],
       "status": "representation",
-      "api": "matmul / triangular_solve",
+      "api": "native interval matmul / packed outer products / triangular_solve",
       "source": "faer/src/linalg/matmul/mod.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "note": "44 Fortran BLAS シンボルを両 ABI に接続。band/packed の格納区間だけを native 乗算に渡し、負 stride、複素対称と Hermitian、実対角、unit diagonal を区別する。三角 solve は区間の native 内積と対角 solve を合成し、no-transpose のゼロ列は参照 Netlib 同様に飛ばす。full dense 展開は行わず、積の X snapshot と必要な row gather に内部領域を確保する。C ABI は別タスク。"
     },
     {
       "routines": [
@@ -847,9 +847,9 @@
         "hfrk"
       ],
       "status": "representation",
-      "api": "triangular::matmul",
+      "api": "RFP selected-triangle conversion / native triangular::matmul",
       "source": "faer/src/linalg/matmul/triangular.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "note": "SSFRK/DSFRK/CHFRK/ZHFRK の4 Fortran 入口を両 ABI に接続。RFP 偶奇、UPLO、実数 N/T・複素 N/C と rank-k transpose を変換する。O(n²) の内部 native 行列を確保する。beta=0 は旧 C、ゼロ積は A を読まない。Hermitian 対角は実部だけを読み、出力虚部は0。専用の同名 native RFP API が存在するという分類ではない。"
     },
     {
       "routines": [

@@ -39,6 +39,7 @@ mod qr;
 mod qr_pivoted;
 mod qz;
 mod reduction_extensions;
+mod rfp_rank;
 mod rz;
 mod schur;
 mod selected_selfadjoint;

@@ -4,7 +4,7 @@ using Random
 using Libdl
 
 # Observe the fallback before Colmat's __init__ changes the process-wide table.
-const fallback_gbmv = BLAS.lbt_get_forward("dgbmv_", :ilp64)
+const fallback_rotm = BLAS.lbt_get_forward("drotm_", :ilp64)
 const fallback_lapack = BLAS.lbt_get_forward("dggglm_", :ilp64)
 using Colmat
 
@@ -25,6 +25,11 @@ include("positive_equilibration.jl")
 include("general_equilibration.jl")
 include("symmetric_equilibration.jl")
 include("matrix_transforms_lbt.jl")
+include("structured_blas.jl")
+include("structured_symmetric.jl")
+include("packed_updates.jl")
+include("structured_triangular.jl")
+include("rfp_rank.jl")
 include("abi.jl")
 include("lapack_native.jl")
 include("householder.jl")
