@@ -8,8 +8,8 @@
     "Fortran": 2329,
     "CBLAS": 212
   },
-  "lp64": 1272,
-  "ilp64": 1272,
+  "lp64": 1288,
+  "ilp64": 1288,
   "capability_assessments": {
     "unverified": 1918,
     "conditional": 194,
