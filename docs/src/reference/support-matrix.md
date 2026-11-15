@@ -1300,7 +1300,7 @@ BB と指定外格納・padding を変更しません。dense 所有行列と sc
 専用 band bulge chase と同じ計算量・性能を主張しません。
 
 GV/GVD は Cholesky・標準形変換・native 全 EVD・逆変換を共有します。
-band の BB 出力は通常の三角 Cholesky ではなく split 因子です。非正定値 B は
+band の BB 出力は通常の三角 Cholesky ではなく split 因子です。band の非正定値 B は
 `INFO=N+i` を返し、逆順ピボットを含む部分因子を保持します。未処理の複素対角は
 読み書きせず、処理済み／更新済みの対角だけを実数へ戻します。
 GVD は query と各入口の最小 WORK/RWORK/IWORK を保持しますが、内部領域を別途確保し、
@@ -1316,7 +1316,7 @@ packed の N=1・空値域では Z=1 を返し IFAIL は保持するという PE
 複素 HPGVX の参照実装は N=0 で M を未設定のまま戻る版がありますが、adapter は M=0 を返します。
 
 `test/structured_generalized*.jl` は外部因子との相互利用、各 ITYPE・UPLO・range、
-残差と B 正規化、Q の変換式、query・厳密な最小領域・不足時診断、型・整数 ABI・格納 guard、
+残差と B 正規化、ゼロ・階数1・重複スペクトル、Q の変換式、query・厳密な最小領域・不足時診断、型・整数 ABI・格納 guard、
 および LBT の実転送を検証します。正の ABSTOL の残差は要求された絶対精度も含めて判定し、
 既定精度・厳しい正の ABSTOL の固定許容誤差を緩めません。
 

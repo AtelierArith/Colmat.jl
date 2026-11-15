@@ -76,6 +76,7 @@ include("structured_generalized_band_gv.jl")
 include("structured_generalized_band_gvd.jl")
 include("structured_generalized_band_gvx.jl")
 include("structured_generalized_lbt.jl")
+include("structured_generalized_degenerate.jl")
 
 include("complete_pivot_lu.jl")
 include("advanced_svd.jl")
