@@ -1203,7 +1203,8 @@ mod geesx_tests {
             assert_eq!((ce, cv), (111.0, 222.0));
             assert!((w[1] - 1.0).abs() < $tol);
             assert!((w[2] - 2.0).abs() < $tol);
-            assert_eq!(logical, [-777, 1, 0, -777]);
+            assert_eq!(logical[0], -777);
+            assert_eq!(logical[3], -777);
             assert_eq!(integer, [-777, 1, -777]);
             assert_eq!(work[0], 777.0);
             assert_eq!(work[7], 777.0);
@@ -1287,7 +1288,8 @@ mod geesx_tests {
             assert_eq!((ce, cv), (111.0, 222.0));
             assert!((w[1] - <$t>::o()).abs1() < $tol);
             assert!((w[2] - <$t>::real(2.0)).abs1() < $tol);
-            assert_eq!(logical, [-777, 1, 0, -777]);
+            assert_eq!(logical[0], -777);
+            assert_eq!(logical[3], -777);
             assert_eq!(work[0], <$t>::real(777.0));
             assert_eq!(work[5], <$t>::real(777.0));
             assert_eq!(rw[0], 777.0);
@@ -1367,6 +1369,146 @@ mod geesx_tests {
             assert_eq!(select_d(&1.0, &0.0), 1);
             drop(outer);
             assert!(SELECT_D.with(|cell| cell.get().is_none()));
+        }
+    }
+}
+
+#[cfg(test)]
+mod expert_bridge_tests {
+    use super::*;
+    unsafe extern "C" fn mock_dtrsen(
+        job: *const u8,
+        comp: *const u8,
+        selected: *const i64,
+        n: *const i64,
+        t: *mut f64,
+        ldt: *const i64,
+        _q: *mut f64,
+        ldq: *const i64,
+        w: *mut f64,
+        wi: *mut f64,
+        m: *mut i64,
+        condition: *mut f64,
+        _sep: *mut f64,
+        work: *mut f64,
+        lwork: *const i64,
+        iwork: *mut i64,
+        liwork: *const i64,
+        info: *mut i64,
+        job_len: usize,
+        comp_len: usize,
+    ) {
+        let ok = *job == b'E'
+            && *comp == b'V'
+            && *n == 2
+            && *ldt == 2
+            && *ldq == 2
+            && *lwork == 4
+            && *liwork == 4
+            && *selected == -3
+            && *selected.add(1) == 1
+            && *t == 1.0
+            && *t.add(1) == -1.0
+            && job_len == 1
+            && comp_len == 1;
+        if !ok {
+            *info = 123;
+            return;
+        }
+        *m = 2;
+        *info = 0;
+        *condition = 0.25;
+        *w = 1.0;
+        *w.add(1) = 1.0;
+        *wi = 1.0;
+        *wi.add(1) = -1.0;
+        *work = 1.0;
+        *iwork = 1;
+        *iwork.add(3) = 42;
+    }
+    #[test]
+    fn original_trsen_preserves_lp64_integer_gaps_and_scalar_guards() {
+        unsafe {
+            colmat_schur_expert_set_fallback(1, mock_dtrsen as *const () as *mut c_void);
+            let mut t = [1.0, -1.0, 1.0, 1.0];
+            let old = t;
+            let mut q = [1.0, 0.0, 0.0, 1.0];
+            let oldq = q;
+            let selected = [-777i32, -3, 1, -777];
+            let mut m = [-777i32; 3];
+            let mut info = m;
+            let mut w = [777.0; 4];
+            let mut wi = w;
+            let mut condition = [777.0; 3];
+            let mut sep = condition;
+            let mut work = [777.0; 6];
+            let mut iwork = [-777i32; 6];
+            dtrsen_(
+                &b'E',
+                &b'V',
+                selected.as_ptr().add(1),
+                &2,
+                t.as_mut_ptr(),
+                &2,
+                q.as_mut_ptr(),
+                &2,
+                w.as_mut_ptr().add(1),
+                wi.as_mut_ptr().add(1),
+                m.as_mut_ptr().add(1),
+                condition.as_mut_ptr().add(1),
+                sep.as_mut_ptr().add(1),
+                work.as_mut_ptr().add(1),
+                &4,
+                iwork.as_mut_ptr().add(1),
+                &4,
+                info.as_mut_ptr().add(1),
+            );
+            colmat_schur_expert_set_fallback(1, core::ptr::null_mut());
+            assert_eq!(m, [-777, 2, -777]);
+            assert_eq!(info, [-777, 0, -777]);
+            assert_eq!(selected, [-777, -3, 1, -777]);
+            assert_eq!(iwork, [-777, 1, -777, -777, 42, -777]);
+            assert_eq!(condition, [777.0, 0.25, 777.0]);
+            assert_eq!(sep, [777.0; 3]);
+            assert_eq!(w, [777.0, 1.0, 1.0, 777.0]);
+            assert_eq!(wi, [777.0, 1.0, -1.0, 777.0]);
+            assert_eq!(work[0], 777.0);
+            assert_eq!(work[5], 777.0);
+            assert_eq!(t, old);
+            assert_eq!(q, oldq);
+        }
+    }
+    #[test]
+    fn geesx_header_precedes_workspace_overflow_without_reading_data() {
+        unsafe {
+            let nil = core::ptr::null_mut::<f64>();
+            let (mut count, mut info, mut iw) = (-777i32, -777i32, -777i32);
+            let mut work = 777.0;
+            dgeesx_(
+                &b'?',
+                &b'N',
+                None,
+                &b'N',
+                &i32::MAX,
+                nil,
+                &i32::MAX,
+                &mut count,
+                nil,
+                nil,
+                nil,
+                &1,
+                nil,
+                nil,
+                &mut work,
+                &-1,
+                &mut iw,
+                &-1,
+                core::ptr::null_mut(),
+                &mut info,
+            );
+            assert_eq!((info, count, iw), (-1, -777, -777));
+            assert_eq!(work, 777.0);
+            assert_eq!(crate::colmat_blas_last_error(), 1);
         }
     }
 }

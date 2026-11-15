@@ -31,6 +31,9 @@ Selected and QR-preconditioned SVD save ILP64 entries for native failures and
 GESVDQ condition estimation; independent Jacobi drivers remain on the existing backend.
 TGSEN reorder-only and GGESX SENSE=N calls run in colmat, with ILP64 LAPACK entries for
 condition and separation estimates, with integer conversion for LP64 callers.
+Ordinary Schur reordering uses native block swaps; TRSEN JOB=N and GEESX SENSE=N
+run natively, with saved ILP64 entries for other condition estimates. LP64
+integer workspaces and LOGICAL SELECT callbacks are converted explicitly.
 Structured generalized EVD also saves original ILP64 entries for numerical recovery,
 positive ABSTOL, and precision guards at selected value boundaries.
 Call again to select Colmat after loading another BLAS provider. Configure the
