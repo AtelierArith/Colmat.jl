@@ -11,7 +11,7 @@ Each count includes applicable scalar variants, before the integer-ABI split.
 
 | Tests | Actual calling route | Contract exercised |
 | --- | --- | --- |
-| `test/direct_factor_abi.jl` | DLL exports and libblastrampoline's exported LP64/ILP64 stubs | GETRF/GETRF2/GETF2/GETRS/GETRI/GESV and POTRF/POTRF2/POTF2/POTRS/POTRI/POSV; reconstruction, solve, inverse, query/minimum GETRI work, pivots, padded arrays and output guards |
+| `test/direct_factor_abi.jl`, `test/direct_factor_boundaries.jl` | DLL exports and libblastrampoline's exported LP64/ILP64 stubs | GETRF/GETRF2/GETF2/GETRS/GETRI/GESV and POTRF/POTRF2/POTF2/POTRS/POTRI/POSV; reconstruction, solve, inverse, query/minimum GETRI work, pivots, padded arrays and output guards |
 | `test/direct_svd_abi.jl` | DLL exports and libblastrampoline's exported LP64/ILP64 stubs | GESVD/GESDD; full/thin/overwrite/values-only, rectangular and empty arrays, query/minimum/insufficient work, complex RWORK and integer IWORK boundaries |
 | `test/direct_geev_abi.jl` | DLL exports and libblastrampoline's exported LP64/ILP64 stubs | GEEV; left/right vectors, eigenvalue comparison, residuals and normalization, query/minimum/insufficient work, invalid options and empty arrays |
 | `test/direct_selfadjoint_abi.jl` | DLL exports and libblastrampoline's exported LP64/ILP64 stubs | SYEV/SYEVD/SYEVR or HEEV/HEEVD/HEEVR; query and each workspace minimum, integer M/ISUPPZ/IWORK, all/index/value ranges, UPLO, residuals, orthogonality, guards and empty arrays |
@@ -43,7 +43,9 @@ error status, losing evidence of the original terminating signal.
 The 70,133 new focused checks pass together with the 80,960 existing GEEVX
 checks. Invalid-argument tests read and assert the TLS diagnostic immediately;
 the diagnostic is consumed on read, preventing state from leaking to later
-tests. Full-suite validation remains pending.
+tests. A further 3,696 checks cover rectangular factors, each solve/inverse/driver
+empty entry, singular INFO and NaN in the unselected Cholesky triangle.
+Full-suite validation remains pending.
 
 Native sanitizer execution has not been performed for this change. The local
 Rust toolchains are stable/beta/versioned releases, with no nightly installed;
