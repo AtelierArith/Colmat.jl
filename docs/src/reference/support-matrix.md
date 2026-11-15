@@ -1214,3 +1214,27 @@ GETSQRHRT は TSQR、thin Q、Householder 再構成、`D*R` を組み合わせ�
 再構成・直交性、引数診断・整数と配列の guard、および全28シンボルの LBT 呼び出しを検証します。
 小さい／大きい一様スケール、ROW 版の最小 LWORK=1、未使用の巨大 leading dimension、
 0列での巨大な論理行数も検証します。
+
+
+## QL/RQ の因子と Q の生成・適用
+
+Issue #303 は GEQLF/GEQL2、GERQF/GERQ2、各 Q 生成・適用系列の
+48 Fortran シンボルを4型・LP64/ILP64 に接続します。各 ABI は1158シンボル
+（BLAS 202、LAPACK 956）です。colmat-rs revision は
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` です。
+
+両軸を反転した作業配列で既存の standard QR/LQ を呼び、三角部分の配置と TAU の
+順序を戻します。QL の Q は `H(k)...H(1)`、複素 RQ の Q は
+`H(1)ᴴ...H(k)ᴴ` であり、RQ の行格納にはベクトルの複素共役を保持します。
+薄い Q は QL では最後の列、RQ では最後の行から構成します。
+
+Q の生成前に必要な reflector tail を内部へコピーし、暗黙の単位成分や未使用三角部分を
+読みません。Q 適用ではゼロ係数を飛ばし、非ゼロ係数が参照する prefix だけを検査します。
+長さ1の反射で未使用になる leading dimension も参照しません。
+blocked/unblocked の名前は共通の unblocked 合成経路を使い、専用 native QL/RQ API や
+参照実装のブロック算法・性能との同一性を主張しません。作業用配列は内部で所有します。
+
+`test/reverse_qr.jl` は4型・両 ABI、矩形・空・ゼロ・階数落ち、QL/RQ の再構成と
+Q の直交性、薄い／完全な Q、OpenBLAS 因子との双方向相互利用、左右適用と共役、
+workspace query・最小 work・引数診断、配列と整数出力の guard、未使用の巨大 stride、
+および全48シンボルの LBT 呼び出しを検証します。

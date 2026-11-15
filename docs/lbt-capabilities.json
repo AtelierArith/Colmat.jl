@@ -198,9 +198,9 @@
         "unmr2"
       ],
       "status": "composition",
-      "api": "QR/LQ と軸の反転",
+      "api": "reversed native-backed QR / adjoint QR LQ / prefix Householder application",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
-      "note": "専用 QL/RQ API はない。列・行反転で数学的には構成可能だが reflector の ABI 変換は未検証"
+      "note": "Forty-eight Fortran symbols connected for both integer ABIs. Both axes are reversed around existing standard QR/LQ, then triangular placement and TAU order are reversed back. QL uses H(k)...H(1); complex RQ uses H(1)^H...H(k)^H with conjugated row-vector storage. Thin Q uses the last columns (QL) or rows (RQ). Generation snapshots only stored reflector tails, and application skips zero coefficients and validates only active prefix extents. Blocked/unblocked names share an unblocked composition and own temporary storage; they do not claim dedicated native QL/RQ APIs or reference blocking performance. C API is separate."
     },
     {
       "routines": [
