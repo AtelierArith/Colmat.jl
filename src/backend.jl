@@ -36,7 +36,8 @@ function load_backend(; verbose::Bool=false)
         isfile(path) || error(
             "Colmat's BLAS library is missing. Run `using Pkg; Pkg.build(\"Colmat\")` and restart Julia.",
         )
-        if _handle[] == C_NULL
+        first_load = _handle[] == C_NULL
+        if first_load
             _handle[] = Libdl.dlopen(path, Libdl.RTLD_LAZY | Libdl.RTLD_LOCAL)
         end
         abi = ccall(Libdl.dlsym(_handle[], :colmat_blas_abi_version), Cint, ())
@@ -182,13 +183,21 @@ function load_backend(; verbose::Bool=false)
             count > 0 ||
                 error("Could not register Colmat BLAS symbols (suffix=$(repr(suffix))).")
         end
-        return ccall(
+        # Colmat's pool starts at one participant. On first load, adopt the
+        # current BLAS width so loading the backend does not silently serialize
+        # threaded work. Reloading keeps any narrower setting already chosen.
+        threads = first_load ? BLAS.get_num_threads() : nothing
+        ccall(
             (:lbt_register_thread_interface, BLAS.libblastrampoline),
             Cvoid,
             (Cstring, Cstring),
             "colmat_blas_get_num_threads",
             "colmat_blas_set_num_threads",
         )
+        if threads !== nothing
+            ccall((:colmat_blas_set_num_threads, _library), Cvoid, (Cint,), threads)
+        end
+        return nothing
     end
     return nothing
 end
@@ -197,7 +206,8 @@ end
     get_num_threads() -> Int
 
 Return the configured number of participants in Colmat matrix multiplication.
-The initial value is one. Other fallback libraries have their own configuration.
+The initial value is the BLAS width observed when Colmat was loaded. Other
+fallback libraries have their own configuration.
 """
 function get_num_threads()
     return Int(ccall((:colmat_blas_get_num_threads, _library), Cint, ()))

@@ -23,7 +23,8 @@ julia> Colmat.set_num_threads(2); Colmat.get_num_threads()
 julia> Colmat.set_num_threads(saved)
 ```
 
-初期値は1です。`Colmat.set_num_threads(n)` は `1:typemax(Cint)` の整数を受け取り、
+初期値は `using Colmat` した時点の `BLAS.get_num_threads()` の値です。
+`Colmat.set_num_threads(n)` は `1:typemax(Cint)` の整数を受け取り、
 範囲外には `ArgumentError` を返します。
 `Colmat.get_num_threads()` は Colmat の設定値を返します。
 `BLAS.get_num_threads()` はロード済みライブラリ全体を対象にするため、
