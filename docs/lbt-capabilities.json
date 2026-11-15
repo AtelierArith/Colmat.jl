@@ -740,13 +740,6 @@
     },
     {
       "routines": [
-        "pptrf",
-        "pptrs",
-        "pptri",
-        "ppsv",
-        "pftrf",
-        "pftrs",
-        "pftri",
         "pttrf",
         "pttrs",
         "ptts2",
@@ -1171,6 +1164,21 @@
       "api": "native diagonal Llt / triangular_solve / triangular::matmul",
       "source": "faer/src/linalg/cholesky/llt/factor.rs",
       "note": "4 Fortran シンボルを両 ABI に接続。後半を逆順に消去して前半を更新し、前半を順方向に因子化する split Cholesky を合成する。通常 POTRF への置き換えではなく、S の上三角・下三角・跨ぎ部分から A=S^H*S を独立再構成する。split point は min(n,(n+kd)/2) とし、余分な宣言幅でも存在しない列を読まない。参照 PBSTF が m>n の場合に範囲外列を読む差を単独再現と文書に記録。C ABI は別タスク。"
+    },
+    {
+      "routines": [
+        "pptrf",
+        "pptrs",
+        "pptri",
+        "ppsv",
+        "pftrf",
+        "pftrs",
+        "pftri"
+      ],
+      "status": "representation",
+      "api": "native Llt / triangular_solve",
+      "source": "faer/src/linalg/cholesky/llt/factor.rs",
+      "note": "28 Fortran シンボルを両 ABI に接続。packed/RFP の三角格納を所有された O(n²) 作業行列へ変換し、native LLT・Cholesky solve を使う。inverse は単位行列を native solve して保存三角を戻す。UPLO、実 N/T・複素 N/C、odd/even の RFP と folded block の共役を扱い、対角虚部を読まない。外部因子の solve/inverse 相互運用、非正定値 INFO、空・ゼロ RHS を検証。caller storage は native LLT の反対三角 scratch と共有しない。C ABI は別タスク。"
     }
   ]
 }

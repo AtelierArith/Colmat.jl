@@ -952,3 +952,35 @@ native kernel の実行計画にも内部確保があり、無割り当ては保
 テストは4型・両 ABI・上下・幅0・空入力、通常と split の独立再構成、
 既知解と外部因子の相互運用、非正定値 INFO と途中出力、NaN の対角、padding/未使用列、
 全20入口の数値 LBT 呼び出し、引数検証順序と INFO/整数幅を確認します。
+
+## Packed/RFP Cholesky・solve・inverse（#284）
+
+colmat-rs `4e6ed0e34659147a5c744ab6431f150e78db6f82` の native LLT と三角 solve を使い、
+PPTRF/PPTRS/PPTRI/PPSV と PFTRF/PFTRS/PFTRI の28 Fortran canonical シンボルを両整数 ABI に
+接続しました。各 ABI の対応数は962（BLAS 202、LAPACK 760）です。4型を扱い、C ABI は別タスクです。
+
+packed/RFP の保存三角を所有された native 作業行列へ移し、native LLT で因子化して、
+保存三角だけを戻します。反対三角を scratch に使う native LLT が caller の格納領域を
+書き換えることはありません。UPLO、RFP の偶数/奇数・実 N/T・複素 N/C と
+folded block の共役を変換します。Hermitian 対角の虚部を入力として読みません。
+非正定値 INFO と、有効な先頭部分の因子出力も検証しています。
+
+solve は変換した因子を native Cholesky solve に渡し、通常の B 配列を借用して上書きします。
+inverse は単位行列を native solve で解き、指定された三角を packed/RFP へ戻します。
+これは専用 packed/RFP inverse kernel の存在を主張するものではありません。
+対角がゼロの inverse は、その位置を INFO に返し、因子を書き換えません。
+出力対角の虚部は0にします。外部因子の solve と inverse は両方向で相互運用を確認しています。
+
+PPSV は NRHS=0 でも因子化と非正定値 INFO の検出を行い、未使用 B は不変です。
+solve は N=0 または NRHS=0 なら因子を読みません。leading dimension と引数の検証は先に行います。
+これらの入口は caller workspace/query 引数を持ちません。
+
+内部領域は因子化・solve が O(n²)、inverse が因子と単位行列の O(n²) 領域です。
+native kernel の計画にも内部確保があります。保存形式に比例したメモリだけで処理する保証や
+無割り当ての保証はありません。内部の dense 領域がアドレス可能な大きさを超える場合は、
+配列に触れる前に N の不正引数として診断します。ゼロ RHS の solve はこの確保も行いません。
+
+テストでは independent な OpenBLAS の TR/TP/TF 変換を使い、4型・両 ABI と全 RFP 配置を
+確認します。scalar 積による元問題の再構成・既知解・inverse 残差、外部因子の相互運用、
+非正定値/ゼロ対角 INFO、空・ゼロ RHS、padding/guard、全28入口の数値 LBT 呼び出し、
+引数検証順序と INFO/整数幅を検証します。
