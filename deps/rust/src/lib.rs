@@ -51,6 +51,8 @@ mod rfp_rank;
 mod rz;
 mod schur;
 mod selected_selfadjoint;
+mod selfadjoint_reduction;
+mod selfadjoint_vectors;
 mod storage_conversions;
 mod storage_layout;
 mod structured_blas;

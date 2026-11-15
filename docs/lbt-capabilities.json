@@ -331,10 +331,10 @@
         "unmtr",
         "latrd"
       ],
-      "status": "representation",
-      "api": "tridiag_in_place / householder",
+      "status": "composition",
+      "api": "tridiag_in_place / normalized Householder + native gemv / Hermitian rank-2",
       "source": "faer/src/linalg/evd/tridiag.rs",
-      "note": "三重対角と reflector の保存形式を変換"
+      "note": "Twenty Fortran symbols connected for both integer ABIs. Ordinary real reductions use native tridiagonalization in its safe scale range; complex real-E gauge and extreme real scales compose normalized native Householder panels with native matrix-vector and Hermitian rank-2 updates. Upper/lower storage, real D/E, Q generation/application and LATRD deferred W panels are adapted explicitly. Internal temporary storage is owned by the adapter; TRD accepts minimum LWORK=1, without claiming the reference blocked algorithm. C API is tracked separately."
     },
     {
       "routines": [
