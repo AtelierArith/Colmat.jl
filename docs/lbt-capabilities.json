@@ -167,10 +167,10 @@
         "orhr_col",
         "unhr_col"
       ],
-      "status": "representation",
-      "api": "Qr / ColPivQr / householder",
+      "status": "composition",
+      "api": "native compact-WY QR panels / Householder block application / modified LU with native matmul and triangular solve",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
-      "note": "reflector 係数は LAPACK TAU と同一でない。固定 JPVT・rank stop・positive diagonal・TSQR の契約は追加検証が必要"
+      "note": "Twenty-eight Fortran symbols connected for both integer ABIs. LATSQR stores separate T blocks for the initial row panel and each subsequent [R;B] panel, preserving earlier reflectors. TSQR Q generation/application gathers the correct noncontiguous row/column blocks. GEQR implements the five-entry header, optimal/minimal TSIZE/LWORK queries and compact fallback; GEMQR reads external GEQR metadata. ORHR_COL/UNHR_COL reconstruct Q through modified LU of Q-[D;0], native trailing updates and native triangular solves. GETSQRHRT composes TSQR, explicit thin Q, reconstruction and D*R. Internal temporary storage is owned by the adapter; ORGTSQR_ROW uses the common explicit-Q path and does not claim the reference in-place row algorithm. C API is separate."
     },
     {
       "routines": [

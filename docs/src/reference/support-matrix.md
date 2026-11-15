@@ -1186,3 +1186,31 @@ TFSM は BLAS と同様に特異性検査の INFO を定義せず、alpha=0 で�
 UPLO/DIAG/TRANS/TRANSR/SIDE、空行列・冗長 band 幅・複数右辺、
 solve/inverse 残差、外部 LAPACK との比較、不正引数、特異 INFO、
 alpha=0、配列の余白と整数出力 guard、および全20シンボルの LBT 経由呼び出しを検証します。
+
+
+## GEQR/GEMQR と TSQR の保存形式
+
+Issue #302 は GEQR/GEMQR、LATSQR、ORGTSQR/UNGTSQR と ROW 版、
+ORHR_COL/UNHR_COL、GETSQRHRT の28 Fortran シンボルを4型・両整数 ABI に
+接続します。各 ABI は1110シンボル（BLAS 202、LAPACK 908）です。
+colmat-rs revision は `4e6ed0e34659147a5c744ab6431f150e78db6f82` です。
+
+LATSQR は最初の row panel を native QR で分解し、後続の各 row block では
+上三角 R と追加行 B を組み合わせた `[R; B]` を分解します。以前の reflector を
+R の成分として読み込まず、各 row block の T を別々に保存します。
+Q の生成・適用は、この保存形式の非連続な行／列を集めて native block Householder
+を適用します。
+
+GEQR は5要素のヘッダーと TSIZE/LWORK の通常／最小 query (`-1`/`-2`) を実装し、
+最小の作業配列では NB=1 の形式へ切り替えます。通常時は最大32列、tall-skinny では
+N+32行までの row block を使います。GEMQR は外部 GEQR の MB/NB メタデータも扱います。
+ORHR_COL/UNHR_COL は `Q-[D;0]` の modified LU と native 行列更新・三角 solve を合成し、
+GETSQRHRT は TSQR、thin Q、Householder 再構成、`D*R` を組み合わせます。
+
+作業用配列は内部で所有します。ROW 版の Q 生成も共通の explicit-Q 経路を使用し、
+参照実装の in-place row 算法や記憶量・性能との同一性は主張しません。
+`test/tsqr.jl` は4型・両 ABI、複数 row/column block、最小 workspace と query、
+階数落ち・ゼロ行列・矩形形状、外部因子の双方向相互利用、Q の左右適用と共役、
+再構成・直交性、引数診断・整数と配列の guard、および全28シンボルの LBT 呼び出しを検証します。
+小さい／大きい一様スケール、ROW 版の最小 LWORK=1、未使用の巨大 leading dimension、
+0列での巨大な論理行数も検証します。
