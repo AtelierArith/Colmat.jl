@@ -200,7 +200,7 @@ pub extern "C" fn colmat_structured_gv_has_fallback(id: i32) -> i32 {
         .get(id as usize)
         .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
 }
-fn fallback(id: usize) -> *mut c_void {
+pub(crate) fn fallback(id: usize) -> *mut c_void {
     let p = FALLBACKS[id].load(Ordering::Acquire);
     assert!(
         !p.is_null(),

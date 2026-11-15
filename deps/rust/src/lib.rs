@@ -65,6 +65,7 @@ mod storage_layout;
 mod structured_blas;
 mod structured_evd;
 mod structured_generalized;
+mod structured_generalized_band;
 mod structured_selected_evd;
 mod structured_triangular;
 mod structured_triangular_lapack;

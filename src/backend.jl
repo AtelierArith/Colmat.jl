@@ -224,16 +224,25 @@ function load_backend(; verbose::Bool=false)
                 "Colmat QZ reordering requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
-        # Packed generalized EVD retains its original driver for native refusal.
+        # Structured generalized routines retain original entries for native refusal.
         register_structured_gv = Libdl.dlsym(_handle[], :colmat_structured_gv_set_fallback)
         has_structured_gv = Libdl.dlsym(_handle[], :colmat_structured_gv_has_fallback)
-        for (id, symbol) in enumerate(("sspgv_", "dspgv_", "chpgv_", "zhpgv_"))
+        for (id, symbol) in (
+            (0, "sspgv_"),
+            (1, "dspgv_"),
+            (2, "chpgv_"),
+            (3, "zhpgv_"),
+            (12, "ssbgst_"),
+            (13, "dsbgst_"),
+            (14, "chbgst_"),
+            (15, "zhbgst_"),
+        )
             previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
             if previous !== nothing && realpath(previous.libname) != realpath(path)
                 pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_structured_gv, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
+                ccall(register_structured_gv, Cvoid, (Cint, Ptr{Cvoid}), id, pointer)
             end
-            ccall(has_structured_gv, Cint, (Cint,), id - 1) != 0 || error(
+            ccall(has_structured_gv, Cint, (Cint,), id) != 0 || error(
                 "Colmat structured generalized EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
