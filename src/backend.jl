@@ -31,6 +31,8 @@ Selected and QR-preconditioned SVD save ILP64 entries for native failures and
 GESVDQ condition estimation; independent Jacobi drivers remain on the existing backend.
 TGSEN reorder-only and GGESX SENSE=N calls run in colmat, with ILP64 LAPACK entries for
 condition and separation estimates, with integer conversion for LP64 callers.
+Structured generalized EVD also saves original ILP64 entries for numerical recovery,
+positive ABSTOL, and precision guards at selected value boundaries.
 Call again to select Colmat after loading another BLAS provider. Configure the
 backend before starting concurrent BLAS work.
 """
@@ -222,6 +224,48 @@ function load_backend(; verbose::Bool=false)
             end
             ccall(has_qz, Cint, (Cint,), id - 1) != 0 || error(
                 "Colmat QZ reordering requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
+        # Structured generalized routines retain original entries for native refusal.
+        register_structured_gv = Libdl.dlsym(_handle[], :colmat_structured_gv_set_fallback)
+        has_structured_gv = Libdl.dlsym(_handle[], :colmat_structured_gv_has_fallback)
+        for (id, symbol) in (
+            (0, "sspgv_"),
+            (1, "dspgv_"),
+            (2, "chpgv_"),
+            (3, "zhpgv_"),
+            (4, "sspgvd_"),
+            (5, "dspgvd_"),
+            (6, "chpgvd_"),
+            (7, "zhpgvd_"),
+            (8, "sspgvx_"),
+            (9, "dspgvx_"),
+            (10, "chpgvx_"),
+            (11, "zhpgvx_"),
+            (12, "ssbgst_"),
+            (13, "dsbgst_"),
+            (14, "chbgst_"),
+            (15, "zhbgst_"),
+            (16, "ssbgv_"),
+            (17, "dsbgv_"),
+            (18, "chbgv_"),
+            (19, "zhbgv_"),
+            (20, "ssbgvd_"),
+            (21, "dsbgvd_"),
+            (22, "chbgvd_"),
+            (23, "zhbgvd_"),
+            (24, "ssbgvx_"),
+            (25, "dsbgvx_"),
+            (26, "chbgvx_"),
+            (27, "zhbgvx_"),
+        )
+            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_structured_gv, Cvoid, (Cint, Ptr{Cvoid}), id, pointer)
+            end
+            ccall(has_structured_gv, Cint, (Cint,), id) != 0 || error(
+                "Colmat structured generalized EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.

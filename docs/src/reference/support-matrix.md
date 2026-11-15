@@ -1285,3 +1285,42 @@ GGESX の選択 callback も64 bit LOGICAL に変換し、スレッドごとの�
 `test/qz_reorder.jl` は両 ABI、実数1×1/2×2の移動、外部因子への Q/Z 更新、
 配列余白と未使用因子、条件推定の参照 LAPACK 比較、query と最小 WORK、
 および LBT の転送先と実呼び出しを検証します。
+
+## Band/packed 一般化自己随伴 EVD と標準形変換
+
+Issue #308 は SBG/HBG/SPG/HPG の GST/GV/GVD/GVX 32 Fortran シンボルを
+4型・LP64/ILP64 に接続します。各 ABI は1234シンボル
+（BLAS 202、LAPACK 1032）です。native revision は
+`4e6ed0e34659147a5c744ab6431f150e78db6f82` のままです。
+
+packed GST は既存の三角 Cholesky 因子を受け取り、ITYPE=1/2/3 の合同変換を行います。
+band GST は PBSTF の split 因子 `S = [U 0; M L]` を復元し、native block triangular
+solve と反射変換から `C=XᴴAX`、`XᴴBX=I` を構成します。元の KA 帯幅内へ保存し、
+BB と指定外格納・padding を変更しません。dense 所有行列と scratch を使う合成経路で、
+専用 band bulge chase と同じ計算量・性能を主張しません。
+
+GV/GVD は Cholesky・標準形変換・native 全 EVD・逆変換を共有します。
+band の BB 出力は通常の三角 Cholesky ではなく split 因子です。band の非正定値 B は
+`INFO=N+i` を返し、逆順ピボットを含む部分因子を保持します。未処理の複素対角は
+読み書きせず、処理済み／更新済みの対角だけを実数へ戻します。
+GVD は query と各入口の最小 WORK/RWORK/IWORK を保持しますが、内部領域を別途確保し、
+同名の divide-and-conquer アルゴリズムを実行するという意味ではありません。
+
+GVX は native 全スペクトルから A/I/V を選択します。band の Q は全一般化固有基底で、
+`QᴴAQ=diag(λ)`、`QᴴBQ=I` となり、選択した列を Z に返します。対角形も三重対角形なので、
+AB は対応する対角三重対角行列を保存します。専用の部分固有値・Sturm count 算法ではありません。
+正の ABSTOL、native 拒否、精度に基づく guard 内の値域端点は、入力変更前に保存した
+元の ILP64 LAPACK へ渡します。LP64 の整数作業配列と IFAIL は書き込まれた slot だけ戻します。
+W/Z/IFAIL の選択外、JOBZ=N の Q/Z、行列 padding を保持します。
+packed の N=1・空値域では Z=1 を返し IFAIL は保持するという PEVX の挙動も区別します。
+複素 HPGVX の参照実装は N=0 で M を未設定のまま戻る版がありますが、adapter は M=0 を返します。
+
+`test/structured_generalized*.jl` は外部因子との相互利用、各 ITYPE・UPLO・range、
+残差と B 正規化、ゼロ・階数1・重複スペクトル、Q の変換式、query・厳密な最小領域・不足時診断、型・整数 ABI・格納 guard、
+および LBT の実転送を検証します。正の ABSTOL の残差は要求された絶対精度も含めて判定し、
+既定精度・厳しい正の ABSTOL の固定許容誤差を緩めません。
+
+参照 OpenBLAS 0.3.30 の実数 SBGVD は N=1/JOBZ=V で宣言した最小 LWORK=1 の外へ書き、
+WORK の初期値に依存した未正規化ベクトルを返します。安全な余裕領域での独立再現を
+`reproducers/openblas-sbgvd-singleton-workspace.jl` に保存しました。参照比較の当該経路だけに
+余裕を持たせ、native は最小領域と独立した残差・B 正規化で検証します。
