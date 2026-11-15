@@ -32,7 +32,7 @@ impl Storage {
             }
         }
     }
-    fn index(self, n: usize, lower: bool, i: usize, j: usize) -> usize {
+    pub(crate) fn index(self, n: usize, lower: bool, i: usize, j: usize) -> usize {
         match self {
             Self::Band { width, ld } => j * ld + if lower { i - j } else { width + i - j },
             Self::Packed => {

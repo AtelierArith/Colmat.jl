@@ -782,9 +782,9 @@
         "hpevx"
       ],
       "status": "representation",
-      "api": "self_adjoint_evd",
+      "api": "dense expansion / native full-spectrum self-adjoint EVD",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "専用 band/packed/RFP API はない。入力の展開だけでなく、因子保存・pivot・workspace・INFO の変換も必要"
+      "note": "24 Fortran シンボルを両 ABI に接続。band/packed の指定区間から所有する O(n²) の Hermitian 行列へ展開し、native 全 EVD を使う。BEV/BEVD と PEV/PEVD は共通経路で、専用 band/packed 算法を提供する主張ではない。VX は全スペクトルから A/I/V を選択し、band の Q は全固有ベクトル、AB は対角化された三重対角行列を返す。正の ABSTOL・native 失敗・精度に基づく guard 内の値域端点は保存した ILP64 expert driver に渡し、LP64 の整数配列を変換する。workspace query と最小合法 work を保持するが native 内部領域は別途確保。C ABI は別タスク。"
     },
     {
       "routines": [

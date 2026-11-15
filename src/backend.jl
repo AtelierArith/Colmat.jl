@@ -25,6 +25,8 @@ the relative/absolute accuracy modes not provided by the native API.
 Generalized self-adjoint drivers save ILP64 entries for native failures and
 positive-ABSTOL range calculations. SYEVX/HEEVX also save ILP64 entries for
 positive ABSTOL and native failures.
+Band/packed selected EVD also retains ILP64 expert entries for positive ABSTOL,
+native failures and value-range endpoints within a precision-based guard of native eigenvalues.
 Selected and QR-preconditioned SVD save ILP64 entries for native failures and
 GESVDQ condition estimation; independent Jacobi drivers remain on the existing backend.
 Call again to select Colmat after loading another BLAS provider. Configure the
@@ -174,6 +176,27 @@ function load_backend(; verbose::Bool=false)
             end
             ccall(has_vx, Cint, (Cint,), id-1)!=0 || error(
                 "Colmat selected self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
+        register_structured = Libdl.dlsym(_handle[], :colmat_structured_evd_set_fallback)
+        has_structured = Libdl.dlsym(_handle[], :colmat_structured_evd_has_fallback)
+        for (id, symbol) in enumerate((
+            "ssbevx_",
+            "dsbevx_",
+            "chbevx_",
+            "zhbevx_",
+            "sspevx_",
+            "dspevx_",
+            "chpevx_",
+            "zhpevx_",
+        ))
+            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_structured, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
+            end
+            ccall(has_structured, Cint, (Cint,), id - 1) != 0 || error(
+                "Colmat band/packed selected EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.

@@ -1023,3 +1023,40 @@ Colmat の未使用 B は全要素の不変を検証します。極小/巨大値
 テストは4型・両 ABI、実数 D と複素 E の再構成、upper/lower と複数 RHS、外部因子の再利用、
 非正定値 INFO と途中 D/E/B、n=0/1、subnormal と巨大 multiplier、非有限値、guard、
 全16入口の数値 LBT 呼び出し、引数検証順序、INFO/整数幅と巨大な未使用 stride を確認します。
+
+## band/packed 自己随伴 EVD（#286）
+
+colmat-rs `4e6ed0e34659147a5c744ab6431f150e78db6f82` の全スペクトル自己随伴 EVD を使い、
+実 SB/SP と複素 HB/HP の BEV/BEVD/BEVX・PEV/PEVD/PEVX、24 Fortran canonical シンボルを
+両整数 ABI に接続しました。各 ABI の対応数は1002（BLAS 202、LAPACK 800）です。C ABI は別タスクです。
+
+指定された三角・帯幅・packed 区間だけを読み、所有する full dense Hermitian 行列へ展開します。
+複素対角の虚部と未使用の band padding は読みません。BEV/BEVD と PEV/PEVD は同じ native
+全 EVD を使います。専用の band/packed eigensolver や driver ごとの QR/DC 算法を実装したという
+主張ではありません。values-only と部分範囲でも O(n²) の内部行列・作業領域を確保し、全スペクトルを
+計算します。caller WORK の最小長を指定しても、この内部確保は別途必要です。
+
+VX の非正 ABSTOL は、全固有値から A/I/V を選択します。値域は (VL,VU]、index は1始まりです。
+n>1 の band VX は全固有ベクトルを Q、全固有値を AB の対角へ返し、保存された非対角を0にします。
+この対角行列も三重対角行列 T であり、元の A=Q*T*Qᴴ を満たします。選択された列だけを Z に返すため、
+Q は部分 Z と同一ではありません。packed 出力も native 成功後は対角化した保存形式になります。
+JOBZ=N は Q/Z/IFAIL を参照せず、選択結果より後の W/Z/IFAIL と padding/guard を保持します。
+N=1 の packed VX は範囲が空でも Z(1,1)=1 を返し、band VX は選択時だけ書きます。
+両者の singleton quick return は Q/IFAIL を変更しません。
+
+正の ABSTOL の絶対精度契約は native の通常 EVD で代用しません。native 失敗、または値域の端点が
+native 固有値から `64*n*eps(R)*max(abs.(λ))` 以内の場合も、元の入力を変更する前に保存した ILP64
+expert driver へ渡します。この guard は丸めによる端点の取り違えを避けるための保守的な判定で、
+誤差の厳密な証明や native Sturm count の実装を意味しません。LP64 は整数スカラー・IWORK/IFAIL を
+ILP64 と変換します。ロード前に expert backend が必要で、再ロード時に自分自身を保存しません。
+通常 BEV/BEVD・PEV/PEVD の native 失敗は正の INFO=1 で通知し、未収束の内部 index は公開しません。
+
+BEVD/PEVD は Reference-LAPACK の WORK/RWORK/IWORK 最小長を報告し、いずれかの長さが -1 なら
+全領域の query として扱います。query と不正引数では数学的な入力を読みません。
+単精度の推奨長は必要な整数長を下回らない向きに丸めます。表現できない最小長、LP64 の IWORK(1) に
+収まらない推奨値、アドレス計算できない内部領域は検出し、整数を黙って切り詰めません。
+
+Reference-LAPACK 3.12.1 と OpenBLAS 0.3.30 の BEVD は N=1・UPLO=U・KD>0 の quick return で
+仕様上の AB(KD+1,1) の代わりに AB(1,1) を読みます。
+[Colmat を読み込まない4型の単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-bevd-singleton-upper.jl)
+を残し、この境界は独立した1要素の固有値と残差で検証します。Colmat は仕様上の対角を読みます。
