@@ -10,6 +10,7 @@ mod balance;
 mod band_cholesky;
 mod band_lu;
 mod bidiagonal;
+mod bidiagonal_driver;
 mod bidiagonal_panel;
 mod bidiagonal_svd;
 mod bidiagonal_vectors;
