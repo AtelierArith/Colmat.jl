@@ -867,3 +867,9 @@ OpenBLAS 0.3.30 の complex SPR/SPR2 には負 stride の開始位置に関す�
 正 stride に並べて比較します。no-transpose の三角演算についても、ゼロに掛かる列の NaN は
 最適化された provider で伝播する場合があります。Colmat は参照 Netlib のゼロ列スキップを保ち、
 当該テストの差分参照には計算結果を変えない有限の列を置いた行列を使います。
+Linux の OpenBLAS では SFRK の alpha=0、beta=0.5、NaN を置いた未使用 A から、
+off-diagonal block に NaN が伝播する差も確認しました。Colmat は未使用 A の NaN を
+そのまま使って独立 scalar 参照と照合し、provider との比較だけを同じゼロ積を与える
+有限 A に置き換えます。
+[Colmat を読み込まない単独再現](https://github.com/AtelierArith/Colmat.jl/blob/main/reproducers/openblas-sfrk-zero-product.jl)
+には、NaN を置いた A と有限 A の結果を出力する診断を残しています。

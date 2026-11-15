@@ -152,10 +152,10 @@ end
                         zero(T)
                     else
                         alpha*sum(
-                        fixture.op[i, l]*(
-                            T <: Complex ? conj(fixture.op[j, l]) : fixture.op[j, l]
-                        ) for l in 1:k
-                    )
+                            fixture.op[i, l]*(
+                                T <: Complex ? conj(fixture.op[j, l]) : fixture.op[j, l]
+                            ) for l in 1:k
+                        )
                     end
                     expected=(beta==0 ? zero(T) : beta*fixture.base[i, j])+product
                     @test isapprox(actual[i, j], expected; rtol=200eps(R), atol=200eps(R))
@@ -172,8 +172,14 @@ end
         end
         if J===Int64
             external=copy(fixture.c)
+            # Some optimized SFRK providers evaluate 0*NaN in the off-diagonal
+            # GEMM block when alpha=0 and beta is neither zero nor one.
+            # Colmat still receives poisoned A above and is checked against
+            # the independent scalar oracle. Use the same zero-product
+            # problem with finite A for the provider comparison only.
+            referencea=alpha==0 ? zero.(a) : a
             direct_rfp_rank!(
-                a,
+                referencea,
                 external,
                 J;
                 trr,
