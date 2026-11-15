@@ -837,22 +837,42 @@ unsafe fn general_driver<T: General>(
     Ok((e.w, e.wi, lo, hi, encoded, abnrm))
 }
 
-use core::ffi::c_void;
-use std::sync::atomic::{AtomicPtr, Ordering};
-static EXPERT_FALLBACKS: [AtomicPtr<c_void>; 8] =
-    [const { AtomicPtr::new(core::ptr::null_mut()) }; 8];
-#[no_mangle]
-pub extern "C" fn colmat_lapack_set_expert_fallback(id: i32, bits: i32, p: *mut c_void) {
-    if (0..4).contains(&id) {
-        EXPERT_FALLBACKS[id as usize * 2 + usize::from(bits == 64)].store(p, Ordering::Relaxed);
-    }
-}
-
 macro_rules! eigen_exports{
 ($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr,($($wi:ident:$wity:ty,)?),($($extra:ident:$ext:ty,)*),($($gextra:ident:$gext:ty,)*))=>{paste::paste!{
 #[no_mangle]
 pub unsafe extern "C" fn [<$p geevx $s>](bal:*const u8,jl:*const u8,jr:*const u8,sense:*const u8,n:*const $i,a:*mut $t,lda:*const $i,w:*mut $t,$($wi:$wity,)?vl:*mut $t,ldvl:*const $i,vr:*mut $t,ldvr:*const $i,ilo:*mut $i,ihi:*mut $i,scale:*mut $r,abnrm:*mut $r,rconde:*mut $r,rcondv:*mut $r,work:*mut $t,lwork:*const $i,$($extra:$ext,)*info:*mut $i){
- if flag(sense)!=b'N'{let ptr=EXPERT_FALLBACKS[$id*2+usize::from(core::mem::size_of::<$i>()==8)].load(Ordering::Relaxed);if !ptr.is_null(){let f:unsafe extern "C" fn(*const u8,*const u8,*const u8,*const u8,*const $i,*mut $t,*const $i,*mut $t,$($wity,)?*mut $t,*const $i,*mut $t,*const $i,*mut $i,*mut $i,*mut $r,*mut $r,*mut $r,*mut $r,*mut $t,*const $i,$($ext,)* *mut $i,usize,usize,usize,usize)=core::mem::transmute(ptr);f(bal,jl,jr,sense,n,a,lda,w,$($wi,)?vl,ldvl,vr,ldvr,ilo,ihi,scale,abnrm,rconde,rcondv,work,lwork,$($extra,)*info,1,1,1,1);return;}}
+ let (b0,l0,r0,se,n0,la0,ll0,lr0,lw0)=(flag(bal),flag(jl),flag(jr),flag(sense),(*n).val(),(*lda).val(),(*ldvl).val(),(*ldvr).val(),(*lwork).val());
+ let offset=if <$t>::COMPLEX{0}else{1};
+ valid!(info,1=>matches!(b0,b'N'|b'P'|b'S'|b'B'),2=>matches!(l0,b'N'|b'V'),3=>matches!(r0,b'N'|b'V'),4=>matches!(se,b'N'|b'E'|b'V'|b'B') && (!matches!(se,b'E'|b'B') || (l0==b'V' && r0==b'V')),5=>n0>=0,7=>la0>=n0.max(1),10+offset=>ll0>=1 && (l0!=b'V'||ll0>=n0),12+offset=>lr0>=1 && (r0!=b'V'||lr0>=n0));
+ if se!=b'N' {
+  if lw0 != -1 {
+   let Some(minimum)=crate::geevx_expert::minimum(n0,<$t>::COMPLEX,l0==b'V',r0==b'V',se) else {bad(&mut *info,5);return;};
+   if lw0<minimum {*work=workspace::<$t>(minimum);bad(&mut *info,20+offset);return;}
+   valid!(info,7=>crate::kernels::matrix_addressable::<$t>(n0,n0,la0),10+offset=>l0!=b'V'||crate::kernels::matrix_addressable::<$t>(n0,n0,ll0),12+offset=>r0!=b'V'||crate::kernels::matrix_addressable::<$t>(n0,n0,lr0));
+  }
+  let ptr=crate::geevx_expert::pointer($id,if core::mem::size_of::<$i>()==8 {64}else{32});
+  if !ptr.is_null() {
+   let f:unsafe extern "C" fn(*const u8,*const u8,*const u8,*const u8,*const $i,*mut $t,*const $i,*mut $t,$($wity,)?*mut $t,*const $i,*mut $t,*const $i,*mut $i,*mut $i,*mut $r,*mut $r,*mut $r,*mut $r,*mut $t,*const $i,$($ext,)* *mut $i,usize,usize,usize,usize)=core::mem::transmute(ptr);
+   f(bal,jl,jr,sense,n,a,lda,w,$($wi,)?vl,ldvl,vr,ldvr,ilo,ihi,scale,abnrm,rconde,rcondv,work,lwork,$($extra,)*info,1,1,1,1);
+   if (*info).val()<0 {crate::invalid(-(*info).val() as i32);}return;
+  }
+  let ptr=crate::geevx_expert::pointer($id,64);
+  if ptr.is_null() {
+   // Expert calls require initialization through load_backend. Preserve INFO
+   // rather than fabricating a LAPACK value for a missing implementation.
+   crate::invalid(-1);return;
+  }
+  let (n64,la64,ll64,lr64,lw64)=(n0 as i64,la0 as i64,ll0 as i64,lr0 as i64,lw0 as i64);
+  let (mut lo64,mut hi64,mut info64)=(i64::MIN,i64::MIN,i64::MIN);
+  $(let (extra64,extra_state)=<$ext as crate::geevx_expert::Auxiliary>::widen($extra,n0 as usize,lw0== -1,matches!(se,b'V'|b'B'));)*
+  let f:unsafe extern "C" fn(*const u8,*const u8,*const u8,*const u8,*const i64,*mut $t,*const i64,*mut $t,$($wity,)?*mut $t,*const i64,*mut $t,*const i64,*mut i64,*mut i64,*mut $r,*mut $r,*mut $r,*mut $r,*mut $t,*const i64,$(<$ext as crate::geevx_expert::Auxiliary>::Wide,)* *mut i64,usize,usize,usize,usize)=core::mem::transmute(ptr);
+  f(bal,jl,jr,sense,&n64,a,&la64,w,$($wi,)?vl,&ll64,vr,&lr64,&mut lo64,&mut hi64,scale,abnrm,rconde,rcondv,work,&lw64,$( { let _ = $extra; extra64 },)*&mut info64,1,1,1,1);
+  if [lo64,hi64,info64].iter().any(|&v|v!=i64::MIN && <$i>::try_from(v).is_err()){crate::invalid(-2);return;}
+  $(if !<$ext as crate::geevx_expert::Auxiliary>::commit($extra,extra_state){crate::invalid(-2);return;})*
+  if lo64!=i64::MIN {*ilo=lo64 as $i;}if hi64!=i64::MIN {*ihi=hi64 as $i;}
+  if info64!=i64::MIN {*info=info64 as $i;if info64<0{crate::invalid(-info64 as i32);}}
+  return;
+ }
  *info=0;let(bal,jl,jr,nn,la,ll,lr,lw)=(flag(bal),flag(jl),flag(jr),(*n).val(),(*lda).val(),(*ldvl).val(),(*ldvr).val(),(*lwork).val());let off=if <$t>::COMPLEX{0}else{1};
  valid!(info,1=>matches!(bal,b'N'|b'P'|b'S'|b'B'),2=>matches!(jl,b'N'|b'V'),3=>matches!(jr,b'N'|b'V'),4=>flag(sense)==b'N',5=>nn>=0,7=>la>=1.max(nn),10+off=>ll>=1&&(jl!=b'V'||ll>=nn),12+off=>lr>=1&&(jr!=b'V'||lr>=nn),20+off=>lw== -1||lw>=1.max(if <$t>::COMPLEX{2*nn}else if jl==b'V'||jr==b'V'{3*nn}else{2*nn}));
  *work=workspace::<$t>(1.max(4*nn));if lw== -1{return;}

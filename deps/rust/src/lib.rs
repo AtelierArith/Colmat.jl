@@ -18,6 +18,7 @@ mod complete_pivot_lu;
 mod complex_auxiliary;
 mod constrained_least_squares;
 mod dense_extensions;
+mod geevx_expert;
 mod general_equilibration;
 mod generalized_eigen;
 mod generalized_hessenberg;
@@ -87,6 +88,8 @@ use std::cell::Cell;
 
 // BLAS cannot return Rust exceptions. Keep invalid-argument diagnostics queryable
 // without unwinding, allocating an error string, or touching Julia's runtime.
+// Positive diagnostics identify invalid arguments; -1 means a required saved
+// backend is unavailable, and -2 means an external integer output is out of range.
 thread_local! { static LAST_ERROR: Cell<i32> = const { Cell::new(0) }; }
 fn invalid(argument: i32) {
     LAST_ERROR.with(|e| e.set(argument));

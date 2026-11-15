@@ -16,7 +16,8 @@ backend_library() = abspath(_library)
 
 Install Colmat's LP64 and ILP64 BLAS/LAPACK symbols in libblastrampoline for this process.
 Existing forwards for unprovided routines are preserved. GEEVX uses the saved
-backend for expert condition estimates; its SENSE=N path runs in colmat.
+ILP64 backend for expert condition estimates, bridging LP64 integer outputs;
+its SENSE=N path runs in colmat. An ILP64 GEEVX backend must exist before registration.
 GGEVX runs BALANC=N/SENSE=N in colmat; other modes require a saved ILP64
 expert backend, with integer conversion for LP64 callers. Such a backend must
 be configured before loading Colmat (Julia normally provides OpenBLAS).
@@ -55,6 +56,7 @@ function load_backend(; verbose::Bool=false)
         # Expert GEEVX condition estimates have no matching public colmat API.
         # Retain the previous implementation for SENSE=E/V/B; SENSE=N is native.
         register = Libdl.dlsym(_handle[], :colmat_lapack_set_expert_fallback)
+        has_expert = Libdl.dlsym(_handle[], :colmat_lapack_has_expert_fallback)
         for (id, prefix) in enumerate(("s", "d", "c", "z")), interface in (:lp64, :ilp64)
             symbol = prefix * "geevx_"
             previous = BLAS.lbt_find_backing_library(symbol, interface)
@@ -69,6 +71,11 @@ function load_backend(; verbose::Bool=false)
                     pointer,
                 )
             end
+        end
+        for id in 0:3
+            ccall(has_expert, Cint, (Cint, Cint), id, 64) != 0 || error(
+                "Colmat GEEVX requires an existing ILP64 expert backend; configure one before loading Colmat.",
+            )
         end
         # Generalized expert balancing/condition estimates remain on the previous
         # ILP64 backend. Rust bridges LP64 calls and owns integer scratch buffers.
