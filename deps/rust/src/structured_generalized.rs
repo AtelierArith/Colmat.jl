@@ -208,6 +208,133 @@ pub(crate) fn fallback(id: usize) -> *mut c_void {
     );
     p
 }
+// Packed GVD exposes its LAPACK workspace contract while sharing the native
+// standardization/EVD path. It does not claim a native divide-and-conquer driver.
+fn packed_dc_workspace(n: isize, vectors: bool, complex: bool) -> Option<(isize, isize, isize)> {
+    if n <= 1 {
+        return Some((1, 1, 1));
+    }
+    if vectors {
+        let square = n.checked_mul(n)?.checked_mul(2)?;
+        let iw = n.checked_mul(5)?.checked_add(3)?;
+        if complex {
+            Some((
+                n.checked_mul(2)?,
+                n.checked_mul(5)?.checked_add(square)?.checked_add(1)?,
+                iw,
+            ))
+        } else {
+            Some((
+                n.checked_mul(6)?.checked_add(square)?.checked_add(1)?,
+                1,
+                iw,
+            ))
+        }
+    } else if complex {
+        Some((n, n, 1))
+    } else {
+        Some((n.checked_mul(2)?, 1, 1))
+    }
+}
+unsafe fn packed_dc<T: GeneralizedScalar, R: Scalar, I: LapackInt>(
+    kind: isize,
+    job: u8,
+    u: u8,
+    n: isize,
+    ap: *mut T,
+    bp: *mut T,
+    w: *mut R,
+    z: *mut T,
+    ldz: isize,
+    work: *mut T,
+    lwork: isize,
+    rwork: Option<(*mut R, isize)>,
+    iwork: *mut I,
+    liwork: isize,
+    info: *mut I,
+) -> bool {
+    *info = I::from_i64(0);
+    for (arg, ok) in [
+        (1, (1..=3).contains(&kind)),
+        (2, matches!(job, b'N' | b'V')),
+        (3, matches!(u, b'U' | b'L')),
+        (4, n >= 0),
+        (9, ldz >= 1 && (job == b'N' || ldz >= n)),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    let Some((nw, nr, ni)) = packed_dc_workspace(n, job == b'V', T::COMPLEX) else {
+        *info = I::from_i64(-11);
+        crate::invalid(11);
+        return true;
+    };
+    let max = if std::mem::size_of::<I>() == 4 {
+        i32::MAX as isize
+    } else {
+        isize::MAX
+    };
+    for (arg, size) in [(11, nw), (13, nr), (if T::COMPLEX { 15 } else { 13 }, ni)] {
+        if size > max {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    *work = crate::lapack::workspace::<T>(nw);
+    *iwork = I::from_i64(ni as i64);
+    if let Some((p, _)) = rwork {
+        *p = crate::lapack::workspace::<R>(nr);
+    }
+    let query = lwork == -1 || liwork == -1 || rwork.is_some_and(|(_, len)| len == -1);
+    for (arg, ok) in [
+        (11, query || lwork >= nw),
+        (13, query || rwork.is_none_or(|(_, len)| len >= nr)),
+        (if T::COMPLEX { 15 } else { 13 }, query || liwork >= ni),
+    ] {
+        if !ok {
+            *info = I::from_i64(-arg);
+            crate::invalid(arg as i32);
+            return true;
+        }
+    }
+    if query {
+        return true;
+    }
+    packed_gv(kind, job, u, n, ap, bp, w, z, ldz, info)
+}
+macro_rules! packed_gvd_real {($p:ident,$t:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p spgvd $s>](kind:*const $i,job:*const u8,u:*const u8,n:*const $i,ap:*mut $t,bp:*mut $t,w:*mut $t,z:*mut $t,ldz:*const $i,work:*mut $t,lwork:*const $i,iwork:*mut $i,liwork:*const $i,info:*mut $i) {
+        if packed_dc((*kind).val(),flag(job),flag(u),(*n).val(),ap,bp,w,z,(*ldz).val(),work,(*lwork).val(),None,iwork,(*liwork).val(),info) {return;}
+        let f:unsafe extern "C" fn(*const i64,*const u8,*const u8,*const i64,*mut $t,*mut $t,*mut $t,*mut $t,*const i64,*mut $t,*const i64,*mut i64,*const i64,*mut i64,usize,usize)=std::mem::transmute(fallback(4+$id));
+        let (_,_,need)=packed_dc_workspace((*n).val(),flag(job)==b'V',false).unwrap();
+        let mut scratch=Vec::new();let (iw,len)=if std::mem::size_of::<$i>()==8 {(iwork.cast::<i64>(),(*liwork).val() as i64)} else {scratch.resize(need as usize,i64::MIN);(scratch.as_mut_ptr(),need as i64)};
+        let mut status=0i64;f(&((*kind).val() as i64),job,u,&((*n).val() as i64),ap,bp,w,z,&((*ldz).val() as i64),work,&((*lwork).val() as i64),iw,&len,&mut status,1,1);*info=status as $i;
+        for(k,value)in scratch.into_iter().enumerate(){if value!=i64::MIN{*iwork.add(k)=value as $i;}}
+    }
+}};}
+macro_rules! packed_gvd_complex {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
+    #[no_mangle] pub unsafe extern "C" fn [<$p hpgvd $s>](kind:*const $i,job:*const u8,u:*const u8,n:*const $i,ap:*mut $t,bp:*mut $t,w:*mut $r,z:*mut $t,ldz:*const $i,work:*mut $t,lwork:*const $i,rwork:*mut $r,lrwork:*const $i,iwork:*mut $i,liwork:*const $i,info:*mut $i) {
+        if packed_dc((*kind).val(),flag(job),flag(u),(*n).val(),ap,bp,w,z,(*ldz).val(),work,(*lwork).val(),Some((rwork,(*lrwork).val())),iwork,(*liwork).val(),info) {return;}
+        let f:unsafe extern "C" fn(*const i64,*const u8,*const u8,*const i64,*mut $t,*mut $t,*mut $r,*mut $t,*const i64,*mut $t,*const i64,*mut $r,*const i64,*mut i64,*const i64,*mut i64,usize,usize)=std::mem::transmute(fallback(4+$id));
+        let (_,_,need)=packed_dc_workspace((*n).val(),flag(job)==b'V',true).unwrap();
+        let mut scratch=Vec::new();let (iw,len)=if std::mem::size_of::<$i>()==8 {(iwork.cast::<i64>(),(*liwork).val() as i64)} else {scratch.resize(need as usize,i64::MIN);(scratch.as_mut_ptr(),need as i64)};
+        let mut status=0i64;f(&((*kind).val() as i64),job,u,&((*n).val() as i64),ap,bp,w,z,&((*ldz).val() as i64),work,&((*lwork).val() as i64),rwork,&((*lrwork).val() as i64),iw,&len,&mut status,1,1);*info=status as $i;
+        for(k,value)in scratch.into_iter().enumerate(){if value!=i64::MIN{*iwork.add(k)=value as $i;}}
+    }
+}};}
+packed_gvd_real!(s, f32, i32, _, 0);
+packed_gvd_real!(d, f64, i32, _, 1);
+packed_gvd_real!(s, f32, i64, _64_, 0);
+packed_gvd_real!(d, f64, i64, _64_, 1);
+packed_gvd_complex!(c, colmat::c32, f32, i32, _, 2);
+packed_gvd_complex!(z, colmat::c64, f64, i32, _, 3);
+packed_gvd_complex!(c, colmat::c32, f32, i64, _64_, 2);
+packed_gvd_complex!(z, colmat::c64, f64, i64, _64_, 3);
+
 macro_rules! packed_gv_real {($p:ident,$t:ty,$i:ty,$s:tt,$id:expr)=>{paste::paste!{
     #[no_mangle] pub unsafe extern "C" fn [<$p spgv $s>](kind:*const $i,job:*const u8,u:*const u8,n:*const $i,ap:*mut $t,bp:*mut $t,w:*mut $t,z:*mut $t,ldz:*const $i,work:*mut $t,info:*mut $i) {
         if packed_gv((*kind).val(),flag(job),flag(u),(*n).val(),ap,bp,w,z,(*ldz).val(),info) {return;}
@@ -248,6 +375,147 @@ packed_exports!(z, hpgst, colmat::c64, i64, _64_);
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn dc_abi<T: GeneralizedScalar, R: Scalar, I: LapackInt>(tol: f64) {
+        let (nw, nr, ni) = if T::COMPLEX { (6, 34, 18) } else { (37, 1, 18) };
+        for which in 0..if T::COMPLEX { 3 } else { 2 } {
+            let mut work = [T::real(777.0); 3];
+            let mut rw = [R::real(777.0); 3];
+            let mut iw = [I::from_i64(-777); 3];
+            let mut info = I::from_i64(-777);
+            assert!(unsafe {
+                packed_dc(
+                    1,
+                    b'V',
+                    b'L',
+                    3,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    3,
+                    &mut work[1],
+                    if which == 0 { -1 } else { 0 },
+                    if T::COMPLEX {
+                        Some((&mut rw[1], if which == 2 { -1 } else { 0 }))
+                    } else {
+                        None
+                    },
+                    &mut iw[1],
+                    if which == 1 { -1 } else { 0 },
+                    &mut info,
+                )
+            });
+            assert_eq!(info.val(), 0);
+            assert_eq!(crate::colmat_blas_last_error(), 0);
+            assert_eq!(work[1].re(), nw as f64);
+            assert_eq!(iw[1].val(), ni);
+            if T::COMPLEX {
+                assert_eq!(rw[1].re(), nr as f64);
+            }
+            for k in [0usize, 2] {
+                assert_eq!(work[k].re(), 777.0);
+                assert_eq!(rw[k].re(), 777.0);
+                assert_eq!(iw[k].val(), -777);
+            }
+        }
+        let mut work = T::real(777.0);
+        let mut rw = R::real(777.0);
+        let mut iw = I::from_i64(-777);
+        let mut info = I::from_i64(-777);
+        for (lw, lr, li, arg) in [
+            (nw - 1, nr, ni, 11),
+            (nw, nr, ni - 1, if T::COMPLEX { 15 } else { 13 }),
+        ] {
+            assert!(unsafe {
+                packed_dc(
+                    1,
+                    b'V',
+                    b'L',
+                    3,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    3,
+                    &mut work,
+                    lw,
+                    if T::COMPLEX {
+                        Some((&mut rw, lr))
+                    } else {
+                        None
+                    },
+                    &mut iw,
+                    li,
+                    &mut info,
+                )
+            });
+            assert_eq!(info.val(), -arg);
+            assert_eq!(crate::colmat_blas_last_error(), arg as i32);
+        }
+        if T::COMPLEX {
+            assert!(unsafe {
+                packed_dc(
+                    1,
+                    b'V',
+                    b'L',
+                    3,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    3,
+                    &mut work,
+                    nw,
+                    Some((&mut rw, nr - 1)),
+                    &mut iw,
+                    ni,
+                    &mut info,
+                )
+            });
+            assert_eq!(info.val(), -13);
+            assert_eq!(crate::colmat_blas_last_error(), 13);
+        }
+        let mut a = T::real(3.0);
+        let mut b = T::real(2.0);
+        let mut w = R::real(777.0);
+        let mut z = T::real(777.0);
+        assert!(unsafe {
+            packed_dc(
+                1,
+                b'V',
+                b'L',
+                1,
+                &mut a,
+                &mut b,
+                &mut w,
+                &mut z,
+                isize::MAX,
+                &mut work,
+                1,
+                if T::COMPLEX { Some((&mut rw, 1)) } else { None },
+                &mut iw,
+                1,
+                &mut info,
+            )
+        });
+        assert_eq!(info.val(), 0);
+        assert_eq!(crate::colmat_blas_last_error(), 0);
+        assert!((w.re() - 1.5).abs() < tol);
+        assert!((z.magnitude() - 1.0 / 2.0f64.sqrt()).abs() < tol);
+        assert_eq!(work.re(), 1.0);
+        assert_eq!(iw.val(), 1);
+    }
+    #[test]
+    fn packed_dc_query_and_minimum_work_integer_abis() {
+        dc_abi::<f32, f32, i32>(1e-4);
+        dc_abi::<f32, f32, i64>(1e-4);
+        dc_abi::<f64, f64, i32>(1e-11);
+        dc_abi::<f64, f64, i64>(1e-11);
+        dc_abi::<colmat::c32, f32, i32>(1e-4);
+        dc_abi::<colmat::c32, f32, i64>(1e-4);
+        dc_abi::<colmat::c64, f64, i32>(1e-11);
+        dc_abi::<colmat::c64, f64, i64>(1e-11);
+    }
     fn driver_abi<T: GeneralizedScalar, R: Scalar, I: LapackInt>(tol: f64) {
         for kind in 1..=3 {
             for u in [b'U', b'L'] {
