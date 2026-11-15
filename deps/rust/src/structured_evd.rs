@@ -118,6 +118,37 @@ pub(crate) unsafe fn compute<T: GeneralizedScalar>(
     Ok(Spectrum { values, vectors })
 }
 
+fn validate(
+    job: u8,
+    triangle: u8,
+    n: isize,
+    band: Option<(isize, isize)>,
+    ldz: isize,
+) -> Result<(), i64> {
+    let zarg = if band.is_some() { 9 } else { 7 };
+    let mut checks = vec![
+        (1, matches!(job, b'N' | b'V')),
+        (2, matches!(triangle, b'U' | b'L')),
+        (3, n >= 0),
+    ];
+    if let Some((width, ld)) = band {
+        checks.push((4, width >= 0));
+        checks.push((6, width.checked_add(1).is_some_and(|min| ld >= min)));
+    }
+    checks.push((zarg, ldz >= 1 && (job != b'V' || ldz >= n)));
+    for (arg, valid) in checks {
+        if !valid {
+            return Err(arg);
+        }
+    }
+    Ok(())
+}
+
+unsafe fn argument_error<I: LapackInt>(info: *mut I, arg: i64) {
+    *info = I::from_i64(-arg);
+    crate::invalid(arg as i32);
+}
+
 // Common BEV/PEV contract. Caller work arrays are not borrowed by the
 // full-spectrum native algorithm, which owns its dense expansion and scratch.
 unsafe fn ordinary<T: GeneralizedScalar, R: Scalar, I: LapackInt>(
@@ -132,23 +163,9 @@ unsafe fn ordinary<T: GeneralizedScalar, R: Scalar, I: LapackInt>(
     info: *mut I,
 ) {
     *info = I::from_i64(0);
-    let zarg = if band.is_some() { 9 } else { 7 };
-    let mut checks = vec![
-        (1, matches!(job, b'N' | b'V')),
-        (2, matches!(triangle, b'U' | b'L')),
-        (3, n >= 0),
-    ];
-    if let Some((width, ld)) = band {
-        checks.push((4, width >= 0));
-        checks.push((6, width.checked_add(1).is_some_and(|min| ld >= min)));
-    }
-    checks.push((zarg, ldz >= 1 && (job != b'V' || ldz >= n)));
-    for (arg, valid) in checks {
-        if !valid {
-            *info = I::from_i64(-arg);
-            crate::invalid(arg as i32);
-            return;
-        }
+    if let Err(arg) = validate(job, triangle, n, band, ldz) {
+        argument_error(info, arg);
+        return;
     }
     if n == 0 {
         return;
@@ -231,9 +248,478 @@ macro_rules! ordinary_abi {
 ordinary_abi!(i32, "_");
 ordinary_abi!(i64, "_64_");
 
+// Preserve LAPACK's public minimum-work contract even though the native
+// solver owns its scratch. BEVD/PEVD share the native full-spectrum solver;
+// the suffix does not imply a dedicated structured divide-and-conquer kernel.
+fn workspace_minima(
+    n: isize,
+    vectors: bool,
+    band: bool,
+    complex: bool,
+) -> Option<(isize, isize, isize)> {
+    if n <= 1 {
+        return Some((1, 1, 1));
+    }
+    let nn = n as u128;
+    let (work, real, integer) = if !vectors {
+        (if complex { nn } else { 2 * nn }, nn, 1)
+    } else if complex {
+        (
+            if band { 2 * nn * nn } else { 2 * nn },
+            1 + 5 * nn + 2 * nn * nn,
+            3 + 5 * nn,
+        )
+    } else {
+        (
+            if band {
+                1 + 5 * nn + 2 * nn * nn
+            } else {
+                1 + 6 * nn + nn * nn
+            },
+            1,
+            3 + 5 * nn,
+        )
+    };
+    Some((
+        isize::try_from(work).ok()?,
+        isize::try_from(real).ok()?,
+        isize::try_from(integer).ok()?,
+    ))
+}
+
+unsafe fn with_workspace<T: GeneralizedScalar, R: Scalar, I: LapackInt>(
+    job: u8,
+    triangle: u8,
+    n: isize,
+    band: Option<(isize, isize)>,
+    a: *mut T,
+    w: *mut R,
+    z: *mut T,
+    ldz: isize,
+    work: *mut T,
+    lwork: isize,
+    real_work: Option<(*mut R, isize)>,
+    iwork: *mut I,
+    liwork: isize,
+    info: *mut I,
+) {
+    *info = I::from_i64(0);
+    if let Err(arg) = validate(job, triangle, n, band, ldz) {
+        argument_error(info, arg);
+        return;
+    }
+    let work_arg = if band.is_some() { 11 } else { 9 };
+    let integer_arg = work_arg + if T::COMPLEX { 4 } else { 2 };
+    let Some((lw, lr, li)) = workspace_minima(n, job == b'V', band.is_some(), T::COMPLEX) else {
+        argument_error(info, work_arg);
+        return;
+    };
+    // IWORK(1) must itself fit the caller's integer ABI. Do not truncate a
+    // valid ILP64 recommendation when exposing the LP64 entry point.
+    if I::from_i64(li as i64).val() != li {
+        argument_error(info, integer_arg);
+        return;
+    }
+    *work = crate::lapack::workspace::<T>(lw);
+    *iwork = I::from_i64(li as i64);
+    if let Some((rwork, _)) = real_work {
+        *rwork = crate::lapack::workspace::<R>(lr);
+    }
+    let query = lwork == -1 || liwork == -1 || real_work.is_some_and(|(_, len)| len == -1);
+    if !query {
+        if lwork < lw {
+            argument_error(info, work_arg);
+            return;
+        }
+        if real_work.is_some_and(|(_, len)| len < lr) {
+            argument_error(info, work_arg + 2);
+            return;
+        }
+        if liwork < li {
+            argument_error(info, integer_arg);
+            return;
+        }
+    }
+    if query {
+        return;
+    }
+    ordinary(job, triangle, n, band, a, w, z, ldz, info);
+}
+
+macro_rules! workspace_exports {
+    ($p:ident,$bev:ident,$pev:ident,$t:ty,$r:ty,$i:ty,$suffix:tt,
+     ($($extra:ident:$extra_ty:ty,)*),$real:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $bev $suffix>](
+            jobz:*const u8,uplo:*const u8,n:*const $i,kd:*const $i,ab:*mut $t,
+            ldab:*const $i,w:*mut $r,z:*mut $t,ldz:*const $i,
+            work:*mut $t,lwork:*const $i,$($extra:$extra_ty,)*iwork:*mut $i,liwork:*const $i,info:*mut $i) {
+            with_workspace(flag(jobz),flag(uplo),*n as isize,Some((*kd as isize,*ldab as isize)),
+                ab,w,z,*ldz as isize,work,*lwork as isize,$real,iwork,*liwork as isize,info);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $pev $suffix>](
+            jobz:*const u8,uplo:*const u8,n:*const $i,ap:*mut $t,w:*mut $r,z:*mut $t,ldz:*const $i,
+            work:*mut $t,lwork:*const $i,$($extra:$extra_ty,)*iwork:*mut $i,liwork:*const $i,info:*mut $i) {
+            with_workspace(flag(jobz),flag(uplo),*n as isize,None,ap,w,z,*ldz as isize,
+                work,*lwork as isize,$real,iwork,*liwork as isize,info);
+        }
+    }};
+}
+macro_rules! workspace_abi {
+    ($i:ty,$suffix:tt) => {
+        workspace_exports!(s,sbevd,spevd,f32,f32,$i,$suffix,(),None);
+        workspace_exports!(d,sbevd,spevd,f64,f64,$i,$suffix,(),None);
+        workspace_exports!(c,hbevd,hpevd,colmat::c32,f32,$i,$suffix,
+            (rwork:*mut f32,lrwork:*const $i,),Some((rwork,*lrwork as isize)));
+        workspace_exports!(z,hbevd,hpevd,colmat::c64,f64,$i,$suffix,
+            (rwork:*mut f64,lrwork:*const $i,),Some((rwork,*lrwork as isize)));
+    };
+}
+workspace_abi!(i32, "_");
+workspace_abi!(i64, "_64_");
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    macro_rules! call_workspace {
+        (real,$f:ident,($($arg:expr,)*),$rw:expr,$lr:expr,$iw:expr,$li:expr,$info:expr) => {
+            {let _=($rw,$lr); $f($($arg,)*$iw,$li,$info)}
+        };
+        (complex,$f:ident,($($arg:expr,)*),$rw:expr,$lr:expr,$iw:expr,$li:expr,$info:expr) => {
+            $f($($arg,)*$rw,$lr,$iw,$li,$info)
+        };
+    }
+    macro_rules! workspace_test {
+        ($name:ident,$bev:ident,$pev:ident,$t:ty,$r:ty,$i:ty,$kind:tt) => {
+            #[test]
+            fn $name() {
+                unsafe {
+                    for band in [false, true] {
+                        for job in [b'N', b'V'] {
+                            for n in [0, 1, 2, 3] {
+                                let (lw, lr, li) =
+                                    workspace_minima(n, job == b'V', band, <$t>::COMPLEX).unwrap();
+                                let ldz = n.max(1) as $i;
+                                // Each individual -1 triggers a joint query. All
+                                // matrix/output pointers are deliberately null.
+                                for which in 0..if <$t>::COMPLEX { 3 } else { 2 } {
+                                    let mut work = [<$t>::real(777.0); 2];
+                                    let mut rwork = [777.0 as $r; 2];
+                                    let mut iwork = [777 as $i; 2];
+                                    let mut info: $i = -99;
+                                    let lwork: $i = if which == 0 { -1 } else { 0 };
+                                    let liwork: $i = if which == 1 { -1 } else { 0 };
+                                    let lrwork: $i = if which == 2 { -1 } else { 0 };
+                                    if band {
+                                        call_workspace!(
+                                            $kind,
+                                            $bev,
+                                            (
+                                                &job,
+                                                &b'U',
+                                                &(n as $i),
+                                                &1,
+                                                std::ptr::null_mut(),
+                                                &2,
+                                                std::ptr::null_mut(),
+                                                std::ptr::null_mut(),
+                                                &ldz,
+                                                work.as_mut_ptr(),
+                                                &lwork,
+                                            ),
+                                            rwork.as_mut_ptr(),
+                                            &lrwork,
+                                            iwork.as_mut_ptr(),
+                                            &liwork,
+                                            &mut info
+                                        );
+                                    } else {
+                                        call_workspace!(
+                                            $kind,
+                                            $pev,
+                                            (
+                                                &job,
+                                                &b'U',
+                                                &(n as $i),
+                                                std::ptr::null_mut(),
+                                                std::ptr::null_mut(),
+                                                std::ptr::null_mut(),
+                                                &ldz,
+                                                work.as_mut_ptr(),
+                                                &lwork,
+                                            ),
+                                            rwork.as_mut_ptr(),
+                                            &lrwork,
+                                            iwork.as_mut_ptr(),
+                                            &liwork,
+                                            &mut info
+                                        );
+                                    }
+                                    assert_eq!(info, 0);
+                                    assert_eq!(work[0], <$t>::real(lw as f64));
+                                    assert_eq!(work[1], <$t>::real(777.0));
+                                    assert_eq!(iwork, [li as $i, 777]);
+                                    if <$t>::COMPLEX {
+                                        assert_eq!(rwork, [lr as $r, 777.0]);
+                                    }
+                                }
+                                // Identity needs no reference eigensolver and
+                                // permits checking the full V/N result at minimum work.
+                                let mut a = vec![
+                                    <$t>::z();
+                                    if band {
+                                        2 * n as usize
+                                    } else {
+                                        (n * (n + 1) / 2) as usize
+                                    }
+                                ];
+                                let storage = if band {
+                                    Storage::Band { width: 1, ld: 2 }
+                                } else {
+                                    Storage::Packed
+                                };
+                                for j in 0..n as usize {
+                                    a[storage.index(n as usize, false, j, j)] = <$t>::o();
+                                }
+                                let mut values = vec![777.0 as $r; n as usize + 1];
+                                let mut vectors =
+                                    vec![<$t>::real(777.0); ldz as usize * n as usize + 1];
+                                let mut work = vec![<$t>::real(777.0); lw as usize + 1];
+                                let mut rwork = vec![777.0 as $r; lr as usize + 1];
+                                let mut iwork = vec![777 as $i; li as usize + 1];
+                                let mut info: $i = -99;
+                                if band {
+                                    call_workspace!(
+                                        $kind,
+                                        $bev,
+                                        (
+                                            &job,
+                                            &b'U',
+                                            &(n as $i),
+                                            &1,
+                                            a.as_mut_ptr(),
+                                            &2,
+                                            values.as_mut_ptr(),
+                                            vectors.as_mut_ptr(),
+                                            &ldz,
+                                            work.as_mut_ptr(),
+                                            &(lw as $i),
+                                        ),
+                                        rwork.as_mut_ptr(),
+                                        &(lr as $i),
+                                        iwork.as_mut_ptr(),
+                                        &(li as $i),
+                                        &mut info
+                                    );
+                                } else {
+                                    call_workspace!(
+                                        $kind,
+                                        $pev,
+                                        (
+                                            &job,
+                                            &b'U',
+                                            &(n as $i),
+                                            a.as_mut_ptr(),
+                                            values.as_mut_ptr(),
+                                            vectors.as_mut_ptr(),
+                                            &ldz,
+                                            work.as_mut_ptr(),
+                                            &(lw as $i),
+                                        ),
+                                        rwork.as_mut_ptr(),
+                                        &(lr as $i),
+                                        iwork.as_mut_ptr(),
+                                        &(li as $i),
+                                        &mut info
+                                    );
+                                }
+                                assert_eq!(info, 0);
+                                for j in 0..n as usize {
+                                    assert!((values[j] as f64 - 1.0).abs() < 1e-5);
+                                    if job == b'V' {
+                                        for k in 0..n as usize {
+                                            let mut dot = <$t>::z();
+                                            for i in 0..n as usize {
+                                                dot = dot
+                                                    + vectors[i + j * ldz as usize].cj()
+                                                        * vectors[i + k * ldz as usize];
+                                            }
+                                            assert!(
+                                                (dot - <$t>::real(if j == k { 1.0 } else { 0.0 }))
+                                                    .magnitude()
+                                                    < 1e-5
+                                            );
+                                        }
+                                    }
+                                }
+                                assert_eq!(values[n as usize], 777.0);
+                                assert_eq!(*vectors.last().unwrap(), <$t>::real(777.0));
+                                if job == b'N' {
+                                    assert!(vectors.iter().all(|&v| v == <$t>::real(777.0)));
+                                }
+                                assert_eq!(*work.last().unwrap(), <$t>::real(777.0));
+                                assert_eq!(*iwork.last().unwrap(), 777);
+                                assert_eq!(*rwork.last().unwrap(), 777.0);
+                                for short in 0..if <$t>::COMPLEX { 3 } else { 2 } {
+                                    let lwork = lw as $i - if short == 0 { 1 } else { 0 };
+                                    let liwork = li as $i - if short == 1 { 1 } else { 0 };
+                                    let lrwork = lr as $i - if short == 2 { 1 } else { 0 };
+                                    if band {
+                                        call_workspace!(
+                                            $kind,
+                                            $bev,
+                                            (
+                                                &job,
+                                                &b'U',
+                                                &(n as $i),
+                                                &1,
+                                                std::ptr::null_mut(),
+                                                &2,
+                                                std::ptr::null_mut(),
+                                                std::ptr::null_mut(),
+                                                &ldz,
+                                                work.as_mut_ptr(),
+                                                &lwork,
+                                            ),
+                                            rwork.as_mut_ptr(),
+                                            &lrwork,
+                                            iwork.as_mut_ptr(),
+                                            &liwork,
+                                            &mut info
+                                        );
+                                    } else {
+                                        call_workspace!(
+                                            $kind,
+                                            $pev,
+                                            (
+                                                &job,
+                                                &b'U',
+                                                &(n as $i),
+                                                std::ptr::null_mut(),
+                                                std::ptr::null_mut(),
+                                                std::ptr::null_mut(),
+                                                &ldz,
+                                                work.as_mut_ptr(),
+                                                &lwork,
+                                            ),
+                                            rwork.as_mut_ptr(),
+                                            &lrwork,
+                                            iwork.as_mut_ptr(),
+                                            &liwork,
+                                            &mut info
+                                        );
+                                    }
+                                    let arg = if band { 11 } else { 9 };
+                                    let expected = match short {
+                                        0 => arg,
+                                        1 => arg + if <$t>::COMPLEX { 4 } else { 2 },
+                                        _ => arg + 2,
+                                    };
+                                    assert_eq!(info, -expected);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+    workspace_test!(workspace_s32, ssbevd_, sspevd_, f32, f32, i32, real);
+    workspace_test!(workspace_d32, dsbevd_, dspevd_, f64, f64, i32, real);
+    workspace_test!(
+        workspace_c32,
+        chbevd_,
+        chpevd_,
+        colmat::c32,
+        f32,
+        i32,
+        complex
+    );
+    workspace_test!(
+        workspace_z32,
+        zhbevd_,
+        zhpevd_,
+        colmat::c64,
+        f64,
+        i32,
+        complex
+    );
+    workspace_test!(workspace_s64, ssbevd_64_, sspevd_64_, f32, f32, i64, real);
+    workspace_test!(workspace_d64, dsbevd_64_, dspevd_64_, f64, f64, i64, real);
+    workspace_test!(
+        workspace_c64,
+        chbevd_64_,
+        chpevd_64_,
+        colmat::c32,
+        f32,
+        i64,
+        complex
+    );
+    workspace_test!(
+        workspace_z64,
+        zhbevd_64_,
+        zhpevd_64_,
+        colmat::c64,
+        f64,
+        i64,
+        complex
+    );
+    #[test]
+    fn workspace_reference_minima_and_integer_boundaries() {
+        // Reference-LAPACK 3.12.1 formulas evaluated at concrete sizes.
+        for (band, complex, expected2, expected3) in [
+            (true, false, (19, 1, 13), (34, 1, 18)),
+            (false, false, (17, 1, 13), (28, 1, 18)),
+            (true, true, (8, 19, 13), (18, 34, 18)),
+            (false, true, (4, 19, 13), (6, 34, 18)),
+        ] {
+            assert_eq!(workspace_minima(2, true, band, complex), Some(expected2));
+            assert_eq!(workspace_minima(3, true, band, complex), Some(expected3));
+        }
+        assert_eq!(workspace_minima(isize::MAX, true, true, true), None);
+        unsafe {
+            let mut work = 777.0f32;
+            let mut iwork = 777i32;
+            let mut info = -99i32;
+            sspevd_(
+                b"V".as_ptr(),
+                b"U".as_ptr(),
+                &4096,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &4096,
+                &mut work,
+                &-1,
+                &mut iwork,
+                &0,
+                &mut info,
+            );
+            assert_eq!(info, 0);
+            assert!(work as f64 >= 16_801_793.0);
+            assert_eq!(iwork, 20_483);
+            work = 777.0;
+            iwork = 777;
+            sspevd_(
+                b"V".as_ptr(),
+                b"U".as_ptr(),
+                &430_000_000,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &430_000_000,
+                &mut work,
+                &-1,
+                &mut iwork,
+                &0,
+                &mut info,
+            );
+            assert_eq!(info, -11);
+            assert_eq!(work, 777.0);
+            assert_eq!(iwork, 777);
+        }
+    }
     macro_rules! ordinary_test {
         ($name:ident,$band:ident,$packed:ident,$t:ty,$r:ty,$i:ty,($($extra:expr,)*)) => {
             #[test]
