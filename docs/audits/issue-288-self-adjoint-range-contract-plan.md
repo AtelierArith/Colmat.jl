@@ -1,9 +1,10 @@
 # Issue 288: SYEVR / HEEVR contract preparation
 
-Status: initial Fortran correction, C adapters and numerical/C ABI checks pass.
-Completed-call tracing and optimized release checks pass. Immutable full-suite
-evidence remains pending. The preceding 124-entry candidate passed its immutable full package run and
-is under review in PR #384. Issue #288 remains open.
+Status: Fortran correction, C adapters, focused checks and immutable full-suite
+validation pass. The successful source revision is
+`c3e1600bd7b3268d35060f1afb99b23a95e48518`. All 263 source hashes, manifest,
+registration and optimized DLL matched the pre-run freeze before evidence import.
+The preceding 124-entry candidate was merged in PR #384. Issue #288 remains open.
 
 Planned scope: eight S/D SYEVR and C/Z HEEVR high/work names, both integer
 widths. The original 1,616-name scope and separate 20 Rook targets remain intact.
@@ -35,7 +36,7 @@ unused output pointers. This policy must be explicit in its contract audit.
 For the exact Hermitian matrix with diagonal 2 and superdiagonal 1+i, N=3,
 the characteristic polynomial is proportional to lambda*(lambda-2)*(lambda-4).
 The interval (2,10] must therefore select one eigenvalue. The current Fortran
-ZHEEVR ILP64 entry returns INFO=0/M=2 with values 2.0000000000000004 and
+ZHEEVR ILP64 entry previously returned INFO=0/M=2 with values 2.0000000000000004 and
 3.999999999999999; independent OpenBLAS returns INFO=0/M=1.
 
 `reproducers/heevr_value_endpoint.jl` retains this executed example. The local
@@ -117,8 +118,12 @@ optimized release repeats the numerical and independent C checks, including
 argument-error output preservation. Registration is 1,614 forwards per ABI.
 Focused traces remain explicitly non-full-suite results.
 
-The prior successful 124-entry snapshot is backed up and retained as stale
-evidence until an immutable full package run validates all 263 current
-production/test/worker hashes, manifest, registration and optimized DLL.
+The successful full-suite artifact now replaces the prior 124-entry snapshot.
+It validates 1,410 canonical entries: 1,106 Fortran LAPACK, 172 CBLAS and 132
+LAPACKE. The optimized DLL SHA256 is
+`ee8661f2ebf79d5fedf9c422e9bc04398a78093796119777b2a9f234f7118173`.
+The first run exposed a stale direct-ABI test minimum for N=1 SYEVR/HEEVR;
+correcting that minimum to one passed all 45,440 direct self-adjoint checks,
+then the entire immutable package run passed. No failed-run artifact was imported.
 The original scope retains 1,484 entries beyond this candidate, with the
 separate 20 Rook coordination targets also pending.
