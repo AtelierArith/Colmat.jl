@@ -1,7 +1,7 @@
 # Issue #288: Q application C adapters
 
 Status: current-source immutable full package validation passes; source-bound
-evidence is imported. CI and main integration remain pending.
+evidence is imported. Publication checks pass; final PR CI and merge remain pending.
 
 Issue #288 remains open.
 
@@ -138,3 +138,10 @@ proof validates 1570 canonical entries: 1106 Fortran LAPACK, 172 CBLAS and
 292 LAPACKE, with 5727 completed witnesses. Python 28, inventory 15 and
 documentation build checks pass. All frozen source hashes and DLL remain
 unchanged. CI artifact provenance and main integration remain required.
+
+Normal integration with main after PR #394 preserves all 306 frozen execution
+sources and the optimized DLL. Fourteen expected conflicts keep this candidate's
+runtime/tests/evidence and take current-main LQ, QL/RQ and Q-generator audits.
+Python 28, registration inventory 15 and documentation build pass after this
+source-preserving merge. The 260-name Q-generator parent is now merged.
+Issue #288 remains open.

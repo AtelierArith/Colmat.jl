@@ -1,7 +1,7 @@
 # Issue #288: explicit Q generation C adapters
 
-Status: source-bound immutable cloud full validation passes; proof is
-imported. Publication checks pass; final PR CI and merge remain pending.
+Status: merged to main through PR #394. Full source-bound package proof,
+Linux/macOS PR CI, documentation and artifact provenance checks pass.
 
 Issue #288 remains open.
 
@@ -107,3 +107,10 @@ records; this candidate retains its runtime/test/evidence/registration files.
 All 300 frozen execution-source hashes and the optimized DLL are unchanged.
 The 228-name factorization parent is now merged; this stage adds 32 names.
 Issue #288 remains open.
+
+PR #394 merged at 72a7706e333692a7429aa5e9fab70bc41e9110dd after CI
+43922508148 and documentation 43922508113 passed. Both OS artifacts validate
+all 300 source hashes, manifest, registration, 1538 entries and 5567 witnesses
+against test merge 021f37bf2c02868226f373d963c06d7cf551c05d. Its parents and
+tree match the guarded base/head. Main tree and optimized DLL match the merge
+gate; post-merge Python 28 and inventory 15 pass. Issue #288 remains open.
