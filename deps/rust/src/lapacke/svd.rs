@@ -18,11 +18,11 @@ fn zeros<T: Scalar>(count: usize) -> Result<Vec<T>, i64> {
 
 // The current Fortran driver computes these expressions in isize before its
 // argument checks. Reject an unrepresentable workspace before entering it.
-fn representable_workspace<T: Scalar>(dd: bool, job: u8, m: i64, n: i64) -> bool {
+fn minimum_workspace<T: Scalar>(dd: bool, job: u8, m: i64, n: i64) -> Option<i64> {
     let r = m.min(n).max(0) as u128;
     let big = m.max(n).max(0) as u128;
     if dd && job.to_ascii_uppercase() != b'N' && r > 0 && r > isize::MAX as u128 / r {
-        return false;
+        return None;
     }
     let size = if dd {
         if T::COMPLEX {
@@ -45,7 +45,7 @@ fn representable_workspace<T: Scalar>(dd: bool, job: u8, m: i64, n: i64) -> bool
     } else {
         (3 * r + big).max(5 * r)
     };
-    size <= isize::MAX as u128
+    (size <= isize::MAX as u128).then_some(size.max(1) as i64)
 }
 
 unsafe fn high<T: Scalar, R: Scalar, I: Copy + Default>(
@@ -164,7 +164,7 @@ unsafe fn work<T: Scalar>(
         return -1;
     }
     if layout == COL_MAJOR {
-        if !representable_workspace::<T>(dd, ju, m, n) {
+        if minimum_workspace::<T>(dd, ju, m, n).is_none() {
             return TRANSPOSE_MEMORY_ERROR;
         }
         return call(a, lda, u, ldu, vt, ldvt, workspace, lwork);
@@ -202,9 +202,9 @@ unsafe fn work<T: Scalar>(
     if ldvt < vc {
         return if dd { -11 } else { -12 };
     }
-    if !representable_workspace::<T>(dd, ju, m, n) {
+    let Some(minimum) = minimum_workspace::<T>(dd, ju, m, n) else {
         return TRANSPOSE_MEMORY_ERROR;
-    }
+    };
     let la = m.max(1);
     let lu = if use_u { m.max(1) } else { 1 };
     let lv = vr.max(1);
@@ -218,7 +218,9 @@ unsafe fn work<T: Scalar>(
     }
     // The backend's query validates flags and dimensions. Validate LWORK before
     // allocation so an invalid call cannot touch the caller's matrix.
-    if (lwork as f64) < query.re() {
+    // Query values may be rounded upward in Float32, or represent an optimum
+    // larger than the legal minimum. Neither makes a smaller legal buffer invalid.
+    if lwork < minimum {
         return if dd { -13 } else { -14 };
     }
     let mut at = match zeros::<T>(
@@ -375,6 +377,68 @@ exports!(z, colmat::c64, f64, i64, [64_], _64_, [rwork]);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn row_minimum_is_distinct_from_recommended_workspace() {
+        let mut executed = false;
+        let mut workspace = 0f32;
+        let nil = core::ptr::null_mut();
+        let info = unsafe {
+            work(
+                false,
+                ROW_MAJOR,
+                b'N',
+                b'N',
+                0,
+                0,
+                nil,
+                0,
+                nil,
+                1,
+                nil,
+                1,
+                &mut workspace,
+                1,
+                |_, _, _, _, _, _, w, lw| {
+                    if lw == -1 {
+                        *w = 2.0;
+                    } else {
+                        executed = true;
+                    }
+                    0
+                },
+            )
+        };
+        assert_eq!(info, 0);
+        assert!(executed);
+    }
+
+    #[test]
+    fn oversized_workspace_cannot_overflow_or_enter_backend() {
+        let nil = core::ptr::null_mut::<f64>();
+        for layout in [ROW_MAJOR, COL_MAJOR] {
+            let info = unsafe {
+                work(
+                    true,
+                    layout,
+                    b'A',
+                    b'A',
+                    i64::MAX,
+                    i64::MAX,
+                    nil,
+                    i64::MAX,
+                    nil,
+                    i64::MAX,
+                    nil,
+                    i64::MAX,
+                    nil,
+                    -1,
+                    |_, _, _, _, _, _, _, _| panic!("overflow reached backend"),
+                )
+            };
+            assert_eq!(info, TRANSPOSE_MEMORY_ERROR);
+        }
+    }
 
     macro_rules! numerical {
         ($test:ident, $p:ident, $t:ty, $r:ty, $i:ty, [$($suffix:tt)*], [$($extra:ident)*], $make:expr, $tol:expr) => { paste::paste! {

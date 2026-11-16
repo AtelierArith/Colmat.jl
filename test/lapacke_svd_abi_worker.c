@@ -29,6 +29,7 @@ static int position(int layout,int i,int j,int ld) { return layout==101?i*ld+j:i
     for(int shape=0;shape<4;shape++) for(int ju=0;ju<4;ju++) for(int jv=0;jv<(dd?1:4);jv++) { \
         char job="ASNO"[ju],jobv=dd?job:"ASNO"[jv]; \
         if(!dd && job=='O' && jobv=='O')continue; \
+        char calljob=ju%2?(char)(job+32):job,calljobv=jv%2?(char)(jobv+32):jobv; \
         int m=shape==0?3:2,n=shape==0?2:3;if(shape==2)m=0;if(shape==3)n=0; \
         int r=m<n?m:n; \
         int has_u=job=='A'||job=='S'||(!dd && job=='O')||(dd && job=='O'); \
@@ -42,17 +43,17 @@ static int position(int layout,int i,int j,int ld) { return layout==101?i*ld+j:i
         for(int k=0;k<64;k++)a[k]=original[k]=u[k]=vt[k]=(T)789; \
         for(int i=0;i<m;i++)for(int j=0;j<n;j++) { int q=position(layout,i,j,lda);a[q]=original[q]=(T)((3*(i+1)+j*j)+(0.3*i-0.6*j)*I); } \
         T *up=use_u?u:NULL,*vp=use_v?vt:NULL; \
-        INT info=dd?dw(layout,job,m,n,a,lda,s,up,ldu,vp,ldvt,&query,-1 RARG,iw): \
-            vw(layout,job,jobv,m,n,a,lda,s,up,ldu,vp,ldvt,&query,-1 RARG); \
+        INT info=dd?dw(layout,calljob,m,n,a,lda,s,up,ldu,vp,ldvt,&query,-1 RARG,iw): \
+            vw(layout,calljob,calljobv,m,n,a,lda,s,up,ldu,vp,ldvt,&query,-1 RARG); \
         assert(info==0 && creal((double complex)query)>=1);assert(memcmp(a,original,sizeof(a))==0); \
         int nw=(int)creal((double complex)query);assert(nw>0 && nw<1024);T w[1024]={0}; \
-        info=dd?dw(layout,job,m,n,a,lda,s,up,ldu,vp,ldvt,w,0 RARG,iw): \
-            vw(layout,job,jobv,m,n,a,lda,s,up,ldu,vp,ldvt,w,0 RARG); \
+        info=dd?dw(layout,calljob,m,n,a,lda,s,up,ldu,vp,ldvt,w,0 RARG,iw): \
+            vw(layout,calljob,calljobv,m,n,a,lda,s,up,ldu,vp,ldvt,w,0 RARG); \
         assert(info==(dd?-13:-14));assert(memcmp(a,original,sizeof(a))==0); \
         for(int high=0;high<2;high++) { \
             memcpy(a,original,sizeof(a));for(int k=0;k<64;k++)u[k]=vt[k]=(T)789; \
-            info=dd?(high?dh(layout,job,m,n,a,lda,s,up,ldu,vp,ldvt):dw(layout,job,m,n,a,lda,s,up,ldu,vp,ldvt,w,nw RARG,iw)): \
-                (high?vh(layout,job,jobv,m,n,a,lda,s,up,ldu,vp,ldvt,superb):vw(layout,job,jobv,m,n,a,lda,s,up,ldu,vp,ldvt,w,nw RARG)); \
+            info=dd?(high?dh(layout,calljob,m,n,a,lda,s,up,ldu,vp,ldvt):dw(layout,calljob,m,n,a,lda,s,up,ldu,vp,ldvt,w,nw RARG,iw)): \
+                (high?vh(layout,calljob,calljobv,m,n,a,lda,s,up,ldu,vp,ldvt,superb):vw(layout,calljob,calljobv,m,n,a,lda,s,up,ldu,vp,ldvt,w,nw RARG)); \
             assert(info==0);double norm=0,snorm=0; \
             for(int i=0;i<m;i++)for(int j=0;j<n;j++){double q=cabs((double complex)original[position(layout,i,j,lda)]);norm+=q*q;} \
             for(int k=0;k<r;k++){assert(s[k]>=0);if(k+1<r)assert(s[k]>=s[k+1]);snorm+=(double)s[k]*s[k];} \
@@ -96,6 +97,9 @@ static int position(int layout,int i,int j,int ld) { return layout==101?i*ld+j:i
     assert(dw(101,'N',2,3,NULL,2,s,NULL,1,NULL,3,&query,-1 RARG,iw)==-6); \
     assert(dw(101,'S',2,3,NULL,3,s,NULL,1,NULL,3,&query,-1 RARG,iw)==-9); \
     assert(dw(101,'N',2,3,NULL,3,s,NULL,1,NULL,2,&query,-1 RARG,iw)==-11); \
+    a[0]=1;a[1]=(T)NAN;a[2]=(T)NAN;a[3]=(T)NAN; \
+    assert(vh(102,'N','N',1,1,a,3,s,NULL,1,NULL,1,superb)==0); \
+    assert(dh(102,'N',1,1,a,3,s,NULL,1,NULL,1)==0); \
     a[0]=(T)NAN;assert(vh(102,'N','N',1,1,a,1,s,NULL,1,NULL,1,superb)==-6); \
     assert(dh(102,'N',1,1,a,1,s,NULL,1,NULL,1)==-5); \
     if(sizeof(INT)==8){ \

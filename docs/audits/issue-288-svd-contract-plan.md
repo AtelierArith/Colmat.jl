@@ -1,7 +1,7 @@
 # Issue 288: GESVD / GESDD contract preparation
 
-Status: initial adapters implemented; external ABI, registration, full-suite and
-remaining boundary evidence pending. This plan does not qualify
+Status: adapters and focused C/Julia ABI checks implemented; optimized release,
+immutable full-suite and platform CI evidence pending. This plan does not qualify
 any additional LAPACKE entry as complete. Issue #288 remains open.
 
 The next scope is sixteen canonical names: S/D/C/Z GESVD and GESDD, each
@@ -71,13 +71,32 @@ Issue containing an executed MWE and an improvement proposal.
   snapshots, followed by both platform CI artifact checks before merge.
 
 
-## Initial local checks
+## Executed local checks
 
-The candidate now contains all sixteen high/work numerical names in both
-integer widths. `cargo check --locked` succeeds. Eight Rust numerical test
-cases exercise four scalar types and both integer widths, with both layouts,
-tall/wide/empty matrices, A/S/N/O jobs, workspace queries and execution through
-both high and work paths. Reconstruction, singular-value Frobenius norms,
-ordering and A padding checks pass. This is preliminary evidence: C callers,
-LBT routes, independent backend comparisons, orthogonality, all GESVD job pairs
-and full invalid-argument coverage remain pending.
+The candidate implements all sixteen high/work numerical names in both
+integer widths. The Rust suite passes 408 tests. The adapter distinguishes a
+legal minimum from a rounded/optimal query and rejects unrepresentable native
+workspace calculations before entering the backend.
+
+Julia numerical tests pass 61,128 checks through direct DLL and actual LBT
+routes. An independently resolved OpenBLAS Fortran GESVD supplies singular-value
+comparisons; reconstruction, orthogonality, sorted nonnegative values, padding,
+all legal GESVD A/S/N/O job pairs, GESDD overwrite orientations, empty matrices
+and null unused outputs pass.
+
+The independent C11 worker uses exact real/complex prototypes and both integer
+widths. High/work queries and execution, lower-case flags, invalid flags,
+negative dimensions, row-major leading dimensions, workspace errors, NaN input
+and ignored padding pass. ILP64 calls use negative dimensions and valid query
+strides beyond 32-bit range. Its Julia runner passes two checks.
+
+Focused completed-call tracing validates 108 current LAPACKE names and all 432
+ABI/route observations against independent signature/return contracts. The
+completed-call gate passes 2,166 checks and the evidence-validator fixtures pass
+17 tests, including real SUPERB/RWORK and integer IWORK rejection cases. The
+focused artifact explicitly has `full_suite_passed=false`; it is not published
+as full-suite evidence. Registration is 1,590 forwards per ABI.
+
+The prior successful 92-entry snapshot remains stale for these candidate
+sources. Replace it only after a successful full suite whose production/test/
+worker hashes, manifest, registration and optimized DLL match frozen preflight.
