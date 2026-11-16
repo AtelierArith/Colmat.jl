@@ -1,7 +1,10 @@
 # Issue #288: general eigenvalue C adapters
 
-Status: GEEV implementation and focused validation in progress. No full-suite
-execution proof has been imported for this candidate. Issue #288 remains open.
+Status: immutable full-suite validation passed at
+`edb7acbbe54559f8afb4b65afa9d65325fa9b35d`. All 267 source hashes, manifest,
+registration and optimized DLL matched the pre-run freeze before evidence import.
+The imported proof validates 1,418 canonical entries: 1,106 Fortran LAPACK,
+172 CBLAS and 140 LAPACKE. Issue #288 remains open.
 
 The eight S/D/C/Z GEEV high-level and work exports add both LP64 and ILP64
 adapters. Together with the preceding range drivers this candidate has 140
@@ -48,9 +51,13 @@ diagnostics are not asserted by the present focused tests.
   passed signature and return-type validation. The evidence explicitly records
   full_suite_passed=false and is not imported as full-suite proof.
 
-Before publication: complete traced focused validation, optimized build checks,
-immutable full Pkg.test(), source-bound evidence import, regenerated inventory,
-documentation checks, and Linux/macOS CI artifact validation. Focused evidence
+Optimized build and repeated traced focused validation passed with the same
+140 names and 560 completed observations. The frozen optimized DLL SHA256 is
+`df96a8d16373fcd5326ca96f99d72189022757868746b2d114f068b5dc0d4f37`.
+
+Before publication: complete documentation checks and Linux/macOS CI artifact
+validation. The immutable full Pkg.test(), source-bound evidence import and
+inventory regeneration passed. Focused evidence
 must remain explicitly marked full_suite_passed=false.
 
 The next GEEVX stage needs separate balancing/condition-number contracts and
