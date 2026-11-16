@@ -1,8 +1,11 @@
 # Issue #288: triangular-pentagonal QR C contracts
 
-Status: all 32 C entries are drafted. Debug numerical, policy, independent C
-caller and typed DLL/LBT checks pass in debug and optimized builds. Immutable
-full-suite proof passes; publication checks and final CI/main integration remain pending. Issue #288 remains open.
+Status: immutable full package proof, debug/optimized validation and
+publication checks pass. Final normal integration after merged RZ PR #398
+preserves the entire previously checked tree, all 330 execution sources and
+the optimized DLL. Final publication CI and merge remain pending.
+
+Issue #288 remains open.
 
 The canonical inventory contains 32 S/D/C/Z high/work TPQRT, TPQRT2, TPMQRT
 and TPRFB names. Following the 356-name RZ candidate this would reach 388
@@ -129,3 +132,10 @@ Python 28, inventory 15 and the documentation build pass. The final source
 and DLL comparison also passes. Earlier pending inventory/docs statements
 are superseded by this result; RZ PR #398 and final main integration remain
 pending before the pentagonal publication PR.
+
+Final main integration at 779253f follows merged RZ PR #398. Its tree is
+identical to its first parent's already checked tree: all 330 execution
+sources, the manifest, registration and optimized DLL remain unchanged.
+Python 28, inventory 15 and documentation publication checks therefore retain
+their tested tree. Final Linux/macOS PR CI and downloaded artifact validation
+are still required before merging this stage.
