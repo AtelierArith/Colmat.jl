@@ -1,0 +1,17 @@
+{
+  "candidate": "q-generators",
+  "artifact_id": 14248852315,
+  "zip_sha256": "16b610f01c6487d25e3756323bdbe777cd01a3940c065e470461f35ea4861f87",
+  "toml_sha256": "0b6cf1b754c1c41054e495c302a048b6291aa2241121d4695a35e484626b0cbc",
+  "revision": "9c2c495b0205021fdedc1030e51f98be5126979b",
+  "sources": 300,
+  "validated": 1538,
+  "witnesses": 5567,
+  "platform": "x86_64-linux-gnu",
+  "local_library_sha256": "b2deaef4792bc5210984dd85a675c004ac792752aebd6abec81980efe11ba926",
+  "ci_library_sha256": "9d416ba5531cd113f17f1c62e7b2c6dba8457eadfc7c46d407cc72c53d32a990",
+  "full_suite_passed": true,
+  "workflow_run_id": 43909442123,
+  "workflow_revision": "870502b447e85d873ec8afb784516fd3afcafab2",
+  "publication_note": "Full suite executed at the exact frozen source revision on Linux; local optimized DLL is separately preserved."
+}

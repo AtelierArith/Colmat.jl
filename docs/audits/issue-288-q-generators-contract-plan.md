@@ -1,7 +1,7 @@
 # Issue #288: explicit Q generation C adapters
 
-Status: parent integration changes LQ diagnostic tests; a fresh immutable
-full package run is required for current-source evidence.
+Status: source-bound immutable cloud full validation passes; proof is
+imported. Publication checks and final CI/main integration remain pending.
 
 Issue #288 remains open.
 
@@ -85,3 +85,12 @@ Parent integration preserves all production sources and the optimized DLL.
 Only test/lq.jl changes among the 300 execution sources, adding validated
 assertions/consumption of expected diagnostics. The 3321360 full proof is
 historical; fresh full validation will cover the current test source set.
+
+Current full proof is bound to 9c2c495b0205021fdedc1030e51f98be5126979b and all 300 frozen
+execution sources. Cloud job success, ZIP/TOML digests, complete source map,
+manifest, registration and all typed witnesses were verified before import.
+The snapshot validates 1538 canonical entries with 5567 completed witnesses.
+A separate publication tree preserves the original local full-suite source
+and HEAD. Its copied optimized DLL remains byte-identical to the frozen DLL.
+The published full run platform is Linux; final Linux/macOS PR CI remains
+required. Provenance is stored in the adjacent cloud-provenance JSON.
