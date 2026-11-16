@@ -3,6 +3,7 @@
 //! Layout is always C int; dimensions, pivots and returned INFO follow lapack_int.
 use crate::kernels::Scalar;
 mod cholesky;
+mod general_eigen;
 mod self_adjoint;
 mod self_adjoint_range;
 mod svd;
