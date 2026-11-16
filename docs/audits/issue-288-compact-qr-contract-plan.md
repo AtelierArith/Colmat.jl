@@ -92,3 +92,15 @@ transpose/conjugate transpose, empty and K=0 cases, and NaN padding with
 immutable V/T. Independent OpenBLAS factors and block consumers establish
 both directions of interoperability. These are focused checks only; no
 full-suite proof or merged-main coverage is claimed for this stage.
+
+Independent C factor testing exposed complex GEQRT R diagonals with imaginary
+parts about 0.002 on a finite 5-by-3 matrix. The executed
+`reproducers/complex_geqrt_diagonal.jl` records the before/after comparison
+with independent OpenBLAS in the adjacent complex-phase JSON. Native complex
+QR uses a different reflector phase; the own Fortran compact boundary now
+uses the existing LAPACK Householder generator for complex scalars and forms
+block T from those complex coefficients. Real scalars retain the native path.
+The MWE now has exactly real diagonals matching OpenBLAS to rounding error.
+Focused numerical checks pass 159600 factor assertions (including real R
+diagonals) plus 32256 rectangular application and 1040 boundary assertions.
+Rust 460 tests pass after this correction. Full immutable evidence is pending.

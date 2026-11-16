@@ -377,6 +377,7 @@ end
                 @test w[[1, end]]==fill(T(779), 2)
                 own_a=T[a[ai(i, j)] for i in 1:m, j in 1:n]
                 own_t=T[t[ti(i, j)] for i in 1:nb, j in 1:k]
+                @test all(i->isreal(own_a[i, i]), 1:k)
                 q=lapacke288_compact_ref_apply(
                     T, gp, 'L', 'N', own_a, own_t, Matrix{T}(I, m, m), k, nb
                 )
