@@ -68,6 +68,7 @@ function direct_selfadjoint_minima(T, family, n, job)
     if family==:ev
         return max(1, (T<:Complex ? 2n-1 : 3n-1)), max(1, 3n-2), 1
     elseif family==:evr
+        n<=1 && return 1, 1, 1
         return max(1, (T<:Complex ? 2n : 26n)), max(1, 24n), max(1, 10n)
     end
     n<=1 && return 1, 1, 1
