@@ -1,8 +1,8 @@
 # Issue #288: triangular-pentagonal QR C contracts
 
-Status: all 32 C entries are drafted. Direct-DLL debug numerical checks pass;
-policy, independent C caller, typed DLL/LBT tracing, optimized repetition and
-immutable full proof remain pending. Issue #288 remains open.
+Status: all 32 C entries are drafted. Debug numerical, policy, independent C
+caller and typed DLL/LBT checks pass. Optimized repetition and immutable full
+proof remain pending. Issue #288 remains open.
 
 The canonical inventory contains 32 S/D/C/Z high/work TPQRT, TPQRT2, TPMQRT
 and TPRFB names. Following the 356-name RZ candidate this would reach 388
@@ -81,3 +81,17 @@ rows/columns. Buffers cover both extents and numerical work is stubbed;
 this is policy evidence only. See issue-288-pentagonal-nan-extents.json.
 The stage still requires expanded empty/scaled/diagnostic tests, independent
 C declarations, actual DLL/LBT calls and immutable full-suite evidence.
+
+Debug DLL/LBT tracing passes with all 388 C names and 1552 completed typed
+name/ABI/route observations, plus 7766 execution-gate checks. Factor tests
+pass 29248 assertions, TPRFB 73728, TPMQRT 57344 and policy 3468, including
+forward-pointer equality assertions. The independent C runner passes both
+checks with separate prototypes for all 32 entries, scalar reflector products,
+const/guard storage and signed ILP64 dimensions beyond int32. Rust passes
+460 tests. Exact source/library/log/evidence hashes are recorded in
+issue-288-pentagonal-debug-focused.json; full_suite_passed remains false.
+
+Normal parent integration takes RZ full evidence and ordinary repository CI
+from fd781ad. It preserves all production/test/Rust source hashes and the
+debug DLL. Additional scale/rank/partial-overlap checks are running separately;
+optimized repetition and immutable full evidence remain required.
