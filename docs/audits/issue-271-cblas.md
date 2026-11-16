@@ -71,8 +71,22 @@ argument error was reported. The reference is LAPACK v3.12.1 BLAS
 and [ZHEMV](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/BLAS/SRC/zhemv.f).
 This correction is in Colmat.jl's adapter; the native repository is unchanged.
 
-## Acceptance status
+## Acceptance evidence
 
-The focused combined CBLAS suite and independent C caller pass locally, and the
-Rust suite passes 389 tests. Acceptance still requires a fresh full Pkg.test
-artifact, regenerated execution metadata, documentation checks and Linux/macOS CI results for the final PR commit before merging.
+The full `Pkg.test(; allow_reresolve=false)` run passes at code revision
+`863c18df1a15ee916cb2a007fb3692f12cc3f407` on Julia 1.13.3 / x86_64 macOS.
+The imported artifact matches all 232 production/test/worker source hashes,
+the dependency manifest, registration table and installed library hash. It
+contains 4,469 call-site witnesses and validates 1,106 LAPACK plus 172 new CBLAS
+canonical entries. CBLAS includes all 688 distinct ABI/route combinations.
+The full-suite evidence gates pass 5 CBLAS and 240 LAPACK/provenance checks.
+
+Rust formatting and 389 Rust tests pass. All 22 inventory/evidence Python tests,
+15 actual LBT inventory checks, the README example, independent compiled C
+caller and documentation build pass locally. The source snapshot includes the
+C worker and every Julia numerical family test.
+
+Merge additionally requires successful Linux/macOS tests and documentation
+checks for the final PR commit. Their ABI artifacts must match the committed
+source hashes, native pin, manifest and registration inventory. CI run and
+artifact evidence is recorded in the PR description before merging.
