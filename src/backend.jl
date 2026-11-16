@@ -207,6 +207,18 @@ function load_backend(; verbose::Bool=false)
                 "Colmat range self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
+        register_product=Libdl.dlsym(_handle[], :colmat_triangular_product_set_fallback)
+        has_product=Libdl.dlsym(_handle[], :colmat_triangular_product_has_fallback)
+        for (id, symbol) in enumerate(("clauum_", "zlauum_", "clauu2_", "zlauu2_"))
+            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous!==nothing && realpath(previous.libname)!=realpath(path)
+                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_product, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
+            end
+            ccall(has_product, Cint, (Cint,), id-1)!=0 || error(
+                "Colmat complex triangular products require an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
         register_structured = Libdl.dlsym(_handle[], :colmat_structured_evd_set_fallback)
         has_structured = Libdl.dlsym(_handle[], :colmat_structured_evd_has_fallback)
         for (id, symbol) in enumerate((

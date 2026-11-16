@@ -22,7 +22,7 @@ fn span<T>(rows: usize, cols: usize, ld: usize) -> Result<(), i64> {
         Ok(())
     }
 }
-unsafe fn nancheck<T: Scalar>(
+pub(super) unsafe fn nancheck<T: Scalar>(
     layout: i32,
     u: u8,
     d: u8,
@@ -54,7 +54,13 @@ unsafe fn nancheck<T: Scalar>(
     }
     Ok(false)
 }
-unsafe fn pack<T: Scalar>(u: u8, d: u8, n: usize, a: *const T, ld: usize) -> Result<Vec<T>, i64> {
+pub(super) unsafe fn pack<T: Scalar>(
+    u: u8,
+    d: u8,
+    n: usize,
+    a: *const T,
+    ld: usize,
+) -> Result<Vec<T>, i64> {
     span::<T>(n, n, ld)?;
     let mut out = zeros::<T>(n.checked_mul(n).ok_or(TRANSPOSE_MEMORY_ERROR)?)?;
     for i in 0..n {

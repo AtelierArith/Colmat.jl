@@ -19,6 +19,7 @@ using Test
         "geevx",
         "trtri",
         "trtrs",
+        "lauum",
     )
     targets=Set(
         "LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in families for
@@ -49,7 +50,7 @@ using Test
             w in ("", "_work")
         ),
     )
-    @test length(targets)==164
+    @test length(targets)==172
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(

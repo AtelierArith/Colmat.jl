@@ -191,27 +191,44 @@ end
     end
 end
 @testset "Triangular products, complex diagonal and selected output" begin
+    reference=only(
+        filter(
+            l->l.interface==:ilp64 && occursin("openblas", lowercase(l.libname)),
+            BLAS.get_config().loaded_libs,
+        ),
+    ).libname
     for T in (Float32, Float64, ComplexF32, ComplexF64),
-        J in (Int32, Int64), uplo in ('U', 'L'), n in (0, 1, 3, 80),
-        family in (:lauum, :lauu2)
+        J in (Int32, Int64),
+        uplo in ('U', 'L'),
+        n in (0, 1, 3, 80),
+        family in (:lauum, :lauu2),
+        nonreal in (T<:Complex ? (false, true) : (false,))
 
         R=typeof(real(zero(T)))
         tolerance=R===Float32 ? 8e-5 : 8e-13
         a, matrix=triangular_fixture(T, n, uplo, 'N')
-        if T<:Complex
+        if nonreal
             for i in 1:n
                 a[i, i]+=T(0.0, 0.75)
                 matrix[i, i]=a[i, i]
             end
         end
         before=copy(a)
-        expected=uplo=='U' ? matrix*matrix' : matrix'*matrix
+        expected=if nonreal
+            result=copy(a)
+            @test direct_triangular_matrix!(
+                result, Int64; family, uplo, library=reference
+            )==0
+            result[1:n, 1:n]
+        else
+            uplo=='U' ? matrix*matrix' : matrix'*matrix
+        end
         @test direct_triangular_matrix!(a, J; family, uplo)==0
         @test triangular_untouched(a, before, n, uplo, 'N')
         actual=uplo=='U' ? triu(a[1:n, 1:n]) : tril(a[1:n, 1:n])
         selected=uplo=='U' ? triu(expected) : tril(expected)
         @test actual ≈ selected atol=tolerance
-        @test all(iszero, imag.(diag(a[1:n, 1:n])))
+        !nonreal && @test all(iszero, imag.(diag(a[1:n, 1:n])))
     end
 end
 @testset "Triangular singularity and argument contracts" begin

@@ -5,6 +5,7 @@ use crate::kernels::Scalar;
 mod cholesky;
 mod general_eigen;
 mod general_expert;
+mod lauum;
 mod self_adjoint;
 mod self_adjoint_range;
 mod svd;

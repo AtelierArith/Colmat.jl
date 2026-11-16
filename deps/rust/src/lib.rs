@@ -83,6 +83,7 @@ mod structured_tridiagonal;
 mod symmetric_equilibration;
 mod threading;
 mod triangular_lapack;
+mod triangular_product;
 mod tridiagonal_evd;
 mod tridiagonal_lu;
 mod tsqr;

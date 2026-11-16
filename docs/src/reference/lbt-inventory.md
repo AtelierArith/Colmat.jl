@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **1646**、ILP64 **1646** シンボルを登録します。
+現行 adapter は LP64 **1654**、ILP64 **1654** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -111,7 +111,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `laexc` / Fortran | `dlaexc_`, `slaexc_` | [reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 6 Fortran シンボル・TREXC は4型、LAEXC は実数2型・両整数 ABI を接続済み。公開 checked Schur move の1x1/2x2交換、任意の移動距離、Q 更新、実数 IFST/ILST の先頭行補正と最終位置、複素 index 入力の保持、拒否時の最後の成功状態を変換する。LAEXC のゼロ block quick return と固定 WORK を保持。所有 Schur 行列と必要な Q を確保する。C ABI は別タスク。 |
 | `lauu2` / Fortran | `clauu2_`, `dlauu2_`, `slauu2_`, `zlauu2_` | [triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/triangular.rs) | LAUUM/LAUU2 の8 Fortran シンボルを両 ABI に接続。借用した三角因子とその転置/共役の積を native triangular::matmul で構成し、指定した三角だけを更新。C API は別途接続 |
 | `lauum` / Fortran | `clauum_`, `dlauum_`, `slauum_`, `zlauum_` | [triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/triangular.rs) | LAUUM/LAUU2 の8 Fortran シンボルを両 ABI に接続。借用した三角因子とその転置/共役の積を native triangular::matmul で構成し、指定した三角だけを更新。C API は別途接続 |
-| `lauum` / LAPACKE | `LAPACKE_clauum`, `LAPACKE_clauum_work`, `LAPACKE_dlauum`, `LAPACKE_dlauum_work`, `LAPACKE_slauum`, `LAPACKE_slauum_work`, `LAPACKE_zlauum`, `LAPACKE_zlauum_work` | [triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/triangular.rs) | LAUUM/LAUU2 の8 Fortran シンボルを両 ABI に接続。借用した三角因子とその転置/共役の積を native triangular::matmul で構成し、指定した三角だけを更新。C API は別途接続; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `lauum` / LAPACKE | `LAPACKE_clauum`, `LAPACKE_clauum_work`, `LAPACKE_dlauum`, `LAPACKE_dlauum_work`, `LAPACKE_slauum`, `LAPACKE_slauum_work`, `LAPACKE_zlauum`, `LAPACKE_zlauum_work` | [triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/triangular.rs) | LAUUM/LAUU2 の8 Fortran シンボルを両 ABI に接続。借用した三角因子とその転置/共役の積を native triangular::matmul で構成し、指定した三角だけを更新。C API は別途接続; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `posv` / Fortran | `cposv_`, `dposv_`, `sposv_`, `zposv_` | [Llt / cholesky_in_place / solve](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/cholesky/llt/factor.rs) | 上三角入力は下三角へ共役変換し INFO を変換 |
 | `posv` / LAPACKE | `LAPACKE_cposv`, `LAPACKE_cposv_work`, `LAPACKE_dposv`, `LAPACKE_dposv_work`, `LAPACKE_sposv`, `LAPACKE_sposv_work`, `LAPACKE_zposv`, `LAPACKE_zposv_work` | [Llt / cholesky_in_place / solve](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/cholesky/llt/factor.rs) | 上三角入力は下三角へ共役変換し INFO を変換; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `potf2` / Fortran | `cpotf2_`, `dpotf2_`, `spotf2_`, `zpotf2_` | [Llt / cholesky_in_place / solve](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/cholesky/llt/factor.rs) | 上三角入力は下三角へ共役変換し INFO を変換 |
@@ -1494,7 +1494,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,442 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 1,450 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
