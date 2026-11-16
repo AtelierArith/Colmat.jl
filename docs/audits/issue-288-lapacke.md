@@ -88,3 +88,41 @@ and two policy helpers. The documentation inventory still records the previous
 main baseline; it must be regenerated alongside source-bound execution evidence.
 No full Julia package test or completion claim is made for this intermediate
 commit. The full frozen scope remains 1,616 entries.
+
+## GETRS high/work adapters
+
+Reference-LAPACK v3.12.1 sources: `LAPACKE/src/lapacke_zgetrs_work.c`
+(blob `b9dde38658e59cb295b9248938e6f46513d14574`) and
+`LAPACKE/src/lapacke_zgetrs.c`
+(blob `d76e323c14473665e2f5fca1814d0b38f2660cda`).
+
+GETRS high/work entries now cover four scalar types and both ABIs. Row-major
+copies the read-only LU factors and mutable RHS independently; only logical RHS
+entries are copied back. N/T/C and lowercase flags are passed to the existing
+native-backed Fortran solve. Row-major LDA/LDB errors precede numerical argument
+checks as in the reference wrapper. High-level NaN diagnostics distinguish the
+factor argument (-5) from the RHS (-8).
+
+`test/lapacke_getrs.jl` passed 4,232 checks. Factors and sequential pivot arrays
+come from direct calls into the separate ILP64 OpenBLAS library, not Colmat or
+its LBT trampoline. The factors are reused for both integer ABIs. RHS data is
+constructed by scalar multiplication from a known solution; tests cover real
+and nontrivial complex N/T/C, lowercase flags, both layouts and both direct DLL
+and actual LBT trampoline routes. Every call asserts its forwarding pointer;
+factors and pivots remain unchanged, RHS padding remains untouched.
+
+The independent C worker additionally exercises all 16 GETRS scalar/ABI/high/work
+exports with manually specified standard LAPACK LU factors and verifies scalar
+solutions, original factor/pivot preservation, empty calls, invalid flags,
+row-major leading-dimension precedence, imaginary NaNs, distinct high-level
+NaN error indices and a negative ILP64 dimension beyond 32-bit range. Its Julia
+runner passed all six checks. The full Rust suite still passed 398 tests.
+
+GETRS adds eight canonical entries to the earlier eight GETRF entries. The
+frozen full scope and remaining completion gates are unchanged; focused checks
+are not a replacement for the final source-bound full Julia regression.
+
+Combined GETRF/GETRS/C validation in one fresh Julia process passed 4,958 checks
+(720 + 4,232 + 6). Observed registration counts were 1,498 per ABI. Inventory
+assets still describe main's 1,480 baseline and require regeneration before
+full-package validation and PR readiness.

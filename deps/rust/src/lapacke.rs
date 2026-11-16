@@ -301,3 +301,67 @@ mod tests {
         colmat::c64::new(0.8, -0.6)
     );
 }
+
+macro_rules! getrs {
+    ($p:ident,$t:ty,$i:ty,[$($suffix:tt)*],$fortran:tt) => {paste::paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p getrs $($suffix)*>](
+            layout: i32, trans: u8, n: $i, nrhs: $i, a: *const $t, lda: $i,
+            ipiv: *const $i, b: *mut $t, ldb: $i,
+        ) -> $i {
+            if layout != ROW_MAJOR && layout != COL_MAJOR { return -1; }
+            if LAPACKE_get_nancheck() != 0 {
+                match ge_nancheck(layout,n as i64,n as i64,a,lda as i64) {
+                    Ok(true) => return -5, Err(info) => return info as $i, Ok(false) => {},
+                }
+                match ge_nancheck(layout,n as i64,nrhs as i64,b,ldb as i64) {
+                    Ok(true) => return -8, Err(info) => return info as $i, Ok(false) => {},
+                }
+            }
+            [<LAPACKE_ $p getrs_work $($suffix)*>](layout,trans,n,nrhs,a,lda,ipiv,b,ldb)
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p getrs_work $($suffix)*>](
+            layout: i32, trans: u8, n: $i, nrhs: $i, a: *const $t, lda: $i,
+            ipiv: *const $i, b: *mut $t, ldb: $i,
+        ) -> $i {
+            if layout != ROW_MAJOR && layout != COL_MAJOR { return -1; }
+            if layout == ROW_MAJOR {
+                if lda < n { return -6; }
+                if ldb < nrhs { return -9; }
+            }
+            if !crate::kernels::trans(trans.to_ascii_uppercase()) { return -2; }
+            if n < 0 { return -3; }
+            if nrhs < 0 { return -4; }
+            if layout == COL_MAJOR {
+                if lda < 1.max(n) { return -6; }
+                if ldb < 1.max(n) { return -9; }
+            }
+            if n == 0 || nrhs == 0 { return 0; }
+            let mut info: $i = 0;
+            if layout == COL_MAJOR {
+                crate::lapack::[<$p getrs $fortran>](&trans,&n,&nrhs,a,&lda,ipiv,b,&ldb,&mut info);
+            } else {
+                let aa = match row_to_column(n as usize,n as usize,a,lda as usize) {
+                    Ok(v) => v, Err(info) => return info as $i,
+                };
+                let mut bb = match row_to_column(n as usize,nrhs as usize,b,ldb as usize) {
+                    Ok(v) => v, Err(info) => return info as $i,
+                };
+                crate::lapack::[<$p getrs $fortran>](&trans,&n,&nrhs,aa.as_ptr(),&n,ipiv,bb.as_mut_ptr(),&n,&mut info);
+                for j in 0..nrhs as usize { for i in 0..n as usize {
+                    *b.add(i*ldb as usize+j) = bb[i+j*n as usize];
+                } }
+            }
+            if info < 0 { info-1 } else { info }
+        }
+    }};
+}
+getrs!(s, f32, i32, [], _);
+getrs!(d, f64, i32, [], _);
+getrs!(c, colmat::c32, i32, [], _);
+getrs!(z, colmat::c64, i32, [], _);
+getrs!(s, f32, i64, [64_], _64_);
+getrs!(d, f64, i64, [64_], _64_);
+getrs!(c, colmat::c32, i64, [64_], _64_);
+getrs!(z, colmat::c64, i64, [64_], _64_);
