@@ -116,3 +116,10 @@ rectangular C and every K up to Q order. It verifies const A/TAU against byte
 copies, C/WORK guards, query and error immutability, INFO precedence, A/C/TAU
 NaN order and signed ILP64 values outside int32. Typed completed-call tracing,
 optimized repetition and immutable full package proof remain required.
+
+Completed-call tracing verifies all 292 candidate names with 1168 typed
+name/ABI/route observations and 5846 gate checks. Focused evidence explicitly
+records `full_suite_passed=false`. High allocation respects both the query and
+SIDE-dependent minimum WORK; reference QL/RQ empty queries can report one
+below their argument-validation minimum, so the two quantities are not
+interchangeable. Optimized repetition and immutable full proof remain required.
