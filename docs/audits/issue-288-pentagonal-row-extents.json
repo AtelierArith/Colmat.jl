@@ -1,0 +1,512 @@
+{
+  "full_suite_passed": false,
+  "scope": "unchanged reference C row conversion; numerical work stubbed",
+  "reproducer_sha256": "8bb2e6143190751f07b5a52cb6ea45b20c0cc2b03cfc8294908dc0e06e51b900",
+  "output_sha256": "9acc140b6c492dfb7d39942fb0bb1fd8f06604cc13a622c44a948e3046061941",
+  "reference_version": "v3.12.1",
+  "numerical_work": "stubbed; conversion-only probe",
+  "source_sha256": {
+    "s": "46812f072cfb7b3683127f82e4db68ea01c5f6d878c8dd70a3a9b2486a6ab505",
+    "d": "96cf5c504fdb610ddd32d2e6d272640d5407f8ecac255c260fc4f2f9e85d2272",
+    "c": "a217001eeed760218345e3d18effab45484b8a5686f0bfc2f62c543ce636a227",
+    "z": "504eeb7d78ccb369aa62ba251835756f1002ab4008cc291ca37b956bc338b57f"
+  },
+  "observations": [
+    {
+      "prefix": "s",
+      "side": "L",
+      "storev": "C",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "s",
+      "side": "L",
+      "storev": "R",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "s",
+      "side": "R",
+      "storev": "C",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "s",
+      "side": "R",
+      "storev": "R",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "d",
+      "side": "L",
+      "storev": "C",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "d",
+      "side": "L",
+      "storev": "R",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "d",
+      "side": "R",
+      "storev": "C",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "d",
+      "side": "R",
+      "storev": "R",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "c",
+      "side": "L",
+      "storev": "C",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "c",
+      "side": "L",
+      "storev": "R",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "c",
+      "side": "R",
+      "storev": "C",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "c",
+      "side": "R",
+      "storev": "R",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "z",
+      "side": "L",
+      "storev": "C",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "z",
+      "side": "L",
+      "storev": "R",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "z",
+      "side": "R",
+      "storev": "C",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "prefix": "z",
+      "side": "R",
+      "storev": "R",
+      "conversion_shapes": [
+        [
+          7,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          5
+        ]
+      ]
+    }
+  ]
+}

@@ -98,6 +98,10 @@ def validate_lapacke_signature(row, witness):
         'potri': ['Int32', 'Int8', integer, t, integer],
         'lauum': ['Int32', 'Int8', integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
+        'tpqrt': ['Int32', integer, integer, integer, integer, t, integer, t, integer, t, integer],
+        'tpqrt2': ['Int32', integer, integer, integer, t, integer, t, integer, t, integer],
+        'tpmqrt': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, integer, t, integer, t, integer, t, integer, t, integer],
+        'tprfb': ['Int32', 'Int8', 'Int8', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, integer, t, integer, t, integer],
         'ormrz': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
         'unmrz': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
         'geqp3': ['Int32', integer, integer, t, integer, pivot, t],
@@ -164,6 +168,8 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t] + ([integer] if row['family'] == 'geqp3' else [])
         if row['scalar'] in ('c', 'z'):
             expected = expected + [real]
+    if row['family'] in ('tpqrt', 'tpmqrt', 'tprfb') and row['symbol'].endswith('_work'):
+        expected = expected + [t] + ([integer] if row['family'] == 'tprfb' else [])
     if row['family'] in ('geqrt', 'gemqrt') and row['symbol'].endswith('_work'):
         expected = expected + [t]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
