@@ -296,10 +296,11 @@ macro_rules! factor_exports {
             *info=0;
             let (m,n,la,lw)=(*m as isize,*n as isize,*lda as isize,*lwork as isize);
             let query=lw== -1;
-            for (arg,ok) in [(1,m>=0),(2,n>=0),(4,la>=m.max(1)),(7,query||lw>=n.max(1))] {
+            let minimum=if $positive && m.min(n)==0 {1}else{n.max(1)};
+            for (arg,ok) in [(1,m>=0),(2,n>=0),(4,la>=m.max(1)),(7,query||lw>=minimum)] {
                 if !ok {*info=-arg;crate::invalid(arg as i32);return;}
             }
-            *work=crate::lapack::workspace::<$t>(n.max(1));
+            *work=crate::lapack::workspace::<$t>(minimum);
             if query {return;}
             if m==0||n==0 {*work=<$t>::o();return;}
             standard_qr(m as usize,n as usize,a,la,tau,$positive);

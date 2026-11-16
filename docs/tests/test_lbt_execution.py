@@ -145,6 +145,10 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_dgetri_work': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_zpotrs': ('potrs', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_zsyr': ('syr', 'z', lambda j: f'(Int32, Int8, {j}, ComplexF64, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_dgeqrfp': ('geqrfp', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dgeqrfp_work': ('geqrfp', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zgeqrfp': ('geqrfp', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zgeqrfp_work': ('geqrfp', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_dgeqrf': ('geqrf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgeqrf_work': ('geqrf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_zgeqr2': ('geqr2', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
@@ -243,6 +247,8 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.add_lapacke()
         self.validate()
         for symbol, replacement in (
+            ('LAPACKE_dgeqrfp_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_zgeqrfp', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_dgeqrf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_zgeqr2', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_dlauum', lambda s: s.replace('Int64','Int32')),
@@ -294,7 +300,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 188)
+        self.assertEqual(len(lapacke_rows(rows)), 196)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))
