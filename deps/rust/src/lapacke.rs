@@ -4,6 +4,7 @@
 use crate::kernels::Scalar;
 mod cholesky;
 mod symmetric_rank;
+mod svd;
 
 const ROW_MAJOR: i32 = 101;
 const COL_MAJOR: i32 = 102;
