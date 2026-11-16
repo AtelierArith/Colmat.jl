@@ -1,0 +1,162 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_sggqrf.c",
+    "file": "lapacke_sggqrf.c",
+    "sha256": "ee606706e6444e1c6dc595119e98a9be2eee857e111bce41ce0b0b2d1613b871"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_sggqrf_work.c",
+    "file": "lapacke_sggqrf_work.c",
+    "sha256": "5068769aa720dbe6947b4581d92d58c63f0aa898a8b9eecfa165172f64c28696"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_sggrqf.c",
+    "file": "lapacke_sggrqf.c",
+    "sha256": "efa97e40fa38fbf003225ee4ae491d1710a8944b5e8817b4f43d4a217715a342"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_sggrqf_work.c",
+    "file": "lapacke_sggrqf_work.c",
+    "sha256": "8d5c1f41dc111fe2cf77a7a388ca75e33f2cef81dde89ae6996759c33f2a1969"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_sgglse.c",
+    "file": "lapacke_sgglse.c",
+    "sha256": "338765feb8d577ae97c4ac50537dbc1871b774e493403767e11ac5ec9ccf4919"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_sgglse_work.c",
+    "file": "lapacke_sgglse_work.c",
+    "sha256": "e27c12e624cba0fcdf9964ee0a70444084678cbd072790534c59231aa874991c"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_sggglm.c",
+    "file": "lapacke_sggglm.c",
+    "sha256": "dac9aa62a343e060d415e883d86cbdfaff96fcd9c5ce300274e33d81b13c4dc4"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_sggglm_work.c",
+    "file": "lapacke_sggglm_work.c",
+    "sha256": "889f8b2ccbba167b205b7d19dc11e01afde1eafb522735fdc65fcaf035c156dc"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_dggqrf.c",
+    "file": "lapacke_dggqrf.c",
+    "sha256": "eed1e8d4b6eaa77bb52e2a59e0f6833445165af29a5ac60b80450a791964b298"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_dggqrf_work.c",
+    "file": "lapacke_dggqrf_work.c",
+    "sha256": "ef130a9d862cf4b621f8fdb9de2e2c612543a5c17e5fad8ddaf63c8728a7be6f"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_dggrqf.c",
+    "file": "lapacke_dggrqf.c",
+    "sha256": "49df8d44f838445796aab2f3ec9dbc2de6603e8b3a2d65f918ffff340c35c8f4"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_dggrqf_work.c",
+    "file": "lapacke_dggrqf_work.c",
+    "sha256": "f69d0a0d38abc39d23cefd37810d0f6240054919c2a43d5cdb91948e82b9c2b9"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_dgglse.c",
+    "file": "lapacke_dgglse.c",
+    "sha256": "662bc1727e9d34a3b084ade73462ef9eec8dc03c2069a093f9683ee219f327b6"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_dgglse_work.c",
+    "file": "lapacke_dgglse_work.c",
+    "sha256": "54938e89779b4725f583e27f1fcc4010f3dd0527cf209cfd3bdac447fdb65a50"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_dggglm.c",
+    "file": "lapacke_dggglm.c",
+    "sha256": "ef0050d8132386aa2ebaa2d1f2a1bf1c369957f52b25f561481e7de70eb022b2"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_dggglm_work.c",
+    "file": "lapacke_dggglm_work.c",
+    "sha256": "02ff4b2a5e2c11c5eabe15c106e799c8b698433207047a84170f64c78c3bd672"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_cggqrf.c",
+    "file": "lapacke_cggqrf.c",
+    "sha256": "fc217fa0ff41ec11b27f611fd8985e7ed158274d723e41ab1567ebbe9767d591"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_cggqrf_work.c",
+    "file": "lapacke_cggqrf_work.c",
+    "sha256": "295df15cc63b899abe3de1918eca69158a6d4b2e34afdbef7166a5fd08773805"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_cggrqf.c",
+    "file": "lapacke_cggrqf.c",
+    "sha256": "420d3ff74fcbcd82afc863682f5144f65b697ad747dee8933518547fae513e1d"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_cggrqf_work.c",
+    "file": "lapacke_cggrqf_work.c",
+    "sha256": "6c4b6cbc741ca25a592072f09847ea14acac161d1899358b518d2b6d69f4b99c"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_cgglse.c",
+    "file": "lapacke_cgglse.c",
+    "sha256": "a83cefecd78e180497c94c3ed23388e257e98e0f1cce779b1cdf248a14919f49"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_cgglse_work.c",
+    "file": "lapacke_cgglse_work.c",
+    "sha256": "62d273978cada2057d88c6f787e5764e8567dfef62489f88243da27e353492dc"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_cggglm.c",
+    "file": "lapacke_cggglm.c",
+    "sha256": "739ad7286f20d8380b0a065861de4b9cbf74208f7a43c086755041324ddd5909"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_cggglm_work.c",
+    "file": "lapacke_cggglm_work.c",
+    "sha256": "806d66e66806d16b07509d3fc59492282f2376a8444b6e388b1a41f9e5b531aa"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_zggqrf.c",
+    "file": "lapacke_zggqrf.c",
+    "sha256": "c00ba3f44c862667af5b7f253d56e12993a6319f6a2100b557ed61d8b7df3bf9"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_zggqrf_work.c",
+    "file": "lapacke_zggqrf_work.c",
+    "sha256": "13aa5102f100c59b2d485b712df73eee35c890e099734635d05e8ae62b8407ff"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_zggrqf.c",
+    "file": "lapacke_zggrqf.c",
+    "sha256": "2460fda9212a81cd7074387122c219ceab94c0ee9915584a6f0696f5361dbcab"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_zggrqf_work.c",
+    "file": "lapacke_zggrqf_work.c",
+    "sha256": "78de4f001b9cc9dd4362626071611db1ffe3c5a5e117e7475f64cdc9f02e32fb"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_zgglse.c",
+    "file": "lapacke_zgglse.c",
+    "sha256": "9d2080bea481c79875a31ec568c237f9ff67ab2c9811a4533125979ee5748ecc"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_zgglse_work.c",
+    "file": "lapacke_zgglse_work.c",
+    "sha256": "e70918b801ecca0443baea20559530920fd05bc0232570af479569e905e723e0"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_zggglm.c",
+    "file": "lapacke_zggglm.c",
+    "sha256": "850030065d6ade4cabe7fd1d06f977ca436abff7ed187ad14bbd3f7e98ec7ad1"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Reference-LAPACK/lapack/v3.12.1/LAPACKE/src/lapacke_zggglm_work.c",
+    "file": "lapacke_zggglm_work.c",
+    "sha256": "e7e65a1149635de3d9cfb025d14cc070e6f4e690dfc8ac55ce8d674361e2eea3"
+  }
+]
