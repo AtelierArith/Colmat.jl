@@ -123,3 +123,9 @@ a new full-suite run. Python 28 passes after integration. Inventory and docs
 checks remain live. Final main integration and publication wait for RZ
 PR #398 to merge. Exact parent, changed-file, source-map and library hashes
 are recorded in issue-288-pentagonal-rz-integration.json.
+
+The post-integration publication checks have now completed successfully:
+Python 28, inventory 15 and the documentation build pass. The final source
+and DLL comparison also passes. Earlier pending inventory/docs statements
+are superseded by this result; RZ PR #398 and final main integration remain
+pending before the pentagonal publication PR.

@@ -25,8 +25,9 @@
   "source_map_sha256": "b601b148f5cd7540e00f6d3a413409948f3c9c62701cb1cb1600c092e55d6883",
   "publication_checks": {
     "python": 28,
-    "inventory": "live",
-    "documentation": "pending"
+    "inventory": 15,
+    "documentation": "passed",
+    "source_and_library_unchanged": true
   },
   "final_main_integration": "pending RZ PR #398 merge"
 }
