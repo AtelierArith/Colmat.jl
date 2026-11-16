@@ -49,6 +49,66 @@ for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
     end
 end
 
+for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
+    R=typeof(real(zero(T)))
+    signature=Expr(
+        :tuple,
+        Cint,
+        Cchar,
+        Cchar,
+        J,
+        Ptr{T},
+        J,
+        Ptr{R},
+        Ptr{T},
+        J,
+        (T<:Complex ? [Ptr{R}, J] : [])...,
+        Ptr{J},
+        J,
+    )
+    extra=T<:Complex ? [:rwork, :lrwork] : []
+    @eval function lapacke288_eigend_work_call(
+        ::Type{$T},
+        ::Type{$J},
+        p,
+        layout,
+        job,
+        uplo,
+        n,
+        a,
+        ld,
+        w,
+        work,
+        lwork,
+        rwork,
+        lrwork,
+        iwork,
+        liwork,
+        name,
+        route,
+    )
+        lapacke288_selected_entry(name, $J, route) do
+            ccall(
+                p,
+                $J,
+                $signature,
+                layout,
+                job,
+                uplo,
+                n,
+                a,
+                ld,
+                w,
+                work,
+                lwork,
+                $(extra...),
+                iwork,
+                liwork,
+            )
+        end
+    end
+end
+
 for T in (Float32, Float64, ComplexF32, ComplexF64)
     R=typeof(real(zero(T)))
     signature=Expr(
@@ -109,10 +169,11 @@ for T in (Float32, Float64, ComplexF32, ComplexF64)
     end
 end
 
-function lapacke288_eigen(::Type{T}, ::Type{J}) where {T,J}
+function lapacke288_eigen(::Type{T}, ::Type{J}, dd=false) where {T,J}
     R=typeof(real(zero(T)))
     prefix=Dict(Float32=>"s", Float64=>"d", ComplexF32=>"c", ComplexF64=>"z")[T]
-    family=T<:Complex ? "heev" : "syev"
+    reference_family=T<:Complex ? "heev" : "syev"
+    family=reference_family*(dd ? "d" : "")
     suffix=J===Int64 ? "64_" : ""
     native=Libdl.dlopen(Colmat.backend_library())
     trampoline=Libdl.dlopen(BLAS.libblastrampoline)
@@ -122,8 +183,8 @@ function lapacke288_eigen(::Type{T}, ::Type{J}) where {T,J}
             BLAS.get_config().loaded_libs,
         ),
     )
-    refp=Libdl.dlsym(Libdl.dlopen(reference.libname), prefix*family*"_64_")
-    @test refp!=Libdl.dlsym(native, prefix*family*"_64_")
+    refp=Libdl.dlsym(Libdl.dlopen(reference.libname), prefix*reference_family*"_64_")
+    @test refp!=Libdl.dlsym(native, prefix*reference_family*"_64_")
     for n in (0, 1, 3), uplo in ('L', 'U', 'l', 'u')
         original=T[
             i==j ? complex(4+i, 0) : complex(0.2(i+j), T<:Complex ? 0.3(i-j) : 0) for
@@ -159,25 +220,50 @@ function lapacke288_eigen(::Type{T}, ::Type{J}) where {T,J}
             before=copy(a)
             w=fill(R(-99), n+2)
             work=zeros(T, 1)
-            rwork=zeros(R, max(1, 3n-2))
-            call(work, lw) = lapacke288_eigen_call(
-                T,
-                J,
-                p,
-                high,
-                layout,
-                job,
-                uplo,
-                n,
-                a,
-                ld,
-                w,
-                work,
-                lw,
-                rwork,
-                name,
-                route,
-            )
+            rwork=zeros(R, dd ? max(1, 1+5n+2n*n) : max(1, 3n-2))
+            iwork=zeros(J, max(1, 3+5n))
+            call(work, lw) =
+                if dd && !high
+                    lapacke288_eigend_work_call(
+                        T,
+                        J,
+                        p,
+                        layout,
+                        job,
+                        uplo,
+                        n,
+                        a,
+                        ld,
+                        w,
+                        work,
+                        lw,
+                        rwork,
+                        length(rwork),
+                        iwork,
+                        length(iwork),
+                        name,
+                        route,
+                    )
+                else
+                    lapacke288_eigen_call(
+                        T,
+                        J,
+                        p,
+                        high,
+                        layout,
+                        job,
+                        uplo,
+                        n,
+                        a,
+                        ld,
+                        w,
+                        work,
+                        lw,
+                        rwork,
+                        name,
+                        route,
+                    )
+                end
             if !high
                 @test call(work, -1)==0
                 @test isequal(a, before)
@@ -201,8 +287,11 @@ function lapacke288_eigen(::Type{T}, ::Type{J}) where {T,J}
     end
 end
 
-@testset "LAPACKE SYEV/HEEV: independent reference and selected storage" begin
-    for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
-        lapacke288_eigen(T, J)
+@testset "LAPACKE SYEV/HEEV and SYEVD/HEEVD: independent reference and selected storage" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        J in (Int32, Int64),
+        dd in (false, true)
+
+        lapacke288_eigen(T, J, dd)
     end
 end

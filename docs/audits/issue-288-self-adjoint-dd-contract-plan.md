@@ -1,10 +1,11 @@
 # Issue 288: SYEVD / HEEVD contract preparation
 
-Status: workspace diagnostic correction implemented; LAPACKE DD adapters and
-their numerical/C ABI/full-suite evidence remain pending. Issue #288 remains
-open. The preceding 116-entry worktree is frozen during its full package run.
+Status: high/work DD adapters and workspace diagnostic correction implemented.
+Numerical and independent C ABI checks pass; completed-call tracing, optimized
+release and immutable full-suite evidence remain pending. Issue #288 remains
+open. The preceding 116-entry worktree has passed its immutable full package run.
 
-The planned extension adds eight canonical names: S/D SYEVD and C/Z HEEVD,
+The extension adds eight canonical names: S/D SYEVD and C/Z HEEVD,
 high/work forms, both integer ABIs. The original 1,616-name acceptance scope
 and separate 20 Rook coordination targets remain intact.
 
@@ -46,4 +47,25 @@ This is a Colmat.jl boundary defect; no native repository change is made.
 
 The four regression tests pass, and the full Rust suite passes 420 tests.
 The executed minimal comparison now returns INFO=-10 for both Colmat and
-OpenBLAS. LAPACKE DD exports remain unimplemented at this checkpoint.
+OpenBLAS. Those results preserve the earlier diagnostic-only checkpoint.
+
+
+## Initial DD adapter validation
+
+All eight DD high/work names now export LP64 and ILP64 entry points. Shared
+selected-triangle packing retains the preceding SYEV/HEEV behavior. The DD
+adapter checks main, real and integer workspace minima separately, in argument
+order; a query activated by any workspace length returns without reading A.
+Unrepresentable native workspace calculations are rejected before dispatch.
+
+The combined SYEV/HEEV and SYEVD/HEEVD Julia numerical suite passes 77,200 checks
+against independently resolved OpenBLAS eigenvalues, with both actual DLL and
+LBT routes. Cases include upper/lower and lowercase flags, both integer widths,
+N=0/1/3, N/V jobs, padding, guards and imaginary-only Hermitian diagonal NaNs.
+
+The independent C11 worker now exercises all sixteen classic/DD names and both
+widths. Auxiliary-only queries with other lengths zero, exact first-invalid
+workspace diagnostics, and guarded integer query outputs pass. Initializing
+integer query guards to -99 exposes partial 32-bit writes into an ILP64 value.
+Rust's full suite passes 428 tests; the evidence fixtures pass 17 tests,
+including rejection of incorrect real/integer workspace pointer types.

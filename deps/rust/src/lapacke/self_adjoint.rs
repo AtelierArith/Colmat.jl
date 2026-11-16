@@ -28,6 +28,43 @@ unsafe fn work<T: Scalar>(
     lda: i64,
     workspace: *mut T,
     lwork: i64,
+    call: impl FnMut(*mut T, i64, *mut T, i64) -> i64,
+) -> i64 {
+    layout_work(
+        layout,
+        job,
+        uplo,
+        n,
+        a,
+        lda,
+        workspace,
+        lwork,
+        lwork == -1,
+        || {
+            let minimum = ((if T::COMPLEX { 2i128 } else { 3i128 }) * n as i128 - 1).max(1);
+            if minimum > isize::MAX as i128 {
+                return Err(TRANSPOSE_MEMORY_ERROR);
+            }
+            if lwork != -1 && (lwork as i128) < minimum {
+                return Err(-9);
+            }
+            Ok(())
+        },
+        call,
+    )
+}
+
+unsafe fn layout_work<T: Scalar>(
+    layout: i32,
+    job: u8,
+    uplo: u8,
+    n: i64,
+    a: *mut T,
+    lda: i64,
+    workspace: *mut T,
+    lwork: i64,
+    query: bool,
+    validate_workspace: impl FnOnce() -> Result<(), i64>,
     mut call: impl FnMut(*mut T, i64, *mut T, i64) -> i64,
 ) -> i64 {
     if layout != ROW_MAJOR && layout != COL_MAJOR {
@@ -50,19 +87,15 @@ unsafe fn work<T: Scalar>(
     if layout == COL_MAJOR && lda < n.max(1) {
         return -6;
     }
-    let minimum = ((if T::COMPLEX { 2i128 } else { 3i128 }) * n as i128 - 1).max(1);
-    if minimum > isize::MAX as i128 {
-        return TRANSPOSE_MEMORY_ERROR;
-    }
-    if lwork != -1 && (lwork as i128) < minimum {
-        return -9;
+    if let Err(info) = validate_workspace() {
+        return info;
     }
     if layout == COL_MAJOR {
         return call(a, lda, workspace, lwork);
     }
     let ld = n.max(1);
-    if lwork == -1 {
-        return call(a, ld, workspace, -1);
+    if query {
+        return call(a, ld, workspace, lwork);
     }
     let nn = n as usize;
     let mut packed = match zeros::<T>((ld as usize).checked_mul(ld as usize).unwrap_or(usize::MAX))
@@ -144,6 +177,98 @@ exports!(s, syev, f32, f32, i64, [64_], _64_, []);
 exports!(d, syev, f64, f64, i64, [64_], _64_, []);
 exports!(c, heev, colmat::c32, f32, i64, [64_], _64_, [rwork]);
 exports!(z, heev, colmat::c64, f64, i64, [64_], _64_, [rwork]);
+
+fn dd_minima<T: Scalar>(job: u8, n: i64) -> Result<(i64, i64, i64), i64> {
+    if n <= 1 {
+        return Ok((1, 1, 1));
+    }
+    let n = n as u128;
+    let vectors = job.to_ascii_uppercase() == b'V';
+    let w = if T::COMPLEX {
+        if vectors {
+            2 * n + n * n
+        } else {
+            n + 1
+        }
+    } else if vectors {
+        1 + 6 * n + 2 * n * n
+    } else {
+        2 * n + 1
+    };
+    let rw = if !T::COMPLEX {
+        1
+    } else if vectors {
+        1 + 5 * n + 2 * n * n
+    } else {
+        n
+    };
+    let iw = if vectors { 3 + 5 * n } else { 1 };
+    if [w, rw, iw].iter().any(|&v| v > isize::MAX as u128) {
+        return Err(TRANSPOSE_MEMORY_ERROR);
+    }
+    Ok((w as i64, rw as i64, iw as i64))
+}
+
+macro_rules! dd_exports {
+    ($p:ident,$family:ident,$t:ty,$r:ty,$i:ty,[$($suffix:tt)*],$f:tt,[$($extra:ident)*]) => { paste::paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p $family d_work $($suffix)*>](
+            layout:i32,job:u8,uplo:u8,n:$i,a:*mut $t,lda:$i,values:*mut $r,
+            workspace:*mut $t,lwork:$i,$($extra:*mut $r,[<l $extra>]:$i,)*iwork:*mut $i,liwork:$i,
+        )-> $i {
+            let query = lwork == -1 || liwork == -1 $(|| [<l $extra>] == -1)*;
+            layout_work(layout,job,uplo,n as i64,a,lda as i64,workspace,lwork as i64,query,
+                || {
+                    let (nw,_nr,ni)=dd_minima::<$t>(job,n as i64)?;
+                    if ni > <$i>::MAX as i64 { return Err(TRANSPOSE_MEMORY_ERROR); }
+                    if !query {
+                        if (lwork as i64) < nw { return Err(-9); }
+                        $(if ([<l $extra>] as i64) < _nr { return Err(-11); })*
+                        if (liwork as i64) < ni { return Err(if <$t>::COMPLEX {-13} else {-11}); }
+                    }
+                    Ok(())
+                },
+                |a,ld,w,lw| {
+                    let mut info:$i=0;
+                    crate::lapack_symmetric::[<$p $family d $f>](&job,&uplo,&n,a,&(ld as $i),values,
+                        w,&(lw as $i),$($extra,&[<l $extra>],)*iwork,&liwork,&mut info);
+                    if info < 0 {(info-1) as i64} else {info as i64}
+                }) as $i
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p $family d $($suffix)*>](
+            layout:i32,job:u8,uplo:u8,n:$i,a:*mut $t,lda:$i,values:*mut $r,
+        )-> $i {
+            if layout != ROW_MAJOR && layout != COL_MAJOR { return -1; }
+            if LAPACKE_get_nancheck()!=0 {
+                match po_nancheck(layout,uplo,n as i64,a,lda as i64) {
+                    Ok(true)=>return -5,Err(e)=>return e as $i,Ok(false)=>{},
+                }
+            }
+            let mut wq=<$t>::z();let mut _rq=0 as $r;let mut iq=0 as $i;
+            $(let $extra=&mut _rq as *mut $r;let [<l $extra>]:$i=-1;)*
+            let info=[<LAPACKE_ $p $family d_work $($suffix)*>](layout,job,uplo,n,a,lda,values,&mut wq,-1,$($extra,[<l $extra>],)*&mut iq,-1);
+            if info!=0 {return info;}
+            let nw=wq.re();let nr=if <$t>::COMPLEX {_rq as f64} else {1.0};
+            if [nw,nr].iter().any(|&v| !v.is_finite() || v<1.0 || v>=isize::MAX as f64 || v > <$i>::MAX as f64) || iq<1 {return -1010;}
+            let mut w=match zeros::<$t>(nw as usize) {Ok(v)=>v,Err(_)=>return -1010};
+            let mut _rw=match zeros::<$r>(nr as usize) {Ok(v)=>v,Err(_)=>return -1010};
+            let mut iw=Vec::<$i>::new();
+            if (iq as usize).checked_mul(core::mem::size_of::<$i>()).is_none_or(|v|v>isize::MAX as usize) || iw.try_reserve_exact(iq as usize).is_err() {return -1010;}
+            iw.resize(iq as usize,0);
+            $(let $extra=_rw.as_mut_ptr();let [<l $extra>]=nr as $i;)*
+            [<LAPACKE_ $p $family d_work $($suffix)*>](layout,job,uplo,n,a,lda,values,w.as_mut_ptr(),nw as $i,$($extra,[<l $extra>],)*iw.as_mut_ptr(),iq)
+        }
+    }};
+}
+dd_exports!(s, syev, f32, f32, i32, [], _, []);
+dd_exports!(d, syev, f64, f64, i32, [], _, []);
+dd_exports!(c, heev, colmat::c32, f32, i32, [], _, [rwork]);
+dd_exports!(z, heev, colmat::c64, f64, i32, [], _, [rwork]);
+dd_exports!(s, syev, f32, f32, i64, [64_], _64_, []);
+dd_exports!(d, syev, f64, f64, i64, [64_], _64_, []);
+dd_exports!(c, heev, colmat::c32, f32, i64, [64_], _64_, [rwork]);
+dd_exports!(z, heev, colmat::c64, f64, i64, [64_], _64_, [rwork]);
 
 #[cfg(test)]
 mod workspace_order_regression {
@@ -383,6 +508,94 @@ mod tests {
     );
     check!(
         complex64_ilp64,
+        z,
+        heev,
+        colmat::c64,
+        f64,
+        i64,
+        [64_],
+        [rw],
+        colmat::c64::new(1.0, 2.0),
+        1e-12
+    );
+
+    macro_rules! check_dd {
+        ($test:ident,$p:ident,$family:ident,$t:ty,$r:ty,$i:ty,[$($suffix:tt)*],[$($extra:ident)*],$off:expr,$tol:expr) => { paste::paste! {
+            #[test]
+            fn $test() { unsafe {
+                numerical::<$t,$r>($off,$tol,|high,layout,job,uplo,n,a,ld,values,w,lw| {
+                    let mut _rw=vec![0 as $r;128];let mut iw=vec![0 as $i;64];
+                    $(let $extra=_rw.as_mut_ptr();let [<l $extra>]=128;)*
+                    if high { [<LAPACKE_ $p $family d $($suffix)*>](layout,job,uplo,n as $i,a,ld as $i,values) as i64 }
+                    else { [<LAPACKE_ $p $family d_work $($suffix)*>](layout,job,uplo,n as $i,a,ld as $i,values,w,lw as $i,$($extra,[<l $extra>],)*iw.as_mut_ptr(),64) as i64 }
+                });
+            } }
+        }};
+    }
+    check_dd!(dd_real32_lp64, s, syev, f32, f32, i32, [], [], 1.0, 1e-5);
+    check_dd!(dd_real64_lp64, d, syev, f64, f64, i32, [], [], 1.0, 1e-12);
+    check_dd!(
+        dd_complex32_lp64,
+        c,
+        heev,
+        colmat::c32,
+        f32,
+        i32,
+        [],
+        [rw],
+        colmat::c32::new(1.0, 2.0),
+        1e-5
+    );
+    check_dd!(
+        dd_complex64_lp64,
+        z,
+        heev,
+        colmat::c64,
+        f64,
+        i32,
+        [],
+        [rw],
+        colmat::c64::new(1.0, 2.0),
+        1e-12
+    );
+    check_dd!(
+        dd_real32_ilp64,
+        s,
+        syev,
+        f32,
+        f32,
+        i64,
+        [64_],
+        [],
+        1.0,
+        1e-5
+    );
+    check_dd!(
+        dd_real64_ilp64,
+        d,
+        syev,
+        f64,
+        f64,
+        i64,
+        [64_],
+        [],
+        1.0,
+        1e-12
+    );
+    check_dd!(
+        dd_complex32_ilp64,
+        c,
+        heev,
+        colmat::c32,
+        f32,
+        i64,
+        [64_],
+        [rw],
+        colmat::c32::new(1.0, 2.0),
+        1e-5
+    );
+    check_dd!(
+        dd_complex64_ilp64,
         z,
         heev,
         colmat::c64,
