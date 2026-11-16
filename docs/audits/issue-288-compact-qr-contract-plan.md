@@ -1,7 +1,9 @@
 # Issue #288: compact QR C adapters
 
-Status: adapters and initial numerical interoperability checks implemented;
-policy, independent C ABI and immutable full-suite evidence pending. Issue #288 remains open.
+Status: current immutable full package validation passes; source-bound
+evidence is imported. CI and main integration remain pending.
+
+Issue #288 remains open.
 
 The canonical inventory contains 32 high/work entries for S/D/C/Z GEQRT,
 GEQRT2, GEQRT3 and GEMQRT. It contains no GELQT/GELQT3/GEMLQT C entries.
@@ -104,3 +106,25 @@ The MWE now has exactly real diagonals matching OpenBLAS to rounding error.
 Focused numerical checks pass 159600 factor assertions (including real R
 diagonals) plus 32256 rectangular application and 1040 boundary assertions.
 Rust 460 tests pass after this correction. Full immutable evidence is pending.
+
+Optimized repetition passes the same 191856 numerical, 1040 policy, independent
+C caller and 6486 completed-call gate checks. Typed tracing covers all 324
+candidate names with 1296 completed ABI/route observations and explicitly
+records full_suite_passed=false. The optimized DLL SHA-256 is
+23ee0b32576db80489f651ce99d16dd44997f1de39169a3cfa43c6bfe6b487b1.
+Normal main/parent integration preserves all 312 execution-source hashes.
+A fresh full package run remains required before publishing this scope.
+
+Current terminal-zero full Pkg.test proof is bound to
+`1cc2018faf9bff9bd4831a5c7eb057fc0a8685af` and all 312 frozen sources.
+HEAD, every source, optimized DLL, manifest and registration were unchanged
+through the run. The imported proof validates 1602 canonical entries:
+1106 Fortran LAPACK, 172 CBLAS and 324 LAPACKE, with 5855 completed
+witnesses and 1806 forwards per ABI. This full proof includes the complex
+real-diagonal correction and all independent numerical/C/policy tests.
+CI artifact provenance and final main integration remain required.
+
+After parent/main integration, all 312 validated source hashes and the DLL
+remain unchanged. Python 28, inventory 15 and documentation build pass. The
+inherited coverage doctest now checks 1806 forwards per ABI. CI provenance
+and final main merge remain required.

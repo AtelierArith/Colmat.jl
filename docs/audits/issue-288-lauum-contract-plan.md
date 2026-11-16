@@ -1,7 +1,9 @@
 # Issue #288: LAUUM C adapters and complex diagonal compatibility
 
-Status: focused numerical, C ABI and completed-call checks pass. Immutable
-full-suite proof is pending. Issue #288 remains open.
+Status: immutable full-suite validation passed at
+`34cbef7002d47bdcf501ee6b3f55ba5dcb25b81e`. All 280 source hashes, manifest,
+registration and optimized DLL matched the pre-run freeze before evidence import.
+Issue #288 remains open.
 
 Eight S/D/C/Z LAUUM high/work names extend the preceding 164-name candidate to
 172 original-scope names. The original 1616-name scope retains 1444 names beyond
@@ -55,5 +57,11 @@ this is not replaced by a whole-complex NaN comparison.
 - Python evidence fixtures: 17 passed. Completed-call tracing validates 172
   names and 688 observations; full_suite_passed remains explicitly false.
 
-Optimized repetition, immutable full package testing, evidence import,
-documentation and Linux/macOS artifact provenance checks remain required.
+Optimized build and repeated independent C/numerical/signature checks pass.
+The frozen optimized DLL SHA256 is
+`3aeb0dd43cda9f92414e4606727b856df54119964a5bd7018b9ffc11e0f6b95c`.
+The completed-call gate passes 3446 checks; registration is 1654 forwards per ABI.
+The imported full-suite artifact validates 1450 names: 1106 Fortran LAPACK,
+172 CBLAS and 172 LAPACKE, with 5175 completed witnesses. Python 28, inventory 15
+and documentation build checks pass. Linux/macOS artifact provenance remains
+required before publication.
