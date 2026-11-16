@@ -56,7 +56,7 @@ unsafe fn triangular_product<T: Scalar>(
         )
     });
 }
-unsafe fn gemmt<T: Scalar>(
+pub(crate) unsafe fn gemmt<T: Scalar>(
     u: u8,
     ta: u8,
     tb: u8,
@@ -82,24 +82,32 @@ unsafe fn gemmt<T: Scalar>(
         a,
         n as usize,
         k as usize,
-        if ta == b'N' { 1 } else { la },
-        if ta == b'N' { la } else { 1 },
+        if matches!(ta, b'N' | b'R') { 1 } else { la },
+        if matches!(ta, b'N' | b'R') { la } else { 1 },
     );
     let rhs = MatRef::from_raw_parts(
         b,
         k as usize,
         n as usize,
-        if tb == b'N' { 1 } else { lb },
-        if tb == b'N' { lb } else { 1 },
+        if matches!(tb, b'N' | b'R') { 1 } else { lb },
+        if matches!(tb, b'N' | b'R') { lb } else { 1 },
     );
     triangular_product(
         u,
         n,
         alpha,
         lhs,
-        if ta == b'C' { Conj::Yes } else { Conj::No },
+        if matches!(ta, b'C' | b'R') {
+            Conj::Yes
+        } else {
+            Conj::No
+        },
         rhs,
-        if tb == b'C' { Conj::Yes } else { Conj::No },
+        if matches!(tb, b'C' | b'R') {
+            Conj::Yes
+        } else {
+            Conj::No
+        },
         beta,
         c,
         lc,

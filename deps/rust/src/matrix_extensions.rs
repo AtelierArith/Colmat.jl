@@ -2,7 +2,7 @@
 use crate::kernels::{flag, Scalar};
 use colmat::{MatMut, MatRef};
 use paste::paste;
-unsafe fn matcopy<T: Scalar>(
+pub(crate) unsafe fn matcopy<T: Scalar>(
     order: u8,
     tr: u8,
     m: usize,
@@ -48,7 +48,7 @@ unsafe fn matcopy<T: Scalar>(
         });
     }
 }
-unsafe fn geadd<T: Scalar>(
+pub(crate) unsafe fn geadd<T: Scalar>(
     m: usize,
     n: usize,
     alpha: T,

@@ -1,6 +1,8 @@
 //! CBLAS ABI adapters over the existing Fortran/native operations.
 //! Signatures: OpenBLAS v0.3.30 cblas.h (CBLAS_INDEX is size_t for both ABIs).
 //! https://github.com/OpenMathLib/OpenBLAS/blob/v0.3.30/cblas.h
+//! GEMMTR additionally checked against OpenBLAS cblas.h blob
+//! 89b2f99cde1c6c4f420f24af43816e16163a01eb (same GEMMT signature).
 use crate::kernels::Scalar;
 use colmat::{c32, c64};
 use paste::paste;
@@ -766,8 +768,112 @@ macro_rules! packed_rank_two_export {
         }
     }};
 }
+
+fn copy_header<T>(
+    order: i32,
+    t: i32,
+    m: i64,
+    n: i64,
+    la: i64,
+    lb: i64,
+    inplace: bool,
+) -> Option<(u8, u8)> {
+    if !matches!(order, 101 | 102) {
+        crate::invalid(1);
+        return None;
+    }
+    let Some(t) = cblas_trans(t) else {
+        crate::invalid(2);
+        return None;
+    };
+    if m < 0 {
+        crate::invalid(3);
+        return None;
+    }
+    if n < 0 {
+        crate::invalid(4);
+        return None;
+    }
+    let (rows, cols) = if matches!(t, b'T' | b'C') {
+        (n, m)
+    } else {
+        (m, n)
+    };
+    if !matrix_ok::<T>(m, n, la, order == 101, 7)
+        || !matrix_ok::<T>(rows, cols, lb, order == 101, if inplace { 8 } else { 9 })
+    {
+        return None;
+    }
+    Some((if order == 101 { b'R' } else { b'C' }, t))
+}
+macro_rules! matrix_extension_exports {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p omatcopy $cs>](order:i32,t:i32,m:$i,n:$i,alpha:$coefficient,a:*const $t,la:$i,b:*mut $t,lb:$i) {
+            let Some((order,t))=copy_header::<$t>(order,t,m as i64,n as i64,la as i64,lb as i64,false) else {return;};
+            if m==0||n==0{return;}
+            crate::matrix_extensions::matcopy(order,t,m as usize,n as usize,($read)(alpha),a,la as isize,b,lb as isize,false);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p imatcopy $cs>](order:i32,t:i32,m:$i,n:$i,alpha:$coefficient,a:*mut $t,la:$i,lb:$i) {
+            let Some((order,t))=copy_header::<$t>(order,t,m as i64,n as i64,la as i64,lb as i64,true) else {return;};
+            if m==0||n==0{return;}
+            crate::matrix_extensions::matcopy(order,t,m as usize,n as usize,($read)(alpha),a,la as isize,a,lb as isize,true);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p geadd $cs>](order:i32,m:$i,n:$i,alpha:$coefficient,a:*const $t,la:$i,beta:$coefficient,b:*mut $t,lb:$i) {
+            if !matches!(order,101|102){crate::invalid(1);return;}
+            if m<0 {crate::invalid(2);return;}
+            if n<0 {crate::invalid(3);return;}
+            if !matrix_ok::<$t>(m as i64,n as i64,la as i64,order==101,6)||!matrix_ok::<$t>(m as i64,n as i64,lb as i64,order==101,9){return;}
+            if m==0||n==0{return;}
+            let (m,n)=if order==101{(n,m)}else{(m,n)};
+            crate::matrix_extensions::geadd(m as usize,n as usize,($read)(alpha),a,la as isize,($read)(beta),b,lb as isize);
+        }
+    }};
+}
+
+macro_rules! triangular_gemm_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$op:ident) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,u:i32,ta:i32,tb:i32,n:$i,k:$i,alpha:$coefficient,a:*const $t,la:$i,b:*const $t,lb:$i,beta:$coefficient,c:*mut $t,lc:$i) {
+            if !matches!(order,101|102){crate::invalid(1);return;}
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(2);return;};
+            let Some(ta)=cblas_trans(ta) else {crate::invalid(3);return;};
+            let Some(tb)=cblas_trans(tb) else {crate::invalid(4);return;};
+            if n<0 {crate::invalid(5);return;}
+            if k<0 {crate::invalid(6);return;}
+            let (ar,ac)=if matches!(ta,b'N'|b'R'){(n,k)}else{(k,n)};
+            let (br,bc)=if matches!(tb,b'N'|b'R'){(k,n)}else{(n,k)};
+            if !matrix_ok::<$t>(ar as i64,ac as i64,la as i64,order==101,9)
+                ||!matrix_ok::<$t>(br as i64,bc as i64,lb as i64,order==101,11)
+                ||!matrix_ok::<$t>(n as i64,n as i64,lc as i64,false,14){return;}
+            if n==0{return;}
+            let alpha=($read)(alpha);
+            let beta=($read)(beta);
+            if order==101 {
+                u=flip_uplo(u);
+                crate::dense_extensions::gemmt(u,tb,ta,n as isize,k as isize,alpha,b,lb as isize,a,la as isize,beta,c,lc as isize);
+            }else{
+                crate::dense_extensions::gemmt(u,ta,tb,n as isize,k as isize,alpha,a,la as isize,b,lb as isize,beta,c,lc as isize);
+            }
+        }
+    }};
+}
 macro_rules! interface {
     ($i:ty,$fs:tt,$cs:tt) => {
+        triangular_gemm_export!(s, f32, f32, |x: f32| x, $i, $cs, gemmt);
+        triangular_gemm_export!(s, f32, f32, |x: f32| x, $i, $cs, gemmtr);
+        triangular_gemm_export!(d, f64, f64, |x: f64| x, $i, $cs, gemmt);
+        triangular_gemm_export!(d, f64, f64, |x: f64| x, $i, $cs, gemmtr);
+        triangular_gemm_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, gemmt);
+        triangular_gemm_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, gemmtr);
+        triangular_gemm_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, gemmt);
+        triangular_gemm_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, gemmtr);
+        matrix_extension_exports!(s, f32, f32, |x: f32| x, $i, $cs);
+        matrix_extension_exports!(d, f64, f64, |x: f64| x, $i, $cs);
+        matrix_extension_exports!(c, c32, *const c32, |x: *const c32| *x, $i, $cs);
+        matrix_extension_exports!(z, c64, *const c64, |x: *const c64| *x, $i, $cs);
         packed_rank_export!(s, f32, f32, |x: f32| x, $i, $cs, spr, false);
         packed_rank_export!(d, f64, f64, |x: f64| x, $i, $cs, spr, false);
         packed_rank_export!(c, c32, f32, |x: f32| c32::new(x, 0.0), $i, $cs, hpr, true);
@@ -1018,6 +1124,12 @@ mod band_tests;
 
 #[cfg(test)]
 mod packed_rank_tests;
+
+#[cfg(test)]
+mod matrix_tests;
+
+#[cfg(test)]
+mod triangular_gemm_tests;
 
 #[cfg(test)]
 mod tests {
