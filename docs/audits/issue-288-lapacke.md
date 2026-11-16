@@ -1,22 +1,13 @@
 # Issue #288: implemented LAPACKE numerical subset
 
-The implemented subset connects **124 canonical numerical entries**: high-level and `_work`
-forms of GETRF, GETF2, GETRF2, GETRS, GESV, GETRI, POTRF, POTRF2, POTRI, POTRS and POSV, for
-Float32, Float64, ComplexF32 and ComplexF64. Both integer ABIs and actual DLL/LBT
-routes are tested. Complex-only CSYR/ZSYR high/work forms add four entries;
-[their audit](issue-288-complex-syr.md) records the by-value coefficient ABI and
-intentional strided NaN-check deviation. GESVD/GESDD high/work forms add
-sixteen entries; [their audit](issue-288-svd-contract-plan.md) records scratch,
-layout and backend algorithm contracts. SYEV/HEEV high/work add eight real or
-complex self-adjoint entries; [their audit](issue-288-self-adjoint-contract-plan.md)
-records selected storage and ignored Hermitian diagonal handling. SYEVD/HEEVD high/work add eight further self-adjoint entries;
-[their audit](issue-288-self-adjoint-dd-contract-plan.md) records the three
-workspace contracts and first-invalid-argument diagnostics. Two additional NaN policy helpers
-are shared between ABIs;
-their arguments and return values retain C-int width.
+The current candidate connects **452 original-scope canonical numerical entries**,
+including the 32 GGQRF/GGRQF/GGLSE/GGGLM high/work entries. Its immutable full
+suite validates 343 source files, 1730 canonical entries and 6395 completed
+witnesses, with 1934 registered forwards per integer ABI.
+See [generalized QR contracts and evidence](issue-288-generalized-qr-contract-plan.md).
 
 **Issue #288 remains open.** Its original 1,616-entry acceptance scope is frozen
-in `issue-288-lapacke-scope.json`; 1,492 of those entries remain beyond this stage.
+in `issue-288-lapacke-scope.json`; 1,164 of those entries remain beyond this stage.
 Issue #372 additionally coordinates 20 LAPACKE Rook entries with #288. Those
 additions are separate from the original scope and are also still pending.
 Registration alone, successful fallback computation and the current subset's

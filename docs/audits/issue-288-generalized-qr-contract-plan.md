@@ -4,7 +4,11 @@ Status: all 32 new C entries pass focused debug numerical, diagnostic policy
 and independent C ABI checks. Rust 463 and Python ABI fixtures 17 pass.
 Debug and optimized full-stage tracing pass: each covers 452 canonical C
 entries, 1808 completed observations and 9046 completed-call gate checks.
-Immutable full package proof remains pending.
+Immutable full Pkg.test(;allow_reresolve=false) passed at source
+299e5b99a87bdddaba766aafdd09d74947c2c661 with all 343 source hashes,
+manifest, registration and optimized DLL fixed. The imported evidence validates
+1730 canonical entries and 6395 completed witnesses (1934 forwards per ABI).
+Exact full-run hashes are in issue-288-generalized-qr-full-provenance.json.
 Issue #288 remains open.
 
 Canonical scope: S/D/C/Z high/work GGQRF, GGRQF, GGLSE and GGGLM (32 names).
@@ -103,3 +107,7 @@ failure and its temporary assets restored. It will be repeated after the
 correction; no interrupted trace or focused run is a full-suite proof.
 Exact source/library/log hashes and limits are recorded in
 issue-288-generalized-qr-debug-numerical.json.
+
+The successful corrected debug and optimized traces and immutable full suite
+supersede all earlier pending or interrupted-run statements above. Those
+statements describe the bounded evidence available during preparation.
