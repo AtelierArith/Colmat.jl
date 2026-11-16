@@ -140,11 +140,23 @@ macro_rules! exports {
         pub unsafe extern "C" fn [<$p lauum $s>](uplo:*const u8,n:*const $i,a:*mut $t,lda:*const $i,info:*mut $i) {
             *info=0;let(u,nn,ld)=(flag(uplo),*n as isize,*lda as isize);
             for(arg,valid)in[(1,matches!(u,b'U'|b'L')),(2,nn>=0),(4,ld>=nn.max(1))] { if !valid { *info=-arg;crate::invalid(arg as i32);return; } }
-            if nn>0 {product(u,nn as usize,a,ld);}
+            if nn>0 {
+                if let Some(result)=crate::triangular_product::maybe_saved(0,u,nn as i64,a,ld as i64) {
+                    if <$i>::try_from(result).is_err(){crate::invalid(-2);*info=1;}else{*info=result as $i;}return;
+                }
+                product(u,nn as usize,a,ld);
+            }
         }
         #[no_mangle]
         pub unsafe extern "C" fn [<$p lauu2 $s>](uplo:*const u8,n:*const $i,a:*mut $t,lda:*const $i,info:*mut $i) {
-            [<$p lauum $s>](uplo,n,a,lda,info);
+            *info=0;let(u,nn,ld)=(flag(uplo),*n as isize,*lda as isize);
+            for(arg,valid)in[(1,matches!(u,b'U'|b'L')),(2,nn>=0),(4,ld>=nn.max(1))] { if !valid { *info=-arg;crate::invalid(arg as i32);return; } }
+            if nn>0 {
+                if let Some(result)=crate::triangular_product::maybe_saved(1,u,nn as i64,a,ld as i64) {
+                    if <$i>::try_from(result).is_err(){crate::invalid(-2);*info=1;}else{*info=result as $i;}return;
+                }
+                product(u,nn as usize,a,ld);
+            }
         }
     }};
 }
