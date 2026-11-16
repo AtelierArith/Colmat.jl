@@ -45,3 +45,15 @@ calls, debug/optimized repetition and immutable full proof are required.
 This branch inherits temporary RZ diagnostic CI. Restore ordinary repository
 CI through parent integration before opening a PR. Native colmat-rs edits
 and PRs are not authorized by this stage.
+
+Executed conversion probe: `reproducers/lapacke_tprfb_row_extents.py` compiles
+unchanged v3.12.1 S/D/C/Z work wrappers with a numerical no-op and real
+transpose helpers. Sixteen scalar/SIDE/STOREV observations all pass. For
+M=3,N=5,K=2,LDV=7,LDT=6 it copies V as 7-by-2, T as 6-by-2 and A as
+2-by-3 regardless of SIDE/STOREV. All caller buffers are padded for these
+extents. This establishes conversion behavior only. It does not establish
+numerical accuracy or authorize using these shapes as a numerical oracle.
+For SIDE=R, logical A is M-by-K (3-by-2); V shape also depends on SIDE and
+STOREV. The adapter must derive logical extents and preserve const/padding
+storage. Exact source, reproducer and output hashes are recorded in
+issue-288-pentagonal-row-extents.json. full_suite_passed remains false.
