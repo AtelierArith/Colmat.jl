@@ -1,7 +1,7 @@
 # Issue #288: GEQRFP C adapters
 
-Status: debug/optimized numerical and typed ABI checks pass; the source is
-being frozen for full-suite validation. Published full-suite evidence is pending.
+Status: immutable full package validation passes and source-bound execution
+evidence is imported. CI and integration are pending.
 Issue #288 remains open. Eight S/D/C/Z high/work names extend the preceding
 188-name candidate to 196 original-scope names. The remaining original scope is
 1420 names, with the separate 20 Rook C targets still additional work.
@@ -38,7 +38,15 @@ Typed completed-call tracing covers all 196 candidate names with 784 completed
 observations across both ABIs and routes; its call-site gate passes 3,926 checks.
 The Rust suite passes 460 tests. This focused evidence explicitly records
 `full_suite_passed=false`. Optimized repetition also passes the 51,264 numerical assertions, 3,926 call-site
-checks and all 784 typed observations. Immutable full package testing and
-source-bound evidence publication remain required.
+checks and all 784 typed observations. The subsequent immutable full package run passes and its source-bound
+evidence is imported.
 
 Optimized DLL SHA-256: `004dc672b0e3b06f92a94973e254267f86aa6d8cd84ff2e429cde272883bd707`.
+
+The terminal-zero full Pkg.test run is bound to source commit
+`6abf88063a921606f7ea5fb6192a357cdf29a3b0` and all 288 frozen source files.
+HEAD, every source, optimized DLL, manifest and registration remained unchanged.
+The imported proof validates 1474 canonical entries: 1106 Fortran LAPACK,
+172 CBLAS and 196 LAPACKE, with 5275 completed witnesses. Python 28,
+inventory 15 and documentation build checks pass. CI and main integration
+remain required.
