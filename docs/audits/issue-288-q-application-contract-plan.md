@@ -1,5 +1,9 @@
 # Issue #288: Q application C adapters
 
+Status: current-source immutable full package validation passes; source-bound
+evidence is imported. CI and main integration remain pending.
+Issue #288: Q application C adapters
+
 Status: canonical scope and primary contract investigation; implementation
 and full-suite evidence pending. Issue #288 remains open.
 
@@ -129,3 +133,10 @@ typed observations with 5846 gate checks. Optimized DLL SHA-256:
 `0bc1b452ee357cc43a5df9b87b482ddcfda20afc853c78bb146df7886658364b`.
 Registration is 1774 forwards per integer ABI. The source is being frozen for
 full package validation; no full-suite proof is claimed for this candidate.
+
+Current full-suite proof is bound to `39aa06e36fd6d4e6342596c40342d92d9f3c9018` and all
+306 frozen sources, optimized DLL, manifest and registration. The imported
+proof validates 1570 canonical entries: 1106 Fortran LAPACK, 172 CBLAS and
+292 LAPACKE, with 5727 completed witnesses. Python 28, inventory 15 and
+documentation build checks pass. All frozen source hashes and DLL remain
+unchanged. CI artifact provenance and main integration remain required.
