@@ -248,10 +248,11 @@ macro_rules! real_exports {
         pub unsafe extern "C" fn [<$p geqp3 $s>](m:*const $i,n:*const $i,a:*mut $t,lda:*const $i,jpvt:*mut $i,tau:*mut $t,work:*mut $t,lwork:*const $i,info:*mut $i) {
             *info=0;let(m,n,la,lw)=(*m as isize,*n as isize,*lda as isize,*lwork as isize);
             let minwork=if m.min(n)==0 {1} else {3*n+1};
-            for(arg,ok)in [(1,m>=0),(2,n>=0),(4,la>=m.max(1)),(8,lw== -1||lw>=minwork)] {
+            for(arg,ok)in [(1,m>=0),(2,n>=0),(4,la>=m.max(1))] {
                 if !ok {*info=-arg;crate::invalid(arg as i32);return;}
             }
             *work=crate::lapack::workspace::<$t>(minwork);
+            if lw!= -1&&lw<minwork {*info=-8;crate::invalid(8);return;}
             if lw== -1 {return;}
             complete(m as usize,n as usize,a,la,jpvt,tau);
         }
@@ -271,10 +272,11 @@ macro_rules! complex_exports {
         pub unsafe extern "C" fn [<$p geqp3 $s>](m:*const $i,n:*const $i,a:*mut $t,lda:*const $i,jpvt:*mut $i,tau:*mut $t,work:*mut $t,lwork:*const $i,_rwork:*mut $r,info:*mut $i) {
             *info=0;let(m,n,la,lw)=(*m as isize,*n as isize,*lda as isize,*lwork as isize);
             let minwork=if m.min(n)==0 {1} else {n+1};
-            for(arg,ok)in [(1,m>=0),(2,n>=0),(4,la>=m.max(1)),(8,lw== -1||lw>=minwork)] {
+            for(arg,ok)in [(1,m>=0),(2,n>=0),(4,la>=m.max(1))] {
                 if !ok {*info=-arg;crate::invalid(arg as i32);return;}
             }
             *work=crate::lapack::workspace::<$t>(minwork);
+            if lw!= -1&&lw<minwork {*info=-8;crate::invalid(8);return;}
             if lw== -1 {return;}
             complete(m as usize,n as usize,a,la,jpvt,tau);
         }

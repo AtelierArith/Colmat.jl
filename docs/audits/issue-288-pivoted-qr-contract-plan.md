@@ -38,3 +38,13 @@ fixed/free columns, integer pivot guards and unused TAU/work/padding, negative
 INFO precedence, logical NaN boundaries, and ILP64 arguments beyond int32.
 Investigate failures with executed MWEs before changing existing Fortran
 boundaries. No native colmat-rs edits or PRs are authorized by this stage.
+
+Executed `geqp3_error_workspace.jl` at M=N=1,LWORK=0: own INFO=-8 left
+WORK(1)=777 while independent OpenBLAS returned -8 and published a workspace
+size. The own boundary now publishes its own optimal value after dimension
+validation and before the LWORK rejection. Optimal values depend on the
+implementation and are not required to equal OpenBLAS. Independent guarded
+checks pass 688 assertions across all scalar types and both own ABIs,
+including empty queries and insufficient work, with no A/TAU/JPVT/RWORK
+changes. Expected thread-local diagnostics are asserted and consumed at
+the origin. This is focused evidence only, not full validation.

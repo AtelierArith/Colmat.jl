@@ -1,0 +1,24 @@
+{
+  "full_suite_passed": false,
+  "reproducer": "reproducers/geqp3_error_workspace.jl",
+  "library_sha256": "23ee0b32576db80489f651ce99d16dd44997f1de39169a3cfa43c6bfe6b487b1",
+  "observations": [
+    "(library = \"libcolmat_blas.dylib\", scalar = Float64, result = (info = -8, work = [777.0], a = [2.0], tau = [778.0], pivot = [0], rwork = [779.0, 779.0]))",
+    "(library = \"libopenblas64_.0.3.30.dylib\", scalar = Float64, result = (info = -8, work = [66.0], a = [2.0], tau = [778.0], pivot = [0], rwork = [779.0, 779.0]))",
+    "(library = \"libcolmat_blas.dylib\", scalar = ComplexF64, result = (info = -8, work = ComplexF64[777.0 + 0.0im], a = ComplexF64[2.0 + 0.0im], tau = ComplexF64[778.0 + 0.0im], pivot = [0], rwork = [779.0, 779.0]))",
+    "(library = \"libopenblas64_.0.3.30.dylib\", scalar = ComplexF64, result = (info = -8, work = ComplexF64[64.0 + 0.0im], a = ComplexF64[2.0 + 0.0im], tau = ComplexF64[778.0 + 0.0im], pivot = [0], rwork = [779.0, 779.0]))",
+    " ** On entry to DGEQP3TransposeLeft parameter number  8 had an illegal value",
+    " ** On entry to ZGEQP3Conjugate TransposeLeft parameter number  8 had an illegal value"
+  ],
+  "finding": "At LWORK=0 both implementations return INFO=-8. Own WORK(1) remains sentinel777; independent OpenBLAS publishes its optimal work size, leaving A/TAU/JPVT/RWORK untouched.",
+  "after_observations": [
+    "(library = \"libcolmat_blas.dylib\", scalar = Float64, result = (info = -8, work = [4.0], a = [2.0], tau = [778.0], pivot = [0], rwork = [779.0, 779.0]))",
+    "(library = \"libopenblas64_.0.3.30.dylib\", scalar = Float64, result = (info = -8, work = [66.0], a = [2.0], tau = [778.0], pivot = [0], rwork = [779.0, 779.0]))",
+    "(library = \"libcolmat_blas.dylib\", scalar = ComplexF64, result = (info = -8, work = ComplexF64[2.0 + 0.0im], a = ComplexF64[2.0 + 0.0im], tau = ComplexF64[778.0 + 0.0im], pivot = [0], rwork = [779.0, 779.0]))",
+    "(library = \"libopenblas64_.0.3.30.dylib\", scalar = ComplexF64, result = (info = -8, work = ComplexF64[64.0 + 0.0im], a = ComplexF64[2.0 + 0.0im], tau = ComplexF64[778.0 + 0.0im], pivot = [0], rwork = [779.0, 779.0]))",
+    " ** On entry to DGEQP3TransposeLeft parameter number  8 had an illegal value",
+    " ** On entry to ZGEQP3Conjugate TransposeLeft parameter number  8 had an illegal value"
+  ],
+  "correction": "Publish own optimal workspace after valid dimensions and before rejecting insufficient LWORK. Optimal sizes are implementation-dependent; no equality with OpenBLAS optimal sizes is claimed.",
+  "focused_assertions": 688
+}
