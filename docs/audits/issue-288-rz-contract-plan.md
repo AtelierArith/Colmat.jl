@@ -123,3 +123,17 @@ integer and complex TAU/WORK pointers. Seventeen execution fixtures pass,
 including wrong L width, C character type and scalar-pointer rejections.
 The prepared completed-call gate now covers 356 canonical names. No typed
 356-name result, optimized repeat or immutable RZ full proof is claimed.
+
+Cloud run 43910282161 passes the stricter 100*epsilon numerical version:
+33024 factor, 46176 application and 816 C policy assertions, plus Rust 460.
+The ZIP and exact formatter-patched source hashes match the recorded
+focused-numerical JSON. That patch is applied locally. Full proof is pending.
+
+An independent C11 worker is prepared with explicit declarations for all
+sixteen names and both integer ABIs. Native factors feed reference consumers,
+reference factors feed native C consumers, and an explicit product of
+Householder matrices checks both sides/transposes and overlapping tails.
+Independent Fortran comparisons also cover nonoverlapping tails. Guards,
+queries/minimal work, sparse identity/null inputs and ILP64 values beyond
+int32 are covered. It compiles locally with -Wall -Wextra -Werror; execution
+in the candidate CI remains pending.

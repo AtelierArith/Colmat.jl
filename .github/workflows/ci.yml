@@ -31,13 +31,15 @@ jobs:
         run: cargo test --manifest-path deps/rust/Cargo.toml --locked > contract-probes/rust-tests.log 2>&1
       - name: Format numerical checks with the development formatter
         run: |
-          julia --project=@v1.13 -e 'using Pkg; Pkg.add(PackageSpec(name="JuliaFormatter",version="2.14.0")); using JuliaFormatter; for f in ("test/lapacke_rz.jl","test/lapacke_rz_policy.jl"); format_file(f); end'
-          git diff -- test/lapacke_rz.jl test/lapacke_rz_policy.jl > contract-probes/juliafmt.patch
-          sha256sum test/lapacke_rz.jl test/lapacke_rz_policy.jl > contract-probes/numerical-source-sha256.txt
+          julia --project=@v1.13 -e 'using Pkg; Pkg.add(PackageSpec(name="JuliaFormatter",version="2.14.0")); using JuliaFormatter; for f in ("test/lapacke_rz.jl","test/lapacke_rz_policy.jl","test/lapacke_rz_abi.jl","test/lapacke_execution_checks.jl","test/suite.jl"); format_file(f); end'
+          git diff -- test/lapacke_rz.jl test/lapacke_rz_policy.jl test/lapacke_rz_abi.jl test/lapacke_execution_checks.jl test/suite.jl > contract-probes/juliafmt.patch
+          sha256sum test/lapacke_rz.jl test/lapacke_rz_policy.jl test/lapacke_rz_abi.jl test/lapacke_execution_checks.jl test/suite.jl > contract-probes/numerical-source-sha256.txt
       - name: Existing Fortran RZ regressions
         run: julia --project=. test/rz.jl > contract-probes/fortran-regressions.log 2>&1
       - name: Independent C adapter numerical interoperability
         run: julia --project=. -e 'include("test/lapacke_rz.jl"); include("test/lapacke_rz_policy.jl")' > contract-probes/c-adapter-numerical.log 2>&1
+      - name: Independent C caller ABI and reflector products
+        run: julia --project=. test/lapacke_rz_abi.jl > contract-probes/c-abi.log 2>&1
       - name: Capture independent library paths
         run: |
           mkdir -p contract-probes

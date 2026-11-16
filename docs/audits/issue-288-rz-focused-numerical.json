@@ -1,0 +1,18 @@
+{
+  "full_suite_passed": false,
+  "run_id": 43910282161,
+  "source_revision": "f80b2d00b9081a9ba88db99cc5dcb935ffab668d",
+  "artifact_id": 14247152800,
+  "zip_sha256": "575d331c3f4d1c5d9dcec5552f3c76d3761d54eb9be0c4726498b49114fd6e00",
+  "julia_format_patch_sha256": "271a71c57eccfe3238ce8e3f9900e64c8f9032774cec04e2347df9a9c5b7e4a4",
+  "counts": {
+    "factor_interoperability": 33024,
+    "application_interoperability": 46176,
+    "policy": 816,
+    "rust": 460
+  },
+  "source_sha256": {
+    "test/lapacke_rz.jl": "967a9bd93ef45b1663d248060960dfcfbe8e03db5e500cdfbacfd37431b736a6",
+    "test/lapacke_rz_policy.jl": "f9d1b5d9ee76058c2ff3f87f02ea4c76f3b0fe981f27bd2b6c9a9a260b22fbf7"
+  }
+}
