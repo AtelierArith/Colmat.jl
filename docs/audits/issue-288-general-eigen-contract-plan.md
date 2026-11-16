@@ -48,7 +48,11 @@ diagnostics are not asserted by the present focused tests.
   passed signature and return-type validation. The evidence explicitly records
   full_suite_passed=false and is not imported as full-suite proof.
 
-Before publication: complete traced focused validation, optimized build checks,
+Optimized build and repeated traced focused validation passed with the same
+140 names and 560 completed observations. The frozen optimized DLL SHA256 is
+`df96a8d16373fcd5326ca96f99d72189022757868746b2d114f068b5dc0d4f37`.
+
+Before publication: complete
 immutable full Pkg.test(), source-bound evidence import, regenerated inventory,
 documentation checks, and Linux/macOS CI artifact validation. Focused evidence
 must remain explicitly marked full_suite_passed=false.
