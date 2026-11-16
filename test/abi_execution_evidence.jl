@@ -42,7 +42,7 @@ const lapacke_policy_helpers = Set(["LAPACKE_get_nancheck", "LAPACKE_set_nanchec
 const ambiguities = Set{String}()
 const errors = String[]
 const initialized = Ref(false)
-const seen = Set{Tuple{UInt,Any,String,Int,Any}}()
+const seen = Set{Tuple{UInt,Any,String,Int,Any,Any}}()
 function initialize()
     native = Libdl.dlopen(Main.Colmat.backend_library())
     trampoline = Libdl.dlopen(Main.LinearAlgebra.BLAS.libblastrampoline)
@@ -66,17 +66,45 @@ function initialize()
     end
     return initialized[]=true
 end
+# Explicit caller selection disambiguates aliases that optimization merges into
+# the same address. The actual returned foreign call must still match that
+# selected symbol, integer ABI and DLL/trampoline route in the address table.
+function with_entry(f, name, bits, route)
+    bits in (32, 64) || error("invalid selected integer ABI")
+    route in ("dll", "lbt_trampoline") || error("invalid selected call route")
+    key=:colmat_abi_selected_entry
+    previous=get(task_local_storage(), key, nothing)
+    task_local_storage(key, (String(name), bits, String(route)))
+    try
+        f()
+    finally
+        task_local_storage(key, previous)
+    end
+end
 function record(pointer, signature, file, line, return_type=nothing)
     try
         initialized[] || initialize()
         pointer isa Ptr || return nothing
-        key=(UInt(pointer), signature, file, line, return_type)
+        selected=get(task_local_storage(), :colmat_abi_selected_entry, nothing)
+        key=(UInt(pointer), signature, file, line, return_type, selected)
         key in seen && return nothing
         push!(seen, key)
         entries=get(addresses, UInt(pointer), nothing)
         isnothing(entries) && return nothing
         widths=Set{Int}()
         is_lapacke=all(e->startswith(e[1], "LAPACKE_"), entries)
+        if is_lapacke && selected!==nothing
+            if !(selected in entries)
+                push!(
+                    errors,
+                    "Selected LAPACKE name/ABI/route disagrees with called pointer: "*string(
+                        selected
+                    ),
+                )
+                return nothing
+            end
+            entries=filter(e->e==selected, entries)
+        end
         for (index, t) in enumerate(signature)
             if is_lapacke && index>1
                 t===Int32 && push!(widths, 32)

@@ -313,3 +313,20 @@ must be replaced only after a successful full Pkg.test with the new sources.
 The 244 production/test/worker source files, registration and release-library
 hashes must be frozen for that run; snapshot validation remains pending until
 then. This does not complete #288 or reduce its 1,616-entry acceptance scope.
+
+The optimized release build exposed a necessary recorder distinction: distinct
+POTRF/POTRF2 export names can share an address after code merging. Numerical
+calls passed, but unqualified address-only evidence correctly failed two route
+coverage checks. The recorder now supports an explicit task-local caller
+selection (symbol, ABI, route); each actual returned ccall must match that
+selection in the address table. Qualification itself creates no witness, and
+scope is restored even on exceptions. The deduplication key retains the
+selection so separately executed aliases are not collapsed. This changes only
+test instrumentation, not production code or optimized export addresses.
+
+The release traced run then passed the 1,446-check numerical evidence gate and
+independently validated all 288 signatures/returns for the 72 entries. Both C
+workers passed eight checks against that same release library. The expanded
+recorder behavior probe passes 24 checks. The new helper raises the frozen
+production/test/worker source count to 245. A new preflight must replace the
+older 244-source debug/release preflight before the full immutable run.

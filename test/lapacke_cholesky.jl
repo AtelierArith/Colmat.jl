@@ -1,25 +1,32 @@
 using Test, Colmat, LinearAlgebra, Libdl
 
+isdefined(@__MODULE__, :lapacke288_selected_entry) || include("lapacke_calls.jl")
 for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
-    @eval function lapacke288_po_single(::Type{$J}, pointer, layout, uplo, a::Vector{$T})
-        ccall(pointer, $J, (Cint, Cchar, $J, Ptr{$T}, $J), layout, uplo, 3, a, 5)
+    @eval function lapacke288_po_single(
+        ::Type{$J}, pointer, layout, uplo, a::Vector{$T}, name, route
+    )
+        lapacke288_selected_entry(name, $J, route) do
+            ccall(pointer, $J, (Cint, Cchar, $J, Ptr{$T}, $J), layout, uplo, 3, a, 5)
+        end
     end
     @eval function lapacke288_po_rhs(
-        ::Type{$J}, pointer, layout, uplo, a::Vector{$T}, b::Vector{$T}, nrhs=2
+        ::Type{$J}, pointer, layout, uplo, a::Vector{$T}, b::Vector{$T}, name, route, nrhs=2
     )
-        ccall(
-            pointer,
-            $J,
-            (Cint, Cchar, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J),
-            layout,
-            uplo,
-            3,
-            nrhs,
-            a,
-            5,
-            b,
-            5,
-        )
+        lapacke288_selected_entry(name, $J, route) do
+            ccall(
+                pointer,
+                $J,
+                (Cint, Cchar, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J),
+                layout,
+                uplo,
+                3,
+                nrhs,
+                a,
+                5,
+                b,
+                5,
+            )
+        end
     end
 end
 for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
@@ -180,9 +187,9 @@ function lapacke288_cholesky(::Type{T}, ::Type{J}) where {T,J}
             end
             saved_a, saved_b=copy(a), copy(b)
             info=if routine in ("potrs", "posv")
-                lapacke288_po_rhs(J, pointer, layout, uplo, a, b)
+                lapacke288_po_rhs(J, pointer, layout, uplo, a, b, name, route)
             else
-                lapacke288_po_single(J, pointer, layout, uplo, a)
+                lapacke288_po_single(J, pointer, layout, uplo, a, name, route)
             end
             @test info==0
             selected_indices=Set(index(i, j) for i in 1:3 for j in 1:3 if selected(i, j))
@@ -246,21 +253,25 @@ function lapacke288_cholesky(::Type{T}, ::Type{J}) where {T,J}
             end
             if routine=="posv"
                 zero_a=copy(saved_a)
-                @test lapacke288_po_rhs(J, pointer, layout, uplo, zero_a, T[], 0)==0
+                @test lapacke288_po_rhs(
+                    J, pointer, layout, uplo, zero_a, T[], name, route, 0
+                )==0
                 @test isequal(zero_a, a)
                 bad=copy(saved_a)
                 bad[index(1, 1)]=T(-1)
                 failed_rhs=copy(saved_b)
-                @test lapacke288_po_rhs(J, pointer, layout, uplo, bad, failed_rhs)==1
+                @test lapacke288_po_rhs(
+                    J, pointer, layout, uplo, bad, failed_rhs, name, route
+                )==1
                 @test isequal(failed_rhs, saved_b)
             elseif routine in ("potrf", "potrf2")
                 bad=copy(saved_a)
                 bad[index(1, 1)]=T(-1)
-                @test lapacke288_po_single(J, pointer, layout, uplo, bad)==1
+                @test lapacke288_po_single(J, pointer, layout, uplo, bad, name, route)==1
             elseif routine=="potri"
                 bad=copy(saved_a)
                 bad[index(2, 2)]=zero(T)
-                @test lapacke288_po_single(J, pointer, layout, uplo, bad)==2
+                @test lapacke288_po_single(J, pointer, layout, uplo, bad, name, route)==2
                 @test isequal(
                     bad,
                     begin

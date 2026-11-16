@@ -88,5 +88,13 @@ end
     end
     @test Base.invokelatest(probe.static_call)==getpid()
     @test_throws ErrorException Base.invokelatest(probe.failed_pointer)
+    observed=length(ABIEvidence.witnesses)
+    @test ABIEvidence.with_entry(()->17, "LAPACKE_dgetri_work", 32, "dll")==17
+    @test length(ABIEvidence.witnesses)==observed
+    @test isnothing(get(task_local_storage(), :colmat_abi_selected_entry, nothing))
+    @test_throws ErrorException ABIEvidence.with_entry(
+        ()->error("selected call failed"), "LAPACKE_dgetri_work", 32, "dll"
+    )
+    @test isnothing(get(task_local_storage(), :colmat_abi_selected_entry, nothing))
     @test isempty(ABIEvidence.errors)
 end
