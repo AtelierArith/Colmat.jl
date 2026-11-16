@@ -50,3 +50,10 @@ The imported proof validates 1474 canonical entries: 1106 Fortran LAPACK,
 172 CBLAS and 196 LAPACKE, with 5275 completed witnesses. Python 28,
 inventory 15 and documentation build checks pass. CI and main integration
 remain required.
+
+Main integration after PR #390 preserves every production source and the
+optimized GEQRFP DLL. The inherited QR C worker and positive-QR C worker now
+use explicit outer initialization-loop braces for GCC -Werror. Both independent
+C runners pass again. These two test-source changes require a new immutable
+full run before current-source evidence can be published; the earlier source
+proof remains historical and is not claimed for the changed fixtures.
