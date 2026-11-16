@@ -6,6 +6,7 @@ mod cholesky;
 mod general_eigen;
 mod general_expert;
 mod lauum;
+mod lq;
 mod positive_qr;
 mod qr;
 mod self_adjoint;

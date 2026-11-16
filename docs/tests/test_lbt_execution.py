@@ -141,6 +141,10 @@ class ExecutionEvidenceTests(unittest.TestCase):
 
     def add_lapacke(self):
         declarations = {
+            'LAPACKE_dgelqf': ('gelqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dgelqf_work': ('gelqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zgelq2': ('gelq2', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zgelq2_work': ('gelq2', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}})'),
             'LAPACKE_dgetri': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}})'),
             'LAPACKE_dgetri_work': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_zpotrs': ('potrs', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
@@ -250,6 +254,8 @@ class ExecutionEvidenceTests(unittest.TestCase):
             ('LAPACKE_dgeqrfp_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_zgeqrfp', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_dgeqrf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_dgelqf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_zgelq2', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_zgeqr2', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_dlauum', lambda s: s.replace('Int64','Int32')),
             ('LAPACKE_zlauum_work', lambda s: s.replace('Ptr{ComplexF64}','Ptr{Float64}')),
@@ -300,7 +306,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 196)
+        self.assertEqual(len(lapacke_rows(rows)), 212)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))

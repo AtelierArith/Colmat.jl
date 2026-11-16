@@ -1,12 +1,16 @@
 {
   "platform": "x86_64-apple-darwin24.6.0",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "3264d4e1d2564e64fb5eb8971e9bde267cb5610e06864815f8db422bef9e02ab",
+  "inventory_registration_sha256": "f5aef54f218ec65cfb4fd4290fab9de1148860135dffd1c5214d14b02c60a067",
   "lapacke_target_symbols": [
     "LAPACKE_cgeev",
     "LAPACKE_cgeev_work",
     "LAPACKE_cgeevx",
     "LAPACKE_cgeevx_work",
+    "LAPACKE_cgelq2",
+    "LAPACKE_cgelq2_work",
+    "LAPACKE_cgelqf",
+    "LAPACKE_cgelqf_work",
     "LAPACKE_cgeqr2",
     "LAPACKE_cgeqr2_work",
     "LAPACKE_cgeqrf",
@@ -57,6 +61,10 @@
     "LAPACKE_dgeev_work",
     "LAPACKE_dgeevx",
     "LAPACKE_dgeevx_work",
+    "LAPACKE_dgelq2",
+    "LAPACKE_dgelq2_work",
+    "LAPACKE_dgelqf",
+    "LAPACKE_dgelqf_work",
     "LAPACKE_dgeqr2",
     "LAPACKE_dgeqr2_work",
     "LAPACKE_dgeqrf",
@@ -105,6 +113,10 @@
     "LAPACKE_sgeev_work",
     "LAPACKE_sgeevx",
     "LAPACKE_sgeevx_work",
+    "LAPACKE_sgelq2",
+    "LAPACKE_sgelq2_work",
+    "LAPACKE_sgelqf",
+    "LAPACKE_sgelqf_work",
     "LAPACKE_sgeqr2",
     "LAPACKE_sgeqr2_work",
     "LAPACKE_sgeqrf",
@@ -153,6 +165,10 @@
     "LAPACKE_zgeev_work",
     "LAPACKE_zgeevx",
     "LAPACKE_zgeevx_work",
+    "LAPACKE_zgelq2",
+    "LAPACKE_zgelq2_work",
+    "LAPACKE_zgelqf",
+    "LAPACKE_zgelqf_work",
     "LAPACKE_zgeqr2",
     "LAPACKE_zgeqr2_work",
     "LAPACKE_zgeqrf",
@@ -200,7 +216,7 @@
     "LAPACKE_ztrtrs",
     "LAPACKE_ztrtrs_work"
   ],
-  "library_sha256": "004dc672b0e3b06f92a94973e254267f86aa6d8cd84ff2e429cde272883bd707",
+  "library_sha256": "87a0030b69a5044a1ea4df1c9f15e7e477d18feffa5759bb25f385be8558b146",
   "julia_version": "1.13.3",
   "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
   "ambiguous_shared_entries": [
@@ -270,7 +286,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "76414652f898caf0e30ab9746661a5724a248cdb",
+  "revision": "b42c920fd6c69c96e5d2515b35e51b17aeb08f37",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -613,6 +629,166 @@
       "return_type": "Int32",
       "route": "dll",
       "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelq2",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelq2",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelq2",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelq2",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelq2_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelq2_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelq2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelq2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_cgelqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
       "file": "test/lapacke_qr.jl",
       "symbol": "LAPACKE_cgeqr2",
       "bits": 32,
@@ -2605,6 +2781,166 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Int64})",
       "file": "test/lapacke_general_expert.jl",
       "symbol": "LAPACKE_dgeevx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelq2",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelq2",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelq2",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelq2",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelq2_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelq2_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelq2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelq2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_dgelqf_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -4553,6 +4889,166 @@
       "return_type": "Int32",
       "route": "dll",
       "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelq2",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelq2",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelq2",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelq2",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelq2_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelq2_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelq2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelq2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_sgelqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
       "file": "test/lapacke_qr.jl",
       "symbol": "LAPACKE_sgeqr2",
       "bits": 32,
@@ -6465,6 +6961,166 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Int64, Ptr{Float64})",
       "file": "test/lapacke_general_expert.jl",
       "symbol": "LAPACKE_zgeevx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelq2",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelq2",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelq2",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelq2",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelq2_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelq2_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelq2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelq2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 23,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 25,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "LAPACKE_zgelqf_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -9029,7 +9685,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -9039,7 +9695,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64})",
@@ -9049,7 +9705,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -9059,7 +9715,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -9069,7 +9725,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -9079,7 +9735,17 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 826,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lq.jl",
+      "symbol": "cgelqf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -9089,7 +9755,17 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 826,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lq.jl",
+      "symbol": "cgelqf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -9099,7 +9775,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -9109,7 +9785,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -9119,7 +9795,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -9129,7 +9805,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -9139,7 +9815,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64})",
@@ -9269,7 +9945,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -9279,7 +9955,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -9289,7 +9965,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -9299,7 +9975,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64})",
@@ -12909,7 +13585,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -12919,7 +13595,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -14149,7 +14825,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -14159,7 +14835,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -17029,7 +17705,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -17039,7 +17715,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64})",
@@ -17049,7 +17725,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -17059,7 +17735,17 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 116,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "cunglq_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -17539,7 +18225,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -17549,7 +18235,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64})",
@@ -17559,7 +18245,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -17569,7 +18255,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -18649,7 +19335,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32})",
@@ -18659,7 +19345,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64})",
@@ -18669,7 +19355,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -18679,7 +19365,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -18689,7 +19375,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -18699,7 +19385,17 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 826,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lq.jl",
+      "symbol": "dgelqf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -18709,7 +19405,17 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 826,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lq.jl",
+      "symbol": "dgelqf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -18719,7 +19425,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -18729,7 +19435,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -18739,7 +19445,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -18749,7 +19455,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
@@ -18759,7 +19465,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64})",
@@ -18889,7 +19595,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -18899,7 +19605,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -18909,7 +19615,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
@@ -18919,7 +19625,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64})",
@@ -20689,7 +21395,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -20699,7 +21405,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -21829,7 +22535,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -21839,7 +22545,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -22349,7 +23055,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32})",
@@ -22359,7 +23065,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64})",
@@ -22369,7 +23075,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -22379,7 +23085,17 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 116,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "dorglq_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -22859,7 +23575,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
@@ -22869,7 +23585,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64})",
@@ -22879,7 +23595,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -22889,7 +23605,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -28219,7 +28935,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32})",
@@ -28229,7 +28945,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64})",
@@ -28239,7 +28955,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -28249,7 +28965,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -28259,7 +28975,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -28269,7 +28985,17 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 826,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lq.jl",
+      "symbol": "sgelqf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -28279,7 +29005,17 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 826,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lq.jl",
+      "symbol": "sgelqf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -28289,7 +29025,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -28299,7 +29035,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -28309,7 +29045,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -28319,7 +29055,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
@@ -28329,7 +29065,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64})",
@@ -28459,7 +29195,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -28469,7 +29205,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -28479,7 +29215,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
@@ -28489,7 +29225,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64})",
@@ -30219,7 +30955,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -30229,7 +30965,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -31339,7 +32075,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -31349,7 +32085,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -31819,7 +32555,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32})",
@@ -31829,7 +32565,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64})",
@@ -31839,7 +32575,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -31849,7 +32585,17 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 116,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "sorglq_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -32329,7 +33075,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
@@ -32339,7 +33085,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64})",
@@ -32349,7 +33095,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -32359,7 +33105,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -37409,7 +38155,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32})",
@@ -37419,7 +38165,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -37429,7 +38175,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -37439,7 +38185,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -37449,7 +38195,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -37459,7 +38205,17 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 826,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lq.jl",
+      "symbol": "zgelqf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -37469,7 +38225,17 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 826,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lq.jl",
+      "symbol": "zgelqf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -37479,7 +38245,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -37489,7 +38255,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -37499,7 +38265,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -37509,7 +38275,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32})",
@@ -37519,7 +38285,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -37649,7 +38415,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -37659,7 +38425,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -37669,7 +38435,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32})",
@@ -37679,7 +38445,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -41289,7 +42055,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -41299,7 +42065,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -42529,7 +43295,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -42539,7 +43305,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -45449,7 +46215,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32})",
@@ -45459,7 +46225,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -45469,7 +46235,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -45479,7 +46245,17 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 116,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/lapacke_lq.jl",
+      "symbol": "zunglq_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -45959,7 +46735,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32})",
@@ -45969,7 +46745,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -45979,7 +46755,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -45989,7 +46765,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -52538,9 +53314,9 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "87fd9846f5552d0ba3f09f28d321451c9da28ad6345ab18438e525dccaa53393",
-    "test/lapacke_execution_checks.jl": "6ef0c468183bb2c2674bebfe56d59d89173a3071ce6ef9f68e1966f1c968aaa5",
-    "test/lq.jl": "8da0cfe8f4e55a90caf12a2b549518dd3d4a346cb29a4b58afa31c707f13faa1",
+    "deps/rust/src/lapacke.rs": "3a8566de26e66991ceb4e9abc04bf29efd5d99c0283f08d2391db699e4a65c1c",
+    "test/lapacke_execution_checks.jl": "ef275bf7e4d44972c26414b930f4573741dff9132a53adf9b671620716d368b3",
+    "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
     "test/cblas_abi_worker.c": "2ca2bf5ca5524a359e5d399c1a9330f70cb2b6ebec79e6e316b4937ccf8c2930",
     "test/lapacke_calls.jl": "ece3be530c7b23025f6b5e02a1da7acecee4209df676c92a419e64f05d22e616",
@@ -52561,6 +53337,7 @@
     "test/tsqr.jl": "2f26b166445533dfea2d2d48cd5ec17028b3dbd5be7d1cdeba39af01a8fb5f81",
     "deps/rust/src/cblas/compact_tests.rs": "bb3528d4661fccbdd40bd97fe178335e059abfc8b9b642e7c26a1332fcab3fe7",
     "deps/rust/src/matrix_transform_edges.rs": "3a0c2752eb136e0d7d145b4cccc669be05057de5354f715db4f3fdb11355c0a6",
+    "test/lapacke_lq_abi.jl": "27823fa778c13b5ab65171221c187358a7e6b6904458c663a5ac591683d2e7fe",
     "test/lapacke_triangular_abi_worker.c": "d02a022e78f840b50c0ba8a0a34fe7642dcfdb234667d18badf478a5a4af0a51",
     "deps/rust/src/householder_reconstruction.rs": "3fac51d63dc0b9c60dc009df1be99e4d015c0de211509a9cb26168723d09e9e5",
     "test/selected_selfadjoint.jl": "05cad49510e1cf833fc44a391728cae9365690712de2e18bff714f7cccccc8aa",
@@ -52573,7 +53350,7 @@
     "test/general_evd_shared.jl": "0c85b62680f54857f5c8bee4d149f930a4dab94af68d637b147d38a29730dc62",
     "deps/rust/src/cblas/rank_tests.rs": "41953b55b97ba910cd68d27f5fc2877f8ecc5cc54f2392bb4c0b904d394163aa",
     "test/matrix_norms.jl": "24ac6c2a5eac74eb0c46399cad45cc5161230490cece32c7b8b0f2649807c821",
-    "deps/rust/src/lq.rs": "9379bcf97f196e3b5b156a84e5d376fc54bd34db71293aecd1f7408f587aee0e",
+    "deps/rust/src/lq.rs": "5ad7085c8b21d1edca67a5d0d7d26173f69e848bbbf0927f5dce55c83f53cfa5",
     "deps/rust/src/band_lu.rs": "f47cafd035ef78f0df2f61bc1f4af082f5b41b34fec54c73e48d6514deb3ce8f",
     "deps/upstream.toml": "0debbbc2e3fd91898588be6c19a7384f00bbaddfcd55996c91683441bfda55e9",
     "deps/rust/src/dense_extensions.rs": "3d94f1b720454c1f07fd301191afb5280c6f9d8b5b6e050533ba3264143cb10d",
@@ -52617,6 +53394,7 @@
     "test/support_matrix.jl": "aaed899afc763da8102f6ed1fda575d7eb849c5bd1624bbd990a4f10f9cfb64c",
     "test/rook_extremes.jl": "1dab9a89140d55f05b6c30125b6142dd8c16b1dcdadb5640d2a31a318e4d5856",
     "test/generalized_qr_drivers.jl": "141e85b8fa6410acea65d401ba9b7258cde9168c9e739f98992f4af9dc64a1c2",
+    "test/lapacke_lq_abi_worker.c": "d74502e531cf5a744cac20f516a8f112eaf32661ea6ad21ebab4a6504f1ce887",
     "deps/rust/src/symmetric_equilibration.rs": "1e4076af69e7bad2d2fe63e1bb13237d339bc23e68fa9b3c3c6e3e77f9790b17",
     "test/cblas_calls.jl": "31a34dfa3945c3e5d576e8abe0d132600088a3e40512f345f1c8c13c8c0df3bd",
     "deps/rust/src/lib.rs": "d4d2b1741153cd21f5ae4c3b03bd2ec7cd8932af099851b6fc7a92dfbd27fde9",
@@ -52648,7 +53426,7 @@
     "deps/rust/src/lapacke/general_expert.rs": "55804c4441eb95b897804fdf162d5f554bd2564052ecbd6ce9157e4bd5e38f18",
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
-    "test/suite.jl": "cec40e5fb999657b3c8eda985c14c5e94f7fc2ffb021ee4876b50e67b6a76b33",
+    "test/suite.jl": "de694417acc14a23095a0714776119e5abe01a598ab533ac61a6a33b1d85fac9",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
     "deps/rust/src/lapacke/general_eigen.rs": "024240192e037e6aebcfea38862c357b41b444bf552dc0d424ffbf0107f67f12",
     "deps/rust/src/matrix_extensions.rs": "ada3f05cd72ad5c1965b58fcd9ff7070d2e03b3a1f81a834b6d02d35de284050",
@@ -52675,6 +53453,7 @@
     "deps/rust/src/evd_profile.rs": "fd9e73336b5ec2c9de915df9ae48300a56518423fa3d4f441b7eeb8e6905e3c6",
     "test/packed_cholesky.jl": "390ad5ce892b95e0748098487d09e3b76ac1965f4c78c854d6644b0931653b86",
     "test/packed_updates.jl": "e3bd4e46d93e535fc51891e727590965e520e224b37c4cb0d3980437913bca6a",
+    "deps/rust/src/lapacke/lq.rs": "14e093b426d75698ab8d63102a43b4ae9d7995e618502614320ec2c6dea65ade",
     "test/lapacke_getrs.jl": "9b37997fac57fb0bb343da8c462aa906fc062432006d14859ecf1426eb299878",
     "deps/rust/src/threading.rs": "5dda409fee850d78f0c4815010bc72f611632a8bcbb5f5f6ab0a66adbc99a2e4",
     "test/abi_guard_pages.jl": "feb0054e2eb85a6e02ed1a2b80b22c6652dbd420f2c8950e25229f47e8ca054f",
@@ -52736,6 +53515,7 @@
     "deps/rust/src/selected_selfadjoint.rs": "c4c9432b74ab94485d0d0846625bf54e8bb562f744e1926df22959a1b6ab4bb3",
     "deps/rust/src/structured_generalized.rs": "8ab362030f7137aa16bc774143e19ac9283334ebcee5f7139a2be546da81537f",
     "deps/rust/src/lapacke/cholesky.rs": "17a55b8ed6db35880e92ec33037597ad78d176dd56d552e362b674b30a556497",
+    "test/lapacke_lq.jl": "a7b60ae9cb9b0d4ec5b26e055f86801a0dfa22890ff264ddb1bfdfcf6f7068e4",
     "test/runtests.jl": "dac5613bed80605205c444f41bd481ddfcc1a6e56f45e11c80ada6e68ab4f62f",
     "test/triangular_lapack.jl": "b988ae94caa09779999bf3c02c801a957a2786c86782bfbb4f3cae12b12416b8",
     "test/positive_tridiagonal.jl": "53de76e76bc33f2aefe5d85506cd1873c6d7e687a54f67adeda240d004363e0a",
