@@ -1,9 +1,9 @@
 # Issue 288: SYEVR / HEEVR contract preparation
 
-Status: primary contracts and an executed endpoint reproduction collected.
-Range adapters, boundary correction, numerical/C ABI checks and full-suite
-evidence remain pending. The preceding 124-entry candidate is frozen during
-its full package run in a separate worktree. Issue #288 remains open.
+Status: initial Fortran boundary correction and regression checks pass.
+C range adapters, independent C ABI checks, optimized release and full-suite
+evidence remain pending. The preceding 124-entry candidate passed its immutable full package run and
+is under review in PR #384. Issue #288 remains open.
 
 Planned scope: eight S/D SYEVR and C/Z HEEVR high/work names, both integer
 widths. The original 1,616-name scope and separate 20 Rook targets remain intact.
@@ -44,3 +44,32 @@ comparison. The public native full-EVD result alone cannot determine this
 interval decision reliably near an endpoint. Investigate the existing saved
 backend patterns or a suitable range-aware numerical method before exposing
 the C entries. The native EVD approximation itself is not classified as a bug.
+
+
+## Initial boundary correction
+
+Before writing eigenvalue/vector outputs, the native full-spectrum path now
+rejects value intervals whose endpoints lie within 64 scalar epsilons times
+the spectral scale of a computed value. The saved ILP64 SYEVR/HEEVR driver
+handles those intervals, positive ABSTOL and native failures. The loader saves
+all four drivers before forwarding; LP64 bridges M, IWORK and ISUPPZ through
+initialized 64-bit buffers with checked conversions and preserved support
+output guards. Unsupported conversion or missing saved configuration reports
+failure rather than silently truncating an output.
+
+The generator also restores the reference N=0/1 workspace minima of one.
+The scalar vector case writes Z=1 and support [1,1] even when a value interval
+excludes the scalar eigenvalue. Normal-size queries remain separate from
+numerical execution and do not read A or change M.
+
+The minimal endpoint example now agrees with OpenBLAS: INFO=0/M=1 and value
+3.999999999999999. The independent-reference regression suite passes 15,752
+checks over all four scalar types and both integer widths, N=0/1/3, upper/lower,
+N/V jobs, A/I/V ranges and negative/zero/positive ABSTOL. Positive ABSTOL residuals
+are checked against the requested absolute tolerance; orthogonality retains
+precision-based tolerances. Padding, unused Z columns, eigenvalue/support guards
+and scalar minimal workspaces are included. Rust passes 430 tests, including
+precision/scale guard checks and a guarded wide-driver conversion test.
+
+This checkpoint does not expose any additional LAPACKE range names and does not
+qualify the remaining original acceptance scope as complete.

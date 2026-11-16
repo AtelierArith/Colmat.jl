@@ -66,6 +66,7 @@ mod schur;
 mod schur_reorder;
 mod schur_vectors;
 mod selected_selfadjoint;
+mod selfadjoint_range;
 mod selfadjoint_reduction;
 mod selfadjoint_vectors;
 mod storage_conversions;
