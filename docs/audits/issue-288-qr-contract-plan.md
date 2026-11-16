@@ -46,7 +46,7 @@ including positive-diagonal variants, also pass after the shared empty fix.
 The independent C Julia runner passes two checks. Completed-call tracing
 validates all 188 names and 752 name/ABI/route observations, with 3766 gate
 checks. Focused witnesses remain explicitly full_suite_passed=false.
-Optimized repetition and immutable full-suite evidence remain required.
+Immutable full-suite evidence remains required.
 
 Optimized build and repeated numerical, independent C and signature checks pass.
 The frozen optimized DLL SHA256 is
