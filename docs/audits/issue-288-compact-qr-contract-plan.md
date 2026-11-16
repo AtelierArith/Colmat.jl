@@ -123,3 +123,8 @@ through the run. The imported proof validates 1602 canonical entries:
 witnesses and 1806 forwards per ABI. This full proof includes the complex
 real-diagonal correction and all independent numerical/C/policy tests.
 CI artifact provenance and final main integration remain required.
+
+After parent/main integration, all 312 validated source hashes and the DLL
+remain unchanged. Python 28, inventory 15 and documentation build pass. The
+inherited coverage doctest now checks 1806 forwards per ABI. CI provenance
+and final main merge remain required.
