@@ -38,3 +38,20 @@ active/inactive NaNs and signed ILP64 values outside int32. Independent C,
 typed completed-call traces, optimized repetition and immutable full package
 proof are required before publishing an implementation PR. No native source
 changes or upstream PRs are part of this stage.
+
+Executed `reproducers/lapacke_q_apply_nan_extent.py`: unchanged v3.12.1 high
+wrappers for all 16 scalar/family combinations, both layouts and two right-side
+rectangles produce 64 verified observations. Numerical work is explicitly
+stubbed; this is a policy-only probe, not a numerical reproduction. Every
+primary source SHA-256 and observation is stored in the adjacent reference
+policy JSON. The buffers are padded for either convention, so the probe itself
+performs no out-of-bounds access.
+
+For SIDE=R,M=3,N=5,K=2, real ORMLQ scans 2x5 and finds a NaN in column 5;
+complex UNMLQ and all ORMRQ/UNMRQ scan 2x3 and miss it. At M=5,N=3 the latter
+scan 2x5 and reject a NaN beyond the logical 2x3 reflector matrix. The planned
+Colmat.jl high boundary uses the actual Q order for all orientations. This
+intentional compatibility correction follows Issue #288's explicit requirement
+not to read unused storage and checks all active reflectors. Tests must retain
+both observed reference cases and the logical-storage expectation; no family,
+SIDE or scalar case is excluded. NaN diagnostic precedence remains A, C, TAU.
