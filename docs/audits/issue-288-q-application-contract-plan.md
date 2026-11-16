@@ -78,3 +78,11 @@ flags, empty/nonempty K=0, query, insufficient/minimal/oversized WORK, INFO,
 queryable diagnostics and guarded unused A/TAU/C/WORK. Rust full-suite checks
 pass 460 tests. Existing Fortran QR/LQ/QL/RQ regressions are being repeated.
 C application adapters and immutable full-suite proof remain pending.
+
+The combined regression uncovered an older unconsumed GELQS error 10 before
+the new empty-LQ checks. GELQS now asserts/consumes that diagnostic at its
+origin; every own and reference empty-LQ probe also checks diagnostic state.
+LQ then QL/RQ then Q-application boundary tests pass together: GELQS 40,
+empty LQ 768, QL/RQ factor interoperability 162624, diagnostics 2240, LBT 352,
+empty QL/RQ 1536 and Q-application boundaries 19265. This strengthens error
+checks and prevents prior calls contaminating later independent comparisons.
