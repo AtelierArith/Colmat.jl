@@ -1,7 +1,10 @@
 # Issue #288: generalized QR/RQ and constrained least-squares C contracts
 
-Status: 32 high/work C adapter drafts are implemented. Debug compilation passes;
-numerical and ABI validation remain pending. No new C evidence is claimed. Issue #288 remains open.
+Status: all 32 new C entries pass focused debug numerical, diagnostic policy
+and independent C ABI checks. Rust 463 and Python ABI fixtures 17 pass.
+Full-stage typed tracing, optimized repetition and immutable full package
+proof remain pending.
+Issue #288 remains open.
 
 Canonical scope: S/D/C/Z high/work GGQRF, GGRQF, GGLSE and GGGLM (32 names).
 After the staged 420-name least-squares candidate this would reach 452 names,
@@ -69,3 +72,33 @@ compiles under C11 -Wall -Wextra -Werror; runtime is pending in dyld startup.
 The pending runtime and full least-squares suite are preserved. Do not treat
 successful compilation as numerical or completed-call evidence. The executed
 Fortran workspace probe is stored in issue-288-generalized-qr-workspace.json.
+
+The original independent executable C caller completed successfully after
+macOS dyld startup resumed. It checks all 32 high/work declarations, all four
+scalar types, both integer ABIs/layouts, query preservation, output guards,
+negative ILP64 dimensions and analytic one-dimensional complex constrained
+solutions. Pair factors are smoke-checked only in this caller; reconstruction
+and orthogonality require the separate independent Q-consumer tests. Exact
+source/library/log hashes and limitations are recorded in
+issue-288-generalized-qr-c-abi.json. Python ABI evidence fixtures pass 17 tests,
+including all 32 exact prototypes and wrong layout/WORK/scalar-type rejection.
+The full 452-name focused tracing run is currently live; no completion is
+claimed. Earlier pending-C-caller statements are superseded by this result.
+
+Focused debug evidence now passes 178560 independent pair reconstruction,
+130368 constrained-driver and 6656 policy assertions. An original Float32
+fully constrained case exposed a test-conditioning error: B has condition
+about 27463, while [A;B] has condition about 18. Native C and Fortran outputs
+agree; independent single precision also differs from the wide solution.
+The exact original matrices are preserved in
+reproducers/generalized_constraint_conditioning.jl. Independent wide LAPACK
+confirms scaled backward errors about 6.09e-8 native and 2.17e-8 reference.
+Condition estimates now use independent wide SVD for the constraints,
+projected free variables and coupling. Both single-precision solvers are
+checked against the wide solution, and backward residual bounds are ten times
+stricter than the original tests. All original matrices and random seeds are
+retained. The previous full-stage trace was interrupted after this demonstrated
+failure and its temporary assets restored. It will be repeated after the
+correction; no interrupted trace or focused run is a full-suite proof.
+Exact source/library/log hashes and limits are recorded in
+issue-288-generalized-qr-debug-numerical.json.

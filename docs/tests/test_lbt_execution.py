@@ -225,6 +225,38 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_zgelss_work': ('gelss', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_zgelsd': ('gelsd', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}})'),
             'LAPACKE_zgelsd_work': ('gelsd', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{{j}}})'),
+            'LAPACKE_sggqrf': ('ggqrf', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, {j}, Ptr{{Float32}})'),
+            'LAPACKE_sggqrf_work': ('ggqrf', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, {j})'),
+            'LAPACKE_sggrqf': ('ggrqf', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, {j}, Ptr{{Float32}})'),
+            'LAPACKE_sggrqf_work': ('ggrqf', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, {j})'),
+            'LAPACKE_sgglse': ('gglse', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, Ptr{{Float32}})'),
+            'LAPACKE_sgglse_work': ('gglse', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, Ptr{{Float32}}, Ptr{{Float32}}, {j})'),
+            'LAPACKE_sggglm': ('ggglm', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, Ptr{{Float32}})'),
+            'LAPACKE_sggglm_work': ('ggglm', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Ptr{{Float32}}, Ptr{{Float32}}, Ptr{{Float32}}, {j})'),
+            'LAPACKE_dggqrf': ('ggqrf', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dggqrf_work': ('ggqrf', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dggrqf': ('ggrqf', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dggrqf_work': ('ggrqf', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgglse': ('gglse', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, Ptr{{Float64}})'),
+            'LAPACKE_dgglse_work': ('gglse', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dggglm': ('ggglm', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, Ptr{{Float64}})'),
+            'LAPACKE_dggglm_work': ('ggglm', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_cggqrf': ('ggqrf', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}})'),
+            'LAPACKE_cggqrf_work': ('ggqrf', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, {j})'),
+            'LAPACKE_cggrqf': ('ggrqf', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}})'),
+            'LAPACKE_cggrqf_work': ('ggrqf', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, {j})'),
+            'LAPACKE_cgglse': ('gglse', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}})'),
+            'LAPACKE_cgglse_work': ('gglse', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, {j})'),
+            'LAPACKE_cggglm': ('ggglm', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}})'),
+            'LAPACKE_cggglm_work': ('ggglm', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, Ptr{{ComplexF32}}, {j})'),
+            'LAPACKE_zggqrf': ('ggqrf', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zggqrf_work': ('ggqrf', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zggrqf': ('ggrqf', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zggrqf_work': ('ggrqf', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zgglse': ('gglse', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zgglse_work': ('gglse', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zggglm': ('ggglm', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zggglm_work': ('ggglm', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_dtzrzf': ('tzrzf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dtzrzf_work': ('tzrzf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_dormrz': ('ormrz', 'd', lambda j: f'(Int32, Int8, Int8, {j}, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
@@ -367,6 +399,10 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.add_lapacke()
         self.validate()
         for symbol, replacement in (
+            ('LAPACKE_dgglse_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_zggqrf', lambda s: s.replace('Ptr{ComplexF64}', 'Ptr{Float64}', 1)),
+            ('LAPACKE_zggglm_work', lambda s: s[:-1] + ', Ptr{Float64})'),
+            ('LAPACKE_dggrqf', lambda s: s.replace('Int32, Int64', 'Int64, Int64', 1)),
             ('LAPACKE_dgels_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_zgelsy', lambda s: s.replace('Float64, Ptr{Int64}', 'Ref{Float64}, Ptr{Int64}')),
             ('LAPACKE_zgelsy_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
@@ -443,7 +479,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 420)
+        self.assertEqual(len(lapacke_rows(rows)), 452)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))

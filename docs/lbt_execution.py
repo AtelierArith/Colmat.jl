@@ -98,6 +98,10 @@ def validate_lapacke_signature(row, witness):
         'potri': ['Int32', 'Int8', integer, t, integer],
         'lauum': ['Int32', 'Int8', integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
+        'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
+        'ggrqf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
+        'gglse': ['Int32', integer, integer, integer, t, integer, t, integer, t, t, t],
+        'ggglm': ['Int32', integer, integer, integer, t, integer, t, integer, t, t, t],
         'gels': ['Int32', 'Int8', integer, integer, integer, t, integer, t, integer],
         'gelsy': ['Int32', integer, integer, integer, t, integer, t, integer, pivot, real_scalar, pivot],
         'gelss': ['Int32', integer, integer, integer, t, integer, t, integer, real, real_scalar, pivot],
@@ -174,6 +178,8 @@ def validate_lapacke_signature(row, witness):
             expected = expected + [real]
     if row['family'] in ('tpqrt', 'tpmqrt', 'tprfb') and row['symbol'].endswith('_work'):
         expected = expected + [t] + ([integer] if row['family'] == 'tprfb' else [])
+    if row['family'] in ('ggqrf', 'ggrqf', 'gglse', 'ggglm') and row['symbol'].endswith('_work'):
+        expected = expected + [t, integer]
     if row['family'] == 'gels' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
     if row['family'] in ('gelsy', 'gelss', 'gelsd') and row['symbol'].endswith('_work'):
