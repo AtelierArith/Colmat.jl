@@ -60,3 +60,21 @@ active block column. The planned own wrapper uses logical V/T extents and
 derived column-major strides, preserving const inputs and caller padding.
 Full numerical comparisons and block-factor interoperability are still
 required before claiming this correction is implemented or complete.
+
+Executed `geqrt_dimension_precedence.jl` before correction: at M=-1,N=-2 the
+own double GEQRT2/3 boundaries return -1 while independent OpenBLAS returns
+-2, with A/T unchanged. The own validation now checks N first, matching the
+primary Fortran routines and preserving M<N as argument 1. New independent
+checks pass 720 assertions across all scalar types, both own ABIs and both
+families, including header precedence, guarded INFO and untouched A/T.
+Existing compact QR checks also pass 368 Julia-wrapper, 1000 external-factor
+interoperability and eight subnormal-scale checks.
+
+`geqrt3_empty_reference.jl` was run only in an isolated subprocess with core
+dumps disabled and a 20-second limit. Own GEQRT3 M=N=0 returns INFO=0 and
+preserves A/T; this OpenBLAS reference raises StackOverflowError and exits 1.
+The evidence JSON records the observed library hash and explicitly does not
+claim full-suite proof. Normal tests use independent GEQRT2 as the empty-case
+oracle for GEQRT3 and still test every own GEQRT3 empty entry. The reference
+crash is not executed inside the package suite. Nonempty GEQRT3 comparisons
+remain against the actual reference routine.

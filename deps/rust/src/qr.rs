@@ -162,7 +162,7 @@ macro_rules! exports {
             t:*mut $t,ldt:*const $i,info:*mut $i) {
             *info=0;
             let (m,n,la,lt)=(*m as isize,*n as isize,*lda as isize,*ldt as isize);
-            for (arg,ok) in [(1,m>=n && m>=0),(2,n>=0),(4,la>=m.max(1)),(6,lt>=n.max(1))] {
+            for (arg,ok) in [(2,n>=0),(1,m>=n),(4,la>=m.max(1)),(6,lt>=n.max(1))] {
                 if !ok {*info=-arg;return;}
             }
             compact_qr(m as usize,n as usize,n.max(1) as usize,a,la,t,lt);
