@@ -29,6 +29,16 @@ begin
               3.0,4.0,c,s,r)
         (c[],s[],r[])
     end
+    for J in (Int32,Int64)
+        @eval function lapacke_query_probe(::Type{$J})
+            f=Libdl.dlsym(Libdl.dlopen(BLAS.libblastrampoline),
+                $J==Int32 ? :LAPACKE_dgetri_work : :LAPACKE_dgetri_work64_)
+            work=Ref(0.0)
+            info=ccall(f,$J,(Cint,$J,Ptr{Float64},$J,Ptr{$J},Ref{Float64},$J),
+                101,3,C_NULL,3,C_NULL,work,-1)
+            (info,work[])
+        end
+    end
     function static_call()
         ccall(:getpid,Cint,())
     end
@@ -36,7 +46,7 @@ begin
         ccall(error("pointer construction failed"),Cvoid,())
     end
 end
-"""
+""",
     )
     file=joinpath(@__DIR__, "abi_execution_checks.jl")
     Core.eval(probe, ABIEvidence.rewrite(expression, file))
@@ -63,7 +73,28 @@ end
             ABIEvidence.witnesses,
         )
     end
+    for J in (Int32, Int64)
+        info, work=Base.invokelatest(probe.lapacke_query_probe, J)
+        @test info==0 && work>=3
+        matches=filter(
+            e->e[1]=="LAPACKE_dgetri_work" &&
+               e[2]==8sizeof(J) &&
+               e[3]=="lbt_trampoline" &&
+               e[4]=="test/abi_execution_checks.jl",
+            ABIEvidence.witnesses,
+        )
+        @test !isempty(matches)
+        @test all(ABIEvidence.return_types[e]==string(J) for e in matches)
+    end
     @test Base.invokelatest(probe.static_call)==getpid()
     @test_throws ErrorException Base.invokelatest(probe.failed_pointer)
+    observed=length(ABIEvidence.witnesses)
+    @test ABIEvidence.with_entry(()->17, "LAPACKE_dgetri_work", 32, "dll")==17
+    @test length(ABIEvidence.witnesses)==observed
+    @test isnothing(get(task_local_storage(), :colmat_abi_selected_entry, nothing))
+    @test_throws ErrorException ABIEvidence.with_entry(
+        ()->error("selected call failed"), "LAPACKE_dgetri_work", 32, "dll"
+    )
+    @test isnothing(get(task_local_storage(), :colmat_abi_selected_entry, nothing))
     @test isempty(ABIEvidence.errors)
 end

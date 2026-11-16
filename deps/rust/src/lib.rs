@@ -35,6 +35,7 @@ mod householder_reconstruction;
 mod kernels;
 mod lapack;
 mod lapack_symmetric;
+mod lapacke;
 mod least_squares;
 mod lq;
 mod matrix_copy;

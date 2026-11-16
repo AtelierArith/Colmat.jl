@@ -67,6 +67,46 @@ def validate_cblas_signature(row, witness):
         raise ValueError(f'CBLAS enum/dimension signature disagrees with ABI: {row["symbol"]}')
 
 
+# Policy helpers have no numerical dimensions and are validated by the separate
+# C policy tests. The numerical LAPACKE evidence scope includes every other
+# registered LAPACKE entry, including any newly added families.
+LAPACKE_POLICY_HELPERS = {'LAPACKE_get_nancheck', 'LAPACKE_set_nancheck'}
+
+
+def lapacke_rows(rows):
+    return {row['symbol']: row for row in rows
+            if row['interface'] == 'LAPACKE'
+            and row['adapter_lp64'] == row['adapter_ilp64'] == 'true'
+            and row['symbol'] not in LAPACKE_POLICY_HELPERS}
+
+
+def validate_lapacke_signature(row, witness):
+    integer = f'Int{witness["bits"]}'
+    scalar = {'s': 'Float32', 'd': 'Float64', 'c': 'ComplexF32', 'z': 'ComplexF64'}[row['scalar']]
+    t, pivot = f'Ptr{{{scalar}}}', f'Ptr{{{integer}}}'
+    args = {
+        'getrf': ['Int32', integer, integer, t, integer, pivot],
+        'getrs': ['Int32', 'Int8', integer, integer, t, integer, pivot, t, integer],
+        'gesv': ['Int32', integer, integer, t, integer, pivot, t, integer],
+        'getri': ['Int32', integer, t, integer, pivot],
+        'potrf': ['Int32', 'Int8', integer, t, integer],
+        'potrf2': ['Int32', 'Int8', integer, t, integer],
+        'potri': ['Int32', 'Int8', integer, t, integer],
+        'potrs': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
+        'posv': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
+    }
+    if row['family'] not in args:
+        raise ValueError(f'LAPACKE signature contract missing for {row["symbol"]}')
+    expected = args[row['family']]
+    if row['family'] == 'getri' and row['symbol'].endswith('_work'):
+        expected = expected + [t, integer]
+    actual = witness['signature'].replace(' ', '')
+    if (actual != '(' + ','.join(expected) + ')'
+            or witness.get('return_type') != integer
+            or witness['integer_arguments'] is not True):
+        raise ValueError(f'LAPACKE layout/flag/integer/return signature disagrees with ABI: {row["symbol"]}')
+
+
 SOURCE_FILES = (
     'Project.toml', 'test/Project.toml', 'deps/upstream.toml', 'deps/build.jl',
     'deps/rust/Cargo.toml', 'deps/rust/Cargo.lock', 'src/Colmat.jl',
@@ -113,9 +153,12 @@ def validate_execution(root, rows, native_revision, data):
             raise ValueError(f'Stale execution evidence source: {file}')
     lapack = lapack_rows(rows)
     cblas = cblas_rows(rows)
-    expected = lapack | cblas
+    lapacke = lapacke_rows(rows)
+    expected = lapack | cblas | lapacke
     if (cblas or 'cblas_target_symbols' in data) and data.get('cblas_target_symbols') != sorted(cblas):
         raise ValueError('CBLAS execution scope differs from registered targets')
+    if (lapacke or "lapacke_target_symbols" in data) and data.get("lapacke_target_symbols") != sorted(lapacke):
+        raise ValueError("LAPACKE execution scope differs from registered targets")
     executed = {symbol: [] for symbol in expected}
     for witness in data.get('witnesses', []):
         symbol = witness.get('symbol')
@@ -130,6 +173,12 @@ def validate_execution(root, rows, native_revision, data):
                 or not witness.get('signature')
                 or not isinstance(witness.get('integer_arguments'), bool)):
             raise ValueError(f'Incomplete concrete-call evidence: {symbol}')
+        if symbol in lapacke:
+            if witness['file'] in ('test/lapacke_execution_checks.jl', 'test/lapacke_calls.jl'):
+                raise ValueError(f'LAPACKE registration/recorder probe is not execution: {symbol}')
+            validate_lapacke_signature(lapacke[symbol], witness)
+            executed[symbol].append(witness)
+            continue
         if symbol in cblas:
             if witness['file'] in ('test/cblas.jl', 'test/cblas_calls.jl', 'test/cblas_execution_checks.jl'):
                 raise ValueError(f'CBLAS registration/recorder probe is not execution: {symbol}')
@@ -144,9 +193,9 @@ def validate_execution(root, rows, native_revision, data):
             raise ValueError(f'Missing integer signature for {symbol}')
         executed[symbol].append(witness)
     for symbol, witnesses in executed.items():
-        if symbol in cblas and {(w['bits'], w['route']) for w in witnesses} != {
+        if symbol in (cblas | lapacke) and {(w['bits'], w['route']) for w in witnesses} != {
                 (bits, route) for bits in (32, 64) for route in ('dll', 'lbt_trampoline')}:
-            raise ValueError(f'Missing completed CBLAS ABI/route for {symbol}')
+            raise ValueError(f'Missing completed {"LAPACKE" if symbol in lapacke else "CBLAS"} ABI/route for {symbol}')
         if {w['bits'] for w in witnesses} != {32, 64}:
             raise ValueError(f'Missing executed integer ABI for {symbol}')
     return executed

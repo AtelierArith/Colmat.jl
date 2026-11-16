@@ -46,6 +46,8 @@ def routine(symbol):
     if name.startswith('LAPACKE_'):
         interface = 'LAPACKE'
         name = name[8:]
+        if name in ('get_nancheck', 'set_nancheck'):
+            return interface, name, 'other'
         if name.endswith('_work'):
             name = name[:-5]
     elif name.startswith('cblas_'):
@@ -87,6 +89,8 @@ for line in raw.splitlines():
     note = group['note']
     if interface == 'CBLAS' and lp == ilp == 'true':
         note += '; C ABI connected for LP64/ILP64 with row/column-major and explicit enum/coefficient/return conversions; #271 tests DLL and LBT routes'
+    elif interface == 'LAPACKE' and lp == ilp == 'true':
+        note += '; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces'
     elif interface != 'Fortran':
         note += '; C ABI/row-major/enum/戻り値を別途変換する必要がある'
     if family == 'geevx' and lp == ilp == 'true':

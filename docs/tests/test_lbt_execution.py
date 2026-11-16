@@ -139,21 +139,84 @@ class ExecutionEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'scope differs'):
             self.validate()
 
+    def add_lapacke(self):
+        declarations = {
+            'LAPACKE_dgetri': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}})'),
+            'LAPACKE_dgetri_work': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zpotrs': ('potrs', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+        }
+        for symbol, (family, scalar, signature) in declarations.items():
+            self.rows.append(dict(symbol=symbol, interface='LAPACKE', family=family, scalar=scalar,
+                                  adapter_lp64='true', adapter_ilp64='true'))
+            for bits in (32, 64):
+                for route in ('dll', 'lbt_trampoline'):
+                    self.data['witnesses'].append(dict(symbol=symbol, bits=bits, route=route,
+                        file='test/suite.jl', line=1, signature=signature(f'Int{bits}'),
+                        return_type=f'Int{bits}', integer_arguments=True))
+        self.data['lapacke_target_symbols'] = sorted(declarations)
+        self.data['inventory_registration_sha256'] = registration_digest(self.rows)
+
+    def test_lapacke_exact_signatures_and_returns(self):
+        self.add_lapacke()
+        result = self.validate()
+        self.assertEqual(len(result['LAPACKE_zpotrs']), 4)
+        self.assertEqual(len(result['LAPACKE_dgetri_work']), 4)
+
+    def test_lapacke_rejects_layout_flag_dimension_pointer_and_return_mismatches(self):
+        self.add_lapacke()
+        index = next(i for i, w in enumerate(self.data['witnesses'])
+                     if w['symbol']=='LAPACKE_zpotrs' and w['bits']==64)
+        original = self.data['witnesses'][index]['signature']
+        for signature in (original.replace('Int32', 'Int64', 1),
+                          original.replace('Int8', 'Int32', 1),
+                          original.replace('Int64', 'Ref{Int64}', 1),
+                          original.replace('ComplexF64', 'Float64')):
+            data = copy.deepcopy(self.data)
+            data['witnesses'][index]['signature'] = signature
+            with self.assertRaisesRegex(ValueError, 'LAPACKE layout/flag/integer/return'):
+                self.validate(data)
+        data = copy.deepcopy(self.data)
+        data['witnesses'][index]['return_type'] = 'Int32'
+        with self.assertRaisesRegex(ValueError, 'LAPACKE layout/flag/integer/return'):
+            self.validate(data)
+
+    def test_lapacke_requires_both_routes_and_exact_scope(self):
+        self.add_lapacke()
+        data = copy.deepcopy(self.data)
+        data['witnesses'] = [w for w in data['witnesses'] if not (
+            w['symbol']=='LAPACKE_dgetri' and w['bits']==64 and w['route']=='dll')]
+        with self.assertRaisesRegex(ValueError, 'Missing completed LAPACKE ABI/route'):
+            self.validate(data)
+        self.data['lapacke_target_symbols'].pop()
+        with self.assertRaisesRegex(ValueError, 'LAPACKE execution scope differs'):
+            self.validate()
+
+    def test_lapacke_rejects_unreviewed_registered_signature_contract(self):
+        self.add_lapacke()
+        for row in self.rows:
+            if row['symbol']=='LAPACKE_zpotrs':
+                row['family']='new_family_without_review'
+        self.data['inventory_registration_sha256']=registration_digest(self.rows)
+        with self.assertRaisesRegex(ValueError, 'LAPACKE signature contract missing'):
+            self.validate()
+
 class RepositoryExecutionEvidenceTests(unittest.TestCase):
     def test_committed_inventory_matches_verified_execution_snapshot(self):
         import csv
         import json
         import re
-        from lbt_execution import load_execution, lapack_rows, cblas_rows
+        from lbt_execution import load_execution, lapack_rows, cblas_rows, lapacke_rows
         root = Path(__file__).resolve().parents[2]
-        rows = list(csv.DictReader((root / 'docs/src/assets/lbt-symbol-inventory.tsv').open(), delimiter='\t'))
+        with (root / 'docs/src/assets/lbt-symbol-inventory.tsv').open() as inventory:
+            rows = list(csv.DictReader(inventory, delimiter='\t'))
         snapshot = root / 'docs/src/assets/lapack-abi-execution.json'
         self.assertTrue(snapshot.is_file(), 'The execution snapshot must be committed')
         native = re.search(r'^revision\s*=\s*"([0-9a-f]+)"', (root / 'deps/upstream.toml').read_text(), re.MULTILINE).group(1)
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(executed), 1278)
+        self.assertEqual(len(lapacke_rows(rows)), 72)
+        self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))
         for row in rows:
