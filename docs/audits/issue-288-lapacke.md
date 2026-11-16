@@ -160,3 +160,43 @@ Actual registration counts are 1,506 per ABI: 24 frozen-scope LAPACKE canonical
 entries and two additional NaN policy helpers beyond the prior 1,480 baseline.
 The frozen issue scope remains 1,616 entries, with no completion claim for the
 remaining entries or the still-pending inventory/provenance/full-Julia gates.
+
+## GETRI high/work adapters
+
+Reference-LAPACK v3.12.1 sources: `LAPACKE/src/lapacke_zgetri_work.c`
+(blob `93c19c59e8c71d16f307cff6d0ac13fb683c536c`) and
+`LAPACKE/src/lapacke_zgetri.c`
+(blob `0af2ecfd5aed1df5dd7dc55808a834d3b24ae88c`).
+
+GETRI high/work entries now cover four scalar types and both integer ABIs.
+Row-major queries call the existing Fortran query directly with a legal
+column-major leading dimension, without reading A/IPIV or allocating a
+transpose. Nonquery row-major calls transform the LU factor storage and copy
+back only logical entries. Caller workspace is borrowed for work entries;
+high entries query and allocate their own work, returning -1010 on failed work
+allocation. Transpose allocation failures return -1011. The numerical inverse
+uses the existing native solve on an identity RHS; no blocked-GETRI performance
+or identical workspace recommendation to vendor LAPACK is claimed.
+
+`test/lapacke_getri.jl` passed 1,768 checks using independently generated
+OpenBLAS LU factors and sequential pivots. Both DLL and actual LBT trampoline
+routes, both layouts, four scalar types, both ABIs, query, minimum N work,
+insufficient work (-7), work guards, singular diagonal INFO and padding are
+covered. Scalar loops verify both A*inverse(A) and inverse(A)*A. Queries and
+invalid workspace leave factors/pivots unchanged; singular inputs retain their
+storage.
+
+The independent C worker tests all 16 GETRI high/work exports, known inverses
+of nonreal complex matrices, guarded minimum work, NULL A/IPIV on query, empty
+calls, singular INFO and high-level NaN INFO=-3. Additional actual ILP64 query
+calls use N=4,294,967,297 to detect truncation and N=16,777,217 in Float32 to
+verify upward rounding of the returned workspace size. No corresponding
+matrix allocation or dereference occurs during these queries.
+
+The full local Rust suite passed 398 unit tests after GETRI was added. Inventory
+regeneration, source-bound execution evidence and a full Julia package run
+remain pending for the full LAPACKE work. The frozen scope stays 1,616 entries.
+
+Combined focused Julia/C regression passed 7,942 checks (720 + 4,232 + 1,216 +
+1,768 + 6). Actual forwarding counts were 1,514 per ABI: 32 frozen-scope
+canonical entries and two policy helpers beyond the prior main baseline.

@@ -430,3 +430,66 @@ gesv!(s, f32, i64, [64_], _64_);
 gesv!(d, f64, i64, [64_], _64_);
 gesv!(c, colmat::c32, i64, [64_], _64_);
 gesv!(z, colmat::c64, i64, [64_], _64_);
+
+macro_rules! getri {
+    ($p:ident,$t:ty,$i:ty,[$($suffix:tt)*],$fortran:tt) => {paste::paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p getri $($suffix)*>](
+            layout:i32,n:$i,a:*mut $t,lda:$i,ipiv:*const $i,
+        )->$i {
+            if layout!=ROW_MAJOR && layout!=COL_MAJOR {return -1;}
+            if LAPACKE_get_nancheck()!=0 {
+                match ge_nancheck(layout,n as i64,n as i64,a,lda as i64) {
+                    Ok(true)=>return -3,Err(info)=>return info as $i,Ok(false)=>{},
+                }
+            }
+            let mut query=<$t>::z();
+            let info=[<LAPACKE_ $p getri_work $($suffix)*>](layout,n,a,lda,ipiv,&mut query,-1);
+            if info!=0 {return info;}
+            let recommended=query.re();
+            if !recommended.is_finite() || recommended<1.0 || recommended> <$i>::MAX as f64 {
+                return -1010;
+            }
+            let lwork=recommended as $i;
+            let mut work=Vec::<$t>::new();
+            if work.try_reserve_exact(lwork as usize).is_err() {return -1010;}
+            work.resize(lwork as usize,<$t>::z());
+            [<LAPACKE_ $p getri_work $($suffix)*>](layout,n,a,lda,ipiv,work.as_mut_ptr(),lwork)
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p getri_work $($suffix)*>](
+            layout:i32,n:$i,a:*mut $t,lda:$i,ipiv:*const $i,work:*mut $t,lwork:$i,
+        )->$i {
+            if layout!=ROW_MAJOR && layout!=COL_MAJOR {return -1;}
+            if layout==ROW_MAJOR && lda<n {return -4;}
+            if n<0 {return -2;}
+            if layout==COL_MAJOR && lda<1.max(n) {return -4;}
+            if lwork!= -1 && lwork<1.max(n) {return -7;}
+            let mut info:$i=0;
+            if layout==COL_MAJOR {
+                crate::lapack::[<$p getri $fortran>](&n,a,&lda,ipiv,work,&lwork,&mut info);
+            } else if lwork== -1 || n==0 {
+                // Query and empty calls do not touch A or IPIV; no transpose needed.
+                let ld=1.max(n);
+                crate::lapack::[<$p getri $fortran>](&n,a,&ld,ipiv,work,&lwork,&mut info);
+            } else {
+                let mut aa=match row_to_column(n as usize,n as usize,a,lda as usize) {
+                    Ok(v)=>v,Err(info)=>return info as $i,
+                };
+                crate::lapack::[<$p getri $fortran>](&n,aa.as_mut_ptr(),&n,ipiv,work,&lwork,&mut info);
+                for j in 0..n as usize {for i in 0..n as usize {
+                    *a.add(i*lda as usize+j)=aa[i+j*n as usize];
+                }}
+            }
+            if info<0 {info-1} else {info}
+        }
+    }};
+}
+getri!(s, f32, i32, [], _);
+getri!(d, f64, i32, [], _);
+getri!(c, colmat::c32, i32, [], _);
+getri!(z, colmat::c64, i32, [], _);
+getri!(s, f32, i64, [64_], _64_);
+getri!(d, f64, i64, [64_], _64_);
+getri!(c, colmat::c32, i64, [64_], _64_);
+getri!(z, colmat::c64, i64, [64_], _64_);

@@ -105,6 +105,40 @@
     } \
 } while(0)
 
+
+#define CHECK_INVERSE(P,T,INT,SUFFIX,PHASE,TOL) do { \
+    typedef INT (*inverse)(int,INT,T *,INT,const INT *); \
+    typedef INT (*inverse_work)(int,INT,T *,INT,const INT *,T *,INT); \
+    inverse high=(inverse)dlsym(library,"LAPACKE_" #P "getri" SUFFIX);assert(high); \
+    inverse_work work=(inverse_work)dlsym(library,"LAPACKE_" #P "getri_work" SUFFIX);assert(work); \
+    for(int layout=101;layout<=102;layout++) { \
+        T w[4]={888,888,888,888}; \
+        assert(work(layout,2,NULL,3,NULL,w+1,-1)==0); \
+        assert(creal((double complex)w[1])>=2 && cimag((double complex)w[1])==0); \
+        assert(w[0]==(T)888 && w[2]==(T)888 && w[3]==(T)888); \
+        for(int entry=0;entry<2;entry++) { \
+            T a[6]={4*(PHASE),0,777,0,-0.5*(PHASE),777}; \
+            a[1]=layout==101?3*(PHASE):0.5;a[3]=layout==101?0.5:3*(PHASE); \
+            INT piv[2]={2,2};T saved[6];memcpy(saved,a,sizeof(a)); \
+            if(entry==1) { \
+                assert(work(layout,2,a,3,piv,w+1,1)==-7);assert(memcmp(a,saved,sizeof(a))==0); \
+                assert(work(layout,2,a,3,piv,w+1,2)==0); \
+                assert(w[0]==(T)888 && w[3]==(T)888); \
+            } else assert(high(layout,2,a,3,piv)==0); \
+            double values[2][2]={{1.5,-0.5},{-2,1}}; \
+            for(int i=0;i<2;i++) for(int j=0;j<2;j++) \
+                assert(cabs((double complex)(a[layout==101?i*3+j:i+j*3]-values[i][j]/(PHASE)))<(TOL)); \
+            assert(a[2]==(T)777 && a[5]==(T)777 && piv[0]==2 && piv[1]==2); \
+            memcpy(a,saved,sizeof(a));a[4]=0;memcpy(saved,a,sizeof(a)); \
+            assert((entry==1?work(layout,2,a,3,piv,w+1,2):high(layout,2,a,3,piv))==2); \
+            assert(memcmp(a,saved,sizeof(a))==0); \
+        } \
+        assert(work(layout,0,NULL,layout==101?0:1,NULL,w+1,1)==0);assert(w[1]==(T)1); \
+        assert(high(layout,0,NULL,layout==101?0:1,NULL)==0); \
+        assert(work(layout,-1,NULL,3,NULL,NULL,-1)==-2); \
+    } \
+} while(0)
+
 int main(int argc,char **argv) {
     assert(argc==2 || argc==3);
     void *library=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
@@ -140,6 +174,26 @@ int main(int argc,char **argv) {
     CHECK_DRIVER(d,double,int64_t,"64_",1.0,1e-12);
     CHECK_DRIVER(c,float complex,int64_t,"64_",0.8f-0.6f*I,1e-5);
     CHECK_DRIVER(z,double complex,int64_t,"64_",0.8-0.6*I,1e-12);
+    CHECK_INVERSE(s,float,int32_t,"",1.0f,1e-5);
+    CHECK_INVERSE(d,double,int32_t,"",1.0,1e-12);
+    CHECK_INVERSE(c,float complex,int32_t,"",0.8f-0.6f*I,1e-5);
+    CHECK_INVERSE(z,double complex,int32_t,"",0.8-0.6*I,1e-12);
+    CHECK_INVERSE(s,float,int64_t,"64_",1.0f,1e-5);
+    CHECK_INVERSE(d,double,int64_t,"64_",1.0,1e-12);
+    CHECK_INVERSE(c,float complex,int64_t,"64_",0.8f-0.6f*I,1e-5);
+    CHECK_INVERSE(z,double complex,int64_t,"64_",0.8-0.6*I,1e-12);
+    typedef int64_t (*dinverse_work)(int,int64_t,double *,int64_t,const int64_t *,double *,int64_t);
+    dinverse_work diw=(dinverse_work)dlsym(library,"LAPACKE_dgetri_work64_");assert(diw);
+    double large_query=0;int64_t huge_n=INT64_C(4294967297);
+    assert(diw(101,huge_n,NULL,huge_n,NULL,&large_query,-1)==0);assert(large_query==(double)huge_n);
+    typedef int64_t (*sinverse_work)(int,int64_t,float *,int64_t,const int64_t *,float *,int64_t);
+    sinverse_work siw=(sinverse_work)dlsym(library,"LAPACKE_sgetri_work64_");assert(siw);
+    float rounded_query=0;int64_t rounded_n=INT64_C(16777217);
+    assert(siw(102,rounded_n,NULL,rounded_n,NULL,&rounded_query,-1)==0);assert((double)rounded_query>=(double)rounded_n);
+    typedef int64_t (*dinverse)(int,int64_t,double *,int64_t,const int64_t *);
+    dinverse di=(dinverse)dlsym(library,"LAPACKE_dgetri64_");assert(di);
+    double nan_factor[4]={4,0.5,3,NAN};int64_t nan_piv[2]={2,2};
+    assert(di(102,2,nan_factor,2,nan_piv)==-3);assert(isnan(nan_factor[3]));
     typedef int64_t (*ddriver)(int,int64_t,int64_t,double *,int64_t,int64_t *,double *,int64_t);
     ddriver dd=(ddriver)dlsym(library,"LAPACKE_dgesv64_");assert(dd);
     double da[4]={NAN,4,1,3},db[2]={4,10};int64_t dp[2]={-91,-92};
@@ -164,6 +218,6 @@ int main(int argc,char **argv) {
     /* Disabling the scan reaches dimension validation without reading NULL. */
     assert(z(102,INT64_C(-4294967293),2,NULL,2,NULL)==-2);
     set(-9);assert(get()==1);
-    puts("LAPACKE C ABI: GETRF/GETRS/GESV high/work, four scalars, both integer widths passed");
+    puts("LAPACKE C ABI: GETRF/GETRS/GESV/GETRI high/work, four scalars, both integer widths passed");
     dlclose(library);return 0;
 }
