@@ -1,12 +1,8 @@
 # Issue #288: QL/RQ C factorization adapters
 
-Status: corrected immutable full package validation passes; source-bound
-execution evidence is imported. CI and main integration remain pending.
-Issue #288: QL/RQ C factorization adapters
+Status: parent integration changes LQ diagnostic tests; fresh immutable full
+validation is required before publishing current-source proof.
 
-Status: Fortran empty-work correction passes independent boundary regressions;
-C adapters pass focused numerical and independent C checks. Typed tracing,
-optimized repetition and full-suite evidence remain pending.
 Issue #288 remains open. The planned GEQLF/GERQF high/work entries
 add 16 names to the preceding 212-name candidate. This is staged scope; main
 has fewer entries until each validated candidate is merged.
@@ -87,3 +83,8 @@ The imported proof validates 1506 canonical entries: 1106 Fortran LAPACK,
 172 CBLAS and 228 LAPACKE, with 5439 completed witnesses. Python 28,
 inventory 15 and documentation build checks pass. All frozen source hashes
 and DLL remain unchanged. CI and main integration remain required.
+
+Parent LQ integration preserves every production source and the optimized
+reverse-QR DLL. Only test/lq.jl changes among 296 execution sources, adding
+asserted diagnostic consumption from the validated 212-name parent. The
+f2778c9 full proof remains historical; a new full run covers current tests.
