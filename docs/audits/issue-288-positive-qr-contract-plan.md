@@ -1,6 +1,7 @@
 # Issue #288: GEQRFP C adapters
 
-Status: focused numerical and C ABI checks pass; full-suite evidence is pending.
+Status: debug/optimized numerical and typed ABI checks pass; the source is
+being frozen for full-suite validation. Published full-suite evidence is pending.
 Issue #288 remains open. Eight S/D/C/Z high/work names extend the preceding
 188-name candidate to 196 original-scope names. The remaining original scope is
 1420 names, with the separate 20 Rook C targets still additional work.
