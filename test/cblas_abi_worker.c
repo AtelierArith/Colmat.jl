@@ -20,6 +20,9 @@ typedef void (*herk64)(int,int,int,int64_t,int64_t,double,const void *,int64_t,d
 typedef void (*her2k64)(int,int,int,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,double,void *,int64_t);
 typedef void (*tp64)(int,int,int,int,int64_t,const void *,void *,int64_t);
 typedef void (*tb64)(int,int,int,int,int64_t,int64_t,const void *,int64_t,void *,int64_t);
+typedef void (*gb64)(int,int,int64_t,int64_t,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,const void *,void *,int64_t);
+typedef void (*hb64)(int,int,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,const void *,void *,int64_t);
+typedef void (*hp64)(int,int,int64_t,const void *,const void *,const void *,int64_t,const void *,void *,int64_t);
 
 int main(int argc,char **argv) {
     if (argc!=2) return 2;
@@ -39,6 +42,9 @@ int main(int argc,char **argv) {
     ENTRY(tp64,cblas_ztpsv64_);
     ENTRY(tb64,cblas_ztbmv64_);
     ENTRY(tb64,cblas_ztbsv64_);
+    ENTRY(gb64,cblas_zgbmv64_);
+    ENTRY(hb64,cblas_zhbmv64_);
+    ENTRY(hp64,cblas_zhpmv64_);
     const float complex xf[]={1+2*I,3-I},yf[]={2-I,-1+3*I};
     const double complex xd[]={1+2*I,3-I},yd[]={2-I,-1+3*I};
     assert(cabsf(cblas_cdotu(2,xf,1,yf,1)-(xf[0]*yf[0]+xf[1]*yf[1]))<1e-5f);
@@ -88,6 +94,21 @@ int main(int argc,char **argv) {
     cblas_ztpsv64_(101,121,114,131,2,packed,compact_x,-1);
     assert(cabs(compact_x[0]-(2-I))<1e-12);
     assert(cabs(compact_x[1]-(1+I))<1e-12);
+    const double complex general_band[]={1+I,2-I,NAN,97,3+2*I,4-I,NAN,97};
+    const double complex general_x[]={1+I,2-I};
+    double complex general_y[]={NAN,NAN,NAN};
+    cblas_zgbmv64_(101,113,2,3,0,1,&alpha,general_band,4,general_x,1,&beta,general_y,1);
+    assert(cabs(general_y[0]-2)<1e-12);
+    assert(cabs(general_y[1]-(5-4*I))<1e-12);
+    assert(cabs(general_y[2]-(9-2*I))<1e-12);
+    double complex symmetric_y[]={NAN,NAN};
+    cblas_zhbmv64_(101,121,2,1,&alpha,band,3,general_x,1,&beta,symmetric_y,1);
+    assert(cabs(symmetric_y[0]-(6+5*I))<1e-12);
+    assert(cabs(symmetric_y[1]-(9-4*I))<1e-12);
+    symmetric_y[0]=NAN;symmetric_y[1]=NAN;
+    cblas_zhpmv64_(101,121,2,&alpha,packed,general_x,1,&beta,symmetric_y,1);
+    assert(cabs(symmetric_y[0]-(6+5*I))<1e-12);
+    assert(cabs(symmetric_y[1]-(9-4*I))<1e-12);
     cblas_ztbmv64_(101,121,114,131,2,1,band,3,compact_x,-1);
     assert(cabs(compact_x[0]-(6-3*I))<1e-12);
     assert(cabs(compact_x[1]-(2-3*I))<1e-12);

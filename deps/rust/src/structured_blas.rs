@@ -11,7 +11,7 @@ pub(crate) fn vector_start(n: isize, inc: isize) -> Option<isize> {
         Some(0)
     }
 }
-unsafe fn gbmv<T: Scalar>(
+pub(crate) unsafe fn gbmv<T: Scalar>(
     tr: u8,
     m: usize,
     n: usize,
@@ -26,7 +26,11 @@ unsafe fn gbmv<T: Scalar>(
     y: *mut T,
     iy: isize,
 ) {
-    let (nx, ny) = if tr == b'N' { (n, m) } else { (m, n) };
+    let (nx, ny) = if matches!(tr, b'N' | b'R') {
+        (n, m)
+    } else {
+        (m, n)
+    };
     if alpha == T::z() && beta == T::o() {
         return;
     }
@@ -62,14 +66,14 @@ unsafe fn gbmv<T: Scalar>(
         let first = j.saturating_sub(ku).min(m);
         let end = j.saturating_add(kl).saturating_add(1).min(m);
         if first == end {
-            if tr != b'N' {
+            if !matches!(tr, b'N' | b'R') {
                 let increment = alpha * T::z();
                 MatMut::from_raw_parts_mut(y.offset(j as isize * iy), 1, 1, 1, 0)
                     .for_each_mut(|v| *v = *v + increment);
             }
             continue;
         }
-        if tr == b'N' {
+        if matches!(tr, b'N' | b'R') {
             let value = *x.offset(j as isize * ix);
             if value == T::z() {
                 continue;
@@ -85,7 +89,7 @@ unsafe fn gbmv<T: Scalar>(
                     dst,
                     Accum::Add,
                     lhs,
-                    Conj::No,
+                    if tr == b'R' { Conj::Yes } else { Conj::No },
                     rhs,
                     Conj::No,
                     T::o(),
@@ -135,7 +139,7 @@ exports!(d, f64, i64, _64_);
 exports!(c, colmat::c32, i64, _64_);
 exports!(z, colmat::c64, i64, _64_);
 
-trait StructuredScalar: Scalar {
+pub(crate) trait StructuredScalar: Scalar {
     unsafe fn real_diagonal(a: *const Self) -> Self;
     fn times_real(self, value: Self) -> Self;
 }
@@ -169,7 +173,7 @@ complex_storage_scalar!(colmat::c32, f32);
 complex_storage_scalar!(colmat::c64, f64);
 
 #[derive(Clone, Copy)]
-enum SymmetricStorage {
+pub(crate) enum SymmetricStorage {
     Band { width: usize, ld: usize },
     Packed,
 }
@@ -203,7 +207,7 @@ impl SymmetricStorage {
         }
     }
 }
-unsafe fn symmetric_mv<T: StructuredScalar>(
+pub(crate) unsafe fn symmetric_mv<T: StructuredScalar>(
     lower: bool,
     n: usize,
     alpha: T,
@@ -215,6 +219,7 @@ unsafe fn symmetric_mv<T: StructuredScalar>(
     y: *mut T,
     iy: isize,
     hermitian: bool,
+    conjugate: bool,
 ) {
     if alpha == T::z() && beta == T::o() {
         return;
@@ -270,7 +275,7 @@ unsafe fn symmetric_mv<T: StructuredScalar>(
                 dst,
                 Accum::Add,
                 lhs,
-                Conj::No,
+                if conjugate { Conj::Yes } else { Conj::No },
                 rhs,
                 Conj::No,
                 T::o(),
@@ -285,7 +290,11 @@ unsafe fn symmetric_mv<T: StructuredScalar>(
                 dst,
                 Accum::Add,
                 lhs,
-                if hermitian { Conj::Yes } else { Conj::No },
+                if hermitian != conjugate {
+                    Conj::Yes
+                } else {
+                    Conj::No
+                },
                 rhs,
                 Conj::No,
                 alpha,
@@ -303,7 +312,7 @@ macro_rules! symmetric_exports {
     check!(1=>matches!(u,b'U'|b'L'),2=>n>=0,3=>k>=0,
         6=>k.checked_add(1).is_some_and(|required|ld>=required),8=>ix!=0,11=>iy!=0);
     if n==0 {return;}
-    symmetric_mv(u==b'L',n as usize,*alpha,a,SymmetricStorage::Band{width:k as usize,ld:ld as usize},x,ix,*beta,y,iy,$hermitian);
+    symmetric_mv(u==b'L',n as usize,*alpha,a,SymmetricStorage::Band{width:k as usize,ld:ld as usize},x,ix,*beta,y,iy,$hermitian,false);
   }
   #[no_mangle]
   pub unsafe extern "C" fn [<$p $packed $suffix>](u:*const u8,n:*const $i,alpha:*const $t,
@@ -311,7 +320,7 @@ macro_rules! symmetric_exports {
     let(u,n,ix,iy)=(flag(u),*n as isize,*ix as isize,*iy as isize);
     check!(1=>matches!(u,b'U'|b'L'),2=>n>=0,6=>ix!=0,9=>iy!=0);
     if n==0 {return;}
-    symmetric_mv(u==b'L',n as usize,*alpha,a,SymmetricStorage::Packed,x,ix,*beta,y,iy,$hermitian);
+    symmetric_mv(u==b'L',n as usize,*alpha,a,SymmetricStorage::Packed,x,ix,*beta,y,iy,$hermitian,false);
   }
  }};
 }

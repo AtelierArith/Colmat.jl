@@ -612,8 +612,93 @@ macro_rules! compact_triangle_export {
         }
     }};
 }
+
+macro_rules! general_band_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p gbmv $cs>](order:i32,t:i32,m:$i,n:$i,kl:$i,ku:$i,alpha:$coefficient,a:*const $t,lda:$i,x:*const $t,ix:$i,beta:$coefficient,y:*mut $t,iy:$i) {
+            if !matches!(order,101|102){crate::invalid(1);return;}
+            let Some(mut t)=cblas_trans(t) else {crate::invalid(2);return;};
+            if m<0 {crate::invalid(3);return;}
+            if n<0 {crate::invalid(4);return;}
+            if kl<0 {crate::invalid(5);return;}
+            if ku<0 {crate::invalid(6);return;}
+            let Some(height)=(kl as i64).checked_add(ku as i64).and_then(|k|k.checked_add(1)) else {crate::invalid(9);return;};
+            if !matrix_ok::<$t>(height,if order==101 {m as i64}else{n as i64},lda as i64,false,9){return;}
+            if ix==0 {crate::invalid(11);return;}
+            if iy==0 {crate::invalid(14);return;}
+            let (nx,ny)=if matches!(t,b'N'|b'R'){(n,m)}else{(m,n)};
+            if !vector_ok::<$t>(nx as i64,ix as i64,11)||!vector_ok::<$t>(ny as i64,iy as i64,14){return;}
+            if m==0||n==0{return;}
+            let alpha=($read)(alpha);
+            let beta=($read)(beta);
+            let (m,n,kl,ku)=if order==101 {t=transpose_operation(t);(n,m,ku,kl)}else{(m,n,kl,ku)};
+            crate::structured_blas::gbmv(t,m as usize,n as usize,kl as usize,ku as usize,alpha,a,lda as usize,x,ix as isize,beta,y,iy as isize);
+        }
+    }};
+}
+
+macro_rules! symmetric_compact_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$band:ident,$packed:ident,$h:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $band $cs>](order:i32,u:i32,n:$i,k:$i,alpha:$coefficient,a:*const $t,lda:$i,x:*const $t,ix:$i,beta:$coefficient,y:*mut $t,iy:$i) {
+            if !matches!(order,101|102){crate::invalid(1);return;}
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(2);return;};
+            if n<0 {crate::invalid(3);return;}
+            if k<0 {crate::invalid(4);return;}
+            let Some(height)=(k as i64).checked_add(1) else {crate::invalid(7);return;};
+            if !matrix_ok::<$t>(height,n as i64,lda as i64,false,7){return;}
+            if ix==0 {crate::invalid(9);return;}
+            if iy==0 {crate::invalid(12);return;}
+            if !vector_ok::<$t>(n as i64,ix as i64,9)||!vector_ok::<$t>(n as i64,iy as i64,12){return;}
+            if n==0{return;}
+            if order==101{u=flip_uplo(u);}
+            crate::structured_blas::symmetric_mv(u==b'L',n as usize,($read)(alpha),a,crate::structured_blas::SymmetricStorage::Band{width:k as usize,ld:lda as usize},x,ix as isize,($read)(beta),y,iy as isize,$h,$h&&order==101);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $packed $cs>](order:i32,u:i32,n:$i,alpha:$coefficient,a:*const $t,x:*const $t,ix:$i,beta:$coefficient,y:*mut $t,iy:$i) {
+            if !matches!(order,101|102){crate::invalid(1);return;}
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(2);return;};
+            if n<0 {crate::invalid(3);return;}
+            if ix==0 {crate::invalid(7);return;}
+            if iy==0 {crate::invalid(10);return;}
+            if !packed_ok::<$t>(n as i64,3)||!vector_ok::<$t>(n as i64,ix as i64,7)||!vector_ok::<$t>(n as i64,iy as i64,10){return;}
+            if n==0{return;}
+            if order==101{u=flip_uplo(u);}
+            crate::structured_blas::symmetric_mv(u==b'L',n as usize,($read)(alpha),a,crate::structured_blas::SymmetricStorage::Packed,x,ix as isize,($read)(beta),y,iy as isize,$h,$h&&order==101);
+        }
+    }};
+}
 macro_rules! interface {
     ($i:ty,$fs:tt,$cs:tt) => {
+        symmetric_compact_export!(s, f32, f32, |x: f32| x, $i, $cs, sbmv, spmv, false);
+        symmetric_compact_export!(d, f64, f64, |x: f64| x, $i, $cs, sbmv, spmv, false);
+        symmetric_compact_export!(
+            c,
+            c32,
+            *const c32,
+            |x: *const c32| *x,
+            $i,
+            $cs,
+            hbmv,
+            hpmv,
+            true
+        );
+        symmetric_compact_export!(
+            z,
+            c64,
+            *const c64,
+            |x: *const c64| *x,
+            $i,
+            $cs,
+            hbmv,
+            hpmv,
+            true
+        );
+        general_band_export!(s, f32, f32, |x: f32| x, $i, $cs);
+        general_band_export!(d, f64, f64, |x: f64| x, $i, $cs);
+        general_band_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs);
+        general_band_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs);
         compact_triangle_export!(s, f32, $i, $fs, $cs, tbmv, tpmv);
         compact_triangle_export!(s, f32, $i, $fs, $cs, tbsv, tpsv);
         compact_triangle_export!(d, f64, $i, $fs, $cs, tbmv, tpmv);
@@ -822,6 +907,9 @@ mod rank_tests;
 
 #[cfg(test)]
 mod compact_tests;
+
+#[cfg(test)]
+mod band_tests;
 
 #[cfg(test)]
 mod tests {
