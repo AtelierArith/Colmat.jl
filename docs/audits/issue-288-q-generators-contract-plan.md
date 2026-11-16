@@ -47,3 +47,11 @@ Analytic unitary reflectors include complex TAU with nonzero phase. A further
 K=0 TAU preservation and negative-INFO output retention. Python execution
 fixtures pass 17 tests and reject wrong K/LWORK integer widths. The numerical
 candidate now includes 260 C entries; full-suite proof remains pending.
+
+The independent C11 caller passes both runner checks for all 32 names. It
+compares outputs with explicit ILP64 OpenBLAS Fortran prototypes for all
+orientations, scalar types, both own ABIs, layouts and high/work, empty/thin/
+full shapes and every K through the available extent. It checks const TAU,
+padding/WORK guards, query immutability, diagnostic precedence, A/TAU NaNs
+and ILP64 dimensions outside int32. Rust full-suite checks pass 460 tests.
+Typed tracing, optimized repetition and immutable full proof remain required.
