@@ -86,19 +86,74 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.rows[0]['execution_evidence_status'] = 'direct_call_witness'
         self.assertEqual(registration_digest(self.rows), digest)
 
+    def add_cblas(self):
+        for symbol, family in (('cblas_dgemm', 'gemm'), ('cblas_drotg', 'rotg')):
+            self.rows.append(dict(symbol=symbol, interface='CBLAS', family=family, scalar='d',
+                                  adapter_lp64='true', adapter_ilp64='true'))
+            for bits in (32, 64):
+                signature = (f'(Int32, Int32, Int32, Int{bits}, Int{bits}, Int{bits}, Float64, '
+                             f'Ptr{{Float64}}, Int{bits}, Ptr{{Float64}}, Int{bits}, Float64, Ptr{{Float64}}, Int{bits})'
+                             if family == 'gemm' else '(Ref{Float64}, Ref{Float64}, Ref{Float64}, Ref{Float64})')
+                for route in ('dll', 'lbt_trampoline'):
+                    self.data['witnesses'].append(dict(symbol=symbol, bits=bits, route=route,
+                        file='test/suite.jl', line=1, signature=signature, integer_arguments=family!='rotg'))
+        self.data['cblas_target_symbols'] = ['cblas_dgemm', 'cblas_drotg']
+        self.data['inventory_registration_sha256'] = registration_digest(self.rows)
+
+    def test_cblas_enums_and_dimension_free_calls(self):
+        self.add_cblas()
+        executed = self.validate()
+        self.assertEqual(len(executed['cblas_dgemm']), 4)
+        self.assertEqual(len(executed['cblas_drotg']), 4)
+
+    def test_cblas_requires_both_actual_routes(self):
+        self.add_cblas()
+        self.data['witnesses'] = [w for w in self.data['witnesses'] if not (
+            w['symbol']=='cblas_dgemm' and w['bits']==64 and w['route']=='lbt_trampoline')]
+        with self.assertRaisesRegex(ValueError, 'Missing completed CBLAS ABI/route'):
+            self.validate()
+
+    def test_cblas_rejects_wrong_enum_or_dimension_abi(self):
+        self.add_cblas()
+        index = next(i for i,w in enumerate(self.data['witnesses']) if w['symbol']=='cblas_dgemm' and w['bits']==64)
+        original = self.data['witnesses'][index]['signature']
+        for signature in (original.replace('Int32', 'Int64', 1),
+                          original.replace('Int64', 'Int32'),
+                          original.replace('Int64', 'Ref{Int64}', 1)):
+            data = copy.deepcopy(self.data)
+            data['witnesses'][index]['signature'] = signature
+            with self.assertRaisesRegex(ValueError, 'CBLAS enum/dimension'):
+                self.validate(data)
+
+    def test_cblas_rejects_registration_only_witness_and_changed_scope(self):
+        self.add_cblas()
+        source = self.root / 'test/cblas.jl'
+        source.write_text('# registration-only fixture\n')
+        self.data['source_sha256']['test/cblas.jl'] = hashlib.sha256(source.read_bytes()).hexdigest()
+        index = next(i for i,w in enumerate(self.data['witnesses']) if w['symbol']=='cblas_dgemm')
+        data = copy.deepcopy(self.data)
+        data['witnesses'][index]['file'] = 'test/cblas.jl'
+        with self.assertRaisesRegex(ValueError, 'registration/recorder probe'):
+            self.validate(data)
+        self.data['cblas_target_symbols'].pop()
+        with self.assertRaisesRegex(ValueError, 'scope differs'):
+            self.validate()
+
 class RepositoryExecutionEvidenceTests(unittest.TestCase):
     def test_committed_inventory_matches_verified_execution_snapshot(self):
         import csv
         import json
         import re
-        from lbt_execution import load_execution
+        from lbt_execution import load_execution, lapack_rows, cblas_rows
         root = Path(__file__).resolve().parents[2]
         rows = list(csv.DictReader((root / 'docs/src/assets/lbt-symbol-inventory.tsv').open(), delimiter='\t'))
         snapshot = root / 'docs/src/assets/lapack-abi-execution.json'
         self.assertTrue(snapshot.is_file(), 'The execution snapshot must be committed')
         native = re.search(r'^revision\s*=\s*"([0-9a-f]+)"', (root / 'deps/upstream.toml').read_text(), re.MULTILINE).group(1)
         executed, data = load_execution(root, rows, native)
-        self.assertEqual(len(executed), 1106)
+        self.assertEqual(len(lapack_rows(rows)), 1106)
+        self.assertEqual(len(cblas_rows(rows)), 172)
+        self.assertEqual(len(executed), 1278)
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))
         for row in rows:

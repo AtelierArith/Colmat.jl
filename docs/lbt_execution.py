@@ -21,6 +21,52 @@ def lapack_rows(rows):
             and row['family'] not in BLAS_FAMILIES}
 
 
+# Six CBLAS dots were connected before the frozen #271 scope.
+PREEXISTING_CBLAS_DOTS = {
+    'cblas_sdot', 'cblas_ddot', 'cblas_cdotu_sub', 'cblas_cdotc_sub',
+    'cblas_zdotu_sub', 'cblas_zdotc_sub',
+}
+# (leading Cint enums, by-value signed blasint arguments). Enums retain
+# their C width even when dimensions/strides use the ILP64 interface.
+CBLAS_INTEGER_LAYOUT = {}
+for families, enums, dimensions in (
+    ('scal real_scal asum nrm2 iamax iamin amax amin sum', 0, 2),
+    ('copy swap axpy axpby dotu dotc rot real_rot', 0, 3),
+    ('rotg', 0, 0), ('gemm gemm3m', 3, 6), ('gemmt gemmtr', 4, 5),
+    ('gemv', 2, 5), ('gbmv', 2, 7), ('trmv trsv', 4, 3),
+    ('tbmv tbsv', 4, 4), ('tpmv tpsv', 4, 2), ('trmm trsm', 5, 4),
+    ('symv hemv', 2, 4), ('sbmv hbmv', 2, 5), ('spmv hpmv', 2, 3),
+    ('ger geru gerc', 1, 5), ('syr her', 2, 3), ('spr hpr', 2, 2),
+    ('syr2 her2', 2, 4), ('spr2 hpr2', 2, 3), ('symm hemm', 3, 5),
+    ('syrk herk', 3, 4), ('syr2k her2k', 3, 5),
+    ('imatcopy omatcopy', 2, 4), ('geadd', 1, 4),
+):
+    for family in families.split():
+        CBLAS_INTEGER_LAYOUT[family] = enums, dimensions
+
+
+def cblas_rows(rows):
+    return {row['symbol']: row for row in rows
+            if row['interface'] == 'CBLAS'
+            and row['adapter_lp64'] == row['adapter_ilp64'] == 'true'
+            and row['symbol'] not in PREEXISTING_CBLAS_DOTS}
+
+
+def validate_cblas_signature(row, witness):
+    enums, dimensions = CBLAS_INTEGER_LAYOUT[row['family']]
+    signature = witness['signature']
+    if not (signature.startswith('(') and signature.endswith(')')):
+        raise ValueError(f'Invalid CBLAS signature: {row["symbol"]}')
+    arguments = [part.strip() for part in signature[1:-1].split(',') if part.strip()]
+    integers = [part for part in arguments[enums:] if re.fullmatch(r'U?Int(?:32|64)', part)]
+    if (arguments[:enums] != ['Int32'] * enums
+            or len(integers) != dimensions
+            or any(part != f'Int{witness["bits"]}' for part in integers)
+            or re.search(r'(?:Ref|Ptr)\{U?Int(?:32|64)\}', signature)
+            or witness['integer_arguments'] != bool(dimensions)):
+        raise ValueError(f'CBLAS enum/dimension signature disagrees with ABI: {row["symbol"]}')
+
+
 SOURCE_FILES = (
     'Project.toml', 'test/Project.toml', 'deps/upstream.toml', 'deps/build.jl',
     'deps/rust/Cargo.toml', 'deps/rust/Cargo.lock', 'src/Colmat.jl',
@@ -65,12 +111,16 @@ def validate_execution(root, rows, native_revision, data):
             raise ValueError(f'Invalid execution evidence source: {file}')
         if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             raise ValueError(f'Stale execution evidence source: {file}')
-    expected = lapack_rows(rows)
+    lapack = lapack_rows(rows)
+    cblas = cblas_rows(rows)
+    expected = lapack | cblas
+    if (cblas or 'cblas_target_symbols' in data) and data.get('cblas_target_symbols') != sorted(cblas):
+        raise ValueError('CBLAS execution scope differs from registered targets')
     executed = {symbol: [] for symbol in expected}
     for witness in data.get('witnesses', []):
         symbol = witness.get('symbol')
         if symbol not in expected:
-            continue  # This snapshot's published scope is Fortran LAPACK.
+            continue  # Other BLAS calls are outside the published witness scope.
         if witness.get('file') == 'test/abi_execution_checks.jl':
             continue  # Recorder probes are not numerical contract evidence.
         if (witness.get('bits') not in (32, 64)
@@ -80,6 +130,12 @@ def validate_execution(root, rows, native_revision, data):
                 or not witness.get('signature')
                 or not isinstance(witness.get('integer_arguments'), bool)):
             raise ValueError(f'Incomplete concrete-call evidence: {symbol}')
+        if symbol in cblas:
+            if witness['file'] in ('test/cblas.jl', 'test/cblas_calls.jl', 'test/cblas_execution_checks.jl'):
+                raise ValueError(f'CBLAS registration/recorder probe is not execution: {symbol}')
+            validate_cblas_signature(cblas[symbol], witness)
+            executed[symbol].append(witness)
+            continue
         widths = {int(bits) for bits in re.findall(r'(?:Ref|Ptr)\{U?Int(32|64)\}', witness['signature'])}
         if (witness['integer_arguments'] and widths != {witness['bits']}) or (not witness['integer_arguments'] and widths):
             raise ValueError(f'Concrete signature width disagrees with executed ABI: {symbol}')
@@ -88,6 +144,9 @@ def validate_execution(root, rows, native_revision, data):
             raise ValueError(f'Missing integer signature for {symbol}')
         executed[symbol].append(witness)
     for symbol, witnesses in executed.items():
+        if symbol in cblas and {(w['bits'], w['route']) for w in witnesses} != {
+                (bits, route) for bits in (32, 64) for route in ('dll', 'lbt_trampoline')}:
+            raise ValueError(f'Missing completed CBLAS ABI/route for {symbol}')
         if {w['bits'] for w in witnesses} != {32, 64}:
             raise ValueError(f'Missing executed integer ABI for {symbol}')
     return executed

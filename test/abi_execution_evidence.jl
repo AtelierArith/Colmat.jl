@@ -185,6 +185,14 @@ function expected_lapack()
 end
 function finalize()
     expected=expected_lapack()
+    cblas_sites=Main.CBLAS_271_CALL_SITES
+    cblas_targets=Set(Main.CBLAS_271_TARGETS)
+    @testset "Actual CBLAS foreign-call evidence" begin
+        @test length(cblas_targets)==172
+        for bits in (32, 64), route in (:dll, :lbt_trampoline)
+            @test Set(s for (s, b, r, _, _, _) in cblas_sites if b==bits&&r==route)==cblas_targets
+        end
+    end
     @testset "Actual LAPACK foreign-call evidence" begin
         @test isempty(errors)
         @test length(expected)==1106
@@ -201,6 +209,10 @@ function finalize()
         @test initial_head=="source_archive" ||
             isempty(read(`git -C $root status --porcelain --untracked-files=no`, String))
         @test Set(source_files())==Set(keys(source_hashes))
+        if initial_head!="source_archive"
+            tracked=Set(split(read(`git -C $root ls-files`, String), '\n'))
+            @test Set(source_files())⊆tracked
+        end
         for (file, digest) in source_hashes
             @test bytes2hex(sha256(read(joinpath(root, file))))==digest
         end
@@ -221,17 +233,31 @@ function finalize()
         "manifest_sha256"=>bytes2hex(sha256(read(joinpath(root, "Manifest.toml")))),
         "library_sha256"=>bytes2hex(sha256(read(Main.Colmat.backend_library()))),
         "source_sha256"=>source_hashes,
-        "witnesses"=>[
-            Dict(
-                "symbol"=>s,
-                "bits"=>b,
-                "route"=>r,
-                "file"=>f,
-                "line"=>l,
-                "signature"=>t,
-                "integer_arguments"=>integers,
-            ) for (s, b, r, f, l, t, integers) in sort!(collect(witnesses))
-        ],
+        "cblas_target_symbols"=>sort!(collect(cblas_targets)),
+        "witnesses"=>vcat(
+            [
+                Dict(
+                    "symbol"=>s,
+                    "bits"=>b,
+                    "route"=>r,
+                    "file"=>f,
+                    "line"=>l,
+                    "signature"=>t,
+                    "integer_arguments"=>integers,
+                ) for (s, b, r, f, l, t, integers) in sort!(collect(witnesses))
+            ],
+            [
+                Dict(
+                    "symbol"=>s,
+                    "bits"=>b,
+                    "route"=>string(r),
+                    "file"=>relpath(realpath(f), root),
+                    "line"=>l,
+                    "signature"=>t,
+                    "integer_arguments"=>!endswith(s, "rotg"),
+                ) for (s, b, r, f, l, t) in sort!(collect(cblas_sites))
+            ],
+        ),
         "errors"=>errors,
         "ambiguous_shared_entries"=>sort!(collect(ambiguities)),
     )
