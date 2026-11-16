@@ -1,12 +1,12 @@
 # Issue 288: GESVD / GESDD contract preparation
 
-Status: adapters and focused C/Julia ABI checks implemented; optimized release,
+Status: adapters and optimized-release focused C/Julia ABI checks pass;
 immutable full-suite and platform CI evidence pending. This plan does not qualify
 any additional LAPACKE entry as complete. Issue #288 remains open.
 
-The next scope is sixteen canonical names: S/D/C/Z GESVD and GESDD, each
-high-level and `_work`, with LP64 and ILP64 exports. The existing complex SYR
-full-suite worktree must remain frozen while its test process runs.
+This extension adds sixteen canonical names: S/D/C/Z GESVD and GESDD, each
+high-level and `_work`, with LP64 and ILP64 exports. The total candidate LAPACKE subset is 108 numerical names,
+leaving 1,508 original-scope entries and the separate 20 Rook targets pending.
 
 ## Reference contracts
 
@@ -95,7 +95,9 @@ ABI/route observations against independent signature/return contracts. The
 completed-call gate passes 2,166 checks and the evidence-validator fixtures pass
 17 tests, including real SUPERB/RWORK and integer IWORK rejection cases. The
 focused artifact explicitly has `full_suite_passed=false`; it is not published
-as full-suite evidence. Registration is 1,590 forwards per ABI.
+as full-suite evidence. Registration is 1,590 forwards per ABI. The optimized release repeats all
+61,128 SVD numerical checks and the C worker successfully; its focused trace
+again validates every one of the 432 ABI/route observations.
 
 The prior successful 92-entry snapshot remains stale for these candidate
 sources. Replace it only after a successful full suite whose production/test/
