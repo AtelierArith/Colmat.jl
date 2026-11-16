@@ -37,10 +37,12 @@ for file in source_files()
 end
 const addresses = Dict{UInt,Vector{Tuple{String,Int,String}}}()
 const witnesses = Set{Tuple{String,Int,String,String,Int,String,Bool}}()
+const return_types = Dict{Tuple{String,Int,String,String,Int,String,Bool},String}()
+const lapacke_policy_helpers = Set(["LAPACKE_get_nancheck", "LAPACKE_set_nancheck"])
 const ambiguities = Set{String}()
 const errors = String[]
 const initialized = Ref(false)
-const seen = Set{Tuple{UInt,Any,String,Int}}()
+const seen = Set{Tuple{UInt,Any,String,Int,Any}}()
 function initialize()
     native = Libdl.dlopen(Main.Colmat.backend_library())
     trampoline = Libdl.dlopen(Main.LinearAlgebra.BLAS.libblastrampoline)
@@ -48,7 +50,8 @@ function initialize()
     header=split(first(rows), '\t')
     for line in rows[2:end]
         row=Dict(zip(header, split(line, '\t'; keepempty=true)))
-        row["interface"]=="Fortran" || continue
+        row["interface"] in ("Fortran", "LAPACKE") || continue
+        row["symbol"] in lapacke_policy_helpers && continue
         for (bits, column) in ((32, "adapter_lp64"), (64, "adapter_ilp64"))
             row[column]=="true" || continue
             symbol=row["symbol"]*(bits==64 ? "64_" : "")
@@ -63,17 +66,22 @@ function initialize()
     end
     return initialized[]=true
 end
-function record(pointer, signature, file, line)
+function record(pointer, signature, file, line, return_type=nothing)
     try
         initialized[] || initialize()
         pointer isa Ptr || return nothing
-        key=(UInt(pointer), signature, file, line)
+        key=(UInt(pointer), signature, file, line, return_type)
         key in seen && return nothing
         push!(seen, key)
         entries=get(addresses, UInt(pointer), nothing)
         isnothing(entries) && return nothing
         widths=Set{Int}()
-        for t in signature
+        is_lapacke=all(e->startswith(e[1], "LAPACKE_"), entries)
+        for (index, t) in enumerate(signature)
+            if is_lapacke && index>1
+                t===Int32 && push!(widths, 32)
+                t===Int64 && push!(widths, 64)
+            end
             t <: Union{Ref{Int32},Ptr{Int32},Ref{UInt32},Ptr{UInt32}} && push!(widths, 32)
             t <: Union{Ref{Int64},Ptr{Int64},Ref{UInt64},Ptr{UInt64}} && push!(widths, 64)
         end
@@ -86,6 +94,19 @@ function record(pointer, signature, file, line)
             return nothing
         end
         for (symbol, bits, route) in filtered
+            entry=(
+                symbol,
+                bits,
+                route,
+                relpath(file, root),
+                line,
+                string(signature),
+                !isempty(widths),
+            )
+            if haskey(return_types, entry) && return_types[entry]!=string(return_type)
+                push!(errors, "Inconsistent return types at "*string(entry))
+            end
+            return_types[entry]=string(return_type)
             push!(
                 witnesses,
                 (
@@ -122,7 +143,7 @@ function rewrite(x, file, line=1)
         return quote
             let $p=$original
                 local $r=$call
-                $(GlobalRef(ABIEvidence, :record))($p, $sig, $file, $line)
+                $(GlobalRef(ABIEvidence, :record))($p, $sig, $file, $line, $(x.args[3]))
                 $r
             end
         end
@@ -183,8 +204,26 @@ function expected_lapack()
             !(row["family"] in blas_families)
     )
 end
+function expected_lapacke()
+    return Set(
+        row["symbol"] for row in inventory_rows() if row["interface"]=="LAPACKE" &&
+            row["adapter_lp64"]==row["adapter_ilp64"]=="true" &&
+            !(row["symbol"] in lapacke_policy_helpers)
+    )
+end
 function finalize()
     expected=expected_lapack()
+    lapacke_targets=expected_lapacke()
+    @testset "Actual LAPACKE foreign-call evidence" begin
+        @test !isempty(lapacke_targets)
+        for bits in (32, 64), route in ("dll", "lbt_trampoline")
+            executed=Set(
+                e[1] for
+                e in witnesses if e[2]==bits && e[3]==route && e[1] in lapacke_targets
+            )
+            @test executed==lapacke_targets
+        end
+    end
     cblas_sites=Main.CBLAS_271_CALL_SITES
     cblas_targets=Set(Main.CBLAS_271_TARGETS)
     @testset "Actual CBLAS foreign-call evidence" begin
@@ -233,6 +272,7 @@ function finalize()
         "manifest_sha256"=>bytes2hex(sha256(read(joinpath(root, "Manifest.toml")))),
         "library_sha256"=>bytes2hex(sha256(read(Main.Colmat.backend_library()))),
         "source_sha256"=>source_hashes,
+        "lapacke_target_symbols"=>sort!(collect(lapacke_targets)),
         "cblas_target_symbols"=>sort!(collect(cblas_targets)),
         "witnesses"=>vcat(
             [
@@ -244,6 +284,7 @@ function finalize()
                     "line"=>l,
                     "signature"=>t,
                     "integer_arguments"=>integers,
+                    "return_type"=>get(return_types, (s, b, r, f, l, t, integers), ""),
                 ) for (s, b, r, f, l, t, integers) in sort!(collect(witnesses))
             ],
             [

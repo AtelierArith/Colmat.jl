@@ -71,6 +71,8 @@
 int main(int argc,char **argv) {
     assert(argc==2);void *library=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
     if(!library){fprintf(stderr,"%s\n",dlerror());return 3;}
+    typedef void (*set_nancheck)(int);
+    set_nancheck set=(set_nancheck)dlsym(library,"LAPACKE_set_nancheck");assert(set);set(1);
     CHECK(s,float,int32_t,"",1.0f,1e-5);
     CHECK(d,double,int32_t,"",1.0,1e-12);
     CHECK(c,float complex,int32_t,"",1.0f+0.5f*I,1e-5);

@@ -277,3 +277,39 @@ Actual LBT forwarding counts are 1,554 per ABI: 72 frozen-scope canonical
 entries plus the two policy helpers beyond main's 1,480 baseline. The fixed
 scope, inventory/provenance gates, full Pkg.test requirement and remaining
 1,544 canonical entries are unchanged; #288 is not complete.
+
+## Source-bound numerical evidence integration (in progress)
+
+The ordinary full-suite recorder now maps LAPACKE export and trampoline
+addresses in addition to the existing Fortran calls. For LAPACKE it separates
+the leading C-int layout from by-value lapack_int dimensions and borrowed
+integer pointers, and records the actual ccall return type. Conflicting return
+types at one call site are errors. Existing Fortran witness collection remains
+in place, and every numerical LAPACKE entry requires both ABIs and both actual
+routes. Policy helpers are separately exercised by the C policy tests; they
+are not numerical entry witnesses or substitutes for the frozen scope.
+
+The independent Python validator checks exact scalar pointers, layout width,
+char flags, dimension/pivot/work integer widths, returned INFO width, scope and
+route completeness for the currently implemented families. An unreviewed
+registered family is rejected until its actual signature contract is added;
+real-valued norm returns must not be assumed to be lapack_int. Fifteen fixture
+checks passed, including explicit rejection of mismatched types and missing
+routes. The recorder behavior probe passed 19 checks.
+
+A focused traced run produced exactly 288 completed call-site observations for
+72 canonical entries. All concrete argument/return signatures and the four
+ABI/route combinations were independently checked. This temporary artifact
+explicitly says `full_suite_passed=false`; it is not imported as full-suite
+proof. The ordinary suite adds a 1,446-check gate for these calls.
+
+The registration inventory was bootstrapped from the actual installed library:
+1,554 forwards per ABI, 5,146 canonical symbols, and all 15 inventory tests pass.
+The candidate audit preserves the original 2,910 scope and separate 40 Rook
+additions. NaN setter/getter names are now classified without treating the
+setter's initial 's' as a scalar prefix. During bootstrap the prior proof was
+backed up and temporarily removed; the old snapshot is restored but stale and
+must be replaced only after a successful full Pkg.test with the new sources.
+The 244 production/test/worker source files, registration and release-library
+hashes must be frozen for that run; snapshot validation remains pending until
+then. This does not complete #288 or reduce its 1,616-entry acceptance scope.
