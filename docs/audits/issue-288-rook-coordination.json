@@ -1,0 +1,28 @@
+{
+  "source_issue": 372,
+  "baseline_scope_must_remain_1616": true,
+  "additional_coordination_symbols": [
+    "LAPACKE_chetrf_rook",
+    "LAPACKE_chetrf_rook_work",
+    "LAPACKE_chetrs_rook",
+    "LAPACKE_chetrs_rook_work",
+    "LAPACKE_dsysv_rook",
+    "LAPACKE_dsysv_rook_work",
+    "LAPACKE_dsytrf_rook",
+    "LAPACKE_dsytrf_rook_work",
+    "LAPACKE_dsytrs_rook",
+    "LAPACKE_dsytrs_rook_work",
+    "LAPACKE_ssysv_rook",
+    "LAPACKE_ssysv_rook_work",
+    "LAPACKE_ssytrf_rook",
+    "LAPACKE_ssytrf_rook_work",
+    "LAPACKE_ssytrs_rook",
+    "LAPACKE_ssytrs_rook_work",
+    "LAPACKE_zhetrf_rook",
+    "LAPACKE_zhetrf_rook_work",
+    "LAPACKE_zhetrs_rook",
+    "LAPACKE_zhetrs_rook_work"
+  ],
+  "source_repository": "AtelierArith/Colmat.jl",
+  "source_issue_url": "https://github.com/AtelierArith/Colmat.jl/issues/372"
+}

@@ -126,3 +126,35 @@ real-valued returns and 40 entries without matrix_layout; the current nine
 families do not establish those contracts. Native-dependent BDS/TGEVC work and
 coordinated Rook C entries remain pending. This stage must not close #288 or
 mark parent #263 complete.
+
+## Following stage: GETF2/GETRF2 (full verification pending)
+
+The next stage adds 16 canonical high/work LU entries, bringing the implemented
+subset to 88 of the original 1,616. It uses the same public native LU numerical
+contract as the already-connected Fortran aliases; unblocked/recursive algorithm
+and performance equivalence are not claimed. Reference-LAPACK v3.12.1 work
+wrappers were inspected: `lapacke_cgetf2_work.c` blob
+`53643cd7c30238179338ce19aff2e337b1696857` and `lapacke_cgetrf2_work.c` blob
+`2586244a3ed00a210567e216b08864554664a7f2`. Layout, INFO, dimensions and pivot
+signatures match GETRF for both integer ABIs.
+
+The optimized release was independently exercised by the C worker, including
+3-by-2 and 2-by-3 matrices, nonreal complex values, guarded pivots, both layouts,
+singular INFO and invalid dimensions. The Julia LU checks passed 2,128 checks;
+all 88 numerical entries produced 352 actual name/ABI/route observations, with
+concrete signatures and returns independently validated. The completed-call
+gate passed 1,766 checks, and both C runners passed eight checks. Rust still
+passes 398 tests. Registration of 1,570 entries per ABI passes all 15 inventory
+checks; the 15 independent evidence fixtures also pass.
+
+The focused artifact explicitly has `full_suite_passed=false` and is not
+published as full-suite proof. The new full run must freeze the current 245
+sources, release DLL, manifest and 1,570-entry registration, then replace the
+previous stage's stale snapshot only after success. At this point the prior
+snapshot still records the earlier successful 72-entry stage and cannot
+validate the changed candidate sources.
+
+`issue-288-rook-coordination.json` separately records the 20 Rook C entries
+coordinated by #372. These do not overlap or replace the frozen 1,616 names.
+Neither the following stage nor the previous merged stage establishes complete
+coverage of the original scope or the additional coordination targets.
