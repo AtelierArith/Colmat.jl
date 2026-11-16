@@ -158,15 +158,34 @@ end
         tol=300eps(real(T))
         @test a≈ar[1:m, :] rtol=tol atol=tol
         if info==0
-            @test b[1:solutions, :]≈br[1:solutions, :] rtol=tol atol=tol
+            solution_tolerance=tol
+            if m>0 && n>0 && r>0 && !zero_case
+                # Forward error scales with conditioning. Keep the same hard
+                # random systems and compare both solvers to a wide oracle.
+                Wide=promote_type(T, Float64)
+                op=trans=='N' ? a0 : a0'
+                condition=cond(Matrix{Wide}(op))
+                solution_tolerance=max(tol, 20eps(real(T))*condition)
+                wide_a=Matrix{Wide}(a0)
+                wide_b=zeros(Wide, rows, r)
+                wide_b[1:inputs, :]=rhs
+                _, _, wide_info=direct_gels!(
+                    trans, wide_a, wide_b, m, n, r, Int64; library=reference
+                )
+                @test wide_info==0
+                oracle=wide_b[1:solutions, :]
+                @test b[1:solutions, :]≈oracle rtol=solution_tolerance atol=tol
+                @test br[1:solutions, :]≈oracle rtol=solution_tolerance atol=tol
+                # A strict normal-equation residual checks backward stability
+                # separately from the condition-dependent forward comparison.
+                x=b[1:solutions, :]
+                @test norm(op'*(op*x-rhs))<=100eps(real(T))*max(
+                    norm(op)*(norm(op)*norm(x)+norm(rhs)), floatmin(real(T))
+                )
+            end
+            @test b[1:solutions, :]≈br[1:solutions, :] rtol=solution_tolerance atol=tol
             if inputs>solutions && r>0
                 @test norm(b[(solutions + 1):inputs, :])≈norm(br[(solutions + 1):inputs, :]) rtol=tol atol=tol
-            end
-            if m>0 && n>0 && r>0 && !zero_case
-                op=trans=='N' ? a0 : a0'
-                @test norm(op' * (op*b[1:solutions, :]-rhs))<=100tol*max(
-                    norm(op)*norm(rhs), one(real(T))
-                )
             end
         end
         for (x, old, nrows, ncols, ld) in

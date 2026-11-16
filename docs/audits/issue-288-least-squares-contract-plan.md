@@ -1,8 +1,8 @@
 # Issue #288: least-squares C contracts
 
 Status: Fortran WORK publication is corrected and verified. Eight GELS C
-entries are drafted; broader C numerical validation is pending. The other
-24 planned C entries are not implemented yet.
+entries pass focused debug numerical checks. The other 24 planned C entries,
+full-stage boundary/ABI evidence and immutable full proof remain pending.
 Issue #288 remains open.
 
 The canonical inventory contains eight high/work S/D/C/Z names each for
@@ -83,3 +83,14 @@ checking zero RHS output and caller guards. Rust passes 463 tests. Exact
 before/after library, source and log hashes are recorded in
 issue-288-least-squares-empty-layout.json. The larger GELS C numerical test is
 rerunning after this correction; no passing numerical result is claimed yet.
+
+GELS C numerical checks now pass 25088 assertions, covering all scalar types,
+integer ABIs, layouts, high/work and actual DLL/LBT routes; empty/NRHS=0,
+tall/wide/square and zero systems; query/error output preservation; A overwrite,
+solution/residual comparisons and padding guards. The original random systems
+are retained. A Float32 forward-comparison failure is checked with a wide
+independent Fortran oracle and a condition-dependent forward bound, while
+normal-equation residual checks use a stricter 100*epsilon scaled bound.
+Both low-precision solvers are compared separately with the wide oracle.
+Source/library/log hashes are in issue-288-least-squares-gels-focused.json.
+These are focused eight-name results, not full 32-name stage validation.
