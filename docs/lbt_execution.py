@@ -96,6 +96,8 @@ def validate_lapacke_signature(row, witness):
         'potrf': ['Int32', 'Int8', integer, t, integer],
         'potrf2': ['Int32', 'Int8', integer, t, integer],
         'potri': ['Int32', 'Int8', integer, t, integer],
+        'trtri': ['Int32', 'Int8', 'Int8', integer, t, integer],
+        'trtrs': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer, t, integer],
         'potrs': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
         'posv': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
         'syr': ['Int32', 'Int8', integer, scalar, t, integer, t, integer],

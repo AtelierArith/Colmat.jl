@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **1630**、ILP64 **1630** シンボルを登録します。
+現行 adapter は LP64 **1646**、ILP64 **1646** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -165,9 +165,9 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `trsv` / CBLAS | `cblas_ctrsv`, `cblas_dtrsv`, `cblas_strsv`, `cblas_ztrsv` | [triangular_solve / triangular_inverse](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/triangular_solve.rs) | TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI connected for LP64/ILP64 with row/column-major and explicit enum/coefficient/return conversions; #271 tests DLL and LBT routes |
 | `trti2` / Fortran | `ctrti2_`, `dtrti2_`, `strti2_`, `ztrti2_` | [triangular_solve / triangular_inverse](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/triangular_solve.rs) | TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない |
 | `trtri` / Fortran | `ctrtri_`, `dtrtri_`, `strtri_`, `ztrtri_` | [triangular_solve / triangular_inverse](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/triangular_solve.rs) | TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない |
-| `trtri` / LAPACKE | `LAPACKE_ctrtri`, `LAPACKE_ctrtri_work`, `LAPACKE_dtrtri`, `LAPACKE_dtrtri_work`, `LAPACKE_strtri`, `LAPACKE_strtri_work`, `LAPACKE_ztrtri`, `LAPACKE_ztrtri_work` | [triangular_solve / triangular_inverse](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/triangular_solve.rs) | TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `trtri` / LAPACKE | `LAPACKE_ctrtri`, `LAPACKE_ctrtri_work`, `LAPACKE_dtrtri`, `LAPACKE_dtrtri_work`, `LAPACKE_strtri`, `LAPACKE_strtri_work`, `LAPACKE_ztrtri`, `LAPACKE_ztrtri_work` | [triangular_solve / triangular_inverse](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/triangular_solve.rs) | TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `trtrs` / Fortran | `ctrtrs_`, `dtrtrs_`, `strtrs_`, `ztrtrs_` | [triangular_solve / triangular_inverse](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/triangular_solve.rs) | TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない |
-| `trtrs` / LAPACKE | `LAPACKE_ctrtrs`, `LAPACKE_ctrtrs_work`, `LAPACKE_dtrtrs`, `LAPACKE_dtrtrs_work`, `LAPACKE_strtrs`, `LAPACKE_strtrs_work`, `LAPACKE_ztrtrs`, `LAPACKE_ztrtrs_work` | [triangular_solve / triangular_inverse](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/triangular_solve.rs) | TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `trtrs` / LAPACKE | `LAPACKE_ctrtrs`, `LAPACKE_ctrtrs_work`, `LAPACKE_dtrtrs`, `LAPACKE_dtrtrs_work`, `LAPACKE_strtrs`, `LAPACKE_strtrs_work`, `LAPACKE_ztrtrs`, `LAPACKE_ztrtrs_work` | [triangular_solve / triangular_inverse](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/triangular_solve.rs) | TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 
 ### 対応機能あり・保存形式の変換が必要
 
@@ -1494,7 +1494,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,426 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 1,442 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.

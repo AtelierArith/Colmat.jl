@@ -9,6 +9,7 @@ mod self_adjoint;
 mod self_adjoint_range;
 mod svd;
 mod symmetric_rank;
+mod triangular;
 
 const ROW_MAJOR: i32 = 101;
 const COL_MAJOR: i32 = 102;
