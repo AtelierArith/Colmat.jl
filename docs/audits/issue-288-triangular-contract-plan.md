@@ -1,7 +1,9 @@
 # Issue #288: TRTRI / TRTRS C adapters
 
-Status: initial adapters and focused numerical/C ABI checks pass. No full-suite
-proof has been imported for this candidate. Issue #288 remains open.
+Status: immutable full-suite validation passed at
+`3c0535c00a7975626b8c131288d44ef3336ea373`. All 275 source hashes, manifest,
+registration and optimized DLL matched the pre-run freeze before evidence import.
+Issue #288 remains open.
 
 The sixteen S/D/C/Z TRTRI/TRTRS high/work names add both integer ABIs beyond the
 148-name expert candidate. This reaches 164 original-scope names, leaving 1452
@@ -54,5 +56,7 @@ Optimized build and repeated independent C, numerical and completed-call
 signature validation passed. The optimized DLL SHA256 is
 `bb3ab591cbd9a35bcfe20a26c01377184f8b438560b70728013a3655b57ef4e5`.
 The completed-call gate passes 3,286 checks; registration is 1,646 forwards per
-integer ABI. Full-suite evidence remains pending and the prior snapshot remains
-stale for this candidate until a successful immutable package run.
+integer ABI. The full-suite artifact validates 1,442 canonical names: 1,106
+Fortran LAPACK, 172 CBLAS and 164 LAPACKE, with 5,135 witnesses. Python 28,
+inventory 15 and documentation build checks pass. Linux/macOS CI artifact
+validation remains required before publication.
