@@ -2,6 +2,7 @@
 //! Reference contract: Reference-LAPACK v3.12.1, lapacke_*getrf_work.c.
 //! Layout is always C int; dimensions, pivots and returned INFO follow lapack_int.
 use crate::kernels::Scalar;
+mod cholesky;
 
 const ROW_MAJOR: i32 = 101;
 const COL_MAJOR: i32 = 102;

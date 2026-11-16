@@ -200,3 +200,80 @@ remain pending for the full LAPACKE work. The frozen scope stays 1,616 entries.
 Combined focused Julia/C regression passed 7,942 checks (720 + 4,232 + 1,216 +
 1,768 + 6). Actual forwarding counts were 1,514 per ABI: 32 frozen-scope
 canonical entries and two policy helpers beyond the prior main baseline.
+
+## Dense Cholesky high/work adapters
+
+The additional families are POTRF, POTRF2, POTRI, POTRS and POSV: 40 canonical
+entries, 80 scalar/integer-ABI exports. All 40 names were checked against the
+full frozen 1,616-entry scope. Reference-LAPACK v3.12.1 work-entry sources:
+
+| Source under LAPACKE/src | Git blob |
+| --- | --- |
+| lapacke_zpotrf_work.c | a490213a9a106b040e97013c692750bcef28fab2 |
+| lapacke_zpotrf2_work.c | 60300e5fc65a2cc5a572ba7805fecaa5a98af430 |
+| lapacke_zpotri_work.c | f98a8467f2b196d483f85d7308e73b2182042741 |
+| lapacke_zpotrs_work.c | d6e43a69c42b299cbc9db6c16e611c982f8a95cf |
+| lapacke_zposv_work.c | b990b5f1b26ae35a76ca36e389ce570dc8d87c28 |
+
+The corresponding high-level entry sources were also inspected, along with
+`lapacke_zpo_nancheck.c` (66740ae874951c3e8472d979db95a56a9b2170fe),
+`lapacke_ztr_nancheck.c` (5c870a6461ab4237429c9a0851bd6703249971c0),
+and the PO/TR transpose helpers. Only the selected triangle is copied or
+scanned. High-level NaN scanning includes imaginary diagonal components;
+work/Fortran POTRF/POTRF2/POSV ignore those components as the Hermitian
+numerical contract requires. NaN scanning respects UPLO and leading dimension.
+Row-major leading-dimension validation precedes numerical option validation.
+POSV still factors with zero RHS and preserves B on positive failure INFO.
+POTRS never writes the supplied factor.
+
+POTRF2 uses the already-documented native Fortran factor alias; no separate
+recursive algorithm or reference-LAPACK POTRF2 performance is claimed. Work
+entries have no caller work-array arguments for these families. Row-major
+transposes and numerical scratch remain internal allocations.
+
+### Existing Fortran boundary fixes discovered by these tests
+
+The direct Fortran adapter previously exposed writes from the public native
+in-place Cholesky call into the caller's unselected triangle. An executed
+ComplexF64, N=3, LDA=5 MWE changed ignored positions 6, 11 and 12. A separate
+executed variant with NaNs only in diagonal imaginary components returned
+INFO=0 with nonfinite factor entries. These are LAPACK boundary defects in
+Colmat.jl; no change or report was made to colmat-rs.
+
+`factor_cholesky` now copies only the selected triangle into native-owned
+scratch, projects the diagonal to its real part, and copies only the selected
+factor back, including numerical failure data. Upper storage is conjugated
+into the lower Hermitian representation and back. This also fixes the Fortran
+POTF2/POTRF2 aliases and POSV through their existing POTRF dispatch. The extra
+N-by-N scratch allocation is explicit; zero-copy factorization and matching
+vendor performance are not claimed.
+
+`reproducers/potrf_ignored_storage.jl` is an executed standalone regression.
+The corrected library returns INFO=0, no changed ignored positions and finite
+factor entries. Direct Fortran tests cover four types, both ABIs, upper/lower
+and lowercase flags, unused/padding NaNs, imaginary diagonal NaNs, and external
+OpenBLAS consumption of the generated factors.
+
+### Validation
+
+`test/lapacke_cholesky.jl` passed 23,968 checks. Tests use scalar construction
+and reconstruction of positive-definite matrices, independent OpenBLAS factors
+for POTRS/POTRI, external OpenBLAS solves with produced POTRF/POTRF2/POSV factors,
+and both actual DLL and LBT trampoline routes. They verify selected-triangle
+and padding preservation, zero RHS, failure INFO, B preservation, and policy
+versus numerical handling of diagonal imaginary NaNs.
+
+The separate C compiler worker calls all 80 exports with concrete C signatures,
+C-int layout/char options and matching 32/64-bit dimensions and INFO. It checks
+nonreal complex matrices, poisoned unselected storage, exact known factors,
+solutions and inverses, zero/empty calls, row-major validation precedence,
+positive INFO, NULL B for zero RHS, imaginary-only diagonal NaNs and high-level
+NaN diagnostics. Its Julia runner passed two checks.
+
+After the final boundary correction, combined LAPACKE Julia/C validation
+passed 31,912 checks. Separate existing Fortran driver/direct-ABI/boundary
+regressions passed 7,200 checks, and the complete Rust suite passed 398 tests.
+Actual LBT forwarding counts are 1,554 per ABI: 72 frozen-scope canonical
+entries plus the two policy helpers beyond main's 1,480 baseline. The fixed
+scope, inventory/provenance gates, full Pkg.test requirement and remaining
+1,544 canonical entries are unchanged; #288 is not complete.

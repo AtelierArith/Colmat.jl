@@ -141,6 +141,29 @@ pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
         }
     })
 }
+/// LAPACK owns only the requested triangle. The public native in-place
+/// factorizer may use the opposite triangle as scratch, so isolate that scratch
+/// from caller storage and copy back the selected factor, including failure data.
+pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
+    let input = input_ref(a, n, n, ld);
+    let mut factor = Mat::from_fn(n, n, |i, j| {
+        if i < j {
+            T::z()
+        } else if i == j {
+            // LAPACK assumes Hermitian diagonal imaginary components are zero,
+            // even when the caller leaves them unset or NaN.
+            T::real(input[(i, i)].re())
+        } else if u == b'L' {
+            input[(i, j)]
+        } else {
+            input[(j, i)].cj()
+        }
+    });
+    let info = cholesky(factor.as_mut());
+    cholesky_output(&factor, a, ld, u);
+    info
+}
+
 pub fn solve_cholesky<T: Scalar>(a: MatRef<'_, T>, mut b: MatMut<'_, T>, u: u8) {
     use colmat::linalg::triangular_solve::*;
     crate::threading::with_par(|mut par| {
@@ -304,7 +327,7 @@ pub unsafe extern "C" fn [<$p getri $s>](n:*const $i,a:*mut $t,lda:*const $i,p:*
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p potrf $s>](u:*const u8,n:*const $i,a:*mut $t,lda:*const $i,info:*mut $i){
- *info=0;let(u,n,ld)=(flag(u),(*n).val(),(*lda).val());valid!(info,1=>crate::kernels::uplo(u),2=>n>=0,4=>ld>=1.max(n));if n==0{return;}let mat=if u==b'L'{input_mut(a,n as usize,n as usize,ld)}else{input_mut_transposed(a,n as usize,ld)};*info=cholesky(mat)as $i;
+ *info=0;let(u,n,ld)=(flag(u),(*n).val(),(*lda).val());valid!(info,1=>crate::kernels::uplo(u),2=>n>=0,4=>ld>=1.max(n));if n==0{return;}*info=factor_cholesky(u,n as usize,a,ld)as $i;
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p potrs $s>](u:*const u8,n:*const $i,k:*const $i,a:*const $t,lda:*const $i,b:*mut $t,ldb:*const $i,info:*mut $i){
