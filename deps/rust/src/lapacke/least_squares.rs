@@ -66,7 +66,7 @@ unsafe fn layout_work<T: Scalar>(
         return call(a, lda, b, ldb);
     }
     let rows = m.max(n);
-    if skip_packing || nrhs == 0 {
+    if skip_packing {
         return call(a, m.max(1), b, rows.max(1));
     }
     let mut at = match row_to_column(m as usize, n as usize, a, lda as usize) {
@@ -123,7 +123,7 @@ macro_rules! exports {($p:ident,$t:ty,$j:ty,[$($suffix:tt)*],$f:tt)=>{paste::pas
         let minimum=(m.min(n) as i128+(m.min(n).max(nrhs) as i128)).max(1);
         if minimum>(<$j>::MAX as i128){return -11;}
         let input_rows=if (trans as u8).to_ascii_uppercase()==b'N'{m}else{n};
-        layout_work(layout,m as i64,n as i64,nrhs as i64,input_rows as i64,a,lda as i64,b,ldb as i64,lwork== -1||(lwork as i128)<minimum,|a,lda,b,ldb|{
+        layout_work(layout,m as i64,n as i64,nrhs as i64,input_rows as i64,a,lda as i64,b,ldb as i64,lwork== -1||(lwork as i128)<minimum||nrhs==0,|a,lda,b,ldb|{
             let mut info:$j=0;
             crate::least_squares::[<$p gels $f>](&(trans as u8),&m,&n,&nrhs,a,&(lda as $j),b,&(ldb as $j),workspace,&lwork,&mut info);
             if info<0 {(info-1) as i64}else{info as i64}
@@ -354,3 +354,165 @@ gelsy_exports!(s, f32, f32, i64, [64_], _64_, _rwork, [], []);
 gelsy_exports!(d, f64, f64, i64, [64_], _64_, _rwork, [], []);
 gelsy_exports!(c,colmat::c32,f32,i64,[64_],_64_,_rwork,[,_rwork:*mut f32],[,_rwork]);
 gelsy_exports!(z,colmat::c64,f64,i64,[64_],_64_,_rwork,[,_rwork:*mut f64],[,_rwork]);
+
+#[derive(Clone, Copy)]
+enum SvdDriver {
+    Classical,
+    Divide,
+}
+fn svd_workspace(
+    m: i64,
+    n: i64,
+    nrhs: i64,
+    complex: bool,
+    driver: SvdDriver,
+) -> (i128, i128, i128) {
+    let k = m.min(n) as i128;
+    let m = m as i128;
+    let n = n as i128;
+    let r = nrhs as i128;
+    if k == 0 {
+        return (1, 1, 1);
+    }
+    if matches!(driver, SvdDriver::Classical) {
+        let work = if complex {
+            2 * k + m.max(n).max(r)
+        } else {
+            3 * k + (2 * k).max(m.max(n)).max(r)
+        };
+        return (work, 1, if complex { 5 * k } else { 1 });
+    }
+    let levels = (((k as f64 / 26.0).log2() as i128) + 1).max(0);
+    let integer = (3 * k * levels + 11 * k).max(1);
+    if complex {
+        let real = (60 * k + 8 * k * levels + 75 * r + (26 * 26).max(n * (1 + r) + 2 * r)).max(1);
+        ((2 * k + k * r).max(1), integer, real)
+    } else {
+        (
+            (62 * k + 8 * k * levels + k * r + 26 * 26).max(1),
+            integer,
+            1,
+        )
+    }
+}
+fn integer_workspace<J: crate::lapack::LapackInt>(count: usize) -> Result<Vec<J>, i64> {
+    if count
+        .checked_mul(core::mem::size_of::<J>())
+        .is_none_or(|n| n > isize::MAX as usize)
+    {
+        return Err(-1010);
+    }
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|_| -1010)?;
+    values.resize(count, J::from_i64(0));
+    Ok(values)
+}
+macro_rules! svd_exports {($p:ident,$family:ident,$divide:expr,$t:ty,$r:ty,$j:ty,[$($suffix:tt)*],$f:tt,$rw:ident,$iw:ident,[$($rwparam:tt)*],[$($rwarg:tt)*],[$($iwparam:tt)*],[$($iwarg:tt)*])=>{paste::paste!{
+    #[no_mangle]
+    pub unsafe extern "C" fn [<LAPACKE_ $p $family _work $($suffix)*>](layout:i32,m:$j,n:$j,nrhs:$j,a:*mut $t,lda:$j,b:*mut $t,ldb:$j,s:*mut $r,rcond:$r,rank:*mut $j,workspace:*mut $t,lwork:$j $($rwparam)* $($iwparam)*)->$j {
+        if let Err(e)=rank_geometry(layout,m as i64,n as i64,nrhs as i64,lda as i64,ldb as i64){return e as $j;}
+        let driver=if $divide {SvdDriver::Divide}else{SvdDriver::Classical};
+        let (minimum,integer,real)=svd_workspace(m as i64,n as i64,nrhs as i64,<$t>::COMPLEX,driver);
+        if [minimum,integer,real].iter().any(|n|*n>(<$j>::MAX as i128)){return -13;}
+        layout_work(layout,m as i64,n as i64,nrhs as i64,m as i64,a,lda as i64,b,ldb as i64,lwork== -1||(lwork as i128)<minimum,|a,lda,b,ldb|{
+            let mut info:$j=0;
+            crate::least_squares::[<$p $family $f>](&m,&n,&nrhs,a,&(lda as $j),b,&(ldb as $j),s,&rcond,rank,workspace,&lwork $($rwarg)* $($iwarg)*,&mut info);
+            if info<0 {(info-1) as i64}else{info as i64}
+        }) as $j
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn [<LAPACKE_ $p $family $($suffix)*>](layout:i32,m:$j,n:$j,nrhs:$j,a:*mut $t,lda:$j,b:*mut $t,ldb:$j,s:*mut $r,rcond:$r,rank:*mut $j)->$j {
+        if let Err(e)=rank_nan(layout,m as i64,n as i64,nrhs as i64,a,lda as i64,b,ldb as i64,rcond){return e as $j;}
+        let mut query=<$t>::z();let mut real_query=<$r>::z();let mut integer_query:$j=0;
+        let $rw=&mut real_query as *mut $r;let $iw=&mut integer_query as *mut $j;
+        let info=[<LAPACKE_ $p $family _work $($suffix)*>](layout,m,n,nrhs,a,lda,b,ldb,s,rcond,rank,&mut query,-1 $($rwarg)* $($iwarg)*);
+        if info!=0{return info;}
+        let count=match allocation_len(query.re(),<$j>::MAX as usize){Ok(v)=>v,Err(e)=>return e as $j};
+        let mut workspace=match zeros::<$t>(count){Ok(v)=>v,Err(_)=>return -1010};
+        let rwcount=if <$t>::COMPLEX {
+            if $divide {match allocation_len(real_query.re(),<$j>::MAX as usize){Ok(v)=>v,Err(e)=>return e as $j}}
+            else {match (m.min(n).max(0) as usize).checked_mul(5){Some(v)=>v.max(1),None=>return -1010}}
+        }else{0};
+        let iwcount=if $divide {if integer_query<1{return -1010;}integer_query as usize}else{0};
+        let mut real_workspace=match zeros::<$r>(rwcount){Ok(v)=>v,Err(_)=>return -1010};
+        let mut integer_workspace=match integer_workspace::<$j>(iwcount){Ok(v)=>v,Err(e)=>return e as $j};
+        let $rw=real_workspace.as_mut_ptr();let $iw=integer_workspace.as_mut_ptr();
+        [<LAPACKE_ $p $family _work $($suffix)*>](layout,m,n,nrhs,a,lda,b,ldb,s,rcond,rank,workspace.as_mut_ptr(),count as $j $($rwarg)* $($iwarg)*)
+    }
+}};}
+svd_exports!(
+    s,
+    gelss,
+    false,
+    f32,
+    f32,
+    i32,
+    [],
+    _,
+    _rwork,
+    _iwork,
+    [],
+    [],
+    [],
+    []
+);
+svd_exports!(
+    d,
+    gelss,
+    false,
+    f64,
+    f64,
+    i32,
+    [],
+    _,
+    _rwork,
+    _iwork,
+    [],
+    [],
+    [],
+    []
+);
+svd_exports!(c,gelss,false,colmat::c32,f32,i32,[],_,_rwork,_iwork,[,_rwork:*mut f32],[,_rwork],[],[]);
+svd_exports!(z,gelss,false,colmat::c64,f64,i32,[],_,_rwork,_iwork,[,_rwork:*mut f64],[,_rwork],[],[]);
+svd_exports!(
+    s,
+    gelss,
+    false,
+    f32,
+    f32,
+    i64,
+    [64_],
+    _64_,
+    _rwork,
+    _iwork,
+    [],
+    [],
+    [],
+    []
+);
+svd_exports!(
+    d,
+    gelss,
+    false,
+    f64,
+    f64,
+    i64,
+    [64_],
+    _64_,
+    _rwork,
+    _iwork,
+    [],
+    [],
+    [],
+    []
+);
+svd_exports!(c,gelss,false,colmat::c32,f32,i64,[64_],_64_,_rwork,_iwork,[,_rwork:*mut f32],[,_rwork],[],[]);
+svd_exports!(z,gelss,false,colmat::c64,f64,i64,[64_],_64_,_rwork,_iwork,[,_rwork:*mut f64],[,_rwork],[],[]);
+svd_exports!(s,gelsd,true,f32,f32,i32,[],_,_rwork,_iwork,[],[],[,_iwork:*mut i32],[,_iwork]);
+svd_exports!(d,gelsd,true,f64,f64,i32,[],_,_rwork,_iwork,[],[],[,_iwork:*mut i32],[,_iwork]);
+svd_exports!(c,gelsd,true,colmat::c32,f32,i32,[],_,_rwork,_iwork,[,_rwork:*mut f32],[,_rwork],[,_iwork:*mut i32],[,_iwork]);
+svd_exports!(z,gelsd,true,colmat::c64,f64,i32,[],_,_rwork,_iwork,[,_rwork:*mut f64],[,_rwork],[,_iwork:*mut i32],[,_iwork]);
+svd_exports!(s,gelsd,true,f32,f32,i64,[64_],_64_,_rwork,_iwork,[],[],[,_iwork:*mut i64],[,_iwork]);
+svd_exports!(d,gelsd,true,f64,f64,i64,[64_],_64_,_rwork,_iwork,[],[],[,_iwork:*mut i64],[,_iwork]);
+svd_exports!(c,gelsd,true,colmat::c32,f32,i64,[64_],_64_,_rwork,_iwork,[,_rwork:*mut f32],[,_rwork],[,_iwork:*mut i64],[,_iwork]);
+svd_exports!(z,gelsd,true,colmat::c64,f64,i64,[64_],_64_,_rwork,_iwork,[,_rwork:*mut f64],[,_rwork],[,_iwork:*mut i64],[,_iwork]);

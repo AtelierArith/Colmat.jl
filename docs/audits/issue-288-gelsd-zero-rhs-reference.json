@@ -1,0 +1,460 @@
+{
+  "full_suite_passed": false,
+  "scope": "legal NRHS=0 Fortran GELSD/GELSS on a known diagonal matrix",
+  "reproducer_sha256": "cc2df7eb2a1d912a22c85937ed7e71ba00afc9580576337d7e82cb2b05646712",
+  "output_sha256": "15a984c8482b3e1e77bd7029f2af4010d86e4f0c4c3f4deead9a44b8da23eece",
+  "library_sha256": {
+    "native": "060487e581a0dab6b79122ffdc2655807385cb4a697b2a45e19b68e35974ef0c",
+    "reference": "21931db4109dfb613aa1677649e4a9739b597e1963654357e01b64a638b41a04"
+  },
+  "observations": [
+    {
+      "scalar": "s",
+      "family": "gelss",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 10.0
+    },
+    {
+      "scalar": "s",
+      "family": "gelss",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 10.0
+    },
+    {
+      "scalar": "s",
+      "family": "gelss",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 4194.0
+    },
+    {
+      "scalar": "s",
+      "family": "gelss",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 4194.0
+    },
+    {
+      "scalar": "s",
+      "family": "gelsd",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 800.0
+    },
+    {
+      "scalar": "s",
+      "family": "gelsd",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 800.0
+    },
+    {
+      "scalar": "s",
+      "family": "gelsd",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 800.0
+    },
+    {
+      "scalar": "s",
+      "family": "gelsd",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": -4,
+      "rank": -1,
+      "singular_values": [
+        1.0,
+        2.0
+      ],
+      "query": 800.0
+    },
+    {
+      "scalar": "d",
+      "family": "gelss",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 10.0
+    },
+    {
+      "scalar": "d",
+      "family": "gelss",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 10.0
+    },
+    {
+      "scalar": "d",
+      "family": "gelss",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 4194.0
+    },
+    {
+      "scalar": "d",
+      "family": "gelss",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 4194.0
+    },
+    {
+      "scalar": "d",
+      "family": "gelsd",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 800.0
+    },
+    {
+      "scalar": "d",
+      "family": "gelsd",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 800.0
+    },
+    {
+      "scalar": "d",
+      "family": "gelsd",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 800.0
+    },
+    {
+      "scalar": "d",
+      "family": "gelsd",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": -4,
+      "rank": -1,
+      "singular_values": [
+        1.0,
+        2.0
+      ],
+      "query": 800.0
+    },
+    {
+      "scalar": "c",
+      "family": "gelss",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 7.0
+    },
+    {
+      "scalar": "c",
+      "family": "gelss",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 7.0
+    },
+    {
+      "scalar": "c",
+      "family": "gelss",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 132.0
+    },
+    {
+      "scalar": "c",
+      "family": "gelss",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 132.0
+    },
+    {
+      "scalar": "c",
+      "family": "gelsd",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 4.0
+    },
+    {
+      "scalar": "c",
+      "family": "gelsd",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 4.0
+    },
+    {
+      "scalar": "c",
+      "family": "gelsd",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 132.0
+    },
+    {
+      "scalar": "c",
+      "family": "gelsd",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": -4,
+      "rank": -1,
+      "singular_values": [
+        1.0,
+        2.0
+      ],
+      "query": 132.0
+    },
+    {
+      "scalar": "z",
+      "family": "gelss",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 7.0
+    },
+    {
+      "scalar": "z",
+      "family": "gelss",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 7.0
+    },
+    {
+      "scalar": "z",
+      "family": "gelss",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 132.0
+    },
+    {
+      "scalar": "z",
+      "family": "gelss",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 132.0
+    },
+    {
+      "scalar": "z",
+      "family": "gelsd",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 4.0
+    },
+    {
+      "scalar": "z",
+      "family": "gelsd",
+      "library": "native",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": 0,
+      "rank": 2,
+      "singular_values": [
+        2.0,
+        1.0
+      ],
+      "query": 4.0
+    },
+    {
+      "scalar": "z",
+      "family": "gelsd",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": -1,
+      "info": 0,
+      "rank": -1,
+      "singular_values": [
+        782.0,
+        782.0
+      ],
+      "query": 132.0
+    },
+    {
+      "scalar": "z",
+      "family": "gelsd",
+      "library": "reference",
+      "nrhs": 0,
+      "lwork": 65536,
+      "info": -4,
+      "rank": -1,
+      "singular_values": [
+        1.0,
+        2.0
+      ],
+      "query": 132.0
+    }
+  ]
+}

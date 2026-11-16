@@ -1,8 +1,8 @@
 # Issue #288: least-squares C contracts
 
-Status: GELS and GELSY C entries pass focused debug numerical checks.
-The remaining 16 GELSS/GELSD entries, full-stage boundary/ABI evidence and
-immutable full proof remain pending.
+Status: all 32 planned C entries pass focused debug numerical checks and an
+independent C caller. Full-stage policy, typed tracing, optimized repetition
+and immutable full proof remain pending.
 Issue #288 remains open.
 
 The canonical inventory contains eight high/work S/D/C/Z names each for
@@ -105,3 +105,28 @@ real-valued RCOND, complex RWORK and guards are covered. Rust passes 463
 checks after adding these entries. Exact hashes are in
 issue-288-least-squares-gelsy-focused.json. GELSS/GELSD and full-stage proof
 remain pending; these results do not establish a completed 32-name stage.
+
+Sixteen GELSS/GELSD C entries pass 138528 focused debug assertions for
+singular values, rank and minimum-norm solutions, across scalar types, integer
+ABIs, layouts, high/work and DLL/LBT. Full/zero/rank-one, empty and NRHS=0
+inputs, powers +/-40 or +/-400, query/error publication, selected-width IWORK,
+complex RWORK, guarded S/RANK and overwrite regions are covered. NRHS=0
+SVD execution still converts A, unlike the early-return GELS/GELSY paths.
+Rust passes 463 tests; the independent C runner passes both checks with all
+32 declarations, analytic one-column solutions, transpose/conjugate GELS,
+auxiliary workspaces, guards and signed ILP64 dimensions beyond int32.
+Exact hashes are in issue-288-least-squares-svd-focused.json.
+
+A separate executed MWE, reproducers/gelsd_zero_rhs.py, uses a known diagonal
+matrix with singular values (2,1) and legal NRHS=0. All four native GELSD
+variants return INFO=0/RANK=2; independent GELSS agrees. The independent
+OpenBLAS GELSD query succeeds but execution returns INFO=-4 from LALSD and
+leaves RANK untouched. This is recorded in
+issue-288-gelsd-zero-rhs-reference.json. The
+[primary contract](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/SRC/zgelsd.f)
+permits NRHS=0 and still specifies S/RANK. Keep these numerical cases and
+use independent GELSS as their oracle; other GELSD cases retain independent
+GELSD comparison. A reference improvement should handle zero RHS without
+passing an invalid zero count into LALSD while preserving S/RANK. No upstream
+issue or PR is created by this stage. Earlier pending-SVD statements are
+superseded by these focused results; full-stage validation remains required.

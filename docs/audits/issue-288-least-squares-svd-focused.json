@@ -1,0 +1,19 @@
+{
+  "full_suite_passed": false,
+  "mode": "debug",
+  "scope": "16 GELSS/GELSD high/work names; both integer ABIs, layouts and DLL/LBT",
+  "assertions": 138528,
+  "rust_tests": 463,
+  "independent_c_runner_assertions": 2,
+  "library_sha256": "060487e581a0dab6b79122ffdc2655807385cb4a697b2a45e19b68e35974ef0c",
+  "execution_log_sha256": "6109265422477924d99c1c911c17b0f00901b5e164f374049f403c47fc36f2b0",
+  "rust_log_sha256": "f845668da847e29ca255ae664a1b0329e65be798f41ee5d4a21b324263d39a1b",
+  "c_runner_log_sha256": "425225c1df110c4cd04a87e39241054168e2f21ea4a7cb606d427abad19ff392",
+  "source_sha256": {
+    "deps/rust/src/lapacke/least_squares.rs": "8c77f1fe03065d34077eec47b884ae40aa353124f837e6cb40a184a465a2c0f2",
+    "test/lapacke_least_squares_svd.jl": "000a36a33e1d5f4d67447f1c4e88fd790002164e52db44f0987f0d7252349a53",
+    "test/lapacke_least_squares_abi.jl": "e80523cb9774d9975e66fd88334d889d7d0662abc102074e7284455f3684e03c",
+    "test/lapacke_least_squares_abi_worker.c": "424b99258a5f28f6e99aa3938c6044e7bd14f44b7a6f18831fea625f4121baf8"
+  },
+  "zero_rhs_oracle": "independent GELSS for legal NRHS=0 GELSD cases; separate executed reference GELSD defect MWE"
+}
