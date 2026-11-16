@@ -343,7 +343,7 @@ macro_rules! apply_exports {
                 (3,m>=0),(4,n>=0),(5,k>=0&&k<=order),(6,l>=0&&l<=order),(8,la>=k.max(1)),(11,lc>=m.max(1)),(13,lw== -1||lw>=nw.max(1))] {
                 if !ok {*info=-arg;crate::invalid(arg as i32);return;}
             }
-            *work=crate::lapack::workspace::<$t>(nw.max(1));if lw== -1 {return;}
+            *work=crate::lapack::workspace::<$t>(if m==0||n==0{1}else{nw.max(1)});if lw== -1 {return;}
             apply_rz(side,tr,m as usize,n as usize,k as usize,l as usize,a,la,tau,c,lc);
         }
     }};

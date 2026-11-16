@@ -42,6 +42,25 @@ jobs:
         run: python3 reproducers/tzrzf_square_workspace.py --reference "$(cat contract-probes/reference.txt)" --native "$(cat contract-probes/native.txt)" > contract-probes/square-workspace.jsonl
       - name: Probe empty Fortran Q application workspace
         run: python3 reproducers/rz_apply_empty_workspace.py --reference "$(cat contract-probes/reference.txt)" --native "$(cat contract-probes/native.txt)" > contract-probes/empty-apply-workspace.jsonl
+      - name: Check corrected workspace observations
+        run: |
+          python3 - <<'PYCODE'
+          import json
+          from pathlib import Path
+          for name in ('square-workspace.jsonl', 'empty-apply-workspace.jsonl'):
+              rows = [json.loads(s) for s in (Path('contract-probes') / name).read_text().splitlines() if s.startswith('{')]
+              paired = {}
+              for row in rows:
+                  key = tuple((k, str(v)) for k, v in row.items() if k not in ('library', 'info', 'work', 'a_unchanged', 'arrays_unchanged'))
+                  target = 'own' if row['library'].startswith('libcolmat') else 'reference'
+                  paired.setdefault(key, {})[target] = row
+                  assert row.get('a_unchanged', row.get('arrays_unchanged')) is True
+              assert paired
+              for pair in paired.values():
+                  assert set(pair) == {'own', 'reference'}
+                  assert pair['own']['info'] == pair['reference']['info']
+                  assert pair['own']['work'] == pair['reference']['work']
+          PYCODE
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
