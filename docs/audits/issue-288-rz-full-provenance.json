@@ -1,0 +1,12 @@
+{
+  "revision": "2122f249759873f5f1b65d7f67e7a1f0010266dc",
+  "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+  "library_sha256": "8e7ac31e1f49aa17ee81e4428d580ee216841482e0fca5fcabe76decf24769f8",
+  "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
+  "inventory_registration_sha256": "6be8e8b4d85fcfe7800b2a3126036cd757216f5f519cc0db8c6a89cbb1bc3282",
+  "full_suite_passed": true,
+  "source_count": 323,
+  "witnesses": 5995,
+  "evidence_toml_sha256": "d3a2a5fd64f1b0ceb61ca8a77e027e716bfcbdd42911436cfac4b40b1298f794",
+  "execution_log_sha256": "932433f837ac0d74b93ae7dcd582916dab68dbf2b3da53a8b4d129fff215d24c"
+}

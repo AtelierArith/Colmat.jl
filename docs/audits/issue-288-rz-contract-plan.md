@@ -1,7 +1,8 @@
 # Issue #288: RZ factorization and Q application C contracts
 
 Status: focused numerical, policy, independent C caller and debug/optimized typed
-tracing checks pass. Immutable full-suite proof remains pending. Issue #288 remains open.
+tracing checks pass. Source-bound immutable full-suite proof passes; publication
+checks pass; final CI/main integration remain pending. Issue #288 remains open.
 
 The canonical scope contains eight S/D/C/Z TZRZF high/work names and eight
 real ORMRZ/complex UNMRZ high/work names. No TZRQF, LATRZ or LARZ C names
@@ -71,3 +72,14 @@ results prove only their own sources. Restore ordinary repository CI before
 an RZ PR, then obtain source-bound immutable full-suite proof for this stage.
 Native tensor4all/colmat-rs edits and PRs are not authorized. Upstream reports
 must contain an executed MWE and improvement proposal only.
+
+Immutable full Pkg.test(allow_reresolve=false) passes at
+2122f249759873f5f1b65d7f67e7a1f0010266dc with all 323 source hashes,
+manifest, registration and optimized DLL unchanged. The imported evidence
+contains 5995 completed witnesses. Exact TOML/log digests and library/source
+provenance are recorded in issue-288-rz-full-provenance.json. Prior statements
+about pending full proof are superseded by this result. Publication checks,
+preceding-candidate integration and final PR CI remain required.
+
+Post-import Python 28, registration inventory 15 and documentation build pass.
+All 323 execution-source hashes and the optimized DLL remain unchanged.
