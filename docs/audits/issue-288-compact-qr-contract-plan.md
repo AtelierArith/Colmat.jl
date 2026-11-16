@@ -43,3 +43,20 @@ INFO precedence, factor/output padding, independent C prototypes and signed
 ILP64 values outside int32. Typed completed calls, optimized repetition and
 immutable full package proof are required before publication. No upstream
 native edits or PRs are part of this stage.
+
+Executed `reproducers/lapacke_gemqrt_row_packing.py` with unchanged v3.12.1
+S/D/C/Z GEMQRT work wrappers, both layouts/sides and M,N=(3,5)/(5,3): all
+32 observations verify the source copy extents and forwarded strides. The
+numerical Fortran function is stubbed; this is explicitly a packing/header
+probe, not numerical GEMQRT validation. Caller buffers are padded for all
+observed copies. Source SHA-256 hashes and observations are stored in the
+adjacent reference-packing JSON.
+
+For row-major K=2,NB=1,LDV=LDT=4 the wrapper copies V as 4x2 and T as 4x1,
+although the logical shapes are Q-order-by-2 and 1x2. It forwards LDV=4,
+which is below the numerical leading-dimension requirement when Q order=5.
+When order=3 it copies an extra V row; T both copies extra rows and omits an
+active block column. The planned own wrapper uses logical V/T extents and
+derived column-major strides, preserving const inputs and caller padding.
+Full numerical comparisons and block-factor interoperability are still
+required before claiming this correction is implemented or complete.
