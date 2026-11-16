@@ -11,5 +11,13 @@
   "witnesses": 6395,
   "canonical_entries": 1730,
   "lapacke_entries": 452,
-  "forwards_per_abi": 1934
+  "forwards_per_abi": 1934,
+  "post_integration_publication_checks": {
+    "revision": "28556ac8a45537c9b9ec52343672d865d63cec6a",
+    "python": 28,
+    "inventory": 15,
+    "documentation": "passed",
+    "source_and_library_unchanged": true,
+    "full_suite_repeated_after_integration": false
+  }
 }
