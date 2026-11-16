@@ -55,3 +55,13 @@ intentional compatibility correction follows Issue #288's explicit requirement
 not to read unused storage and checks all active reflectors. Tests must retain
 both observed reference cases and the logical-storage expectation; no family,
 SIDE or scalar case is excluded. NaN diagnostic precedence remains A, C, TAU.
+
+A separate executed numerical-boundary MWE,
+`reproducers/q_apply_empty_workspace.jl`, calls own and independent OpenBLAS
+Fortran entries for all four orientations, double real/complex, at SIDE=L,
+M=0,N=3,K=0. All calls return INFO=0 and preserve the guarded WORK tail.
+After execution with LWORK=3 the own boundary returns WORK(1)=3, while all eight
+reference variants return one. This requires a Colmat.jl Fortran empty-return
+correction. Query results are algorithm-specific (own three, OpenBLAS 4256 in
+this configuration); query size differences are not treated as this defect.
+Full scalar/ABI/shape coverage must accompany the correction before publication.
