@@ -1,7 +1,9 @@
 # Issue #288: pivoted QR C adapter contracts
 
-Status: primary contract investigation only; adapters, independent C ABI,
-optimized repetition and full-suite proof remain pending. Issue #288 remains open.
+Status: focused numerical, policy, independent C and typed execution checks
+pass in debug and optimized builds. Immutable full validation is pending.
+
+Issue #288 remains open.
 
 Canonical scope contains sixteen S/D/C/Z high/work GEQP3 and GEQPF names.
 Following the 324-name compact QR candidate, this would reach 340 original
@@ -71,3 +73,11 @@ pivots, explicit Householder-product reconstruction and orthogonality, real
 diagonals, workspace queries/errors, empty/rectangular cases and ILP64 values.
 Rust 460 tests pass after the adapter additions. Typed tracing, optimized
 repetition and immutable full-suite proof remain pending.
+
+Optimized repetition passes 211680 numerical assertions, 1336 policy checks,
+the independent C caller and the 6806-call gate. Typed tracing covers all
+340 candidate names with 1360 completed ABI/route observations and records
+full_suite_passed=false. The optimized DLL SHA-256 is
+a92e83c58f003c6cc3749a21662e431ae7aa6c591194e740d6496105fb92412a.
+Parent integration preserves all 318 execution-source hashes. Fresh immutable
+full-suite proof is required before publishing this extended scope.
