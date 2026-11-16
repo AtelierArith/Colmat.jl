@@ -1,114 +1,38 @@
 name: CI
-run-name: RZ contract probes
 on:
   push:
-    branches: [issue-288-lapacke-rz]
+    branches: [main]
+  pull_request:
   workflow_dispatch:
-permissions:
-  contents: read
 jobs:
-  contracts:
-    if: "!contains(github.event.head_commit.message, '[frozen-suites]')"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: julia-actions/setup-julia@v2
-        with:
-          version: '1.13'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: julia-actions/cache@v2
-      - name: Format candidate Rust sources and retain exact patch
-        run: |
-          mkdir -p contract-probes
-          cargo fmt --manifest-path deps/rust/Cargo.toml
-          git diff -- deps/rust/src > contract-probes/rustfmt.patch
-      - name: Build candidate backend
-        run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
-      - name: Rust regressions
-        run: cargo test --manifest-path deps/rust/Cargo.toml --locked > contract-probes/rust-tests.log 2>&1
-      - name: Format numerical checks with the development formatter
-        run: |
-          julia --project=@v1.13 -e 'using Pkg; Pkg.add(PackageSpec(name="JuliaFormatter",version="2.14.0")); using JuliaFormatter; for f in ("test/lapacke_rz.jl","test/lapacke_rz_policy.jl","test/lapacke_rz_abi.jl","test/lapacke_execution_checks.jl","test/suite.jl"); format_file(f); end'
-          git diff -- test/lapacke_rz.jl test/lapacke_rz_policy.jl test/lapacke_rz_abi.jl test/lapacke_execution_checks.jl test/suite.jl > contract-probes/juliafmt.patch
-          sha256sum test/lapacke_rz.jl test/lapacke_rz_policy.jl test/lapacke_rz_abi.jl test/lapacke_execution_checks.jl test/suite.jl > contract-probes/numerical-source-sha256.txt
-      - name: Existing Fortran RZ regressions
-        run: julia --project=. test/rz.jl > contract-probes/fortran-regressions.log 2>&1
-      - name: Independent C adapter numerical interoperability
-        run: julia --project=. -e 'include("test/lapacke_rz.jl"); include("test/lapacke_rz_policy.jl")' > contract-probes/c-adapter-numerical.log 2>&1
-      - name: Independent C caller ABI and reflector products
-        run: julia --project=. test/lapacke_rz_abi.jl > contract-probes/c-abi.log 2>&1
-      - name: Capture independent library paths
-        run: |
-          mkdir -p contract-probes
-          julia --project -e 'using Colmat, LinearAlgebra; r=only(filter(l->l.interface==:ilp64 && occursin("openblas",lowercase(l.libname)),BLAS.get_config().loaded_libs)); write("contract-probes/reference.txt",r.libname); write("contract-probes/native.txt",Colmat.backend_library())'
-          git rev-parse HEAD > contract-probes/revision.txt
-          sha256sum reproducers/lapacke_rz_nan_extent.py reproducers/tzrzf_square_workspace.py reproducers/rz_apply_empty_workspace.py > contract-probes/reproducer-sha256.txt
-      - name: Probe unchanged reference NaN policy
-        run: python3 reproducers/lapacke_rz_nan_extent.py > contract-probes/reference-nan-policy.json
-      - name: Probe square Fortran workspace
-        run: python3 reproducers/tzrzf_square_workspace.py --reference "$(cat contract-probes/reference.txt)" --native "$(cat contract-probes/native.txt)" > contract-probes/square-workspace.jsonl
-      - name: Probe empty Fortran Q application workspace
-        run: python3 reproducers/rz_apply_empty_workspace.py --reference "$(cat contract-probes/reference.txt)" --native "$(cat contract-probes/native.txt)" > contract-probes/empty-apply-workspace.jsonl
-      - name: Check corrected workspace observations
-        run: |
-          python3 - <<'PYCODE'
-          import json
-          from pathlib import Path
-          for name in ('square-workspace.jsonl', 'empty-apply-workspace.jsonl'):
-              rows = [json.loads(s) for s in (Path('contract-probes') / name).read_text().splitlines() if s.startswith('{')]
-              paired = {}
-              for row in rows:
-                  key = tuple((k, str(v)) for k, v in row.items() if k not in ('library', 'info', 'work', 'a_unchanged', 'arrays_unchanged'))
-                  target = 'own' if row['library'].startswith('libcolmat') else 'reference'
-                  paired.setdefault(key, {})[target] = row
-                  assert row.get('a_unchanged', row.get('arrays_unchanged')) is True
-              assert paired
-              for pair in paired.values():
-                  assert set(pair) == {'own', 'reference'}
-                  assert pair['own']['info'] == pair['reference']['info']
-                  assert pair['own']['work'] == pair['reference']['work']
-          PYCODE
-      - uses: actions/upload-artifact@v7.0.2
-        if: always()
-        with:
-          name: rz-contract-probes
-          path: contract-probes/
-          if-no-files-found: error
-  frozen-suite:
-    if: contains(github.event.head_commit.message, '[frozen-suites]')
+  test:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: reverse-qr
-            revision: 618d0028da3407025105a857b22b0d01cb54bf93
-          - name: q-generators
-            revision: 9c2c495b0205021fdedc1030e51f98be5126979b
-          - name: pivoted-qr
-            revision: 09aedc796c0348e37486583cc03636b60d5ecdb2
-    runs-on: ubuntu-latest
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ matrix.revision }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1.13'
       - uses: julia-actions/cache@v2
-      - name: Build exact frozen candidate
+      - name: Build
         run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
-      - name: Rust verification
+      - name: Rust formatting and tests
         run: |
           cargo fmt --manifest-path deps/rust/Cargo.toml --check
           cargo test --manifest-path deps/rust/Cargo.toml --locked
-      - name: Immutable full Julia suite
-        run: julia --project -e 'using Pkg; Pkg.test(;allow_reresolve=false)'
-      - uses: actions/upload-artifact@v7.0.2
+      - name: Inventory classification regressions
+        run: python3 -m unittest discover -s docs/tests -v
+      - name: Julia tests
+        run: julia --project -e 'using Pkg; Pkg.test()'
+      - name: Save actual ABI execution evidence
+        uses: actions/upload-artifact@v7.0.2
         with:
-          name: frozen-full-${{ matrix.name }}
+          name: abi-execution-${{ matrix.os }}
           path: test-output/abi-execution.toml
           if-no-files-found: error
+      - name: README example
+        run: julia --project examples/poc.jl

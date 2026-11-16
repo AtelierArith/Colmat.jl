@@ -1,146 +1,85 @@
 # Issue #288: RZ factorization and Q application C contracts
 
-Status: focused numerical, policy and independent C caller checks pass.
-Typed tracing, optimized repetition and immutable full proof remain pending.
+Status: focused numerical, policy, independent C caller and debug/optimized typed
+tracing checks pass. Source-bound immutable full-suite proof passes; publication
+checks pass; final CI/main integration remain pending. Issue #288 remains open.
 
-Issue #288 remains open.
+The canonical scope contains eight S/D/C/Z TZRZF high/work names and eight
+real ORMRZ/complex UNMRZ high/work names. No TZRQF, LATRZ or LARZ C names
+exist in the canonical inventory. Following the 340-name pivoted QR candidate,
+this stage reaches 356 original names, leaving 1260 plus the separate 20
+Rook targets. These are candidate counts, not merged-main coverage.
 
-Canonical scope contains eight S/D/C/Z TZRZF high/work names and eight real
-ORMRZ/complex UNMRZ high/work names. There are no TZRQF, LATRZ or LARZ C
-names in the canonical inventory. This stage follows the 340-name pivoted QR
-candidate and would reach 356 original names, leaving 1260 plus the separate
-20 Rook C targets. These are candidate counts, not merged-main coverage.
-
-Primary sources are Reference LAPACK v3.12.1
+Primary contracts are Reference LAPACK v3.12.1
 [TZRZF work](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_ztzrzf_work.c),
 [UNMRZ work](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_zunmrz_work.c)
 and [UNMRZ high](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_zunmrz.c).
 
-TZRZF work uses layout,M,N,A,LDA,TAU,WORK,LWORK; high omits WORK/LWORK.
-The input is upper trapezoidal, M<=N, and compact row reflectors represent
-A=(R,0)*Z. Row-major LDA<N returns -5 before the numerical dimension checks;
-queries bypass row packing. Output TAU has M elements. Investigation must
-separate query, minimum work and execution WORK(1), including square inputs.
+TZRZF work takes layout,M,N,A,LDA,TAU,WORK,LWORK; high omits WORK/LWORK.
+Input A is upper trapezoidal with M<=N; its row reflectors represent
+A=(R,0)*Z. Row LDA<N returns -5 before numerical dimension checks. Queries
+bypass row packing. Only the upper trapezoid is packed and copied back;
+strict lower entries and caller padding remain unchanged. Square factors
+use minimum/query work one and publish WORK before insufficient-work errors.
 
-ORMRZ/UNMRZ use layout,SIDE,TRANS,M,N,K,L,const A,LDA,const TAU,C,LDC;
-work adds WORK,LWORK. SIDE determines Q order and minimum workspace. The
-logical reflector array has K rows and Q-order columns; only its final L
-columns represent reflector tails. Negative INFO shifts Fortran arguments
-by one. Const factor inputs and caller padding must remain unchanged.
+ORMRZ/UNMRZ takes layout,SIDE,TRANS,M,N,K,L,const A,LDA,const TAU,C,LDC;
+work adds WORK,LWORK. Q order is M for left application and N for right
+application. Only the final L factor columns are reflector tails. Packing
+skips zero-TAU reflectors and avoids all A/C reads for identity operations.
+Queries and empty operations skip array reads. Successful empty query and
+execution publish WORK=1; formal side-dependent minimum validation remains
+separate. High-level scratch allocation also satisfies that formal minimum.
+Negative numerical INFO shifts Fortran argument positions by one.
 
-A source observation needs an executed padded-buffer probe: reference UNMRZ
-row conversion checks LDA against M, copies K-by-M A and allocates K-by-M
-temporary storage even for SIDE=R, whose Q order is N. The high NaN scan also
-uses K-by-M before C and TAU scans (-8,-11,-10). When M!=N this may scan
-unused factor columns or omit active tails. The proposed
-`reproducers/lapacke_rz_nan_extent.py` runs unchanged high wrapper sources
-with numerical work stubbed and records source hashes. It is a policy-only
-probe, not a numerical oracle. Execution is currently pending executable
-startup; no observed result is claimed. Buffers cover both possible extents.
+Executed reproductions use padded buffers and independent OpenBLAS:
 
-`reproducers/tzrzf_square_workspace.py` is a separate Fortran workspace MWE
-with a valid square upper-triangular input and untouched padding. It compares
-query, insufficient work and legal execution using caller-specified native
-and independent OpenBLAS libraries. Its corrected-input execution remains
-pending; source observations are not counted as executed reproduction.
+- Run 43904380466 confirms the unchanged high wrapper scans K-by-M factor
+  coordinates for SIDE=R: it misses active columns for M<N and reads padding
+  for M>N. Numerical work was stubbed, so this proves NaN policy only.
+  The adapter uses the actual Q order. See issue-288-rz-reference-nan.json.
+- The same run establishes square TZRZF WORK differences on valid triangular
+  input. Run 43905749109 confirms the correction accepts LWORK=1 and returns
+  WORK=1. See issue-288-rz-square-workspace-reproduction.json.
+- Run 43907356886 confirms all 40 own/reference pairs covering square and
+  empty application cases, with INFO/WORK and array preservation matching.
+  See issue-288-rz-empty-apply-workspace.json.
 
-Required evidence includes independent RZ factors and mutual ORMRZ/UNMRZ
-consumers, reconstruction, unitarity, left/right N/T/C, all scalar types and
-integer ABIs, layouts and DLL/LBT routes. Cover empty/square/wide/deficient
-and scaled inputs, partial L and K, ignored coordinates and NaNs, exact
-headers/queries/minimal work, output guards, independent C prototypes and
-ILP64 values beyond int32. Native colmat-rs changes and PRs are not authorized.
+Focused cloud run 43910282161 passes 33024 factor/consumer and 46176
+application assertions, 816 policy checks and 460 Rust tests. Numerical
+operators use 100*epsilon tolerance, with a 10x reconstruction allowance.
+Run 43912808677 additionally passes two independent C runner assertions;
+the runner covers all 16 declarations and both integer ABIs. Artifact ZIP,
+revision, formatted-source hashes and captured patches were verified before
+local import. See issue-288-rz-focused-numerical.json and
+issue-288-rz-c-abi-provenance.json for exact provenance.
 
-Cloud contract run 43904380466 completed successfully at a172fbb. Its
-artifact ZIP digest and reproducer source hashes were verified before
-import. Sixteen unchanged-wrapper observations confirm K-by-M NaN scans
-for SIDE=R in both layouts: an active final column is missed when M<N and
-a padded column is scanned when M>N. Numerical work was stubbed; these
-observations establish policy extents only. The own wrapper uses Q order N.
+Local debug and optimized tracing pass all preceding LAPACKE checks and the RZ tests,
+including 7126 execution-gate assertions. It records 1424 completed typed
+observations across 356 canonical names, both integer ABIs and DLL/LBT
+routes. issue-288-rz-debug-focused.json and issue-288-rz-optimized-focused.json record the 323-source map, installed
+library hash and evidence/log digests. This is focused evidence only;
+full_suite_passed remains false.
 
-Twelve independent Fortran observations on valid square triangular inputs
-show own TZRZF query/execution WORK=3 versus OpenBLAS WORK=1, and unchanged
-sentinel WORK on insufficient work versus reference publication of one.
-The own boundary now uses minimum/query one for square inputs and publishes
-WORK after dimension validation but before the insufficient-work error.
-A new LWORK=1 check is prepared. The C adapters are drafted but compilation,
-numerical validation and full-suite proof remain pending.
+Tests cover independent factors and mutual consumers, reconstruction,
+unitarity, both sides, real transpose/complex conjugation, layouts, high/work,
+empty/square/wide/deficient/scaled inputs, partial K/L, ignored coordinates,
+NaNs, exact headers, queries and minimum work, const inputs, guarded output
+storage, sparse identity operations and ILP64 values beyond int32.
 
-Cloud run 43905749109 compiles the draft C adapters, passes Rust 460 and
-existing Fortran RZ 1712 assertions. Its artifact digest, reproducer source
-hashes and exact rustfmt patch were checked; the formatting patch is applied
-locally. Sixteen square-input observations confirm own/reference LWORK=1
-success and WORK=1 after the TZRZF correction. No full proof is claimed.
+The temporary branch workflow also ran exact frozen parent full suites at
+618d002 (QL/RQ), 9c2c495 (Q generators) and 09aedc7 (pivoted QR). Those
+results prove only their own sources. Restore ordinary repository CI before
+an RZ PR, then obtain source-bound immutable full-suite proof for this stage.
+Native tensor4all/colmat-rs edits and PRs are not authorized. Upstream reports
+must contain an executed MWE and improvement proposal only.
 
-Sixty-four empty ORMRZ/UNMRZ observations separate validation, query and
-execution: at M=0,N=3,SIDE=L (and the corresponding right-side empty case),
-own query/execution WORK is 3 while reference returns 1, although both still
-require the side-dependent formal minimum work. Inputs remain unchanged.
-The planned correction changes only successful empty query/execution output;
-minimum validation and insufficient-work output preservation stay separate.
+Immutable full Pkg.test(allow_reresolve=false) passes at
+2122f249759873f5f1b65d7f67e7a1f0010266dc with all 323 source hashes,
+manifest, registration and optimized DLL unchanged. The imported evidence
+contains 5995 completed witnesses. Exact TOML/log digests and library/source
+provenance are recorded in issue-288-rz-full-provenance.json. Prior statements
+about pending full proof are superseded by this result. Publication checks,
+preceding-candidate integration and final PR CI remain required.
 
-New independent C adapter numerical checks are prepared in
-`test/lapacke_rz.jl`: own factors feed reference ORMRZ/UNMRZ and reference
-factors feed own consumers; C application also consumes independent factors
-with both sides and conjugation, partial K/L, query and output guards.
-All scalar types, integer ABIs, layouts, high/work and DLL/LBT are included.
-The low factor route preserves NaN lower triangles and application packs
-only active tails. These new numerical checks have not yet passed; cloud
-execution captures the exact JuliaFormatter 2.14.0 patch and source hash.
-
-Cloud run 43907356886 validates the corrected empty-application boundary.
-ZIP, revision and all reproducer hashes match; the Rust formatting patch
-is empty. All 40 own/reference pairs (16 square plus 64 empty observations)
-match INFO and WORK exactly and preserve arrays. Formal minimum workspace
-errors remain separate from successful empty query/execution WORK=1. Rust
-460 and existing RZ 1712 checks pass again. These are focused boundary and
-regression results, not immutable full-suite proof or new C numerical proof.
-
-A temporary workflow also runs full suites for exact frozen parent candidates
-618d002 (QL/RQ), 9c2c495 (Q generators) and 09aedc7 (pivoted QR), independently
-of the RZ source checkout. These jobs are triggered only by an explicit
-[frozen-suites] commit marker. Their results must match the recorded complete
-source maps before publication. The temporary workflow will be restored to
-the repository's ordinary CI before any RZ PR is opened.
-
-Prepared C policy tests cover exact header priorities, signed ILP64 values,
-square minimal work and publication, identity reflectors with unused null
-A/C, logical NaN precedence and padded storage. The high TAU scan now mirrors
-the common adapter's null/span guard before numerical header validation.
-The new numerical tolerances use 100*epsilon for small operators, with a
-10x reconstruction allowance. These new checks remain unverified until the
-corresponding cloud run completes; no passing result is claimed yet.
-
-Initial C numerical run 43908313082 passed 33024 factor/consumer and 46176
-application assertions (79200 total). Its ZIP digest
-ba4f8a062650aa879b3e5e6ae4112365a9913b78116f3ba63169bbb71cedae8e,
-revision 28207e0 and formatted numerical source were verified by applying
-the captured formatter patch to that exact committed source in an isolated
-directory. A stricter-tolerance version with the new C policy/null-scan
-checks is running separately and is not yet claimed to pass.
-
-ABI validation adds exact TZRZF and ORMRZ/UNMRZ contracts, including the L
-integer and complex TAU/WORK pointers. Seventeen execution fixtures pass,
-including wrong L width, C character type and scalar-pointer rejections.
-The prepared completed-call gate now covers 356 canonical names. No typed
-356-name result, optimized repeat or immutable RZ full proof is claimed.
-
-Cloud run 43910282161 passes the stricter 100*epsilon numerical version:
-33024 factor, 46176 application and 816 C policy assertions, plus Rust 460.
-The ZIP and exact formatter-patched source hashes match the recorded
-focused-numerical JSON. That patch is applied locally. Full proof is pending.
-
-An independent C11 worker is prepared with explicit declarations for all
-sixteen names and both integer ABIs. Native factors feed reference consumers,
-reference factors feed native C consumers, and an explicit product of
-Householder matrices checks both sides/transposes and overlapping tails.
-Independent Fortran comparisons also cover nonoverlapping tails. Guards,
-queries/minimal work, sparse identity/null inputs and ILP64 values beyond
-int32 are covered. It compiles locally with -Wall -Wextra -Werror; execution
-in the candidate CI remains pending.
-
-Cloud run 43912808677 passes the independent C runner, all 79200 numerical
-and 816 policy checks and Rust 460. ZIP/revision and all five formatted Julia
-source hashes were verified; the formatter patch is applied locally. The
-C source is the tracked worker at that exact revision. No full RZ proof or
-completed 356-name typed trace is claimed yet.
+Post-import Python 28, registration inventory 15 and documentation build pass.
+All 323 execution-source hashes and the optimized DLL remain unchanged.
