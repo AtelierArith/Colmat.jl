@@ -90,3 +90,8 @@ A separate publication tree preserves the original local full-suite source
 and HEAD. Its copied optimized DLL remains byte-identical to the frozen DLL.
 The published full run platform is Linux; final Linux/macOS PR CI remains
 required. Provenance is stored in the adjacent cloud-provenance JSON.
+
+Publication checks pass Python 28, inventory 15 and documentation build.
+All execution-source hashes and the copied optimized local DLL remain
+unchanged. Preceding staged candidates and final PR CI/main merge remain
+required; this does not claim merged-main coverage for the candidate.
