@@ -49,3 +49,10 @@ The independent C Julia runner passes two checks. Rust's full suite passes
 450 tests and Python's evidence fixtures pass 17 tests. Focused witnesses are
 explicitly marked full_suite_passed=false. Optimized repetition and an immutable
 full suite remain required.
+
+Optimized build and repeated independent C, numerical and completed-call
+signature validation passed. The optimized DLL SHA256 is
+`bb3ab591cbd9a35bcfe20a26c01377184f8b438560b70728013a3655b57ef4e5`.
+The completed-call gate passes 3,286 checks; registration is 1,646 forwards per
+integer ABI. Full-suite evidence remains pending and the prior snapshot remains
+stale for this candidate until a successful immutable package run.
