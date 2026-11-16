@@ -14,6 +14,7 @@ mod bidiagonal_panel;
 mod bidiagonal_vectors;
 mod block_unitary;
 mod bunch_kaufman;
+mod cblas;
 mod complete_pivot_lu;
 mod complex_auxiliary;
 mod constrained_least_squares;
