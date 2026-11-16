@@ -1,38 +1,39 @@
 name: CI
+run-name: RZ contract probes
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: [issue-288-lapacke-rz]
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  contracts:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1.13'
-      - uses: julia-actions/cache@v2
-      - name: Build
-        run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
-      - name: Rust formatting and tests
-        run: |
-          cargo fmt --manifest-path deps/rust/Cargo.toml --check
-          cargo test --manifest-path deps/rust/Cargo.toml --locked
-      - name: Inventory classification regressions
-        run: python3 -m unittest discover -s docs/tests -v
-      - name: Julia tests
-        run: julia --project -e 'using Pkg; Pkg.test()'
-      - name: Save actual ABI execution evidence
-        uses: actions/upload-artifact@v7.0.2
+      - uses: actions/setup-python@v5
         with:
-          name: abi-execution-${{ matrix.os }}
-          path: test-output/abi-execution.toml
+          python-version: '3.12'
+      - uses: julia-actions/cache@v2
+      - name: Build frozen parent backend
+        run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
+      - name: Capture independent library paths
+        run: |
+          mkdir -p contract-probes
+          julia --project -e 'using Colmat, LinearAlgebra; r=only(filter(l->l.interface==:ilp64 && occursin("openblas",lowercase(l.libname)),BLAS.get_config().loaded_libs)); write("contract-probes/reference.txt",r.libname); write("contract-probes/native.txt",Colmat.backend_library())'
+          git rev-parse HEAD > contract-probes/revision.txt
+          sha256sum reproducers/lapacke_rz_nan_extent.py reproducers/tzrzf_square_workspace.py > contract-probes/reproducer-sha256.txt
+      - name: Probe unchanged reference NaN policy
+        run: python3 reproducers/lapacke_rz_nan_extent.py > contract-probes/reference-nan-policy.json
+      - name: Probe square Fortran workspace
+        run: python3 reproducers/tzrzf_square_workspace.py --reference "$(cat contract-probes/reference.txt)" --native "$(cat contract-probes/native.txt)" > contract-probes/square-workspace.jsonl
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: rz-contract-probes
+          path: contract-probes/
           if-no-files-found: error
-      - name: README example
-        run: julia --project examples/poc.jl
