@@ -18,7 +18,8 @@ using Test
         "LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in families for
         w in ("", "_work")
     )
-    @test length(targets)==88
+    union!(targets, Set("LAPACKE_"*p*"syr"*w for p in ("c", "z") for w in ("", "_work")))
+    @test length(targets)==92
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(

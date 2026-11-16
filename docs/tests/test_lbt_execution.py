@@ -144,6 +144,7 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_dgetri': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}})'),
             'LAPACKE_dgetri_work': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_zpotrs': ('potrs', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zsyr': ('syr', 'z', lambda j: f'(Int32, Int8, {j}, ComplexF64, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
         }
         for symbol, (family, scalar, signature) in declarations.items():
             self.rows.append(dict(symbol=symbol, interface='LAPACKE', family=family, scalar=scalar,
@@ -180,6 +181,13 @@ class ExecutionEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'LAPACKE layout/flag/integer/return'):
             self.validate(data)
 
+    def test_lapacke_complex_syr_coefficient_is_by_value(self):
+        self.add_lapacke()
+        index=next(i for i,w in enumerate(self.data['witnesses']) if w['symbol']=='LAPACKE_zsyr')
+        self.data['witnesses'][index]['signature']=self.data['witnesses'][index]['signature'].replace('ComplexF64','Ptr{ComplexF64}',1)
+        with self.assertRaisesRegex(ValueError,'LAPACKE layout/flag/integer/return'):
+            self.validate()
+
     def test_lapacke_requires_both_routes_and_exact_scope(self):
         self.add_lapacke()
         data = copy.deepcopy(self.data)
@@ -215,7 +223,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 88)
+        self.assertEqual(len(lapacke_rows(rows)), 92)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))

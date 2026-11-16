@@ -96,7 +96,10 @@ def validate_lapacke_signature(row, witness):
         'potri': ['Int32', 'Int8', integer, t, integer],
         'potrs': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
         'posv': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
+        'syr': ['Int32', 'Int8', integer, scalar, t, integer, t, integer],
     }
+    if row['family'] == 'syr' and row['scalar'] not in ('c', 'z'):
+        raise ValueError('LAPACKE complex SYR contract requires a complex scalar')
     if row['family'] not in args:
         raise ValueError(f'LAPACKE signature contract missing for {row["symbol"]}')
     expected = args[row['family']]
