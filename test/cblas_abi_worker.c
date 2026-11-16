@@ -16,6 +16,8 @@ typedef size_t (*index64)(int64_t,const void *,int64_t);
 /* Enums remain C int while dimensions become int64_t. */
 typedef void (*hemm64)(int,int,int,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,const void *,void *,int64_t);
 typedef void (*her64)(int,int,int64_t,double,const void *,int64_t,void *,int64_t);
+typedef void (*herk64)(int,int,int,int64_t,int64_t,double,const void *,int64_t,double,void *,int64_t);
+typedef void (*her2k64)(int,int,int,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,double,void *,int64_t);
 
 int main(int argc,char **argv) {
     if (argc!=2) return 2;
@@ -29,6 +31,8 @@ int main(int argc,char **argv) {
     ENTRY(index64,cblas_izamax64_);
     ENTRY(hemm64,cblas_zhemm64_);
     ENTRY(her64,cblas_zher64_);
+    ENTRY(herk64,cblas_zherk64_);
+    ENTRY(her2k64,cblas_zher2k64_);
     const float complex xf[]={1+2*I,3-I},yf[]={2-I,-1+3*I};
     const double complex xd[]={1+2*I,3-I},yd[]={2-I,-1+3*I};
     assert(cabsf(cblas_cdotu(2,xf,1,yf,1)-(xf[0]*yf[0]+xf[1]*yf[1]))<1e-5f);
@@ -51,6 +55,24 @@ int main(int argc,char **argv) {
     assert(cabs(updated[1]-(1.5+3.5*I))<1e-12);
     assert(cabs(updated[4]-5.5)<1e-12);
     assert(updated[2]==97&&updated[3]==89&&updated[5]==97);
+    double complex rank_c[]={NAN,NAN,97,89,NAN,97};
+    cblas_zherk64_(101,121,111,2,1,0.5,b,2,0.0,rank_c,3);
+    assert(cabs(rank_c[0]-1)<1e-12);
+    assert(cabs(rank_c[1]-(0.5+1.5*I))<1e-12);
+    assert(cabs(rank_c[4]-2.5)<1e-12);
+    assert(rank_c[2]==97&&rank_c[3]==89&&rank_c[5]==97);
+    const double complex rank_b[]={2+I,97,1-2*I,97};
+    const double complex rank_alpha=0.75+0.25*I;
+    double complex rank2_c[]={2,1+2*I,97,89,3,97};
+    const double complex rank2_initial[]={2,1+2*I,97,89,3,97};
+    cblas_zher2k64_(101,121,111,2,1,&rank_alpha,b,2,rank_b,2,0.5,rank2_c,3);
+    for (int row=0;row<2;++row) for (int col=row;col<2;++col) {
+        double complex expected=rank_alpha*b[2*row]*conj(rank_b[2*col])
+            +conj(rank_alpha)*rank_b[2*row]*conj(b[2*col])
+            +0.5*rank2_initial[row*3+col];
+        assert(cabs(rank2_c[row*3+col]-expected)<1e-12);
+    }
+    assert(rank2_c[2]==97&&rank2_c[3]==89&&rank2_c[5]==97);
     assert(dlclose(library)==0);
     puts("CBLAS C ABI: complex returns, size_t indices, ILP64 enums and coefficients passed");
     return 0;

@@ -423,8 +423,290 @@ macro_rules! rank_one_export {
         }
     }};
 }
+
+// OpenBLAS v0.3.30 interface/syrk.c shares HERK under HEMM.
+fn rankk_header<T: Scalar>(
+    order: i32,
+    u: i32,
+    t: i32,
+    n: i64,
+    k: i64,
+    lda: i64,
+    ldb: Option<i64>,
+    ldc: i64,
+    h: bool,
+) -> Option<(u8, u8)> {
+    if !matches!(order, 101 | 102) {
+        crate::invalid(1);
+        return None;
+    }
+    let Some(mut u) = cblas_uplo(u) else {
+        crate::invalid(2);
+        return None;
+    };
+    let t = if !T::COMPLEX {
+        match t {
+            111 | 114 => b'N',
+            112 | 113 => b'T',
+            _ => {
+                crate::invalid(3);
+                return None;
+            }
+        }
+    } else if h {
+        match t {
+            111 => b'N',
+            113 => b'C',
+            _ => {
+                crate::invalid(3);
+                return None;
+            }
+        }
+    } else {
+        match t {
+            111 => b'N',
+            112 => b'T',
+            _ => {
+                crate::invalid(3);
+                return None;
+            }
+        }
+    };
+    if n < 0 {
+        crate::invalid(4);
+        return None;
+    }
+    if k < 0 {
+        crate::invalid(5);
+        return None;
+    }
+    let (rows, cols) = if t == b'N' { (n, k) } else { (k, n) };
+    if !matrix_ok::<T>(rows, cols, lda, order == 101, 8) {
+        return None;
+    }
+    if let Some(ldb) = ldb {
+        if !matrix_ok::<T>(rows, cols, ldb, order == 101, 10) {
+            return None;
+        }
+    }
+    if !matrix_ok::<T>(n, n, ldc, false, if ldb.is_some() { 13 } else { 11 }) {
+        return None;
+    }
+    let t = if order == 101 {
+        u = flip_uplo(u);
+        if t == b'N' {
+            if h {
+                b'C'
+            } else {
+                b'T'
+            }
+        } else {
+            b'N'
+        }
+    } else {
+        t
+    };
+    Some((u, t))
+}
+macro_rules! rank_k_export {
+    ($p:ident,$t:ty,$alpha:ty,$read_alpha:expr,$beta:ty,$read_beta:expr,$i:ty,$cs:tt,$op:ident,$h:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,u:i32,t:i32,n:$i,k:$i,alpha:$alpha,a:*const $t,lda:$i,beta:$beta,c:*mut $t,ldc:$i) {
+            let Some((u,t))=rankk_header::<$t>(order,u,t,n as i64,k as i64,lda as i64,None,ldc as i64,$h) else{return;};
+            if n==0{return;}
+            crate::kernels::rankk(u,t,n as isize,k as isize,($read_alpha)(alpha),a,lda as isize,a,lda as isize,($read_beta)(beta),c,ldc as isize,$h,false);
+        }
+    }};
+}
+macro_rules! rank_two_k_export {
+    ($p:ident,$t:ty,$alpha:ty,$read_alpha:expr,$beta:ty,$read_beta:expr,$i:ty,$cs:tt,$op:ident,$h:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,u:i32,t:i32,n:$i,k:$i,alpha:$alpha,a:*const $t,lda:$i,b:*const $t,ldb:$i,beta:$beta,c:*mut $t,ldc:$i) {
+            let Some((u,t))=rankk_header::<$t>(order,u,t,n as i64,k as i64,lda as i64,Some(ldb as i64),ldc as i64,$h) else{return;};
+            if n==0{return;}
+            let (a,lda,b,ldb)=if $h&&order==101 {(b,ldb,a,lda)}else{(a,lda,b,ldb)};
+            crate::kernels::rankk(u,t,n as isize,k as isize,($read_alpha)(alpha),a,lda as isize,b,ldb as isize,($read_beta)(beta),c,ldc as isize,$h,true);
+        }
+    }};
+}
+macro_rules! rank_two_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$op:ident,$h:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,u:i32,n:$i,alpha:$coefficient,x:*const $t,ix:$i,y:*const $t,iy:$i,a:*mut $t,lda:$i) {
+            if !matches!(order,101|102){crate::invalid(1);return;}
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(2);return;};
+            if n<0 {crate::invalid(3);return;}
+            if ix==0 {crate::invalid(6);return;}
+            if iy==0 {crate::invalid(8);return;}
+            if !matrix_ok::<$t>(n as i64,n as i64,lda as i64,false,10)||!vector_ok::<$t>(n as i64,ix as i64,6)||!vector_ok::<$t>(n as i64,iy as i64,8){return;}
+            if n==0{return;}
+            let alpha=($read)(alpha);
+            if alpha==<$t>::z(){return;}
+            if order==101 {
+                u=flip_uplo(u);
+                if $h {
+                    let xs=crate::kernels::start(n as isize,ix as isize);
+                    let ys=crate::kernels::start(n as isize,iy as isize);
+                    let xc:Vec<$t>=(0..n as isize).map(|j|(*x.offset(xs+j*ix as isize)).cj()).collect();
+                    let yc:Vec<$t>=(0..n as isize).map(|j|(*y.offset(ys+j*iy as isize)).cj()).collect();
+                    crate::dense_extensions::rank2(u,n as isize,alpha.cj(),xc.as_ptr(),1,yc.as_ptr(),1,a,lda as isize,true);
+                    return;
+                }
+            }
+            crate::dense_extensions::rank2(u,n as isize,alpha,x,ix as isize,y,iy as isize,a,lda as isize,$h);
+        }
+    }};
+}
 macro_rules! interface {
     ($i:ty,$fs:tt,$cs:tt) => {
+        rank_k_export!(
+            s,
+            f32,
+            f32,
+            |x: f32| x,
+            f32,
+            |x: f32| x,
+            $i,
+            $cs,
+            syrk,
+            false
+        );
+        rank_two_k_export!(
+            s,
+            f32,
+            f32,
+            |x: f32| x,
+            f32,
+            |x: f32| x,
+            $i,
+            $cs,
+            syr2k,
+            false
+        );
+        rank_two_export!(s, f32, f32, |x: f32| x, $i, $cs, syr2, false);
+        rank_k_export!(
+            d,
+            f64,
+            f64,
+            |x: f64| x,
+            f64,
+            |x: f64| x,
+            $i,
+            $cs,
+            syrk,
+            false
+        );
+        rank_two_k_export!(
+            d,
+            f64,
+            f64,
+            |x: f64| x,
+            f64,
+            |x: f64| x,
+            $i,
+            $cs,
+            syr2k,
+            false
+        );
+        rank_two_export!(d, f64, f64, |x: f64| x, $i, $cs, syr2, false);
+        rank_k_export!(
+            c,
+            c32,
+            *const c32,
+            |x: *const c32| *x,
+            *const c32,
+            |x: *const c32| *x,
+            $i,
+            $cs,
+            syrk,
+            false
+        );
+        rank_two_k_export!(
+            c,
+            c32,
+            *const c32,
+            |x: *const c32| *x,
+            *const c32,
+            |x: *const c32| *x,
+            $i,
+            $cs,
+            syr2k,
+            false
+        );
+        rank_k_export!(
+            c,
+            c32,
+            f32,
+            |x: f32| c32::new(x, 0.0),
+            f32,
+            |x: f32| c32::new(x, 0.0),
+            $i,
+            $cs,
+            herk,
+            true
+        );
+        rank_two_k_export!(
+            c,
+            c32,
+            *const c32,
+            |x: *const c32| *x,
+            f32,
+            |x: f32| c32::new(x, 0.0),
+            $i,
+            $cs,
+            her2k,
+            true
+        );
+        rank_two_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, her2, true);
+        rank_k_export!(
+            z,
+            c64,
+            *const c64,
+            |x: *const c64| *x,
+            *const c64,
+            |x: *const c64| *x,
+            $i,
+            $cs,
+            syrk,
+            false
+        );
+        rank_two_k_export!(
+            z,
+            c64,
+            *const c64,
+            |x: *const c64| *x,
+            *const c64,
+            |x: *const c64| *x,
+            $i,
+            $cs,
+            syr2k,
+            false
+        );
+        rank_k_export!(
+            z,
+            c64,
+            f64,
+            |x: f64| c64::new(x, 0.0),
+            f64,
+            |x: f64| c64::new(x, 0.0),
+            $i,
+            $cs,
+            herk,
+            true
+        );
+        rank_two_k_export!(
+            z,
+            c64,
+            *const c64,
+            |x: *const c64| *x,
+            f64,
+            |x: f64| c64::new(x, 0.0),
+            $i,
+            $cs,
+            her2k,
+            true
+        );
+        rank_two_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, her2, true);
         rank_one_export!(s, f32, f32, |x: f32| x, $i, $cs, syr, false);
         rank_one_export!(d, f64, f64, |x: f64| x, $i, $cs, syr, false);
         rank_one_export!(c, c32, f32, |x: f32| c32::new(x, 0.0), $i, $cs, her, true);
@@ -471,6 +753,9 @@ mod triangular_tests;
 
 #[cfg(test)]
 mod symmetric_tests;
+
+#[cfg(test)]
+mod rank_tests;
 
 #[cfg(test)]
 mod tests {
