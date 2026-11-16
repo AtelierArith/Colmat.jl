@@ -140,7 +140,7 @@
       "status": "representation",
       "api": "Bunch-Kaufman cholesky_in_place with LbltParams.pivoting=Rook/RookDiag",
       "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
-      "note": "公開の rook pivoting 数値経路あり。LAPACK ROOK の IPIV・保存形式・swap 契約との照合と adapter は未実装。専用 Fortran routine と同一算法・同一 pivot 列を主張しない。複素 SY/SP は Hermitian と別契約。",
+      "note": "Fortran 20シンボル・実 SY/複素 HE・両 ABI を接続。公開 Rook pivoting を使い、2列 block の2つの swap index を個別に ROOK IPIV へ変換。外部 LAPACK 因子との双方向 solve/inverse、要素行列による再構成を検証。TRF/SV query と最小 caller work は1、内部 scratch は native 所有。subnormal 行の合同スケーリングと D/RHS block の共通スケーリングで native #212 を回避。LAPACKE は #288 の共通変換待ち。専用 Fortran routine と同一算法・同一 pivot 列・同一性能は主張しない。複素対称 SY は別契約。",
       "evidence": {
         "revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
         "scalars": [

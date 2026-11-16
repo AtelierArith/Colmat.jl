@@ -98,7 +98,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         self.assertTrue(snapshot.is_file(), 'The execution snapshot must be committed')
         native = re.search(r'^revision\s*=\s*"([0-9a-f]+)"', (root / 'deps/upstream.toml').read_text(), re.MULTILINE).group(1)
         executed, data = load_execution(root, rows, native)
-        self.assertEqual(len(executed), 1086)
+        self.assertEqual(len(executed), 1106)
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))
         for row in rows:

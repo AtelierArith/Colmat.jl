@@ -43,7 +43,7 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 `cblas_cdot{u,c}_sub` / `cblas_zdot{u,c}_sub` も提供します。
 CBLAS 全体の互換ライブラリを提供するものではありません。
 
-この構成では LP64・ILP64 それぞれ1288シンボル（BLAS 202、LAPACK 1086）を LBT に登録します。
+この構成では LP64・ILP64 それぞれ1308シンボル（BLAS 202、LAPACK 1106）を LBT に登録します。
 登録を調べるには次を実行します。
 
 ```jldoctest
@@ -56,15 +56,15 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 1288 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 1308 for l in libs)
 true
 ```
 
 ## フォールバックに残すもの
 
-帯・packed 格納の演算（`gbmv`, `sbmv`, `hbmv`, `spmv`, `hpmv`, `spr` など）、
-`rotmg`, `rotm` など、この一覧にないルーチンは
-Colmat が提供しません。未接続の LAPACK は既存バックエンドを使います。
+このページの表は主要系列の概要です。追加の band/packed 系列や LAPACK を含む
+現在の接続状況は [LBT と colmat-rs の全ルーチン対応表](@ref) で確認できます。
+未登録のルーチンは既存バックエンドを使います。
 
 ## 計算経路と一時領域
 
@@ -130,3 +130,15 @@ ILP64 へ整数を変換します。登録前に4型の元の ILP64 GEEVX を要
 GGEVX は BALANC=N/SENSE=N が native で、その他のモードは既存 ILP64 backend へ委譲します。
 全 LBT シンボルについての対応候補・公開 API 不足・契約の差は
 [LBT と colmat-rs の全ルーチン対応表](@ref)に列挙します。
+
+
+## ROOK 因子の接続（#372）
+
+実数 SY / 複素 Hermitian HE の `TRF_ROOK`、`TF2_ROOK`、`TRS_ROOK`、
+`TRI_ROOK`、`SV_ROOK` の20シンボルを両整数 ABI に接続します。
+公開 native Rook pivoting と、2つの swap index を持つ compact IPIV の変換を使い、
+外部 LAPACK 因子との solve/inverse の相互利用を検証しています。
+TRF/SV の最小 caller WORK と query は1で、内部 scratch は別途確保します。
+subnormal 行には対称な合同スケーリング、subnormal D と右辺には block ごとの共通
+スケーリングを適用します。これらは共有する通常・packed BK adapter にも適用されます。
+専用 Fortran 算法・同一 pivot 列・性能の同等性を表すものではありません。

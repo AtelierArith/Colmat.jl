@@ -1,8 +1,8 @@
 {
   "platform": "x86_64-apple-darwin24.6.0",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "0adae953c4b2ebf3a47efb40f341553b083ef8fdaa55bed111a8500f84a8d0bb",
-  "library_sha256": "a5dd4b876a2606f3a8efb463b9be1072d8ceda320d76af4d0e451ac6e8aa9450",
+  "inventory_registration_sha256": "bbd723c0d9820451a44beb67790635ad35b39420896ad972027fd4da8db7b4d5",
+  "library_sha256": "5affe4881aa208009de492dc80ffb79ec2685848d5260e529bc727b49f2a9914",
   "julia_version": "1.13.3",
   "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
   "ambiguous_shared_entries": [
@@ -68,7 +68,7 @@
     "test/triangular_lapack.jl:89 [(\"zlauu2_\", 64, \"dll\"), (\"zlauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "98312084c4b449421bb000fb23097c6c7e8c3d4a",
+  "revision": "1dd34ddf30a24143e75052972e48dd6ec18b16ad",
   "schema_version": 1,
   "errors": [],
   "witnesses": [
@@ -2962,11 +2962,83 @@
       "integer_arguments": true
     },
     {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chesv_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chesv_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 302,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "chesv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chesv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chesv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chesv_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chesv_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chesv_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chesv_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -3003,6 +3075,42 @@
       "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "chetf2_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetf2_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetf2_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetf2_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetf2_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -3052,11 +3160,83 @@
       "integer_arguments": true
     },
     {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "chetrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrf_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrf_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrf_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrf_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -3115,6 +3295,42 @@
       "integer_arguments": true
     },
     {
+      "line": 192,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetri_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetri_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetri_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetri_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 82,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -3142,11 +3358,83 @@
       "integer_arguments": true
     },
     {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrs_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrs_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 109,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "chetrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrs_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrs_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrs_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "chetrs_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -15229,11 +15517,83 @@
       "integer_arguments": true
     },
     {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsysv_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsysv_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 302,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "dsysv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsysv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsysv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsysv_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsysv_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsysv_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsysv_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -15270,6 +15630,42 @@
       "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "dsytf2_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytf2_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytf2_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytf2_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytf2_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -15319,11 +15715,83 @@
       "integer_arguments": true
     },
     {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "dsytrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrf_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrf_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrf_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrf_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -15382,6 +15850,42 @@
       "integer_arguments": true
     },
     {
+      "line": 192,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytri_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytri_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytri_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytri_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 82,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
@@ -15409,11 +15913,83 @@
       "integer_arguments": true
     },
     {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrs_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrs_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 109,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "dsytrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrs_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrs_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrs_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "dsytrs_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -23437,11 +24013,83 @@
       "integer_arguments": true
     },
     {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssysv_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssysv_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 302,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "ssysv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssysv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssysv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssysv_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssysv_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssysv_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssysv_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -23478,6 +24126,42 @@
       "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "ssytf2_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytf2_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytf2_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytf2_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytf2_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -23527,11 +24211,83 @@
       "integer_arguments": true
     },
     {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "ssytrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrf_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrf_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrf_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrf_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -23590,6 +24346,42 @@
       "integer_arguments": true
     },
     {
+      "line": 192,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytri_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytri_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytri_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytri_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 82,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
@@ -23617,11 +24409,83 @@
       "integer_arguments": true
     },
     {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrs_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrs_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 109,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "ssytrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrs_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrs_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrs_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "ssytrs_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -27523,11 +28387,83 @@
       "integer_arguments": true
     },
     {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhesv_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhesv_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 302,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "zhesv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhesv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhesv_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhesv_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhesv_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhesv_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 231,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhesv_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -27564,6 +28500,42 @@
       "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "zhetf2_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetf2_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetf2_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetf2_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 83,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetf2_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -27613,11 +28585,83 @@
       "integer_arguments": true
     },
     {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrf_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "zhetrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrf_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrf_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrf_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 96,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrf_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -27676,6 +28720,42 @@
       "integer_arguments": true
     },
     {
+      "line": 192,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetri_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetri_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetri_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 192,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetri_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 82,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32})",
@@ -27703,11 +28783,83 @@
       "integer_arguments": true
     },
     {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrs_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrs_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 109,
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
       "file": "test/bunch_kaufman.jl",
       "symbol": "zhetrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrs_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrs_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrs_rook_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrs_rook_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 145,
+      "route": "lbt_trampoline",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64}, Int64)",
+      "file": "test/rook_helpers.jl",
+      "symbol": "zhetrs_rook_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -32880,7 +34032,7 @@
   ],
   "source_sha256": {
     "test/generalized_eigen.jl": "61f87d9adb758f7a86f4a4fd8c533d32df1c5db481b3eabeeb90775f0c46ebaa",
-    "test/abi_execution_evidence.jl": "5f321d262d7c42c2e3f66aee6b9e9d854d4d50f0049b2688f4cb5eec29baa0cb",
+    "test/abi_execution_evidence.jl": "39c6dd521ad69c8a6da5f80d247aa773b705d730a47955b5c1fbda7f2aac1551",
     "src/backend.jl": "e7988fdc4da61dfc857192bcf24a46260e574a6bcda2bcdd73fd4e906dbb0191",
     "test/blas.jl": "2f6a876118fd68685ab8147b6e730149326f615b7f45093036cffe6b70f93165",
     "test/structured_lu.jl": "eadfc11787c2ec3c922ac6e58dd7039ff5acb1bca4e4daa640460c7e10c1d769",
@@ -32896,6 +34048,7 @@
     "test/advanced_svd.jl": "a63e33dde71f6fd47a327319ec9efea2e4da2edf674df928cbdd635a4a08bcf7",
     "deps/rust/src/general_evd.rs": "2c24de3bfe30964da61e05ae4b1187e668ad64624c1facdff02d48462f14a250",
     "deps/rust/src/reverse_qr.rs": "ca22587d0d5f093375bbff78401cb62e90c0cbcfdacca4b7989abc28a500d2be",
+    "test/rook_helpers.jl": "033fee2ac8f74a5b210761a0df89cabf1bb4ce7cc9c94006e3d5d6bd310890d9",
     "test/storage_conversions.jl": "a109fd77df14ace9b38d7460ed2ca4ebb80b2e4a67103f28e8c911937828993a",
     "test/matrix_permutation.jl": "1c7c62302f2da851f970b58ba87981b34748a14edf028ce23746316db1e0854a",
     "test/dense_extensions.jl": "30d1c0132eff43cf74a29f9ba47a7b7455d71a782f7f377e2f535d0f6e4e99cf",
@@ -32937,7 +34090,7 @@
     "deps/rust/src/selfadjoint_reduction.rs": "cddc3b4b503eca525da1742fed69a363d1d446d3b67e670df0495bde6f6c5437",
     "test/structured_generalized_band_gvx.jl": "4b89c769647de3112ab1e78c77503de92a74deb244cc00230b7597b63ced5dd6",
     "test/structured_generalized_band.jl": "adaf9ca831ef27112b38dcafc5efd1ec05e895044262091bf9393e61e539e3bd",
-    "deps/rust/src/bunch_kaufman.rs": "3d20eb7bd7334cb0831bf4dd445d74c0a21f82a660d0fa21a0b7b5ccabde5aeb",
+    "deps/rust/src/bunch_kaufman.rs": "34d068c40107cf1d19bc53d2ee652d8e0dd49748f766215406f378127d1d0ab1",
     "test/structured_generalized_degenerate.jl": "ded486f1561053ca24b86679aa9cc1b311ebdd8c32ed28246841be67480a2e03",
     "test/structured_blas.jl": "8692f28d66a907df9862e61ade6a72d8d7da3407cbde0a699bbbe381021eca44",
     "deps/rust/src/storage_layout.rs": "5980952d6ea0669fe777a89248a7393ee4708433b3d1fc28ebff255a67f3315e",
@@ -32959,6 +34112,7 @@
     "test/geevx_expert_processes.jl": "f63981f05cb5e2dcb5ffa855be884d98ae83594f2f69c647ac1d4c10be4ffac0",
     "test/qz_reorder.jl": "702ee5fc87f32027f533530a99b742e8ca340d86a43230d368201a7b8136ed44",
     "test/support_matrix.jl": "aaed899afc763da8102f6ed1fda575d7eb849c5bd1624bbd990a4f10f9cfb64c",
+    "test/rook_extremes.jl": "1dab9a89140d55f05b6c30125b6142dd8c16b1dcdadb5640d2a31a318e4d5856",
     "test/generalized_qr_drivers.jl": "141e85b8fa6410acea65d401ba9b7258cde9168c9e739f98992f4af9dc64a1c2",
     "deps/rust/src/symmetric_equilibration.rs": "1e4076af69e7bad2d2fe63e1bb13237d339bc23e68fa9b3c3c6e3e77f9790b17",
     "deps/rust/src/lib.rs": "c89ee321cba56885cff5474a20b3a0c57be7a1158473935b447444ae183150eb",
@@ -32975,14 +34129,16 @@
     "test/structured_evd.jl": "9dd2bb7815bc4108ff51ae4f4ddadb48590d680378d24e11780b8a39acfd1a5b",
     "test/pivoted_cholesky.jl": "47a367accc2aacb484c38f25abf0553758114165ee0d260ebe87b44fe330fd1a",
     "deps/rust/src/householder.rs": "859568499dfe1135e6316579caae390ca32b423921fc9210333092e4ab552b5b",
+    "test/rook_interop.jl": "dab359e1e730b11dbbe93f5581771f9705d111ce8c59f3a7e94b4937cd6255ce",
     "test/reduction_extensions.jl": "b7ef2b9ac3afc2b1fbf73d169fe785ef23d03656dd99c539975c913fbd400d97",
     "src/Colmat.jl": "3be584dbeee076aa25043bbab1268c6e6a399ac0da424db7645323f4770e1bcb",
     "deps/rust/src/triangular_lapack.rs": "8d5f23f8ac9409e4cb327b824cf57f966470eb03e784892ef3f3286545678d44",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
-    "test/suite.jl": "062d44834a923097ed84a1b029bcc4c8e5bc981ce365d2fccfa7eabae1170393",
+    "test/suite.jl": "343db5d7821a3842a242543916c746b755f30c024558847480b54aa91d40e8df",
     "test/abi_execution_checks.jl": "cd152c689e089975cd923366783b772068a2f965afe999456f8d56954affc427",
     "deps/rust/src/matrix_extensions.rs": "92e57eff6f2e25f1051e5027e361140e72a4d19665a4093efbe05a0e2cf67f14",
     "deps/rust/src/bidiagonal.rs": "6a9d35d2c6b05769d0e994b1d3c8ac1fda21183c65bad00d8ac4459839ddadde",
+    "test/rook_subnormal.jl": "ae7715d3ace55112994a0eeead39f24fc7da470f8555f1aec86baf85b5dc1faa",
     "deps/build.jl": "0b22835cd190886dc0a3a991b77a0eca58bd35f7732cdce3aa7b911457e11275",
     "deps/rust/src/pentagonal.rs": "1db27890430157e631976d3fb91a42677738c1805e1fc90efa71f0d227196f1b",
     "test/qr_pivoted.jl": "bd2b1b10ba212be4ed196c3d1d62b5a4cc4e4f60d2c4d2d2efb9f05181806227",
@@ -33004,6 +34160,7 @@
     "test/abi_guard_pages.jl": "feb0054e2eb85a6e02ed1a2b80b22c6652dbd420f2c8950e25229f47e8ca054f",
     "test/structured_generalized_band_gvd.jl": "b338c60f85009c24ed4d4efea29119c9801ad1f4601b7f23453b81714e8a0ce9",
     "test/structured_generalized_band_gv.jl": "30afdc02f3578280142df271cacd99cb7133698881ac6f7ca67cb00311c9395c",
+    "deps/rust/src/bunch_kaufman_rook.rs": "bff251abc239c80e1a8f8630a21d7c727e8026d52fc26c44eeb223abaae85aa9",
     "test/matrix_extensions.jl": "9c787deeaa703df68c690e7201cbded31dcbebfe9b05f0ae216f69755fea4b38",
     "deps/rust/src/selfadjoint_vectors.rs": "0c909a0cbc72319cd2784578400f0131287b29ed8cc68de84fb0ed8418ad337d",
     "test/schur_vectors_contracts.jl": "6ee440bb3a80fb2067825f6d598bdce54466dbbb08020f8492cbdf4907a0e799",
@@ -33023,6 +34180,7 @@
     "test/backend.jl": "3ce2b443358892a674b17a1c4133719f4baa5c69296befe72d60c0e998f98352",
     "test/qz_reorder_rejection.jl": "4cb3a7373303b9fa2ec8604117b769754918f6ff6be96b83066f63dd166e6b1f",
     "test/tridiagonal_fallback_worker.jl": "599731d9a7b7b0d441355d4d103f3056e736e2ff5b7082ab385095f68c447192",
+    "test/rook_boundaries.jl": "20d63c17f411378b0b6c26aa6563955e1961c9c0afb5a889984d42c9b0e69419",
     "test/geevx_expert.jl": "81af2a479e0beebf3557558fbbdb0458450b3613ed6fb669cef4c94e4d2c3fc5",
     "test/least_squares.jl": "9407a5e977da69f24bca809a054cd41408c6de4181b1ef862f8a9f07acf15f1c",
     "deps/rust/src/band_cholesky.rs": "bcb23680b707f18eb3886563d4161087960fcf3f739ef7e7bb29e3bd80b5bd9c",
