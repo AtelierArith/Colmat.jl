@@ -91,4 +91,8 @@ trace and determinant) and largest-component-real eigenvector convention pass
 row-stride precedence, each flag/vector-stride position, NaN A, and a negative
 dimension outside int32. Completed-call tracing covers 148 names and 592
 name/ABI/route observations with exact signatures; these focused traces remain
-explicitly non-full-suite evidence. Optimized build/repetition is pending.
+explicitly non-full-suite evidence. Optimized build and repeated independent C,
+476,160 numerical assertions, and 148-name/592-observation signature checks pass.
+The optimized DLL SHA256 is
+`db7d68db58c1540a478b4bd52f0dad33b6e5aa74c0fba19b62756c37fc04eb7d`.
+Registration is 1,630 forwards per ABI. Immutable full-suite proof remains pending.
