@@ -1,8 +1,8 @@
 # Issue 288: SYEVR / HEEVR contract preparation
 
 Status: initial Fortran correction, C adapters and numerical/C ABI checks pass.
-Completed-call tracing, optimized release and immutable full-suite evidence
-remain pending. The preceding 124-entry candidate passed its immutable full package run and
+Completed-call tracing and optimized release checks pass. Immutable full-suite
+evidence remains pending. The preceding 124-entry candidate passed its immutable full package run and
 is under review in PR #384. Issue #288 remains open.
 
 Planned scope: eight S/D SYEVR and C/Z HEEVR high/work names, both integer
@@ -109,3 +109,16 @@ previously overwrote all nine guarded Z entries using an unchanged caller M=99.
 The adapter now rejects that invalid bound before packing and does not copy
 outputs after a negative backend INFO. The independent C worker checks this
 case for all scalar and integer combinations, preserving M and all Z guards.
+
+
+Completed-call tracing validates all 132 numerical LAPACKE names and all 528
+ABI/route observations. The completed-call gate passes 2,646 checks. The
+optimized release repeats the numerical and independent C checks, including
+argument-error output preservation. Registration is 1,614 forwards per ABI.
+Focused traces remain explicitly non-full-suite results.
+
+The prior successful 124-entry snapshot is backed up and retained as stale
+evidence until an immutable full package run validates all 263 current
+production/test/worker hashes, manifest, registration and optimized DLL.
+The original scope retains 1,484 entries beyond this candidate, with the
+separate 20 Rook coordination targets also pending.
