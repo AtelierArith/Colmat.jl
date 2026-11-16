@@ -12,7 +12,7 @@ fn selected(uplo: u8, i: usize, j: usize) -> bool {
     }
 }
 
-unsafe fn po_nancheck<T: Scalar>(
+pub(super) unsafe fn po_nancheck<T: Scalar>(
     layout: i32,
     uplo: u8,
     n: i64,
