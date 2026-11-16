@@ -792,6 +792,14 @@ pub unsafe fn symmetric_driver<T: Scalar, R: Scalar, I: LapackInt>(
         input_ref_transposed(a, n, la)
     };
     let (values, mut vectors) = selfadj(mat, job == b'V')?;
+    if range == b'V'
+        && values.len() > 1
+        && crate::selfadjoint_range::uncertain_endpoint::<T>(&values, vl, vu)
+    {
+        // No caller outputs have been written. The range driver can still
+        // recover with its saved implementation using the original matrix.
+        return Err(());
+    }
     if u != b'L' {
         for j in 0..vectors.ncols() {
             for i in 0..vectors.nrows() {

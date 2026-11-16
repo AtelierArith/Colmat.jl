@@ -4,7 +4,7 @@ use super::{
 };
 use crate::kernels::Scalar;
 
-fn zeros<T: Scalar>(count: usize) -> Result<Vec<T>, i64> {
+pub(super) fn zeros<T: Scalar>(count: usize) -> Result<Vec<T>, i64> {
     if count
         .checked_mul(core::mem::size_of::<T>())
         .is_none_or(|n| n > isize::MAX as usize)

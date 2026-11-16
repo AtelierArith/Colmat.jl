@@ -22,6 +22,8 @@ SENSE=N runs in colmat. An ILP64 GEEVX backend must exist before registration.
 GGEVX runs BALANC=N/SENSE=N in colmat; other modes require a saved ILP64
 expert backend, with integer conversion for LP64 callers. Such a backend must
 be configured before loading Colmat (Julia normally provides OpenBLAS).
+SYEVR/HEEVR save ILP64 range drivers for positive ABSTOL, native failures and
+value intervals near rounded native eigenvalues; LP64 integer outputs are converted.
 Tridiagonal EVD also saves ILP64 LAPACK entries for native nonconvergence and
 the relative/absolute accuracy modes not provided by the native API.
 Generalized self-adjoint drivers save ILP64 entries for native failures and
@@ -191,6 +193,18 @@ function load_backend(; verbose::Bool=false)
             end
             ccall(has_vx, Cint, (Cint,), id-1)!=0 || error(
                 "Colmat selected self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
+        register_vr=Libdl.dlsym(_handle[], :colmat_selfadjoint_vr_set_fallback)
+        has_vr=Libdl.dlsym(_handle[], :colmat_selfadjoint_vr_has_fallback)
+        for (id, symbol) in enumerate(("ssyevr_", "dsyevr_", "cheevr_", "zheevr_"))
+            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous!==nothing && realpath(previous.libname)!=realpath(path)
+                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_vr, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
+            end
+            ccall(has_vr, Cint, (Cint,), id-1)!=0 || error(
+                "Colmat range self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
         register_structured = Libdl.dlsym(_handle[], :colmat_structured_evd_set_fallback)

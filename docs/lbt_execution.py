@@ -105,6 +105,8 @@ def validate_lapacke_signature(row, witness):
         'heev': ['Int32', 'Int8', 'Int8', integer, t, integer, real],
         'syevd': ['Int32', 'Int8', 'Int8', integer, t, integer, real],
         'heevd': ['Int32', 'Int8', 'Int8', integer, t, integer, real],
+        'syevr': ['Int32', 'Int8', 'Int8', 'Int8', integer, t, integer, real_scalar, real_scalar, integer, integer, real_scalar, pivot, real, t, integer, pivot],
+        'heevr': ['Int32', 'Int8', 'Int8', 'Int8', integer, t, integer, real_scalar, real_scalar, integer, integer, real_scalar, pivot, real, t, integer, pivot],
     }
     if row['family'] == 'syr' and row['scalar'] not in ('c', 'z'):
         raise ValueError('LAPACKE complex SYR contract requires a complex scalar')
@@ -129,6 +131,11 @@ def validate_lapacke_signature(row, witness):
     if row['family'] in ('syevd', 'heevd') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
         if row['family'] == 'heevd':
+            expected = expected + [real, integer]
+        expected = expected + [pivot, integer]
+    if row['family'] in ('syevr', 'heevr') and row['symbol'].endswith('_work'):
+        expected = expected + [t, integer]
+        if row['family'] == 'heevr':
             expected = expected + [real, integer]
         expected = expected + [pivot, integer]
     actual = witness['signature'].replace(' ', '')
