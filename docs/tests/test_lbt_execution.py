@@ -145,6 +145,14 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_dgetri_work': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_zpotrs': ('potrs', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_zsyr': ('syr', 'z', lambda j: f'(Int32, Int8, {j}, ComplexF64, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_dgesvd': ('gesvd', 'd', lambda j: f'(Int32, Int8, Int8, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dgesvd_work': ('gesvd', 'd', lambda j: f'(Int32, Int8, Int8, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zgesvd': ('gesvd', 'z', lambda j: f'(Int32, Int8, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_zgesvd_work': ('gesvd', 'z', lambda j: f'(Int32, Int8, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dgesdd': ('gesdd', 'd', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgesdd_work': ('gesdd', 'd', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}})'),
+            'LAPACKE_zgesdd': ('gesdd', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zgesdd_work': ('gesdd', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{{j}}})'),
         }
         for symbol, (family, scalar, signature) in declarations.items():
             self.rows.append(dict(symbol=symbol, interface='LAPACKE', family=family, scalar=scalar,
@@ -199,6 +207,21 @@ class ExecutionEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'LAPACKE execution scope differs'):
             self.validate()
 
+    def test_lapacke_svd_real_and_integer_workspace_types(self):
+        self.add_lapacke()
+        self.validate()
+        for symbol, replacement in (
+            ('LAPACKE_zgesvd', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
+            ('LAPACKE_zgesvd_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
+            ('LAPACKE_zgesdd_work', lambda s: s.replace('Ptr{Int64}', 'Ptr{Int32}')),
+            ('LAPACKE_dgesdd_work', lambda s: s.replace('Ptr{Int64}', 'Ptr{Float64}')),
+        ):
+            data=copy.deepcopy(self.data)
+            index=next(i for i,w in enumerate(data['witnesses']) if w['symbol']==symbol and w['bits']==64)
+            data['witnesses'][index]['signature']=replacement(data['witnesses'][index]['signature'])
+            with self.assertRaisesRegex(ValueError, 'LAPACKE layout/flag/integer/return'):
+                self.validate(data)
+
     def test_lapacke_rejects_unreviewed_registered_signature_contract(self):
         self.add_lapacke()
         for row in self.rows:
@@ -223,7 +246,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 92)
+        self.assertEqual(len(lapacke_rows(rows)), 108)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))

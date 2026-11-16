@@ -84,6 +84,8 @@ def validate_lapacke_signature(row, witness):
     integer = f'Int{witness["bits"]}'
     scalar = {'s': 'Float32', 'd': 'Float64', 'c': 'ComplexF32', 'z': 'ComplexF64'}[row['scalar']]
     t, pivot = f'Ptr{{{scalar}}}', f'Ptr{{{integer}}}'
+    real_scalar = {'s': 'Float32', 'd': 'Float64', 'c': 'Float32', 'z': 'Float64'}[row['scalar']]
+    real = f'Ptr{{{real_scalar}}}'
     args = {
         'getrf': ['Int32', integer, integer, t, integer, pivot],
         'getf2': ['Int32', integer, integer, t, integer, pivot],
@@ -97,6 +99,8 @@ def validate_lapacke_signature(row, witness):
         'potrs': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
         'posv': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
         'syr': ['Int32', 'Int8', integer, scalar, t, integer, t, integer],
+        'gesvd': ['Int32', 'Int8', 'Int8', integer, integer, t, integer, real, t, integer, t, integer],
+        'gesdd': ['Int32', 'Int8', integer, integer, t, integer, real, t, integer, t, integer],
     }
     if row['family'] == 'syr' and row['scalar'] not in ('c', 'z'):
         raise ValueError('LAPACKE complex SYR contract requires a complex scalar')
@@ -105,6 +109,15 @@ def validate_lapacke_signature(row, witness):
     expected = args[row['family']]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
+    if row['family'] in ('gesvd', 'gesdd'):
+        if row['symbol'].endswith('_work'):
+            expected = expected + [t, integer]
+            if row['scalar'] in ('c', 'z'):
+                expected = expected + [real]
+            if row['family'] == 'gesdd':
+                expected = expected + [pivot]
+        elif row['family'] == 'gesvd':
+            expected = expected + [real]
     actual = witness['signature'].replace(' ', '')
     if (actual != '(' + ','.join(expected) + ')'
             or witness.get('return_type') != integer
