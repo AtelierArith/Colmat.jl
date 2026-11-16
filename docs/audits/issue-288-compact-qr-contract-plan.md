@@ -1,7 +1,7 @@
 # Issue #288: compact QR C adapters
 
-Status: current immutable full package validation passes; source-bound
-evidence is imported. CI and main integration remain pending.
+Status: source-bound immutable full package proof and publication checks pass.
+Final PR CI, artifact provenance checks and merge remain pending.
 
 Issue #288 remains open.
 
@@ -128,3 +128,9 @@ After parent/main integration, all 312 validated source hashes and the DLL
 remain unchanged. Python 28, inventory 15 and documentation build pass. The
 inherited coverage doctest now checks 1806 forwards per ABI. CI provenance
 and final main merge remain required.
+
+Normal integration with main after PR #395 preserves all 312 frozen execution
+sources and optimized DLL. Thirteen expected conflicts retain this candidate's
+runtime/tests/evidence and take current-main LQ, QL/RQ, Q-generation and
+Q-application audits. Python 28, registration inventory 15 and documentation
+build pass after this source-preserving merge. Issue #288 remains open.
