@@ -23,6 +23,8 @@ typedef void (*tb64)(int,int,int,int,int64_t,int64_t,const void *,int64_t,void *
 typedef void (*gb64)(int,int,int64_t,int64_t,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,const void *,void *,int64_t);
 typedef void (*hb64)(int,int,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,const void *,void *,int64_t);
 typedef void (*hp64)(int,int,int64_t,const void *,const void *,const void *,int64_t,const void *,void *,int64_t);
+typedef void (*pr64)(int,int,int64_t,double,const void *,int64_t,void *);
+typedef void (*pr264)(int,int,int64_t,const void *,const void *,int64_t,const void *,int64_t,void *);
 
 int main(int argc,char **argv) {
     if (argc!=2) return 2;
@@ -45,6 +47,8 @@ int main(int argc,char **argv) {
     ENTRY(gb64,cblas_zgbmv64_);
     ENTRY(hb64,cblas_zhbmv64_);
     ENTRY(hp64,cblas_zhpmv64_);
+    ENTRY(pr64,cblas_zhpr64_);
+    ENTRY(pr264,cblas_zhpr264_);
     const float complex xf[]={1+2*I,3-I},yf[]={2-I,-1+3*I};
     const double complex xd[]={1+2*I,3-I},yd[]={2-I,-1+3*I};
     assert(cabsf(cblas_cdotu(2,xf,1,yf,1)-(xf[0]*yf[0]+xf[1]*yf[1]))<1e-5f);
@@ -105,6 +109,23 @@ int main(int argc,char **argv) {
     cblas_zhbmv64_(101,121,2,1,&alpha,band,3,general_x,1,&beta,symmetric_y,1);
     assert(cabs(symmetric_y[0]-(6+5*I))<1e-12);
     assert(cabs(symmetric_y[1]-(9-4*I))<1e-12);
+    double complex packed_updated[]={2,1+2*I,3};
+    cblas_zhpr64_(101,121,2,0.5,general_x,1,packed_updated);
+    assert(cabs(packed_updated[0]-3)<1e-12);
+    assert(cabs(packed_updated[1]-(1.5+3.5*I))<1e-12);
+    assert(cabs(packed_updated[2]-5.5)<1e-12);
+    const double complex second_x[]={2+I,1-2*I};
+    const double complex packed_initial[]={2,1+2*I,3};
+    double complex packed_two[]={2,1+2*I,3};
+    cblas_zhpr264_(101,121,2,&rank_alpha,general_x,1,second_x,1,packed_two);
+    const int packed_rows[]={0,0,1},packed_cols[]={0,1,1};
+    for (int pos=0;pos<3;++pos) {
+        int row=packed_rows[pos],col=packed_cols[pos];
+        double complex expected=packed_initial[pos]
+            +rank_alpha*general_x[row]*conj(second_x[col])
+            +conj(rank_alpha)*second_x[row]*conj(general_x[col]);
+        assert(cabs(packed_two[pos]-expected)<1e-12);
+    }
     symmetric_y[0]=NAN;symmetric_y[1]=NAN;
     cblas_zhpmv64_(101,121,2,&alpha,packed,general_x,1,&beta,symmetric_y,1);
     assert(cabs(symmetric_y[0]-(6+5*I))<1e-12);

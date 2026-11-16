@@ -669,8 +669,113 @@ macro_rules! symmetric_compact_export {
         }
     }};
 }
+
+fn packed_update_header<T>(order: i32, u: i32, n: i64, ix: i64, iy: Option<i64>) -> Option<u8> {
+    if !matches!(order, 101 | 102) {
+        crate::invalid(1);
+        return None;
+    }
+    let Some(mut u) = cblas_uplo(u) else {
+        crate::invalid(2);
+        return None;
+    };
+    if n < 0 {
+        crate::invalid(3);
+        return None;
+    }
+    if ix == 0 {
+        crate::invalid(6);
+        return None;
+    }
+    if iy == Some(0) {
+        crate::invalid(8);
+        return None;
+    }
+    if !packed_ok::<T>(n, 3) || !vector_ok::<T>(n, ix, 6) {
+        return None;
+    }
+    if let Some(iy) = iy {
+        if !vector_ok::<T>(n, iy, 8) {
+            return None;
+        }
+    }
+    if order == 101 {
+        u = flip_uplo(u);
+    }
+    Some(u)
+}
+unsafe fn packed_update_dispatch<
+    T: crate::generalized_selfadjoint::GeneralizedScalar + crate::householder::ReflectorScalar,
+>(
+    row: bool,
+    u: u8,
+    n: usize,
+    alpha: T,
+    x: *const T,
+    ix: isize,
+    second: Option<(*const T, isize)>,
+    a: *mut T,
+    h: bool,
+) {
+    if n == 0 || alpha == T::z() {
+        return;
+    }
+    if row && h {
+        let xs = crate::kernels::start(n as isize, ix);
+        let xc: Vec<T> = (0..n as isize)
+            .map(|j| (*x.offset(xs + j * ix)).cj())
+            .collect();
+        let yc: Option<Vec<T>> = second.map(|(y, iy)| {
+            let ys = crate::kernels::start(n as isize, iy);
+            (0..n as isize)
+                .map(|j| (*y.offset(ys + j * iy)).cj())
+                .collect()
+        });
+        let second = yc.as_ref().map(|y| (y.as_ptr(), 1));
+        crate::packed_updates::update(
+            u == b'L',
+            n,
+            if second.is_some() { alpha.cj() } else { alpha },
+            xc.as_ptr(),
+            1,
+            second,
+            a,
+            true,
+        );
+    } else {
+        crate::packed_updates::update(u == b'L', n, alpha, x, ix, second, a, h);
+    }
+}
+macro_rules! packed_rank_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$one:ident,$h:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $one $cs>](order:i32,u:i32,n:$i,alpha:$coefficient,x:*const $t,ix:$i,a:*mut $t) {
+            let Some(u)=packed_update_header::<$t>(order,u,n as i64,ix as i64,None) else {return;};
+            if n==0{return;}
+            packed_update_dispatch(order==101,u,n as usize,($read)(alpha),x,ix as isize,None,a,$h);
+        }
+    }};
+}
+macro_rules! packed_rank_two_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$two:ident,$h:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $two $cs>](order:i32,u:i32,n:$i,alpha:$coefficient,x:*const $t,ix:$i,y:*const $t,iy:$i,a:*mut $t) {
+            let Some(u)=packed_update_header::<$t>(order,u,n as i64,ix as i64,Some(iy as i64)) else {return;};
+            if n==0{return;}
+            packed_update_dispatch(order==101,u,n as usize,($read)(alpha),x,ix as isize,Some((y,iy as isize)),a,$h);
+        }
+    }};
+}
 macro_rules! interface {
     ($i:ty,$fs:tt,$cs:tt) => {
+        packed_rank_export!(s, f32, f32, |x: f32| x, $i, $cs, spr, false);
+        packed_rank_export!(d, f64, f64, |x: f64| x, $i, $cs, spr, false);
+        packed_rank_export!(c, c32, f32, |x: f32| c32::new(x, 0.0), $i, $cs, hpr, true);
+        packed_rank_export!(z, c64, f64, |x: f64| c64::new(x, 0.0), $i, $cs, hpr, true);
+        packed_rank_two_export!(s, f32, f32, |x: f32| x, $i, $cs, spr2, false);
+        packed_rank_two_export!(d, f64, f64, |x: f64| x, $i, $cs, spr2, false);
+        packed_rank_two_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, hpr2, true);
+        packed_rank_two_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, hpr2, true);
         symmetric_compact_export!(s, f32, f32, |x: f32| x, $i, $cs, sbmv, spmv, false);
         symmetric_compact_export!(d, f64, f64, |x: f64| x, $i, $cs, sbmv, spmv, false);
         symmetric_compact_export!(
@@ -910,6 +1015,9 @@ mod compact_tests;
 
 #[cfg(test)]
 mod band_tests;
+
+#[cfg(test)]
+mod packed_rank_tests;
 
 #[cfg(test)]
 mod tests {
