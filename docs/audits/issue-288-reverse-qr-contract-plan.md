@@ -1,7 +1,7 @@
 # Issue #288: QL/RQ C factorization adapters
 
-Status: parent integration changes LQ diagnostic tests; fresh immutable full
-validation is required before publishing current-source proof.
+Status: source-bound immutable cloud full validation passes; proof is
+imported. Final publication checks and CI/main integration remain pending.
 
 Issue #288 remains open. The planned GEQLF/GERQF high/work entries
 add 16 names to the preceding 212-name candidate. This is staged scope; main
@@ -88,3 +88,11 @@ Parent LQ integration preserves every production source and the optimized
 reverse-QR DLL. Only test/lq.jl changes among 296 execution sources, adding
 asserted diagnostic consumption from the validated 212-name parent. The
 f2778c9 full proof remains historical; a new full run covers current tests.
+
+Current cloud full proof is bound to 618d0028da3407025105a857b22b0d01cb54bf93
+and all 296 frozen sources. Verified source/manifest/registration maps and
+completed-call signatures validate 1506 canonical entries and 5439 witnesses.
+ZIP/TOML digests and both CI/local DLL hashes are recorded in the adjacent
+provenance JSON. The published full run is Linux. This publication tree
+preserves the original local full-run HEAD/source and copied optimized DLL;
+final Linux/macOS PR CI and main merge remain required.

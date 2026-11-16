@@ -1,5 +1,5 @@
 {
-  "platform": "x86_64-apple-darwin24.6.0",
+  "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
   "inventory_registration_sha256": "0a71d8d74be5db51e9ba29f0de41bb45803cfaba7a03e93263f6de5ea1c2be32",
   "lapacke_target_symbols": [
@@ -232,8 +232,8 @@
     "LAPACKE_ztrtrs",
     "LAPACKE_ztrtrs_work"
   ],
-  "library_sha256": "6ce7c8890bd5d74821ce79a8057e8fad21588fe7b4e9c95e86356a9b944b048e",
-  "julia_version": "1.13.3",
+  "library_sha256": "053110120d469ea0727e6bebfe19ac750ca3b6f0f7fce7623f2ea51663c64567",
+  "julia_version": "1.13.4",
   "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
   "ambiguous_shared_entries": [
     "test/band_cholesky.jl:34 [(\"cpbtf2_\", 32, \"dll\"), (\"cpbtrf_\", 32, \"dll\")] widths=Set([32])",
@@ -302,7 +302,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "f2778c9dda8484ae639d6a78f74c384d64f2c2db",
+  "revision": "618d0028da3407025105a857b22b0d01cb54bf93",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -10341,7 +10341,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -10351,7 +10351,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64})",
@@ -10361,7 +10361,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -10371,7 +10371,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -10381,7 +10381,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -10391,7 +10391,7 @@
       "integer_arguments": true
     },
     {
-      "line": 817,
+      "line": 826,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -10401,7 +10401,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -10411,7 +10411,7 @@
       "integer_arguments": true
     },
     {
-      "line": 817,
+      "line": 826,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -10421,7 +10421,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -10431,7 +10431,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -10441,7 +10441,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -10451,7 +10451,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -10461,7 +10461,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -10471,7 +10471,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64})",
@@ -10601,7 +10601,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -10611,7 +10611,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -10621,7 +10621,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -10631,7 +10631,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64})",
@@ -14281,7 +14281,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -14291,7 +14291,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -15521,7 +15521,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -15531,7 +15531,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -18401,7 +18401,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -18411,7 +18411,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64})",
@@ -18421,7 +18421,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -18441,7 +18441,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -18941,7 +18941,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32})",
@@ -18951,7 +18951,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64})",
@@ -18961,7 +18961,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
@@ -18971,7 +18971,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
@@ -20051,7 +20051,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32})",
@@ -20061,7 +20061,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64})",
@@ -20071,7 +20071,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -20081,7 +20081,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -20091,7 +20091,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -20101,7 +20101,7 @@
       "integer_arguments": true
     },
     {
-      "line": 817,
+      "line": 826,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -20111,7 +20111,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -20121,7 +20121,7 @@
       "integer_arguments": true
     },
     {
-      "line": 817,
+      "line": 826,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -20131,7 +20131,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -20141,7 +20141,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -20151,7 +20151,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -20161,7 +20161,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -20171,7 +20171,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
@@ -20181,7 +20181,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64})",
@@ -20311,7 +20311,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -20321,7 +20321,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -20331,7 +20331,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
@@ -20341,7 +20341,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64})",
@@ -22151,7 +22151,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -22161,7 +22161,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -23291,7 +23291,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -23301,7 +23301,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -23811,7 +23811,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32})",
@@ -23821,7 +23821,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64})",
@@ -23831,7 +23831,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -23851,7 +23851,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -24351,7 +24351,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
@@ -24361,7 +24361,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64})",
@@ -24371,7 +24371,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
@@ -24381,7 +24381,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
@@ -29711,7 +29711,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32})",
@@ -29721,7 +29721,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64})",
@@ -29731,7 +29731,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -29741,7 +29741,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -29751,7 +29751,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -29761,7 +29761,7 @@
       "integer_arguments": true
     },
     {
-      "line": 817,
+      "line": 826,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -29771,7 +29771,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -29781,7 +29781,7 @@
       "integer_arguments": true
     },
     {
-      "line": 817,
+      "line": 826,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -29791,7 +29791,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -29801,7 +29801,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -29811,7 +29811,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -29821,7 +29821,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -29831,7 +29831,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
@@ -29841,7 +29841,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64})",
@@ -29971,7 +29971,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -29981,7 +29981,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -29991,7 +29991,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
@@ -30001,7 +30001,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64})",
@@ -31771,7 +31771,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -31781,7 +31781,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -32891,7 +32891,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -32901,7 +32901,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -33371,7 +33371,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32})",
@@ -33381,7 +33381,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64})",
@@ -33391,7 +33391,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -33411,7 +33411,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -33911,7 +33911,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
@@ -33921,7 +33921,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64})",
@@ -33931,7 +33931,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
@@ -33941,7 +33941,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
@@ -38991,7 +38991,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32})",
@@ -39001,7 +39001,7 @@
       "integer_arguments": true
     },
     {
-      "line": 459,
+      "line": 466,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -39011,7 +39011,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -39021,7 +39021,7 @@
       "integer_arguments": true
     },
     {
-      "line": 217,
+      "line": 224,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -39031,7 +39031,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -39041,7 +39041,7 @@
       "integer_arguments": true
     },
     {
-      "line": 817,
+      "line": 826,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -39051,7 +39051,7 @@
       "integer_arguments": true
     },
     {
-      "line": 472,
+      "line": 479,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -39061,7 +39061,7 @@
       "integer_arguments": true
     },
     {
-      "line": 817,
+      "line": 826,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -39071,7 +39071,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -39081,7 +39081,7 @@
       "integer_arguments": true
     },
     {
-      "line": 716,
+      "line": 723,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -39091,7 +39091,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -39101,7 +39101,7 @@
       "integer_arguments": true
     },
     {
-      "line": 54,
+      "line": 61,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -39111,7 +39111,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32})",
@@ -39121,7 +39121,7 @@
       "integer_arguments": true
     },
     {
-      "line": 67,
+      "line": 74,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -39251,7 +39251,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -39261,7 +39261,7 @@
       "integer_arguments": true
     },
     {
-      "line": 304,
+      "line": 311,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -39271,7 +39271,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32})",
@@ -39281,7 +39281,7 @@
       "integer_arguments": true
     },
     {
-      "line": 110,
+      "line": 117,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -42931,7 +42931,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -42941,7 +42941,7 @@
       "integer_arguments": true
     },
     {
-      "line": 339,
+      "line": 346,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -44171,7 +44171,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -44181,7 +44181,7 @@
       "integer_arguments": true
     },
     {
-      "line": 242,
+      "line": 249,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -47091,7 +47091,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32})",
@@ -47101,7 +47101,7 @@
       "integer_arguments": true
     },
     {
-      "line": 541,
+      "line": 548,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -47111,7 +47111,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -47131,7 +47131,7 @@
       "integer_arguments": true
     },
     {
-      "line": 555,
+      "line": 562,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -47631,7 +47631,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32})",
@@ -47641,7 +47641,7 @@
       "integer_arguments": true
     },
     {
-      "line": 600,
+      "line": 607,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64})",
@@ -47651,7 +47651,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
@@ -47661,7 +47661,7 @@
       "integer_arguments": true
     },
     {
-      "line": 631,
+      "line": 638,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
@@ -54212,7 +54212,7 @@
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
     "deps/rust/src/lapacke.rs": "1e7bf6af1dee4b206800e52d85e2aa95e845507d48985d327f6d468de59b533b",
     "test/lapacke_execution_checks.jl": "ea010b6b7717c5ef8f1a9884f213879568e5e736f9e053e3433221edcbca9c70",
-    "test/lq.jl": "3cc50a1100287e293c5309765aa3880016938cba5bdc51d99ebe399dc0143f2b",
+    "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
     "test/cblas_abi_worker.c": "2ca2bf5ca5524a359e5d399c1a9330f70cb2b6ebec79e6e316b4937ccf8c2930",
     "test/lapacke_calls.jl": "ece3be530c7b23025f6b5e02a1da7acecee4209df676c92a419e64f05d22e616",

@@ -1,0 +1,16 @@
+{
+  "candidate": "reverse-qr",
+  "artifact_id": 14248478269,
+  "zip_sha256": "fddfb080b228415790f4763f3bfacda766080725b5efb4aa4b5d5308639d4dbf",
+  "toml_sha256": "4a01ef33394a8841ba50dd5a99bdc97e964ef9c4d69edc1c91557997287c458c",
+  "revision": "618d0028da3407025105a857b22b0d01cb54bf93",
+  "sources": 296,
+  "validated": 1506,
+  "witnesses": 5439,
+  "platform": "x86_64-linux-gnu",
+  "local_library_sha256": "6ce7c8890bd5d74821ce79a8057e8fad21588fe7b4e9c95e86356a9b944b048e",
+  "ci_library_sha256": "053110120d469ea0727e6bebfe19ac750ca3b6f0f7fce7623f2ea51663c64567",
+  "full_suite_passed": true,
+  "workflow_run_id": 43909442123,
+  "workflow_revision": "870502b447e85d873ec8afb784516fd3afcafab2"
+}
