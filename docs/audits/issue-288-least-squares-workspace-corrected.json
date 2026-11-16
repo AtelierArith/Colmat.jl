@@ -1,0 +1,15 @@
+{
+  "full_suite_passed": false,
+  "observation_count": 384,
+  "insufficient_work_publication_checks": 48,
+  "all_info_and_rank_pairs_match": true,
+  "rust_tests": 461,
+  "rust_log_sha256": "7237bda0ec0a94786893c03bee2a39271897473a8e5386b9d5560ae2452d4368",
+  "reproducer_sha256": "ddc406d41da747aafe259139e9c21d0da8e506662b0d96d7745ffbda6e2af423",
+  "native_source_sha256": "4bf905dfce295baeb18cc6bf79ad9bfa76ca64af64343b611f92f7a2440b5141",
+  "library_sha256": {
+    "native": "238007b2149de0b0481e779c0de40f30e3b0f0b5ef00339646322f80fbe184f4",
+    "reference": "21931db4109dfb613aa1677649e4a9739b597e1963654357e01b64a638b41a04"
+  },
+  "output_sha256": "9a1eeb0848db2fbe48f768e3d18aeeebec5100190c83b14160f3ca65835c540f"
+}

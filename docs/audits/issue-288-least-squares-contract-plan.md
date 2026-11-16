@@ -57,3 +57,18 @@ and INFO priorities, const/read regions, independent C declarations, typed
 completed calls, debug/optimized repetition and immutable full package proof.
 Native tensor4all/colmat-rs edits and PRs are not authorized; upstream reports
 must contain an executed MWE and improvement proposal only.
+
+The Colmat.jl Fortran boundary now publishes its own query value after ordinary
+header validation and before rejecting insufficient LWORK for GELS, GELSY and
+GELSS. Repeating the MWE confirms all 48 insufficient-work cases publish that
+value, with all 192 native/reference pairs still matching INFO and RANK. Rust
+passes 461 tests, including a new real/complex, LP64/ILP64 regression that checks
+query/error publication, buffer guards and earlier-header output preservation.
+Exact hashes are in issue-288-least-squares-workspace-corrected.json. This is
+focused Fortran boundary evidence only.
+
+Eight GELS C high/work entries are drafted with checked layout headers,
+query/error bypass of row packing and distinct RHS input/solution extents.
+High-level NaN scans follow the complete reference A/B storage contract;
+numerical work reads only input RHS rows. C numerical validation is running.
+The other 24 planned C entries and full-stage evidence remain pending.
