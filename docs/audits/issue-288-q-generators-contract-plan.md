@@ -1,7 +1,8 @@
 # Issue #288: explicit Q generation C adapters
 
-Status: canonical scope and reference contract investigation; implementation
-and full-suite evidence pending. Issue #288 remains open.
+Status: 32 C adapters pass focused independent numerical and policy checks.
+Independent C, typed tracing and full-suite evidence remain pending.
+Issue #288 remains open.
 
 The canonical inventory contains 32 high/work names across real ORGQR/ORGLQ/
 ORGQL/ORGRQ and complex UNGQR/UNGLQ/UNGQL/UNGRQ. It contains no corresponding
@@ -33,3 +34,16 @@ ignored storage, active/inactive NaNs, minimal/query WORK, diagnostic precedence
 independent C prototypes and ILP64 dimensions outside int32. Completed typed
 calls, optimized repetition and immutable full package proof are required
 before publishing an implementation PR. No full-suite proof is claimed.
+
+The implementation shares checked row/column packing while validating the
+extra K argument and orientation-specific rectangle bounds. Row-major LDA
+returns -6 before dimensions. High-level A and TAU NaN checks return -5/-7;
+low-level generators retain their numerical ignored-storage contract. Const
+TAU and caller padding are preserved. Independent OpenBLAS output comparisons
+pass 33888 assertions for QR/LQ/QL/RQ, all scalar types and both integer ABIs,
+layouts, high/work and DLL/LBT, thin/full matrices and K=0/partial/full.
+Analytic unitary reflectors include complex TAU with nonzero phase. A further
+1216 checks verify diagnostics, ignored diagonal NaNs, inactive TAU NaNs,
+K=0 TAU preservation and negative-INFO output retention. Python execution
+fixtures pass 17 tests and reject wrong K/LWORK integer widths. The numerical
+candidate now includes 260 C entries; full-suite proof remains pending.
