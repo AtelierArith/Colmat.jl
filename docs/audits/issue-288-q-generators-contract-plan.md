@@ -1,5 +1,9 @@
 # Issue #288: explicit Q generation C adapters
 
+Status: immutable full package validation passes; source-bound execution
+evidence is imported. CI and main integration remain pending.
+Issue #288: explicit Q generation C adapters
+
 Status: 32 C adapters pass focused independent numerical and policy checks.
 Independent C and typed tracing also pass; optimized and full-suite proof
 remain pending.
@@ -73,3 +77,10 @@ with 5206 gate checks. Optimized DLL SHA-256:
 `b2deaef4792bc5210984dd85a675c004ac792752aebd6abec81980efe11ba926`.
 Registration is 1742 forwards per integer ABI. The source is being frozen for
 full package validation; no full-suite proof is claimed for this candidate.
+
+Full-suite proof is bound to `3321360eff7c89cf7c1eea8a69d88401f79283fe` and all
+300 frozen sources, optimized DLL, manifest and registration. The imported
+proof validates 1538 canonical entries: 1106 Fortran LAPACK, 172 CBLAS and
+260 LAPACKE, with 5567 completed witnesses. Python 28, inventory 15 and
+documentation build checks pass. All frozen source hashes and DLL remain
+unchanged. CI and main integration remain required.
