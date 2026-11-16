@@ -745,6 +745,7 @@ pub unsafe extern "C" fn [<$p geevx $s>](bal:*const u8,jl:*const u8,jr:*const u8
  *info=0;let(bal,jl,jr,nn,la,ll,lr,lw)=(flag(bal),flag(jl),flag(jr),(*n).val(),(*lda).val(),(*ldvl).val(),(*ldvr).val(),(*lwork).val());let off=if <$t>::COMPLEX{0}else{1};
  valid!(info,1=>matches!(bal,b'N'|b'P'|b'S'|b'B'),2=>matches!(jl,b'N'|b'V'),3=>matches!(jr,b'N'|b'V'),4=>flag(sense)==b'N',5=>nn>=0,7=>la>=1.max(nn),10+off=>ll>=1&&(jl!=b'V'||ll>=nn),12+off=>lr>=1&&(jr!=b'V'||lr>=nn),20+off=>lw== -1||lw>=1.max(if <$t>::COMPLEX{2*nn}else if jl==b'V'||jr==b'V'{3*nn}else{2*nn}));
  *work=workspace::<$t>(1.max(4*nn));if lw== -1{return;}
+ if nn==0{return;}
  match general_driver(bal,jl,jr,nn as usize,a,la,vl,ll,vr,lr){Err(_)=>*info=1,Ok((values,imag,lo,hi,sc,an))=>{let _=&imag;for i in 0..nn as usize{*w.add(i)=values[i];$(*$wi.add(i)=imag[i]as $r;)?*scale.add(i)=sc[i]as $r;}*ilo=(lo+1)as $i;*ihi=hi as $i;*abnrm=an as $r;}}
 }
 #[no_mangle]
