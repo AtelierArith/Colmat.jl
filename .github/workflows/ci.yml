@@ -28,8 +28,15 @@ jobs:
         run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
       - name: Rust regressions
         run: cargo test --manifest-path deps/rust/Cargo.toml --locked > contract-probes/rust-tests.log 2>&1
+      - name: Format numerical checks with the development formatter
+        run: |
+          julia --project=@v1.13 -e 'using Pkg; Pkg.add(PackageSpec(name="JuliaFormatter",version="2.14.0")); using JuliaFormatter; format_file("test/lapacke_rz.jl")'
+          git diff -- test/lapacke_rz.jl > contract-probes/juliafmt.patch
+          sha256sum test/lapacke_rz.jl > contract-probes/numerical-source-sha256.txt
       - name: Existing Fortran RZ regressions
         run: julia --project=. test/rz.jl > contract-probes/fortran-regressions.log 2>&1
+      - name: Independent C adapter numerical interoperability
+        run: julia --project=. test/lapacke_rz.jl > contract-probes/c-adapter-numerical.log 2>&1
       - name: Capture independent library paths
         run: |
           mkdir -p contract-probes

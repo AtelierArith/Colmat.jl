@@ -77,3 +77,12 @@ own query/execution WORK is 3 while reference returns 1, although both still
 require the side-dependent formal minimum work. Inputs remain unchanged.
 The planned correction changes only successful empty query/execution output;
 minimum validation and insufficient-work output preservation stay separate.
+
+New independent C adapter numerical checks are prepared in
+`test/lapacke_rz.jl`: own factors feed reference ORMRZ/UNMRZ and reference
+factors feed own consumers; C application also consumes independent factors
+with both sides and conjugation, partial K/L, query and output guards.
+All scalar types, integer ABIs, layouts, high/work and DLL/LBT are included.
+The low factor route preserves NaN lower triangles and application packs
+only active tails. These new numerical checks have not yet passed; cloud
+execution captures the exact JuliaFormatter 2.14.0 patch and source hash.
