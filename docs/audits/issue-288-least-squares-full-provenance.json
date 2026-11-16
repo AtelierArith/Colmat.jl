@@ -7,5 +7,13 @@
   "inventory_registration_sha256": "66f208f1f8e2c696daee38278e555ec6bf793b6f7e25b30c34e1079ea03fa5cf",
   "execution_toml_sha256": "4144768c3c0c9ba2f67a59ab0881feaeaf55092f403973a4322e8e53373f949b",
   "execution_log_sha256": "b5e1814e2fdb0e01f2ce61d54761f56d0136f74bc21e97148e10876cfed22762",
-  "witnesses": 6251
+  "witnesses": 6251,
+  "post_integration_publication_checks": {
+    "revision": "401f6ff185d9f257481142554315d88b09fca376",
+    "python": 28,
+    "inventory": 15,
+    "documentation": "passed",
+    "source_and_library_unchanged": true,
+    "full_suite_repeated_after_integration": false
+  }
 }

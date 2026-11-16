@@ -169,5 +169,6 @@ Normal main integration after merged PR #399 preserves every one of the 337
 validated execution-source hashes and the exact optimized DLL. The canonical
 full proof remains bound to source 21e1675. Parent audit provenance is updated
 from merged main; no numerical implementation or test source changed during
-integration. Post-integration publication checks are being repeated before
-opening the least-squares publication PR.
+integration. Post-integration publication checks passed: Python 28, inventory 15 and the
+documentation build, followed by unchanged source/DLL verification. Final
+Linux/macOS publication CI and artifact validation remain pending.
