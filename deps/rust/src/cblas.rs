@@ -323,8 +323,74 @@ macro_rules! triangular_exports {
         triangular_matrix_export!($p, $t, $coefficient, $read, $i, $cs, trsm, true);
     };
 }
+
+macro_rules! symmetric_matrix_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$op:ident,$hermitian:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,side:i32,u:i32,m:$i,n:$i,alpha:$coefficient,a:*const $t,lda:$i,b:*const $t,ldb:$i,beta:$coefficient,c:*mut $t,ldc:$i) {
+            if !matches!(order,101|102) {crate::invalid(1);return;}
+            let mut side=match side {141=>b'L',142=>b'R',_=>{crate::invalid(2);return;}};
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(3);return;};
+            if m<0 {crate::invalid(4);return;}
+            if n<0 {crate::invalid(5);return;}
+            let dim=if side==b'L'{m}else{n};
+            if !matrix_ok::<$t>(dim as i64,dim as i64,lda as i64,false,8)
+                || !matrix_ok::<$t>(m as i64,n as i64,ldb as i64,order==101,10)
+                || !matrix_ok::<$t>(m as i64,n as i64,ldc as i64,order==101,13){return;}
+            if m==0||n==0{return;}
+            let alpha=($read)(alpha);
+            let beta=($read)(beta);
+            if order==101 {
+                side=if side==b'L'{b'R'}else{b'L'};u=flip_uplo(u);
+                crate::kernels::symm(side,u,n as isize,m as isize,alpha,a,lda as isize,b,ldb as isize,beta,c,ldc as isize,$hermitian);
+            }else{
+                crate::kernels::symm(side,u,m as isize,n as isize,alpha,a,lda as isize,b,ldb as isize,beta,c,ldc as isize,$hermitian);
+            }
+        }
+    }};
+}
+macro_rules! ger_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$op:ident,$conjugate:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,m:$i,n:$i,alpha:$coefficient,x:*const $t,ix:$i,y:*const $t,iy:$i,a:*mut $t,lda:$i) {
+            if !matches!(order,101|102) {crate::invalid(1);return;}
+            if m<0 {crate::invalid(2);return;}
+            if n<0 {crate::invalid(3);return;}
+            if ix==0 {crate::invalid(6);return;}
+            if iy==0 {crate::invalid(8);return;}
+            if !matrix_ok::<$t>(m as i64,n as i64,lda as i64,order==101,10)
+                ||!vector_ok::<$t>(m as i64,ix as i64,6)||!vector_ok::<$t>(n as i64,iy as i64,8){return;}
+            if m==0||n==0{return;}
+            let alpha=($read)(alpha);
+            if alpha==<$t>::z(){return;}
+            if order==101 {
+                if $conjugate {
+                    let start=crate::kernels::start(n as isize,iy as isize);
+                    let conjugated:Vec<$t>=(0..n as isize).map(|j|(*y.offset(start+j*iy as isize)).cj()).collect();
+                    crate::kernels::ger(n as isize,m as isize,alpha,conjugated.as_ptr(),1,x,ix as isize,a,lda as isize,false);
+                } else {
+                    crate::kernels::ger(n as isize,m as isize,alpha,y,iy as isize,x,ix as isize,a,lda as isize,false);
+                }
+            }else{
+                crate::kernels::ger(m as isize,n as isize,alpha,x,ix as isize,y,iy as isize,a,lda as isize,$conjugate);
+            }
+        }
+    }};
+}
 macro_rules! interface {
     ($i:ty,$fs:tt,$cs:tt) => {
+        symmetric_matrix_export!(s, f32, f32, |x: f32| x, $i, $cs, symm, false);
+        symmetric_matrix_export!(d, f64, f64, |x: f64| x, $i, $cs, symm, false);
+        symmetric_matrix_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, symm, false);
+        symmetric_matrix_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, symm, false);
+        symmetric_matrix_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, hemm, true);
+        symmetric_matrix_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, hemm, true);
+        ger_export!(s, f32, f32, |x: f32| x, $i, $cs, ger, false);
+        ger_export!(d, f64, f64, |x: f64| x, $i, $cs, ger, false);
+        ger_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, geru, false);
+        ger_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, geru, false);
+        ger_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, gerc, true);
+        ger_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, gerc, true);
         triangular_exports!(s, f32, f32, |x: f32| x, $i, $cs);
         triangular_exports!(d, f64, f64, |x: f64| x, $i, $cs);
         triangular_exports!(c, c32, *const c32, |x: *const c32| *x, $i, $cs);
@@ -348,6 +414,9 @@ interface!(i64, _64_, "64_");
 
 #[cfg(test)]
 mod triangular_tests;
+
+#[cfg(test)]
+mod symmetric_tests;
 
 #[cfg(test)]
 mod tests {
