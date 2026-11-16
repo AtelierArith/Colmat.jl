@@ -1,0 +1,11 @@
+{
+  "full_suite_passed": true,
+  "revision": "21e1675398c21b81d16ae647c28dde7391ea11d3",
+  "source_count": 337,
+  "library_sha256": "56de174d1d662dc4abc940477fefa6520f83056df5459988b8ba0b454bced7de",
+  "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
+  "inventory_registration_sha256": "66f208f1f8e2c696daee38278e555ec6bf793b6f7e25b30c34e1079ea03fa5cf",
+  "execution_toml_sha256": "4144768c3c0c9ba2f67a59ab0881feaeaf55092f403973a4322e8e53373f949b",
+  "execution_log_sha256": "b5e1814e2fdb0e01f2ce61d54761f56d0136f74bc21e97148e10876cfed22762",
+  "witnesses": 6251
+}
