@@ -10,16 +10,27 @@ struct Factors<T: ReflectorScalar> {
     permutation: Vec<usize>,
     inverse: Vec<usize>,
 }
-fn native_factor<T: ReflectorScalar>(mut matrix: Mat<T>, unblocked: bool) -> Factors<T> {
+fn native_factor<T: ReflectorScalar>(matrix: Mat<T>, unblocked: bool) -> Factors<T> {
+    native_factor_with_pivoting(
+        matrix,
+        unblocked,
+        colmat::linalg::cholesky::lblt::factor::PivotingStrategy::Partial,
+    )
+}
+fn native_factor_with_pivoting<T: ReflectorScalar>(
+    mut matrix: Mat<T>,
+    unblocked: bool,
+    pivoting: colmat::linalg::cholesky::lblt::factor::PivotingStrategy,
+) -> Factors<T> {
     use colmat::linalg::cholesky::lblt::factor::{
-        cholesky_in_place, cholesky_in_place_scratch, LbltParams, PivotingStrategy,
+        cholesky_in_place, cholesky_in_place_scratch, LbltParams,
     };
     let n = matrix.nrows();
     let mut subdiagonal = Diag::<T>::zeros(n);
     let mut permutation = vec![0_usize; n];
     let mut inverse = vec![0_usize; n];
     let mut params: colmat::Spec<LbltParams, T> = Default::default();
-    params.config.pivoting = PivotingStrategy::Partial;
+    params.config.pivoting = pivoting;
     if unblocked {
         params.config.block_size = 1;
     }
@@ -685,3 +696,6 @@ mod packed_tests {
         1e-13
     );
 }
+
+#[path = "bunch_kaufman_rook.rs"]
+mod rook;
