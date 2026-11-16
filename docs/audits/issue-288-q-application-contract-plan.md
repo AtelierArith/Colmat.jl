@@ -107,3 +107,12 @@ reference policy probe are covered: every logical reflector entry is scanned,
 and padded entries beyond Q order are ignored for all orientations and scalar
 types. The numerical 502208 checks also pass again in the standalone policy
 run. Independent C and full-suite proof for this candidate remain pending.
+
+The independent C11 caller passes both runner checks for all 32 names with
+explicit C and ILP64 reference Fortran prototypes (including character lengths).
+It compares all orientations, SIDE=L/R and legal transpose/adjoint flags,
+scalar types, both own integer ABIs, layouts and high/work, empty/scalar/
+rectangular C and every K up to Q order. It verifies const A/TAU against byte
+copies, C/WORK guards, query and error immutability, INFO precedence, A/C/TAU
+NaN order and signed ILP64 values outside int32. Typed completed-call tracing,
+optimized repetition and immutable full package proof remain required.
