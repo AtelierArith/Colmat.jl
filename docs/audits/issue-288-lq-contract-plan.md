@@ -1,11 +1,8 @@
 # Issue #288: GELQF/GELQ2 C adapters
 
-Status: immutable full package validation passes; source-bound execution
-evidence is imported. CI and integration remain pending.
-Issue #288: GELQF/GELQ2 C adapters
+Status: portable C fixtures and diagnostic isolation pass focused checks;
+new current-source full validation and CI remain pending.
 
-Status: own Fortran empty-work correction and sixteen C adapters pass focused
-independent Julia checks. Independent C and typed tracing also pass; optimized repetition passes and full-suite proof remains pending.
 Issue #288 remains open. The sixteen S/D/C/Z high/work names extend 196 candidate names to 212, leaving
 1404 original-scope names plus the separate 20 Rook C targets. These staged
 candidates are not all merged yet.
@@ -68,3 +65,10 @@ and 212 LAPACKE, with 5351 completed witnesses. Python 28, inventory 15 and
 documentation builds pass. The repository evidence test now expects the
 current 212-entry scope; this metadata-only fix preserves every full-suite
 production/test source hash. CI and main integration remain required.
+
+The inherited QR, positive-QR and LQ C fixtures now use explicit outer loop
+braces for GCC -Werror. LQ invalid-work probes assert and consume their own
+thread-local diagnostics at the origin, preventing contamination of later
+tests. The LQ suite and all three independent C runners pass again. These
+test-source changes require fresh immutable full evidence; the earlier
+616d98a proof is historical and is not claimed for the updated source set.
