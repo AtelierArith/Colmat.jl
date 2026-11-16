@@ -55,5 +55,9 @@ this is not replaced by a whole-complex NaN comparison.
 - Python evidence fixtures: 17 passed. Completed-call tracing validates 172
   names and 688 observations; full_suite_passed remains explicitly false.
 
-Optimized repetition, immutable full package testing, evidence import,
-documentation and Linux/macOS artifact provenance checks remain required.
+Optimized build and repeated independent C/numerical/signature checks pass.
+The frozen optimized DLL SHA256 is
+`3aeb0dd43cda9f92414e4606727b856df54119964a5bd7018b9ffc11e0f6b95c`.
+The completed-call gate passes 3446 checks; registration is 1654 forwards per ABI.
+Immutable full package testing, evidence import, documentation and Linux/macOS
+artifact provenance checks remain required.
