@@ -807,5 +807,814 @@
       "arrays_unchanged": true
     }
   ],
-  "reproducer": "reproducers/rz_apply_empty_workspace.py"
+  "reproducer": "reproducers/rz_apply_empty_workspace.py",
+  "after_provenance": {
+    "full_suite_passed": false,
+    "run_id": 43907356886,
+    "source_revision": "64924ee4fa4aa4b6f726db478a13125edebe21ac",
+    "artifact_id": 14245748587,
+    "zip_sha256": "5ffed1e82e014584460da49100e4004d86be03961c2b6298c40b1eb6272e68d4"
+  },
+  "after_observations": [
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 0,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 1,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 0,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 0,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 0,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 1,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 0,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 1,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 0,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 0,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 0,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 1,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 0,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 1,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 0,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 0,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 0,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 1,
+      "info": -13,
+      "work": 780.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 0,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 1,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 0,
+      "n": 3,
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 0,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 0,
+      "n": 3,
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 0,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "L",
+      "m": 3,
+      "n": 0,
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 0,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 1,
+      "info": -13,
+      "work": [
+        780.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "side": "R",
+      "m": 3,
+      "n": 0,
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "arrays_unchanged": true
+    }
+  ]
 }

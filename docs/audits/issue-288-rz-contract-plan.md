@@ -86,3 +86,11 @@ All scalar types, integer ABIs, layouts, high/work and DLL/LBT are included.
 The low factor route preserves NaN lower triangles and application packs
 only active tails. These new numerical checks have not yet passed; cloud
 execution captures the exact JuliaFormatter 2.14.0 patch and source hash.
+
+Cloud run 43907356886 validates the corrected empty-application boundary.
+ZIP, revision and all reproducer hashes match; the Rust formatting patch
+is empty. All 40 own/reference pairs (16 square plus 64 empty observations)
+match INFO and WORK exactly and preserve arrays. Formal minimum workspace
+errors remain separate from successful empty query/execution WORK=1. Rust
+460 and existing RZ 1712 checks pass again. These are focused boundary and
+regression results, not immutable full-suite proof or new C numerical proof.
