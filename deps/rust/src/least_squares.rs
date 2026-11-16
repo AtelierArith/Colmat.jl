@@ -249,10 +249,12 @@ macro_rules! gels_exports {
             b:*mut $t,ldb:*const $i,work:*mut $t,lwork:*const $i,info:*mut $i) {
             *info=0;let(tr,m,n,r,la,lb,lw)=(flag(tr),*m as isize,*n as isize,*nrhs as isize,*lda as isize,*ldb as isize,*lwork as isize);
             let minimum=(m.min(n)+m.min(n).max(r)).max(1);
-            for(arg,ok)in [(1,tr==b'N'||tr==if <$t>::COMPLEX {b'C'} else {b'T'}),(2,m>=0),(3,n>=0),(4,r>=0),(6,la>=m.max(1)),(8,lb>=m.max(n).max(1)),(10,lw== -1||lw>=minimum)] {
+            for(arg,ok)in [(1,tr==b'N'||tr==if <$t>::COMPLEX {b'C'} else {b'T'}),(2,m>=0),(3,n>=0),(4,r>=0),(6,la>=m.max(1)),(8,lb>=m.max(n).max(1))] {
                 if !ok {*info=-arg;crate::invalid(arg as i32);return;}
             }
-            *work=crate::lapack::workspace::<$t>(minimum);if lw== -1 {return;}
+            *work=crate::lapack::workspace::<$t>(minimum);
+            if lw != -1 && lw < minimum {*info=-10;crate::invalid(10);return;}
+            if lw== -1 {return;}
             *info=scaled_full_rank(tr,m as usize,n as usize,r as usize,a,la,b,lb) as $i;
         }
     }};
@@ -455,7 +457,6 @@ unsafe fn gelss_driver<T: ReflectorScalar, R: Scalar, I: LapackInt>(
         (3, r >= 0),
         (5, la >= m.max(1)),
         (7, lb >= m.max(n).max(1)),
-        (12, lw == -1 || lw >= minimum),
     ] {
         if !ok {
             *info = I::from_i64(-arg);
@@ -464,6 +465,11 @@ unsafe fn gelss_driver<T: ReflectorScalar, R: Scalar, I: LapackInt>(
         }
     }
     *work = crate::lapack::workspace::<T>(minimum);
+    if lw != -1 && lw < minimum {
+        *info = I::from_i64(-12);
+        crate::invalid(12);
+        return;
+    }
     if lw == -1 {
         return;
     }
@@ -887,10 +893,6 @@ unsafe fn gelsy_driver<T: ReflectorScalar, R: Scalar, I: LapackInt>(
         (3, r >= 0),
         (5, la >= m.max(1)),
         (7, lb >= m.max(n).max(1)),
-        (
-            12,
-            lwork.map(|lw| query || lw.val() >= minimum).unwrap_or(true),
-        ),
     ] {
         if !ok {
             *info = I::from_i64(-arg);
@@ -898,8 +900,13 @@ unsafe fn gelsy_driver<T: ReflectorScalar, R: Scalar, I: LapackInt>(
             return;
         }
     }
-    if lwork.is_some() {
+    if let Some(lw) = lwork {
         *work = crate::lapack::workspace::<T>(minimum);
+        if !query && lw.val() < minimum {
+            *info = I::from_i64(-12);
+            crate::invalid(12);
+            return;
+        }
     }
     if query {
         return;
@@ -998,3 +1005,131 @@ full_driver_exports!(s, f32, i64, _64_);
 full_driver_exports!(d, f64, i64, _64_);
 full_driver_exports!(c, c32, i64, _64_);
 full_driver_exports!(z, c64, i64, _64_);
+
+#[cfg(test)]
+mod workspace_publication_tests {
+    use super::*;
+    type Gels<T, I> = unsafe extern "C" fn(
+        *const u8,
+        *const I,
+        *const I,
+        *const I,
+        *mut T,
+        *const I,
+        *mut T,
+        *const I,
+        *mut T,
+        *const I,
+        *mut I,
+    );
+
+    unsafe fn check<T: ReflectorScalar, R: Scalar, I: LapackInt>(gels: Gels<T, I>) {
+        for (m, n, nrhs) in [(0, 0, 2), (0, 3, 2), (3, 0, 2), (3, 5, 0), (3, 2, 1)] {
+            for family in 0..3 {
+                let (n, r, la, lb) = (
+                    I::from_i64(n),
+                    I::from_i64(nrhs),
+                    I::from_i64(m.max(1)),
+                    I::from_i64(m.max(n).max(1)),
+                );
+                let execute = |m: I, lwork: I, expected: i64, query: Option<T>| {
+                    let mut a = [T::real(11.0); 64];
+                    let mut b = [T::real(12.0); 64];
+                    let mut singular = [R::real(780.0); 16];
+                    let mut pivot = [I::from_i64(779); 16];
+                    let mut rank = I::from_i64(778);
+                    let mut info = I::from_i64(-999);
+                    let mut work = [T::real(777.0); 3];
+                    match family {
+                        0 => gels(
+                            &b'N',
+                            &m,
+                            &n,
+                            &r,
+                            a.as_mut_ptr(),
+                            &la,
+                            b.as_mut_ptr(),
+                            &lb,
+                            work.as_mut_ptr().add(1),
+                            &lwork,
+                            &mut info,
+                        ),
+                        1 => gelss_driver(
+                            m,
+                            n,
+                            r,
+                            a.as_mut_ptr(),
+                            la,
+                            b.as_mut_ptr(),
+                            lb,
+                            singular.as_mut_ptr(),
+                            R::real(-1.0),
+                            &mut rank,
+                            work.as_mut_ptr().add(1),
+                            lwork,
+                            &mut info,
+                        ),
+                        _ => gelsy_driver(
+                            m,
+                            n,
+                            r,
+                            a.as_mut_ptr(),
+                            la,
+                            b.as_mut_ptr(),
+                            lb,
+                            pivot.as_mut_ptr(),
+                            R::real(-1.0),
+                            &mut rank,
+                            work.as_mut_ptr().add(1),
+                            Some(lwork),
+                            &mut info,
+                        ),
+                    }
+                    assert_eq!(info.val() as i64, expected);
+                    assert_eq!(
+                        crate::colmat_blas_last_error() as i64,
+                        if expected < 0 { -expected } else { 0 }
+                    );
+                    assert!(a.iter().all(|x| *x == T::real(11.0)));
+                    assert!(b.iter().all(|x| *x == T::real(12.0)));
+                    assert!(singular.iter().all(|x| *x == R::real(780.0)));
+                    assert!(pivot.iter().all(|x| x.val() == 779));
+                    assert_eq!(rank.val(), 778);
+                    assert!(work[0] == T::real(777.0) && work[2] == T::real(777.0));
+                    if let Some(query) = query {
+                        assert!(work[1] == query);
+                    }
+                    work[1]
+                };
+                let query = execute(I::from_i64(m), I::from_i64(-1), 0, None);
+                assert!(query.re() >= 1.0);
+                execute(
+                    I::from_i64(m),
+                    I::from_i64(0),
+                    if family == 0 { -10 } else { -12 },
+                    Some(query),
+                );
+                // An earlier invalid header must leave WORK and output arrays untouched.
+                execute(
+                    I::from_i64(-1),
+                    I::from_i64(0),
+                    if family == 0 { -2 } else { -1 },
+                    Some(T::real(777.0)),
+                );
+            }
+        }
+    }
+    #[test]
+    fn work_is_published_before_insufficient_work_in_both_abis() {
+        unsafe {
+            check::<f32, f32, i32>(sgels_);
+            check::<f64, f64, i32>(dgels_);
+            check::<c32, f32, i32>(cgels_);
+            check::<c64, f64, i32>(zgels_);
+            check::<f32, f32, i64>(sgels_64_);
+            check::<f64, f64, i64>(dgels_64_);
+            check::<c32, f32, i64>(cgels_64_);
+            check::<c64, f64, i64>(zgels_64_);
+        }
+    }
+}

@@ -1,0 +1,17 @@
+{
+  "full_suite_passed": false,
+  "mode": "debug",
+  "scope": "eight GELS high/work names, scalar types, LP64/ILP64, layouts and DLL/LBT",
+  "assertions": 25088,
+  "rust_tests": 463,
+  "library_sha256": "568c05dc8370871a51fe646938b976946f058e625746a46ad2347f96420da622",
+  "execution_log_sha256": "ff44040f6c3432f3bfc64baa6b6449d5cd0e11dfc6f8cf921c16d58850e5f5bd",
+  "source_sha256": {
+    "deps/rust/src/least_squares.rs": "4bf905dfce295baeb18cc6bf79ad9bfa76ca64af64343b611f92f7a2440b5141",
+    "deps/rust/src/lapacke.rs": "d6430d3b3b2fbe08d426da00c67c228b454ab161ebc7311d086060a848ae2d4d",
+    "deps/rust/src/lapacke/least_squares.rs": "b78e4fc80cdbaaff677241f5bf4ee1756596f57ab87457365adbd51025351d39",
+    "test/lapacke_least_squares.jl": "180c9537c741dda26e6e658f8a803f07b520e03c04745460187cb397ed9152f1"
+  },
+  "forward_error_check": "same random systems; wide independent Fortran oracle; max(300*eps,20*eps*cond(op))",
+  "backward_error_check": "normal-equation residual bounded by 100*eps times norm-scaled input/solution sizes"
+}

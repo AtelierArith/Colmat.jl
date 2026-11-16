@@ -7,6 +7,7 @@ mod compact_qr;
 mod general_eigen;
 mod general_expert;
 mod lauum;
+mod least_squares;
 mod lq;
 mod pentagonal_qr;
 mod pivoted_qr;
@@ -120,6 +121,9 @@ unsafe fn row_to_column<T: Scalar>(
     a: *const T,
     lda: usize,
 ) -> Result<Vec<T>, i64> {
+    if m == 0 || n == 0 {
+        return Ok(Vec::new());
+    }
     let count = m.checked_mul(n).ok_or(TRANSPOSE_MEMORY_ERROR)?;
     let span = (m - 1)
         .checked_mul(lda)
@@ -139,6 +143,18 @@ unsafe fn row_to_column<T: Scalar>(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod empty_layout_tests {
+    #[test]
+    fn empty_row_conversion_never_reads_or_computes_a_nonempty_span() {
+        for (m, n) in [(0, 0), (0, 3), (3, 0), (usize::MAX, 0)] {
+            let values =
+                unsafe { super::row_to_column::<f64>(m, n, core::ptr::null(), usize::MAX) };
+            assert!(values.unwrap().is_empty());
+        }
+    }
 }
 
 macro_rules! getrf_work {

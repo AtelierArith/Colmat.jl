@@ -1,0 +1,15 @@
+{
+  "full_suite_passed": false,
+  "mode": "debug",
+  "scope": "eight GELSY high/work names, scalar types, LP64/ILP64, layouts and DLL/LBT",
+  "assertions": 66240,
+  "rust_tests": 463,
+  "library_sha256": "a0806b3303c70429d7a2e6aa23c3c662c1a91574b3c02aa22ec13321c8860e1d",
+  "execution_log_sha256": "305be8824cb3e993b9793b12ae3d33ec6377be8952d2ce93b0e926b6a8264cf3",
+  "rust_log_sha256": "9751c65303a76502cd210029824fe0f2a590370e9be00fea4568eea39811d123",
+  "source_sha256": {
+    "deps/rust/src/least_squares.rs": "4bf905dfce295baeb18cc6bf79ad9bfa76ca64af64343b611f92f7a2440b5141",
+    "deps/rust/src/lapacke/least_squares.rs": "d0e399a95ed7a7bae1edf0fee84eb3baa15582611abf699cc8fe3f232f12e820",
+    "test/lapacke_least_squares_rank.jl": "5cb5ace73c44b50771ba692ca6ec91900e7b78aca86797c7d466a9dea71e1beb"
+  }
+}

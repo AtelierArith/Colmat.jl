@@ -1,0 +1,13 @@
+{
+  "full_suite_passed": false,
+  "scope": "empty GELS C boundary and shared row-conversion regression",
+  "rust_tests": 463,
+  "rust_log_sha256": "8f3adf9eca7992a0f835cf13d664637ec5facdb390c5dc6e1e08ebd21a4f6974",
+  "initial_abort_log_sha256": "5342304ea1e8c21c1073dc7f8f309c56633b39819e35214253aa0c0ae67ba3d8",
+  "library_before_empty_fix_sha256": "238007b2149de0b0481e779c0de40f30e3b0f0b5ef00339646322f80fbe184f4",
+  "library_sha256": "568c05dc8370871a51fe646938b976946f058e625746a46ad2347f96420da622",
+  "source_sha256": {
+    "deps/rust/src/lapacke.rs": "d6430d3b3b2fbe08d426da00c67c228b454ab161ebc7311d086060a848ae2d4d",
+    "deps/rust/src/lapacke/least_squares.rs": "b78e4fc80cdbaaff677241f5bf4ee1756596f57ab87457365adbd51025351d39"
+  }
+}

@@ -1,9 +1,11 @@
 # Issue #288: triangular-pentagonal QR C contracts
 
-Status: immutable full package proof, debug/optimized validation and
-publication checks pass. Final normal integration after merged RZ PR #398
-preserves the entire previously checked tree, all 330 execution sources and
-the optimized DLL. Final publication CI and merge remain pending.
+Status: merged into main in PR #399 (fab944823d94045684561db4c903782a49448d2f).
+CI 43947423882 (Linux/macOS) and Documentation 43947423959 passed. Both
+downloaded artifacts validate 330 source hashes, 1666 canonical entries and
+6123 witnesses at test merge 7c4a6616b547482bfc1e83bfa55b1f63da982692.
+Its parents and tree match the reviewed head and base. The merged tree,
+verified optimized DLL, Python 28 and inventory 15 post-merge checks pass.
 
 Issue #288 remains open.
 
