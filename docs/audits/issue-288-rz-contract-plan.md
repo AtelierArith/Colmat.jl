@@ -1,7 +1,8 @@
 # Issue #288: RZ factorization and Q application C contracts
 
-Status: canonical scope and primary-source investigation only. Adapter,
-numerical interoperability and immutable full-suite evidence remain pending.
+Status: focused numerical, policy and independent C caller checks pass.
+Typed tracing, optimized repetition and immutable full proof remain pending.
+
 Issue #288 remains open.
 
 Canonical scope contains eight S/D/C/Z TZRZF high/work names and eight real
@@ -137,3 +138,9 @@ Independent Fortran comparisons also cover nonoverlapping tails. Guards,
 queries/minimal work, sparse identity/null inputs and ILP64 values beyond
 int32 are covered. It compiles locally with -Wall -Wextra -Werror; execution
 in the candidate CI remains pending.
+
+Cloud run 43912808677 passes the independent C runner, all 79200 numerical
+and 816 policy checks and Rust 460. ZIP/revision and all five formatted Julia
+source hashes were verified; the formatter patch is applied locally. The
+C source is the tracked worker at that exact revision. No full RZ proof or
+completed 356-name typed trace is claimed yet.

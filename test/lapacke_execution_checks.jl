@@ -77,7 +77,8 @@ using Test
         Set(
             "LAPACKE_"*p*f*w for
             (p, stem) in (("s", "orm"), ("d", "orm"), ("c", "unm"), ("z", "unm")) for
-            f in (stem*"qr", stem*"lq", stem*"ql", stem*"rq", stem*"rz") for w in ("", "_work")
+            f in (stem*"qr", stem*"lq", stem*"ql", stem*"rq", stem*"rz") for
+            w in ("", "_work")
         ),
     )
     @test length(targets)==356

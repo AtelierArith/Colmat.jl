@@ -1,0 +1,21 @@
+{
+  "full_suite_passed": false,
+  "run_id": 43912808677,
+  "source_revision": "9a8a6c2c18f6d85bcae110111d1c2b5d298425de",
+  "artifact_id": 14249191287,
+  "zip_sha256": "13640f1f5e83267cb95d2aff3101c5097949e574b90b20bdc52e4a39ad861768",
+  "source_sha256": {
+    "test/lapacke_rz.jl": "967a9bd93ef45b1663d248060960dfcfbe8e03db5e500cdfbacfd37431b736a6",
+    "test/lapacke_rz_policy.jl": "f9d1b5d9ee76058c2ff3f87f02ea4c76f3b0fe981f27bd2b6c9a9a260b22fbf7",
+    "test/lapacke_rz_abi.jl": "d9acf681d21839edf1662b5e3753001fb5c3971251b4f35dc0c52303bef4e8fc",
+    "test/lapacke_execution_checks.jl": "f2ce662377654d8812ce6e16ff173e98f96aeaf2edd741b6d647f9ca20555ec8",
+    "test/suite.jl": "a8151dbe43e73ee55b4862a5c972953c2c0b6969840159b56b466fa5be1df827"
+  },
+  "counts": {
+    "factor_interoperability": 33024,
+    "application_interoperability": 46176,
+    "policy": 816,
+    "independent_c_runner_assertions": 2,
+    "rust": 460
+  }
+}
