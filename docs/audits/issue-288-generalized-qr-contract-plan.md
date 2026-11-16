@@ -2,9 +2,9 @@
 
 Status: all 32 new C entries pass focused debug numerical, diagnostic policy
 and independent C ABI checks. Rust 463 and Python ABI fixtures 17 pass.
-Debug full-stage tracing passes: 452 canonical C entries, 1808 completed
-observations and 9046 completed-call gate checks. Optimized repetition and
-immutable full package proof remain pending.
+Debug and optimized full-stage tracing pass: each covers 452 canonical C
+entries, 1808 completed observations and 9046 completed-call gate checks.
+Immutable full package proof remains pending.
 Issue #288 remains open.
 
 Canonical scope: S/D/C/Z high/work GGQRF, GGRQF, GGLSE and GGGLM (32 names).
