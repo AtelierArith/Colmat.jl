@@ -1,7 +1,8 @@
 # Issue #288: pivoted QR C adapter contracts
 
 Status: source-bound immutable cloud full validation passes; proof is
-imported. Publication checks and final CI/main integration remain pending.
+imported. Normal integration after merged PR #396 preserves all 318 frozen
+execution sources and the verified DLL. Final publication CI remains pending.
 
 Issue #288 remains open.
 

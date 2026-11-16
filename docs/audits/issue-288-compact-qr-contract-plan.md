@@ -1,7 +1,11 @@
 # Issue #288: compact QR C adapters
 
-Status: source-bound immutable full package proof and publication checks pass.
-Final PR CI, artifact provenance checks and merge remain pending.
+Status: merged into main in PR #396 (8fa5bcf90ae1ac3cc416124f2b45dfeecc96c32a).
+CI 43933177500 (Linux/macOS) and Documentation 43933177783 passed.
+Both downloaded artifacts validate 312 sources, 1602 canonical entries and
+5855 witnesses at test merge 6f156c90153a9024c0be4f6646a75f2b469389ca;
+its parents and tree match the reviewed head and base. Post-merge Python 28
+and inventory 15 checks passed with the exact verified optimized DLL.
 
 Issue #288 remains open.
 
