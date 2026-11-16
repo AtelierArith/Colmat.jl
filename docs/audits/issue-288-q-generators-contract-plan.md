@@ -1,7 +1,8 @@
 # Issue #288: explicit Q generation C adapters
 
 Status: 32 C adapters pass focused independent numerical and policy checks.
-Independent C, typed tracing and full-suite evidence remain pending.
+Independent C and typed tracing also pass; optimized and full-suite proof
+remain pending.
 Issue #288 remains open.
 
 The canonical inventory contains 32 high/work names across real ORGQR/ORGLQ/
@@ -55,3 +56,20 @@ full shapes and every K through the available extent. It checks const TAU,
 padding/WORK guards, query immutability, diagnostic precedence, A/TAU NaNs
 and ILP64 dimensions outside int32. Rust full-suite checks pass 460 tests.
 Typed tracing, optimized repetition and immutable full proof remain required.
+
+Completed-call tracing verifies all 260 names with 1040 typed name/ABI/route
+observations and 5206 gate checks. Focused evidence explicitly records
+`full_suite_passed=false`; optimized repetition and immutable full package
+proof remain required.
+
+Explicit outer braces now delimit the independent C initialization loops for
+GCC -Werror portability; both C runner checks pass again. The incoming parent
+fix also consumes QL/RQ diagnostic state between boundary cases. These test
+fixes must precede this candidate full-suite freeze.
+
+Optimized repetition after all C portability and diagnostic-isolation fixes
+passes the numerical, policy, independent C and all 1040 typed observations
+with 5206 gate checks. Optimized DLL SHA-256:
+`b2deaef4792bc5210984dd85a675c004ac792752aebd6abec81980efe11ba926`.
+Registration is 1742 forwards per integer ABI. The source is being frozen for
+full package validation; no full-suite proof is claimed for this candidate.

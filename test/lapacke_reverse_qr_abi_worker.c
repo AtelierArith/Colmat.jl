@@ -21,7 +21,7 @@ static int at(int layout,int i,int j,int ld){return layout==101?i*ld+j:i+j*ld;}
             int lw=rq?(n==0?1:(m>0?m:1)):(m==0?1:(n>0?n:1)); \
             T a[64],saved[64],tau[8],scratch[8],query=0;double complex original[16]={0}; \
             for(int z=0;z<64;z++){a[z]=(T)NAN;}for(int z=0;z<8;z++){tau[z]=scratch[z]=(T)777;} \
-            for(int i=0;i<m;i++)for(int j=0;j<n;j++){T v=(T)((i==j?2:0)+.1*(i+j+1)+.2*(i-j)*I);a[at(layout,i,j,ld)]=v;original[i*n+j]=(double complex)v;}memcpy(saved,a,sizeof(a)); \
+            for(int i=0;i<m;i++){for(int j=0;j<n;j++){T v=(T)((i==j?2:0)+.1*(i+j+1)+.2*(i-j)*I);a[at(layout,i,j,ld)]=v;original[i*n+j]=(double complex)v;}}memcpy(saved,a,sizeof(a)); \
             if(!entry){assert(work(layout,m,n,a,ld,tau+1,&query,-1)==0);assert(creal((double complex)query)>=lw);if(m==0||n==0){assert(query==(T)1);}assert(memcmp(saved,a,sizeof(a))==0);for(int z=0;z<8;z++){assert(tau[z]==(T)777);}assert(work(layout,m,n,a,ld,tau+1,scratch+1,lw-1)==-8);assert(memcmp(saved,a,sizeof(a))==0);} \
             J info=entry?high(layout,m,n,a,ld,tau+1):work(layout,m,n,a,ld,tau+1,scratch+1,lw);assert(info==0); \
             assert(tau[0]==(T)777&&tau[k+1]==(T)777&&scratch[0]==(T)777&&scratch[lw+1]==(T)777); \

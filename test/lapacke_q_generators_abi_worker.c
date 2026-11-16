@@ -20,7 +20,7 @@ static int at(int layout,int i,int j,int ld){return layout==101?i*ld+j:i+j*ld;}
                 int ld=layout==101?n+2:m+2,lw=rows?(m>0?m:1):(n>0?n:1);int64_t rm=m,rn=n,rk=k,rld=m+2,rlw=lw,ri[3]={-777,-777,-777}; \
                 T a[64],saved[64],expected[32],tau[8],savedtau[8],scratch[12],rscratch[12],query=0; \
                 for(int z=0;z<64;z++){a[z]=(T)777;}for(int z=0;z<32;z++){expected[z]=(T)777;}for(int z=0;z<8;z++){tau[z]=(T)779;}for(int z=0;z<12;z++){scratch[z]=rscratch[z]=(T)778;} \
-                for(int i=0;i<m;i++)for(int j=0;j<n;j++){T v=(T)(.1*(1+i+j)+.07*(i-j)*I);a[at(layout,i,j,ld)]=expected[i+j*rld]=v;}for(int h=0;h<k;h++){tau[h+1]=(T)(.5+.1*I);} \
+                for(int i=0;i<m;i++){for(int j=0;j<n;j++){T v=(T)(.1*(1+i+j)+.07*(i-j)*I);a[at(layout,i,j,ld)]=expected[i+j*rld]=v;}}for(int h=0;h<k;h++){tau[h+1]=(T)(.5+.1*I);} \
                 memcpy(saved,a,sizeof(a));memcpy(savedtau,tau,sizeof(tau));ref(&rm,&rn,&rk,expected,&rld,tau+1,rscratch+1,&rlw,ri+1);assert(ri[0]==-777&&ri[1]==0&&ri[2]==-777); \
                 if(!entry){assert(work(layout,m,n,k,a,ld,tau+1,&query,-1)==0);assert(creal((double complex)query)>=lw);assert(memcmp(a,saved,sizeof(a))==0&&memcmp(tau,savedtau,sizeof(tau))==0);assert(work(layout,m,n,k,a,ld,tau+1,scratch+1,lw-1)==-9);assert(memcmp(a,saved,sizeof(a))==0);} \
                 J info=entry?high(layout,m,n,k,a,ld,tau+1):work(layout,m,n,k,a,ld,tau+1,scratch+1,lw);assert(info==0);assert(memcmp(tau,savedtau,sizeof(tau))==0);assert(scratch[0]==(T)778&&scratch[lw+1]==(T)778); \

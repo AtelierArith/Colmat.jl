@@ -55,3 +55,24 @@ and OpenBLAS Q consumers, padding/TAU/WORK guards, empty queries, diagnostics,
 NaN policy and signed ILP64 values outside int32. Its Julia runner passes two
 checks. The candidate extends 212 names to 228; 1388 original-scope names plus
 the separate 20 Rook C targets remain. No full-suite proof is claimed yet.
+
+Rust full-suite checks pass 460 tests. Completed-call tracing validates all
+228 names with 912 typed name/ABI/route observations and 4566 gate checks.
+The focused evidence explicitly records `full_suite_passed=false`. Optimized
+repetition and immutable full package evidence remain required.
+
+Optimized repetition passes all numerical, independent C and 912 typed
+observations, including 4566 completed-call gate checks. Optimized DLL SHA-256:
+`6ce7c8890bd5d74821ce79a8057e8fad21588fe7b4e9c95e86356a9b944b048e`.
+Registration is 1710 forwards per integer ABI. The source is being frozen for
+full package validation; published full-suite proof remains pending.
+
+The first full run exposed test isolation: the new empty-work probe left the
+queryable invalid-argument diagnostic unread before the pentagonal tests.
+Each own and reference probe now asserts and consumes its expected diagnostic.
+Focused QL/RQ boundary checks pass 1536 assertions; the subsequent pentagonal
+factor checks pass 223232, reflector-oracle checks 21888, diagnostics 2656 and
+LBT checks 464. The four QR/positive-QR/LQ/QL-RQ C runners pass again after
+explicit initialization-loop braces required by GCC -Werror. Production Rust
+and the optimized DLL are unchanged; the changed test sources require a fresh
+immutable full run. The failed run is not published as successful evidence.
