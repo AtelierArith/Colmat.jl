@@ -557,8 +557,71 @@ macro_rules! rank_two_export {
         }
     }};
 }
+
+fn packed_ok<T>(n: i64, argument: i32) -> bool {
+    let count = n as u128 * (n as u128 + 1) / 2;
+    if count > isize::MAX as u128 / core::mem::size_of::<T>() as u128 {
+        crate::invalid(argument);
+        return false;
+    }
+    true
+}
+unsafe fn conjugate_vector<T: Scalar>(n: isize, x: *mut T, inc: isize) {
+    let start = crate::kernels::start(n, inc);
+    for j in 0..n {
+        let p = x.offset(start + j * inc);
+        *p = (*p).cj();
+    }
+}
+macro_rules! compact_triangle_export {
+    ($p:ident,$t:ty,$i:ty,$fs:tt,$cs:tt,$band:ident,$packed:ident) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $band $cs>](order:i32,u:i32,t:i32,d:i32,n:$i,k:$i,a:*const $t,lda:$i,x:*mut $t,inc:$i) {
+            if !matches!(order,101|102){crate::invalid(1);return;}
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(2);return;};
+            let Some(mut t)=cblas_trans(t) else {crate::invalid(3);return;};
+            let Some(d)=cblas_diag(d) else {crate::invalid(4);return;};
+            if n<0 {crate::invalid(5);return;}
+            if k<0 {crate::invalid(6);return;}
+            let Some(rows)=(k as i64).checked_add(1) else {crate::invalid(8);return;};
+            if !matrix_ok::<$t>(rows,n as i64,lda as i64,false,8){return;}
+            if inc==0 {crate::invalid(10);return;}
+            if !vector_ok::<$t>(n as i64,inc as i64,10){return;}
+            if n==0||(d==b'U'&&(n==1||k==0)){return;}
+            if order==101 {u=flip_uplo(u);t=transpose_operation(t);}
+            let conjugate=t==b'R';
+            if conjugate {conjugate_vector(n as isize,x,inc as isize);t=b'N';}
+            crate::structured_triangular::[<$p $band $fs>](&u,&t,&d,&n,&k,a,&lda,x,&inc);
+            if conjugate {conjugate_vector(n as isize,x,inc as isize);}
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $packed $cs>](order:i32,u:i32,t:i32,d:i32,n:$i,a:*const $t,x:*mut $t,inc:$i) {
+            if !matches!(order,101|102){crate::invalid(1);return;}
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(2);return;};
+            let Some(mut t)=cblas_trans(t) else {crate::invalid(3);return;};
+            let Some(d)=cblas_diag(d) else {crate::invalid(4);return;};
+            if n<0 {crate::invalid(5);return;}
+            if inc==0 {crate::invalid(8);return;}
+            if !packed_ok::<$t>(n as i64,5)||!vector_ok::<$t>(n as i64,inc as i64,8){return;}
+            if n==0||(d==b'U'&&n==1){return;}
+            if order==101 {u=flip_uplo(u);t=transpose_operation(t);}
+            let conjugate=t==b'R';
+            if conjugate {conjugate_vector(n as isize,x,inc as isize);t=b'N';}
+            crate::structured_triangular::[<$p $packed $fs>](&u,&t,&d,&n,a,x,&inc);
+            if conjugate {conjugate_vector(n as isize,x,inc as isize);}
+        }
+    }};
+}
 macro_rules! interface {
     ($i:ty,$fs:tt,$cs:tt) => {
+        compact_triangle_export!(s, f32, $i, $fs, $cs, tbmv, tpmv);
+        compact_triangle_export!(s, f32, $i, $fs, $cs, tbsv, tpsv);
+        compact_triangle_export!(d, f64, $i, $fs, $cs, tbmv, tpmv);
+        compact_triangle_export!(d, f64, $i, $fs, $cs, tbsv, tpsv);
+        compact_triangle_export!(c, c32, $i, $fs, $cs, tbmv, tpmv);
+        compact_triangle_export!(c, c32, $i, $fs, $cs, tbsv, tpsv);
+        compact_triangle_export!(z, c64, $i, $fs, $cs, tbmv, tpmv);
+        compact_triangle_export!(z, c64, $i, $fs, $cs, tbsv, tpsv);
         rank_k_export!(
             s,
             f32,
@@ -756,6 +819,9 @@ mod symmetric_tests;
 
 #[cfg(test)]
 mod rank_tests;
+
+#[cfg(test)]
+mod compact_tests;
 
 #[cfg(test)]
 mod tests {

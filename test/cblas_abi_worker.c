@@ -18,6 +18,8 @@ typedef void (*hemm64)(int,int,int,int64_t,int64_t,const void *,const void *,int
 typedef void (*her64)(int,int,int64_t,double,const void *,int64_t,void *,int64_t);
 typedef void (*herk64)(int,int,int,int64_t,int64_t,double,const void *,int64_t,double,void *,int64_t);
 typedef void (*her2k64)(int,int,int,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,double,void *,int64_t);
+typedef void (*tp64)(int,int,int,int,int64_t,const void *,void *,int64_t);
+typedef void (*tb64)(int,int,int,int,int64_t,int64_t,const void *,int64_t,void *,int64_t);
 
 int main(int argc,char **argv) {
     if (argc!=2) return 2;
@@ -33,6 +35,10 @@ int main(int argc,char **argv) {
     ENTRY(her64,cblas_zher64_);
     ENTRY(herk64,cblas_zherk64_);
     ENTRY(her2k64,cblas_zher2k64_);
+    ENTRY(tp64,cblas_ztpmv64_);
+    ENTRY(tp64,cblas_ztpsv64_);
+    ENTRY(tb64,cblas_ztbmv64_);
+    ENTRY(tb64,cblas_ztbsv64_);
     const float complex xf[]={1+2*I,3-I},yf[]={2-I,-1+3*I};
     const double complex xd[]={1+2*I,3-I},yd[]={2-I,-1+3*I};
     assert(cabsf(cblas_cdotu(2,xf,1,yf,1)-(xf[0]*yf[0]+xf[1]*yf[1]))<1e-5f);
@@ -73,6 +79,21 @@ int main(int argc,char **argv) {
         assert(cabs(rank2_c[row*3+col]-expected)<1e-12);
     }
     assert(rank2_c[2]==97&&rank2_c[3]==89&&rank2_c[5]==97);
+    const double complex packed[]={2,1+2*I,3};
+    const double complex band[]={2,1+2*I,97,3,NAN,97};
+    double complex compact_x[]={2-I,1+I};
+    cblas_ztpmv64_(101,121,114,131,2,packed,compact_x,-1);
+    assert(cabs(compact_x[0]-(6-3*I))<1e-12);
+    assert(cabs(compact_x[1]-(2-3*I))<1e-12);
+    cblas_ztpsv64_(101,121,114,131,2,packed,compact_x,-1);
+    assert(cabs(compact_x[0]-(2-I))<1e-12);
+    assert(cabs(compact_x[1]-(1+I))<1e-12);
+    cblas_ztbmv64_(101,121,114,131,2,1,band,3,compact_x,-1);
+    assert(cabs(compact_x[0]-(6-3*I))<1e-12);
+    assert(cabs(compact_x[1]-(2-3*I))<1e-12);
+    cblas_ztbsv64_(101,121,114,131,2,1,band,3,compact_x,-1);
+    assert(cabs(compact_x[0]-(2-I))<1e-12);
+    assert(cabs(compact_x[1]-(1+I))<1e-12);
     assert(dlclose(library)==0);
     puts("CBLAS C ABI: complex returns, size_t indices, ILP64 enums and coefficients passed");
     return 0;
