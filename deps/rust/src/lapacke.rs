@@ -9,6 +9,7 @@ mod lauum;
 mod lq;
 mod positive_qr;
 mod qr;
+mod reverse_qr;
 mod self_adjoint;
 mod self_adjoint_range;
 mod svd;

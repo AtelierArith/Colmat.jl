@@ -1,9 +1,10 @@
 # Issue #288: QL/RQ C factorization adapters
 
 Status: Fortran empty-work correction passes independent boundary regressions;
-C adapters and full-suite evidence remain pending.
-Issue #288 remains open. The planned GEQLF/GEQL2/GERQF/GERQ2 high/work entries
-add 32 names to the preceding 212-name candidate. This is staged scope; main
+C adapters pass focused numerical and independent C checks. Typed tracing,
+optimized repetition and full-suite evidence remain pending.
+Issue #288 remains open. The planned GEQLF/GERQF high/work entries
+add 16 names to the preceding 212-name candidate. This is staged scope; main
 has fewer entries until each validated candidate is merged.
 
 Reference LAPACK v3.12.1
@@ -36,3 +37,21 @@ minima separate. The MWE now matches independent OpenBLAS. New checks pass
 independent ILP64 OpenBLAS, including LWORK=-1/0/1/3 and guarded unused arrays.
 Existing factor/Q interoperability passes 162624 checks, diagnostics and
 prefix storage pass 2240, and LBT calls pass 352.
+
+The authoritative canonical LBT inventory contains GEQLF/GERQF high/work
+entries, but no LAPACKE GEQL2/GERQ2 entries. C implementation and tracing
+therefore cover only the sixteen canonical names. The existing unblocked
+Fortran routines and their independent regressions remain in scope.
+
+Sixteen GEQLF/GERQF C adapters share checked layout conversion and NaN policy
+with QR while delegating family-specific WORK validation to the corrected
+Fortran boundary, preserving its WORK write on LWORK errors. Numerical checks
+pass 87552 assertions for all scalar types, both layouts and integer ABIs,
+high/work and direct/LBT, empty/scalar/rectangular/deficient inputs and extreme
+scales. Independently generated Q consumes own factors and own Q consumes
+reference factors; QL/RQ triangular offsets and orthogonality are verified.
+The independent C11 caller verifies all sixteen names with explicit prototypes
+and OpenBLAS Q consumers, padding/TAU/WORK guards, empty queries, diagnostics,
+NaN policy and signed ILP64 values outside int32. Its Julia runner passes two
+checks. The candidate extends 212 names to 228; 1388 original-scope names plus
+the separate 20 Rook C targets remain. No full-suite proof is claimed yet.

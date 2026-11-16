@@ -141,6 +141,10 @@ class ExecutionEvidenceTests(unittest.TestCase):
 
     def add_lapacke(self):
         declarations = {
+            'LAPACKE_dgeqlf': ('geqlf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dgerqf': ('gerqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dgeqlf_work': ('geqlf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgerqf_work': ('gerqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_dgelqf': ('gelqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgelqf_work': ('gelqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_zgelq2': ('gelq2', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
@@ -254,6 +258,8 @@ class ExecutionEvidenceTests(unittest.TestCase):
             ('LAPACKE_dgeqrfp_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_zgeqrfp', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_dgeqrf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_dgeqlf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_dgerqf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_zgeqr2', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_dlauum', lambda s: s.replace('Int64','Int32')),
             ('LAPACKE_zlauum_work', lambda s: s.replace('Ptr{ComplexF64}','Ptr{Float64}')),
