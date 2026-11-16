@@ -55,3 +55,8 @@ and OpenBLAS Q consumers, padding/TAU/WORK guards, empty queries, diagnostics,
 NaN policy and signed ILP64 values outside int32. Its Julia runner passes two
 checks. The candidate extends 212 names to 228; 1388 original-scope names plus
 the separate 20 Rook C targets remain. No full-suite proof is claimed yet.
+
+Rust full-suite checks pass 460 tests. Completed-call tracing validates all
+228 names with 912 typed name/ABI/route observations and 4566 gate checks.
+The focused evidence explicitly records `full_suite_passed=false`. Optimized
+repetition and immutable full package evidence remain required.
