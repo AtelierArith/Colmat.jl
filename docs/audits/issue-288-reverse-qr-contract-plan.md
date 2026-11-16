@@ -60,3 +60,9 @@ Rust full-suite checks pass 460 tests. Completed-call tracing validates all
 228 names with 912 typed name/ABI/route observations and 4566 gate checks.
 The focused evidence explicitly records `full_suite_passed=false`. Optimized
 repetition and immutable full package evidence remain required.
+
+Optimized repetition passes all numerical, independent C and 912 typed
+observations, including 4566 completed-call gate checks. Optimized DLL SHA-256:
+`6ce7c8890bd5d74821ce79a8057e8fad21588fe7b4e9c95e86356a9b944b048e`.
+Registration is 1710 forwards per integer ABI. The source is being frozen for
+full package validation; published full-suite proof remains pending.
