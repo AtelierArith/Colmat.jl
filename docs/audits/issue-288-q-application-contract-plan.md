@@ -65,3 +65,16 @@ reference variants return one. This requires a Colmat.jl Fortran empty-return
 correction. Query results are algorithm-specific (own three, OpenBLAS 4256 in
 this configuration); query size differences are not treated as this defect.
 Full scalar/ABI/shape coverage must accompany the correction before publication.
+
+The own Fortran correction returns WORK(1)=1 after an empty execution for all
+four orientations. QR/LQ also return one for nonempty K=0; QL/RQ retain their
+own algorithm workspace value for nonempty K=0. Query behavior and minimum
+WORK validation remain separate. Reference QL/RQ empty queries return one
+even when their argument validation still requires NW; tests record this
+query/minimum distinction rather than assuming queried size is the minimum.
+Independent boundary checks pass 19265 assertions across all four scalar
+types, both own integer ABIs, all orientations, SIDE=L/R and legal transpose
+flags, empty/nonempty K=0, query, insufficient/minimal/oversized WORK, INFO,
+queryable diagnostics and guarded unused A/TAU/C/WORK. Rust full-suite checks
+pass 460 tests. Existing Fortran QR/LQ/QL/RQ regressions are being repeated.
+C application adapters and immutable full-suite proof remain pending.

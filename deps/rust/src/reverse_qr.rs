@@ -324,6 +324,9 @@ unsafe fn apply_driver<T: Scalar, I: LapackInt>(
         }
     }
     if m == 0 || n == 0 || k == 0 {
+        if (m == 0 || n == 0) && lwork.is_some() {
+            *work = T::o();
+        }
         return;
     }
     if !matrix_addressable::<T>(k, 1, 1) {
