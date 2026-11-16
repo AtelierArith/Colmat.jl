@@ -56,3 +56,15 @@ matching that reference unit-stride-checking behavior is made.
 Registration/evidence integration, optimized-release verification and a full
 immutable package run remain pending. These focused checks are not a full-suite
 artifact and do not establish completion of Issue #288.
+
+The optimized release also passes the numerical and independent C checks.
+Focused tracing validates all 92 currently implemented numerical names and
+all 368 ABI/route combinations; the completed-call gate passes 1,846 checks.
+The actual registered count is 1,574 for each ABI and all 15 inventory checks
+pass. The focused artifact explicitly remains a non-full-suite result.
+
+Before the new full run, the prior successful 88-entry snapshot is backed up
+and temporarily removed to bootstrap the actual registration table, then
+restored as stale evidence. It must be replaced only after a successful full
+Pkg.test whose 249 production/test/worker source hashes, manifest, registration
+digest and release DLL all match the frozen preflight.
