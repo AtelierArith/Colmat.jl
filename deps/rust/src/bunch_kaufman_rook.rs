@@ -1,4 +1,7 @@
 //! ROOK uses two independently encoded swaps for each two-column pivot.
+//! Storage reference: LAPACK 3.12.1 DSYTRF_ROOK, IPIV contract:
+//! https://netlib.org/lapack/explore-html/db/df4/dsytrf__rook_8f_source.html
+//! Numerical operations compose the pinned colmat public LBLT APIs.
 use super::*;
 
 fn pack_lower_rook<T: ReflectorScalar>(factors: &Factors<T>) -> (Mat<T>, Vec<isize>) {

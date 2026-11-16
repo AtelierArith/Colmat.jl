@@ -26,6 +26,41 @@ fn native_factor_with_pivoting<T: ReflectorScalar>(
         cholesky_in_place, cholesky_in_place_scratch, LbltParams,
     };
     let n = matrix.nrows();
+    // Symmetric congruence scaling prevents reciprocal overflow while native
+    // factorization updates rows after a nonzero subnormal pivot. Only rows
+    // whose whole input magnitude is subnormal are scaled; normal inputs keep
+    // the original factorization units and pivot decisions.
+    let minimum_normal = T::SAFE * (T::EPS / 2.0);
+    let mut scales = Vec::new();
+    for i in 0..n {
+        let magnitude = (0..n).fold(0.0f64, |m, j| {
+            m.max(matrix[(i, j)].re().abs())
+                .max(matrix[(i, j)].im().abs())
+        });
+        if magnitude > 0.0 && magnitude < minimum_normal {
+            if scales.is_empty() {
+                scales = vec![1.0; n];
+            }
+            let mut normalized = magnitude;
+            let mut scale = 1.0;
+            while normalized < 1.0 {
+                normalized *= 4.0;
+                scale *= 2.0;
+            }
+            scales[i] = scale;
+        }
+    }
+    if !scales.is_empty() {
+        for j in 0..n {
+            for i in 0..n {
+                let z = matrix[(i, j)];
+                matrix[(i, j)] = T::parts(
+                    (z.re() * scales[i]) * scales[j],
+                    (z.im() * scales[i]) * scales[j],
+                );
+            }
+        }
+    }
     let mut subdiagonal = Diag::<T>::zeros(n);
     let mut permutation = vec![0_usize; n];
     let mut inverse = vec![0_usize; n];
@@ -50,6 +85,30 @@ fn native_factor_with_pivoting<T: ReflectorScalar>(
             params,
         );
     });
+    if !scales.is_empty() {
+        // P S A S P^H = L' D' L'^H. With R = P S P^H, restore
+        // L = R^-1 L' R and D = R^-1 D' R^-1 componentwise.
+        for j in 0..n {
+            let column_scale = scales[permutation[j]];
+            matrix[(j, j)] = T::real((matrix[(j, j)].re() / column_scale) / column_scale);
+            for i in j + 1..n {
+                let row_scale = scales[permutation[i]];
+                let z = matrix[(i, j)];
+                matrix[(i, j)] = T::parts(
+                    (z.re() * column_scale) / row_scale,
+                    (z.im() * column_scale) / row_scale,
+                );
+            }
+            if subdiagonal[j] != T::z() {
+                let z = subdiagonal[j];
+                let row_scale = scales[permutation[j + 1]];
+                subdiagonal[j] = T::parts(
+                    (z.re() / row_scale) / column_scale,
+                    (z.im() / row_scale) / column_scale,
+                );
+            }
+        }
+    }
     Factors {
         matrix,
         subdiagonal,
@@ -58,6 +117,23 @@ fn native_factor_with_pivoting<T: ReflectorScalar>(
     }
 }
 fn native_solve<T: ReflectorScalar>(factors: &Factors<T>, rhs: &mut Mat<T>) {
+    let minimum_normal = T::SAFE * (T::EPS / 2.0);
+    let mut i = 0;
+    let mut risky = false;
+    while i < factors.matrix.nrows() {
+        let pair = factors.subdiagonal[i] != T::z();
+        let pivot = if pair {
+            factors.subdiagonal[i].magnitude()
+        } else {
+            factors.matrix[(i, i)].magnitude()
+        };
+        risky |= pivot > 0.0 && pivot < minimum_normal;
+        i += if pair { 2 } else { 1 };
+    }
+    if risky {
+        scaled_block_solve(factors, rhs);
+        return;
+    }
     use colmat::linalg::cholesky::lblt::solve::{solve_in_place, solve_in_place_scratch};
     let n = factors.matrix.nrows();
     let columns = rhs.ncols();
@@ -76,6 +152,85 @@ fn native_solve<T: ReflectorScalar>(factors: &Factors<T>, rhs: &mut Mat<T>) {
             MemStack::new(&mut mem),
         );
     });
+}
+
+// Public LBLT solve forms reciprocals of D before multiplying the RHS. For
+// subnormal blocks that can overflow although D^-1 * RHS is representable.
+// Compose public unit-triangular solves with separately scaled D/RHS blocks.
+// This shared adapter also protects the ordinary and packed BK entry points.
+fn scaled_block_solve<T: ReflectorScalar>(factors: &Factors<T>, rhs: &mut Mat<T>) {
+    use colmat::linalg::triangular_solve::{
+        solve_unit_lower_triangular_in_place_with_conj,
+        solve_unit_upper_triangular_in_place_with_conj,
+    };
+    let n = factors.matrix.nrows();
+    let columns = rhs.ncols();
+    let mut x = Mat::from_fn(n, columns, |i, j| rhs[(factors.permutation[i], j)]);
+    crate::threading::with_par(|par| {
+        solve_unit_lower_triangular_in_place_with_conj(
+            factors.matrix.as_ref(),
+            colmat::Conj::No,
+            x.as_mut(),
+            par,
+        );
+    });
+    let mut normalized = Factors {
+        matrix: Mat::<T>::zeros(n, n),
+        subdiagonal: Diag::<T>::zeros(n),
+        permutation: (0..n).collect(),
+        inverse: (0..n).collect(),
+    };
+    let small = (T::SAFE * (T::EPS / 2.0)).sqrt() / T::EPS;
+    let large = 1.0 / small;
+    let mut i = 0;
+    while i < n {
+        let pair = factors.subdiagonal[i] != T::z();
+        let size = if pair { 2 } else { 1 };
+        let mut magnitude = if pair {
+            factors.subdiagonal[i].magnitude()
+        } else {
+            factors.matrix[(i, i)].magnitude()
+        };
+        let mut scale = 1.0;
+        if magnitude > 0.0 && magnitude.is_finite() {
+            while magnitude < small {
+                magnitude *= 2.0;
+                scale *= 2.0;
+            }
+            while magnitude > large {
+                magnitude *= 0.5;
+                scale *= 0.5;
+            }
+        }
+        for row in i..i + size {
+            normalized.matrix[(row, row)] = T::real(factors.matrix[(row, row)].re() * scale);
+            for j in 0..columns {
+                let z = x[(row, j)];
+                x[(row, j)] = T::parts(z.re() * scale, z.im() * scale);
+            }
+        }
+        if pair {
+            let z = factors.subdiagonal[i];
+            normalized.subdiagonal[i] = T::parts(z.re() * scale, z.im() * scale);
+        }
+        i += size;
+    }
+    // D-only factors have zero strict L and identity permutation. Their
+    // normalized nonzero pivots take the ordinary public native solve path.
+    native_solve(&normalized, &mut x);
+    crate::threading::with_par(|par| {
+        solve_unit_upper_triangular_in_place_with_conj(
+            factors.matrix.as_ref().transpose(),
+            colmat::Conj::Yes,
+            x.as_mut(),
+            par,
+        );
+    });
+    for i in 0..n {
+        for j in 0..columns {
+            rhs[(factors.permutation[i], j)] = x[(i, j)];
+        }
+    }
 }
 
 #[cfg(test)]
@@ -699,3 +854,70 @@ mod packed_tests {
 
 #[path = "bunch_kaufman_rook.rs"]
 mod rook;
+
+#[cfg(test)]
+mod subnormal_block_regression {
+    use super::*;
+    fn check<T: ReflectorScalar>() {
+        let tiny = T::SAFE * (T::EPS / 2.0) * T::EPS * 1024.0;
+        for pair in [false, true] {
+            let mut matrix = Mat::<T>::zeros(2, 2);
+            let mut subdiagonal = Diag::<T>::zeros(2);
+            let mut original = Mat::<T>::zeros(2, 2);
+            if pair {
+                subdiagonal[0] = T::parts(tiny, if T::COMPLEX { tiny / 2.0 } else { 0.0 });
+                original[(1, 0)] = subdiagonal[0];
+                original[(0, 1)] = subdiagonal[0].cj();
+            } else {
+                for i in 0..2 {
+                    matrix[(i, i)] = T::real(tiny);
+                    original[(i, i)] = T::real(tiny);
+                }
+            }
+            let factors = Factors {
+                matrix,
+                subdiagonal,
+                permutation: vec![0, 1],
+                inverse: vec![0, 1],
+            };
+            native_solve(&factors, &mut original);
+            for j in 0..2 {
+                for i in 0..2 {
+                    assert!(
+                        (original[(i, j)] - if i == j { T::o() } else { T::z() }).magnitude()
+                            < 100.0 * T::EPS
+                    );
+                }
+            }
+        }
+        // A tiny diagonal inside a normal two-column block must not be
+        // misclassified as a separate pivot (and recursively rescaled).
+        let mut matrix = Mat::<T>::zeros(2, 2);
+        matrix[(1, 1)] = T::real(tiny);
+        let mut subdiagonal = Diag::<T>::zeros(2);
+        subdiagonal[0] = T::o();
+        let mut original = Mat::from_fn(2, 2, |i, j| if i == j { matrix[(i, i)] } else { T::o() });
+        let factors = Factors {
+            matrix,
+            subdiagonal,
+            permutation: vec![0, 1],
+            inverse: vec![0, 1],
+        };
+        native_solve(&factors, &mut original);
+        for j in 0..2 {
+            for i in 0..2 {
+                assert!(
+                    (original[(i, j)] - if i == j { T::o() } else { T::z() }).magnitude()
+                        < 100.0 * T::EPS
+                );
+            }
+        }
+    }
+    #[test]
+    fn finite_subnormal_block_solutions_four_types() {
+        check::<f32>();
+        check::<f64>();
+        check::<colmat::c32>();
+        check::<colmat::c64>();
+    }
+}

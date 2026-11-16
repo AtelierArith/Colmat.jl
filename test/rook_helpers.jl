@@ -62,13 +62,14 @@ for (T, p, k) in (
         a::Matrix{$T},
         ::Type{$J};
         uplo=('L'),
+        n=size(a, 2),
+        lda=max(1, stride(a, 2)),
         unblocked=false,
         lwork=1,
         library=Colmat.backend_library(),
         pointer=nothing,
     )
-        n=size(a, 2)
-        pg, piv=rook_storage($J, n)
+        pg, piv=rook_storage($J, size(a, 2))
         wg, work=rook_storage($T, max(1, lwork))
         ig, info=rook_storage($J, 1)
         f=if isnothing(pointer)
@@ -86,7 +87,7 @@ for (T, p, k) in (
                 uplo,
                 n,
                 a,
-                max(1, stride(a, 2)),
+                lda,
                 piv,
                 info,
                 1,
@@ -109,7 +110,7 @@ for (T, p, k) in (
                 uplo,
                 n,
                 a,
-                max(1, stride(a, 2)),
+                lda,
                 piv,
                 work,
                 lwork,
@@ -127,11 +128,13 @@ for (T, p, k) in (
         piv::Vector{$J},
         b::Matrix{$T};
         uplo=('L'),
+        n=size(a, 2),
+        lda=max(1, stride(a, 2)),
+        nrhs=size(b, 2),
+        ldb=max(1, stride(b, 2)),
         library=Colmat.backend_library(),
         pointer=nothing,
     )
-        n=size(a, 2)
-        nrhs=size(b, 2)
         ig, info=rook_storage($J, 1)
         old=copy(piv)
         f=if isnothing(pointer)
@@ -158,10 +161,10 @@ for (T, p, k) in (
             n,
             nrhs,
             a,
-            max(1, stride(a, 2)),
+            lda,
             piv,
             b,
-            max(1, stride(b, 2)),
+            ldb,
             info,
             1,
         )
@@ -173,11 +176,12 @@ for (T, p, k) in (
         a::Matrix{$T},
         piv::Vector{$J};
         uplo=('L'),
+        n=size(a, 2),
+        lda=max(1, stride(a, 2)),
         library=Colmat.backend_library(),
         pointer=nothing,
     )
-        n=size(a, 2)
-        wg, work=rook_storage($T, n)
+        wg, work=rook_storage($T, size(a, 2))
         ig, info=rook_storage($J, 1)
         old=copy(piv)
         f=if isnothing(pointer)
@@ -192,7 +196,7 @@ for (T, p, k) in (
             uplo,
             n,
             a,
-            max(1, stride(a, 2)),
+            lda,
             piv,
             work,
             info,
@@ -208,13 +212,15 @@ for (T, p, k) in (
         b::Matrix{$T},
         ::Type{$J};
         uplo=('L'),
+        n=size(a, 2),
+        lda=max(1, stride(a, 2)),
+        nrhs=size(b, 2),
+        ldb=max(1, stride(b, 2)),
         lwork=1,
         library=Colmat.backend_library(),
         pointer=nothing,
     )
-        n=size(a, 2)
-        nrhs=size(b, 2)
-        pg, piv=rook_storage($J, n)
+        pg, piv=rook_storage($J, size(a, 2))
         wg, work=rook_storage($T, max(1, lwork))
         ig, info=rook_storage($J, 1)
         f=if isnothing(pointer)
@@ -243,10 +249,10 @@ for (T, p, k) in (
             n,
             nrhs,
             a,
-            max(1, stride(a, 2)),
+            lda,
             piv,
             b,
-            max(1, stride(b, 2)),
+            ldb,
             work,
             lwork,
             info,
@@ -259,7 +265,7 @@ for (T, p, k) in (
     end
 end
 
-function rook_pointer(T, J, operation, route)
+function rook_pointer(T, J, operation, route; classic=false)
     prefix=if T==Float32
         "s"
     elseif T==Float64
@@ -270,7 +276,7 @@ function rook_pointer(T, J, operation, route)
         "z"
     end
     kind=T<:Real ? "sy" : "he"
-    stem=prefix*kind*operation*"_rook"
+    stem=prefix*kind*operation*(classic ? "" : "_rook")
     suffix=J==Int32 ? "_" : "_64_"
     native=Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), stem*suffix)
     @test BLAS.lbt_get_forward(stem*"_", J==Int32 ? :lp64 : :ilp64)==native
@@ -283,7 +289,7 @@ end
 
 # Independent elementary-matrix product: multiply each step's permutations and
 # unit triangular factor, then the explicit block diagonal D and its adjoint.
-function rook_reconstruct(a, piv, uplo)
+function rook_reconstruct(a, piv, uplo; classic=false)
     T=eltype(a)
     n=length(piv)
     f=Matrix{T}(I, n, n)
@@ -294,8 +300,10 @@ function rook_reconstruct(a, piv, uplo)
         other=k+(uplo=='L' ? 1 : -1)
         columns=pair ? (k, other) : (k,)
         for column in columns
-            pivot=abs(Int(piv[column]))
-            f[:, [column, pivot]]=f[:, [pivot, column]]
+            if !(classic && pair && column==k)
+                pivot=abs(Int(piv[column]))
+                f[:, [column, pivot]]=f[:, [pivot, column]]
+            end
             d[column, column]=real(a[column, column])
         end
         if pair
