@@ -3,7 +3,13 @@ use super::{
     ge_nancheck, row_to_column, self_adjoint::zeros, LAPACKE_get_nancheck, COL_MAJOR, ROW_MAJOR,
 };
 use crate::kernels::Scalar;
-fn geometry(layout: i32, m: i64, n: i64, lda: i64, lwork: Option<i64>) -> Result<(), i64> {
+pub(super) fn geometry(
+    layout: i32,
+    m: i64,
+    n: i64,
+    lda: i64,
+    lwork: Option<i64>,
+) -> Result<(), i64> {
     if !matches!(layout, ROW_MAJOR | COL_MAJOR) {
         return Err(-1);
     }
@@ -24,7 +30,7 @@ fn geometry(layout: i32, m: i64, n: i64, lda: i64, lwork: Option<i64>) -> Result
     }
     Ok(())
 }
-unsafe fn work<T: Scalar>(
+pub(super) unsafe fn work<T: Scalar>(
     layout: i32,
     m: i64,
     n: i64,
@@ -57,7 +63,7 @@ unsafe fn work<T: Scalar>(
     }
     info
 }
-unsafe fn high_nan<T: Scalar>(
+pub(super) unsafe fn high_nan<T: Scalar>(
     layout: i32,
     m: i64,
     n: i64,

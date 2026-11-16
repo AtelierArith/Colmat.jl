@@ -1,0 +1,40 @@
+# Issue #288: GEQRFP C adapters
+
+Status: focused numerical and C ABI checks pass; full-suite evidence is pending.
+Issue #288 remains open. Eight S/D/C/Z high/work names extend the preceding
+188-name candidate to 196 original-scope names. The remaining original scope is
+1420 names, with the separate 20 Rook C targets still additional work.
+
+Reference LAPACK v3.12.1
+[GEQRFP work](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_zgeqrfp_work.c)
+has the same C argument types as GEQRF work, but its numerical contract requires
+real nonnegative R diagonals. The
+[Fortran implementation](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/SRC/zgeqrfp.f)
+also sets minimal and queried WORK to one whenever min(M,N)=0. This differs
+from ordinary GEQRF's N-based minimum/query. For nonempty GEQRFP, minimum WORK
+is N. Row-major LDA diagnostics remain argument 5 before dimensions; insufficient
+WORK is -8 and high-level NaN A is -4. Layout conversion shares the preceding
+QR adapter and preserves compact Householder factors, complex TAU and padding.
+
+The executed `reproducers/geqrfp_empty_workspace.jl` exposed the existing shared
+Fortran boundary returning query 3 and rejecting LWORK=1 at M=0,N=3, while
+independent OpenBLAS returns/accepts one. The shared blocked export now selects
+the one-element empty minimum/query only for positive-diagonal variants.
+Ordinary GEQRF retains its own minimum/query. No native upstream source changed.
+
+Focused independent comparisons pass 51,264 Julia assertions for real/complex,
+both integer ABIs and layouts, high/work and DLL/LBT, empty/scalar/tall/wide,
+deficient and small/large-scale inputs. Native factors are consumed by reference
+ORGQR/UNGQR and reference factors by native Q generators; reconstruction,
+orthogonality and real nonnegative diagonals are checked. Exact empty query checks pass in the traced run.
+
+An independent C11 caller verifies all eight positive names with explicit
+prototypes, reconstruction, diagonal sign, complex TAU, guards, minimal work,
+empty query exactly one, diagnostic positions, NaN policy and ILP64 dimensions
+outside int32; it also repeats the baseline GEQR2 checks. Python execution
+fixtures pass 17 tests, including rejected TAU scalar and LWORK integer types.
+Typed completed-call tracing covers all 196 candidate names with 784 completed
+observations across both ABIs and routes; its call-site gate passes 3,926 checks.
+The Rust suite passes 460 tests. This focused evidence explicitly records
+`full_suite_passed=false`. Optimized repetition, immutable full package testing
+and source-bound evidence publication remain required.
