@@ -80,3 +80,7 @@ proof validates 1490 canonical entries (1106 Fortran LAPACK, 172 CBLAS,
 212 LAPACKE), with 5351 completed witnesses and 1694 forwards per ABI.
 The corrected portable fixtures and diagnostic isolation are covered by this
 current proof. CI artifacts and main integration remain required.
+
+Integration with merged PR #391 preserves every validated source hash and
+the optimized LQ DLL. Python 28, inventory 15 and documentation build pass
+after integration. CI provenance and final main merge remain required.
