@@ -1,5 +1,9 @@
 # Issue #288: GELQF/GELQ2 C adapters
 
+Status: immutable full package validation passes; source-bound execution
+evidence is imported. CI and integration remain pending.
+Issue #288: GELQF/GELQ2 C adapters
+
 Status: own Fortran empty-work correction and sixteen C adapters pass focused
 independent Julia checks. Independent C and typed tracing also pass; optimized repetition passes and full-suite proof remains pending.
 Issue #288 remains open. The sixteen S/D/C/Z high/work names extend 196 candidate names to 212, leaving
@@ -42,8 +46,7 @@ return one. Independent factors are mutually consumed by ORGLQ/UNGLQ to verify
 A=LQ and Q orthogonality. Numerical checks pass 78,912 assertions for all four
 scalar types, both integer ABIs and layouts, direct/LBT and high/work, empty,
 rectangular, deficient and very small/large inputs. Python signature fixtures
-pass 17 tests with distinct GELQF/GELQ2 work signatures. No full-suite evidence
-has been imported for this candidate.
+pass 17 tests with distinct GELQF/GELQ2 work signatures. The subsequent full-suite evidence for this candidate is imported.
 
 An independent C11 caller verifies all sixteen names, real/complex reflector
 reconstruction, orthogonality, empty/minimal workspace, guarded TAU/WORK,
@@ -55,5 +58,13 @@ records `full_suite_passed=false`; it is not a full-suite snapshot.
 Optimized repetition passes the numerical, independent C and all 848 typed
 observations. The call-site gate passes 4246 checks. The optimized DLL SHA-256
 is `87a0030b69a5044a1ea4df1c9f15e7e477d18feffa5759bb25f385be8558b146`.
-Registration is 1694 forwards per integer ABI. The source is being frozen for
-full package validation; published full-suite proof remains pending.
+Registration is 1694 forwards per integer ABI. The subsequent immutable full package run passes; source-bound evidence
+is imported.
+
+Full-suite proof is bound to `616d98a1220c26350e9f6d044f155584b59a9b30`
+and all 292 frozen sources, manifest, registration and optimized DLL. The
+imported proof validates 1490 canonical entries: 1106 Fortran LAPACK, 172 CBLAS
+and 212 LAPACKE, with 5351 completed witnesses. Python 28, inventory 15 and
+documentation builds pass. The repository evidence test now expects the
+current 212-entry scope; this metadata-only fix preserves every full-suite
+production/test source hash. CI and main integration remain required.
