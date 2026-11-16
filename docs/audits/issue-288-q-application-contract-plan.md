@@ -86,3 +86,14 @@ LQ then QL/RQ then Q-application boundary tests pass together: GELQS 40,
 empty LQ 768, QL/RQ factor interoperability 162624, diagnostics 2240, LBT 352,
 empty QL/RQ 1536 and Q-application boundaries 19265. This strengthens error
 checks and prevents prior calls contaminating later independent comparisons.
+
+The 32 C application adapters now pass 502208 independent numerical checks.
+Own results match both direct OpenBLAS application and explicit products with
+independently generated unitary Q. Coverage includes all scalar types, both
+ABIs/layouts, DLL/LBT, high/work, all four orientations, SIDE=L/R, legal
+transpose/adjoint flags, empty/scalar/rectangular C, K=0/partial/full, complex
+phase TAU, large/small C scales, const A/TAU, padding, query immutability and
+minimum WORK. Row conversion copies A and C without conjugation and copies
+back only C after nonnegative INFO. High NaN scans use logical Q order and
+preserve A/C/TAU diagnostic precedence. Independent C, typed tracing, optimized
+and immutable full-suite proof remain pending; no full proof is claimed.
