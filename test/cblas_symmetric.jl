@@ -1,57 +1,5 @@
 using Test, LinearAlgebra, Colmat
 
-cblas271_poison_diagonal(value::Real) = value
-cblas271_poison_diagonal(value::Complex{R}) where {R} = Complex{R}(real(value), R(NaN))
-function cblas271_symmetric_matrix(::Type{T}, n, u, k, hermitian) where {T}
-    return T[
-        if abs(i-j)>k
-            zero(T)
-        elseif i==j
-            T(2+i/7)
-        elseif (u==121&&i<j)||(u==122&&i>j)
-            cblas271_value(T, i, j, 1)
-        else
-            value=cblas271_value(T, j, i, 1)
-            hermitian ? conj(value) : value
-        end for i in 1:n, j in 1:n
-    ]
-end
-function cblas271_triangle_storage(matrix, order, u, storage, k; hermitian=false)
-    n=size(matrix, 1)
-    T=eltype(matrix)
-    stored(i, j) = hermitian&&i==j ? cblas271_poison_diagonal(matrix[i, j]) : matrix[i, j]
-    selected(i, j) = ((u==121&&i<=j)||(u==122&&i>=j))&&(storage!==:band||abs(i-j)<=k)
-    if storage===:packed
-        data=T[]
-        if order==101
-            for i in 1:n, j in 1:n
-                selected(i, j)&&push!(data, stored(i, j))
-            end
-        else
-            for j in 1:n, i in 1:n
-                selected(i, j)&&push!(data, stored(i, j))
-            end
-        end
-        append!(data, fill(T(97), 3))
-        return data, 0
-    end
-    ld=storage===:dense ? n+2 : k+3
-    data=fill(T(NaN), ld*n+3)
-    for i in 1:n, j in 1:n
-        if selected(i, j)
-            position=if storage===:dense
-                cblas271_matrix_index(order, ld, i, j)
-            elseif order==101
-                (i-1)*ld+(u==121 ? j-i : k+j-i)+1
-            else
-                (j-1)*ld+(u==121 ? k+i-j : i-j)+1
-            end
-            data[position]=stored(i, j)
-        end
-    end
-    return data, ld
-end
-
 for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
     J in (Int32, Int64)
 
@@ -231,8 +179,11 @@ end
                     @test all(eachindex(actual)) do index
                         if written[index]
                             isapprox(
-                            actual[index], expected[index]; atol=tolerance, rtol=tolerance
-                        )
+                                actual[index],
+                                expected[index];
+                                atol=tolerance,
+                                rtol=tolerance,
+                            )
                         else
                             actual[index]==expected[index]
                         end
@@ -305,8 +256,8 @@ end
                 @test all(eachindex(actual)) do index
                     if written[index]
                         isapprox(
-                        actual[index], expected[index]; atol=tolerance, rtol=tolerance
-                    )
+                            actual[index], expected[index]; atol=tolerance, rtol=tolerance
+                        )
                     else
                         actual[index]==expected[index]
                     end
