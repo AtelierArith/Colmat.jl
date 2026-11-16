@@ -1,11 +1,8 @@
 # Issue #288: GELQF/GELQ2 C adapters
 
-Status: immutable full package validation passes; source-bound execution
-evidence is imported. CI and integration remain pending.
-Issue #288: GELQF/GELQ2 C adapters
+Status: current immutable full package validation passes; source-bound
+evidence is imported. CI and main integration remain pending.
 
-Status: own Fortran empty-work correction and sixteen C adapters pass focused
-independent Julia checks. Independent C and typed tracing also pass; optimized repetition passes and full-suite proof remains pending.
 Issue #288 remains open. The sixteen S/D/C/Z high/work names extend 196 candidate names to 212, leaving
 1404 original-scope names plus the separate 20 Rook C targets. These staged
 candidates are not all merged yet.
@@ -68,3 +65,22 @@ and 212 LAPACKE, with 5351 completed witnesses. Python 28, inventory 15 and
 documentation builds pass. The repository evidence test now expects the
 current 212-entry scope; this metadata-only fix preserves every full-suite
 production/test source hash. CI and main integration remain required.
+
+The inherited QR, positive-QR and LQ C fixtures now use explicit outer loop
+braces for GCC -Werror. LQ invalid-work probes assert and consume their own
+thread-local diagnostics at the origin, preventing contamination of later
+tests. The LQ suite and all three independent C runners pass again. These
+test-source changes require fresh immutable full evidence; the earlier
+616d98a proof is historical and is not claimed for the updated source set.
+
+Current immutable full proof is bound to `b42c920fd6c69c96e5d2515b35e51b17aeb08f37`
+and all 292 frozen execution sources. HEAD, optimized DLL, manifest and
+registration remained unchanged through terminal-zero Pkg.test. The imported
+proof validates 1490 canonical entries (1106 Fortran LAPACK, 172 CBLAS,
+212 LAPACKE), with 5351 completed witnesses and 1694 forwards per ABI.
+The corrected portable fixtures and diagnostic isolation are covered by this
+current proof. CI artifacts and main integration remain required.
+
+Integration with merged PR #391 preserves every validated source hash and
+the optimized LQ DLL. Python 28, inventory 15 and documentation build pass
+after integration. CI provenance and final main merge remain required.
