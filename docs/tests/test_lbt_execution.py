@@ -177,6 +177,14 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_dgerqf': ('gerqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgeqlf_work': ('geqlf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_dgerqf_work': ('gerqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dtzrzf': ('tzrzf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dtzrzf_work': ('tzrzf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dormrz': ('ormrz', 'd', lambda j: f'(Int32, Int8, Int8, {j}, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dormrz_work': ('ormrz', 'd', lambda j: f'(Int32, Int8, Int8, {j}, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_ztzrzf': ('tzrzf', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_ztzrzf_work': ('tzrzf', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zunmrz': ('unmrz', 'z', lambda j: f'(Int32, Int8, Int8, {j}, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zunmrz_work': ('unmrz', 'z', lambda j: f'(Int32, Int8, Int8, {j}, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_dgeqp3': ('geqp3', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}})'),
             'LAPACKE_dgeqp3_work': ('geqp3', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_dgeqpf': ('geqpf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}})'),
@@ -311,6 +319,9 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.add_lapacke()
         self.validate()
         for symbol, replacement in (
+            ('LAPACKE_dormrz_work', lambda s: s.replace('Int64, Int64, Int64, Int64', 'Int64, Int64, Int64, Int32', 1)),
+            ('LAPACKE_zunmrz', lambda s: s.replace('Int8, Int8', 'Int8, Int32', 1)),
+            ('LAPACKE_ztzrzf_work', lambda s: s.replace('Ptr{ComplexF64}', 'Ptr{Float64}')),
             ('LAPACKE_dgeqp3', lambda s: s.replace('Ptr{Int64}', 'Ptr{Int32}')),
             ('LAPACKE_zgeqp3_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
             ('LAPACKE_dgeqpf_work', lambda s: s[:-1] + ', Int64)'),
@@ -378,7 +389,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 340)
+        self.assertEqual(len(lapacke_rows(rows)), 356)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))

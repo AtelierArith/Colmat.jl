@@ -97,6 +97,9 @@ def validate_lapacke_signature(row, witness):
         'potrf2': ['Int32', 'Int8', integer, t, integer],
         'potri': ['Int32', 'Int8', integer, t, integer],
         'lauum': ['Int32', 'Int8', integer, t, integer],
+        'tzrzf': ['Int32', integer, integer, t, integer, t],
+        'ormrz': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
+        'unmrz': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
         'geqp3': ['Int32', integer, integer, t, integer, pivot, t],
         'geqpf': ['Int32', integer, integer, t, integer, pivot, t],
         'geqrt': ['Int32', integer, integer, integer, t, integer, t, integer],
@@ -151,11 +154,11 @@ def validate_lapacke_signature(row, witness):
     if row['family'] not in args:
         raise ValueError(f'LAPACKE signature contract missing for {row["symbol"]}')
     expected = args[row['family']]
-    if row['family'] in ('geqrf', 'geqrfp', 'geqr2', 'gelqf', 'gelq2', 'geqlf', 'gerqf') and row['symbol'].endswith('_work'):
+    if row['family'] in ('geqrf', 'geqrfp', 'geqr2', 'gelqf', 'gelq2', 'geqlf', 'gerqf', 'tzrzf') and row['symbol'].endswith('_work'):
         expected = expected + [t] + ([integer] if row['family'] not in ('geqr2', 'gelq2') else [])
     if row['family'] in ('orgqr', 'ungqr', 'orglq', 'unglq', 'orgql', 'ungql', 'orgrq', 'ungrq') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
-    if row['family'] in ('ormqr', 'unmqr', 'ormlq', 'unmlq', 'ormql', 'unmql', 'ormrq', 'unmrq') and row['symbol'].endswith('_work'):
+    if row['family'] in ('ormqr', 'unmqr', 'ormlq', 'unmlq', 'ormql', 'unmql', 'ormrq', 'unmrq', 'ormrz', 'unmrz') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
     if row['family'] in ('geqp3', 'geqpf') and row['symbol'].endswith('_work'):
         expected = expected + [t] + ([integer] if row['family'] == 'geqp3' else [])

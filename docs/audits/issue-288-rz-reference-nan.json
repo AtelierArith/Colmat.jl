@@ -1,0 +1,161 @@
+{
+  "reference_version": "v3.12.1",
+  "numerical_work": "stubbed; policy-only probe",
+  "source_sha256": {
+    "sormrz": "a6ec0bee595599e0bad61c407e508a7ac46f465040cda6b6f37994f206c32880",
+    "dormrz": "381b2c67624f8083fe06c9f3f5a647714c3231a882ab7bb5738460196be3b64b",
+    "cunmrz": "be944a0cdfdacd753b873d39918088b53ed017ca7a24b92692a1a5b72a72ff9f",
+    "zunmrz": "f4286b3925a6d3c0829ae706a362f4f38f717a693cd307dec15a49ad621111a2"
+  },
+  "observations": [
+    {
+      "name": "sormrz",
+      "layout": 101,
+      "m": 3,
+      "n": 5,
+      "a_rows": 2,
+      "a_cols": 3,
+      "info": 0
+    },
+    {
+      "name": "sormrz",
+      "layout": 101,
+      "m": 5,
+      "n": 3,
+      "a_rows": 2,
+      "a_cols": 5,
+      "info": -8
+    },
+    {
+      "name": "sormrz",
+      "layout": 102,
+      "m": 3,
+      "n": 5,
+      "a_rows": 2,
+      "a_cols": 3,
+      "info": 0
+    },
+    {
+      "name": "sormrz",
+      "layout": 102,
+      "m": 5,
+      "n": 3,
+      "a_rows": 2,
+      "a_cols": 5,
+      "info": -8
+    },
+    {
+      "name": "dormrz",
+      "layout": 101,
+      "m": 3,
+      "n": 5,
+      "a_rows": 2,
+      "a_cols": 3,
+      "info": 0
+    },
+    {
+      "name": "dormrz",
+      "layout": 101,
+      "m": 5,
+      "n": 3,
+      "a_rows": 2,
+      "a_cols": 5,
+      "info": -8
+    },
+    {
+      "name": "dormrz",
+      "layout": 102,
+      "m": 3,
+      "n": 5,
+      "a_rows": 2,
+      "a_cols": 3,
+      "info": 0
+    },
+    {
+      "name": "dormrz",
+      "layout": 102,
+      "m": 5,
+      "n": 3,
+      "a_rows": 2,
+      "a_cols": 5,
+      "info": -8
+    },
+    {
+      "name": "cunmrz",
+      "layout": 101,
+      "m": 3,
+      "n": 5,
+      "a_rows": 2,
+      "a_cols": 3,
+      "info": 0
+    },
+    {
+      "name": "cunmrz",
+      "layout": 101,
+      "m": 5,
+      "n": 3,
+      "a_rows": 2,
+      "a_cols": 5,
+      "info": -8
+    },
+    {
+      "name": "cunmrz",
+      "layout": 102,
+      "m": 3,
+      "n": 5,
+      "a_rows": 2,
+      "a_cols": 3,
+      "info": 0
+    },
+    {
+      "name": "cunmrz",
+      "layout": 102,
+      "m": 5,
+      "n": 3,
+      "a_rows": 2,
+      "a_cols": 5,
+      "info": -8
+    },
+    {
+      "name": "zunmrz",
+      "layout": 101,
+      "m": 3,
+      "n": 5,
+      "a_rows": 2,
+      "a_cols": 3,
+      "info": 0
+    },
+    {
+      "name": "zunmrz",
+      "layout": 101,
+      "m": 5,
+      "n": 3,
+      "a_rows": 2,
+      "a_cols": 5,
+      "info": -8
+    },
+    {
+      "name": "zunmrz",
+      "layout": 102,
+      "m": 3,
+      "n": 5,
+      "a_rows": 2,
+      "a_cols": 3,
+      "info": 0
+    },
+    {
+      "name": "zunmrz",
+      "layout": 102,
+      "m": 5,
+      "n": 3,
+      "a_rows": 2,
+      "a_cols": 5,
+      "info": -8
+    }
+  ],
+  "run_id": 43904380466,
+  "source_revision": "a172fbb85de13d82ca0ed0c9b9997e7de51d4a4d",
+  "artifact_id": 14246265623,
+  "zip_sha256": "6ac5715b5d22473cc3eb1c3c70e3c45c94905a5ecef42a496465e4f253cdd306",
+  "full_suite_passed": false
+}

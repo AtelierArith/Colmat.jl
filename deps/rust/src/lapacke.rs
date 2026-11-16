@@ -14,6 +14,7 @@ mod q_application;
 mod q_generators;
 mod qr;
 mod reverse_qr;
+mod rz;
 mod self_adjoint;
 mod self_adjoint_range;
 mod svd;

@@ -1,8 +1,12 @@
 # Issue #288: pivoted QR C adapter contracts
 
-Status: source-bound immutable cloud full validation passes; proof is
-imported. Normal integration after merged PR #396 preserves all 318 frozen
-execution sources and the verified DLL. Final publication CI remains pending.
+Status: merged into main in PR #397 (e4b862143aaf4cc6b39cb59b78c1997d13b127ef).
+CI 43938478349 (Linux/macOS) and Documentation 43938477818 passed. Both
+downloaded artifacts validate 318 source hashes, 1618 canonical entries and
+5927 witnesses at test merge 449268c3f122b3566f5d5eda3856366bdab36f69.
+Its parents and tree match the reviewed head and base. The merged tree,
+verified optimized DLL and Python 28 post-merge checks pass. Local inventory
+verification remains live in macOS dyld startup.
 
 Issue #288 remains open.
 
