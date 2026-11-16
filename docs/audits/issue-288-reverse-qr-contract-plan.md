@@ -1,7 +1,7 @@
 # Issue #288: QL/RQ C factorization adapters
 
 Status: source-bound immutable cloud full validation passes; proof is
-imported. Final publication checks and CI/main integration remain pending.
+imported. Final PR CI and main integration remain pending.
 
 Issue #288 remains open. The planned GEQLF/GERQF high/work entries
 add 16 names to the preceding 212-name candidate. This is staged scope; main
@@ -96,3 +96,8 @@ ZIP/TOML digests and both CI/local DLL hashes are recorded in the adjacent
 provenance JSON. The published full run is Linux. This publication tree
 preserves the original local full-run HEAD/source and copied optimized DLL;
 final Linux/macOS PR CI and main merge remain required.
+
+Current-main integration preserves all 296 validated execution-source hashes
+and the optimized DLL. Python 28, inventory 15 and documentation build pass
+after integration. Final Linux/macOS PR artifact verification and main merge
+remain required.

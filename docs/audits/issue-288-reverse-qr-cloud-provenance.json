@@ -12,5 +12,12 @@
   "ci_library_sha256": "053110120d469ea0727e6bebfe19ac750ca3b6f0f7fce7623f2ea51663c64567",
   "full_suite_passed": true,
   "workflow_run_id": 43909442123,
-  "workflow_revision": "870502b447e85d873ec8afb784516fd3afcafab2"
+  "workflow_revision": "870502b447e85d873ec8afb784516fd3afcafab2",
+  "publication_checks": {
+    "python_tests": 28,
+    "julia_inventory_assertions": 15,
+    "documentation_build": "passed",
+    "execution_sources_unchanged": true,
+    "optimized_local_dll_unchanged": true
+  }
 }
