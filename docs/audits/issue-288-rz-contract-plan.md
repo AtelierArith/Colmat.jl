@@ -94,3 +94,10 @@ match INFO and WORK exactly and preserve arrays. Formal minimum workspace
 errors remain separate from successful empty query/execution WORK=1. Rust
 460 and existing RZ 1712 checks pass again. These are focused boundary and
 regression results, not immutable full-suite proof or new C numerical proof.
+
+A temporary workflow also runs full suites for exact frozen parent candidates
+618d002 (QL/RQ), 9c2c495 (Q generators) and 09aedc7 (pivoted QR), independently
+of the RZ source checkout. These jobs are triggered only by an explicit
+[frozen-suites] commit marker. Their results must match the recorded complete
+source maps before publication. The temporary workflow will be restored to
+the repository's ordinary CI before any RZ PR is opened.

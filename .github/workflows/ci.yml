@@ -8,6 +8,7 @@ permissions:
   contents: read
 jobs:
   contracts:
+    if: "!contains(github.event.head_commit.message, '[frozen-suites]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,4 +74,39 @@ jobs:
         with:
           name: rz-contract-probes
           path: contract-probes/
+          if-no-files-found: error
+  frozen-suite:
+    if: contains(github.event.head_commit.message, '[frozen-suites]')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: reverse-qr
+            revision: 618d0028da3407025105a857b22b0d01cb54bf93
+          - name: q-generators
+            revision: 9c2c495b0205021fdedc1030e51f98be5126979b
+          - name: pivoted-qr
+            revision: 09aedc796c0348e37486583cc03636b60d5ecdb2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.revision }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.13'
+      - uses: julia-actions/cache@v2
+      - name: Build exact frozen candidate
+        run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
+      - name: Rust verification
+        run: |
+          cargo fmt --manifest-path deps/rust/Cargo.toml --check
+          cargo test --manifest-path deps/rust/Cargo.toml --locked
+      - name: Immutable full Julia suite
+        run: julia --project -e 'using Pkg; Pkg.test(;allow_reresolve=false)'
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: frozen-full-${{ matrix.name }}
+          path: test-output/abi-execution.toml
           if-no-files-found: error
