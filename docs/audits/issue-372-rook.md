@@ -92,5 +92,15 @@ positive-definite matrices and known identity solutions, with uniform and mixed
 normal/subnormal row units. They test the scaling of actual triangular
 multipliers, not only block-diagonal D.
 
-Full package/standard regression and refreshed all-entry execution evidence
-are required for the final source before merging.
+Full `Pkg.test(; allow_reresolve=false)` passed at
+`1dd34ddf30a24143e75052972e48dd6ec18b16ad`, including standard BLAS/LAPACK and
+concurrent caller tests. Its 215-check provenance gate recorded 1,106 LAPACK
+canonical entries per integer ABI against all 208 source/build/test hashes.
+The imported snapshot binds those witnesses to the native pin, registration
+digest, manifest and actual DLL hash. Subsequent documentation/metadata edits
+reuse the result only when all recorded source hashes still match.
+Forwarding is 1,308 entries per ABI (202 BLAS and 1,106 LAPACK).
+
+After snapshot import, all 18 Python regressions, 15 actual-LBT inventory
+checks, the README example and the documentation build passed. The coverage
+doctest now expects the current 1,308 registrations per ABI.

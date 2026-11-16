@@ -1474,13 +1474,13 @@ query や参照しない IWORK slot、出力を元の実装が書かなかった
 最小 WORK、不正引数の順序、padding/整数 guard を検査します。独立参照と左右の残差・
 非ゼロ正規化・条件推定を比較し、LP64 の直接委譲はテスト専用 OpenBLAS32_jll でも検査します。
 ILP64 のみで LP64 を処理する構成、元の実装の消去と回復、初回登録前の欠落を独立プロセスで確認します。
-数値 API の依存 revision は `4e6ed0e34659147a5c744ab6431f150e78db6f82`、登録数は各 ABI 1,288 のままです。
+数値 API の依存 revision は `4e6ed0e34659147a5c744ab6431f150e78db6f82`、この #316 検証時点の登録数は各 ABI 1,288 です。
 
 
 ## Direct LP64/ILP64 execution evidence (#317)
 
 The normal full suite checks completed project-owned foreign calls for all
-1,086 forwarded LAPACK canonical entries in each integer ABI. The
+1,106 forwarded LAPACK canonical entries in each integer ABI. The
 [execution snapshot](../assets/lapack-abi-execution.json) records exact source
 and native revisions, platform, Julia version, binary hash, source hashes and
 individual DLL/LBT routes and signatures. Linux/macOS CI saves separate
@@ -1500,3 +1500,20 @@ all options, the identity of Netlib algorithms or native sanitizer coverage.
 The importer rejects stale production/worker/test sources, native revisions,
 manifests, registration inventories and missing integer ABIs. Other symbols
 remain `not_catalogued`, which does not mean they were never tested.
+
+
+## ROOK 因子と2つの swap index（#372）
+
+`SY/HE TRF_ROOK・TF2_ROOK・TRS_ROOK・TRI_ROOK・SV_ROOK` の20シンボルを、
+4型・両整数 ABI・UPLO 両方向で検証します。DLL と実際の LBT stub を呼び、
+native 因子を元の OpenBLAS solve/inverse に、元の因子を native に渡します。
+2列 pivot の両 swap が非自明になる連鎖、要素的な置換・三角行列の積による再構成、
+特異 INFO、query/minimum WORK、整数・padding 境界を含みます。
+
+subnormal の native 逆数化は非有限値を作る場合があり、実行済み MWE と改善案を
+[tensor4all/colmat-rs#212](https://github.com/tensor4all/colmat-rs/issues/212) に記録しています。
+adapter は公開数値 API の合成とスケーリングで保護します。通常・packed BK と共有し、
+異なる単位をまたぐ非零 L と、有限で既知の解も検証しています。
+元の OpenBLAS classic 因子化自体が失敗する subnormal 多 block の条件では、
+その出力を正解とせず、要素ごとの再構成と単位行列解で検査します。
+専用算法・同じ pivot 選択・性能や、表現範囲外の有限 inverse は主張しません。
