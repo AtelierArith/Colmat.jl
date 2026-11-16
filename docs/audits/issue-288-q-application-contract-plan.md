@@ -1,7 +1,9 @@
 # Issue #288: Q application C adapters
 
-Status: canonical scope and primary contract investigation; implementation
-and full-suite evidence pending. Issue #288 remains open.
+Status: current-source immutable full package validation passes; source-bound
+evidence is imported. CI and main integration remain pending.
+
+Issue #288 remains open.
 
 The canonical inventory contains 32 high/work names for real ORMQR/ORMLQ/
 ORMQL/ORMRQ and complex UNMQR/UNMLQ/UNMQL/UNMRQ. These follow the 260-name
@@ -116,3 +118,23 @@ rectangular C and every K up to Q order. It verifies const A/TAU against byte
 copies, C/WORK guards, query and error immutability, INFO precedence, A/C/TAU
 NaN order and signed ILP64 values outside int32. Typed completed-call tracing,
 optimized repetition and immutable full package proof remain required.
+
+Completed-call tracing verifies all 292 candidate names with 1168 typed
+name/ABI/route observations and 5846 gate checks. Focused evidence explicitly
+records `full_suite_passed=false`. High allocation respects both the query and
+SIDE-dependent minimum WORK; reference QL/RQ empty queries can report one
+below their argument-validation minimum, so the two quantities are not
+interchangeable. Optimized repetition and immutable full proof remain required.
+
+Optimized repetition passes all numerical, policy, independent C and 1168
+typed observations with 5846 gate checks. Optimized DLL SHA-256:
+`0bc1b452ee357cc43a5df9b87b482ddcfda20afc853c78bb146df7886658364b`.
+Registration is 1774 forwards per integer ABI. The source is being frozen for
+full package validation; no full-suite proof is claimed for this candidate.
+
+Current full-suite proof is bound to `39aa06e36fd6d4e6342596c40342d92d9f3c9018` and all
+306 frozen sources, optimized DLL, manifest and registration. The imported
+proof validates 1570 canonical entries: 1106 Fortran LAPACK, 172 CBLAS and
+292 LAPACKE, with 5727 completed witnesses. Python 28, inventory 15 and
+documentation build checks pass. All frozen source hashes and DLL remain
+unchanged. CI artifact provenance and main integration remain required.
