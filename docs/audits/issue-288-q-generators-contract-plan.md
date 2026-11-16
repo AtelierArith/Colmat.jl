@@ -61,3 +61,8 @@ Completed-call tracing verifies all 260 names with 1040 typed name/ABI/route
 observations and 5206 gate checks. Focused evidence explicitly records
 `full_suite_passed=false`; optimized repetition and immutable full package
 proof remain required.
+
+Explicit outer braces now delimit the independent C initialization loops for
+GCC -Werror portability; both C runner checks pass again. The incoming parent
+fix also consumes QL/RQ diagnostic state between boundary cases. These test
+fixes must precede this candidate full-suite freeze.
