@@ -123,3 +123,9 @@ records `full_suite_passed=false`. High allocation respects both the query and
 SIDE-dependent minimum WORK; reference QL/RQ empty queries can report one
 below their argument-validation minimum, so the two quantities are not
 interchangeable. Optimized repetition and immutable full proof remain required.
+
+Optimized repetition passes all numerical, policy, independent C and 1168
+typed observations with 5846 gate checks. Optimized DLL SHA-256:
+`0bc1b452ee357cc43a5df9b87b482ddcfda20afc853c78bb146df7886658364b`.
+Registration is 1774 forwards per integer ABI. The source is being frozen for
+full package validation; no full-suite proof is claimed for this candidate.
