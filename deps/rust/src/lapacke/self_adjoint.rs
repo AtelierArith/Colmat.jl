@@ -146,6 +146,46 @@ exports!(c, heev, colmat::c32, f32, i64, [64_], _64_, [rwork]);
 exports!(z, heev, colmat::c64, f64, i64, [64_], _64_, [rwork]);
 
 #[cfg(test)]
+mod workspace_order_regression {
+    macro_rules! check {
+        ($test:ident,$p:ident,$t:ty,$r:ty,$i:ty,$suffix:tt) => { paste::paste! {
+            #[test]
+            fn $test() { unsafe {
+                for (lw,lr,li,dd_info,range_info) in [
+                    (0,0,0,-8,-18),(32,0,0,-10,-20),(32,128,0,-12,-22),
+                    (32,0,64,-10,-20),(0,-1,0,0,0),(0,0,-1,0,0),
+                ] {
+                    let mut work=vec![<$t as crate::kernels::Scalar>::z();32];
+                    let mut rw=vec![0 as $r;128];let mut iw=vec![0 as $i;64];
+                    let mut info: $i=0;let mut count: $i=0;
+                    crate::lapack_symmetric::[<$p heevd $suffix>](
+                        &b'V',&b'L',&3,core::ptr::null_mut(),&3,core::ptr::null_mut(),
+                        work.as_mut_ptr(),&lw,rw.as_mut_ptr(),&lr,iw.as_mut_ptr(),&li,&mut info);
+                    assert_eq!(info,dd_info);
+                    if info==0 {
+                        assert_eq!(crate::kernels::Scalar::re(work[0]),15.0);
+                        assert_eq!(rw[0],34 as $r);assert_eq!(iw[0],18);
+                    }
+                    crate::lapack_symmetric::[<$p heevr $suffix>](
+                        &b'V',&b'A',&b'L',&3,core::ptr::null_mut(),&3,&(0 as $r),&(0 as $r),
+                        &1,&3,&(0 as $r),&mut count,core::ptr::null_mut(),core::ptr::null_mut(),&3,
+                        core::ptr::null_mut(),work.as_mut_ptr(),&lw,rw.as_mut_ptr(),&lr,iw.as_mut_ptr(),&li,&mut info);
+                    assert_eq!(info,range_info);
+                    if info==0 {
+                        assert_eq!(crate::kernels::Scalar::re(work[0]),6.0);
+                        assert_eq!(rw[0],72 as $r);assert_eq!(iw[0],30);
+                    }
+                }
+            } }
+        }};
+    }
+    check!(complex32_lp64, c, colmat::c32, f32, i32, _);
+    check!(complex64_lp64, z, colmat::c64, f64, i32, _);
+    check!(complex32_ilp64, c, colmat::c32, f32, i64, _64_);
+    check!(complex64_ilp64, z, colmat::c64, f64, i64, _64_);
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
