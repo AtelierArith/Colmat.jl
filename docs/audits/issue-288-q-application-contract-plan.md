@@ -1,7 +1,7 @@
 # Issue #288: Q application C adapters
 
-Status: current-source immutable full package validation passes; source-bound
-evidence is imported. Publication checks pass; final PR CI and merge remain pending.
+Status: merged to main through PR #395. Full source-bound package proof,
+Linux/macOS PR CI, documentation and artifact provenance checks pass.
 
 Issue #288 remains open.
 
@@ -145,3 +145,10 @@ runtime/tests/evidence and take current-main LQ, QL/RQ and Q-generator audits.
 Python 28, registration inventory 15 and documentation build pass after this
 source-preserving merge. The 260-name Q-generator parent is now merged.
 Issue #288 remains open.
+
+PR #395 merged at b3392f4a7a9110d175415bd3c1d09df8368f4ef6 after CI
+43927566167 and documentation 43927566125 passed. Both OS artifacts validate
+all 306 source hashes, manifest, registration, 1570 entries and 5727 witnesses
+against test merge d18211f54e8033da9e3e0faac14e682ff8e6066a. Its parents and
+tree match the guarded base/head. Main tree and optimized DLL match the merge
+gate; post-merge Python 28 and inventory 15 pass. Issue #288 remains open.

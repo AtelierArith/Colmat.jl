@@ -1,0 +1,972 @@
+{
+  "reference_version": "v3.12.1",
+  "numerical_work": "stubbed; packing/header-only probe",
+  "source_sha256": {
+    "sgemqrt_work": "f789c9b082de9b62062fe99b9a28adc90d679d3ea3509aae81923310d4c63505",
+    "dgemqrt_work": "c0ef7253ad9bd70ba7734d9a0462b4a9dffe529adf57b9ef72e3726be06cc67e",
+    "cgemqrt_work": "edfe200138052d9f8926a38c0ffd6349aef289bf4ac895014913eb2510701d4a",
+    "zgemqrt_work": "ae77c94581f78e5d625fa505678425fd5aeb16399d3cd0ff30bcd9f5035974f7"
+  },
+  "observations": [
+    {
+      "scalar": "s",
+      "layout": 101,
+      "side": "L",
+      "m": 3,
+      "n": 5,
+      "q_order": 3,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 3,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "s",
+      "layout": 101,
+      "side": "L",
+      "m": 5,
+      "n": 3,
+      "q_order": 5,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 5,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "s",
+      "layout": 101,
+      "side": "R",
+      "m": 3,
+      "n": 5,
+      "q_order": 5,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 3,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "s",
+      "layout": 101,
+      "side": "R",
+      "m": 5,
+      "n": 3,
+      "q_order": 3,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 5,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "s",
+      "layout": 102,
+      "side": "L",
+      "m": 3,
+      "n": 5,
+      "q_order": 3,
+      "caller_ldv": 5,
+      "caller_ldt": 3,
+      "forwarded_ldv": 5,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 5,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "s",
+      "layout": 102,
+      "side": "L",
+      "m": 5,
+      "n": 3,
+      "q_order": 5,
+      "caller_ldv": 7,
+      "caller_ldt": 3,
+      "forwarded_ldv": 7,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 7,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "s",
+      "layout": 102,
+      "side": "R",
+      "m": 3,
+      "n": 5,
+      "q_order": 5,
+      "caller_ldv": 7,
+      "caller_ldt": 3,
+      "forwarded_ldv": 7,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 5,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "s",
+      "layout": 102,
+      "side": "R",
+      "m": 5,
+      "n": 3,
+      "q_order": 3,
+      "caller_ldv": 5,
+      "caller_ldt": 3,
+      "forwarded_ldv": 5,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 7,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "d",
+      "layout": 101,
+      "side": "L",
+      "m": 3,
+      "n": 5,
+      "q_order": 3,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 3,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "d",
+      "layout": 101,
+      "side": "L",
+      "m": 5,
+      "n": 3,
+      "q_order": 5,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 5,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "d",
+      "layout": 101,
+      "side": "R",
+      "m": 3,
+      "n": 5,
+      "q_order": 5,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 3,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "d",
+      "layout": 101,
+      "side": "R",
+      "m": 5,
+      "n": 3,
+      "q_order": 3,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 5,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "d",
+      "layout": 102,
+      "side": "L",
+      "m": 3,
+      "n": 5,
+      "q_order": 3,
+      "caller_ldv": 5,
+      "caller_ldt": 3,
+      "forwarded_ldv": 5,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 5,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "d",
+      "layout": 102,
+      "side": "L",
+      "m": 5,
+      "n": 3,
+      "q_order": 5,
+      "caller_ldv": 7,
+      "caller_ldt": 3,
+      "forwarded_ldv": 7,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 7,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "d",
+      "layout": 102,
+      "side": "R",
+      "m": 3,
+      "n": 5,
+      "q_order": 5,
+      "caller_ldv": 7,
+      "caller_ldt": 3,
+      "forwarded_ldv": 7,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 5,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "d",
+      "layout": 102,
+      "side": "R",
+      "m": 5,
+      "n": 3,
+      "q_order": 3,
+      "caller_ldv": 5,
+      "caller_ldt": 3,
+      "forwarded_ldv": 5,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 7,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "c",
+      "layout": 101,
+      "side": "L",
+      "m": 3,
+      "n": 5,
+      "q_order": 3,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 3,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "c",
+      "layout": 101,
+      "side": "L",
+      "m": 5,
+      "n": 3,
+      "q_order": 5,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 5,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "c",
+      "layout": 101,
+      "side": "R",
+      "m": 3,
+      "n": 5,
+      "q_order": 5,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 3,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "c",
+      "layout": 101,
+      "side": "R",
+      "m": 5,
+      "n": 3,
+      "q_order": 3,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 5,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "c",
+      "layout": 102,
+      "side": "L",
+      "m": 3,
+      "n": 5,
+      "q_order": 3,
+      "caller_ldv": 5,
+      "caller_ldt": 3,
+      "forwarded_ldv": 5,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 5,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "c",
+      "layout": 102,
+      "side": "L",
+      "m": 5,
+      "n": 3,
+      "q_order": 5,
+      "caller_ldv": 7,
+      "caller_ldt": 3,
+      "forwarded_ldv": 7,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 7,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "c",
+      "layout": 102,
+      "side": "R",
+      "m": 3,
+      "n": 5,
+      "q_order": 5,
+      "caller_ldv": 7,
+      "caller_ldt": 3,
+      "forwarded_ldv": 7,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 5,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "c",
+      "layout": 102,
+      "side": "R",
+      "m": 5,
+      "n": 3,
+      "q_order": 3,
+      "caller_ldv": 5,
+      "caller_ldt": 3,
+      "forwarded_ldv": 5,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 7,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "z",
+      "layout": 101,
+      "side": "L",
+      "m": 3,
+      "n": 5,
+      "q_order": 3,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 3,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "z",
+      "layout": 101,
+      "side": "L",
+      "m": 5,
+      "n": 3,
+      "q_order": 5,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 5,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "z",
+      "layout": 101,
+      "side": "R",
+      "m": 3,
+      "n": 5,
+      "q_order": 5,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 3,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "z",
+      "layout": 101,
+      "side": "R",
+      "m": 5,
+      "n": 3,
+      "q_order": 3,
+      "caller_ldv": 4,
+      "caller_ldt": 4,
+      "forwarded_ldv": 4,
+      "forwarded_ldt": 4,
+      "forwarded_ldc": 5,
+      "transpose_calls": 4,
+      "observed_v_shape": [
+        4,
+        2
+      ],
+      "observed_t_shape": [
+        4,
+        1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "z",
+      "layout": 102,
+      "side": "L",
+      "m": 3,
+      "n": 5,
+      "q_order": 3,
+      "caller_ldv": 5,
+      "caller_ldt": 3,
+      "forwarded_ldv": 5,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 5,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "z",
+      "layout": 102,
+      "side": "L",
+      "m": 5,
+      "n": 3,
+      "q_order": 5,
+      "caller_ldv": 7,
+      "caller_ldt": 3,
+      "forwarded_ldv": 7,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 7,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "z",
+      "layout": 102,
+      "side": "R",
+      "m": 3,
+      "n": 5,
+      "q_order": 5,
+      "caller_ldv": 7,
+      "caller_ldt": 3,
+      "forwarded_ldv": 7,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 5,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        5,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    },
+    {
+      "scalar": "z",
+      "layout": 102,
+      "side": "R",
+      "m": 5,
+      "n": 3,
+      "q_order": 3,
+      "caller_ldv": 5,
+      "caller_ldt": 3,
+      "forwarded_ldv": 5,
+      "forwarded_ldt": 3,
+      "forwarded_ldc": 7,
+      "transpose_calls": 0,
+      "observed_v_shape": [
+        -1,
+        -1
+      ],
+      "observed_t_shape": [
+        -1,
+        -1
+      ],
+      "logical_v_shape": [
+        3,
+        2
+      ],
+      "logical_t_shape": [
+        1,
+        2
+      ]
+    }
+  ]
+}

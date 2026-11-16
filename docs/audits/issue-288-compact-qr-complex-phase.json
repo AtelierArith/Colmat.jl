@@ -1,0 +1,16 @@
+{
+  "full_suite_passed": false,
+  "scope": "Executed focused MWE, not full validation",
+  "reproducer": "reproducers/complex_geqrt_diagonal.jl",
+  "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+  "before": [
+    "(library = \"libcolmat_blas.dylib\", info = 0, diagonal = ComplexF64[-2.2576536492562362 - 0.0im, -2.373157519671853 + 0.0022324521927081244im, -2.3732582299078393 + 0.0021033907351952013im])",
+    "(library = \"libopenblas64_.0.3.30.dylib\", info = 0, diagonal = ComplexF64[-2.2576536492562362 + 0.0im, -2.3731585697162867 + 0.0im, -2.3732591620128374 + 0.0im])"
+  ],
+  "after": [
+    "(library = \"libcolmat_blas.dylib\", info = 0, diagonal = ComplexF64[-2.2576536492562362 + 0.0im, -2.373158569716287 + 0.0im, -2.373259162012838 + 0.0im])",
+    "(library = \"libopenblas64_.0.3.30.dylib\", info = 0, diagonal = ComplexF64[-2.2576536492562362 + 0.0im, -2.3731585697162867 + 0.0im, -2.3732591620128374 + 0.0im])"
+  ],
+  "cause": "Native complex QR reflector phase differs from LAPACK real-diagonal convention. Wrapper now uses its existing LAPACK complex Householder generator before forming compact block T.",
+  "upstream_changes": false
+}

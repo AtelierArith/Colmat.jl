@@ -22,63 +22,69 @@ pub(crate) unsafe fn compact_qr<T: ReflectorScalar>(
         return;
     }
     let mut tau = vec![T::z(); k];
-    for j in 0..k {
-        let height = m - j;
-        let column = a.offset(j as isize * (lda + 1));
-        let mut panel = MatRef::from_raw_parts(column, height, 1, 1, lda).to_owned();
-        // Scale the active column before native reflector generation, whose
-        // tiny-tail branch deliberately treats subnormals as zero.
-        let mut scale = 0.0_f64;
-        for i in 0..height {
-            let z = panel[(i, 0)];
-            scale = scale.max(z.re().abs()).max(z.im().abs());
-        }
-        if scale > 0.0 && scale.is_finite() {
+    // Native complex QR uses a different reflector phase. LAPACK compact
+    // factors require real R diagonals and the corresponding complex TAU.
+    if T::COMPLEX {
+        standard_qr(m, n, a, lda, tau.as_mut_ptr(), false);
+    } else {
+        for j in 0..k {
+            let height = m - j;
+            let column = a.offset(j as isize * (lda + 1));
+            let mut panel = MatRef::from_raw_parts(column, height, 1, 1, lda).to_owned();
+            // Scale the active column before native reflector generation, whose
+            // tiny-tail branch deliberately treats subnormals as zero.
+            let mut scale = 0.0_f64;
             for i in 0..height {
                 let z = panel[(i, 0)];
-                panel[(i, 0)] = T::parts(z.re() / scale, z.im() / scale);
+                scale = scale.max(z.re().abs()).max(z.im().abs());
             }
-        } else {
-            scale = 1.0;
-        }
-        let mut coeff = Mat::<T>::zeros(1, 1);
-        crate::threading::with_par(|par| {
-            let mut mem = MemBuffer::new(qr_in_place_scratch::<T>(
-                height,
-                1,
-                1,
-                par.shape(),
-                Default::default(),
-            ));
-            qr_in_place(
-                panel.as_mut(),
-                coeff.as_mut(),
-                par,
-                MemStack::new(&mut mem),
-                Default::default(),
-            );
-        });
-        let beta = panel[(0, 0)];
-        panel[(0, 0)] = T::parts(beta.re() * scale, beta.im() * scale);
-        // Native H = I - v v^H / coeff; LAPACK H = I - tau v v^H.
-        tau[j] = T::real(1.0 / coeff[(0, 0)].re());
-        for i in 0..height {
-            *column.add(i) = panel[(i, 0)];
-        }
-        if j + 1 < n && tau[j] != T::z() {
-            panel[(0, 0)] = T::o();
-            let mut work = vec![T::z(); n - j - 1];
-            crate::householder::apply(
-                b'L',
-                height as isize,
-                (n - j - 1) as isize,
-                panel.as_ref().as_ptr(),
-                1,
-                tau[j].cj(),
-                a.offset(j as isize + (j + 1) as isize * lda),
-                lda,
-                work.as_mut_ptr(),
-            );
+            if scale > 0.0 && scale.is_finite() {
+                for i in 0..height {
+                    let z = panel[(i, 0)];
+                    panel[(i, 0)] = T::parts(z.re() / scale, z.im() / scale);
+                }
+            } else {
+                scale = 1.0;
+            }
+            let mut coeff = Mat::<T>::zeros(1, 1);
+            crate::threading::with_par(|par| {
+                let mut mem = MemBuffer::new(qr_in_place_scratch::<T>(
+                    height,
+                    1,
+                    1,
+                    par.shape(),
+                    Default::default(),
+                ));
+                qr_in_place(
+                    panel.as_mut(),
+                    coeff.as_mut(),
+                    par,
+                    MemStack::new(&mut mem),
+                    Default::default(),
+                );
+            });
+            let beta = panel[(0, 0)];
+            panel[(0, 0)] = T::parts(beta.re() * scale, beta.im() * scale);
+            // Native H = I - v v^H / coeff; LAPACK H = I - tau v v^H.
+            tau[j] = T::real(1.0 / coeff[(0, 0)].re());
+            for i in 0..height {
+                *column.add(i) = panel[(i, 0)];
+            }
+            if j + 1 < n && tau[j] != T::z() {
+                panel[(0, 0)] = T::o();
+                let mut work = vec![T::z(); n - j - 1];
+                crate::householder::apply(
+                    b'L',
+                    height as isize,
+                    (n - j - 1) as isize,
+                    panel.as_ref().as_ptr(),
+                    1,
+                    tau[j].cj(),
+                    a.offset(j as isize + (j + 1) as isize * lda),
+                    lda,
+                    work.as_mut_ptr(),
+                );
+            }
         }
     }
     for j in (0..k).step_by(nb) {
@@ -162,7 +168,7 @@ macro_rules! exports {
             t:*mut $t,ldt:*const $i,info:*mut $i) {
             *info=0;
             let (m,n,la,lt)=(*m as isize,*n as isize,*lda as isize,*ldt as isize);
-            for (arg,ok) in [(1,m>=n && m>=0),(2,n>=0),(4,la>=m.max(1)),(6,lt>=n.max(1))] {
+            for (arg,ok) in [(2,n>=0),(1,m>=n),(4,la>=m.max(1)),(6,lt>=n.max(1))] {
                 if !ok {*info=-arg;return;}
             }
             compact_qr(m as usize,n as usize,n.max(1) as usize,a,la,t,lt);

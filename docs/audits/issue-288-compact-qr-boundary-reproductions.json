@@ -1,0 +1,32 @@
+{
+  "full_suite_passed": false,
+  "scope": "isolated reproducer observations only",
+  "own_library_sha256": "de33505511a2eb5f142459ba6afc7dff6ff7aeed7e1334f197fe9c16b76794e6",
+  "header_case": {
+    "m": -1,
+    "n": -2,
+    "own_info_before_correction": -1,
+    "reference_info": -2,
+    "families": [
+      "dgeqrt2",
+      "dgeqrt3"
+    ]
+  },
+  "empty_case": {
+    "family": "dgeqrt3",
+    "m": 0,
+    "n": 0,
+    "own_info": 0,
+    "own_a": [
+      777
+    ],
+    "own_t": [
+      778
+    ],
+    "reference_exit_code": 1,
+    "reference_exception": "StackOverflowError",
+    "isolated_subprocess": true,
+    "core_dump_disabled": true,
+    "timeout_seconds": 20
+  }
+}
