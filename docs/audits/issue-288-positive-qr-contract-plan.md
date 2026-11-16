@@ -2,10 +2,7 @@
 
 Status: current-source immutable full package validation passes; source-bound
 evidence is imported. CI and main integration remain pending.
-Issue #288: GEQRFP C adapters
 
-Status: immutable full package validation passes and source-bound execution
-evidence is imported. CI and integration are pending.
 Issue #288 remains open. Eight S/D/C/Z high/work names extend the preceding
 188-name candidate to 196 original-scope names. The remaining original scope is
 1420 names, with the separate 20 Rook C targets still additional work.
