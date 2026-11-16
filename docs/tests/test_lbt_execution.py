@@ -260,6 +260,8 @@ class ExecutionEvidenceTests(unittest.TestCase):
             ('LAPACKE_dgeqrf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_dgeqlf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_dgerqf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_dgelqf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_zgelq2', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_zgeqr2', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_dlauum', lambda s: s.replace('Int64','Int32')),
             ('LAPACKE_zlauum_work', lambda s: s.replace('Ptr{ComplexF64}','Ptr{Float64}')),

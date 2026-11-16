@@ -1,7 +1,7 @@
 # Issue #288: GELQF/GELQ2 C adapters
 
 Status: own Fortran empty-work correction and sixteen C adapters pass focused
-independent Julia checks. C caller, tracing and full-suite evidence remain pending.
+independent Julia checks. Independent C and typed tracing also pass; optimized repetition passes and full-suite proof remains pending.
 Issue #288 remains open. The sixteen S/D/C/Z high/work names extend 196 candidate names to 212, leaving
 1404 original-scope names plus the separate 20 Rook C targets. These staged
 candidates are not all merged yet.
@@ -44,3 +44,16 @@ scalar types, both integer ABIs and layouts, direct/LBT and high/work, empty,
 rectangular, deficient and very small/large inputs. Python signature fixtures
 pass 17 tests with distinct GELQF/GELQ2 work signatures. No full-suite evidence
 has been imported for this candidate.
+
+An independent C11 caller verifies all sixteen names, real/complex reflector
+reconstruction, orthogonality, empty/minimal workspace, guarded TAU/WORK,
+diagnostics, ignored padding, NaN policy and ILP64 values outside int32. Its
+Julia runner passes two checks. Tracing validates all 212 candidate names with
+848 completed typed name/ABI/route observations. Focused evidence explicitly
+records `full_suite_passed=false`; it is not a full-suite snapshot.
+
+Optimized repetition passes the numerical, independent C and all 848 typed
+observations. The call-site gate passes 4246 checks. The optimized DLL SHA-256
+is `87a0030b69a5044a1ea4df1c9f15e7e477d18feffa5759bb25f385be8558b146`.
+Registration is 1694 forwards per integer ABI. The source is being frozen for
+full package validation; published full-suite proof remains pending.
