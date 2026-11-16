@@ -84,3 +84,34 @@ isdefined(@__MODULE__, :rook_factor!)||include("rook_helpers.jl")
         end
     end
 end
+
+@testset "Nonzero L across subnormal congruence scales" begin
+    for T in (Float32, Float64, ComplexF32, ComplexF64),
+        J in (Int32, Int64),
+        uplo in ('L', 'U'),
+        route in (:dll, :lbt),
+        classic in (false, true),
+        mixed in (false, true)
+
+        tiny=real(T)(exp2(real(T)==Float32 ? -140 : -1040))
+        off=T<:Real ? T(tiny) : T(tiny, tiny/2)
+        original=T[4tiny off; conj(off) (mixed ? 4 : 4tiny)]
+        a=rook_stage(original, uplo)
+        factored=rook_factor!(a, J; uplo, pointer=rook_pointer(T, J, "trf", route; classic))
+        @test factored.info==factored.diagnostic==0
+        @test rook_reconstruct(a, factored.piv, uplo; classic)==original
+        b=vcat(original, fill(T(777), 2, 2))
+        solved=rook_solve!(
+            a, factored.piv, b; uplo, pointer=rook_pointer(T, J, "trs", route; classic)
+        )
+        @test solved.info==solved.diagnostic==0
+        @test all(isfinite, b) && norm(b[1:2, :]-I)<=200eps(real(T))
+        @test all(==(T(777)), b[3:end, :])
+        a=rook_stage(original, uplo)
+        b=vcat(original, fill(T(777), 2, 2))
+        result=rook_driver!(a, b, J; uplo, pointer=rook_pointer(T, J, "sv", route; classic))
+        @test result.info==result.diagnostic==0
+        @test all(isfinite, b) && norm(b[1:2, :]-I)<=200eps(real(T))
+        @test all(==(T(777)), b[3:end, :])
+    end
+end

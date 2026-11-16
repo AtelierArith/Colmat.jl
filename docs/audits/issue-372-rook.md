@@ -78,7 +78,8 @@ On Julia 1.13.3, rustc 1.99.1, x86_64 macOS, native pin 4e6ed0e:
 | Singular factors, inverse INFO and unchanged driver RHS | 11,520 |
 | Invalid arguments, minimum work, wide integer/address boundaries and zero RHS | 1,864 |
 | Nonzero subnormal blocks, mixed scales, classic/ROOK, exact finite solutions | 13,312 |
-| Total | 88,008 |
+| Nonzero L across different congruence scales, classic/ROOK | 2,432 |
+| Total | 90,440 |
 
 All four scalar types, both integer ABIs and both triangle directions are
 included. Concrete DLL/LBT calls verify the backing pointer, rather than treating
@@ -86,5 +87,10 @@ fallback success as native execution. Integer/output padding guards, query
 preservation, unused triangles and Hermitian imaginary diagonals are checked.
 Subnormal inverse entries in these fixtures exceed the scalar range; those
 cases test representable solves, not an impossible finite-inverse requirement.
-The Rust suite passed 295 tests. Full package/standard regression and refreshed
-all-entry execution evidence are still required before merging.
+The Rust suite passed 295 tests. The nonzero-L cases use binary-exact small
+positive-definite matrices and known identity solutions, with uniform and mixed
+normal/subnormal row units. They test the scaling of actual triangular
+multipliers, not only block-diagonal D.
+
+Full package/standard regression and refreshed all-entry execution evidence
+are required for the final source before merging.
