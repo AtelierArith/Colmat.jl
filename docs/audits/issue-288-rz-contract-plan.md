@@ -1,8 +1,14 @@
 # Issue #288: RZ factorization and Q application C contracts
 
-Status: focused numerical, policy, independent C caller and debug/optimized typed
-tracing checks pass. Source-bound immutable full-suite proof passes; publication
-checks pass; final CI/main integration remain pending. Issue #288 remains open.
+Status: merged into main in PR #398 (d4b9ecfc224a6824d6cf903d33e37807168c4fe5).
+CI 43942939431 (Linux/macOS) and Documentation 43942939256 passed. Both
+downloaded artifacts validate 323 source hashes, 1634 canonical entries and
+5995 witnesses at test merge 2bc53acc03f6648a4b82ab25a043edfe82694514.
+Its parents and tree match the reviewed head and base. The merged tree,
+verified optimized DLL and Python 28 post-merge checks pass. Local inventory
+verification remains live in macOS startup.
+
+Issue #288 remains open.
 
 The canonical scope contains eight S/D/C/Z TZRZF high/work names and eight
 real ORMRZ/complex UNMRZ high/work names. No TZRQF, LATRZ or LARZ C names

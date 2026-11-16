@@ -1,0 +1,24 @@
+{
+  "candidate": "pivoted-qr",
+  "artifact_id": 14246774961,
+  "zip_sha256": "bf71763ff65d187fec10769b6cd11af84912aed8c1d0efb09f1ade4d03e39a04",
+  "toml_sha256": "7d7f79aa762d02ca721242c38ce8e745ccb434cb87a0ce584f358fe9a463c236",
+  "revision": "09aedc796c0348e37486583cc03636b60d5ecdb2",
+  "sources": 318,
+  "validated": 1618,
+  "witnesses": 5927,
+  "platform": "x86_64-linux-gnu",
+  "local_library_sha256": "a92e83c58f003c6cc3749a21662e431ae7aa6c591194e740d6496105fb92412a",
+  "ci_library_sha256": "ac82150471913944a5df5d47e961946171e0e39ab4b27d5b2a8d16abd67efae3",
+  "full_suite_passed": true,
+  "workflow_run_id": 43909442123,
+  "workflow_revision": "870502b447e85d873ec8afb784516fd3afcafab2",
+  "publication_note": "Full suite executed at the exact frozen source revision on Linux; local optimized DLL is separately preserved.",
+  "publication_checks": {
+    "python_tests": 28,
+    "julia_inventory_assertions": 15,
+    "documentation_build": "passed",
+    "execution_sources_unchanged": true,
+    "optimized_local_dll_unchanged": true
+  }
+}
