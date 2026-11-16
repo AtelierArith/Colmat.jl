@@ -1,6 +1,9 @@
 # Issue #288: GEEVX C adapter plan
 
-Status: initial C adapters compile; layout/workspace unit checks pass. This stage adds
+Status: immutable full package validation passed at
+`6530ac871eb0ac2aabd9a314125f1132e5f8d093`. All 271 source hashes, manifest,
+registration and optimized DLL matched the pre-run freeze before evidence import.
+This stage adds
 eight high/work names beyond the 140-name GEEV candidate. Completion of that
 148-name group does not complete the original 1616-name LAPACKE scope or the
 separate 20 Rook C targets. Issue #288 remains open.
@@ -95,4 +98,8 @@ explicitly non-full-suite evidence. Optimized build and repeated independent C,
 476,160 numerical assertions, and 148-name/592-observation signature checks pass.
 The optimized DLL SHA256 is
 `db7d68db58c1540a478b4bd52f0dad33b6e5aa74c0fba19b62756c37fc04eb7d`.
-Registration is 1,630 forwards per ABI. Immutable full-suite proof remains pending.
+Registration is 1,630 forwards per ABI. The full-suite proof validates 1,426
+canonical entries: 1,106 Fortran LAPACK, 172 CBLAS and 148 LAPACKE, with 5,071
+completed witnesses. Python's full 28-test suite and the 15 inventory checks pass.
+Documentation build passes. Linux/macOS CI artifact validation remains a
+publication gate.
