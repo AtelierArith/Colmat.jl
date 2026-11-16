@@ -377,8 +377,62 @@ macro_rules! ger_export {
         }
     }};
 }
+
+macro_rules! symmetric_vector_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$op:ident,$hermitian:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,u:i32,n:$i,alpha:$coefficient,a:*const $t,lda:$i,x:*const $t,ix:$i,beta:$coefficient,y:*mut $t,iy:$i) {
+            if !matches!(order,101|102) {crate::invalid(1);return;}
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(2);return;};
+            if n<0 {crate::invalid(3);return;}
+            if !matrix_ok::<$t>(n as i64,n as i64,lda as i64,false,6){return;}
+            if ix==0 {crate::invalid(8);return;}
+            if iy==0 {crate::invalid(11);return;}
+            if !vector_ok::<$t>(n as i64,ix as i64,8)||!vector_ok::<$t>(n as i64,iy as i64,11){return;}
+            if n==0{return;}
+            let alpha=($read)(alpha);
+            let beta=($read)(beta);
+            if order==101 {u=flip_uplo(u);}
+            crate::kernels::symv_with_conjugation(u,n as isize,alpha,a,lda as isize,x,ix as isize,beta,y,iy as isize,$hermitian,$hermitian&&order==101);
+        }
+    }};
+}
+
+macro_rules! rank_one_export {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$op:ident,$hermitian:expr) => {paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,u:i32,n:$i,alpha:$coefficient,x:*const $t,inc:$i,a:*mut $t,lda:$i) {
+            if !matches!(order,101|102) {crate::invalid(1);return;}
+            let Some(mut u)=cblas_uplo(u) else {crate::invalid(2);return;};
+            if n<0 {crate::invalid(3);return;}
+            if inc==0 {crate::invalid(6);return;}
+            if !matrix_ok::<$t>(n as i64,n as i64,lda as i64,false,8)||!vector_ok::<$t>(n as i64,inc as i64,6){return;}
+            if n==0{return;}
+            let alpha=($read)(alpha);
+            if alpha==<$t>::z(){return;}
+            if order==101 {
+                u=flip_uplo(u);
+                if $hermitian {
+                    let start=crate::kernels::start(n as isize,inc as isize);
+                    let conjugated:Vec<$t>=(0..n as isize).map(|j|(*x.offset(start+j*inc as isize)).cj()).collect();
+                    crate::kernels::rank1(u,n as isize,alpha,conjugated.as_ptr(),1,a,lda as isize,true);
+                    return;
+                }
+            }
+            crate::kernels::rank1(u,n as isize,alpha,x,inc as isize,a,lda as isize,$hermitian);
+        }
+    }};
+}
 macro_rules! interface {
     ($i:ty,$fs:tt,$cs:tt) => {
+        rank_one_export!(s, f32, f32, |x: f32| x, $i, $cs, syr, false);
+        rank_one_export!(d, f64, f64, |x: f64| x, $i, $cs, syr, false);
+        rank_one_export!(c, c32, f32, |x: f32| c32::new(x, 0.0), $i, $cs, her, true);
+        rank_one_export!(z, c64, f64, |x: f64| c64::new(x, 0.0), $i, $cs, her, true);
+        symmetric_vector_export!(s, f32, f32, |x: f32| x, $i, $cs, symv, false);
+        symmetric_vector_export!(d, f64, f64, |x: f64| x, $i, $cs, symv, false);
+        symmetric_vector_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, hemv, true);
+        symmetric_vector_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs, hemv, true);
         symmetric_matrix_export!(s, f32, f32, |x: f32| x, $i, $cs, symm, false);
         symmetric_matrix_export!(d, f64, f64, |x: f64| x, $i, $cs, symm, false);
         symmetric_matrix_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs, symm, false);

@@ -394,6 +394,22 @@ pub unsafe fn symv<T: Scalar>(
     iy: isize,
     h: bool,
 ) {
+    symv_with_conjugation(u, n, alpha, a, ld, x, ix, beta, y, iy, h, false);
+}
+pub(crate) unsafe fn symv_with_conjugation<T: Scalar>(
+    u: u8,
+    n: isize,
+    alpha: T,
+    a: *const T,
+    ld: isize,
+    x: *const T,
+    ix: isize,
+    beta: T,
+    y: *mut T,
+    iy: isize,
+    h: bool,
+    conjugate: bool,
+) {
     if n == 0 {
         return;
     }
@@ -408,7 +424,8 @@ pub unsafe fn symv<T: Scalar>(
     for i in 0..n {
         let mut sum = T::z();
         for j in 0..n {
-            sum += symmetric(a, ld, i, j, u, h) * *x.offset(j * ix);
+            let value = symmetric(a, ld, i, j, u, h);
+            sum += if conjugate { value.cj() } else { value } * *x.offset(j * ix);
         }
         let p = y.offset(i * iy);
         *p = alpha * sum + if beta == T::z() { T::z() } else { beta * *p };

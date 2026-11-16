@@ -15,6 +15,7 @@ typedef size_t (*index32)(int32_t,const void *,int32_t);
 typedef size_t (*index64)(int64_t,const void *,int64_t);
 /* Enums remain C int while dimensions become int64_t. */
 typedef void (*hemm64)(int,int,int,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,const void *,void *,int64_t);
+typedef void (*her64)(int,int,int64_t,double,const void *,int64_t,void *,int64_t);
 
 int main(int argc,char **argv) {
     if (argc!=2) return 2;
@@ -27,6 +28,7 @@ int main(int argc,char **argv) {
     ENTRY(index32,cblas_icamax);
     ENTRY(index64,cblas_izamax64_);
     ENTRY(hemm64,cblas_zhemm64_);
+    ENTRY(her64,cblas_zher64_);
     const float complex xf[]={1+2*I,3-I},yf[]={2-I,-1+3*I};
     const double complex xd[]={1+2*I,3-I},yd[]={2-I,-1+3*I};
     assert(cabsf(cblas_cdotu(2,xf,1,yf,1)-(xf[0]*yf[0]+xf[1]*yf[1]))<1e-5f);
@@ -43,6 +45,12 @@ int main(int argc,char **argv) {
     assert(cabs(c[0]-(6+5*I))<1e-12);
     assert(cabs(c[2]-(9-4*I))<1e-12);
     assert(c[1]==97&&c[3]==97);
+    double complex updated[]={2,1+2*I,97,89,3,97};
+    cblas_zher64_(101,121,2,0.5,b,2,updated,3);
+    assert(cabs(updated[0]-3)<1e-12);
+    assert(cabs(updated[1]-(1.5+3.5*I))<1e-12);
+    assert(cabs(updated[4]-5.5)<1e-12);
+    assert(updated[2]==97&&updated[3]==89&&updated[5]==97);
     assert(dlclose(library)==0);
     puts("CBLAS C ABI: complex returns, size_t indices, ILP64 enums and coefficients passed");
     return 0;
