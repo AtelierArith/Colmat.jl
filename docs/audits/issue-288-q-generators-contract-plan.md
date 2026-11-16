@@ -1,7 +1,7 @@
 # Issue #288: explicit Q generation C adapters
 
 Status: source-bound immutable cloud full validation passes; proof is
-imported. Publication checks and final CI/main integration remain pending.
+imported. Publication checks pass; final PR CI and merge remain pending.
 
 Issue #288 remains open.
 
@@ -99,3 +99,11 @@ Publication checks pass Python 28, inventory 15 and documentation build.
 All execution-source hashes and the copied optimized local DLL remain
 unchanged. Preceding staged candidates and final PR CI/main merge remain
 required; this does not claim merged-main coverage for the candidate.
+
+Current-main integration after PR #393 uses a normal merge from main
+882dcbc0ca417da2067d1c71ccdfd46583721678. Twelve expected conflicts were
+resolved: current main supplies the already merged LQ and QL/RQ audit
+records; this candidate retains its runtime/test/evidence/registration files.
+All 300 frozen execution-source hashes and the optimized DLL are unchanged.
+The 228-name factorization parent is now merged; this stage adds 32 names.
+Issue #288 remains open.
