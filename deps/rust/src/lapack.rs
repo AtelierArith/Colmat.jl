@@ -239,6 +239,23 @@ pub fn svd<T: Scalar>(a: MatRef<'_, T>, u: usize, v: usize) -> Result<SvdResult<
 pub fn selfadj<T: Scalar>(a: MatRef<'_, T>, vectors: bool) -> Result<(Vec<f64>, Mat<T>), ()> {
     use colmat::{diag::Diag, linalg::evd::*};
     let n = a.nrows();
+    // LAPACK treats a Hermitian diagonal as real regardless of the stored
+    // imaginary bits. Larger native EVD paths can inspect those bits, so
+    // normalize them at this boundary. The ordinary real-diagonal path keeps
+    // borrowing the caller's selected lower triangle without another copy.
+    let normalized =
+        (T::COMPLEX && (0..n).any(|i| a[(i, i)] != T::real(a[(i, i)].re()))).then(|| {
+            Mat::from_fn(n, n, |i, j| {
+                if i == j {
+                    T::real(a[(i, i)].re())
+                } else if i > j {
+                    a[(i, j)]
+                } else {
+                    T::z()
+                }
+            })
+        });
+    let a = normalized.as_ref().map_or(a, |matrix| matrix.as_ref());
     let mut s = Diag::<T>::zeros(n);
     let mut u = Mat::<T>::zeros(n, if vectors { n } else { 0 });
     crate::threading::with_par(|par| {

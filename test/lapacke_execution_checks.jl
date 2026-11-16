@@ -21,7 +21,15 @@ using Test
         w in ("", "_work")
     )
     union!(targets, Set("LAPACKE_"*p*"syr"*w for p in ("c", "z") for w in ("", "_work")))
-    @test length(targets)==108
+    union!(
+        targets,
+        Set(
+            "LAPACKE_"*p*f*w for
+            (p, f) in (("s", "syev"), ("d", "syev"), ("c", "heev"), ("z", "heev")) for
+            w in ("", "_work")
+        ),
+    )
+    @test length(targets)==116
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(

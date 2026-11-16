@@ -101,6 +101,8 @@ def validate_lapacke_signature(row, witness):
         'syr': ['Int32', 'Int8', integer, scalar, t, integer, t, integer],
         'gesvd': ['Int32', 'Int8', 'Int8', integer, integer, t, integer, real, t, integer, t, integer],
         'gesdd': ['Int32', 'Int8', integer, integer, t, integer, real, t, integer, t, integer],
+        'syev': ['Int32', 'Int8', 'Int8', integer, t, integer, real],
+        'heev': ['Int32', 'Int8', 'Int8', integer, t, integer, real],
     }
     if row['family'] == 'syr' and row['scalar'] not in ('c', 'z'):
         raise ValueError('LAPACKE complex SYR contract requires a complex scalar')
@@ -117,6 +119,10 @@ def validate_lapacke_signature(row, witness):
             if row['family'] == 'gesdd':
                 expected = expected + [pivot]
         elif row['family'] == 'gesvd':
+            expected = expected + [real]
+    if row['family'] in ('syev', 'heev') and row['symbol'].endswith('_work'):
+        expected = expected + [t, integer]
+        if row['family'] == 'heev':
             expected = expected + [real]
     actual = witness['signature'].replace(' ', '')
     if (actual != '(' + ','.join(expected) + ')'
