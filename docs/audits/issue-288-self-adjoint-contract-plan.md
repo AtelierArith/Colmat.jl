@@ -87,7 +87,7 @@ full run. It was replaced only after all 257 production/test/worker source
 hashes, manifest, registration and optimized DLL matched the successful run.
 
 
-## Immutable full-suite evidence
+## Immutable full-suite evidence (SYEV/HEEV checkpoint)
 
 Full `Pkg.test(; allow_reresolve=false)` passed at public source revision
 `02aa709a21a92e7ad1a6e5c18ba8aa6c49d87441`, Julia 1.13.3. All 257
@@ -102,3 +102,6 @@ this successful full artifact replaces the prior 108-entry snapshot.
 
 Issue #288 remains open, with 1,500 original-scope entries beyond this subset
 and the separate 20 Rook coordination targets still pending.
+
+The subsequent SYEVD/HEEVD full suite supplies the current 124-entry snapshot;
+the counts above preserve the SYEV/HEEV stage's own checkpoint.

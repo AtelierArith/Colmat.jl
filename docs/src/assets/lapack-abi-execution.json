@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-apple-darwin24.6.0",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "252daae1bbd078789c14c1b6d768994faa4809ed50ae83c15b6004eed60349e7",
+  "inventory_registration_sha256": "82462f325933677cb46b52c0fc195b0398e31bc76ddf022eb57ecdf2c0c645b3",
   "lapacke_target_symbols": [
     "LAPACKE_cgesdd",
     "LAPACKE_cgesdd_work",
@@ -21,6 +21,8 @@
     "LAPACKE_cgetrs_work",
     "LAPACKE_cheev",
     "LAPACKE_cheev_work",
+    "LAPACKE_cheevd",
+    "LAPACKE_cheevd_work",
     "LAPACKE_cposv",
     "LAPACKE_cposv_work",
     "LAPACKE_cpotrf",
@@ -61,6 +63,8 @@
     "LAPACKE_dpotrs_work",
     "LAPACKE_dsyev",
     "LAPACKE_dsyev_work",
+    "LAPACKE_dsyevd",
+    "LAPACKE_dsyevd_work",
     "LAPACKE_sgesdd",
     "LAPACKE_sgesdd_work",
     "LAPACKE_sgesv",
@@ -89,6 +93,8 @@
     "LAPACKE_spotrs_work",
     "LAPACKE_ssyev",
     "LAPACKE_ssyev_work",
+    "LAPACKE_ssyevd",
+    "LAPACKE_ssyevd_work",
     "LAPACKE_zgesdd",
     "LAPACKE_zgesdd_work",
     "LAPACKE_zgesv",
@@ -107,6 +113,8 @@
     "LAPACKE_zgetrs_work",
     "LAPACKE_zheev",
     "LAPACKE_zheev_work",
+    "LAPACKE_zheevd",
+    "LAPACKE_zheevd_work",
     "LAPACKE_zposv",
     "LAPACKE_zposv_work",
     "LAPACKE_zpotrf",
@@ -120,7 +128,7 @@
     "LAPACKE_zsyr",
     "LAPACKE_zsyr_work"
   ],
-  "library_sha256": "39d440a478f9272ed285438bb540f4ffab7af6b45287109bc2daa5e60dff0a56",
+  "library_sha256": "36f7b78c190e93da750491cb7d6a80c8dab5723760f09c2eeb4e4a33e173aa1c",
   "julia_version": "1.13.3",
   "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
   "ambiguous_shared_entries": [
@@ -194,7 +202,7 @@
     "test/triangular_lapack.jl:89 [(\"zlauu2_\", 64, \"dll\"), (\"zlauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "02aa709a21a92e7ad1a6e5c18ba8aa6c49d87441",
+  "revision": "443d349b46686011c2889333f64f0ab6b630de92",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -1089,6 +1097,86 @@
       "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{ComplexF32}, Int64, Ptr{Float32})",
       "file": "test/lapacke_self_adjoint.jl",
       "symbol": "LAPACKE_cheev_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_cheevd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_cheevd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_cheevd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_cheevd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{ComplexF32}, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Int32)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_cheevd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{ComplexF32}, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Int32)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_cheevd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{ComplexF32}, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Int64)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_cheevd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{ComplexF32}, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Int64)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_cheevd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -2713,6 +2801,86 @@
       "integer_arguments": true
     },
     {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_dsyevd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_dsyevd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_dsyevd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_dsyevd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Int32}, Int32)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_dsyevd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Int32}, Int32)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_dsyevd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Int64}, Int64)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_dsyevd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Int64}, Int64)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_dsyevd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 42,
       "return_type": "Int32",
       "route": "dll",
@@ -3833,6 +4001,86 @@
       "integer_arguments": true
     },
     {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_ssyevd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_ssyevd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_ssyevd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_ssyevd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Int32}, Int32)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_ssyevd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Int32}, Int32)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_ssyevd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Int64}, Int64)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_ssyevd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Int64}, Int64)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_ssyevd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 42,
       "return_type": "Int32",
       "route": "dll",
@@ -4549,6 +4797,86 @@
       "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{ComplexF64}, Int64, Ptr{Float64})",
       "file": "test/lapacke_self_adjoint.jl",
       "symbol": "LAPACKE_zheev_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_zheevd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_zheevd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_zheevd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_zheevd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{ComplexF64}, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Int32)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_zheevd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{ComplexF64}, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Int32)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_zheevd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{ComplexF64}, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Int64)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_zheevd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 91,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{ComplexF64}, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Int64)",
+      "file": "test/lapacke_self_adjoint.jl",
+      "symbol": "LAPACKE_zheevd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -48978,7 +49306,7 @@
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
     "deps/rust/src/lapacke.rs": "f8d713079c3157079075214033e2e91bdf8d9194fbe58d6545afee379cbc29cc",
-    "test/lapacke_execution_checks.jl": "12db8fd0f48b5e33e898d6ff049b588306811ca3b5fae07c82b346e7b6b0cf85",
+    "test/lapacke_execution_checks.jl": "9c13986592792836a524f8402039282f4afbb52d3a248d1ffe4b6088ab97551a",
     "test/lq.jl": "8da0cfe8f4e55a90caf12a2b549518dd3d4a346cb29a4b58afa31c707f13faa1",
     "test/cblas_abi_worker.c": "2ca2bf5ca5524a359e5d399c1a9330f70cb2b6ebec79e6e316b4937ccf8c2930",
     "test/lapacke_calls.jl": "ece3be530c7b23025f6b5e02a1da7acecee4209df676c92a419e64f05d22e616",
@@ -48986,7 +49314,7 @@
     "deps/rust/src/generalized_eigen.rs": "fca9e3e56e59721f1b88f79897ebb64ad48ea3df6fa91a759acbed0fc15e0321",
     "deps/rust/src/advanced_svd.rs": "d5b70dd3d0c29ef957bbb4efa38de3d62951fe0d055904d34ce8f453996df71f",
     "test/lapacke_gesv.jl": "ebc20442fedd0e39c1bce2417bd12a50837aab89fef888ef58607807c008eb10",
-    "deps/rust/src/lapacke/self_adjoint.rs": "efac5ae141278d3b016e09ec037cb1b15a989d82b38e041a3555a976ab49699d",
+    "deps/rust/src/lapacke/self_adjoint.rs": "5a84551d70139a1894030d3be1fe2e08522be6c239208b49c310aa8a5324ef3e",
     "test/lbt_inventory.jl": "d5b33eb443b68e54a8b13ee0a3b2e2e7cd80874a87f48167b5e4ec37b56fcd1f",
     "deps/rust/src/complete_pivot_lu.rs": "fa6c7812c466c6fde0c09ae5777a43c10d44f0e8e8441f101fb7cd006581113f",
     "deps/rust/src/givens.rs": "32bff96f217143867a12899238cc969399069e3000c862214068d4292f4f223d",
@@ -49054,7 +49382,7 @@
     "test/cblas_calls.jl": "31a34dfa3945c3e5d576e8abe0d132600088a3e40512f345f1c8c13c8c0df3bd",
     "deps/rust/src/lib.rs": "27c7a020f9d6bfb88b20eea62508b566c40ac51cf0d4a1a899fc2e2072a0fc95",
     "test/generalized_selfadjoint_fallback_worker.jl": "2ddad3d1d7a94cf5cde048a2f366ac5e97c979529d6cef74d5e20eb8e834f4d8",
-    "deps/rust/src/lapack_symmetric.rs": "07f6fdab3ff51f0fd2c190c59769cf3417e10ce06f43ba7bb724a54b1025a2a8",
+    "deps/rust/src/lapack_symmetric.rs": "0039675d3983c9fdd110feb44a555aea579122595f303f6f2217f4bc7e3a5b28",
     "test/tridiagonal_evd.jl": "60e3036db814634c4be422c38187db45bda957eadaced39556776c2d7ef32951",
     "deps/rust/src/structured_evd.rs": "ecd8bf1d1010fdcf35e4dfb1349f436503b7462a84ca5cb23b15e00acd10dc7e",
     "test/lapacke_abi_worker.c": "dc25908ef62e905a9cbc6e880b448185f6b85ddbc1ec89262785aceb1e7f659d",
@@ -49104,7 +49432,7 @@
     "test/structured_generalized_band_gvd.jl": "b338c60f85009c24ed4d4efea29119c9801ad1f4601b7f23453b81714e8a0ce9",
     "test/structured_generalized_band_gv.jl": "30afdc02f3578280142df271cacd99cb7133698881ac6f7ca67cb00311c9395c",
     "deps/rust/src/bunch_kaufman_rook.rs": "bff251abc239c80e1a8f8630a21d7c727e8026d52fc26c44eeb223abaae85aa9",
-    "test/lapacke_self_adjoint_abi_worker.c": "a2f2b8d4dc02da14bc066372fd60d0490dfcb987ad30f824315989352ba081ec",
+    "test/lapacke_self_adjoint_abi_worker.c": "9cdfca02a3b3772acba85241b3501989db3df390ef65a80370048f7a4a37cc8d",
     "test/cblas_matvec.jl": "926947fcabad917568ae62c33bfe20bb8bc266a7f5527f911474bdc448cfd2a9",
     "test/matrix_extensions.jl": "9c787deeaa703df68c690e7201cbded31dcbebfe9b05f0ae216f69755fea4b38",
     "deps/rust/src/selfadjoint_vectors.rs": "0c909a0cbc72319cd2784578400f0131287b29ed8cc68de84fb0ed8418ad337d",
@@ -49142,7 +49470,7 @@
     "test/generalized_qr_pairs.jl": "0b06d32e7d5780f3c6272ac21aff4607302669e1cc7ae246e2562582bae940e3",
     "test/schur_vectors.jl": "06638db005a3c18bd7002a474b9d80cafee9a7489ee7cebcf0cd49ec3af9a9ef",
     "deps/rust/src/rz.rs": "a8cc2a2cfa74095393bd70c31b0ef18dbe8268c62a4bf7d4b34df04d27d538df",
-    "test/lapacke_self_adjoint.jl": "5eb7df2cb97942b1129aa49de7b2549d0f2c8e21592967f337b263fa663616c4",
+    "test/lapacke_self_adjoint.jl": "c9dfafb6428cbcd97c54c2ab77fb988db90edf5305c3d41142753476af39ae18",
     "test/hessenberg.jl": "fceba1310953ac43851b22865f32efb554f248d93c398676e8fef1f494262089",
     "test/structured_generalized_gvd.jl": "94876875979bdd9274ddc9b35a1fd39d3e14a104affe98807d8b29739befe22c",
     "deps/rust/src/positive_tridiagonal.rs": "eeda9899756258107c4068cec5f7df03eee2db71cf9d30031ae02577646eb2c9",

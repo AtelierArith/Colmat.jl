@@ -1,8 +1,8 @@
-# Issue 288: SYEVD / HEEVD contract preparation
+# Issue 288: SYEVD / HEEVD LAPACKE contracts
 
 Status: high/work DD adapters and workspace diagnostic correction implemented.
 Numerical and independent C ABI checks pass; completed-call tracing and optimized
-release pass. Immutable full-suite evidence remains pending. Issue #288 remains
+release pass. Immutable full-suite evidence passes; platform CI remains pending. Issue #288 remains
 open. The preceding 116-entry worktree has passed its immutable full package run.
 
 The extension adds eight canonical names: S/D SYEVD and C/Z HEEVD,
@@ -77,8 +77,25 @@ The optimized release repeats the numerical and independent C caller checks
 successfully. Registration is 1,606 forwards per integer ABI. Focused traces
 remain explicitly non-full-suite results.
 
-The successful 116-entry snapshot is backed up and retained as stale candidate
-evidence during the next immutable full package run. Only a successful full
-artifact matching all 257 production/test/worker hashes, manifest, registration
-and optimized DLL may replace it. The original scope retains 1,492 entries
+The successful 116-entry snapshot was backed up and retained as stale evidence
+during the immutable full run. It was replaced only after all 257 production/
+test/worker hashes, manifest, registration and optimized DLL matched the
+successful full artifact. The original scope retains 1,492 entries
 beyond this 124-entry candidate and the separate 20 Rook coordination targets.
+
+
+## Immutable full-suite evidence
+
+Full `Pkg.test(; allow_reresolve=false)` passed at public source revision
+`443d349b46686011c2889333f64f0ab6b630de92`, Julia 1.13.3. All 257
+production/test/worker hashes, manifest, native revision, registration digest
+and release DLL match preflight. The DLL SHA-256 is
+`36f7b78c190e93da750491cb7d6a80c8dab5723760f09c2eeb4e4a33e173aa1c`.
+
+Its 4,959 witnesses validate 1,402 canonical entries: 1,106 Fortran LAPACK,
+172 CBLAS and 124 LAPACKE. All 496 LAPACKE ABI/route observations have concrete
+argument and return signatures checked independently. Only this successful
+full artifact replaces the prior 116-entry snapshot.
+
+Issue #288 remains open. Its original scope retains 1,492 entries beyond this
+subset, with the separate 20 Rook coordination targets also pending.
