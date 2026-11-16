@@ -47,3 +47,9 @@ The independent C Julia runner passes two checks. Completed-call tracing
 validates all 188 names and 752 name/ABI/route observations, with 3766 gate
 checks. Focused witnesses remain explicitly full_suite_passed=false.
 Optimized repetition and immutable full-suite evidence remain required.
+
+Optimized build and repeated numerical, independent C and signature checks pass.
+The frozen optimized DLL SHA256 is
+`cd24fc168ff8f788a1ca4b6dae89bb7822b9c4694ba2450dcf5bced8e09cae21`.
+Registration is 1670 forwards per integer ABI. Full-suite proof remains pending;
+focused evidence is not imported as a full-suite snapshot.
