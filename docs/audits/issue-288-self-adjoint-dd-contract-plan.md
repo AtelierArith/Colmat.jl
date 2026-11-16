@@ -1,8 +1,8 @@
 # Issue 288: SYEVD / HEEVD contract preparation
 
 Status: high/work DD adapters and workspace diagnostic correction implemented.
-Numerical and independent C ABI checks pass; completed-call tracing, optimized
-release and immutable full-suite evidence remain pending. Issue #288 remains
+Numerical and independent C ABI checks pass; completed-call tracing and optimized
+release pass. Immutable full-suite evidence remains pending. Issue #288 remains
 open. The preceding 116-entry worktree has passed its immutable full package run.
 
 The extension adds eight canonical names: S/D SYEVD and C/Z HEEVD,
@@ -69,3 +69,16 @@ workspace diagnostics, and guarded integer query outputs pass. Initializing
 integer query guards to -99 exposes partial 32-bit writes into an ILP64 value.
 Rust's full suite passes 428 tests; the evidence fixtures pass 17 tests,
 including rejection of incorrect real/integer workspace pointer types.
+
+
+Completed-call tracing independently validates all 124 current LAPACKE names
+and all 496 ABI/route observations; the completed-call gate passes 2,486 checks.
+The optimized release repeats the numerical and independent C caller checks
+successfully. Registration is 1,606 forwards per integer ABI. Focused traces
+remain explicitly non-full-suite results.
+
+The successful 116-entry snapshot is backed up and retained as stale candidate
+evidence during the next immutable full package run. Only a successful full
+artifact matching all 257 production/test/worker hashes, manifest, registration
+and optimized DLL may replace it. The original scope retains 1,492 entries
+beyond this 124-entry candidate and the separate 20 Rook coordination targets.
