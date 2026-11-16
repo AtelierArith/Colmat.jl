@@ -1,12 +1,8 @@
 # Issue #288: explicit Q generation C adapters
 
-Status: immutable full package validation passes; source-bound execution
-evidence is imported. CI and main integration remain pending.
-Issue #288: explicit Q generation C adapters
+Status: parent integration changes LQ diagnostic tests; a fresh immutable
+full package run is required for current-source evidence.
 
-Status: 32 C adapters pass focused independent numerical and policy checks.
-Independent C and typed tracing also pass; optimized and full-suite proof
-remain pending.
 Issue #288 remains open.
 
 The canonical inventory contains 32 high/work names across real ORGQR/ORGLQ/
@@ -84,3 +80,8 @@ proof validates 1538 canonical entries: 1106 Fortran LAPACK, 172 CBLAS and
 260 LAPACKE, with 5567 completed witnesses. Python 28, inventory 15 and
 documentation build checks pass. All frozen source hashes and DLL remain
 unchanged. CI and main integration remain required.
+
+Parent integration preserves all production sources and the optimized DLL.
+Only test/lq.jl changes among the 300 execution sources, adding validated
+assertions/consumption of expected diagnostics. The 3321360 full proof is
+historical; fresh full validation will cover the current test source set.
