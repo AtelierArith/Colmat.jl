@@ -101,6 +101,9 @@ def validate_lapacke_signature(row, witness):
         'syr': ['Int32', 'Int8', integer, scalar, t, integer, t, integer],
         'gesvd': ['Int32', 'Int8', 'Int8', integer, integer, t, integer, real, t, integer, t, integer],
         'gesdd': ['Int32', 'Int8', integer, integer, t, integer, real, t, integer, t, integer],
+        'geev': ['Int32', 'Int8', 'Int8', integer, t, integer, t]
+                + ([real] if row['scalar'] in ('s', 'd') else [])
+                + [t, integer, t, integer],
         'syev': ['Int32', 'Int8', 'Int8', integer, t, integer, real],
         'heev': ['Int32', 'Int8', 'Int8', integer, t, integer, real],
         'syevd': ['Int32', 'Int8', 'Int8', integer, t, integer, real],
@@ -115,6 +118,10 @@ def validate_lapacke_signature(row, witness):
     expected = args[row['family']]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
+    if row['family'] == 'geev' and row['symbol'].endswith('_work'):
+        expected = expected + [t, integer]
+        if row['scalar'] in ('c', 'z'):
+            expected = expected + [real]
     if row['family'] in ('gesvd', 'gesdd'):
         if row['symbol'].endswith('_work'):
             expected = expected + [t, integer]

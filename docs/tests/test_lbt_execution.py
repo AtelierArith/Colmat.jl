@@ -145,6 +145,10 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_dgetri_work': ('getri', 'd', lambda j: f'(Int32, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_zpotrs': ('potrs', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_zsyr': ('syr', 'z', lambda j: f'(Int32, Int8, {j}, ComplexF64, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_dgeev': ('geev', 'd', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgeev_work': ('geev', 'd', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zgeev': ('geev', 'z', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zgeev_work': ('geev', 'z', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgesvd': ('gesvd', 'd', lambda j: f'(Int32, Int8, Int8, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgesvd_work': ('gesvd', 'd', lambda j: f'(Int32, Int8, Int8, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
             'LAPACKE_zgesvd': ('gesvd', 'z', lambda j: f'(Int32, Int8, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
@@ -223,6 +227,9 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.add_lapacke()
         self.validate()
         for symbol, replacement in (
+            ('LAPACKE_zgeev_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
+            ('LAPACKE_dgeev', lambda s: s.replace('Ptr{Float64}, Ptr{Float64}, Ptr{Float64}', 'Ptr{Float64}, Ptr{ComplexF64}, Ptr{Float64}')),
+            ('LAPACKE_zgeev', lambda s: s.replace('Int64', 'Int32')),
             ('LAPACKE_zgesvd', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
             ('LAPACKE_zgesvd_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
             ('LAPACKE_zgesdd_work', lambda s: s.replace('Ptr{Int64}', 'Ptr{Int32}')),
@@ -262,7 +269,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 132)
+        self.assertEqual(len(lapacke_rows(rows)), 140)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))
