@@ -97,6 +97,8 @@ def validate_lapacke_signature(row, witness):
         'potrf2': ['Int32', 'Int8', integer, t, integer],
         'potri': ['Int32', 'Int8', integer, t, integer],
         'lauum': ['Int32', 'Int8', integer, t, integer],
+        'geqrf': ['Int32', integer, integer, t, integer, t],
+        'geqr2': ['Int32', integer, integer, t, integer, t],
         'trtri': ['Int32', 'Int8', 'Int8', integer, t, integer],
         'trtrs': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer, t, integer],
         'potrs': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
@@ -122,6 +124,8 @@ def validate_lapacke_signature(row, witness):
     if row['family'] not in args:
         raise ValueError(f'LAPACKE signature contract missing for {row["symbol"]}')
     expected = args[row['family']]
+    if row['family'] in ('geqrf', 'geqr2') and row['symbol'].endswith('_work'):
+        expected = expected + [t] + ([integer] if row['family'] == 'geqrf' else [])
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
     if row['family'] == 'geev' and row['symbol'].endswith('_work'):

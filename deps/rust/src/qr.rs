@@ -301,6 +301,7 @@ macro_rules! factor_exports {
             }
             *work=crate::lapack::workspace::<$t>(n.max(1));
             if query {return;}
+            if m==0||n==0 {*work=<$t>::o();return;}
             standard_qr(m as usize,n as usize,a,la,tau,$positive);
         }
     }};
@@ -313,6 +314,7 @@ macro_rules! factor_exports {
             for (arg,ok) in [(1,m>=0),(2,n>=0),(4,la>=m.max(1))] {
                 if !ok {*info=-arg;crate::invalid(arg as i32);return;}
             }
+            if m==0||n==0 {return;}
             standard_qr(m as usize,n as usize,a,la,tau,$positive);
         }
     }};
