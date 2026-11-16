@@ -1,7 +1,8 @@
 # Issue #288: triangular-pentagonal QR C contracts
 
-Status: canonical scope and primary contracts only; implementation and all
-execution evidence remain pending. Issue #288 remains open.
+Status: all 32 C entries are drafted. Direct-DLL debug numerical checks pass;
+policy, independent C caller, typed DLL/LBT tracing, optimized repetition and
+immutable full proof remain pending. Issue #288 remains open.
 
 The canonical inventory contains 32 S/D/C/Z high/work TPQRT, TPQRT2, TPMQRT
 and TPRFB names. Following the 356-name RZ candidate this would reach 388
@@ -57,3 +58,26 @@ For SIDE=R, logical A is M-by-K (3-by-2); V shape also depends on SIDE and
 STOREV. The adapter must derive logical extents and preserve const/padding
 storage. Exact source, reproducer and output hashes are recorded in
 issue-288-pentagonal-row-extents.json. full_suite_passed remains false.
+
+The draft adapters provide all 32 high/work exports in both integer ABIs.
+Row conversion packs logical arrays and preserves const factor storage,
+structural zeros and caller padding. TPRFB keeps the underlying void Fortran
+contract: numerical argument diagnostics do not invent a negative C INFO.
+High NaN scans and row-wrapper header errors remain C-level behavior.
+
+Debug direct-DLL checks pass 13728 factor assertions, 32768 TPRFB assertions
+against elementary reflector products and 26624 TPMQRT assertions using
+independent OpenBLAS factors. Tests cover real/complex, both ABIs/layouts,
+high/work, both sides/transposes, F/B and C/R storage, pentagonal overlap
+and partial blocks. Initial empty-factor oracle calls incorrectly supplied
+zero leading dimensions; after passing legal minimum one all factor checks
+pass. Numerical source/library/log hashes are in
+issue-288-pentagonal-focused-numerical.json. These are focused results only.
+
+A separate unchanged high-wrapper NaN probe passes 32 scalar/layout/SIDE
+observations. It confirms A scans use transposed logical dimensions: active
+NaNs can be missed and padding NaNs rejected. The adapter uses logical A
+rows/columns. Buffers cover both extents and numerical work is stubbed;
+this is policy evidence only. See issue-288-pentagonal-nan-extents.json.
+The stage still requires expanded empty/scaled/diagnostic tests, independent
+C declarations, actual DLL/LBT calls and immutable full-suite evidence.

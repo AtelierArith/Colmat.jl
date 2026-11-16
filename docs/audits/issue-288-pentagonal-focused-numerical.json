@@ -1,0 +1,18 @@
+{
+  "full_suite_passed": false,
+  "mode": "debug",
+  "scope": "direct DLL calls; numerical factor and application checks",
+  "library_sha256": "dc851d0f551829ca8c71140dea2855ef6726cb8e8ca6bf168fa32a98d79c10f0",
+  "log_sha256": "86760709627f45dd6aceae246a051cfc3dfc9733c4ef8baa24614dfbc15a7c58",
+  "counts": {
+    "factors": 13728,
+    "tprfb": 32768,
+    "tpmqrt": 26624
+  },
+  "source_sha256": {
+    "deps/rust/src/lapacke.rs": "41279d8285ad0944cdf6e3569c1294d3f2fc11adfa1bc5954d3946e3bce2de2b",
+    "deps/rust/src/lapacke/pentagonal_qr.rs": "512dc1becd6445e5c6cb6094468251149db22ad34334816a00581da9e7fe42cc",
+    "test/lapacke_pentagonal_qr.jl": "9ed704fed0bb738d9be1068681ff01dae82843517b1e5502d6d46e05fe471a9b",
+    "test/lapacke_pentagonal_application.jl": "35d53106348cffe1f0e62071c6558b6e9b344e7f679914f34401d536bb4d136d"
+  }
+}
