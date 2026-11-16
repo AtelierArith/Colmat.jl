@@ -206,12 +206,23 @@ unsafe fn factor_driver<T: ReflectorScalar, I: LapackInt>(
         }
     }
     if let Some(lw) = lwork {
-        let minimum = if rq { m.max(1) } else { n.max(1) };
+        let minimum = if rq {
+            if n == 0 {
+                1
+            } else {
+                m.max(1)
+            }
+        } else if m == 0 {
+            1
+        } else {
+            n.max(1)
+        };
+        // Reference QL/RQ publishes WORK before validating LWORK.
+        *work = crate::lapack::workspace::<T>(if m == 0 || n == 0 { 1 } else { minimum });
         if lw != -1 && lw < minimum {
             error(info, 7);
             return;
         }
-        *work = crate::lapack::workspace::<T>(minimum);
         if lw == -1 {
             return;
         }
