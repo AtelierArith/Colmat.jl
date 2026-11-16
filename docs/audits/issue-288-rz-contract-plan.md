@@ -109,3 +109,17 @@ the common adapter's null/span guard before numerical header validation.
 The new numerical tolerances use 100*epsilon for small operators, with a
 10x reconstruction allowance. These new checks remain unverified until the
 corresponding cloud run completes; no passing result is claimed yet.
+
+Initial C numerical run 43908313082 passed 33024 factor/consumer and 46176
+application assertions (79200 total). Its ZIP digest
+ba4f8a062650aa879b3e5e6ae4112365a9913b78116f3ba63169bbb71cedae8e,
+revision 28207e0 and formatted numerical source were verified by applying
+the captured formatter patch to that exact committed source in an isolated
+directory. A stricter-tolerance version with the new C policy/null-scan
+checks is running separately and is not yet claimed to pass.
+
+ABI validation adds exact TZRZF and ORMRZ/UNMRZ contracts, including the L
+integer and complex TAU/WORK pointers. Seventeen execution fixtures pass,
+including wrong L width, C character type and scalar-pointer rejections.
+The prepared completed-call gate now covers 356 canonical names. No typed
+356-name result, optimized repeat or immutable RZ full proof is claimed.
