@@ -2,13 +2,23 @@ using Test
 
 @testset "Actual LAPACKE calls cover the implemented frozen scope" begin
     families=(
-        "getrf", "getrs", "gesv", "getri", "potrf", "potrf2", "potri", "potrs", "posv"
+        "getrf",
+        "getf2",
+        "getrf2",
+        "getrs",
+        "gesv",
+        "getri",
+        "potrf",
+        "potrf2",
+        "potri",
+        "potrs",
+        "posv",
     )
     targets=Set(
         "LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in families for
         w in ("", "_work")
     )
-    @test length(targets)==72
+    @test length(targets)==88
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(

@@ -11,23 +11,24 @@
 
 #define CHECK(P,T,INT,SUFFIX,PHASE,TOL) do { \
     typedef INT (*factor)(int,INT,INT,T *,INT,INT *); \
-    const char *names[]={"LAPACKE_" #P "getrf" SUFFIX,"LAPACKE_" #P "getrf_work" SUFFIX}; \
-    for (int entry=0;entry<2;entry++) { \
+    const char *names[]={"LAPACKE_" #P "getrf" SUFFIX,"LAPACKE_" #P "getrf_work" SUFFIX,"LAPACKE_" #P "getf2" SUFFIX,"LAPACKE_" #P "getf2_work" SUFFIX,"LAPACKE_" #P "getrf2" SUFFIX,"LAPACKE_" #P "getrf2_work" SUFFIX}; \
+    for (int entry=0;entry<6;entry++) { \
         factor call=(factor)dlsym(library,names[entry]); assert(call); \
-        for (int layout=101;layout<=102;layout++) { \
-            T a[15],original[3][2]; INT piv[4]={-91,-92,-93,-94}; \
+        for (int layout=101;layout<=102;layout++) for(int shape=0;shape<2;shape++) { \
+            int m=shape?2:3,n=shape?3:2; \
+            T a[15],original[3][3]; INT piv[4]={-91,-92,-93,-94}; \
             for (int q=0;q<15;q++) a[q]=(T)777; \
-            double values[3][2]={{2,1},{4,3},{1,5}}; \
-            for(int i=0;i<3;i++) for(int j=0;j<2;j++) { \
+            double values[3][3]={{2,1,7},{4,3,-2},{1,5,6}}; \
+            for(int i=0;i<m;i++) for(int j=0;j<n;j++) { \
                 original[i][j]=(T)(values[i][j]*(PHASE)); \
                 a[layout==101?i*5+j:i+j*5]=original[i][j]; \
             } \
-            assert(call(layout,3,2,a,5,piv+1)==0); \
+            assert(call(layout,m,n,a,5,piv+1)==0); \
             assert(piv[0]==-91 && piv[3]==-94 && piv[1]==2); \
-            for(int k=0;k<2;k++) for(int j=0;j<2;j++) { \
+            for(int k=0;k<2;k++) for(int j=0;j<n;j++) { \
                 T tmp=original[k][j]; original[k][j]=original[piv[k+1]-1][j]; original[piv[k+1]-1][j]=tmp; \
             } \
-            for(int i=0;i<3;i++) for(int j=0;j<2;j++) { \
+            for(int i=0;i<m;i++) for(int j=0;j<n;j++) { \
                 T value=0; \
                 for(int k=0;k<2;k++) { \
                     T l=i==k?1:(i>k?a[layout==101?i*5+k:i+k*5]:0); \
@@ -36,7 +37,7 @@
                 assert(cabs((double complex)(value-original[i][j]))<(TOL)); \
             } \
             for(int q=0;q<15;q++) { \
-                int used=layout==101?(q/5<3 && q%5<2):(q/5<2 && q%5<3); \
+                int used=layout==101?(q/5<m && q%5<n):(q/5<n && q%5<m); \
                 if(!used) assert(a[q]==(T)777); \
             } \
             T singular[4]={1,2,2,4}; assert(call(layout,2,2,singular,2,piv+1)==2); \
@@ -218,6 +219,6 @@ int main(int argc,char **argv) {
     /* Disabling the scan reaches dimension validation without reading NULL. */
     assert(z(102,INT64_C(-4294967293),2,NULL,2,NULL)==-2);
     set(-9);assert(get()==1);
-    puts("LAPACKE C ABI: GETRF/GETRS/GESV/GETRI high/work, four scalars, both integer widths passed");
+    puts("LAPACKE C ABI: GETRF/GETF2/GETRF2/GETRS/GESV/GETRI high/work, four scalars, both integer widths passed");
     dlclose(library);return 0;
 }

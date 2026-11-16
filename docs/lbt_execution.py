@@ -86,6 +86,8 @@ def validate_lapacke_signature(row, witness):
     t, pivot = f'Ptr{{{scalar}}}', f'Ptr{{{integer}}}'
     args = {
         'getrf': ['Int32', integer, integer, t, integer, pivot],
+        'getf2': ['Int32', integer, integer, t, integer, pivot],
+        'getrf2': ['Int32', integer, integer, t, integer, pivot],
         'getrs': ['Int32', 'Int8', integer, integer, t, integer, pivot, t, integer],
         'gesv': ['Int32', integer, integer, t, integer, pivot, t, integer],
         'getri': ['Int32', integer, t, integer, pivot],

@@ -1,13 +1,13 @@
 # Issue #288: dense LU and Cholesky LAPACKE entries
 
-This stage connects **72 canonical numerical entries**: high-level and `_work`
-forms of GETRF, GETRS, GESV, GETRI, POTRF, POTRF2, POTRI, POTRS and POSV, for
+This stage connects **88 canonical numerical entries**: high-level and `_work`
+forms of GETRF, GETF2, GETRF2, GETRS, GESV, GETRI, POTRF, POTRF2, POTRI, POTRS and POSV, for
 Float32, Float64, ComplexF32 and ComplexF64. Both integer ABIs and actual DLL/LBT
 routes are tested. Two additional NaN policy helpers are shared between ABIs;
 their arguments and return values retain C-int width.
 
 **Issue #288 remains open.** Its original 1,616-entry acceptance scope is frozen
-in `issue-288-lapacke-scope.json`; 1,544 of those entries remain beyond this stage.
+in `issue-288-lapacke-scope.json`; 1,528 of those entries remain beyond this stage.
 Issue #372 additionally coordinates 20 LAPACKE Rook entries with #288. Those
 additions are separate from the original scope and are also still pending.
 Registration alone, successful fallback computation and the current subset's
@@ -79,15 +79,15 @@ INFO=0, no changed ignored positions and finite factor entries.
 ## Execution evidence
 
 The successful full `Pkg.test(; allow_reresolve=false)` ran source revision
-`021e74301570b9433d0e4f94476f3c60204b0846` with 245 production/test/worker sources,
+`b72cd8767ddc92b56317917a02431f5c3555943e` with 245 production/test/worker sources,
 manifest, registration table and release DLL frozen before execution. The
-resulting artifact matched every captured hash and revision. Its 4,751 raw
-witness rows independently validate **1,350 canonical entries**: the existing
-1,106 Fortran LAPACK and 172 CBLAS targets plus 72 LAPACKE targets. The formal
+resulting artifact matched every captured hash and revision. Its 4,815 raw
+witness rows independently validate **1,366 canonical entries**: the existing
+1,106 Fortran LAPACK and 172 CBLAS targets plus 88 LAPACKE targets. The formal
 snapshot is `docs/src/assets/lapack-abi-execution.json`; scope and provenance
 validation rejects stale, partial or failed-suite artifacts.
 
-The 72 LAPACKE entries contribute 288 completed call-site observations, covering
+The 88 LAPACKE entries contribute 352 completed call-site observations, covering
 both ABIs and both actual routes. Each recorded argument and INFO return type
 is checked against the current concrete C contract. Registered unreviewed
 families are rejected until their real signature is added; future matrix-norm
@@ -99,14 +99,14 @@ qualify caller-selected alias names where needed. Qualification creates no
 witness: the actual returned ccall must match the selected symbol, ABI and
 route in the address table. Selection is included in deduplication and restored
 on exceptions. The recorder behavior tests pass 24 checks, and the LAPACKE
-completed-call gate passes 1,446 checks. Independent C workers exercise the
+completed-call gate passes 1,766 checks. Independent C workers exercise the
 concrete ABI and compiler's complex layout.
 
 ## Validation and remaining work
 
 - Successful full Pkg.test, including ordinary standard BLAS/LAPACK regression.
 - 398 Rust tests and Rust formatting checks passed.
-- Focused LAPACKE numerical/C checks passed 31,912 checks before tracing gates;
+- Focused LAPACKE numerical/C checks passed 33,320 checks before tracing gates;
   separate existing Fortran driver/direct-ABI/boundary regressions passed 7,200.
 - Independent OpenBLAS factors feed GETRS/GETRI/POTRS/POTRI; standard OpenBLAS
   solves consume generated LU and Cholesky factors. Scalar loops construct RHS,
@@ -116,13 +116,39 @@ concrete ABI and compiler's complex layout.
   diagonal NaNs, an ILP64 query above 32-bit range and Float32 work rounding.
 - The Documenter build (`julia --project=docs docs/make.jl`) passed.
 - After importing the full artifact, all 26 Python documentation/audit tests and
-  all 15 actual inventory checks passed. Registration is 1,554 per ABI, with
+  all 15 actual inventory checks passed. Registration is 1,570 per ABI, with
   5,146 canonical symbols. The candidate audit preserves the original 2,910
   scope and separately tracked 40 Rook additions.
 
 Remaining families need their own layout, workspace, callback, option and
 numerical-contract validation. The original 1,616 declarations include 36
-real-valued returns and 40 entries without matrix_layout; the current nine
+real-valued returns and 40 entries without matrix_layout; the current eleven
 families do not establish those contracts. Native-dependent BDS/TGEVC work and
-coordinated Rook C entries remain pending. This stage must not close #288 or
-mark parent #263 complete.
+coordinated Rook C entries remain pending. Issue #288 and parent #263 remain open until their respective requirements are verified.
+
+
+## GETF2/GETRF2 extension
+
+PR #379 delivered the first 72 entries. This extension adds 16 canonical
+high/work LU entries and preserves the original scope and separately listed
+Rook coordination targets. It uses the same public native LU numerical
+contract as the already-connected Fortran aliases; unblocked/recursive algorithm
+and performance equivalence are not claimed. Reference-LAPACK v3.12.1 work
+wrapper blobs: `lapacke_cgetf2_work.c`
+`53643cd7c30238179338ce19aff2e337b1696857` and `lapacke_cgetrf2_work.c`
+`2586244a3ed00a210567e216b08864554664a7f2`.
+
+C compiler tests cover both 3-by-2 and 2-by-3 matrices, nonreal complex values,
+guarded pivots, both layouts, singular INFO and invalid dimensions. The Julia
+LU checks pass 2,128 checks; all 88 numerical entries produce 352 actual
+name/ABI/route observations with independently validated argument and return
+types. Alias qualification prevents release code merging from dropping or
+inventing executed names. Both C runners pass eight checks. Rust still passes
+398 tests; inventory checks pass 15 tests and independent evidence fixtures
+pass 15 tests.
+
+The full Pkg.test succeeded at the source revision given above. Its artifact
+matched all 245 captured source hashes, manifest, release DLL and the exact
+1,570-forward-per-ABI inventory, then independently validated 1,366 entries.
+Only that successful full artifact replaces the earlier 72-entry snapshot;
+focused artifacts are not published as full-suite evidence.
