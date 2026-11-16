@@ -3,6 +3,7 @@
 //! Layout is always C int; dimensions, pivots and returned INFO follow lapack_int.
 use crate::kernels::Scalar;
 mod cholesky;
+mod svd;
 mod symmetric_rank;
 
 const ROW_MAJOR: i32 = 101;

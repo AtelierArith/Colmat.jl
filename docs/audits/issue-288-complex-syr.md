@@ -57,7 +57,7 @@ The optimized release passes the numerical and independent C checks. The
 completed-call gate passes 1,846 checks. Registration is 1,574 for each ABI;
 all 15 inventory checks pass.
 
-## Immutable full-suite evidence
+## Immutable full-suite evidence (PR #381 checkpoint)
 
 Full `Pkg.test(; allow_reresolve=false)` completed successfully at public source
 revision `fe72e32e3922746defabe7fa4ddae5026179bf8b` on Julia 1.13.3. All
@@ -73,3 +73,6 @@ focused traces are not used as full-suite evidence.
 
 Issue #288 remains open. Of its original 1,616 entries, 1,524 remain beyond
 this subset, as do the separate 20 Rook coordination targets.
+
+The later SVD extension supplies the current 108-entry snapshot; the counts
+above preserve this stage's historical checkpoint.
