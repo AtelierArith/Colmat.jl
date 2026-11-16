@@ -1,0 +1,238 @@
+//! Least-squares storage: A is M-by-N; B has max(M,N) output rows.
+use super::{
+    ge_nancheck, row_to_column, self_adjoint::zeros, LAPACKE_get_nancheck, COL_MAJOR, ROW_MAJOR,
+};
+use crate::kernels::Scalar;
+
+fn gels_geometry(
+    layout: i32,
+    trans: u8,
+    m: i64,
+    n: i64,
+    nrhs: i64,
+    lda: i64,
+    ldb: i64,
+    complex: bool,
+) -> Result<(), i64> {
+    if !matches!(layout, ROW_MAJOR | COL_MAJOR) {
+        return Err(-1);
+    }
+    if layout == ROW_MAJOR {
+        if lda < n {
+            return Err(-7);
+        }
+        if ldb < nrhs {
+            return Err(-9);
+        }
+    }
+    let trans = trans.to_ascii_uppercase();
+    if trans != b'N' && trans != if complex { b'C' } else { b'T' } {
+        return Err(-2);
+    }
+    if m < 0 {
+        return Err(-3);
+    }
+    if n < 0 {
+        return Err(-4);
+    }
+    if nrhs < 0 {
+        return Err(-5);
+    }
+    if layout == COL_MAJOR {
+        if lda < m.max(1) {
+            return Err(-7);
+        }
+        if ldb < m.max(n).max(1) {
+            return Err(-9);
+        }
+    }
+    Ok(())
+}
+
+unsafe fn layout_work<T: Scalar>(
+    layout: i32,
+    m: i64,
+    n: i64,
+    nrhs: i64,
+    input_rows: i64,
+    a: *mut T,
+    lda: i64,
+    b: *mut T,
+    ldb: i64,
+    skip_packing: bool,
+    mut call: impl FnMut(*mut T, i64, *mut T, i64) -> i64,
+) -> i64 {
+    if layout == COL_MAJOR {
+        return call(a, lda, b, ldb);
+    }
+    let rows = m.max(n);
+    if skip_packing || nrhs == 0 {
+        return call(a, m.max(1), b, rows.max(1));
+    }
+    let mut at = match row_to_column(m as usize, n as usize, a, lda as usize) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    let count = match (rows as usize).checked_mul(nrhs as usize) {
+        Some(v) => v,
+        None => return -1011,
+    };
+    let mut bt = match zeros::<T>(count) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
+    // Empty GELS writes zeros without reading either input. Otherwise read
+    // only RHS input rows, independently of its larger solution allocation.
+    if m > 0 && n > 0 {
+        if !crate::kernels::matrix_addressable::<T>(
+            nrhs as isize,
+            input_rows as isize,
+            ldb as isize,
+        ) {
+            return -1011;
+        }
+        for j in 0..nrhs as usize {
+            for i in 0..input_rows as usize {
+                bt[i + j * rows as usize] = *b.add(i * ldb as usize + j);
+            }
+        }
+    }
+    if !crate::kernels::matrix_addressable::<T>(nrhs as isize, rows as isize, ldb as isize) {
+        return -1011;
+    }
+    let info = call(at.as_mut_ptr(), m.max(1), bt.as_mut_ptr(), rows.max(1));
+    if info >= 0 {
+        for j in 0..n as usize {
+            for i in 0..m as usize {
+                *a.add(i * lda as usize + j) = at[i + j * m as usize];
+            }
+        }
+        for j in 0..nrhs as usize {
+            for i in 0..rows as usize {
+                *b.add(i * ldb as usize + j) = bt[i + j * rows as usize];
+            }
+        }
+    }
+    info
+}
+
+macro_rules! exports {($p:ident,$t:ty,$j:ty,[$($suffix:tt)*],$f:tt)=>{paste::paste!{
+    #[no_mangle]
+    pub unsafe extern "C" fn [<LAPACKE_ $p gels_work $($suffix)*>](layout:i32,trans:i8,m:$j,n:$j,nrhs:$j,a:*mut $t,lda:$j,b:*mut $t,ldb:$j,workspace:*mut $t,lwork:$j)->$j {
+        if let Err(e)=gels_geometry(layout,trans as u8,m as i64,n as i64,nrhs as i64,lda as i64,ldb as i64,<$t>::COMPLEX){return e as $j;}
+        let minimum=(m.min(n) as i128+(m.min(n).max(nrhs) as i128)).max(1);
+        if minimum>(<$j>::MAX as i128){return -11;}
+        let input_rows=if (trans as u8).to_ascii_uppercase()==b'N'{m}else{n};
+        layout_work(layout,m as i64,n as i64,nrhs as i64,input_rows as i64,a,lda as i64,b,ldb as i64,lwork== -1||(lwork as i128)<minimum,|a,lda,b,ldb|{
+            let mut info:$j=0;
+            crate::least_squares::[<$p gels $f>](&(trans as u8),&m,&n,&nrhs,a,&(lda as $j),b,&(ldb as $j),workspace,&lwork,&mut info);
+            if info<0 {(info-1) as i64}else{info as i64}
+        }) as $j
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn [<LAPACKE_ $p gels $($suffix)*>](layout:i32,trans:i8,m:$j,n:$j,nrhs:$j,a:*mut $t,lda:$j,b:*mut $t,ldb:$j)->$j {
+        if !matches!(layout,ROW_MAJOR|COL_MAJOR){return -1;}
+        if LAPACKE_get_nancheck()!=0 {
+            match ge_nancheck(layout,m as i64,n as i64,a,lda as i64){Ok(true)=>return -6,Err(e)=>return e as $j,_=>{}}
+            match ge_nancheck(layout,m.max(n) as i64,nrhs as i64,b,ldb as i64){Ok(true)=>return -8,Err(e)=>return e as $j,_=>{}}
+        }
+        let mut query=<$t>::z();
+        let info=[<LAPACKE_ $p gels_work $($suffix)*>](layout,trans,m,n,nrhs,a,lda,b,ldb,&mut query,-1);
+        if info!=0 {return info;}
+        if !query.re().is_finite() || query.re()<1.0 {return -1010;}
+        let count=query.re() as usize;
+        if count>(<$j>::MAX as usize){return -1010;}
+        let mut workspace=match zeros::<$t>(count){Ok(v)=>v,Err(_)=>return -1010};
+        [<LAPACKE_ $p gels_work $($suffix)*>](layout,trans,m,n,nrhs,a,lda,b,ldb,workspace.as_mut_ptr(),count as $j)
+    }
+}};}
+exports!(s, f32, i32, [], _);
+exports!(d, f64, i32, [], _);
+exports!(c, colmat::c32, i32, [], _);
+exports!(z, colmat::c64, i32, [], _);
+exports!(s, f32, i64, [64_], _64_);
+exports!(d, f64, i64, [64_], _64_);
+exports!(c, colmat::c32, i64, [64_], _64_);
+exports!(z, colmat::c64, i64, [64_], _64_);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lapack::LapackInt;
+    type High<T, I> = unsafe extern "C" fn(i32, i8, I, I, I, *mut T, I, *mut T, I) -> I;
+    type Work<T, I> = unsafe extern "C" fn(i32, i8, I, I, I, *mut T, I, *mut T, I, *mut T, I) -> I;
+    unsafe fn empty<T: Scalar, I: LapackInt>(high: High<T, I>, work: Work<T, I>) {
+        for layout in [101, 102] {
+            for high_level in [false, true] {
+                for (m, n, r) in [(0, 0, 2), (0, 3, 2), (3, 0, 2), (3, 5, 0)] {
+                    let rows = m.max(n);
+                    let lda = if layout == 101 { n + 2 } else { m + 2 };
+                    let ldb = if layout == 101 { r + 3 } else { rows + 3 };
+                    let mut a = [T::real(777.0); 64];
+                    let mut b = [T::real(778.0); 64];
+                    let mut workspace = [T::real(779.0); 64];
+                    let ii = I::from_i64;
+                    let info = if high_level {
+                        high(
+                            layout,
+                            b'N' as i8,
+                            ii(m),
+                            ii(n),
+                            ii(r),
+                            a.as_mut_ptr().add(1),
+                            ii(lda),
+                            b.as_mut_ptr().add(1),
+                            ii(ldb),
+                        )
+                    } else {
+                        work(
+                            layout,
+                            b'N' as i8,
+                            ii(m),
+                            ii(n),
+                            ii(r),
+                            a.as_mut_ptr().add(1),
+                            ii(lda),
+                            b.as_mut_ptr().add(1),
+                            ii(ldb),
+                            workspace.as_mut_ptr().add(1),
+                            ii(62),
+                        )
+                    };
+                    assert_eq!(info.val(), 0);
+                    assert!(a.iter().all(|x| *x == T::real(777.0)));
+                    let mut touched = [false; 64];
+                    for j in 0..r as usize {
+                        for i in 0..rows as usize {
+                            let q = 1 + if layout == 101 {
+                                i * ldb as usize + j
+                            } else {
+                                i + j * ldb as usize
+                            };
+                            assert!(b[q] == T::z());
+                            touched[q] = true;
+                        }
+                    }
+                    assert!(b
+                        .iter()
+                        .enumerate()
+                        .all(|(i, x)| touched[i] || *x == T::real(778.0)));
+                    assert!(workspace[0] == T::real(779.0) && workspace[63] == T::real(779.0));
+                }
+            }
+        }
+    }
+    #[test]
+    fn empty_gels_c_layouts_preserve_padding_and_write_zero_rhs() {
+        unsafe {
+            empty::<f32, i32>(LAPACKE_sgels, LAPACKE_sgels_work);
+            empty::<f64, i32>(LAPACKE_dgels, LAPACKE_dgels_work);
+            empty::<colmat::c32, i32>(LAPACKE_cgels, LAPACKE_cgels_work);
+            empty::<colmat::c64, i32>(LAPACKE_zgels, LAPACKE_zgels_work);
+            empty::<f32, i64>(LAPACKE_sgels64_, LAPACKE_sgels_work64_);
+            empty::<f64, i64>(LAPACKE_dgels64_, LAPACKE_dgels_work64_);
+            empty::<colmat::c32, i64>(LAPACKE_cgels64_, LAPACKE_cgels_work64_);
+            empty::<colmat::c64, i64>(LAPACKE_zgels64_, LAPACKE_zgels_work64_);
+        }
+    }
+}

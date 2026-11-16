@@ -1,7 +1,8 @@
 # Issue #288: least-squares C contracts
 
-Status: scope, primary contracts and executed Fortran boundary reproduction
-only. No new LAPACKE least-squares entry is implemented or verified yet.
+Status: Fortran WORK publication is corrected and verified. Eight GELS C
+entries are drafted; broader C numerical validation is pending. The other
+24 planned C entries are not implemented yet.
 Issue #288 remains open.
 
 The canonical inventory contains eight high/work S/D/C/Z names each for
@@ -72,3 +73,13 @@ query/error bypass of row packing and distinct RHS input/solution extents.
 High-level NaN scans follow the complete reference A/B storage contract;
 numerical work reads only input RHS rows. C numerical validation is running.
 The other 24 planned C entries and full-stage evidence remain pending.
+
+Initial GELS C testing exposed a debug abort in the shared row_to_column
+helper: a valid empty matrix computed unsigned M-1 before copying zero entries.
+The helper now returns an empty allocation before any span arithmetic or read.
+Two regressions cover empty/null conversion and actual high/work GELS C calls
+with zero dimensions/NRHS, both layouts, all scalar types and integer ABIs,
+checking zero RHS output and caller guards. Rust passes 463 tests. Exact
+before/after library, source and log hashes are recorded in
+issue-288-least-squares-empty-layout.json. The larger GELS C numerical test is
+rerunning after this correction; no passing numerical result is claimed yet.
