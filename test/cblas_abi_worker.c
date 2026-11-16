@@ -29,6 +29,7 @@ typedef void (*copy64)(int,int,int64_t,int64_t,const void *,const void *,int64_t
 typedef void (*icopy64)(int,int,int64_t,int64_t,const void *,void *,int64_t,int64_t);
 typedef void (*add64)(int,int64_t,int64_t,const void *,const void *,int64_t,const void *,void *,int64_t);
 typedef void (*tg64)(int,int,int,int,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,const void *,void *,int64_t);
+typedef void (*gemm64)(int,int,int,int64_t,int64_t,int64_t,const void *,const void *,int64_t,const void *,int64_t,const void *,void *,int64_t);
 
 int main(int argc,char **argv) {
     if (argc!=2) return 2;
@@ -58,6 +59,8 @@ int main(int argc,char **argv) {
     ENTRY(add64,cblas_zgeadd64_);
     ENTRY(tg64,cblas_zgemmt64_);
     ENTRY(tg64,cblas_zgemmtr64_);
+    ENTRY(gemm64,cblas_zgemm3m64_);
+    ENTRY(gemm64,cblas_cgemm3m64_);
     const float complex xf[]={1+2*I,3-I},yf[]={2-I,-1+3*I};
     const double complex xd[]={1+2*I,3-I},yd[]={2-I,-1+3*I};
     assert(cabsf(cblas_cdotu(2,xf,1,yf,1)-(xf[0]*yf[0]+xf[1]*yf[1]))<1e-5f);
@@ -127,6 +130,23 @@ int main(int argc,char **argv) {
     const double complex tri_a[]={1+I,2-I,97,3+2*I,4-I,97};
     const double complex tri_b[]={2+I,1-2*I,97,3-I,2+2*I,97};
     tg64 triangular_functions[]={cblas_zgemmt64_,cblas_zgemmtr64_};
+    double complex three_m_out[]={NAN,NAN,NAN,97,NAN,NAN,NAN,97};
+    cblas_zgemm3m64_(101,111,111,2,3,2,&copy_alpha,tri_a,3,copy_source,4,&beta,three_m_out,4);
+    float complex three_m_a[6],three_m_b[8];
+    for (int pos=0;pos<6;++pos) three_m_a[pos]=(float complex)tri_a[pos];
+    for (int pos=0;pos<8;++pos) three_m_b[pos]=(float complex)copy_source[pos];
+    const float complex three_m_alpha=1+I,three_m_beta=0;
+    float complex three_m_single[]={NAN,NAN,NAN,97,NAN,NAN,NAN,97};
+    cblas_cgemm3m64_(101,111,111,2,3,2,&three_m_alpha,three_m_a,3,three_m_b,4,&three_m_beta,three_m_single,4);
+    for (int row=0;row<2;++row) for (int col=0;col<3;++col) {
+        double complex expected=0;
+        for (int inner=0;inner<2;++inner) expected+=tri_a[row*3+inner]*copy_source[inner*4+col];
+        expected*=copy_alpha;
+        assert(cabs(three_m_out[row*4+col]-expected)<1e-12);
+        assert(cabs((double complex)three_m_single[row*4+col]-expected)<1e-4);
+    }
+    assert(three_m_out[3]==97&&three_m_out[7]==97);
+    assert(three_m_single[3]==97&&three_m_single[7]==97);
     for (int variant=0;variant<2;++variant) {
         double complex tri_c[]={NAN,NAN,97,89,NAN,97};
         triangular_functions[variant](101,121,114,113,2,2,&alpha,tri_a,3,tri_b,3,&beta,tri_c,3);

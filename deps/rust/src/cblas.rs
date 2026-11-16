@@ -6,6 +6,7 @@
 use crate::kernels::Scalar;
 use colmat::{c32, c64};
 use paste::paste;
+mod three_m;
 
 // Validate the complete referenced byte span before the Fortran layer computes
 // signed offsets. Zero increments retain the underlying Level-1 semantics.
@@ -193,9 +194,9 @@ fn matrix_ok<T>(rows: i64, cols: i64, ld: i64, row_major: bool, argument: i32) -
     true
 }
 macro_rules! gemm_export {
-    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt) => {paste! {
+    ($p:ident,$t:ty,$coefficient:ty,$read:expr,$i:ty,$cs:tt,$op:ident,$kernel:path) => {paste! {
         #[no_mangle]
-        pub unsafe extern "C" fn [<cblas_ $p gemm $cs>](order:i32,ta:i32,tb:i32,m:$i,n:$i,k:$i,alpha:$coefficient,a:*const $t,lda:$i,b:*const $t,ldb:$i,beta:$coefficient,c:*mut $t,ldc:$i) {
+        pub unsafe extern "C" fn [<cblas_ $p $op $cs>](order:i32,ta:i32,tb:i32,m:$i,n:$i,k:$i,alpha:$coefficient,a:*const $t,lda:$i,b:*const $t,ldb:$i,beta:$coefficient,c:*mut $t,ldc:$i) {
             if !matches!(order,101|102) {crate::invalid(1);return;}
             let Some(ta)=cblas_trans(ta) else {crate::invalid(2);return;};
             let Some(tb)=cblas_trans(tb) else {crate::invalid(3);return;};
@@ -212,9 +213,9 @@ macro_rules! gemm_export {
             let alpha=($read)(alpha);
             let beta=($read)(beta);
             if row {
-                crate::kernels::gemm(tb,ta,n as isize,m as isize,k as isize,alpha,b,ldb as isize,a,lda as isize,beta,c,ldc as isize);
+                ($kernel)(tb,ta,n as isize,m as isize,k as isize,alpha,b,ldb as isize,a,lda as isize,beta,c,ldc as isize);
             } else {
-                crate::kernels::gemm(ta,tb,m as isize,n as isize,k as isize,alpha,a,lda as isize,b,ldb as isize,beta,c,ldc as isize);
+                ($kernel)(ta,tb,m as isize,n as isize,k as isize,alpha,a,lda as isize,b,ldb as isize,beta,c,ldc as isize);
             }
         }
     }};
@@ -1094,10 +1095,48 @@ macro_rules! interface {
         gemv_export!(d, f64, f64, |x: f64| x, $i, $cs);
         gemv_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs);
         gemv_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs);
-        gemm_export!(s, f32, f32, |x: f32| x, $i, $cs);
-        gemm_export!(d, f64, f64, |x: f64| x, $i, $cs);
-        gemm_export!(c, c32, *const c32, |x: *const c32| *x, $i, $cs);
-        gemm_export!(z, c64, *const c64, |x: *const c64| *x, $i, $cs);
+        gemm_export!(s, f32, f32, |x: f32| x, $i, $cs, gemm, crate::kernels::gemm);
+        gemm_export!(d, f64, f64, |x: f64| x, $i, $cs, gemm, crate::kernels::gemm);
+        gemm_export!(
+            c,
+            c32,
+            *const c32,
+            |x: *const c32| *x,
+            $i,
+            $cs,
+            gemm,
+            crate::kernels::gemm
+        );
+        gemm_export!(
+            z,
+            c64,
+            *const c64,
+            |x: *const c64| *x,
+            $i,
+            $cs,
+            gemm,
+            crate::kernels::gemm
+        );
+        gemm_export!(
+            c,
+            c32,
+            *const c32,
+            |x: *const c32| *x,
+            $i,
+            $cs,
+            gemm3m,
+            three_m::single
+        );
+        gemm_export!(
+            z,
+            c64,
+            *const c64,
+            |x: *const c64| *x,
+            $i,
+            $cs,
+            gemm3m,
+            three_m::double
+        );
         real!(s, f32, $i, $fs, $cs);
         real!(d, f64, $i, $fs, $cs);
         complex!(c, s, c32, f32, $i, $fs, $cs);
@@ -1136,7 +1175,7 @@ mod tests {
     use super::*;
 
     macro_rules! gemm_cases {
-        ($name:ident,$p:ident,$t:ty,$coefficient:expr,$imag:expr,$tolerance:expr) => {paste! {
+        ($name:ident,$p:ident,$op:ident,$t:ty,$coefficient:expr,$imag:expr,$tolerance:expr) => {paste! {
             #[test]
             fn $name() {
                 let value=|i:usize,j:usize| <$t>::real((1+i+3*j) as f64)*<$t>::real(0.125)+($imag)*<$t>::real((i as f64-j as f64)*0.25);
@@ -1169,20 +1208,21 @@ mod tests {
                         expected[offset(i,j,ldc)]=alpha*sum+beta*initial[offset(i,j,ldc)];
                     }}
                     let mut c=initial.clone();
-                    unsafe {[<cblas_ $p gemm>](order,ta,tb,m as i32,n as i32,k as i32,($coefficient)(&alpha),a.as_ptr(),lda as i32,b.as_ptr(),ldb as i32,($coefficient)(&beta),c.as_mut_ptr(),ldc as i32);}
+                    unsafe {[<cblas_ $p $op>](order,ta,tb,m as i32,n as i32,k as i32,($coefficient)(&alpha),a.as_ptr(),lda as i32,b.as_ptr(),ldb as i32,($coefficient)(&beta),c.as_mut_ptr(),ldc as i32);}
                     for (actual,expected) in c.iter().zip(&expected) {assert!((*actual-*expected).magnitude()<$tolerance,"LP64 order={order} ta={ta} tb={tb}");}
                     let mut c=initial.clone();
-                    unsafe {[<cblas_ $p gemm64_>](order,ta,tb,m as i64,n as i64,k as i64,($coefficient)(&alpha),a.as_ptr(),lda as i64,b.as_ptr(),ldb as i64,($coefficient)(&beta),c.as_mut_ptr(),ldc as i64);}
+                    unsafe {[<cblas_ $p $op 64_>](order,ta,tb,m as i64,n as i64,k as i64,($coefficient)(&alpha),a.as_ptr(),lda as i64,b.as_ptr(),ldb as i64,($coefficient)(&beta),c.as_mut_ptr(),ldc as i64);}
                     for (actual,expected) in c.iter().zip(&expected) {assert!((*actual-*expected).magnitude()<$tolerance,"ILP64 order={order} ta={ta} tb={tb}");}
                 }}}
             }
         }};
     }
-    gemm_cases!(gemm_real32, s, f32, |x: &f32| *x, 0.0f32, 1e-5);
-    gemm_cases!(gemm_real64, d, f64, |x: &f64| *x, 0.0f64, 1e-12);
+    gemm_cases!(gemm_real32, s, gemm, f32, |x: &f32| *x, 0.0f32, 1e-5);
+    gemm_cases!(gemm_real64, d, gemm, f64, |x: &f64| *x, 0.0f64, 1e-12);
     gemm_cases!(
         gemm_complex32,
         c,
+        gemm,
         c32,
         |x: &c32| x as *const c32,
         c32::new(0.0, 1.0),
@@ -1191,6 +1231,26 @@ mod tests {
     gemm_cases!(
         gemm_complex64,
         z,
+        gemm,
+        c64,
+        |x: &c64| x as *const c64,
+        c64::new(0.0, 1.0),
+        1e-12
+    );
+
+    gemm_cases!(
+        gemm3m_complex32,
+        c,
+        gemm3m,
+        c32,
+        |x: &c32| x as *const c32,
+        c32::new(0.0, 1.0),
+        1e-5
+    );
+    gemm_cases!(
+        gemm3m_complex64,
+        z,
+        gemm3m,
         c64,
         |x: &c64| x as *const c64,
         c64::new(0.0, 1.0),
