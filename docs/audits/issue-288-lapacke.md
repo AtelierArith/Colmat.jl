@@ -27,11 +27,24 @@ existing native-backed Fortran entry. Row-major copies logical entries to a
 column-major temporary, factors there and copies back without touching row
 padding. Transpose allocation failure/address overflow returns -1011.
 
-These new exports are **not yet registered in LBT**. They therefore do not
-change the advertised connection count or establish completion of any frozen
-scope entry. High-level GETRF still requires the separate optional NaN-check
-contract. Other families require their own workspace, layout and callback
-contracts; GETRF conversion is not a blanket implementation for them.
+GETRF high-level entries now implement optional NaN checking. The shared atomic
+policy defaults to enabled, reads `LAPACKE_NANCHECK` only on first getter access,
+and allows explicit setter overrides. NaNs in either complex component count;
+padding is excluded. The reference's scan-before-numerical-validation ordering
+and bounded leading-dimension scan are preserved. Reference source:
+`LAPACKE/src/lapacke_nancheck.c`, `LAPACKE/utils/lapacke_dge_nancheck.c`
+(blob `c47fc5b9de76bad64a529e8c41ab6f8e30e51ba8`) and complex counterpart
+(blob `94cb051e0d2a7bc06293b617e8c197aeacceb360`).
+
+LBT automatically forwards these exported entry names when this worktree's
+library is loaded. NaN getter/setter aliases with `64_` retain C-int flags and
+return values and share the unsuffixed helpers' policy state. These helpers
+are additions outside the frozen 1,616 scope; they do not replace scope entries.
+Inventory assets and source-bound full-suite execution evidence are still
+pending and must be regenerated before a PR can be marked ready.
+
+Other families require their own workspace, layout and callback contracts;
+GETRF conversion is not a blanket implementation for them.
 
 ## Remaining gates
 
@@ -50,7 +63,28 @@ The targeted Rust run passed all nine GETRF work tests, including nonzero imagin
 ABIs. Tests reconstruct P*A=L*U with scalar arithmetic, compare padded row/column
 results and pivot indices, preserve padding, propagate singular INFO and reject
 invalid/overflowing dimensions before dereferencing null buffers. This is
-adapter-level evidence, not C compiler or LBT execution evidence.
+adapter-level evidence; independent C and LBT evidence is described below.
 
 The full local Rust suite passed: 398 unit tests, zero failures; formatting
-checks passed. Julia/LBT validation remains pending until registration exists.
+checks passed. Full Julia regression and snapshot regeneration remain pending.
+
+The independent C worker checks all 16 GETRF high/work scalar/ABI exports,
+row/column layouts, padded storage, guarded pivot arrays and singular INFO using
+scalar P*A=L*U reconstruction. It also checks high-level NaN error precedence,
+imaginary NaNs, ignored padding, setter/getter state, and environment parsing
+and one-time initialization in fresh subprocesses. `test/lapacke_abi.jl` passed
+six checks with the final shared-state suffixed helper aliases.
+
+`test/lapacke_getrf.jl` passed 720 checks (including helper state/ABI checks): all eight canonical GETRF high/work
+entries, both ABIs, direct-library and actual LBT trampoline calls, both layouts,
+independent scalar factor reconstruction and padded/guarded output. It asserts
+the exact LBT forwarding pointer before every numerical call. These observations
+are not yet imported as a source-bound execution snapshot.
+
+After the final helper change, the full Rust suite again passed all 398 unit
+tests. The focused Julia/C checks passed 726 tests (720 + 6). Actual registered
+counts were 1,490 for each ABI: the prior 1,480 plus eight GETRF canonical entries
+and two policy helpers. The documentation inventory still records the previous
+main baseline; it must be regenerated alongside source-bound execution evidence.
+No full Julia package test or completion claim is made for this intermediate
+commit. The full frozen scope remains 1,616 entries.

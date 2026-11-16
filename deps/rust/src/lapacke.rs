@@ -7,6 +7,92 @@ const ROW_MAJOR: i32 = 101;
 const COL_MAJOR: i32 = 102;
 const TRANSPOSE_MEMORY_ERROR: i64 = -1011;
 
+use std::sync::atomic::{AtomicI32, Ordering};
+static NANCHECK: AtomicI32 = AtomicI32::new(-1);
+
+#[no_mangle]
+pub extern "C" fn LAPACKE_set_nancheck(flag: i32) {
+    NANCHECK.store(i32::from(flag != 0), Ordering::Relaxed);
+}
+
+// Match atoi's zero/nonzero result without overflowing an intermediate integer.
+fn environment_nancheck() -> i32 {
+    let Some(value) = std::env::var_os("LAPACKE_NANCHECK") else {
+        return 1;
+    };
+    let value = value.to_string_lossy();
+    let value = value.trim_start_matches(|c: char| c.is_ascii_whitespace());
+    let value = value.strip_prefix(['+', '-']).unwrap_or(value);
+    i32::from(
+        value
+            .bytes()
+            .take_while(u8::is_ascii_digit)
+            .any(|c| c != b'0'),
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn LAPACKE_get_nancheck() -> i32 {
+    let flag = NANCHECK.load(Ordering::Relaxed);
+    if flag != -1 {
+        return flag;
+    }
+    let initial = environment_nancheck();
+    match NANCHECK.compare_exchange(-1, initial, Ordering::Relaxed, Ordering::Relaxed) {
+        Ok(_) => initial,
+        Err(actual) => actual,
+    }
+}
+
+// LBT also exposes suffixed helper trampolines. Their flags and return values
+// remain C int (not lapack_int), and both aliases share the same policy state.
+#[no_mangle]
+pub extern "C" fn LAPACKE_set_nancheck64_(flag: i32) {
+    LAPACKE_set_nancheck(flag);
+}
+#[no_mangle]
+pub extern "C" fn LAPACKE_get_nancheck64_() -> i32 {
+    LAPACKE_get_nancheck()
+}
+
+/// The reference NaN checker scans only min(logical extent, leading dimension)
+/// in each stored row/column, even before the numerical argument checks.
+unsafe fn ge_nancheck<T: Scalar>(
+    layout: i32,
+    m: i64,
+    n: i64,
+    a: *const T,
+    lda: i64,
+) -> Result<bool, i64> {
+    if a.is_null() {
+        return Ok(false);
+    }
+    let (outer, inner) = if layout == ROW_MAJOR {
+        (m.max(0), n.min(lda).max(0))
+    } else {
+        (n.max(0), m.min(lda).max(0))
+    };
+    if outer == 0 || inner == 0 {
+        return Ok(false);
+    }
+    let span = (outer as usize - 1)
+        .checked_mul(lda as usize)
+        .and_then(|v| v.checked_add(inner as usize))
+        .and_then(|v| v.checked_mul(core::mem::size_of::<T>()));
+    if span.is_none_or(|v| v > isize::MAX as usize) {
+        return Err(TRANSPOSE_MEMORY_ERROR);
+    }
+    for i in 0..outer as usize {
+        for j in 0..inner as usize {
+            let x = *a.add(i * lda as usize + j);
+            if x != x {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 /// Copy only logical entries; padding belongs to the caller. Allocation failure
 /// and address-span overflow return the LAPACKE transpose-memory diagnostic.
 unsafe fn row_to_column<T: Scalar>(
@@ -38,6 +124,18 @@ unsafe fn row_to_column<T: Scalar>(
 
 macro_rules! getrf_work {
     ($p:ident, $t:ty, $i:ty, [$($suffix:tt)*], $fortran:tt) => { paste::paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p getrf $($suffix)*>](
+            matrix_layout: i32, m: $i, n: $i, a: *mut $t, lda: $i, ipiv: *mut $i,
+        ) -> $i {
+            if matrix_layout != ROW_MAJOR && matrix_layout != COL_MAJOR { return -1; }
+            if LAPACKE_get_nancheck() != 0 {
+                match ge_nancheck(matrix_layout, m as i64, n as i64, a, lda as i64) {
+                    Ok(true) => return -4, Err(info) => return info as $i, Ok(false) => {},
+                }
+            }
+            [<LAPACKE_ $p getrf_work $($suffix)*>](matrix_layout, m, n, a, lda, ipiv)
+        }
         #[no_mangle]
         pub unsafe extern "C" fn [<LAPACKE_ $p getrf_work $($suffix)*>](
             matrix_layout: i32, m: $i, n: $i, a: *mut $t, lda: $i, ipiv: *mut $i,
