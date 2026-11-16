@@ -1,7 +1,8 @@
 # Issue #288: pivoted QR C adapter contracts
 
-Status: focused numerical, policy, independent C and typed execution checks
-pass in debug and optimized builds. Immutable full validation is pending.
+Status: source-bound immutable cloud full validation passes; proof is
+imported. Normal integration after merged PR #396 preserves all 318 frozen
+execution sources and the verified DLL. Final publication CI remains pending.
 
 Issue #288 remains open.
 
@@ -81,3 +82,17 @@ full_suite_passed=false. The optimized DLL SHA-256 is
 a92e83c58f003c6cc3749a21662e431ae7aa6c591194e740d6496105fb92412a.
 Parent integration preserves all 318 execution-source hashes. Fresh immutable
 full-suite proof is required before publishing this extended scope.
+
+Current full proof is bound to 09aedc796c0348e37486583cc03636b60d5ecdb2 and all 318 frozen
+execution sources. Cloud job success, ZIP/TOML digests, complete source map,
+manifest, registration and all typed witnesses were verified before import.
+The snapshot validates 1618 canonical entries with 5927 completed witnesses.
+A separate publication tree preserves the original local full-suite source
+and HEAD. Its copied optimized DLL remains byte-identical to the frozen DLL.
+The published full run platform is Linux; final Linux/macOS PR CI remains
+required. Provenance is stored in the adjacent cloud-provenance JSON.
+
+Publication checks pass Python 28, inventory 15 and documentation build.
+All execution-source hashes and the copied optimized local DLL remain
+unchanged. Preceding staged candidates and final PR CI/main merge remain
+required; this does not claim merged-main coverage for the candidate.
