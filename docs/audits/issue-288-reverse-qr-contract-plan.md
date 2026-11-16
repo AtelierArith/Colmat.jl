@@ -1,5 +1,9 @@
 # Issue #288: QL/RQ C factorization adapters
 
+Status: corrected immutable full package validation passes; source-bound
+execution evidence is imported. CI and main integration remain pending.
+Issue #288: QL/RQ C factorization adapters
+
 Status: Fortran empty-work correction passes independent boundary regressions;
 C adapters pass focused numerical and independent C checks. Typed tracing,
 optimized repetition and full-suite evidence remain pending.
@@ -76,3 +80,10 @@ LBT checks 464. The four QR/positive-QR/LQ/QL-RQ C runners pass again after
 explicit initialization-loop braces required by GCC -Werror. Production Rust
 and the optimized DLL are unchanged; the changed test sources require a fresh
 immutable full run. The failed run is not published as successful evidence.
+
+Corrected full-suite proof is bound to `f2778c9dda8484ae639d6a78f74c384d64f2c2db`
+and all 296 frozen source files, optimized DLL, manifest and registration.
+The imported proof validates 1506 canonical entries: 1106 Fortran LAPACK,
+172 CBLAS and 228 LAPACKE, with 5439 completed witnesses. Python 28,
+inventory 15 and documentation build checks pass. All frozen source hashes
+and DLL remain unchanged. CI and main integration remain required.
