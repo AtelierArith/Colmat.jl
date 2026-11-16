@@ -59,7 +59,7 @@ end
     reference=Libdl.dlopen(only(filter(l->l.interface==:ilp64&&occursin("openblas",lowercase(l.libname)),BLAS.get_config().loaded_libs)).libname)
     for (T,prefix) in ((Float32,"s"),(Float64,"d"),(ComplexF32,"c"),(ComplexF64,"z")),J in (Int32,Int64),
         (m,n) in ((0,0),(0,3),(1,1),(2,2),(1,4),(2,5),(3,7)),deficient in (false,true),exponent in (-1,0,1)
-        R=real(T);tol=R(4000)*eps(R);l=n-m
+        R=real(T);tol=R(100)*eps(R);l=n-m
         original=T[i<=j ? cos(i+2j)+(i==j ? 2 : 0) : 0 for i in 1:m,j in 1:n]
         if T<:Complex
             for i in 1:m,j in i:n;original[i,j]+=T(im)*sin(2i+j)/5;end
@@ -72,7 +72,7 @@ end
         ext=lapacke288_rz_reference_factor(T,fp,original)
         rz=lapacke288_rz_fortran_apply(T,op,'R','N',ext.a,ext.tau,Matrix{T}(I,n,n),m,l;external=false)
         denom=max(norm(original),floatmin(R))
-        @test norm(hcat(triu(ext.a[:,1:m]),zeros(T,m,l))*rz-original)/denom<=tol*20
+        @test norm(hcat(triu(ext.a[:,1:m]),zeros(T,m,l))*rz-original)/denom<=tol*10
         @test rz'*rz≈Matrix{T}(I,n,n) atol=tol
         for route in (:dll,:lbt_trampoline),layout in (101,102),high in (false,true)
             name="LAPACKE_"*prefix*"tzrzf"*(high ? "" : "_work");suffix=J==Int64 ? "64_" : ""
@@ -99,7 +99,7 @@ end
             if !high&&(m==0||m==n);@test w[2]==one(T);end
             own=T[a[ai(i,j)] for i in 1:m,j in 1:n]
             z=lapacke288_rz_fortran_apply(T,gp,'R','N',own,tau[2:m+1],Matrix{T}(I,n,n),m,l)
-            @test norm(hcat(triu(own[:,1:m]),zeros(T,m,l))*z-original)/denom<=tol*20
+            @test norm(hcat(triu(own[:,1:m]),zeros(T,m,l))*z-original)/denom<=tol*10
             @test z'*z≈Matrix{T}(I,n,n) atol=tol
         end
     end
@@ -109,7 +109,7 @@ end
     reference=Libdl.dlopen(only(filter(l->l.interface==:ilp64&&occursin("openblas",lowercase(l.libname)),BLAS.get_config().loaded_libs)).libname)
     for (T,prefix) in ((Float32,"s"),(Float64,"d"),(ComplexF32,"c"),(ComplexF64,"z")),J in (Int32,Int64),
         (rows,order) in ((0,0),(0,3),(1,1),(2,5),(3,7)),side in ('L','R'),tr in (T<:Complex ? ('N','C') : ('N','T'))
-        R=real(T);tol=R(4000)*eps(R)
+        R=real(T);tol=R(100)*eps(R)
         original=T[i<=j ? cos(i+2j)+(i==j ? 2 : 0) : 0 for i in 1:rows,j in 1:order]
         if T<:Complex
             for i in 1:rows,j in i:order;original[i,j]+=T(im)*sin(2i+j)/5;end

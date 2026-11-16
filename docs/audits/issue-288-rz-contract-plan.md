@@ -101,3 +101,11 @@ of the RZ source checkout. These jobs are triggered only by an explicit
 [frozen-suites] commit marker. Their results must match the recorded complete
 source maps before publication. The temporary workflow will be restored to
 the repository's ordinary CI before any RZ PR is opened.
+
+Prepared C policy tests cover exact header priorities, signed ILP64 values,
+square minimal work and publication, identity reflectors with unused null
+A/C, logical NaN precedence and padded storage. The high TAU scan now mirrors
+the common adapter's null/span guard before numerical header validation.
+The new numerical tolerances use 100*epsilon for small operators, with a
+10x reconstruction allowance. These new checks remain unverified until the
+corresponding cloud run completes; no passing result is claimed yet.

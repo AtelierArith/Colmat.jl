@@ -222,10 +222,18 @@ unsafe fn apply_nan<T: Scalar>(
         if ge_nancheck(layout, m, n, c, ldc)? {
             return Err(-11);
         }
-        for i in 0..k.max(0) as usize {
-            let value = *tau.add(i);
-            if value != value {
-                return Err(-10);
+        if k > 0 && !tau.is_null() {
+            if (k as usize)
+                .checked_mul(core::mem::size_of::<T>())
+                .is_none_or(|v| v > isize::MAX as usize)
+            {
+                return Err(-1011);
+            }
+            for i in 0..k as usize {
+                let value = *tau.add(i);
+                if value != value {
+                    return Err(-10);
+                }
             }
         }
     }
