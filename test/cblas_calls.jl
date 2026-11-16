@@ -56,3 +56,27 @@ end
 function cblas271_indices(n, inc)
     return inc<0 ? ((1 + (n - 1) * (-inc)):inc:1) : (1:inc:(1 + (n - 1) * inc))
 end
+
+cblas271_value(::Type{T}, i, j, shift) where {T<:Real} = T((i+2j+shift)/7)
+function cblas271_value(::Type{T}, i, j, shift) where {T<:Complex}
+    return T((i+2j+shift)/7, (2i-j+shift)/11)
+end
+cblas271_matrix_index(order, ld, i, j) = order==101 ? (i-1)*ld+j : (j-1)*ld+i
+function cblas271_pack(matrix, order, ld)
+    rows, cols=size(matrix)
+    result=fill(eltype(matrix)(97), ld*(order==101 ? rows : cols)+3)
+    for j in 1:cols, i in 1:rows
+        result[cblas271_matrix_index(order, ld, i, j)]=matrix[i, j]
+    end
+    return result
+end
+cblas271_op(matrix, t) =
+    if t==111
+        matrix
+    elseif t==112
+        transpose(matrix)
+    elseif t==113
+        adjoint(matrix)
+    else
+        conj.(matrix)
+    end
