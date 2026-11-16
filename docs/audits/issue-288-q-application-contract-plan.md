@@ -97,3 +97,13 @@ minimum WORK. Row conversion copies A and C without conjugation and copies
 back only C after nonnegative INFO. High NaN scans use logical Q order and
 preserve A/C/TAU diagnostic precedence. Independent C, typed tracing, optimized
 and immutable full-suite proof remain pending; no full proof is claimed.
+
+Logical NaN-bound and diagnostic checks pass 8960 assertions. They verify
+row LDA/LDC precedence, flags and dimension INFO, negative-INFO C retention,
+case-insensitive flags, stored diagonal NaNs (high rejects, work ignores),
+NaN-check toggling, A/C/TAU error precedence, inactive TAU entries, K=0 unused
+inputs, and ILP64 values outside int32. Both right-side rectangles from the
+reference policy probe are covered: every logical reflector entry is scanned,
+and padded entries beyond Q order are ignored for all orientations and scalar
+types. The numerical 502208 checks also pass again in the standalone policy
+run. Independent C and full-suite proof for this candidate remain pending.
