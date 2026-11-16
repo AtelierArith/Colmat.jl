@@ -2,10 +2,8 @@
 
 Status: current-source immutable full package validation passes; source-bound
 evidence is imported. CI and main integration remain pending.
-Issue #288: Q application C adapters
 
-Status: canonical scope and primary contract investigation; implementation
-and full-suite evidence pending. Issue #288 remains open.
+Issue #288 remains open.
 
 The canonical inventory contains 32 high/work names for real ORMQR/ORMLQ/
 ORMQL/ORMRQ and complex UNMQR/UNMLQ/UNMQL/UNMRQ. These follow the 260-name
