@@ -18,6 +18,7 @@ mod complete_pivot_lu;
 mod complex_auxiliary;
 mod constrained_least_squares;
 mod dense_extensions;
+mod evd_profile;
 mod geevx_expert;
 mod general_equilibration;
 mod generalized_eigen;
@@ -228,3 +229,5 @@ mod tests {
         }
     }
 }
+
+mod general_evd;

@@ -479,15 +479,13 @@ svd_exports!(c,colmat::c32,f32,i64,_64_,rwork:*mut f32);
 svd_exports!(z,colmat::c64,f64,i64,_64_,rwork:*mut f64);
 
 pub struct GeneralResult<T: Scalar> {
-    w: Vec<T>,
-    wi: Vec<f64>,
-    left: Mat<T>,
-    right: Mat<T>,
+    pub(crate) w: Vec<T>,
+    pub(crate) wi: Vec<f64>,
+    pub(crate) left: Mat<T>,
+    pub(crate) right: Mat<T>,
 }
-pub trait General: Scalar {
-    fn eigen(a: MatRef<'_, Self>, left: bool, right: bool) -> Result<GeneralResult<Self>, ()>;
+pub trait General: crate::general_evd::SharedEvd {
     fn balance(a: MatMut<'_, Self>, job: u8) -> Result<(Vec<usize>, Vec<f64>, usize, usize), ()>;
-    fn schur(a: MatMut<'_, Self>) -> Result<(), ()>;
 }
 macro_rules! balance_impl {
     ($t:ty,$r:ty) => {
@@ -527,218 +525,26 @@ macro_rules! balance_impl {
         }
     };
 }
-macro_rules! general_real {
-    ($t:ty) => {
-        impl General for $t {
-            balance_impl!($t, $t);
-            fn eigen(
-                a: MatRef<'_, Self>,
-                left: bool,
-                right: bool,
-            ) -> Result<GeneralResult<Self>, ()> {
-                use colmat::{diag::Diag, linalg::evd::*};
-                let n = a.nrows();
-                let mut wr = Diag::<$t>::zeros(n);
-                let mut wi = Diag::<$t>::zeros(n);
-                let mut vl = Mat::<$t>::zeros(n, if left { n } else { 0 });
-                let mut vr = Mat::<$t>::zeros(n, if right { n } else { 0 });
-                crate::threading::with_par(|par| {
-                    let yes = |v| {
-                        if v {
-                            ComputeEigenvectors::Yes
-                        } else {
-                            ComputeEigenvectors::No
-                        }
-                    };
-                    let mut mem = MemBuffer::new(evd_scratch::<$t>(
-                        n,
-                        yes(left),
-                        yes(right),
-                        par.shape(),
-                        Default::default(),
-                    ));
-                    evd_real(
-                        a.as_ref(),
-                        wr.as_mut(),
-                        wi.as_mut(),
-                        if left { Some(vl.as_mut()) } else { None },
-                        if right { Some(vr.as_mut()) } else { None },
-                        par,
-                        MemStack::new(&mut mem),
-                        Default::default(),
-                    )
-                    .map_err(|_| ())
-                })?;
-                Ok(GeneralResult {
-                    w: (0..n).map(|i| wr[i]).collect(),
-                    wi: (0..n).map(|i| wi[i] as f64).collect(),
-                    left: vl,
-                    right: vr,
-                })
-            }
-            fn schur(mut a: MatMut<'_, Self>) -> Result<(), ()> {
-                use colmat::linalg::{
-                    evd::{hessenberg::*, *},
-                    qr::no_pivoting::factor::recommended_block_size,
-                };
-                use colmat::Col;
-                let n = a.nrows();
-                if n < 2 {
-                    return Ok(());
-                }
-                crate::threading::with_par(|par| {
-                    let bs = recommended_block_size::<Self>(n - 1, n - 1);
-                    let mut coeff = Mat::<Self>::zeros(bs, n - 1);
-                    let mut mem = MemBuffer::new(hessenberg_in_place_scratch::<Self>(
-                        n,
-                        bs,
-                        par.shape(),
-                        Default::default(),
-                    ));
-                    hessenberg_in_place(
-                        a.as_mut(),
-                        coeff.as_mut(),
-                        par,
-                        MemStack::new(&mut mem),
-                        Default::default(),
-                    );
-                });
-                for j in 0..n {
-                    for i in j + 2..n {
-                        a[(i, j)] = Self::z();
-                    }
-                }
-                crate::threading::with_par(|par| {
-                    let mut mem = MemBuffer::new(hessenberg_schur_scratch::<Self>(
-                        n,
-                        false,
-                        par.shape(),
-                        Default::default(),
-                    ));
-                    let mut rw = Col::<Self>::zeros(n);
-                    let mut iw = Col::<Self>::zeros(n);
-                    hessenberg_schur_real(
-                        a.as_mut(),
-                        None,
-                        rw.as_mut(),
-                        iw.as_mut(),
-                        par,
-                        MemStack::new(&mut mem),
-                        Default::default(),
-                    )
-                    .map_err(|_| ())
-                })
-            }
-        }
-    };
+impl General for f32 {
+    balance_impl!(f32, f32);
 }
-macro_rules! general_complex {
-    ($t:ty,$r:ty) => {
-        impl General for $t {
-            balance_impl!($t, $r);
-            fn eigen(
-                a: MatRef<'_, Self>,
-                left: bool,
-                right: bool,
-            ) -> Result<GeneralResult<Self>, ()> {
-                use colmat::{diag::Diag, linalg::evd::*};
-                let n = a.nrows();
-                let mut w = Diag::<$t>::zeros(n);
-                let mut vl = Mat::<$t>::zeros(n, if left { n } else { 0 });
-                let mut vr = Mat::<$t>::zeros(n, if right { n } else { 0 });
-                crate::threading::with_par(|par| {
-                    let yes = |v| {
-                        if v {
-                            ComputeEigenvectors::Yes
-                        } else {
-                            ComputeEigenvectors::No
-                        }
-                    };
-                    let mut mem = MemBuffer::new(evd_scratch::<$t>(
-                        n,
-                        yes(left),
-                        yes(right),
-                        par.shape(),
-                        Default::default(),
-                    ));
-                    evd_cplx(
-                        a.as_ref(),
-                        w.as_mut(),
-                        if left { Some(vl.as_mut()) } else { None },
-                        if right { Some(vr.as_mut()) } else { None },
-                        par,
-                        MemStack::new(&mut mem),
-                        Default::default(),
-                    )
-                    .map_err(|_| ())
-                })?;
-                Ok(GeneralResult {
-                    w: (0..n).map(|i| w[i]).collect(),
-                    wi: vec![0.0; n],
-                    left: vl,
-                    right: vr,
-                })
-            }
-            fn schur(mut a: MatMut<'_, Self>) -> Result<(), ()> {
-                use colmat::linalg::{
-                    evd::{hessenberg::*, *},
-                    qr::no_pivoting::factor::recommended_block_size,
-                };
-                use colmat::Col;
-                let n = a.nrows();
-                if n < 2 {
-                    return Ok(());
-                }
-                crate::threading::with_par(|par| {
-                    let bs = recommended_block_size::<Self>(n - 1, n - 1);
-                    let mut coeff = Mat::<Self>::zeros(bs, n - 1);
-                    let mut mem = MemBuffer::new(hessenberg_in_place_scratch::<Self>(
-                        n,
-                        bs,
-                        par.shape(),
-                        Default::default(),
-                    ));
-                    hessenberg_in_place(
-                        a.as_mut(),
-                        coeff.as_mut(),
-                        par,
-                        MemStack::new(&mut mem),
-                        Default::default(),
-                    );
-                });
-                for j in 0..n {
-                    for i in j + 2..n {
-                        a[(i, j)] = Self::z();
-                    }
-                }
-                crate::threading::with_par(|par| {
-                    let mut mem = MemBuffer::new(hessenberg_schur_scratch::<Self>(
-                        n,
-                        false,
-                        par.shape(),
-                        Default::default(),
-                    ));
-                    let mut sw = Col::<Self>::zeros(n);
-                    hessenberg_schur_cplx(
-                        a.as_mut(),
-                        None,
-                        sw.as_mut(),
-                        par,
-                        MemStack::new(&mut mem),
-                        Default::default(),
-                    )
-                    .map_err(|_| ())
-                })
-            }
-        }
-    };
+impl General for f64 {
+    balance_impl!(f64, f64);
 }
-general_real!(f32);
-general_real!(f64);
-general_complex!(colmat::c32, f32);
-general_complex!(colmat::c64, f64);
+impl General for colmat::c32 {
+    balance_impl!(colmat::c32, f32);
+}
+impl General for colmat::c64 {
+    balance_impl!(colmat::c64, f64);
+}
 
-fn unbalance<T: Scalar>(v: &Mat<T>, p: &[usize], s: &[f64], left: bool, wi: &[f64]) -> Mat<T> {
+fn unbalance<T: crate::householder::ReflectorScalar>(
+    v: &Mat<T>,
+    p: &[usize],
+    s: &[f64],
+    left: bool,
+    wi: &[f64],
+) -> Mat<T> {
     let n = v.nrows();
     let mut out = Mat::zeros(n, v.ncols());
     for j in 0..v.ncols() {
@@ -759,7 +565,10 @@ fn unbalance<T: Scalar>(v: &Mat<T>, p: &[usize], s: &[f64], left: bool, wi: &[f6
         if norm != 0.0 {
             for c in j..j + cols {
                 for i in 0..n {
-                    out[(i, c)] /= T::real(norm);
+                    // Divide components by the real norm: complex division can
+                    // overflow when squaring a large real denominator.
+                    let value = out[(i, c)];
+                    out[(i, c)] = T::parts(value.re() / norm, value.im() / norm);
                 }
             }
         }
@@ -817,23 +626,42 @@ unsafe fn general_driver<T: General>(
     if n == 0 {
         return Ok((vec![], vec![], 0, 0, vec![], 0.0));
     }
-    let (p, s, lo, hi) = T::balance(input_mut(a, n, n, la), job)?;
+    let (p, s, lo, hi) = {
+        let _measure = crate::evd_profile::Scope::new(0);
+        T::balance(input_mut(a, n, n, la), job)?
+    };
     let abnrm;
     let e = {
         let mat = input_ref(a, n, n, la);
-        abnrm = (0..n)
-            .map(|j| (0..n).map(|i| mat[(i, j)].magnitude()).sum::<f64>())
-            .fold(0.0f64, f64::max);
-        T::eigen(mat, jl == b'V', jr == b'V')?
+        abnrm = {
+            let _measure = crate::evd_profile::Scope::new(1);
+            (0..n)
+                .map(|j| (0..n).map(|i| mat[(i, j)].magnitude()).sum::<f64>())
+                .fold(0.0f64, f64::max)
+        };
+        let _measure = crate::evd_profile::Scope::new(2);
+        crate::general_evd::compute(input_mut(a, n, n, la), jl == b'V', jr == b'V')?
     };
-    T::schur(input_mut(a, n, n, la))?;
     if jl == b'V' {
-        output(&unbalance(&e.left, &p, &s, true, &e.wi), vl, ll);
+        let transformed = {
+            let _measure = crate::evd_profile::Scope::new(5);
+            unbalance(&e.left, &p, &s, true, &e.wi)
+        };
+        let _measure = crate::evd_profile::Scope::new(6);
+        output(&transformed, vl, ll);
     }
     if jr == b'V' {
-        output(&unbalance(&e.right, &p, &s, false, &e.wi), vr, lr);
+        let transformed = {
+            let _measure = crate::evd_profile::Scope::new(7);
+            unbalance(&e.right, &p, &s, false, &e.wi)
+        };
+        let _measure = crate::evd_profile::Scope::new(8);
+        output(&transformed, vr, lr);
     }
-    let encoded = crate::balance::encode_scale(&p, s, lo, hi);
+    let encoded = {
+        let _measure = crate::evd_profile::Scope::new(9);
+        crate::balance::encode_scale(&p, s, lo, hi)
+    };
     Ok((e.w, e.wi, lo, hi, encoded, abnrm))
 }
 
@@ -841,6 +669,7 @@ macro_rules! eigen_exports{
 ($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr,($($wi:ident:$wity:ty,)?),($($extra:ident:$ext:ty,)*),($($gextra:ident:$gext:ty,)*))=>{paste::paste!{
 #[no_mangle]
 pub unsafe extern "C" fn [<$p geevx $s>](bal:*const u8,jl:*const u8,jr:*const u8,sense:*const u8,n:*const $i,a:*mut $t,lda:*const $i,w:*mut $t,$($wi:$wity,)?vl:*mut $t,ldvl:*const $i,vr:*mut $t,ldvr:*const $i,ilo:*mut $i,ihi:*mut $i,scale:*mut $r,abnrm:*mut $r,rconde:*mut $r,rcondv:*mut $r,work:*mut $t,lwork:*const $i,$($extra:$ext,)*info:*mut $i){
+ let _measure_total=crate::evd_profile::Scope::new(14);
  let (b0,l0,r0,se,n0,la0,ll0,lr0,lw0)=(flag(bal),flag(jl),flag(jr),flag(sense),(*n).val(),(*lda).val(),(*ldvl).val(),(*ldvr).val(),(*lwork).val());
  let offset=if <$t>::COMPLEX{0}else{1};
  valid!(info,1=>matches!(b0,b'N'|b'P'|b'S'|b'B'),2=>matches!(l0,b'N'|b'V'),3=>matches!(r0,b'N'|b'V'),4=>matches!(se,b'N'|b'E'|b'V'|b'B') && (!matches!(se,b'E'|b'B') || (l0==b'V' && r0==b'V')),5=>n0>=0,7=>la0>=n0.max(1),10+offset=>ll0>=1 && (l0!=b'V'||ll0>=n0),12+offset=>lr0>=1 && (r0!=b'V'||lr0>=n0));
@@ -880,6 +709,7 @@ pub unsafe extern "C" fn [<$p geevx $s>](bal:*const u8,jl:*const u8,jr:*const u8
 }
 #[no_mangle]
 pub unsafe extern "C" fn [<$p geev $s>](jl:*const u8,jr:*const u8,n:*const $i,a:*mut $t,lda:*const $i,w:*mut $t,$($wi:$wity,)?vl:*mut $t,ldvl:*const $i,vr:*mut $t,ldvr:*const $i,work:*mut $t,lwork:*const $i,$($gextra:$gext,)*info:*mut $i){
+ let _measure_total=crate::evd_profile::Scope::new(14);
  *info=0;let(jl,jr,nn,la,ll,lr,lw)=(flag(jl),flag(jr),(*n).val(),(*lda).val(),(*ldvl).val(),(*ldvr).val(),(*lwork).val());let off=if <$t>::COMPLEX{0}else{1};
  valid!(info,1=>matches!(jl,b'N'|b'V'),2=>matches!(jr,b'N'|b'V'),3=>nn>=0,5=>la>=1.max(nn),8+off=>ll>=1&&(jl!=b'V'||ll>=nn),10+off=>lr>=1&&(jr!=b'V'||lr>=nn),12+off=>lw== -1||lw>=1.max(if <$t>::COMPLEX{2*nn}else if jl==b'V'||jr==b'V'{4*nn}else{3*nn}));
  *work=workspace::<$t>(1.max(4*nn));if lw== -1{return;}
@@ -950,4 +780,172 @@ pub unsafe fn symmetric_driver<T: Scalar, R: Scalar, I: LapackInt>(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod balanced_normalization_regression {
+    use super::*;
+    use crate::householder::ReflectorScalar;
+
+    fn check<T: ReflectorScalar>(exponent: i32) {
+        let vectors = Mat::from_fn(2, 2, |i, j| {
+            if i == 0 {
+                T::parts(if j == 0 { 0.6 } else { -0.6 }, 0.8)
+            } else {
+                T::parts(0.3, -0.5)
+            }
+        });
+        for left in [false, true] {
+            let factor = 2.0f64.powi(if left { -exponent } else { exponent });
+            let output = unbalance(&vectors, &[0, 1], &[factor, 1.0], left, &[0.0, 0.0]);
+            for j in 0..2 {
+                let mut norm = 0.0f64;
+                for i in 0..2 {
+                    let z = output[(i, j)];
+                    assert!(
+                        z.re().is_finite() && z.im().is_finite(),
+                        "non-finite normalized component"
+                    );
+                    norm = norm.hypot(z.magnitude());
+                }
+                assert!((norm - 1.0).abs() <= 32.0 * T::EPS);
+                assert!((output[(0, j)].re() - 1.0).abs() <= 32.0 * T::EPS);
+                assert!(output[(0, j)].im().abs() <= 32.0 * T::EPS);
+            }
+        }
+    }
+    #[test]
+    fn complex_balanced_vectors_keep_finite_unit_norm_at_large_scale() {
+        check::<colmat::c32>(80);
+        check::<colmat::c64>(664);
+    }
+}
+
+#[cfg(test)]
+mod shared_evd_regression {
+    use super::*;
+    use colmat::c64;
+
+    fn z<T: General>(x: T) -> c64 {
+        c64::new(x.re(), x.im())
+    }
+    fn check<T: General>(exponents: &[i32]) {
+        let n = 6;
+        for &exponent in exponents {
+            let scale = 2.0f64.powi(exponent);
+            let original = Mat::from_fn(n, n, |i, j| {
+                let re = if i == j {
+                    (i + 1) as f64 / 3.0
+                } else if i / 2 == j / 2 {
+                    if i < j {
+                        -2.0
+                    } else {
+                        2.0
+                    }
+                } else {
+                    ((i * 3 + j * 7 + 2) % 11) as f64 / 17.0 - 0.3
+                };
+                T::parts(
+                    re * scale,
+                    if T::COMPLEX {
+                        ((i * 5 + j * 3) % 7) as f64 / 13.0 * scale
+                    } else {
+                        0.0
+                    },
+                )
+            });
+            for job in [b'N', b'P', b'S', b'B'] {
+                for (left, right) in [(false, false), (true, false), (false, true), (true, true)] {
+                    let mut a = original.clone();
+                    let mut vl = Mat::<T>::zeros(n, n);
+                    let mut vr = Mat::<T>::zeros(n, n);
+                    let (w, wi, _, _, _, _) = unsafe {
+                        general_driver(
+                            job,
+                            if left { b'V' } else { b'N' },
+                            if right { b'V' } else { b'N' },
+                            n,
+                            a.as_mut().as_ptr_mut(),
+                            a.as_ref().col_stride(),
+                            vl.as_mut().as_ptr_mut(),
+                            vl.as_ref().col_stride(),
+                            vr.as_mut().as_ptr_mut(),
+                            vr.as_ref().col_stride(),
+                        )
+                    }
+                    .expect("shared EVD converges");
+                    for j in 0..n {
+                        for i in j + if T::COMPLEX { 1 } else { 2 }..n {
+                            assert_eq!(a[(i, j)], T::z());
+                        }
+                    }
+                    for (wanted, is_left, vectors) in [(left, true, &vl), (right, false, &vr)] {
+                        if !wanted {
+                            continue;
+                        }
+                        let mut j = 0;
+                        while j < n {
+                            let pair = !T::COMPLEX && wi[j] > 0.0 && j + 1 < n;
+                            let lambda = if T::COMPLEX {
+                                z(w[j])
+                            } else {
+                                c64::new(w[j].re(), wi[j])
+                            };
+                            let lambda = if is_left { lambda.conj() } else { lambda };
+                            let v: Vec<c64> = (0..n)
+                                .map(|i| {
+                                    if pair {
+                                        c64::new(vectors[(i, j)].re(), vectors[(i, j + 1)].re())
+                                    } else {
+                                        z(vectors[(i, j)])
+                                    }
+                                })
+                                .collect();
+                            let mut residual = 0.0f64;
+                            let mut norm = 0.0f64;
+                            for i in 0..n {
+                                norm = norm.hypot(v[i].norm());
+                                let mut av = c64::new(0.0, 0.0);
+                                for k in 0..n {
+                                    let x = if is_left {
+                                        z(original[(k, i)]).conj()
+                                    } else {
+                                        z(original[(i, k)])
+                                    };
+                                    av += c64::new(x.re / scale, x.im / scale) * v[k];
+                                }
+                                let lam = c64::new(lambda.re / scale, lambda.im / scale);
+                                residual = residual.hypot((av - lam * v[i]).norm());
+                            }
+                            assert!(
+                                (norm - 1.0).abs() < 100.0 * T::EPS,
+                                "norm={norm}, exponent={exponent}"
+                            );
+                            // Subnormal eigenvalue restoration adds absolute component rounding.
+                            let quantum = T::SAFE * (T::EPS / 2.0) * T::EPS;
+                            let tolerance = n as f64 * (1000.0 * T::EPS + quantum / scale);
+                            assert!(residual < tolerance, "residual={residual}, tolerance={tolerance}, left={is_left}, pair={pair}, exponent={exponent}, job={job}");
+                            j += if pair { 2 } else { 1 };
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn shared_general_real32() {
+        check::<f32>(&[0, 100, -140]);
+    }
+    #[test]
+    fn shared_general_real64() {
+        check::<f64>(&[0, 900, -1000]);
+    }
+    #[test]
+    fn shared_general_complex32() {
+        check::<colmat::c32>(&[0, 100, -140]);
+    }
+    #[test]
+    fn shared_general_complex64() {
+        check::<colmat::c64>(&[0, 900, -1000]);
+    }
 }
