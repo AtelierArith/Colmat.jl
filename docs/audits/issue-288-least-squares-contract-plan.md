@@ -4,7 +4,9 @@ Status: debug and optimized focused validation passes for all 32 new entries.
 Immutable full Pkg.test passes at 21e1675398c21b81d16ae647c28dde7391ea11d3;
 all 337 frozen execution sources, manifest, registration and optimized DLL
 were rechecked before import. Python 28, inventory 15 and documentation
-publication checks pass; final main integration and CI remain pending.
+publication checks pass. Normal integration after merged PR #399 preserves
+all 337 frozen sources and the optimized DLL; final publication CI remains
+pending.
 Issue #288 remains open.
 
 The canonical inventory contains eight high/work S/D/C/Z names each for
@@ -162,3 +164,10 @@ was imported and the inventory/ownership audit regenerated only after those
 checks. Exact TOML/log/library/manifest hashes are in
 issue-288-least-squares-full-provenance.json. Publication and final CI gates
 remain required; earlier pending-full-suite statements are superseded.
+
+Normal main integration after merged PR #399 preserves every one of the 337
+validated execution-source hashes and the exact optimized DLL. The canonical
+full proof remains bound to source 21e1675. Parent audit provenance is updated
+from merged main; no numerical implementation or test source changed during
+integration. Post-integration publication checks are being repeated before
+opening the least-squares publication PR.

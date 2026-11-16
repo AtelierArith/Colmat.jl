@@ -5,8 +5,7 @@ CI 43942939431 (Linux/macOS) and Documentation 43942939256 passed. Both
 downloaded artifacts validate 323 source hashes, 1634 canonical entries and
 5995 witnesses at test merge 2bc53acc03f6648a4b82ab25a043edfe82694514.
 Its parents and tree match the reviewed head and base. The merged tree,
-verified optimized DLL and Python 28 post-merge checks pass. Local inventory
-verification remains live in macOS startup.
+verified optimized DLL and Python 28 post-merge checks pass. Post-merge inventory 15 also passed.
 
 Issue #288 remains open.
 
