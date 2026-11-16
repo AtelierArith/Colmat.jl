@@ -15,7 +15,7 @@ static int at(int layout,int i,int j,int ld){return layout==101?i*ld+j:i+j*ld;}
         int ms[]={0,0,3,1,2,4,3},ns[]={0,3,0,1,4,2,3};int m=ms[shape],n=ns[shape],k=m<n?m:n,ld=layout==101?n+2:m+2,lw=n>0?n:1; \
         T a[64],saved[64],tau[8],work[8],query=0;double complex original[16]={0}; \
         for(int q=0;q<64;q++){a[q]=(T)NAN;}for(int q=0;q<8;q++){tau[q]=work[q]=(T)777;} \
-        for(int i=0;i<m;i++)for(int j=0;j<n;j++){T value=(T)((i==j?2:0)+.1*(i+j+1)+.2*(i-j)*I);a[at(layout,i,j,ld)]=value;original[i*n+j]=(double complex)value;}memcpy(saved,a,sizeof(a)); \
+        for(int i=0;i<m;i++){for(int j=0;j<n;j++){T value=(T)((i==j?2:0)+.1*(i+j+1)+.2*(i-j)*I);a[at(layout,i,j,ld)]=value;original[i*n+j]=(double complex)value;}}memcpy(saved,a,sizeof(a)); \
         if(family&&!entry){assert(blocked(layout,m,n,a,ld,tau+1,&query,-1)==0);assert(memcmp(a,saved,sizeof(a))==0);for(int q=0;q<8;q++){assert(tau[q]==(T)777);}assert(creal((double complex)query)>=lw);assert(blocked(layout,m,n,a,ld,tau+1,work+1,lw-1)==-8);assert(memcmp(a,saved,sizeof(a))==0);} \
         J info=entry?high[family](layout,m,n,a,ld,tau+1):family?blocked(layout,m,n,a,ld,tau+1,work+1,lw):plain(layout,m,n,a,ld,tau+1,work+1);assert(info==0); \
         assert(tau[0]==(T)777&&tau[k+1]==(T)777&&work[0]==(T)777&&work[lw+1]==(T)777);if(family&&!entry&&(m==0||n==0)){assert(work[1]==(T)1);} \

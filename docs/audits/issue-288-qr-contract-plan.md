@@ -59,3 +59,8 @@ unchanged through the terminal-zero run. The imported evidence validates 1466
 canonical entries (1106 Fortran LAPACK, 172 CBLAS and 188 LAPACKE) with 5243
 completed call-site witnesses. Python tests pass 28, inventory checks pass 15,
 and the documentation build passes. CI and integration remain required.
+
+Linux CI exposed GCC misleading-indentation diagnostics in the independent
+C caller initialization loop. Explicit outer braces preserve its behavior and
+retain -Wall/-Wextra/-Werror. Because the C worker is a frozen evidence source,
+a new immutable full-suite run is required before republishing its proof.
