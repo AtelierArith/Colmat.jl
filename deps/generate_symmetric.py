@@ -41,7 +41,8 @@ for p,t,r,c in [('s','f32','f32',False),('d','f64','f64',False),('c','colmat::c3
    checks+=[(lwarg,'query||lw>=need')]
    if ending:checks+=[(liwarg,'query||(*liwork).val()>=ine')]
    if c and ending:checks+=[(rwarg,'query||(*lrwork).val()>=rne')]
-   for arg,cond in checks:s+=f' if !({cond}){{bad(&mut *info,{arg});return;}}\n'
+   # Simultaneous workspace errors report the first invalid argument.
+   for arg,cond in sorted(checks):s+=f' if !({cond}){{bad(&mut *info,{arg});return;}}\n'
    s+=f' *work=workspace::<{t}>(need);'
    if ending:s+=f'*iwork=ine as {I};'
    if c and ending:s+=f'*rwork=workspace::<{r}>(rne);'

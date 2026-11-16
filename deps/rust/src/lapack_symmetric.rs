@@ -1105,12 +1105,12 @@ pub unsafe extern "C" fn cheevd_(
         bad(&mut *info, 8);
         return;
     }
-    if !(query || (*liwork).val() >= ine) {
-        bad(&mut *info, 12);
-        return;
-    }
     if !(query || (*lrwork).val() >= rne) {
         bad(&mut *info, 10);
+        return;
+    }
+    if !(query || (*liwork).val() >= ine) {
+        bad(&mut *info, 12);
         return;
     }
     *work = workspace::<colmat::c32>(need);
@@ -1215,12 +1215,12 @@ pub unsafe extern "C" fn cheevr_(
         bad(&mut *info, 18);
         return;
     }
-    if !(query || (*liwork).val() >= ine) {
-        bad(&mut *info, 22);
-        return;
-    }
     if !(query || (*lrwork).val() >= rne) {
         bad(&mut *info, 20);
+        return;
+    }
+    if !(query || (*liwork).val() >= ine) {
+        bad(&mut *info, 22);
         return;
     }
     *work = workspace::<colmat::c32>(need);
@@ -1373,12 +1373,12 @@ pub unsafe extern "C" fn cheevd_64_(
         bad(&mut *info, 8);
         return;
     }
-    if !(query || (*liwork).val() >= ine) {
-        bad(&mut *info, 12);
-        return;
-    }
     if !(query || (*lrwork).val() >= rne) {
         bad(&mut *info, 10);
+        return;
+    }
+    if !(query || (*liwork).val() >= ine) {
+        bad(&mut *info, 12);
         return;
     }
     *work = workspace::<colmat::c32>(need);
@@ -1483,12 +1483,12 @@ pub unsafe extern "C" fn cheevr_64_(
         bad(&mut *info, 18);
         return;
     }
-    if !(query || (*liwork).val() >= ine) {
-        bad(&mut *info, 22);
-        return;
-    }
     if !(query || (*lrwork).val() >= rne) {
         bad(&mut *info, 20);
+        return;
+    }
+    if !(query || (*liwork).val() >= ine) {
+        bad(&mut *info, 22);
         return;
     }
     *work = workspace::<colmat::c32>(need);
@@ -1641,12 +1641,12 @@ pub unsafe extern "C" fn zheevd_(
         bad(&mut *info, 8);
         return;
     }
-    if !(query || (*liwork).val() >= ine) {
-        bad(&mut *info, 12);
-        return;
-    }
     if !(query || (*lrwork).val() >= rne) {
         bad(&mut *info, 10);
+        return;
+    }
+    if !(query || (*liwork).val() >= ine) {
+        bad(&mut *info, 12);
         return;
     }
     *work = workspace::<colmat::c64>(need);
@@ -1751,12 +1751,12 @@ pub unsafe extern "C" fn zheevr_(
         bad(&mut *info, 18);
         return;
     }
-    if !(query || (*liwork).val() >= ine) {
-        bad(&mut *info, 22);
-        return;
-    }
     if !(query || (*lrwork).val() >= rne) {
         bad(&mut *info, 20);
+        return;
+    }
+    if !(query || (*liwork).val() >= ine) {
+        bad(&mut *info, 22);
         return;
     }
     *work = workspace::<colmat::c64>(need);
@@ -1909,12 +1909,12 @@ pub unsafe extern "C" fn zheevd_64_(
         bad(&mut *info, 8);
         return;
     }
-    if !(query || (*liwork).val() >= ine) {
-        bad(&mut *info, 12);
-        return;
-    }
     if !(query || (*lrwork).val() >= rne) {
         bad(&mut *info, 10);
+        return;
+    }
+    if !(query || (*liwork).val() >= ine) {
+        bad(&mut *info, 12);
         return;
     }
     *work = workspace::<colmat::c64>(need);
@@ -2019,12 +2019,12 @@ pub unsafe extern "C" fn zheevr_64_(
         bad(&mut *info, 18);
         return;
     }
-    if !(query || (*liwork).val() >= ine) {
-        bad(&mut *info, 22);
-        return;
-    }
     if !(query || (*lrwork).val() >= rne) {
         bad(&mut *info, 20);
+        return;
+    }
+    if !(query || (*liwork).val() >= ine) {
+        bad(&mut *info, 22);
         return;
     }
     *work = workspace::<colmat::c64>(need);
