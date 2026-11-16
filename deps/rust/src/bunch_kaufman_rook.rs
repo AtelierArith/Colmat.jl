@@ -172,3 +172,176 @@ mod tests {
         native_roundtrip::<colmat::c64>();
     }
 }
+
+unsafe fn factor_lapack<T: BkScalar>(
+    uplo: u8,
+    n: usize,
+    a: *mut T,
+    lda: isize,
+    unblocked: bool,
+) -> (Vec<isize>, usize) {
+    let factors = native_factor_with_pivoting(
+        read_lower(uplo, n, a, lda, true),
+        unblocked,
+        colmat::linalg::cholesky::lblt::factor::PivotingStrategy::Rook,
+    );
+    let info = singular(&factors);
+    let (packed, pivots) = pack_lower_rook(&factors);
+    write_lower(uplo, &packed, a, lda);
+    if uplo == b'L' {
+        (pivots, info)
+    } else {
+        let pivots = (0..n)
+            .map(|j| {
+                let p = pivots[n - 1 - j];
+                p.signum() * (n as isize + 1 - p.abs())
+            })
+            .collect();
+        (pivots, if info == 0 { 0 } else { n + 1 - info })
+    }
+}
+unsafe fn external_factors<T: BkScalar>(
+    uplo: u8,
+    n: usize,
+    a: *const T,
+    lda: isize,
+    pivots: &[isize],
+) -> Factors<T> {
+    let packed = read_lower(uplo, n, a, lda, false);
+    if uplo == b'L' {
+        unpack_lower_rook(&packed, pivots)
+    } else {
+        let lower: Vec<isize> = (0..n)
+            .map(|j| {
+                let p = pivots[n - 1 - j];
+                p.signum() * (n as isize + 1 - p.abs())
+            })
+            .collect();
+        unpack_lower_rook(&packed, &lower)
+    }
+}
+unsafe fn solve_lapack<T: BkScalar>(
+    uplo: u8,
+    n: usize,
+    nrhs: usize,
+    a: *const T,
+    lda: isize,
+    pivots: &[isize],
+    b: *mut T,
+    ldb: isize,
+) {
+    let factors = external_factors(uplo, n, a, lda, pivots);
+    let mut rhs = Mat::from_fn(n, nrhs, |i, j| {
+        *b.offset((if uplo == b'L' { i } else { n - 1 - i }) as isize + j as isize * ldb)
+    });
+    native_solve(&factors, &mut rhs);
+    for j in 0..nrhs {
+        for i in 0..n {
+            *b.offset((if uplo == b'L' { i } else { n - 1 - i }) as isize + j as isize * ldb) =
+                rhs[(i, j)];
+        }
+    }
+}
+
+unsafe fn inverse_lapack<T: BkScalar>(
+    uplo: u8,
+    n: usize,
+    a: *mut T,
+    lda: isize,
+    pivots: &[isize],
+) -> usize {
+    if n == 0 {
+        return 0;
+    }
+    let factors = external_factors(uplo, n, a, lda, pivots);
+    let info = singular(&factors);
+    if info != 0 {
+        return if uplo == b'L' { info } else { n + 1 - info };
+    }
+    let inverted = native_inverse(&factors);
+    write_lower(uplo, &inverted, a, lda);
+    0
+}
+
+macro_rules! rook_exports {
+    ($p:ident,$kind:ident,$t:ty,$i:ty,$s:tt) => { paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind trf _rook $s>](uplo:*const u8,n:*const $i,a:*mut $t,lda:*const $i,ipiv:*mut $i,work:*mut $t,lwork:*const $i,info:*mut $i) {
+            *info=0;
+            let(up,nn,la,lw)=(flag(uplo),*n as isize,*lda as isize,*lwork as isize);
+            for(arg,ok)in[(1,matches!(up,b'U'|b'L')),(2,nn>=0),(4,la>=nn.max(1)),(7,lw== -1||lw>=1)] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            *work=crate::lapack::workspace::<$t>(1);
+            if lw== -1||nn==0 {return;}
+            if !crate::kernels::matrix_addressable::<$t>(nn,nn,la) {*info=-4;crate::invalid(4);return;}
+            let(pivots,err)=factor_lapack(up,nn as usize,a,la,false);
+            for j in 0..nn as usize {*ipiv.add(j)=pivots[j] as $i;}
+            *info=err as $i;
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind tf2 _rook $s>](uplo:*const u8,n:*const $i,a:*mut $t,lda:*const $i,ipiv:*mut $i,info:*mut $i) {
+            *info=0;
+            let(up,nn,la)=(flag(uplo),*n as isize,*lda as isize);
+            for(arg,ok)in[(1,matches!(up,b'U'|b'L')),(2,nn>=0),(4,la>=nn.max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            if nn==0 {return;}
+            if !crate::kernels::matrix_addressable::<$t>(nn,nn,la) {*info=-4;crate::invalid(4);return;}
+            let(pivots,err)=factor_lapack(up,nn as usize,a,la,true);
+            for j in 0..nn as usize {*ipiv.add(j)=pivots[j] as $i;}
+            *info=err as $i;
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind trs _rook $s>](uplo:*const u8,n:*const $i,nrhs:*const $i,a:*const $t,lda:*const $i,ipiv:*const $i,b:*mut $t,ldb:*const $i,info:*mut $i) {
+            *info=0;
+            let(up,nn,nr,la,lb)=(flag(uplo),*n as isize,*nrhs as isize,*lda as isize,*ldb as isize);
+            for(arg,ok)in[(1,matches!(up,b'U'|b'L')),(2,nn>=0),(3,nr>=0),(5,la>=nn.max(1)),(8,lb>=nn.max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            if nn==0||nr==0 {return;}
+            for(arg,ok)in[(5,crate::kernels::matrix_addressable::<$t>(nn,nn,la)),(8,crate::kernels::matrix_addressable::<$t>(nn,nr,lb))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            let pivots:Vec<isize>=(0..nn as usize).map(|j|*ipiv.add(j) as isize).collect();
+            solve_lapack(up,nn as usize,nr as usize,a,la,&pivots,b,lb);
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind tri _rook $s>](uplo:*const u8,n:*const $i,a:*mut $t,lda:*const $i,ipiv:*const $i,_work:*mut $t,info:*mut $i) {
+            *info=0;
+            let(up,nn,la)=(flag(uplo),*n as isize,*lda as isize);
+            for(arg,ok)in[(1,matches!(up,b'U'|b'L')),(2,nn>=0),(4,la>=nn.max(1))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            if nn==0 {return;}
+            if !crate::kernels::matrix_addressable::<$t>(nn,nn,la) {*info=-4;crate::invalid(4);return;}
+            let pivots:Vec<isize>=(0..nn as usize).map(|j|*ipiv.add(j) as isize).collect();
+            *info=inverse_lapack(up,nn as usize,a,la,&pivots) as $i;
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<$p $kind sv _rook $s>](uplo:*const u8,n:*const $i,nrhs:*const $i,a:*mut $t,lda:*const $i,ipiv:*mut $i,b:*mut $t,ldb:*const $i,work:*mut $t,lwork:*const $i,info:*mut $i) {
+            *info=0;
+            let(up,nn,nr,la,lb,lw)=(flag(uplo),*n as isize,*nrhs as isize,*lda as isize,*ldb as isize,*lwork as isize);
+            for(arg,ok)in[(1,matches!(up,b'U'|b'L')),(2,nn>=0),(3,nr>=0),(5,la>=nn.max(1)),(8,lb>=nn.max(1)),(10,lw== -1||lw>=1)] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            *work=crate::lapack::workspace::<$t>(1);
+            if lw== -1||nn==0 {return;}
+            for(arg,ok)in[(5,crate::kernels::matrix_addressable::<$t>(nn,nn,la)),(8,nr==0||crate::kernels::matrix_addressable::<$t>(nn,nr,lb))] {
+                if !ok {*info=-arg;crate::invalid(arg as i32);return;}
+            }
+            let(pivots,err)=factor_lapack(up,nn as usize,a,la,false);
+            for j in 0..nn as usize {*ipiv.add(j)=pivots[j] as $i;}
+            *info=err as $i;
+            if err==0 && nr>0 {solve_lapack(up,nn as usize,nr as usize,a,la,&pivots,b,lb);}
+        }
+    }};
+}
+rook_exports!(s, sy, f32, i32, _);
+rook_exports!(d, sy, f64, i32, _);
+rook_exports!(c, he, colmat::c32, i32, _);
+rook_exports!(z, he, colmat::c64, i32, _);
+rook_exports!(s, sy, f32, i64, _64_);
+rook_exports!(d, sy, f64, i64, _64_);
+rook_exports!(c, he, colmat::c32, i64, _64_);
+rook_exports!(z, he, colmat::c64, i64, _64_);
