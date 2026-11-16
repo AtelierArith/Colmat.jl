@@ -141,6 +141,22 @@ class ExecutionEvidenceTests(unittest.TestCase):
 
     def add_lapacke(self):
         declarations = {
+            'LAPACKE_dorgqr': ('orgqr', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dorgqr_work': ('orgqr', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zungqr': ('ungqr', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zungqr_work': ('ungqr', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_dorglq': ('orglq', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dorglq_work': ('orglq', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zunglq': ('unglq', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zunglq_work': ('unglq', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_dorgql': ('orgql', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dorgql_work': ('orgql', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zungql': ('ungql', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zungql_work': ('ungql', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_dorgrq': ('orgrq', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dorgrq_work': ('orgrq', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zungrq': ('ungrq', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zungrq_work': ('ungrq', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_dgeqlf': ('geqlf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgerqf': ('gerqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgeqlf_work': ('geqlf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
@@ -258,6 +274,8 @@ class ExecutionEvidenceTests(unittest.TestCase):
             ('LAPACKE_dgeqrfp_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_zgeqrfp', lambda s: s[:-len('Ptr{ComplexF64})')] + 'Ptr{Float64})'),
             ('LAPACKE_dgeqrf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_dorgqr_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_zunglq', lambda s: s.replace('Int64, Int64, Int64', 'Int64, Int64, Int32', 1)),
             ('LAPACKE_dgeqlf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_dgerqf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
             ('LAPACKE_dgelqf_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
@@ -312,7 +330,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 228)
+        self.assertEqual(len(lapacke_rows(rows)), 260)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))

@@ -8,6 +8,7 @@ mod general_expert;
 mod lauum;
 mod lq;
 mod positive_qr;
+mod q_generators;
 mod qr;
 mod reverse_qr;
 mod self_adjoint;
