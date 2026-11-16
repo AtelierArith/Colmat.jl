@@ -270,7 +270,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "6abf88063a921606f7ea5fb6192a357cdf29a3b0",
+  "revision": "76414652f898caf0e30ab9746661a5724a248cdb",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -52530,7 +52530,7 @@
     "deps/rust/src/lapacke/lauum.rs": "81f6e42792d0fe3a4bb481749b58b56e11293726c1781042da0bafee95dff6c3",
     "test/dense_extensions.jl": "30d1c0132eff43cf74a29f9ba47a7b7455d71a782f7f377e2f535d0f6e4e99cf",
     "test/matrix_permutation.jl": "1c7c62302f2da851f970b58ba87981b34748a14edf028ce23746316db1e0854a",
-    "test/lapacke_qr_abi_worker.c": "0f349cf611b4a074465529c886bfff3acf8f14a682e918628c705d3e23bdd843",
+    "test/lapacke_qr_abi_worker.c": "3d29342578c397d977c9b4ad42b9f5a678070540963b0c4c5e95631d2a5ef2e7",
     "test/cblas_matrix_extensions.jl": "5925e4c4a49b2fa62216415138147e35bf36346f70e7678e8ccfd433fc7cf8a0",
     "deps/rust/src/schur_reorder.rs": "ec1ae3b7d07768bb7dc96cd0d8b2617f7555848af8b2d3ef936c0f09b6473c38",
     "test/lapacke_general_expert.jl": "92ee4f6cf16921d3d494c20ec83ff05e84c05b8bbfbc26bee603481f40aff741",
@@ -52591,7 +52591,7 @@
     "test/structured_generalized_degenerate.jl": "ded486f1561053ca24b86679aa9cc1b311ebdd8c32ed28246841be67480a2e03",
     "test/structured_blas.jl": "8692f28d66a907df9862e61ade6a72d8d7da3407cbde0a699bbbe381021eca44",
     "deps/rust/src/storage_layout.rs": "5980952d6ea0669fe777a89248a7393ee4708433b3d1fc28ebff255a67f3315e",
-    "test/lapacke_positive_qr_abi_worker.c": "83b9f1075b29b45134a4f5ee72a39d1747a801ccaf148e03ddcc25521e0058fb",
+    "test/lapacke_positive_qr_abi_worker.c": "73a370f552229375d2781a5048d3b4f21d4b58e5516263043323e53193c6869f",
     "deps/rust/src/tridiagonal_lu.rs": "1f1bd4952fb56612911b86d3934ed8cdb614a1644aec413cf22793e3b300b37d",
     "deps/rust/src/structured_tridiagonal.rs": "ec0c76758529bc28a4b5ff58a474f20ed9e7dfe7e42c1deb63fa11d7f238cee0",
     "deps/rust/src/precision_conversion.rs": "80e1db2119f20797b78941a7739164ace964cadd619308d734364987401f0c8c",

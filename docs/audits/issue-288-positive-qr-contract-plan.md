@@ -1,5 +1,9 @@
 # Issue #288: GEQRFP C adapters
 
+Status: current-source immutable full package validation passes; source-bound
+evidence is imported. CI and main integration remain pending.
+Issue #288: GEQRFP C adapters
+
 Status: immutable full package validation passes and source-bound execution
 evidence is imported. CI and integration are pending.
 Issue #288 remains open. Eight S/D/C/Z high/work names extend the preceding
@@ -57,3 +61,10 @@ use explicit outer initialization-loop braces for GCC -Werror. Both independent
 C runners pass again. These two test-source changes require a new immutable
 full run before current-source evidence can be published; the earlier source
 proof remains historical and is not claimed for the changed fixtures.
+
+Current full-suite proof is bound to `76414652f898caf0e30ab9746661a5724a248cdb` and all
+288 frozen sources, optimized DLL, manifest and registration. The imported
+proof validates 1474 canonical entries: 1106 Fortran LAPACK, 172 CBLAS and
+196 LAPACKE, with 5275 completed witnesses. Python 28, inventory 15 and
+documentation build checks pass. All frozen source hashes and DLL remain
+unchanged. CI artifact provenance and main integration remain required.
