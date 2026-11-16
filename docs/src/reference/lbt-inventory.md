@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **1590**、ILP64 **1590** シンボルを登録します。
+現行 adapter は LP64 **1598**、ILP64 **1598** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -93,7 +93,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `getrs` / Fortran | `cgetrs_`, `dgetrs_`, `sgetrs_`, `zgetrs_` | [PartialPivLu / lu_in_place / solve](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/lu/partial_pivoting/factor.rs) | 最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない |
 | `getrs` / LAPACKE | `LAPACKE_cgetrs`, `LAPACKE_cgetrs_work`, `LAPACKE_dgetrs`, `LAPACKE_dgetrs_work`, `LAPACKE_sgetrs`, `LAPACKE_sgetrs_work`, `LAPACKE_zgetrs`, `LAPACKE_zgetrs_work` | [PartialPivLu / lu_in_place / solve](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/lu/partial_pivoting/factor.rs) | 最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `heev` / Fortran | `cheev_`, `zheev_` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない |
-| `heev` / LAPACKE | `LAPACKE_cheev`, `LAPACKE_cheev_work`, `LAPACKE_zheev`, `LAPACKE_zheev_work` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `heev` / LAPACKE | `LAPACKE_cheev`, `LAPACKE_cheev_work`, `LAPACKE_zheev`, `LAPACKE_zheev_work` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `heevd` / Fortran | `cheevd_`, `zheevd_` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない |
 | `heevd` / LAPACKE | `LAPACKE_cheevd`, `LAPACKE_cheevd_work`, `LAPACKE_zheevd`, `LAPACKE_zheevd_work` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `hemm` / Fortran | `chemm_`, `zhemm_` | [matmul / triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/mod.rs) | 形状・三角部分・共役・係数を変換する。 |
@@ -134,7 +134,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `stevd` / Fortran | `dstevd_`, `sstevd_` | [tridiagonal_self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | STEV/STEVD/STEQR/STEDC/STERF の14 Fortran シンボルを両 ABI に接続。既存 Q の後乗算、workspace query と最小 WORK を扱う。native 非収束時は保存した ILP64 LAPACK に渡し部分結果を維持 |
 | `stevd` / LAPACKE | `LAPACKE_dstevd`, `LAPACKE_dstevd_work`, `LAPACKE_sstevd`, `LAPACKE_sstevd_work` | [tridiagonal_self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | STEV/STEVD/STEQR/STEDC/STERF の14 Fortran シンボルを両 ABI に接続。既存 Q の後乗算、workspace query と最小 WORK を扱う。native 非収束時は保存した ILP64 LAPACK に渡し部分結果を維持; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `syev` / Fortran | `dsyev_`, `ssyev_` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない |
-| `syev` / LAPACKE | `LAPACKE_dsyev`, `LAPACKE_dsyev_work`, `LAPACKE_ssyev`, `LAPACKE_ssyev_work` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `syev` / LAPACKE | `LAPACKE_dsyev`, `LAPACKE_dsyev_work`, `LAPACKE_ssyev`, `LAPACKE_ssyev_work` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `syevd` / Fortran | `dsyevd_`, `ssyevd_` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない |
 | `syevd` / LAPACKE | `LAPACKE_dsyevd`, `LAPACKE_dsyevd_work`, `LAPACKE_ssyevd`, `LAPACKE_ssyevd_work` | [self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `symm` / Fortran | `csymm_`, `dsymm_`, `ssymm_`, `zsymm_` | [matmul / triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/mod.rs) | 形状・三角部分・共役・係数を変換する。 |
@@ -1494,7 +1494,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,386 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 1,394 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.

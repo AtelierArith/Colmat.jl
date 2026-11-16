@@ -153,6 +153,10 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_dgesdd_work': ('gesdd', 'd', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}})'),
             'LAPACKE_zgesdd': ('gesdd', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_zgesdd_work': ('gesdd', 'z', lambda j: f'(Int32, Int8, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{{j}}})'),
+            'LAPACKE_dsyev': ('syev', 'd', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_dsyev_work': ('syev', 'd', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_zheev': ('heev', 'z', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_zheev_work': ('heev', 'z', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
         }
         for symbol, (family, scalar, signature) in declarations.items():
             self.rows.append(dict(symbol=symbol, interface='LAPACKE', family=family, scalar=scalar,
@@ -246,7 +250,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 108)
+        self.assertEqual(len(lapacke_rows(rows)), 116)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))

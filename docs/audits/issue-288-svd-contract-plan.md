@@ -99,7 +99,7 @@ as full-suite evidence. Registration is 1,590 forwards per ABI. The optimized re
 61,128 SVD numerical checks and the C worker successfully; its focused trace
 again validates every one of the 432 ABI/route observations.
 
-## Immutable full-suite evidence
+## Immutable full-suite evidence (SVD checkpoint)
 
 Full `Pkg.test(; allow_reresolve=false)` succeeded at public source revision
 `e7768503a2c72e001cdb2a26bf5ff54cc1059614`, Julia 1.13.3. All 253
@@ -112,3 +112,6 @@ Its 4,895 witnesses validate 1,386 canonical names: 1,106 Fortran LAPACK,
 observations with independent concrete argument and return-type validation.
 Only this successful full artifact replaces the prior 92-entry snapshot.
 Focused traces are not published as full-suite evidence.
+
+The subsequent SYEV/HEEV full suite supplies the current 116-entry snapshot;
+the counts above preserve the SVD stage's own checkpoint.
