@@ -365,3 +365,68 @@ getrs!(s, f32, i64, [64_], _64_);
 getrs!(d, f64, i64, [64_], _64_);
 getrs!(c, colmat::c32, i64, [64_], _64_);
 getrs!(z, colmat::c64, i64, [64_], _64_);
+
+macro_rules! gesv {
+    ($p:ident,$t:ty,$i:ty,[$($suffix:tt)*],$fortran:tt) => {paste::paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p gesv $($suffix)*>](
+            layout:i32,n:$i,nrhs:$i,a:*mut $t,lda:$i,ipiv:*mut $i,b:*mut $t,ldb:$i,
+        ) -> $i {
+            if layout != ROW_MAJOR && layout != COL_MAJOR { return -1; }
+            if LAPACKE_get_nancheck() != 0 {
+                match ge_nancheck(layout,n as i64,n as i64,a,lda as i64) {
+                    Ok(true) => return -4, Err(info) => return info as $i, Ok(false) => {},
+                }
+                match ge_nancheck(layout,n as i64,nrhs as i64,b,ldb as i64) {
+                    Ok(true) => return -7, Err(info) => return info as $i, Ok(false) => {},
+                }
+            }
+            [<LAPACKE_ $p gesv_work $($suffix)*>](layout,n,nrhs,a,lda,ipiv,b,ldb)
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p gesv_work $($suffix)*>](
+            layout:i32,n:$i,nrhs:$i,a:*mut $t,lda:$i,ipiv:*mut $i,b:*mut $t,ldb:$i,
+        ) -> $i {
+            if layout != ROW_MAJOR && layout != COL_MAJOR { return -1; }
+            if layout == ROW_MAJOR {
+                if lda < n { return -5; }
+                if ldb < nrhs { return -8; }
+            }
+            if n < 0 { return -2; }
+            if nrhs < 0 { return -3; }
+            if layout == COL_MAJOR {
+                if lda < 1.max(n) { return -5; }
+                if ldb < 1.max(n) { return -8; }
+            }
+            if n == 0 { return 0; }
+            // NRHS=0 still factors A and writes IPIV, including singular INFO.
+            let mut info:$i=0;
+            if layout == COL_MAJOR {
+                crate::lapack::[<$p gesv $fortran>](&n,&nrhs,a,&lda,ipiv,b,&ldb,&mut info);
+            } else {
+                let mut aa=match row_to_column(n as usize,n as usize,a,lda as usize) {
+                    Ok(v)=>v,Err(info)=>return info as $i,
+                };
+                let mut bb=match row_to_column(n as usize,nrhs as usize,b,ldb as usize) {
+                    Ok(v)=>v,Err(info)=>return info as $i,
+                };
+                crate::lapack::[<$p gesv $fortran>](&n,&nrhs,aa.as_mut_ptr(),&n,ipiv,bb.as_mut_ptr(),&n,&mut info);
+                for j in 0..n as usize { for i in 0..n as usize {
+                    *a.add(i*lda as usize+j)=aa[i+j*n as usize];
+                } }
+                for j in 0..nrhs as usize { for i in 0..n as usize {
+                    *b.add(i*ldb as usize+j)=bb[i+j*n as usize];
+                } }
+            }
+            if info<0 {info-1} else {info}
+        }
+    }};
+}
+gesv!(s, f32, i32, [], _);
+gesv!(d, f64, i32, [], _);
+gesv!(c, colmat::c32, i32, [], _);
+gesv!(z, colmat::c64, i32, [], _);
+gesv!(s, f32, i64, [64_], _64_);
+gesv!(d, f64, i64, [64_], _64_);
+gesv!(c, colmat::c32, i64, [64_], _64_);
+gesv!(z, colmat::c64, i64, [64_], _64_);

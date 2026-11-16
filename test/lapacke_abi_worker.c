@@ -72,6 +72,39 @@
     } \
 } while(0)
 
+
+#define CHECK_DRIVER(P,T,INT,SUFFIX,PHASE,TOL) do { \
+    typedef INT (*driver)(int,INT,INT,T *,INT,INT *,T *,INT); \
+    const char *names[]={"LAPACKE_" #P "gesv" SUFFIX,"LAPACKE_" #P "gesv_work" SUFFIX}; \
+    for(int entry=0;entry<2;entry++) { \
+        driver call=(driver)dlsym(library,names[entry]);assert(call); \
+        for(int layout=101;layout<=102;layout++) { \
+            T a[6]={2,0,777,0,3,777}, b[6]={777,777,777,777,777,777}; \
+            a[1]=layout==101?1:4;a[3]=layout==101?4:1; \
+            for(int q=0;q<6;q++) if(q!=2 && q!=5) a[q]*=(PHASE); \
+            b[0]=4*(PHASE);b[layout==101?3:1]=10*(PHASE); \
+            INT piv[4]={-91,-92,-93,-94}; \
+            assert(call(layout,2,1,a,3,piv+1,b,3)==0); \
+            assert(piv[0]==-91 && piv[3]==-94 && piv[1]==2 && piv[2]==2); \
+            assert(cabs((double complex)(b[0]-1))<(TOL)); \
+            assert(cabs((double complex)(b[layout==101?3:1]-2))<(TOL)); \
+            assert(a[2]==(T)777 && a[5]==(T)777); \
+            for(int q=0;q<6;q++) if(q!=0 && q!=(layout==101?3:1)) assert(b[q]==(T)777); \
+            T z[4]={2,layout==101?1:4,layout==101?4:1,3}; \
+            assert(call(layout,2,0,z,2,piv+1,NULL,layout==101?0:2)==0); \
+            assert(piv[1]==2 && piv[2]==2); \
+            assert(cabs((double complex)(z[0]-4))<(TOL)); \
+            assert(cabs((double complex)(z[3]+0.5))<(TOL)); \
+            T singular[4]={1,2,2,4}, rhs[2]={9,7}; \
+            assert(call(layout,2,1,singular,2,piv+1,rhs,layout==101?1:2)==2); \
+            assert(rhs[0]==9 && rhs[1]==7); \
+            assert(call(layout,-1,0,NULL,3,NULL,NULL,3)==-2); \
+            assert(call(layout,0,0,NULL,3,NULL,NULL,3)==0); \
+            assert(call(101,-1,-1,NULL,-2,NULL,NULL,-2)==-5); \
+        } \
+    } \
+} while(0)
+
 int main(int argc,char **argv) {
     assert(argc==2 || argc==3);
     void *library=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);
@@ -99,6 +132,20 @@ int main(int argc,char **argv) {
     CHECK_SOLVE(d,double,int64_t,"64_",1e-12);
     CHECK_SOLVE(c,float complex,int64_t,"64_",1e-5);
     CHECK_SOLVE(z,double complex,int64_t,"64_",1e-12);
+    CHECK_DRIVER(s,float,int32_t,"",1.0f,1e-5);
+    CHECK_DRIVER(d,double,int32_t,"",1.0,1e-12);
+    CHECK_DRIVER(c,float complex,int32_t,"",0.8f-0.6f*I,1e-5);
+    CHECK_DRIVER(z,double complex,int32_t,"",0.8-0.6*I,1e-12);
+    CHECK_DRIVER(s,float,int64_t,"64_",1.0f,1e-5);
+    CHECK_DRIVER(d,double,int64_t,"64_",1.0,1e-12);
+    CHECK_DRIVER(c,float complex,int64_t,"64_",0.8f-0.6f*I,1e-5);
+    CHECK_DRIVER(z,double complex,int64_t,"64_",0.8-0.6*I,1e-12);
+    typedef int64_t (*ddriver)(int,int64_t,int64_t,double *,int64_t,int64_t *,double *,int64_t);
+    ddriver dd=(ddriver)dlsym(library,"LAPACKE_dgesv64_");assert(dd);
+    double da[4]={NAN,4,1,3},db[2]={4,10};int64_t dp[2]={-91,-92};
+    assert(dd(102,2,1,da,2,dp,db,2)==-4);assert(dp[0]==-91 && dp[1]==-92);
+    da[0]=2;db[0]=NAN;assert(dd(102,2,1,da,2,dp,db,2)==-7);assert(dp[0]==-91 && dp[1]==-92);
+    assert(dd(102,INT64_C(-4294967293),0,NULL,2,NULL,NULL,2)==-2);
     typedef int64_t (*zsolve)(int,char,int64_t,int64_t,const double complex *,int64_t,const int64_t *,double complex *,int64_t);
     zsolve zs=(zsolve)dlsym(library,"LAPACKE_zgetrs64_");assert(zs);
     double complex fa[4]={NAN,0.5,3,-0.5}, rhs[2]={4,10};int64_t pi[2]={2,2};
@@ -117,6 +164,6 @@ int main(int argc,char **argv) {
     /* Disabling the scan reaches dimension validation without reading NULL. */
     assert(z(102,INT64_C(-4294967293),2,NULL,2,NULL)==-2);
     set(-9);assert(get()==1);
-    puts("LAPACKE C ABI: GETRF/GETRS high/work, four scalars, both integer widths passed");
+    puts("LAPACKE C ABI: GETRF/GETRS/GESV high/work, four scalars, both integer widths passed");
     dlclose(library);return 0;
 }

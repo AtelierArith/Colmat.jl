@@ -126,3 +126,37 @@ Combined GETRF/GETRS/C validation in one fresh Julia process passed 4,958 checks
 (720 + 4,232 + 6). Observed registration counts were 1,498 per ABI. Inventory
 assets still describe main's 1,480 baseline and require regeneration before
 full-package validation and PR readiness.
+
+## GESV high/work adapters
+
+Reference-LAPACK v3.12.1 sources: `LAPACKE/src/lapacke_dgesv_work.c`
+(blob `ec48c27e12ac4264e1e4ec4b6cf95623ee034440`) and
+`LAPACKE/src/lapacke_dgesv.c`
+(blob `c1384262418cd3ef72f3ccf00bc5503967e2b586`).
+
+GESV now covers four scalar types, both ABIs and high/work entries. The row-major
+adapter allocates both temporary matrices before modifying caller data, calls
+the existing native Fortran driver and copies back only logical entries. As in
+the reference, row-major leading-dimension errors precede numerical argument
+checks. High-level NaN diagnostics distinguish A (-4) from B (-7). NRHS=0 still
+factors A and returns sequential pivots and numerical INFO; it does not perform
+a blanket no-op. Positive singular INFO is preserved and B remains unchanged.
+
+`test/lapacke_gesv.jl` passed 1,216 checks over direct DLL and LBT trampoline
+routes, both layouts, four types and both integer ABIs. RHS values are built
+with scalar multiplication from a known real/complex solution. Standard
+OpenBLAS GETRS then consumes each produced LU/IPIV pair to solve a second RHS,
+verifying the outgoing factor contract. Zero-RHS factorization must match the
+ordinary driver's factors and pivots. Singular inputs must preserve B.
+
+The independent C worker additionally checks all 16 GESV exports, including
+nonreal complex coefficients, guarded pivot outputs, padding, singular INFO,
+zero RHS with NULL B, empty dimensions and row-major error precedence. It checks
+high-level NaN diagnostics for A/B and negative ILP64 dimensions outside 32-bit
+range. The full Rust suite passed 398 tests.
+
+Combined focused Julia/C validation passed 6,174 checks (720 + 4,232 + 1,216 + 6).
+Actual registration counts are 1,506 per ABI: 24 frozen-scope LAPACKE canonical
+entries and two additional NaN policy helpers beyond the prior 1,480 baseline.
+The frozen issue scope remains 1,616 entries, with no completion claim for the
+remaining entries or the still-pending inventory/provenance/full-Julia gates.
