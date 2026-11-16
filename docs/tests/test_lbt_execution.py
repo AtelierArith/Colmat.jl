@@ -177,6 +177,14 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_dgerqf': ('gerqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgeqlf_work': ('geqlf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_dgerqf_work': ('gerqf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgeqp3': ('geqp3', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}})'),
+            'LAPACKE_dgeqp3_work': ('geqp3', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgeqpf': ('geqpf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}})'),
+            'LAPACKE_dgeqpf_work': ('geqpf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, Ptr{{Float64}})'),
+            'LAPACKE_zgeqp3': ('geqp3', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{{j}}}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zgeqp3_work': ('geqp3', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{{j}}}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_zgeqpf': ('geqpf', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{{j}}}, Ptr{{ComplexF64}})'),
+            'LAPACKE_zgeqpf_work': ('geqpf', 'z', lambda j: f'(Int32, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{{j}}}, Ptr{{ComplexF64}}, Ptr{{ComplexF64}}, Ptr{{Float64}})'),
             'LAPACKE_dgeqrt': ('geqrt', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
             'LAPACKE_dgeqrt_work': ('geqrt', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dgeqrt2': ('geqrt2', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
@@ -303,6 +311,9 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.add_lapacke()
         self.validate()
         for symbol, replacement in (
+            ('LAPACKE_dgeqp3', lambda s: s.replace('Ptr{Int64}', 'Ptr{Int32}')),
+            ('LAPACKE_zgeqp3_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
+            ('LAPACKE_dgeqpf_work', lambda s: s[:-1] + ', Int64)'),
             ('LAPACKE_dgemqrt_work', lambda s: s.replace('Int8, Int8', 'Int8, Int32', 1)),
             ('LAPACKE_zgeqrt_work', lambda s: s.replace('Ptr{ComplexF64}', 'Ptr{Float64}')),
             ('LAPACKE_dgeqrt2_work', lambda s: s[:-len('Int64)')] + 'Int32)'),

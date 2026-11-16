@@ -48,3 +48,16 @@ checks pass 688 assertions across all scalar types and both own ABIs,
 including empty queries and insufficient work, with no A/TAU/JPVT/RWORK
 changes. Expected thread-local diagnostics are asserted and consumed at
 the origin. This is focused evidence only, not full validation.
+
+The sixteen adapters are implemented. Row packing preserves JPVT and TAU
+pointers of the caller ABI, and insufficient-work paths publish WORK without
+packing A. Complex RWORK uses the underlying real scalar type; checked high
+allocations distinguish GEQP3 query scratch from fixed GEQPF work. Focused
+numerical checks pass 211680 assertions across all scalar types, integer ABIs,
+layouts, high/work and DLL/LBT. Independent OpenBLAS factors feed own Q
+generators and own C factors feed reference Q generators. Fixed/free column
+patterns (including negative flags), output permutation, reconstruction,
+orthogonality, empty/rectangular/deficient and scaled inputs and guards pass.
+Signature validation fixtures pass 17 tests, rejecting wrong pivot widths,
+complex RWORK types and a spurious GEQPF LWORK. Independent C, policy, typed
+completed calls, optimized repetition and full proof remain required.
