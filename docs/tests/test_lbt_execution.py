@@ -227,6 +227,9 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.add_lapacke()
         self.validate()
         for symbol, replacement in (
+            ('LAPACKE_zgeev_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
+            ('LAPACKE_dgeev', lambda s: s.replace('Ptr{Float64}, Ptr{Float64}, Ptr{Float64}', 'Ptr{Float64}, Ptr{ComplexF64}, Ptr{Float64}')),
+            ('LAPACKE_zgeev', lambda s: s.replace('Int64', 'Int32')),
             ('LAPACKE_zgesvd', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
             ('LAPACKE_zgesvd_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
             ('LAPACKE_zgesdd_work', lambda s: s.replace('Ptr{Int64}', 'Ptr{Int32}')),
