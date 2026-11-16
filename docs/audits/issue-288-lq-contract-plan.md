@@ -1,0 +1,25 @@
+# Issue #288: GELQF/GELQ2 C adapters
+
+Status: contract investigation; implementation and full-suite evidence pending.
+Issue #288 remains open. The planned sixteen S/D/C/Z high/work names follow
+196 candidate names; these staged candidates are not all merged yet.
+
+Reference LAPACK v3.12.1 [DGELQF](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/SRC/dgelqf.f)
+requires WORK length one for empty matrices and returns query/output WORK(1)=1.
+For nonempty input the minimum is M. Its
+[C work adapter](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_dgelqf_work.c)
+checks row-major LDA against N before allocating or querying, translates
+negative Fortran INFO by one, and queries using temporary column-major LDA.
+
+Executed `reproducers/gelqf_empty_workspace.jl` at M=3,N=0 against the preceding
+candidate DLL and independent OpenBLAS. The own Fortran boundary returns query
+3 and rejects LWORK=1 with INFO=-7 while leaving WORK=777. OpenBLAS returns
+query 1 and accepts LWORK=1 with INFO=0 and WORK=1. This is a Colmat.jl boundary
+correction; no upstream native source changes are needed for this reproducer.
+
+Required checks include both integer ABIs/layouts, high/work and direct/LBT,
+compact factors consumed independently by ORGLQ/UNGLQ, reconstruction and
+orthogonality, complex TAU and conjugation, empty/rectangular/scaled/deficient
+matrices, NaN policy, diagnostics, padding and independent C prototypes.
+Completed-call tracing, optimized runs and immutable full package evidence
+are required before publishing an implementation PR.
