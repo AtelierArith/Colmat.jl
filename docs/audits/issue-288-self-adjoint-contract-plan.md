@@ -1,12 +1,13 @@
-# Issue 288: SYEV / HEEV candidate contracts
+# Issue 288: SYEV / HEEV LAPACKE contracts
 
 Status: initial implementation, independent C callers and OpenBLAS comparisons
-through both actual DLL/LBT routes pass. Completed-call tracing and optimized
-release checks pass; immutable full-suite evidence and platform CI remain pending. Issue #288
-remains open.
+through both actual DLL/LBT routes pass. Completed-call tracing, optimized
+release checks and immutable full-suite evidence pass. Platform CI remains pending.
+Issue #288 remains open.
 
 This candidate adds eight canonical names: S/D SYEV and C/Z HEEV, each high
-and work, with both integer ABIs. The preceding 108-entry SVD candidate passed its immutable full suite and is
+and work, with both integer ABIs. The preceding 108-entry SVD candidate passed its
+immutable full suite and is
 under review in PR #382. The original 1,616-entry scope and separate 20 Rook
 coordination targets remain intact.
 
@@ -80,7 +81,24 @@ Focused tracing independently validates all 116 current numerical LAPACKE names
 and all 464 ABI/route observations. The completed-call gate passes 2,326 checks.
 The optimized release repeats the C worker and all numerical checks, including
 the Hermitian diagonal regression. Registration is 1,598 forwards for each ABI.
-Focused artifacts remain explicitly non-full-suite results. The successful
-108-entry snapshot is backed up and retained as stale candidate evidence until
-a new immutable full suite validates all 257 current production/test/worker
-sources, the manifest, registration and optimized DLL.
+Focused artifacts remain explicitly non-full-suite results. The prior successful
+108-entry snapshot was backed up and retained as stale evidence during the new
+full run. It was replaced only after all 257 production/test/worker source
+hashes, manifest, registration and optimized DLL matched the successful run.
+
+
+## Immutable full-suite evidence
+
+Full `Pkg.test(; allow_reresolve=false)` passed at public source revision
+`02aa709a21a92e7ad1a6e5c18ba8aa6c49d87441`, Julia 1.13.3. All 257
+production/test/worker hashes, manifest, native revision, registration digest
+and release DLL match preflight. The DLL SHA-256 is
+`39d440a478f9272ed285438bb540f4ffab7af6b45287109bc2daa5e60dff0a56`.
+
+Its 4,927 witnesses validate 1,394 canonical entries: 1,106 Fortran LAPACK,
+172 CBLAS and 116 LAPACKE. Every one of the 464 LAPACKE ABI/route observations
+has its concrete argument and return signature checked independently. Only
+this successful full artifact replaces the prior 108-entry snapshot.
+
+Issue #288 remains open, with 1,500 original-scope entries beyond this subset
+and the separate 20 Rook coordination targets still pending.

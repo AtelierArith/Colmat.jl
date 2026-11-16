@@ -1,18 +1,20 @@
-# Issue #288: dense LU, Cholesky, complex SYR and SVD LAPACKE entries
+# Issue #288: implemented LAPACKE numerical subset
 
-The implemented subset connects **108 canonical numerical entries**: high-level and `_work`
+The implemented subset connects **116 canonical numerical entries**: high-level and `_work`
 forms of GETRF, GETF2, GETRF2, GETRS, GESV, GETRI, POTRF, POTRF2, POTRI, POTRS and POSV, for
 Float32, Float64, ComplexF32 and ComplexF64. Both integer ABIs and actual DLL/LBT
 routes are tested. Complex-only CSYR/ZSYR high/work forms add four entries;
 [their audit](issue-288-complex-syr.md) records the by-value coefficient ABI and
 intentional strided NaN-check deviation. GESVD/GESDD high/work forms add
 sixteen entries; [their audit](issue-288-svd-contract-plan.md) records scratch,
-layout and backend algorithm contracts. Two additional NaN policy helpers
+layout and backend algorithm contracts. SYEV/HEEV high/work add eight real or
+complex self-adjoint entries; [their audit](issue-288-self-adjoint-contract-plan.md)
+records selected storage and ignored Hermitian diagonal handling. Two additional NaN policy helpers
 are shared between ABIs;
 their arguments and return values retain C-int width.
 
 **Issue #288 remains open.** Its original 1,616-entry acceptance scope is frozen
-in `issue-288-lapacke-scope.json`; 1,508 of those entries remain beyond this stage.
+in `issue-288-lapacke-scope.json`; 1,500 of those entries remain beyond this stage.
 Issue #372 additionally coordinates 20 LAPACKE Rook entries with #288. Those
 additions are separate from the original scope and are also still pending.
 Registration alone, successful fallback computation and the current subset's
@@ -81,18 +83,30 @@ It introduces explicit N-by-N scratch; row-major conversion can require an
 additional N-by-N temporary. `reproducers/potrf_ignored_storage.jl` now reports
 INFO=0, no changed ignored positions and finite factor entries.
 
+### Hermitian diagonal projection
+
+A 3-by-3 HEEV input with imaginary-only diagonal NaNs returned INFO=1 and
+nonfinite vectors while independent OpenBLAS returned INFO=0. LAPACK assumes
+those imaginary components are zero. The shared `selfadj` boundary now detects
+a diagonal that differs from its real projection, copies only the selected
+lower view and normalizes the diagonal. Ordinary real-diagonal inputs keep
+borrowing their buffer. Normalization adds N-by-N scratch only when needed,
+in addition to any row-layout temporary. The reproducer
+`reproducers/heev_ignored_diagonal.jl` now agrees with OpenBLAS; the extended
+full suite includes both layouts, both ABIs and imaginary-only diagonal NaNs.
+
 ## Execution evidence
 
 The successful full `Pkg.test(; allow_reresolve=false)` ran source revision
-`e7768503a2c72e001cdb2a26bf5ff54cc1059614` with 253 production/test/worker sources,
+`02aa709a21a92e7ad1a6e5c18ba8aa6c49d87441` with 257 production/test/worker sources,
 manifest, registration table and release DLL frozen before execution. The
-resulting artifact matched every captured hash and revision. Its 4,895 raw
-witness rows independently validate **1,386 canonical entries**: the existing
-1,106 Fortran LAPACK and 172 CBLAS targets plus 108 LAPACKE targets. The formal
+resulting artifact matched every captured hash and revision. Its 4,927 raw
+witness rows independently validate **1,394 canonical entries**: the existing
+1,106 Fortran LAPACK and 172 CBLAS targets plus 116 LAPACKE targets. The formal
 snapshot is `docs/src/assets/lapack-abi-execution.json`; scope and provenance
 validation rejects stale, partial or failed-suite artifacts.
 
-The 108 LAPACKE entries contribute 432 completed call-site observations, covering
+The 116 LAPACKE entries contribute 464 completed call-site observations, covering
 both ABIs and both actual routes. Each recorded argument and INFO return type
 is checked against the current concrete C contract. Registered unreviewed
 families are rejected until their real signature is added; future matrix-norm
@@ -104,16 +118,17 @@ qualify caller-selected alias names where needed. Qualification creates no
 witness: the actual returned ccall must match the selected symbol, ABI and
 route in the address table. Selection is included in deduplication and restored
 on exceptions. The recorder behavior tests pass 24 checks, and the LAPACKE
-completed-call gate passes 2,166 checks. Independent C workers exercise the
+completed-call gate passes 2,326 checks. Independent C workers exercise the
 concrete ABI and compiler's complex layout.
 
 ## Validation and remaining work
 
 - Successful full Pkg.test, including ordinary standard BLAS/LAPACK regression.
-- 408 Rust tests and Rust formatting checks passed.
+- 416 Rust tests and Rust formatting checks passed.
 - The LU/Cholesky numerical/C stage passed 33,320 checks before tracing gates;
   complex SYR adds 13,316 numerical checks and two C-runner checks;
   SVD adds 61,128 numerical checks and two independent C-runner checks;
+  SYEV/HEEV adds 38,600 numerical checks and two C-runner checks;
   separate existing Fortran driver/direct-ABI/boundary regressions passed 7,200.
 - Independent OpenBLAS factors feed GETRS/GETRI/POTRS/POTRI; standard OpenBLAS
   solves consume generated LU and Cholesky factors. Scalar loops construct RHS,
@@ -123,7 +138,7 @@ concrete ABI and compiler's complex layout.
   diagonal NaNs, an ILP64 query above 32-bit range and Float32 work rounding.
 - The Documenter build (`julia --project=docs docs/make.jl`) passed.
 - After importing the full artifact, all 28 Python documentation/audit tests and
-  all 15 actual inventory checks passed. Registration is 1,590 per ABI, with
+  all 15 actual inventory checks passed. Registration is 1,598 per ABI, with
   5,146 canonical symbols. The candidate audit preserves the original 2,910
   scope and separately tracked 40 Rook additions.
 
@@ -159,5 +174,5 @@ The PR #380 full Pkg.test succeeded at source revision
 source hashes, manifest, release DLL and the exact
 1,570-forward-per-ABI inventory, then independently validated 1,366 entries.
 That successful full artifact replaced the earlier 72-entry snapshot. The
-subsequent complex SYR and SVD full runs supply the current 108-entry snapshot;
+subsequent complex SYR and SVD full runs supply the current 116-entry snapshot;
 focused artifacts are not published as full-suite evidence.
