@@ -1,7 +1,7 @@
 # Issue #288: GEQRF / GEQR2 C adapters
 
-Status: adapters and focused numerical/C ABI checks pass. No full-suite
-evidence has been imported. Issue #288 remains open.
+Status: immutable full package validation passes and source-bound execution
+evidence is imported. CI and integration are pending. Issue #288 remains open.
 
 Sixteen high/work S/D/C/Z names extend the preceding 172-name candidate to 188
 original-scope names. The original 1616-name scope retains 1428 names beyond
@@ -46,4 +46,27 @@ including positive-diagonal variants, also pass after the shared empty fix.
 The independent C Julia runner passes two checks. Completed-call tracing
 validates all 188 names and 752 name/ABI/route observations, with 3766 gate
 checks. Focused witnesses remain explicitly full_suite_passed=false.
-Optimized repetition and immutable full-suite evidence remain required.
+The subsequent immutable full suite passes; focused records were not imported
+as full-suite evidence.
+
+Optimized build and repeated numerical, independent C and signature checks pass.
+The frozen optimized DLL SHA256 is
+`cd24fc168ff8f788a1ca4b6dae89bb7822b9c4694ba2450dcf5bced8e09cae21`.
+Registration is 1670 forwards per integer ABI. Full-suite evidence is bound to
+source commit `aa6ae66e2be0576bef1895ff73cf14559d2dd496` and all 284 frozen
+source files. HEAD, sources, DLL, manifest and inventory registration remained
+unchanged through the terminal-zero run. The imported evidence validates 1466
+canonical entries (1106 Fortran LAPACK, 172 CBLAS and 188 LAPACKE) with 5243
+completed call-site witnesses. Python tests pass 28, inventory checks pass 15,
+and the documentation build passes. CI and integration remain required.
+
+Linux CI exposed GCC misleading-indentation diagnostics in the independent
+C caller initialization loop. Explicit outer braces preserve its behavior and
+retain -Wall/-Wextra/-Werror. Because the C worker is a frozen evidence source,
+the immutable full-suite run was repeated before republishing its proof.
+
+The GCC-corrected full package run passes at
+`aa6ae66e2be0576bef1895ff73cf14559d2dd496` with all 284 frozen source hashes, HEAD, DLL,
+manifest and registration unchanged. The refreshed proof validates 1466
+canonical entries and 5243 witnesses. Python 28, inventory 15 and
+documentation build pass. CI artifact provenance remains pending.
