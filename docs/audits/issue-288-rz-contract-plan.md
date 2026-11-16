@@ -2,7 +2,10 @@
 
 Status: focused numerical, policy, independent C caller and debug/optimized typed
 tracing checks pass. Source-bound immutable full-suite proof passes; publication
-checks pass; final CI/main integration remain pending. Issue #288 remains open.
+checks passed before final main integration. Normal integration after PR #397
+preserves all 323 proven execution sources and the optimized DLL. Python 28
+passes after integration; inventory/docs checks remain live in macOS startup.
+Final publication CI and merge remain pending. Issue #288 remains open.
 
 The canonical scope contains eight S/D/C/Z TZRZF high/work names and eight
 real ORMRZ/complex UNMRZ high/work names. No TZRQF, LATRZ or LARZ C names
