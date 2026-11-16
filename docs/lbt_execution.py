@@ -102,6 +102,8 @@ def validate_lapacke_signature(row, witness):
         'geqr2': ['Int32', integer, integer, t, integer, t],
         'gelqf': ['Int32', integer, integer, t, integer, t],
         'gelq2': ['Int32', integer, integer, t, integer, t],
+        'geqlf': ['Int32', integer, integer, t, integer, t],
+        'gerqf': ['Int32', integer, integer, t, integer, t],
         'trtri': ['Int32', 'Int8', 'Int8', integer, t, integer],
         'trtrs': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer, t, integer],
         'potrs': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
@@ -127,7 +129,7 @@ def validate_lapacke_signature(row, witness):
     if row['family'] not in args:
         raise ValueError(f'LAPACKE signature contract missing for {row["symbol"]}')
     expected = args[row['family']]
-    if row['family'] in ('geqrf', 'geqrfp', 'geqr2', 'gelqf', 'gelq2') and row['symbol'].endswith('_work'):
+    if row['family'] in ('geqrf', 'geqrfp', 'geqr2', 'gelqf', 'gelq2', 'geqlf', 'gerqf') and row['symbol'].endswith('_work'):
         expected = expected + [t] + ([integer] if row['family'] not in ('geqr2', 'gelq2') else [])
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]

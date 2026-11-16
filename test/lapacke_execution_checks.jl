@@ -25,6 +25,8 @@ using Test
         "geqrfp",
         "gelqf",
         "gelq2",
+        "geqlf",
+        "gerqf",
     )
     targets=Set(
         "LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in families for
@@ -55,7 +57,7 @@ using Test
             w in ("", "_work")
         ),
     )
-    @test length(targets)==212
+    @test length(targets)==228
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
