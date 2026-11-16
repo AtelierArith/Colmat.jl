@@ -1,7 +1,7 @@
 {
-  "platform": "x86_64-linux-gnu",
+  "platform": "x86_64-apple-darwin24.6.0",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "a8b3b93e7784a099defaee673a5755b4fe3b6c3f04b25eca9e0addcb3776e386",
+  "inventory_registration_sha256": "90f47d78aa7a0c5863181f6dbd20be07e6344e53a8e1f8bd7ecd3a315f7f44c9",
   "lapacke_target_symbols": [
     "LAPACKE_cgeev",
     "LAPACKE_cgeev_work",
@@ -69,6 +69,14 @@
     "LAPACKE_cungqr_work",
     "LAPACKE_cungrq",
     "LAPACKE_cungrq_work",
+    "LAPACKE_cunmlq",
+    "LAPACKE_cunmlq_work",
+    "LAPACKE_cunmql",
+    "LAPACKE_cunmql_work",
+    "LAPACKE_cunmqr",
+    "LAPACKE_cunmqr_work",
+    "LAPACKE_cunmrq",
+    "LAPACKE_cunmrq_work",
     "LAPACKE_dgeev",
     "LAPACKE_dgeev_work",
     "LAPACKE_dgeevx",
@@ -113,6 +121,14 @@
     "LAPACKE_dorgqr_work",
     "LAPACKE_dorgrq",
     "LAPACKE_dorgrq_work",
+    "LAPACKE_dormlq",
+    "LAPACKE_dormlq_work",
+    "LAPACKE_dormql",
+    "LAPACKE_dormql_work",
+    "LAPACKE_dormqr",
+    "LAPACKE_dormqr_work",
+    "LAPACKE_dormrq",
+    "LAPACKE_dormrq_work",
     "LAPACKE_dposv",
     "LAPACKE_dposv_work",
     "LAPACKE_dpotrf",
@@ -177,6 +193,14 @@
     "LAPACKE_sorgqr_work",
     "LAPACKE_sorgrq",
     "LAPACKE_sorgrq_work",
+    "LAPACKE_sormlq",
+    "LAPACKE_sormlq_work",
+    "LAPACKE_sormql",
+    "LAPACKE_sormql_work",
+    "LAPACKE_sormqr",
+    "LAPACKE_sormqr_work",
+    "LAPACKE_sormrq",
+    "LAPACKE_sormrq_work",
     "LAPACKE_sposv",
     "LAPACKE_sposv_work",
     "LAPACKE_spotrf",
@@ -262,10 +286,18 @@
     "LAPACKE_zungqr",
     "LAPACKE_zungqr_work",
     "LAPACKE_zungrq",
-    "LAPACKE_zungrq_work"
+    "LAPACKE_zungrq_work",
+    "LAPACKE_zunmlq",
+    "LAPACKE_zunmlq_work",
+    "LAPACKE_zunmql",
+    "LAPACKE_zunmql_work",
+    "LAPACKE_zunmqr",
+    "LAPACKE_zunmqr_work",
+    "LAPACKE_zunmrq",
+    "LAPACKE_zunmrq_work"
   ],
-  "library_sha256": "9d416ba5531cd113f17f1c62e7b2c6dba8457eadfc7c46d407cc72c53d32a990",
-  "julia_version": "1.13.4",
+  "library_sha256": "0bc1b452ee357cc43a5df9b87b482ddcfda20afc853c78bb146df7886658364b",
+  "julia_version": "1.13.3",
   "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
   "ambiguous_shared_entries": [
     "test/band_cholesky.jl:34 [(\"cpbtf2_\", 32, \"dll\"), (\"cpbtrf_\", 32, \"dll\")] widths=Set([32])",
@@ -334,7 +366,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "9c2c495b0205021fdedc1030e51f98be5126979b",
+  "revision": "39aa06e36fd6d4e6342596c40342d92d9f3c9018",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -3153,6 +3185,326 @@
       "integer_arguments": true
     },
     {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmlq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmlq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmlq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmlq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmlq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmlq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmlq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmlq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmql",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmql",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmql",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmql",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmql_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmql_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmql_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmql_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmqr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmqr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmqr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmqr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmqr_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmqr_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmrq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmrq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmrq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmrq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmrq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmrq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmrq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_cunmrq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 36,
       "return_type": "Int32",
       "route": "dll",
@@ -4933,6 +5285,326 @@
       "integer_arguments": true
     },
     {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormlq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormlq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormlq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormlq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormlq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormlq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormlq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormlq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormql",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormql",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormql",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormql",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormql_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormql_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormql_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormql_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormqr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormqr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormqr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormqr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormqr_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormqr_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormrq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormrq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormrq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormrq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormrq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormrq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormrq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_dormrq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 16,
       "return_type": "Int32",
       "route": "dll",
@@ -7489,6 +8161,326 @@
       "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
       "file": "test/lapacke_q_generators.jl",
       "symbol": "LAPACKE_sorgrq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormlq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormlq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormlq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormlq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormlq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormlq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormlq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormlq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormql",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormql",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormql",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormql",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormql_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormql_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormql_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormql_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormqr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormqr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormqr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormqr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormqr_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormqr_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormrq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormrq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormrq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormrq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormrq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormrq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormrq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_sormrq_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -10929,6 +11921,326 @@
       "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
       "file": "test/lapacke_q_generators.jl",
       "symbol": "LAPACKE_zungrq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmlq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmlq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmlq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmlq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmlq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmlq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmlq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmlq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmql",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmql",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmql",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmql",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmql_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmql_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmql_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmql_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmqr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmqr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmqr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmqr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmqr_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmqr_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmrq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmrq",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmrq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmrq",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmrq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmrq_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmrq_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_q_application.jl",
+      "symbol": "LAPACKE_zunmrq_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -20283,6 +21595,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "cunmlq_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 638,
       "return_type": "Nothing",
       "route": "dll",
@@ -20293,6 +21615,26 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "cunmlq_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "cunmql_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -20313,6 +21655,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "cunmql_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -20330,6 +21682,16 @@
       "file": "test/reverse_qr.jl",
       "symbol": "cunmql_",
       "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "cunmqr_",
+      "bits": 32,
       "integer_arguments": true
     },
     {
@@ -20343,6 +21705,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "cunmqr_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 307,
       "return_type": "Nothing",
       "route": "dll",
@@ -20393,6 +21765,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "cunmrq_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -20410,6 +21792,16 @@
       "file": "test/reverse_qr.jl",
       "symbol": "cunmrq_",
       "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "cunmrq_",
+      "bits": 64,
       "integer_arguments": true
     },
     {
@@ -25693,6 +27085,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "dormlq_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 638,
       "return_type": "Nothing",
       "route": "dll",
@@ -25703,6 +27105,26 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "dormlq_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "dormql_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -25723,6 +27145,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "dormql_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -25740,6 +27172,16 @@
       "file": "test/reverse_qr.jl",
       "symbol": "dormql_",
       "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "dormqr_",
+      "bits": 32,
       "integer_arguments": true
     },
     {
@@ -25753,6 +27195,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "dormqr_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 307,
       "return_type": "Nothing",
       "route": "dll",
@@ -25803,6 +27255,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "dormrq_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -25820,6 +27282,16 @@
       "file": "test/reverse_qr.jl",
       "symbol": "dormrq_",
       "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "dormrq_",
+      "bits": 64,
       "integer_arguments": true
     },
     {
@@ -35253,6 +36725,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "sormlq_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 638,
       "return_type": "Nothing",
       "route": "dll",
@@ -35263,6 +36745,26 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "sormlq_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "sormql_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -35283,6 +36785,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "sormql_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -35300,6 +36812,16 @@
       "file": "test/reverse_qr.jl",
       "symbol": "sormql_",
       "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "sormqr_",
+      "bits": 32,
       "integer_arguments": true
     },
     {
@@ -35313,6 +36835,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "sormqr_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 307,
       "return_type": "Nothing",
       "route": "dll",
@@ -35363,6 +36895,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "sormrq_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -35380,6 +36922,16 @@
       "file": "test/reverse_qr.jl",
       "symbol": "sormrq_",
       "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "sormrq_",
+      "bits": 64,
       "integer_arguments": true
     },
     {
@@ -48973,6 +50525,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "zunmlq_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 638,
       "return_type": "Nothing",
       "route": "dll",
@@ -48983,6 +50545,26 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "zunmlq_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "zunmql_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -49003,6 +50585,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "zunmql_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -49020,6 +50612,16 @@
       "file": "test/reverse_qr.jl",
       "symbol": "zunmql_",
       "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "zunmqr_",
+      "bits": 32,
       "integer_arguments": true
     },
     {
@@ -49033,6 +50635,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "zunmqr_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 307,
       "return_type": "Nothing",
       "route": "dll",
@@ -49083,6 +50695,16 @@
       "integer_arguments": true
     },
     {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Int32})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "zunmrq_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 123,
       "return_type": "Nothing",
       "route": "dll",
@@ -49100,6 +50722,16 @@
       "file": "test/reverse_qr.jl",
       "symbol": "zunmrq_",
       "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64})",
+      "file": "test/q_apply_workspace_boundaries.jl",
+      "symbol": "zunmrq_",
+      "bits": 64,
       "integer_arguments": true
     },
     {
@@ -55507,7 +57139,7 @@
     "deps/rust/src/matrix_scaling.rs": "2862d24ef5d19315b636c011e870cfb8982733414faba356a522f01fe4cc454b",
     "test/advanced_svd.jl": "a63e33dde71f6fd47a327319ec9efea2e4da2edf674df928cbdd635a4a08bcf7",
     "deps/rust/src/general_evd.rs": "2c24de3bfe30964da61e05ae4b1187e668ad64624c1facdff02d48462f14a250",
-    "deps/rust/src/reverse_qr.rs": "dd1b3d02551bee25e9be2359c2ee565c785a3a47bf45d716fe0f84e340aaebc5",
+    "deps/rust/src/reverse_qr.rs": "85deae7c56fc4b89cb029b62c897b674645176dbd20ea82461570f3b836701d8",
     "test/rook_helpers.jl": "033fee2ac8f74a5b210761a0df89cabf1bb4ce7cc9c94006e3d5d6bd310890d9",
     "test/storage_conversions.jl": "a109fd77df14ace9b38d7460ed2ca4ebb80b2e4a67103f28e8c911937828993a",
     "test/lapacke_lauum_abi.jl": "a41d79f45de8832081c4afd7e6eccbb18880100b617353c8c5c44a8b9b0041c9",
@@ -55522,8 +57154,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "a93a8db88ce9b3d737d44988b2ef0f14b0859f078f37a9a5bee7cd30e4eb205c",
-    "test/lapacke_execution_checks.jl": "4cc1fea07795ae8176c13828df7a0d898cd7f344c1aa35c5728c24f163694ac6",
+    "deps/rust/src/lapacke.rs": "5f050bdaa97457e7fe28e678fd0ec84ad3d0e028903b041df44842b1d3e1bd61",
+    "test/lapacke_execution_checks.jl": "bfa2850f44961bf39e4b6f2622bb2d0d492f416a13b889b99edd4e6fc57b7b20",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
     "test/cblas_abi_worker.c": "2ca2bf5ca5524a359e5d399c1a9330f70cb2b6ebec79e6e316b4937ccf8c2930",
@@ -55534,6 +57166,7 @@
     "deps/rust/src/lapacke/triangular.rs": "525aafd0774a7bc4571eb335294dd0f72f081dec97749297b92ecb0b4c927298",
     "test/lapacke_gesv.jl": "ebc20442fedd0e39c1bce2417bd12a50837aab89fef888ef58607807c008eb10",
     "deps/rust/src/lapacke/self_adjoint.rs": "a9332526a05b6eb8a02b9725719db946750d47634a5f6fe62f301b556ddc0524",
+    "deps/rust/src/lapacke/q_application.rs": "ffb408564cf132c31e89c67a7610b3a5056106d60f5984c9214a935f192fadbd",
     "test/lbt_inventory.jl": "d5b33eb443b68e54a8b13ee0a3b2e2e7cd80874a87f48167b5e4ec37b56fcd1f",
     "deps/rust/src/complete_pivot_lu.rs": "fa6c7812c466c6fde0c09ae5777a43c10d44f0e8e8441f101fb7cd006581113f",
     "deps/rust/src/givens.rs": "32bff96f217143867a12899238cc969399069e3000c862214068d4292f4f223d",
@@ -55558,7 +57191,7 @@
     "test/general_evd_shared.jl": "0c85b62680f54857f5c8bee4d149f930a4dab94af68d637b147d38a29730dc62",
     "deps/rust/src/cblas/rank_tests.rs": "41953b55b97ba910cd68d27f5fc2877f8ecc5cc54f2392bb4c0b904d394163aa",
     "test/matrix_norms.jl": "24ac6c2a5eac74eb0c46399cad45cc5161230490cece32c7b8b0f2649807c821",
-    "deps/rust/src/lq.rs": "5ad7085c8b21d1edca67a5d0d7d26173f69e848bbbf0927f5dce55c83f53cfa5",
+    "deps/rust/src/lq.rs": "dd4d60222f14f4297999067993631945a099697ef1353096a313eed78c51ca5b",
     "deps/rust/src/band_lu.rs": "f47cafd035ef78f0df2f61bc1f4af082f5b41b34fec54c73e48d6514deb3ce8f",
     "deps/upstream.toml": "0debbbc2e3fd91898588be6c19a7384f00bbaddfcd55996c91683441bfda55e9",
     "deps/rust/src/dense_extensions.rs": "3d94f1b720454c1f07fd301191afb5280c6f9d8b5b6e050533ba3264143cb10d",
@@ -55569,6 +57202,7 @@
     "test/pentagonal.jl": "3c10ea9126c5bcb7ddfa6f355ec870943e16089c2b9f7768490df74a56a32f0c",
     "deps/rust/src/selfadjoint_reduction.rs": "cddc3b4b503eca525da1742fed69a363d1d446d3b67e670df0495bde6f6c5437",
     "test/structured_generalized_band_gvx.jl": "4b89c769647de3112ab1e78c77503de92a74deb244cc00230b7597b63ced5dd6",
+    "test/lapacke_q_application.jl": "1713a12254d92b067636322e0dee679b448cea640f46ee6824def713b218bf99",
     "test/cblas_execution_checks.jl": "aed46fd85f080a3e5445f024af35e026ef171de1db84b0243dccfbbf64b4a653",
     "test/structured_generalized_band.jl": "adaf9ca831ef27112b38dcafc5efd1ec05e895044262091bf9393e61e539e3bd",
     "deps/rust/src/bunch_kaufman.rs": "34d068c40107cf1d19bc53d2ee652d8e0dd49748f766215406f378127d1d0ab1",
@@ -55636,7 +57270,7 @@
     "deps/rust/src/lapacke/general_expert.rs": "55804c4441eb95b897804fdf162d5f554bd2564052ecbd6ce9157e4bd5e38f18",
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
-    "test/suite.jl": "3966c082a712a874007f7b4cc7d9953d7f0366b503b299d54fc9a53a96b48b86",
+    "test/suite.jl": "27effaee5f7be7e67ddb8092a646caef0b4856b272c2850be841b2e722025e94",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
     "deps/rust/src/lapacke/general_eigen.rs": "024240192e037e6aebcfea38862c357b41b444bf552dc0d424ffbf0107f67f12",
     "deps/rust/src/matrix_extensions.rs": "ada3f05cd72ad5c1965b58fcd9ff7070d2e03b3a1f81a834b6d02d35de284050",
@@ -55720,6 +57354,7 @@
     "test/structured_generalized_gvd.jl": "94876875979bdd9274ddc9b35a1fd39d3e14a104affe98807d8b29739befe22c",
     "deps/rust/src/positive_tridiagonal.rs": "eeda9899756258107c4068cec5f7df03eee2db71cf9d30031ae02577646eb2c9",
     "deps/rust/src/matrix_norms.rs": "b6d9a96126d142ac159bb308a86e3f72937997ce66df21d0ddf9daf89473c7d7",
+    "test/q_apply_workspace_boundaries.jl": "1b1b03a4d3f08c19f11c40d7760bb5ac61dd388cb9081b0fff7962e3a29984c2",
     "test/qz.jl": "08b7c52779517c7db7af094fa688cc7fa7a5374515818c51a9e1df0b58f63fd1",
     "deps/rust/src/cblas/matrix_tests.rs": "6ff87fa137f9c7c970dd570acd7922e0cebcca0865242970c6d92abf395a5fc8",
     "deps/rust/src/positive_equilibration.rs": "5d1c33e3f66a3b971710e2d0ba32507c5e0baf824878235098959343ab1cc6c2",
@@ -55747,6 +57382,7 @@
     "test/lapacke_qr.jl": "6f21f1525f573602eb96e92a498dc5accbdc3b159b9b36111668e37d89ab0830",
     "test/qr_standard.jl": "f650bb07ce5d3d9682292b2a8c988f6e4c880baac91951fb778d54b4e966e1f8",
     "test/complex_auxiliary.jl": "53f3bce4a0053cfdc76a9272337e5784b79b8df69490ca407b65f4cb589d142f",
+    "test/lapacke_q_application_abi.jl": "a1b73e5a209d54c8b19f6c458c2365643f733d3c296ec4aedf01191a0344b905",
     "test/lapacke_q_generators.jl": "525c3bcd0a690aa496800a4979d1ab762697218dc8a914651a96f215844fe490",
     "test/lapacke_syr_abi_worker.c": "78019a7b83e400bbb84b9c01ab03ae7e7871f4488cf4f02c53886b4bbc539a89",
     "test/generalized_reduction.jl": "d3b0eec2880c6a57766562cc8447b5b247e2f990fc358cc77c2c8f71e486b0a5",
@@ -55757,8 +57393,9 @@
     "test/abi.jl": "fb9095c7d2e829bde735a343244c2839ad05781171a74e59b12ae6d8a78bb2c1",
     "test/lapacke_self_adjoint_abi.jl": "341ed5583b82ccf2114ac8033cd7d64248e0fd951bcdd7a6f0736665bc4c8ed3",
     "test/balance.jl": "b732aebf8151a8a15d7228627a7478b0a25703e24568a3b10ecb9244f7425f3a",
+    "test/lapacke_q_application_abi_worker.c": "e62e00a5862f7c0f83886ce955eaa05461d050951132b9005e3d804de9ca24a1",
     "deps/rust/src/qz_reorder.rs": "5f4747cdda684ab43fe539f38b50a40a78fbf3769c0613c50277a1d228b20d65",
-    "deps/rust/src/qr.rs": "ab989ab5b87c4f8501d6dc38bbe55721e68086141d379dcea4f09a40fc7bfdba",
+    "deps/rust/src/qr.rs": "c7cb3ff8bb96d1e7cfc01ff2c28b5b81a21932de767c3ca8f8cb81043b8c352d",
     "deps/rust/src/least_squares.rs": "bdc88cd87a1af62e995da2cdfda928ce851b421882ceec161fff9677b07ecc4f",
     "test/structured_tridiagonal_lbt.jl": "61a54dd78f227cb5860062ff7ef55d9958840b4554ade9b3e519a5c520471436",
     "deps/rust/src/cblas/packed_rank_tests.rs": "2ccb374685a911dfb0e7d81052a41d4d96d3e3c3fd89cb8347aa64b73fb97ac1",
@@ -55770,6 +57407,7 @@
     "test/lapacke_q_generators_abi_worker.c": "52c7613cc249051d8d3589b976b18ad526c365906c7a8b48453faeb795cc7bbe",
     "deps/rust/src/cblas.rs": "9e091dc02f49c3ff8af0c262a6e6a46b418959c4d97c458c27250343413f760b",
     "deps/rust/src/constrained_least_squares.rs": "989593856003eecdd5c69b92aa190aa5d7f27f6988a7ba2ca9202117d86210f4",
+    "test/lapacke_q_application_policy.jl": "9bd0379350a3b391c88c5b4880d47fe8c9cd8bea8cc8a8dfbc730f7e532e1250",
     "deps/rust/Cargo.lock": "fc5dd9d9906fac2346836f6ce04bd4ea1d60f6dda1ea075dc2af6b7ebeacaddb",
     "Project.toml": "c8e3bec9107a96074fb05e31ff5f91bbc4e9ef5db844d4868e0db673b205fcd9",
     "test/cblas_triangular.jl": "460eff558fe6f84ac4c7f7c4fbe9d464d4d47d49670af4dc855f49a0715f7a31",

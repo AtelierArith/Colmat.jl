@@ -112,6 +112,14 @@ def validate_lapacke_signature(row, witness):
         'ungql': ['Int32', integer, integer, integer, t, integer, t],
         'orgrq': ['Int32', integer, integer, integer, t, integer, t],
         'ungrq': ['Int32', integer, integer, integer, t, integer, t],
+        'ormqr': ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'unmqr': ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'ormlq': ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'unmlq': ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'ormql': ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'unmql': ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'ormrq': ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'unmrq': ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
         'trtri': ['Int32', 'Int8', 'Int8', integer, t, integer],
         'trtrs': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer, t, integer],
         'potrs': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
@@ -140,6 +148,8 @@ def validate_lapacke_signature(row, witness):
     if row['family'] in ('geqrf', 'geqrfp', 'geqr2', 'gelqf', 'gelq2', 'geqlf', 'gerqf') and row['symbol'].endswith('_work'):
         expected = expected + [t] + ([integer] if row['family'] not in ('geqr2', 'gelq2') else [])
     if row['family'] in ('orgqr', 'ungqr', 'orglq', 'unglq', 'orgql', 'ungql', 'orgrq', 'ungrq') and row['symbol'].endswith('_work'):
+        expected = expected + [t, integer]
+    if row['family'] in ('ormqr', 'unmqr', 'ormlq', 'unmlq', 'ormql', 'unmql', 'ormrq', 'unmrq') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]

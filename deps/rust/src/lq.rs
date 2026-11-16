@@ -240,6 +240,7 @@ macro_rules! lq_apply_exports {
             }
             *work=crate::lapack::workspace::<$t>(nw.max(1));
             if query {return;}
+            if m==0||n==0||k==0 {*work=<$t>::o();return;}
             apply_lq(side,tr,m as usize,n as usize,k as usize,a,la,tau,c,lc);
         }
         #[no_mangle]
