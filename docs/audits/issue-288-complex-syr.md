@@ -1,4 +1,4 @@
-# Complex SYR LAPACKE auxiliary entries (in progress)
+# Complex SYR LAPACKE auxiliary entries
 
 This stage adds exactly four frozen-scope names: LAPACKE_csyr,
 LAPACKE_csyr_work, LAPACKE_zsyr and LAPACKE_zsyr_work, each for LP64/ILP64.
@@ -53,18 +53,23 @@ matching that reference unit-stride-checking behavior is made.
   16 independent evidence fixtures pass, including rejection of a coefficient
   pointer where the LAPACKE declaration requires a by-value complex scalar.
 
-Registration/evidence integration, optimized-release verification and a full
-immutable package run remain pending. These focused checks are not a full-suite
-artifact and do not establish completion of Issue #288.
+The optimized release passes the numerical and independent C checks. The
+completed-call gate passes 1,846 checks. Registration is 1,574 for each ABI;
+all 15 inventory checks pass.
 
-The optimized release also passes the numerical and independent C checks.
-Focused tracing validates all 92 currently implemented numerical names and
-all 368 ABI/route combinations; the completed-call gate passes 1,846 checks.
-The actual registered count is 1,574 for each ABI and all 15 inventory checks
-pass. The focused artifact explicitly remains a non-full-suite result.
+## Immutable full-suite evidence
 
-Before the new full run, the prior successful 88-entry snapshot is backed up
-and temporarily removed to bootstrap the actual registration table, then
-restored as stale evidence. It must be replaced only after a successful full
-Pkg.test whose 249 production/test/worker source hashes, manifest, registration
-digest and release DLL all match the frozen preflight.
+Full `Pkg.test(; allow_reresolve=false)` completed successfully at public source
+revision `fe72e32e3922746defabe7fa4ddae5026179bf8b` on Julia 1.13.3. All
+249 production/test/worker hashes, manifest, registration digest, native
+revision and release DLL match the captured preflight. The release DLL SHA-256
+is `f35f55e99272bb7803e75fd1a8883388be47ff968e7809b077d4e67ead0cc3b6`.
+
+Its 4,831 witnesses validate 1,370 canonical entries: 1,106 Fortran LAPACK,
+172 CBLAS and 92 LAPACKE. The latter have 368 completed name/ABI/route
+observations with independently checked concrete signatures and INFO returns.
+Only this successful full artifact replaces the prior 88-entry snapshot;
+focused traces are not used as full-suite evidence.
+
+Issue #288 remains open. Of its original 1,616 entries, 1,524 remain beyond
+this subset, as do the separate 20 Rook coordination targets.
