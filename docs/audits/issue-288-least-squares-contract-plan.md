@@ -1,0 +1,59 @@
+# Issue #288: least-squares C contracts
+
+Status: scope, primary contracts and executed Fortran boundary reproduction
+only. No new LAPACKE least-squares entry is implemented or verified yet.
+Issue #288 remains open.
+
+The canonical inventory contains eight high/work S/D/C/Z names each for
+GELS, GELSY, GELSS and GELSD: 32 entries in total. Following the staged
+388-name pentagonal candidate this would reach 420 original names, leaving
+1196 plus the separate 20 Rook C targets. These are staged counts, not
+merged-main coverage. This branch will integrate its parent's final frozen
+stress tests and evidence before publication.
+
+Primary contracts use Reference LAPACK v3.12.1:
+
+- [GELS work](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_zgels_work.c): layout,TRANS,M,N,NRHS,A,LDA,B,LDB,WORK,LWORK;
+  row LDA<N and LDB<NRHS return -7 and -9 before numerical headers.
+- [GELSY work](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_zgelsy_work.c): layout,M,N,NRHS,A,LDA,B,LDB,JPVT,RCOND,RANK,WORK,LWORK;
+  complex adds real RWORK. JPVT and RANK follow the selected lapack_int;
+  RCOND is a by-value real scalar. Row LDA/LDB errors are -6/-8.
+- [GELSS work](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_zgelss_work.c): replaces JPVT with real singular values S;
+  complex adds real RWORK. RCOND and RANK retain their respective contracts.
+- [GELSD work](https://github.com/Reference-LAPACK/lapack/blob/v3.12.1/LAPACKE/src/lapacke_zgelsd_work.c): adds selected-width IWORK and, for complex types,
+  real RWORK. Multiple workspace outputs and minima require independent checks.
+
+Logical A is M-by-N; B storage has max(M,N) rows and NRHS columns, independent
+of TRANS. The input rows that are mathematically read, residual rows on output,
+minimum-norm solutions, queries, insufficient work and empty dimensions must
+be tested separately before selecting any packing or NaN policy. Queries
+must not pack or modify A/B/JPVT/S/RANK. High-level temporary allocations must
+use checked arithmetic and preserve independent leading dimensions/guards.
+
+The existing Colmat.jl Fortran drivers are in deps/rust/src/least_squares.rs.
+GELS uses QR/LQ; GELSY uses complete orthogonal factorization; GELSS/GELSD
+share an existing SVD solver. Exposing those contracts does not prove a
+separate dedicated divide-and-conquer implementation for GELSD. Keep algorithm
+classification distinct from successful numerical and C ABI execution.
+
+Executed MWE reproducers/least_squares_empty_workspace.py compares the existing
+native optimized DLL with independent OpenBLAS 0.3.30. All 384 observations
+(192 own/reference pairs) agree on INFO and RANK. For GELS/GELSY/GELSS with
+LWORK=0, native WORK remains sentinel 777 while the reference publishes its
+query value before reporting insufficient work. This is a publication-order
+difference. The proposed improvement publishes the native implementation's
+own query value after validating ordinary headers and before rejecting WORK;
+it does not copy another implementation's optimal size. Nonempty optimum,
+RWORK and IWORK size differences alone are implementation observations.
+Selected real/complex observations and exact source/library/reproducer/output
+hashes are in issue-288-least-squares-workspace-reproduction.json. No new
+least-squares C numerical result or full-suite proof is claimed.
+
+Required evidence includes independent residual/minimum-norm solutions,
+rank-deficient and scaled inputs, fixed/free pivot constraints, singular values,
+A/B overwrite semantics, real/complex TRANS, both integer ABIs/layouts/routes,
+high/work, empty and NRHS=0 cases, formal minima versus queries, publication
+and INFO priorities, const/read regions, independent C declarations, typed
+completed calls, debug/optimized repetition and immutable full package proof.
+Native tensor4all/colmat-rs edits and PRs are not authorized; upstream reports
+must contain an executed MWE and improvement proposal only.
