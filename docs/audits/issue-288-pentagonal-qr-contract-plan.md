@@ -1,8 +1,8 @@
 # Issue #288: triangular-pentagonal QR C contracts
 
 Status: all 32 C entries are drafted. Debug numerical, policy, independent C
-caller and typed DLL/LBT checks pass. Optimized repetition and immutable full
-proof remain pending. Issue #288 remains open.
+caller and typed DLL/LBT checks pass in debug and optimized builds. Immutable
+full-suite proof remains pending. Issue #288 remains open.
 
 The canonical inventory contains 32 S/D/C/Z high/work TPQRT, TPQRT2, TPMQRT
 and TPRFB names. Following the 356-name RZ candidate this would reach 388
@@ -95,3 +95,13 @@ Normal parent integration takes RZ full evidence and ordinary repository CI
 from fd781ad. It preserves all production/test/Rust source hashes and the
 debug DLL. Additional scale/rank/partial-overlap checks are running separately;
 optimized repetition and immutable full evidence remain required.
+
+Additional debug scale/rank/partial-overlap checks pass 193536 assertions,
+covering powers +/-40 for Float32 and +/-400 for Float64, full/zero/rank-one
+factors and partial L. The formatted test is now part of the ordinary suite.
+Optimized repetition passes all numerical, policy, independent C and typed
+DLL/LBT checks, including this extra test. It records all 388 names and 1552
+completed observations, with 7766 gate assertions. Exact 330-source map,
+optimized DLL hash and log/evidence digests are recorded in
+issue-288-pentagonal-optimized-focused.json. The source is being frozen for
+immutable full Pkg.test; no full-suite proof is claimed for this stage.
