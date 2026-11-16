@@ -101,12 +101,12 @@ pub fn start(n: isize, inc: isize) -> isize {
     }
 }
 pub unsafe fn get<T: Scalar>(a: *const T, ld: isize, i: isize, j: isize, t: u8) -> T {
-    let v = if t == b'N' {
+    let v = if matches!(t, b'N' | b'R') {
         *a.offset(i + j * ld)
     } else {
         *a.offset(j + i * ld)
     };
-    if t == b'C' {
+    if matches!(t, b'C' | b'R') {
         v.cj()
     } else {
         v
@@ -166,15 +166,15 @@ pub unsafe fn gemm<T: Scalar>(
         a,
         m as usize,
         k as usize,
-        if ta == b'N' { 1 } else { lda },
-        if ta == b'N' { lda } else { 1 },
+        if matches!(ta, b'N' | b'R') { 1 } else { lda },
+        if matches!(ta, b'N' | b'R') { lda } else { 1 },
     );
     let rhs = MatRef::from_raw_parts(
         b,
         k as usize,
         n as usize,
-        if tb == b'N' { 1 } else { ldb },
-        if tb == b'N' { ldb } else { 1 },
+        if matches!(tb, b'N' | b'R') { 1 } else { ldb },
+        if matches!(tb, b'N' | b'R') { ldb } else { 1 },
     );
     let acc = if beta == T::z() {
         Accum::Replace
@@ -188,9 +188,17 @@ pub unsafe fn gemm<T: Scalar>(
             dst,
             acc,
             lhs,
-            if ta == b'C' { Conj::Yes } else { Conj::No },
+            if matches!(ta, b'C' | b'R') {
+                Conj::Yes
+            } else {
+                Conj::No
+            },
             rhs,
-            if tb == b'C' { Conj::Yes } else { Conj::No },
+            if matches!(tb, b'C' | b'R') {
+                Conj::Yes
+            } else {
+                Conj::No
+            },
             alpha,
             par,
         );
@@ -211,10 +219,14 @@ pub unsafe fn gemv<T: Scalar>(
     iy: isize,
 ) {
     // Reference BLAS quick return also applies to a zero inner dimension.
-    if m == 0 || n == 0 {
+    if m == 0 || n == 0 || (alpha == T::z() && beta == T::o()) {
         return;
     }
-    let (rows, cols) = if t == b'N' { (m, n) } else { (n, m) };
+    let (rows, cols) = if matches!(t, b'N' | b'R') {
+        (m, n)
+    } else {
+        (n, m)
+    };
     let y = y.offset(start(rows, iy));
     if alpha == T::z() {
         for i in 0..rows {
@@ -236,8 +248,8 @@ pub unsafe fn gemv<T: Scalar>(
         a,
         rows as usize,
         cols as usize,
-        if t == b'N' { 1 } else { lda },
-        if t == b'N' { lda } else { 1 },
+        if matches!(t, b'N' | b'R') { 1 } else { lda },
+        if matches!(t, b'N' | b'R') { lda } else { 1 },
     );
     let rhs = MatRef::from_raw_parts(x, cols as usize, 1, ix, 0);
     let dst = MatMut::from_raw_parts_mut(result.as_mut_ptr(), rows as usize, 1, 1, rows);
@@ -250,7 +262,11 @@ pub unsafe fn gemv<T: Scalar>(
                 Accum::Add
             },
             lhs,
-            if t == b'C' { Conj::Yes } else { Conj::No },
+            if matches!(t, b'C' | b'R') {
+                Conj::Yes
+            } else {
+                Conj::No
+            },
             rhs,
             Conj::No,
             alpha,
@@ -304,9 +320,11 @@ pub unsafe fn iamax<T: Scalar>(n: isize, x: *const T, inc: isize) -> isize {
         return 0;
     }
     let mut best = 0;
-    let mut max = (*x).abs1();
+    // BLAS compares ABS(real) + ABS(imag) in the scalar's real precision.
+    // Widening a complex-f32 sum before comparison breaks first-index ties.
+    let mut max = T::real((*x).abs1()).re();
     for i in 1..n {
-        let v = (*x.offset(i * inc)).abs1();
+        let v = T::real((*x.offset(i * inc)).abs1()).re();
         if v > max {
             max = v;
             best = i;
@@ -376,7 +394,23 @@ pub unsafe fn symv<T: Scalar>(
     iy: isize,
     h: bool,
 ) {
-    if n == 0 {
+    symv_with_conjugation(u, n, alpha, a, ld, x, ix, beta, y, iy, h, false);
+}
+pub(crate) unsafe fn symv_with_conjugation<T: Scalar>(
+    u: u8,
+    n: isize,
+    alpha: T,
+    a: *const T,
+    ld: isize,
+    x: *const T,
+    ix: isize,
+    beta: T,
+    y: *mut T,
+    iy: isize,
+    h: bool,
+    conjugate: bool,
+) {
+    if n == 0 || (alpha == T::z() && beta == T::o()) {
         return;
     }
     let y = y.offset(start(n, iy));
@@ -390,7 +424,8 @@ pub unsafe fn symv<T: Scalar>(
     for i in 0..n {
         let mut sum = T::z();
         for j in 0..n {
-            sum += symmetric(a, ld, i, j, u, h) * *x.offset(j * ix);
+            let value = symmetric(a, ld, i, j, u, h);
+            sum += if conjugate { value.cj() } else { value } * *x.offset(j * ix);
         }
         let p = y.offset(i * iy);
         *p = alpha * sum + if beta == T::z() { T::z() } else { beta * *p };
@@ -530,7 +565,7 @@ pub unsafe fn rankk<T: Scalar>(
     h: bool,
     two: bool,
 ) {
-    if n == 0 {
+    if n == 0 || ((alpha == T::z() || k == 0) && beta == T::o()) {
         return;
     }
     let mut out = vec![T::z(); (n * n) as usize];
@@ -606,7 +641,11 @@ pub unsafe fn triangular<T: Scalar>(
     t: u8,
     d: u8,
 ) -> T {
-    let (r, c) = if t == b'N' { (i, j) } else { (j, i) };
+    let (r, c) = if matches!(t, b'N' | b'R') {
+        (i, j)
+    } else {
+        (j, i)
+    };
     if r == c && d == b'U' {
         return T::o();
     }
@@ -635,7 +674,7 @@ pub unsafe fn trmv<T: Scalar>(
         for i in 0..n {
             let mut sum = T::z();
             for j in 0..n {
-                if (t == b'N') == (u == b'U') {
+                if (matches!(t, b'N' | b'R')) == (u == b'U') {
                     if j < i {
                         continue;
                     }
@@ -647,7 +686,7 @@ pub unsafe fn trmv<T: Scalar>(
             *x.offset(i * inc) = sum;
         }
     } else {
-        let upper = (u == b'U') == (t == b'N');
+        let upper = (u == b'U') == (matches!(t, b'N' | b'R'));
         for step in 0..n {
             let i = if upper { n - 1 - step } else { step };
             let mut v = *x.offset(i * inc);
@@ -746,7 +785,7 @@ pub unsafe fn trmatrix<T: Scalar>(
                     full[(i + j * dim) as usize] = triangular(a, lda, j, i, u, t, d);
                 }
             }
-            let ut = if (u == b'U') == (t == b'N') {
+            let ut = if (u == b'U') == (matches!(t, b'N' | b'R')) {
                 b'L'
             } else {
                 b'U'

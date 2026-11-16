@@ -3,8 +3,8 @@
   "baseline_native_revision": "e1c83482f5a61449d30e989808c3ba5f751ec391",
   "baseline_tsv_sha256": "3ed76587a3ae9834690333efe80bc08804e76d8d464272dfad3028dbe6b0915d",
   "reassessment_native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "policy_sha256": "d3ee734088630ceeb47b5d5b5bccaf42b8a0507b52934e5a649dc71ed24120d4",
-  "generated_at": "2026-11-16T01:28:18.254298+00:00",
+  "policy_sha256": "ed47b1c21a63c236cd780ea1121e333f0f796e10861ed15bba022fb5e981e3bd",
+  "generated_at": "2026-11-16T04:27:23.964812+00:00",
   "issue_snapshot_saved_at": "2026-11-15T17:50:48.731648+00:00",
   "issue_snapshot_sha256": "4782c7b07dcdd38ef64c024f43762c2ae386eef8dfe3dbca75f395569b1ff1f6",
   "canonical_symbols": 5146,
@@ -59,8 +59,8 @@
     "removed": [],
     "unverified_original_exclusions": 1918,
     "additions_by_interface": {
-      "Fortran": 20,
-      "LAPACKE": 20
+      "LAPACKE": 20,
+      "Fortran": 20
     },
     "baseline_numerical_lapacke": 148
   },

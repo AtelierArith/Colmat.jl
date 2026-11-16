@@ -39,11 +39,14 @@ LBT が Julia 側の整数 ABI に対応する入口へ転送します。
 
 `iamax` の実際のシンボル名は `isamax_` / `idamax_` / `icamax_` / `izamax_`、
 複素ノルム・絶対値和は `scnrm2_` / `dznrm2_` / `scasum_` / `dzasum_` です。
-実数内積と複素内積には CBLAS の `cblas_sdot` / `cblas_ddot` と
-`cblas_cdot{u,c}_sub` / `cblas_zdot{u,c}_sub` も提供します。
-CBLAS 全体の互換ライブラリを提供するものではありません。
+CBLAS は既存の内積6入口に加え、#271 の172入口を LP64／ILP64 に接続します。
+row/column-major、Cint の enum、複素係数ポインタ、0-based の `size_t`
+インデックスを変換します。LBT の全 CBLAS extension を提供するという意味ではありません。
+CBLAS GEMM3M は公開 native 実数 GEMM 3回の合成で、一時領域を確保します。
+中間和の overflow・桁落ちがあり、最適化済み3M kernel や速度向上は主張しません。
+Fortran GEMM3M は引き続き通常の native 複素 GEMM による算術互換です。
 
-この構成では LP64・ILP64 それぞれ1308シンボル（BLAS 202、LAPACK 1106）を LBT に登録します。
+この構成では LP64・ILP64 それぞれ1480シンボル（BLAS 374、LAPACK 1106）を LBT に登録します。
 登録を調べるには次を実行します。
 
 ```jldoctest
@@ -56,7 +59,7 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 1308 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 1480 for l in libs)
 true
 ```
 

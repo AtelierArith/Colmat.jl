@@ -85,7 +85,9 @@ for line in raw.splitlines():
             if not (SOURCE / evidence_source).is_file():
                 raise RuntimeError(f'Missing reviewed source: {evidence_source}')
     note = group['note']
-    if interface != 'Fortran':
+    if interface == 'CBLAS' and lp == ilp == 'true':
+        note += '; C ABI connected for LP64/ILP64 with row/column-major and explicit enum/coefficient/return conversions; #271 tests DLL and LBT routes'
+    elif interface != 'Fortran':
         note += '; C ABI/row-major/enum/戻り値を別途変換する必要がある'
     if family == 'geevx' and lp == ilp == 'true':
         note += '; 現行 native は SENSE=N。条件数推定は保存した元の backend へ委譲。LP64 の元の実装がなければ ILP64 に整数を変換。元の ILP64 GEEVX が不足する構成は LBT 登録前に拒否'
@@ -168,9 +170,10 @@ for status in LABELS.values():
         url=f"https://github.com/tensor4all/colmat-rs/blob/{UPSTREAM['revision']}/{source}"
         lines.append(f'| `{family}` / {abi} | {symbols} | [{entry}]({url}) | {note} |')
     lines += ['']
-lines += ['## Direct ABI execution evidence (#317)','',
+lines += ['## Direct ABI execution evidence (#317, #271)','',
     f"`direct_call_witness` covers {len(executed):,} canonical entries, with LP64 and ILP64 recorded separately.",
     'The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.',
+    'CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.',
     'LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.',
     'The collector observes project-owned pointer ccalls. High-level standard-library calls, isolated child processes and static symbol/library ccalls are excluded. Consult the individual source/signature/route witnesses and the numerical tests together.','',
     '```sh',

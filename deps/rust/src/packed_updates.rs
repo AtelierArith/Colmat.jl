@@ -27,7 +27,7 @@ unsafe fn add_column<T: Scalar>(a: *mut T, length: usize, v: *const T, inc: isiz
         )
     });
 }
-unsafe fn update<T: GeneralizedScalar + ReflectorScalar>(
+pub(crate) unsafe fn update<T: GeneralizedScalar + ReflectorScalar>(
     lower: bool,
     n: usize,
     alpha: T,

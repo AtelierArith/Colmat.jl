@@ -37,7 +37,7 @@
       "status": "native",
       "api": "matmul / triangular::matmul",
       "source": "faer/src/linalg/matmul/mod.rs",
-      "note": "Sixteen Fortran symbols connected for both integer ABIs. GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose two native rank-1 products with signed vector strides. HER2 ignores the old diagonal imaginary component. GEMM3M uses ordinary native GEMM arithmetic, without claiming the independent 3M algorithm."
+      "note": "Fortran GEMMT/GEMMTR write only the selected triangle; SYR2/HER2 compose native rank products with signed strides and ignore the old Hermitian diagonal imaginary component. Fortran GEMM3M remains ordinary native complex GEMM arithmetic compatibility. CBLAS GEMM3M composes three native real products with staged operands; this is not an optimized native 3M kernel and intermediate sums can overflow or lose precision."
     },
     {
       "routines": [
