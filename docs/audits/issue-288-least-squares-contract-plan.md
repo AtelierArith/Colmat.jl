@@ -1,9 +1,12 @@
 # Issue #288: least-squares C contracts
 
 Status: debug and optimized focused validation passes for all 32 new entries.
-Typed tracing covers 420 canonical C entries and 1680 completed call-site
-observations in each mode; completed-call gates pass 8406 assertions.
-Immutable full package validation and publication CI remain pending.
+Immutable full Pkg.test passes at 21e1675398c21b81d16ae647c28dde7391ea11d3;
+all 337 frozen execution sources, manifest, registration and optimized DLL
+were rechecked before import. Python 28, inventory 15 and documentation
+publication checks pass. Normal integration after merged PR #399 preserves
+all 337 frozen sources and the optimized DLL; final publication CI remains
+pending.
 Issue #288 remains open.
 
 The canonical inventory contains eight high/work S/D/C/Z names each for
@@ -151,3 +154,21 @@ integer ABIs and actual DLL/LBT routes. All 337 production/test/worker source
 hashes are identical between modes. Evidence remains full_suite_passed=false;
 it is not an immutable full package proof. Exact library, source, log and
 focused TOML hashes are in the debug/optimized focused audit JSON files.
+
+The immutable full suite completed successfully with allow_reresolve=false.
+Its validated artifact covers 1106 Fortran LAPACK, 172 CBLAS and 420 LAPACKE
+entries: 1698 canonical entries and 6251 completed witnesses, with 1902
+forwards per integer ABI. All 337 execution sources, exact HEAD, manifest,
+registration and optimized DLL were unchanged across the run. The full proof
+was imported and the inventory/ownership audit regenerated only after those
+checks. Exact TOML/log/library/manifest hashes are in
+issue-288-least-squares-full-provenance.json. Publication and final CI gates
+remain required; earlier pending-full-suite statements are superseded.
+
+Normal main integration after merged PR #399 preserves every one of the 337
+validated execution-source hashes and the exact optimized DLL. The canonical
+full proof remains bound to source 21e1675. Parent audit provenance is updated
+from merged main; no numerical implementation or test source changed during
+integration. Post-integration publication checks passed: Python 28, inventory 15 and the
+documentation build, followed by unchanged source/DLL verification. Final
+Linux/macOS publication CI and artifact validation remain pending.

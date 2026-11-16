@@ -1,9 +1,9 @@
 # Issue #288: GELQF/GELQ2 C adapters
 
-Status: current immutable full package validation passes; source-bound
-evidence is imported. CI and main integration remain pending.
+Status: merged into main through PR #392 after full validation and verified
+Linux/macOS CI artifacts. Issue #288 remains open.
 
-Issue #288 remains open. The sixteen S/D/C/Z high/work names extend 196 candidate names to 212, leaving
+The sixteen S/D/C/Z high/work names extend 196 candidate names to 212, leaving
 1404 original-scope names plus the separate 20 Rook C targets. These staged
 candidates are not all merged yet.
 
@@ -84,3 +84,9 @@ current proof. CI artifacts and main integration remain required.
 Integration with merged PR #391 preserves every validated source hash and
 the optimized LQ DLL. Python 28, inventory 15 and documentation build pass
 after integration. CI provenance and final main merge remain required.
+
+PR #392 merged at 1875c7c48a9cd81739fd9b6d369069fdaf7a5d64. CI run
+43901199978 and Docs 43901199914 passed; artifacts 14244881646 and
+14244053109 validated all 292 sources, 1490 entries and 5351 witnesses.
+The test-merge tree matched the feature tree before guarded merge. Post-merge
+Python 28, inventory 15, registration and the frozen LQ DLL checks passed.

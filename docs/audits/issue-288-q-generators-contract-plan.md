@@ -1,7 +1,7 @@
 # Issue #288: explicit Q generation C adapters
 
-Status: parent integration changes LQ diagnostic tests; a fresh immutable
-full package run is required for current-source evidence.
+Status: merged to main through PR #394. Full source-bound package proof,
+Linux/macOS PR CI, documentation and artifact provenance checks pass.
 
 Issue #288 remains open.
 
@@ -85,3 +85,32 @@ Parent integration preserves all production sources and the optimized DLL.
 Only test/lq.jl changes among the 300 execution sources, adding validated
 assertions/consumption of expected diagnostics. The 3321360 full proof is
 historical; fresh full validation will cover the current test source set.
+
+Current full proof is bound to 9c2c495b0205021fdedc1030e51f98be5126979b and all 300 frozen
+execution sources. Cloud job success, ZIP/TOML digests, complete source map,
+manifest, registration and all typed witnesses were verified before import.
+The snapshot validates 1538 canonical entries with 5567 completed witnesses.
+A separate publication tree preserves the original local full-suite source
+and HEAD. Its copied optimized DLL remains byte-identical to the frozen DLL.
+The published full run platform is Linux; final Linux/macOS PR CI remains
+required. Provenance is stored in the adjacent cloud-provenance JSON.
+
+Publication checks pass Python 28, inventory 15 and documentation build.
+All execution-source hashes and the copied optimized local DLL remain
+unchanged. Preceding staged candidates and final PR CI/main merge remain
+required; this does not claim merged-main coverage for the candidate.
+
+Current-main integration after PR #393 uses a normal merge from main
+882dcbc0ca417da2067d1c71ccdfd46583721678. Twelve expected conflicts were
+resolved: current main supplies the already merged LQ and QL/RQ audit
+records; this candidate retains its runtime/test/evidence/registration files.
+All 300 frozen execution-source hashes and the optimized DLL are unchanged.
+The 228-name factorization parent is now merged; this stage adds 32 names.
+Issue #288 remains open.
+
+PR #394 merged at 72a7706e333692a7429aa5e9fab70bc41e9110dd after CI
+43922508148 and documentation 43922508113 passed. Both OS artifacts validate
+all 300 source hashes, manifest, registration, 1538 entries and 5567 witnesses
+against test merge 021f37bf2c02868226f373d963c06d7cf551c05d. Its parents and
+tree match the guarded base/head. Main tree and optimized DLL match the merge
+gate; post-merge Python 28 and inventory 15 pass. Issue #288 remains open.
