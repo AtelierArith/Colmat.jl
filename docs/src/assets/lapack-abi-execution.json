@@ -262,7 +262,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "9ca41856ed1cb702ad13c098dd4bd5f6928d9d92",
+  "revision": "aa6ae66e2be0576bef1895ff73cf14559d2dd496",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -52202,7 +52202,7 @@
     "deps/rust/src/lapacke/lauum.rs": "81f6e42792d0fe3a4bb481749b58b56e11293726c1781042da0bafee95dff6c3",
     "test/dense_extensions.jl": "30d1c0132eff43cf74a29f9ba47a7b7455d71a782f7f377e2f535d0f6e4e99cf",
     "test/matrix_permutation.jl": "1c7c62302f2da851f970b58ba87981b34748a14edf028ce23746316db1e0854a",
-    "test/lapacke_qr_abi_worker.c": "0f349cf611b4a074465529c886bfff3acf8f14a682e918628c705d3e23bdd843",
+    "test/lapacke_qr_abi_worker.c": "3d29342578c397d977c9b4ad42b9f5a678070540963b0c4c5e95631d2a5ef2e7",
     "test/cblas_matrix_extensions.jl": "5925e4c4a49b2fa62216415138147e35bf36346f70e7678e8ccfd433fc7cf8a0",
     "deps/rust/src/schur_reorder.rs": "ec1ae3b7d07768bb7dc96cd0d8b2617f7555848af8b2d3ef936c0f09b6473c38",
     "test/lapacke_general_expert.jl": "92ee4f6cf16921d3d494c20ec83ff05e84c05b8bbfbc26bee603481f40aff741",
