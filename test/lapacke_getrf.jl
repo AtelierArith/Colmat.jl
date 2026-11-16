@@ -1,19 +1,24 @@
 using Test, Colmat, LinearAlgebra, Libdl
 
+isdefined(@__MODULE__, :lapacke288_selected_entry) || include("lapacke_calls.jl")
 for T in (Float32, Float64, ComplexF32, ComplexF64), J in (Int32, Int64)
-    @eval function lapacke288_call(pointer, layout, storage::Vector{$T}, pivots::Vector{$J})
-        GC.@preserve pivots begin
-            ccall(
-                pointer,
-                $J,
-                (Cint, $J, $J, Ptr{$T}, $J, Ptr{$J}),
-                layout,
-                3,
-                2,
-                storage,
-                5,
-                Base.pointer(pivots, 2),
-            )
+    @eval function lapacke288_call(
+        pointer, layout, storage::Vector{$T}, pivots::Vector{$J}, name, route
+    )
+        lapacke288_selected_entry(name, $J, route) do
+            GC.@preserve pivots begin
+                ccall(
+                    pointer,
+                    $J,
+                    (Cint, $J, $J, Ptr{$T}, $J, Ptr{$J}),
+                    layout,
+                    3,
+                    2,
+                    storage,
+                    5,
+                    Base.pointer(pivots, 2),
+                )
+            end
         end
     end
 end
@@ -28,7 +33,7 @@ function lapacke288_getrf(::Type{T}, ::Type{J}) where {T,J}
     if T<:Complex
         original .*= T(0.8, -0.6)
     end
-    for entry in ("getrf", "getrf_work"),
+    for entry in ("getrf", "getrf_work", "getf2", "getf2_work", "getrf2", "getrf2_work"),
         route in (:dll, :lbt_trampoline),
         layout in (101, 102)
 
@@ -42,7 +47,7 @@ function lapacke288_getrf(::Type{T}, ::Type{J}) where {T,J}
             storage[index(i, j)] = original[i, j]
         end
         pivots = fill(J(-91), 4)
-        info = lapacke288_call(pointer, layout, storage, pivots)
+        info = lapacke288_call(pointer, layout, storage, pivots, name, route)
         @test info==0
         @test pivots[1]==-91 && pivots[4]==-91
         @test pivots[2]==2
@@ -71,7 +76,7 @@ function lapacke288_getrf(::Type{T}, ::Type{J}) where {T,J}
     end
 end
 
-@testset "LAPACKE GETRF native and LBT calls" begin
+@testset "LAPACKE LU factors through native and LBT calls" begin
     native = Libdl.dlopen(Colmat.backend_library())
     trampoline = Libdl.dlopen(BLAS.libblastrampoline)
     saved = ccall(Libdl.dlsym(native, :LAPACKE_get_nancheck), Cint, ())

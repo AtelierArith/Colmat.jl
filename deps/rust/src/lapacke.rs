@@ -494,3 +494,37 @@ getri!(s, f32, i64, [64_], _64_);
 getri!(d, f64, i64, [64_], _64_);
 getri!(c, colmat::c32, i64, [64_], _64_);
 getri!(z, colmat::c64, i64, [64_], _64_);
+
+// The existing Fortran GETF2/GETRF2 entries use the same public native LU
+// factorizer. Preserve that documented numerical contract without claiming
+// unblocked/recursive LAPACK algorithm or performance equivalence.
+macro_rules! lu_alias {
+    ($p:ident,$t:ty,$i:ty,[$($suffix:tt)*],$routine:ident)=>{paste::paste! {
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p $routine $($suffix)*>](
+            layout:i32,m:$i,n:$i,a:*mut $t,lda:$i,ipiv:*mut $i,
+        )->$i {
+            [<LAPACKE_ $p getrf $($suffix)*>](layout,m,n,a,lda,ipiv)
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p $routine _work $($suffix)*>](
+            layout:i32,m:$i,n:$i,a:*mut $t,lda:$i,ipiv:*mut $i,
+        )->$i {
+            [<LAPACKE_ $p getrf_work $($suffix)*>](layout,m,n,a,lda,ipiv)
+        }
+    }};
+}
+macro_rules! lu_aliases {
+    ($p:ident,$t:ty,$i:ty,[$($suffix:tt)*])=>{
+        lu_alias!($p,$t,$i,[$($suffix)*],getf2);
+        lu_alias!($p,$t,$i,[$($suffix)*],getrf2);
+    };
+}
+lu_aliases!(s, f32, i32, []);
+lu_aliases!(d, f64, i32, []);
+lu_aliases!(c, colmat::c32, i32, []);
+lu_aliases!(z, colmat::c64, i32, []);
+lu_aliases!(s, f32, i64, [64_]);
+lu_aliases!(d, f64, i64, [64_]);
+lu_aliases!(c, colmat::c32, i64, [64_]);
+lu_aliases!(z, colmat::c64, i64, [64_]);
