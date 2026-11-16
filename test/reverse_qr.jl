@@ -453,9 +453,11 @@ end
         own=empty_reverse_qr_work_probe(
             T, I, Val(Symbol(family)), Colmat.backend_library(), m, n, lw
         )
+        @test reverse_qr_diagnostic()==(lw==0 ? 7 : 0)
         external=empty_reverse_qr_work_probe(
             T, Int64, Val(Symbol(family)), reference, m, n, lw
         )
+        @test reverse_qr_diagnostic()==0
         @test own==external
         @test own[1]==(lw==0 ? -7 : 0)
         @test own[2]==fill(T(777), 4)
