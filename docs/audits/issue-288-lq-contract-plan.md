@@ -1,6 +1,7 @@
 # Issue #288: GELQF/GELQ2 C adapters
 
-Status: contract investigation; implementation and full-suite evidence pending.
+Status: own Fortran empty-work correction passes focused regression checks;
+C adapter implementation and full-suite evidence remain pending.
 Issue #288 remains open. The planned sixteen S/D/C/Z high/work names follow
 196 candidate names; these staged candidates are not all merged yet.
 
@@ -23,3 +24,11 @@ orthogonality, complex TAU and conjugation, empty/rectangular/scaled/deficient
 matrices, NaN policy, diagnostics, padding and independent C prototypes.
 Completed-call tracing, optimized runs and immutable full package evidence
 are required before publishing an implementation PR.
+
+The corrected own Fortran boundary uses minimum WORK=1 when N=0 and returns
+query/output WORK(1)=1 for either empty dimension. Its nonempty minimum remains
+M. All four Reference LAPACK scalar implementations use this same empty rule.
+The reproducer now matches independent OpenBLAS. The new 576 assertions compare
+all four scalar types and both own integer ABIs with independent ILP64 OpenBLAS,
+including query, invalid zero WORK, minimal/oversized WORK, unchanged A/TAU and
+WORK guards. Existing LQ testsets also pass (240/480/544/264/176/32/144).
