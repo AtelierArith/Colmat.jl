@@ -16,7 +16,7 @@ for path in (args.native, args.reference):
         fn = getattr(lib, prefix + 'tzrzf_64_')
         fn.argtypes = [C.POINTER(integer), C.POINTER(integer), C.POINTER(scalar), C.POINTER(integer), C.POINTER(scalar), C.POINTER(scalar), C.POINTER(integer), C.POINTER(integer)]
         fn.restype = None
-        for lw in (-1, 0, 3):
+        for lw in (-1, 0, 1, 3):
             a = (scalar * 16)(*[scalar(777) for _ in range(16)])
             tau = (scalar * 8)(*[scalar(778) for _ in range(8)])
             work = (scalar * 4)(*[scalar(779) for _ in range(4)])

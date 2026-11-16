@@ -49,3 +49,18 @@ integer ABIs, layouts and DLL/LBT routes. Cover empty/square/wide/deficient
 and scaled inputs, partial L and K, ignored coordinates and NaNs, exact
 headers/queries/minimal work, output guards, independent C prototypes and
 ILP64 values beyond int32. Native colmat-rs changes and PRs are not authorized.
+
+Cloud contract run 43904380466 completed successfully at a172fbb. Its
+artifact ZIP digest and reproducer source hashes were verified before
+import. Sixteen unchanged-wrapper observations confirm K-by-M NaN scans
+for SIDE=R in both layouts: an active final column is missed when M<N and
+a padded column is scanned when M>N. Numerical work was stubbed; these
+observations establish policy extents only. The own wrapper uses Q order N.
+
+Twelve independent Fortran observations on valid square triangular inputs
+show own TZRZF query/execution WORK=3 versus OpenBLAS WORK=1, and unchanged
+sentinel WORK on insufficient work versus reference publication of one.
+The own boundary now uses minimum/query one for square inputs and publishes
+WORK after dimension validation but before the insufficient-work error.
+A new LWORK=1 check is prepared. The C adapters are drafted but compilation,
+numerical validation and full-suite proof remain pending.

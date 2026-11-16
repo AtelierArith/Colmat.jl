@@ -1,0 +1,124 @@
+{
+  "run_id": 43904380466,
+  "source_revision": "a172fbb85de13d82ca0ed0c9b9997e7de51d4a4d",
+  "artifact_id": 14246265623,
+  "zip_sha256": "6ac5715b5d22473cc3eb1c3c70e3c45c94905a5ecef42a496465e4f253cdd306",
+  "full_suite_passed": false,
+  "observations": [
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "lwork": -1,
+      "info": 0,
+      "work": 3.0,
+      "a_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "lwork": 0,
+      "info": -7,
+      "work": 779.0,
+      "a_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "d",
+      "lwork": 3,
+      "info": 0,
+      "work": 3.0,
+      "a_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        3.0,
+        0.0
+      ],
+      "a_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "lwork": 0,
+      "info": -7,
+      "work": [
+        779.0,
+        0.0
+      ],
+      "a_unchanged": true
+    },
+    {
+      "library": "libcolmat_blas.so",
+      "scalar": "z",
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        3.0,
+        0.0
+      ],
+      "a_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "lwork": -1,
+      "info": 0,
+      "work": 1.0,
+      "a_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "lwork": 0,
+      "info": -7,
+      "work": 1.0,
+      "a_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "d",
+      "lwork": 3,
+      "info": 0,
+      "work": 1.0,
+      "a_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "lwork": -1,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "a_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "lwork": 0,
+      "info": -7,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "a_unchanged": true
+    },
+    {
+      "library": "libopenblas64_.so",
+      "scalar": "z",
+      "lwork": 3,
+      "info": 0,
+      "work": [
+        1.0,
+        0.0
+      ],
+      "a_unchanged": true
+    }
+  ],
+  "reproducer": "reproducers/tzrzf_square_workspace.py"
+}

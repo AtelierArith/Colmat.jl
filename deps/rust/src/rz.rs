@@ -286,10 +286,13 @@ macro_rules! basic_exports {
         #[no_mangle]
         pub unsafe extern "C" fn [<$p tzrzf $s>](m:*const $i,n:*const $i,a:*mut $t,lda:*const $i,tau:*mut $t,work:*mut $t,lwork:*const $i,info:*mut $i) {
             *info=0;let(m,n,la,lw)=(*m as isize,*n as isize,*lda as isize,*lwork as isize);
-            for(arg,ok)in [(1,m>=0),(2,n>=m),(4,la>=m.max(1)),(7,lw== -1||lw>=m.max(1))] {
+            for(arg,ok)in [(1,m>=0),(2,n>=m),(4,la>=m.max(1))] {
                 if !ok {*info=-arg;crate::invalid(arg as i32);return;}
             }
-            *work=crate::lapack::workspace::<$t>(m.max(1));if lw== -1 {return;}
+            let minimum=if m==n {1}else{m.max(1)};
+            *work=crate::lapack::workspace::<$t>(minimum);
+            if lw!= -1&&lw<minimum {*info=-7;crate::invalid(7);return;}
+            if lw== -1 {return;}
             factor(m as usize,n as usize,(n-m) as usize,a,la,tau);
         }
         #[no_mangle]

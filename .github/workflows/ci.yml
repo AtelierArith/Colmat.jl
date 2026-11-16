@@ -19,18 +19,29 @@ jobs:
         with:
           python-version: '3.12'
       - uses: julia-actions/cache@v2
-      - name: Build frozen parent backend
+      - name: Format candidate Rust sources and retain exact patch
+        run: |
+          mkdir -p contract-probes
+          cargo fmt --manifest-path deps/rust/Cargo.toml
+          git diff -- deps/rust/src > contract-probes/rustfmt.patch
+      - name: Build candidate backend
         run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
+      - name: Rust regressions
+        run: cargo test --manifest-path deps/rust/Cargo.toml --locked > contract-probes/rust-tests.log 2>&1
+      - name: Existing Fortran RZ regressions
+        run: julia --project=. test/rz.jl > contract-probes/fortran-regressions.log 2>&1
       - name: Capture independent library paths
         run: |
           mkdir -p contract-probes
           julia --project -e 'using Colmat, LinearAlgebra; r=only(filter(l->l.interface==:ilp64 && occursin("openblas",lowercase(l.libname)),BLAS.get_config().loaded_libs)); write("contract-probes/reference.txt",r.libname); write("contract-probes/native.txt",Colmat.backend_library())'
           git rev-parse HEAD > contract-probes/revision.txt
-          sha256sum reproducers/lapacke_rz_nan_extent.py reproducers/tzrzf_square_workspace.py > contract-probes/reproducer-sha256.txt
+          sha256sum reproducers/lapacke_rz_nan_extent.py reproducers/tzrzf_square_workspace.py reproducers/rz_apply_empty_workspace.py > contract-probes/reproducer-sha256.txt
       - name: Probe unchanged reference NaN policy
         run: python3 reproducers/lapacke_rz_nan_extent.py > contract-probes/reference-nan-policy.json
       - name: Probe square Fortran workspace
         run: python3 reproducers/tzrzf_square_workspace.py --reference "$(cat contract-probes/reference.txt)" --native "$(cat contract-probes/native.txt)" > contract-probes/square-workspace.jsonl
+      - name: Probe empty Fortran Q application workspace
+        run: python3 reproducers/rz_apply_empty_workspace.py --reference "$(cat contract-probes/reference.txt)" --native "$(cat contract-probes/native.txt)" > contract-probes/empty-apply-workspace.jsonl
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
