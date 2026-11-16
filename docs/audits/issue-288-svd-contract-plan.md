@@ -1,8 +1,8 @@
-# Issue 288: GESVD / GESDD contract preparation
+# Issue 288: GESVD / GESDD LAPACKE contracts
 
-Status: adapters and optimized-release focused C/Julia ABI checks pass;
-immutable full-suite and platform CI evidence pending. This plan does not qualify
-any additional LAPACKE entry as complete. Issue #288 remains open.
+Status: optimized-release C/Julia checks and immutable full-suite evidence pass.
+Platform CI evidence remains pending. Issue #288 remains open; this numerical
+subset does not establish the original scope's complete acceptance conditions.
 
 This extension adds sixteen canonical names: S/D/C/Z GESVD and GESDD, each
 high-level and `_work`, with LP64 and ILP64 exports. The total candidate LAPACKE subset is 108 numerical names,
@@ -99,6 +99,16 @@ as full-suite evidence. Registration is 1,590 forwards per ABI. The optimized re
 61,128 SVD numerical checks and the C worker successfully; its focused trace
 again validates every one of the 432 ABI/route observations.
 
-The prior successful 92-entry snapshot remains stale for these candidate
-sources. Replace it only after a successful full suite whose production/test/
-worker hashes, manifest, registration and optimized DLL match frozen preflight.
+## Immutable full-suite evidence
+
+Full `Pkg.test(; allow_reresolve=false)` succeeded at public source revision
+`e7768503a2c72e001cdb2a26bf5ff54cc1059614`, Julia 1.13.3. All 253
+production/test/worker source hashes, manifest, native revision, registration
+digest and optimized DLL match preflight. The DLL SHA-256 is
+`9998d6956c6ac104c4c989d030abfaf21641a8fbcf8f8d40f5d847d6b7e78315`.
+
+Its 4,895 witnesses validate 1,386 canonical names: 1,106 Fortran LAPACK,
+172 CBLAS and 108 LAPACKE. The latter have all 432 completed ABI/route
+observations with independent concrete argument and return-type validation.
+Only this successful full artifact replaces the prior 92-entry snapshot.
+Focused traces are not published as full-suite evidence.
