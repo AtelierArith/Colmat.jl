@@ -61,3 +61,13 @@ orthogonality, empty/rectangular/deficient and scaled inputs and guards pass.
 Signature validation fixtures pass 17 tests, rejecting wrong pivot widths,
 complex RWORK types and a spurious GEQPF LWORK. Independent C, policy, typed
 completed calls, optimized repetition and full proof remain required.
+
+Policy checks pass 1336 assertions for header precedence, signed ILP64
+values beyond int32, insufficient-work publication and consumed diagnostics,
+NaN rejection without mutation and ignored NaN padding. The independent C11
+caller passes with explicit real/complex high/work prototypes for all sixteen
+names and both integer ABIs. It checks mixed fixed columns, guarded integer
+pivots, explicit Householder-product reconstruction and orthogonality, real
+diagonals, workspace queries/errors, empty/rectangular cases and ILP64 values.
+Rust 460 tests pass after the adapter additions. Typed tracing, optimized
+repetition and immutable full-suite proof remain pending.
