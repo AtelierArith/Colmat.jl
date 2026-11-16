@@ -1,8 +1,8 @@
 # Issue #288: least-squares C contracts
 
-Status: Fortran WORK publication is corrected and verified. Eight GELS C
-entries pass focused debug numerical checks. The other 24 planned C entries,
-full-stage boundary/ABI evidence and immutable full proof remain pending.
+Status: GELS and GELSY C entries pass focused debug numerical checks.
+The remaining 16 GELSS/GELSD entries, full-stage boundary/ABI evidence and
+immutable full proof remain pending.
 Issue #288 remains open.
 
 The canonical inventory contains eight high/work S/D/C/Z names each for
@@ -94,3 +94,14 @@ normal-equation residual checks use a stricter 100*epsilon scaled bound.
 Both low-precision solvers are compared separately with the wide oracle.
 Source/library/log hashes are in issue-288-least-squares-gels-focused.json.
 These are focused eight-name results, not full 32-name stage validation.
+
+Eight GELSY C entries now pass 66240 focused debug assertions across all
+scalar types, both integer ABIs/layouts, high/work and actual DLL/LBT calls.
+Independent Fortran and wide-precision references check rank, minimum-norm
+solutions and normal-equation residuals; native Fortran output comparisons
+check A overwrite. Fixed/free/all-fixed columns, full/zero/rank-one systems,
+empty and NRHS=0 cases, query/error preservation, selected-width JPVT/RANK,
+real-valued RCOND, complex RWORK and guards are covered. Rust passes 463
+checks after adding these entries. Exact hashes are in
+issue-288-least-squares-gelsy-focused.json. GELSS/GELSD and full-stage proof
+remain pending; these results do not establish a completed 32-name stage.

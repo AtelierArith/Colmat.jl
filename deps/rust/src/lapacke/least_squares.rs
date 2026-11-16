@@ -236,3 +236,121 @@ mod tests {
         }
     }
 }
+
+fn rank_geometry(layout: i32, m: i64, n: i64, nrhs: i64, lda: i64, ldb: i64) -> Result<(), i64> {
+    if !matches!(layout, ROW_MAJOR | COL_MAJOR) {
+        return Err(-1);
+    }
+    if layout == ROW_MAJOR {
+        if lda < n {
+            return Err(-6);
+        }
+        if ldb < nrhs {
+            return Err(-8);
+        }
+    }
+    if m < 0 {
+        return Err(-2);
+    }
+    if n < 0 {
+        return Err(-3);
+    }
+    if nrhs < 0 {
+        return Err(-4);
+    }
+    if layout == COL_MAJOR {
+        if lda < m.max(1) {
+            return Err(-6);
+        }
+        if ldb < m.max(n).max(1) {
+            return Err(-8);
+        }
+    }
+    Ok(())
+}
+unsafe fn rank_nan<T: Scalar, R: Scalar>(
+    layout: i32,
+    m: i64,
+    n: i64,
+    nrhs: i64,
+    a: *const T,
+    lda: i64,
+    b: *const T,
+    ldb: i64,
+    rcond: R,
+) -> Result<(), i64> {
+    if !matches!(layout, ROW_MAJOR | COL_MAJOR) {
+        return Err(-1);
+    }
+    if LAPACKE_get_nancheck() != 0 {
+        if ge_nancheck(layout, m, n, a, lda)? {
+            return Err(-5);
+        }
+        if ge_nancheck(layout, m.max(n), nrhs, b, ldb)? {
+            return Err(-7);
+        }
+        if rcond.re().is_nan() {
+            return Err(-10);
+        }
+    }
+    Ok(())
+}
+fn allocation_len(value: f64, maximum: usize) -> Result<usize, i64> {
+    if !value.is_finite() || value < 1.0 {
+        return Err(-1010);
+    }
+    let length = value as usize;
+    if length > maximum {
+        return Err(-1010);
+    }
+    Ok(length)
+}
+fn gelsy_minimum(m: i64, n: i64, nrhs: i64, complex: bool) -> i128 {
+    let k = m.min(n) as i128;
+    let n = n as i128;
+    let nrhs = nrhs as i128;
+    if !complex && (k == 0 || nrhs == 0) {
+        1
+    } else if complex {
+        k + (2 * k).max(n + 1).max(k + nrhs)
+    } else {
+        (k + 3 * n + 1).max(2 * k + nrhs)
+    }
+}
+macro_rules! gelsy_exports {($p:ident,$t:ty,$r:ty,$j:ty,[$($suffix:tt)*],$f:tt,$rw:ident,[$($rwparam:tt)*],[$($rwarg:tt)*])=>{paste::paste!{
+    #[no_mangle]
+    pub unsafe extern "C" fn [<LAPACKE_ $p gelsy_work $($suffix)*>](layout:i32,m:$j,n:$j,nrhs:$j,a:*mut $t,lda:$j,b:*mut $t,ldb:$j,jpvt:*mut $j,rcond:$r,rank:*mut $j,workspace:*mut $t,lwork:$j $($rwparam)*)->$j {
+        if let Err(e)=rank_geometry(layout,m as i64,n as i64,nrhs as i64,lda as i64,ldb as i64){return e as $j;}
+        let minimum=gelsy_minimum(m as i64,n as i64,nrhs as i64,<$t>::COMPLEX);
+        if minimum>(<$j>::MAX as i128){return -13;}
+        let skip=lwork== -1||(lwork as i128)<minimum||m.min(n)==0||nrhs==0;
+        layout_work(layout,m as i64,n as i64,nrhs as i64,m as i64,a,lda as i64,b,ldb as i64,skip,|a,lda,b,ldb|{
+            let mut info:$j=0;
+            crate::least_squares::[<$p gelsy $f>](&m,&n,&nrhs,a,&(lda as $j),b,&(ldb as $j),jpvt,&rcond,rank,workspace,&lwork $($rwarg)*,&mut info);
+            if info<0 {(info-1) as i64}else{info as i64}
+        }) as $j
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn [<LAPACKE_ $p gelsy $($suffix)*>](layout:i32,m:$j,n:$j,nrhs:$j,a:*mut $t,lda:$j,b:*mut $t,ldb:$j,jpvt:*mut $j,rcond:$r,rank:*mut $j)->$j {
+        if let Err(e)=rank_nan(layout,m as i64,n as i64,nrhs as i64,a,lda as i64,b,ldb as i64,rcond){return e as $j;}
+        let mut query=<$t>::z();let mut real_query=<$r>::z();let $rw=&mut real_query as *mut $r;
+        let info=[<LAPACKE_ $p gelsy_work $($suffix)*>](layout,m,n,nrhs,a,lda,b,ldb,jpvt,rcond,rank,&mut query,-1 $($rwarg)*);
+        if info!=0{return info;}
+        let count=match allocation_len(query.re(),<$j>::MAX as usize){Ok(v)=>v,Err(e)=>return e as $j};
+        let mut workspace=match zeros::<$t>(count){Ok(v)=>v,Err(_)=>return -1010};
+        let rwcount=if <$t>::COMPLEX {
+            match (n.max(0) as usize).checked_mul(2){Some(v)=>v.max(1),None=>return -1010}
+        }else{0};
+        let mut real_workspace=match zeros::<$r>(rwcount){Ok(v)=>v,Err(_)=>return -1010};
+        let $rw=real_workspace.as_mut_ptr();
+        [<LAPACKE_ $p gelsy_work $($suffix)*>](layout,m,n,nrhs,a,lda,b,ldb,jpvt,rcond,rank,workspace.as_mut_ptr(),count as $j $($rwarg)*)
+    }
+}};}
+gelsy_exports!(s, f32, f32, i32, [], _, _rwork, [], []);
+gelsy_exports!(d, f64, f64, i32, [], _, _rwork, [], []);
+gelsy_exports!(c,colmat::c32,f32,i32,[],_,_rwork,[,_rwork:*mut f32],[,_rwork]);
+gelsy_exports!(z,colmat::c64,f64,i32,[],_,_rwork,[,_rwork:*mut f64],[,_rwork]);
+gelsy_exports!(s, f32, f32, i64, [64_], _64_, _rwork, [], []);
+gelsy_exports!(d, f64, f64, i64, [64_], _64_, _rwork, [], []);
+gelsy_exports!(c,colmat::c32,f32,i64,[64_],_64_,_rwork,[,_rwork:*mut f32],[,_rwork]);
+gelsy_exports!(z,colmat::c64,f64,i64,[64_],_64_,_rwork,[,_rwork:*mut f64],[,_rwork]);
