@@ -60,6 +60,9 @@ static int at(int layout,int i,int j,int ld){return layout==101?i*ld+j:i+j*ld;}
     for(int which=0;which<(sizeof(T)>sizeof(R)?3:2);which++){INT lw=which==0?-1:0;li=which==1?-1:0;lr=which==2?-1:0;m=-99; \
         assert(work(102,'V','A','L',3,NULL,3,0,10,1,3,0,&m,NULL,NULL,3,support,&query,lw RARG,iw,li)==0);assert(m==-99 && iw[0]==30); \
     }lr=128;li=64; \
+    T checked_a[9]={2,0,0,0,3,0,0,0,4},checked_z[9];for(int q=0;q<9;q++){checked_z[q]=(T)777;}m=99; \
+    assert(work(101,'V','V','L',3,checked_a,3,NAN,10,1,3,0,&m,values,checked_z,3,support,workspace,128 RARG,iw,li)==-9); \
+    assert(m==99);for(int q=0;q<9;q++){assert(checked_z[q]==(T)777);} \
     T a=(T)2,z=(T)777; \
     assert(high(102,'N','A','L',1,&a,1,NAN,NAN,1,1,0,&m,values,NULL,1,support)==0); \
     assert(high(102,'N','A','L',1,&a,1,0,10,1,1,NAN,&m,values,NULL,1,support)==-12); \

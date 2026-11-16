@@ -82,7 +82,7 @@ unsafe fn work<T: Scalar, I: LapackInt>(
     if layout == COL_MAJOR && lda < n.max(1) {
         return -7;
     }
-    if mode == b'V' && n > 0 && vl >= vu {
+    if mode == b'V' && n > 0 && !(vl < vu) {
         return -9;
     }
     if mode == b'I' {
@@ -131,6 +131,9 @@ unsafe fn work<T: Scalar, I: LapackInt>(
         }
     }
     let info = call(at.as_mut_ptr(), ld, zt.as_mut_ptr(), ld);
+    if info < 0 {
+        return info;
+    }
     for i in 0..nn {
         for j in 0..nn {
             if (uplo == b'L' && i >= j) || (uplo == b'U' && i <= j) {

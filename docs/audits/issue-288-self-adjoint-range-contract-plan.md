@@ -102,3 +102,10 @@ against independently resolved OpenBLAS range results. It includes endpoints,
 positive ABSTOL, poisoned unused storage, scalar output semantics, and ignored
 imaginary diagonal NaNs in work calls. The separate Fortran regression suite
 passes 15,752 checks. These are focused checks, not a full-suite artifact.
+
+
+A further executed row-major work call with VL=NaN returned INFO=-9 but
+previously overwrote all nine guarded Z entries using an unchanged caller M=99.
+The adapter now rejects that invalid bound before packing and does not copy
+outputs after a negative backend INFO. The independent C worker checks this
+case for all scalar and integer combinations, preserving M and all Z guards.
