@@ -27,6 +27,8 @@ using Test
         "gelq2",
         "geqlf",
         "gerqf",
+        "geqp3",
+        "geqpf",
         "geqrt",
         "geqrt2",
         "geqrt3",
@@ -77,7 +79,7 @@ using Test
             f in (stem*"qr", stem*"lq", stem*"ql", stem*"rq") for w in ("", "_work")
         ),
     )
-    @test length(targets)==324
+    @test length(targets)==340
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(

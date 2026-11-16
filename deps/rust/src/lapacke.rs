@@ -8,6 +8,7 @@ mod general_eigen;
 mod general_expert;
 mod lauum;
 mod lq;
+mod pivoted_qr;
 mod positive_qr;
 mod q_application;
 mod q_generators;
