@@ -1165,6 +1165,9 @@ mod band_tests;
 mod packed_rank_tests;
 
 #[cfg(test)]
+mod noop_tests;
+
+#[cfg(test)]
 mod matrix_tests;
 
 #[cfg(test)]

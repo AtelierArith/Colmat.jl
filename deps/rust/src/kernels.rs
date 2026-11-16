@@ -219,7 +219,7 @@ pub unsafe fn gemv<T: Scalar>(
     iy: isize,
 ) {
     // Reference BLAS quick return also applies to a zero inner dimension.
-    if m == 0 || n == 0 {
+    if m == 0 || n == 0 || (alpha == T::z() && beta == T::o()) {
         return;
     }
     let (rows, cols) = if matches!(t, b'N' | b'R') {
@@ -410,7 +410,7 @@ pub(crate) unsafe fn symv_with_conjugation<T: Scalar>(
     h: bool,
     conjugate: bool,
 ) {
-    if n == 0 {
+    if n == 0 || (alpha == T::z() && beta == T::o()) {
         return;
     }
     let y = y.offset(start(n, iy));
@@ -565,7 +565,7 @@ pub unsafe fn rankk<T: Scalar>(
     h: bool,
     two: bool,
 ) {
-    if n == 0 {
+    if n == 0 || ((alpha == T::z() || k == 0) && beta == T::o()) {
         return;
     }
     let mut out = vec![T::z(); (n * n) as usize];
