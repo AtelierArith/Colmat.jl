@@ -1,4 +1,5 @@
 using Test, Colmat, LinearAlgebra, Libdl, Random
+isdefined(@__MODULE__, :lapacke288_selected_entry) || include("lapacke_calls.jl")
 isdefined(@__MODULE__, :direct_tp_factor!) || include("pentagonal.jl")
 for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
     J in (Int32, Int64)
@@ -13,6 +14,7 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         append!(sig, [Ptr{T}, J, Ptr{T}, J, Ptr{T}, J])
         append!(args, [:a, :lda, :b, :ldb, :t, :ldt])
         blocked && !high && (push!(sig, Ptr{T}); push!(args, :work))
+        canonical=replace(name, r"64_$"=>"")
         @eval function lapacke288_tp_factor_call(
             ::Type{$T},
             ::Type{$J},
@@ -29,12 +31,18 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
             ldb,
             t,
             ldt,
-            work,
+            work;
+            route=:dll,
         )
-            pointer=Libdl.dlsym(
-                Libdl.dlopen(Colmat.backend_library()), $(QuoteNode(Symbol(name)))
+            native=Libdl.dlopen(Colmat.backend_library())
+            @test BLAS.lbt_get_forward($canonical, $(J===Int64 ? :(:ilp64) : :(:lp64)))==Libdl.dlsym(
+                native, $(QuoteNode(Symbol(name)))
             )
-            ccall(pointer, $J, $(Expr(:tuple, sig...)), $(args...))
+            handle=route==:dll ? native : Libdl.dlopen(BLAS.libblastrampoline)
+            pointer=Libdl.dlsym(handle, $(QuoteNode(Symbol(name))))
+            lapacke288_selected_entry($canonical, $J, route) do
+                ccall(pointer, $J, $(Expr(:tuple, sig...)), $(args...))
+            end
         end
     end
 end
@@ -62,7 +70,8 @@ end
         blocked in (false, true),
         nb in (blocked ? unique((1, max(1, min(n, 2)), max(1, n))) : (max(1, n),)),
         layout in (101, 102),
-        high in (false, true)
+        high in (false, true),
+        route in (:dll, :lbt_trampoline)
 
         rows=blocked ? nb : max(1, n)
         a0=triu(randn(rng, T, n, n))
@@ -119,7 +128,8 @@ end
             ldb,
             tv,
             ldt,
-            wv,
+            wv;
+            route,
         )
         @test info==0
         a=lapacke288_tp_load(aa, layout, n, n, lda)

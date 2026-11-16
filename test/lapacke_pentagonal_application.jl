@@ -16,6 +16,7 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
     append!(args, [:v, :ldv, :t, :ldt, :a, :lda, :b, :ldb])
     !high && (push!(sig, Ptr{T}); push!(args, :work))
     block && !high && (push!(sig, J); push!(args, :ldwork))
+    canonical=replace(name, r"64_$"=>"")
     @eval function lapacke288_tp_application_call(
         ::Type{$T},
         ::Type{$J},
@@ -40,12 +41,18 @@ for (T, prefix) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF
         b,
         ldb,
         work,
-        ldwork,
+        ldwork;
+        route=:dll,
     )
-        pointer=Libdl.dlsym(
-            Libdl.dlopen(Colmat.backend_library()), $(QuoteNode(Symbol(name)))
+        native=Libdl.dlopen(Colmat.backend_library())
+        @test BLAS.lbt_get_forward($canonical, $(J===Int64 ? :(:ilp64) : :(:lp64)))==Libdl.dlsym(
+            native, $(QuoteNode(Symbol(name)))
         )
-        ccall(pointer, $J, $(Expr(:tuple, sig...)), $(args...))
+        handle=route==:dll ? native : Libdl.dlopen(BLAS.libblastrampoline)
+        pointer=Libdl.dlsym(handle, $(QuoteNode(Symbol(name))))
+        lapacke288_selected_entry($canonical, $J, route) do
+            ccall(pointer, $J, $(Expr(:tuple, sig...)), $(args...))
+        end
     end
 end
 function lapacke288_tp_application_storage(T, layout, v, t, a, b)
@@ -84,7 +91,8 @@ end
         side in ('L', 'R'),
         trans in ('N', T<:Complex ? 'C' : 'T'),
         layout in (101, 102),
-        high in (false, true)
+        high in (false, true),
+        route in (:dll, :lbt_trampoline)
 
         rawv, rawt, h=tp_block_fixture(T, k, tail, l, direct, store, rng)
         vr, vc=store=='C' ? (tail, k) : (k, tail)
@@ -133,7 +141,8 @@ end
             view(data.bb, 2:(length(data.bb) - 1)),
             data.ldb,
             view(work, 2:(length(work) - 1)),
-            ldwork,
+            ldwork;
+            route,
         )
         @test info==0
         actual=similar(c)
@@ -162,7 +171,8 @@ end
         side in ('L', 'R'),
         trans in ('N', T<:Complex ? 'C' : 'T'),
         layout in (101, 102),
-        high in (false, true)
+        high in (false, true),
+        route in (:dll, :lbt_trampoline)
 
         a, b, _, _=tp_fixture(T, k, tail, l, false, rng)
         factor=direct_tp_factor!(
@@ -212,19 +222,20 @@ end
             view(data.bb, 2:(length(data.bb) - 1)),
             data.ldb,
             view(work, 2:(length(work) - 1)),
-            0,
+            0;
+            route,
         )
         @test info==0
         actual=if side=='L'
             vcat(
-            lapacke288_tp_load(data.aa, layout, ar, ac, data.lda),
-            lapacke288_tp_load(data.bb, layout, br, bc, data.ldb),
-        )
+                lapacke288_tp_load(data.aa, layout, ar, ac, data.lda),
+                lapacke288_tp_load(data.bb, layout, br, bc, data.ldb),
+            )
         else
             hcat(
-            lapacke288_tp_load(data.aa, layout, ar, ac, data.lda),
-            lapacke288_tp_load(data.bb, layout, br, bc, data.ldb),
-        )
+                lapacke288_tp_load(data.aa, layout, ar, ac, data.lda),
+                lapacke288_tp_load(data.bb, layout, br, bc, data.ldb),
+            )
         end
         @test actual≈expected rtol=200eps(real(T)) atol=200eps(real(T))
         lapacke288_tp_application_guards(data, original, layout, ar, ac, br, bc)

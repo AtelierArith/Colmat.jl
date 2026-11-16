@@ -28,6 +28,10 @@ using Test
         "geqlf",
         "gerqf",
         "tzrzf",
+        "tpqrt",
+        "tpqrt2",
+        "tpmqrt",
+        "tprfb",
         "geqp3",
         "geqpf",
         "geqrt",
@@ -81,7 +85,7 @@ using Test
             w in ("", "_work")
         ),
     )
-    @test length(targets)==356
+    @test length(targets)==388
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
