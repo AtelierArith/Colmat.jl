@@ -114,3 +114,12 @@ completed witnesses and 1870 forwards per ABI. Exact source/library/log/TOML
 provenance is in issue-288-pentagonal-full-provenance.json. Earlier pending-full
 statements are superseded by this result. Publication checks and final PR CI
 remain required, after preceding candidates merge.
+
+Normal parent integration at 34f762ab5563a681daf2f798c7def0c007da0601
+incorporates the RZ publication branch through 742cbc1. Its ten changed files
+are audit documents only. All 330 frozen execution sources, the manifest
+and optimized DLL remain identical to the immutable full proof; this is not
+a new full-suite run. Python 28 passes after integration. Inventory and docs
+checks remain live. Final main integration and publication wait for RZ
+PR #398 to merge. Exact parent, changed-file, source-map and library hashes
+are recorded in issue-288-pentagonal-rz-integration.json.

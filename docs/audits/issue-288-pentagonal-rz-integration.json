@@ -1,0 +1,32 @@
+{
+  "integration_revision": "34f762ab5563a681daf2f798c7def0c007da0601",
+  "parents": [
+    "63b327a0b73d0749eee5a4c992ae374c4db8f796",
+    "742cbc1ac85523ef858e1563ab6e0f5a7be10a90"
+  ],
+  "changed_files": [
+    "docs/audits/issue-288-compact-qr-contract-plan.md",
+    "docs/audits/issue-288-lq-contract-plan.md",
+    "docs/audits/issue-288-pivoted-qr-cloud-provenance.json",
+    "docs/audits/issue-288-pivoted-qr-contract-plan.md",
+    "docs/audits/issue-288-q-application-contract-plan.md",
+    "docs/audits/issue-288-q-generators-cloud-provenance.json",
+    "docs/audits/issue-288-q-generators-contract-plan.md",
+    "docs/audits/issue-288-reverse-qr-cloud-provenance.json",
+    "docs/audits/issue-288-reverse-qr-contract-plan.md",
+    "docs/audits/issue-288-rz-contract-plan.md"
+  ],
+  "execution_sources_unchanged": true,
+  "validated_source_count": 330,
+  "preserved_full_proof_revision": "d5a996aed69380855f005ca4b2f6a27ba7ec520c",
+  "full_suite_repeated": false,
+  "library_sha256": "e52573d8febd49385bb8dbefb3f47b40f4770740a2dd22693686fbe1ce144a68",
+  "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
+  "source_map_sha256": "b601b148f5cd7540e00f6d3a413409948f3c9c62701cb1cb1600c092e55d6883",
+  "publication_checks": {
+    "python": 28,
+    "inventory": "live",
+    "documentation": "pending"
+  },
+  "final_main_integration": "pending RZ PR #398 merge"
+}
