@@ -64,3 +64,16 @@ The own boundary now uses minimum/query one for square inputs and publishes
 WORK after dimension validation but before the insufficient-work error.
 A new LWORK=1 check is prepared. The C adapters are drafted but compilation,
 numerical validation and full-suite proof remain pending.
+
+Cloud run 43905749109 compiles the draft C adapters, passes Rust 460 and
+existing Fortran RZ 1712 assertions. Its artifact digest, reproducer source
+hashes and exact rustfmt patch were checked; the formatting patch is applied
+locally. Sixteen square-input observations confirm own/reference LWORK=1
+success and WORK=1 after the TZRZF correction. No full proof is claimed.
+
+Sixty-four empty ORMRZ/UNMRZ observations separate validation, query and
+execution: at M=0,N=3,SIDE=L (and the corresponding right-side empty case),
+own query/execution WORK is 3 while reference returns 1, although both still
+require the side-dependent formal minimum work. Inputs remain unchanged.
+The planned correction changes only successful empty query/execution output;
+minimum validation and insufficient-work output preservation stay separate.

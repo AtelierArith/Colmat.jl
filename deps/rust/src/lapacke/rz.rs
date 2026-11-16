@@ -141,9 +141,7 @@ unsafe fn apply_work<T: Scalar>(
     lwork: i64,
     mut call: impl FnMut(*const T, i64, *mut T, i64) -> i64,
 ) -> i64 {
-    if let Err(e) = apply_geometry(
-        layout, side, trans, m, n, k, l, lda, ldc, lwork, T::COMPLEX,
-    ) {
+    if let Err(e) = apply_geometry(layout, side, trans, m, n, k, l, lda, ldc, lwork, T::COMPLEX) {
         return e;
     }
     if layout == COL_MAJOR {
@@ -155,7 +153,11 @@ unsafe fn apply_work<T: Scalar>(
     if (0..k as usize).all(|i| *tau.add(i) == T::z()) {
         return call(a, k.max(1), c, m.max(1));
     }
-    let order = if side.to_ascii_uppercase() == b'L' { m } else { n };
+    let order = if side.to_ascii_uppercase() == b'L' {
+        m
+    } else {
+        n
+    };
     let mut at = Vec::<T>::new();
     if l > 0 {
         let count = match (k as usize).checked_mul(order as usize) {
@@ -209,7 +211,11 @@ unsafe fn apply_nan<T: Scalar>(
         return Err(-1);
     }
     if LAPACKE_get_nancheck() != 0 {
-        let order = if side.to_ascii_uppercase() == b'R' { n } else { m };
+        let order = if side.to_ascii_uppercase() == b'R' {
+            n
+        } else {
+            m
+        };
         if ge_nancheck(layout, k, order, a, lda)? {
             return Err(-8);
         }
