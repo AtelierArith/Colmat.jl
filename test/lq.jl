@@ -28,6 +28,13 @@ using Test, LinearAlgebra, Random, Colmat
 end
 
 using Libdl
+function empty_lq_workspace_diagnostic()
+    return ccall(
+        Libdl.dlsym(Libdl.dlopen(Colmat.backend_library()), :colmat_blas_last_error),
+        Cint,
+        (),
+    )
+end
 for (T, p) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
     I in (Int32, Int64)
 
@@ -758,6 +765,7 @@ end
         @test a*result ≈ rhs
         @test result ≈ a'*((a*a')\rhs)
         @test direct_gelqs!(factor, tau, copy(b), I; lwork=-1)[2]==-10
+        @test empty_lq_workspace_diagnostic()==10
     end
 end
 
@@ -804,6 +812,7 @@ end
 end
 
 # Independent empty-factor WORK contract, including unused output guards.
+
 for (T, p) in ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
     I in (Int32, Int64)
 
@@ -842,7 +851,9 @@ end
         lw in (-1, 0, 1, 3)
 
         own=empty_lq_work_probe(T, I, Colmat.backend_library(), m, n, lw)
+        @test empty_lq_workspace_diagnostic()==(lw==0 ? 7 : 0)
         external=empty_lq_work_probe(T, Int64, reference, m, n, lw)
+        @test empty_lq_workspace_diagnostic()==0
         @test own==external
         @test own[1]==(lw==0 ? -7 : 0)
         @test own[2]==fill(T(777), 4)
