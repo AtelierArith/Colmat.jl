@@ -36,5 +36,8 @@ fixtures pass 17 tests, including rejected TAU scalar and LWORK integer types.
 Typed completed-call tracing covers all 196 candidate names with 784 completed
 observations across both ABIs and routes; its call-site gate passes 3,926 checks.
 The Rust suite passes 460 tests. This focused evidence explicitly records
-`full_suite_passed=false`. Optimized repetition, immutable full package testing
-and source-bound evidence publication remain required.
+`full_suite_passed=false`. Optimized repetition also passes the 51,264 numerical assertions, 3,926 call-site
+checks and all 784 typed observations. Immutable full package testing and
+source-bound evidence publication remain required.
+
+Optimized DLL SHA-256: `004dc672b0e3b06f92a94973e254267f86aa6d8cd84ff2e429cde272883bd707`.
