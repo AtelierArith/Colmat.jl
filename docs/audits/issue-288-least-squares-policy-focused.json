@@ -1,0 +1,12 @@
+{
+  "full_suite_passed": false,
+  "mode": "debug",
+  "scope": "Least-squares C diagnostic priorities, NaN policy and signed integer boundaries",
+  "assertions": 5220,
+  "library_sha256": "060487e581a0dab6b79122ffdc2655807385cb4a697b2a45e19b68e35974ef0c",
+  "execution_log_sha256": "88d94674e68671698af76f734a530558d1a831b1098451863fc07cdd3de02d20",
+  "source_sha256": {
+    "deps/rust/src/lapacke/least_squares.rs": "8c77f1fe03065d34077eec47b884ae40aa353124f837e6cb40a184a465a2c0f2",
+    "test/lapacke_least_squares_policy.jl": "838a02bb438a139a88133c98c91b1600368e525796f265f19c078b5e58cce588"
+  }
+}

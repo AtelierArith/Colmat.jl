@@ -1,8 +1,9 @@
 # Issue #288: least-squares C contracts
 
-Status: all 32 planned C entries pass focused debug numerical checks and an
-independent C caller. Full-stage policy, typed tracing, optimized repetition
-and immutable full proof remain pending.
+Status: debug and optimized focused validation passes for all 32 new entries.
+Typed tracing covers 420 canonical C entries and 1680 completed call-site
+observations in each mode; completed-call gates pass 8406 assertions.
+Immutable full package validation and publication CI remain pending.
 Issue #288 remains open.
 
 The canonical inventory contains eight high/work S/D/C/Z names each for
@@ -130,3 +131,23 @@ GELSD comparison. A reference improvement should handle zero RHS without
 passing an invalid zero count into LALSD while preserving S/RANK. No upstream
 issue or PR is created by this stage. Earlier pending-SVD statements are
 superseded by these focused results; full-stage validation remains required.
+
+Diagnostic policy checks pass 5220 debug assertions. They independently check
+ordinary header and row-layout precedence, untouched outputs, query and
+insufficient-WORK calls with null numerical arrays, native WORK publication,
+selected-width ILP64 values outside int32, A/B/RCOND NaN priority and the
+complete max(M,N)-row B scan. S is treated as output, and disabling global
+NaN checks is restored in a finally block. Diagnostics are asserted and
+consumed at their origin. Exact source, library and log hashes are in
+issue-288-least-squares-policy-focused.json. The typed validator additionally
+has all 32 scalar/family/high/work prototypes and negative fixtures for wrong
+LWORK/IWORK width, by-reference RCOND and incorrect complex RWORK types.
+The focused tracing run and optimized repetition remain in progress.
+
+Both debug and optimized focused runs pass 25088 GELS, 66240 GELSY,
+138528 GELSS/GELSD numerical assertions, 5220 diagnostic-policy assertions,
+and the independent C caller. Each records all 420 C targets across both
+integer ABIs and actual DLL/LBT routes. All 337 production/test/worker source
+hashes are identical between modes. Evidence remains full_suite_passed=false;
+it is not an immutable full package proof. Exact library, source, log and
+focused TOML hashes are in the debug/optimized focused audit JSON files.

@@ -193,6 +193,38 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_ztpmqrt_work': ('tpmqrt', 'z', lambda j: f'(Int32, Int8, Int8, {j}, {j}, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}})'),
             'LAPACKE_ztprfb': ('tprfb', 'z', lambda j: f'(Int32, Int8, Int8, Int8, Int8, {j}, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
             'LAPACKE_ztprfb_work': ('tprfb', 'z', lambda j: f'(Int32, Int8, Int8, Int8, Int8, {j}, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_sgels': ('gels', 's', lambda j: f'(Int32, Int8, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j})'),
+            'LAPACKE_sgels_work': ('gels', 's', lambda j: f'(Int32, Int8, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j})'),
+            'LAPACKE_sgelsy': ('gelsy', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{{j}}}, Float32, Ptr{{{j}}})'),
+            'LAPACKE_sgelsy_work': ('gelsy', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{{j}}}, Float32, Ptr{{{j}}}, Ptr{{Float32}}, {j})'),
+            'LAPACKE_sgelss': ('gelss', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Float32, Ptr{{{j}}})'),
+            'LAPACKE_sgelss_work': ('gelss', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Float32, Ptr{{{j}}}, Ptr{{Float32}}, {j})'),
+            'LAPACKE_sgelsd': ('gelsd', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Float32, Ptr{{{j}}})'),
+            'LAPACKE_sgelsd_work': ('gelsd', 's', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, {j}, Ptr{{Float32}}, Float32, Ptr{{{j}}}, Ptr{{Float32}}, {j}, Ptr{{{j}}})'),
+            'LAPACKE_dgels': ('gels', 'd', lambda j: f'(Int32, Int8, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgels_work': ('gels', 'd', lambda j: f'(Int32, Int8, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgelsy': ('gelsy', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Float64, Ptr{{{j}}})'),
+            'LAPACKE_dgelsy_work': ('gelsy', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Float64, Ptr{{{j}}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgelss': ('gelss', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}})'),
+            'LAPACKE_dgelss_work': ('gelss', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}}, Ptr{{Float64}}, {j})'),
+            'LAPACKE_dgelsd': ('gelsd', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}})'),
+            'LAPACKE_dgelsd_work': ('gelsd', 'd', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}}, Ptr{{Float64}}, {j}, Ptr{{{j}}})'),
+            'LAPACKE_cgels': ('gels', 'c', lambda j: f'(Int32, Int8, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j})'),
+            'LAPACKE_cgels_work': ('gels', 'c', lambda j: f'(Int32, Int8, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j})'),
+            'LAPACKE_cgelsy': ('gelsy', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{{j}}}, Float32, Ptr{{{j}}})'),
+            'LAPACKE_cgelsy_work': ('gelsy', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{{j}}}, Float32, Ptr{{{j}}}, Ptr{{ComplexF32}}, {j}, Ptr{{Float32}})'),
+            'LAPACKE_cgelss': ('gelss', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{Float32}}, Float32, Ptr{{{j}}})'),
+            'LAPACKE_cgelss_work': ('gelss', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{Float32}}, Float32, Ptr{{{j}}}, Ptr{{ComplexF32}}, {j}, Ptr{{Float32}})'),
+            'LAPACKE_cgelsd': ('gelsd', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{Float32}}, Float32, Ptr{{{j}}})'),
+            'LAPACKE_cgelsd_work': ('gelsd', 'c', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{ComplexF32}}, {j}, Ptr{{Float32}}, Float32, Ptr{{{j}}}, Ptr{{ComplexF32}}, {j}, Ptr{{Float32}}, Ptr{{{j}}})'),
+            'LAPACKE_zgels': ('gels', 'z', lambda j: f'(Int32, Int8, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zgels_work': ('gels', 'z', lambda j: f'(Int32, Int8, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j})'),
+            'LAPACKE_zgelsy': ('gelsy', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{{j}}}, Float64, Ptr{{{j}}})'),
+            'LAPACKE_zgelsy_work': ('gelsy', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{{j}}}, Float64, Ptr{{{j}}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_zgelss': ('gelss', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}})'),
+            'LAPACKE_zgelss_work': ('gelss', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
+            'LAPACKE_zgelsd': ('gelsd', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}})'),
+            'LAPACKE_zgelsd_work': ('gelsd', 'z', lambda j: f'(Int32, {j}, {j}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Float64, Ptr{{{j}}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{{j}}})'),
             'LAPACKE_dtzrzf': ('tzrzf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_dtzrzf_work': ('tzrzf', 'd', lambda j: f'(Int32, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
             'LAPACKE_dormrz': ('ormrz', 'd', lambda j: f'(Int32, Int8, Int8, {j}, {j}, {j}, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j})'),
@@ -335,6 +367,12 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.add_lapacke()
         self.validate()
         for symbol, replacement in (
+            ('LAPACKE_dgels_work', lambda s: s[:-len('Int64)')] + 'Int32)'),
+            ('LAPACKE_zgelsy', lambda s: s.replace('Float64, Ptr{Int64}', 'Ref{Float64}, Ptr{Int64}')),
+            ('LAPACKE_zgelsy_work', lambda s: s[:-len('Ptr{Float64})')] + 'Ptr{ComplexF64})'),
+            ('LAPACKE_dgelss_work', lambda s: s[:-1] + ', Ptr{Int64})'),
+            ('LAPACKE_dgelsd_work', lambda s: s[:-len('Ptr{Int64})')] + 'Ptr{Int32})'),
+            ('LAPACKE_zgelsd_work', lambda s: s.replace(', Ptr{Float64}, Ptr{Int64})', ', Ptr{ComplexF64}, Ptr{Int64})')),
             ('LAPACKE_dormrz_work', lambda s: s.replace('Int64, Int64, Int64, Int64', 'Int64, Int64, Int64, Int32', 1)),
             ('LAPACKE_zunmrz', lambda s: s.replace('Int8, Int8', 'Int8, Int32', 1)),
             ('LAPACKE_ztzrzf_work', lambda s: s.replace('Ptr{ComplexF64}', 'Ptr{Float64}')),
@@ -405,7 +443,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 388)
+        self.assertEqual(len(lapacke_rows(rows)), 420)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))
