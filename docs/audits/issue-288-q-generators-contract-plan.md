@@ -66,3 +66,10 @@ Explicit outer braces now delimit the independent C initialization loops for
 GCC -Werror portability; both C runner checks pass again. The incoming parent
 fix also consumes QL/RQ diagnostic state between boundary cases. These test
 fixes must precede this candidate full-suite freeze.
+
+Optimized repetition after all C portability and diagnostic-isolation fixes
+passes the numerical, policy, independent C and all 1040 typed observations
+with 5206 gate checks. Optimized DLL SHA-256:
+`b2deaef4792bc5210984dd85a675c004ac792752aebd6abec81980efe11ba926`.
+Registration is 1742 forwards per integer ABI. The source is being frozen for
+full package validation; no full-suite proof is claimed for this candidate.
