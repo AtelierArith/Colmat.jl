@@ -1,7 +1,7 @@
 # Issue #288: compact QR C adapters
 
-Status: canonical scope and primary contract investigation; implementation
-and full-suite evidence pending. Issue #288 remains open.
+Status: adapters and initial numerical interoperability checks implemented;
+policy, independent C ABI and immutable full-suite evidence pending. Issue #288 remains open.
 
 The canonical inventory contains 32 high/work entries for S/D/C/Z GEQRT,
 GEQRT2, GEQRT3 and GEMQRT. It contains no GELQT/GELQT3/GEMLQT C entries.
@@ -78,3 +78,17 @@ claim full-suite proof. Normal tests use independent GEQRT2 as the empty-case
 oracle for GEQRT3 and still test every own GEQRT3 empty entry. The reference
 crash is not executed inside the package suite. Nonempty GEQRT3 comparisons
 remain against the actual reference routine.
+
+The own C adapters now pack logical V as Q-order-by-K and T as NB-by-K,
+using derived column-major strides. Row-major T requires LDT>=max(NB,K):
+NB preserves the reference header minimum while K prevents overlapping
+logical row storage. High GEMQRT allocates NB times the side-dependent
+workspace dimension (N for left, M for right).
+
+Debug numerical checks pass 150000 factor/consumer assertions and 32256
+rectangular application assertions. They cover all four scalar types, both
+integer ABIs, layouts, high/work and DLL/LBT routes; left/right application,
+transpose/conjugate transpose, empty and K=0 cases, and NaN padding with
+immutable V/T. Independent OpenBLAS factors and block consumers establish
+both directions of interoperability. These are focused checks only; no
+full-suite proof or merged-main coverage is claimed for this stage.

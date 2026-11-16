@@ -3,6 +3,7 @@
 //! Layout is always C int; dimensions, pivots and returned INFO follow lapack_int.
 use crate::kernels::Scalar;
 mod cholesky;
+mod compact_qr;
 mod general_eigen;
 mod general_expert;
 mod lauum;

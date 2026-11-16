@@ -97,6 +97,10 @@ def validate_lapacke_signature(row, witness):
         'potrf2': ['Int32', 'Int8', integer, t, integer],
         'potri': ['Int32', 'Int8', integer, t, integer],
         'lauum': ['Int32', 'Int8', integer, t, integer],
+        'geqrt': ['Int32', integer, integer, integer, t, integer, t, integer],
+        'geqrt2': ['Int32', integer, integer, t, integer, t, integer],
+        'geqrt3': ['Int32', integer, integer, t, integer, t, integer],
+        'gemqrt': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, integer, t, integer],
         'geqrf': ['Int32', integer, integer, t, integer, t],
         'geqrfp': ['Int32', integer, integer, t, integer, t],
         'geqr2': ['Int32', integer, integer, t, integer, t],
@@ -151,6 +155,8 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t, integer]
     if row['family'] in ('ormqr', 'unmqr', 'ormlq', 'unmlq', 'ormql', 'unmql', 'ormrq', 'unmrq') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
+    if row['family'] in ('geqrt', 'gemqrt') and row['symbol'].endswith('_work'):
+        expected = expected + [t]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
     if row['family'] == 'geev' and row['symbol'].endswith('_work'):
