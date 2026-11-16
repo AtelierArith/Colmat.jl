@@ -4,6 +4,7 @@
 use crate::kernels::Scalar;
 mod cholesky;
 mod self_adjoint;
+mod self_adjoint_range;
 mod svd;
 mod symmetric_rank;
 

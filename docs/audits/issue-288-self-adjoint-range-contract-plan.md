@@ -1,8 +1,8 @@
 # Issue 288: SYEVR / HEEVR contract preparation
 
-Status: initial Fortran boundary correction and regression checks pass.
-C range adapters, independent C ABI checks, optimized release and full-suite
-evidence remain pending. The preceding 124-entry candidate passed its immutable full package run and
+Status: initial Fortran correction, C adapters and numerical/C ABI checks pass.
+Completed-call tracing, optimized release and immutable full-suite evidence
+remain pending. The preceding 124-entry candidate passed its immutable full package run and
 is under review in PR #384. Issue #288 remains open.
 
 Planned scope: eight S/D SYEVR and C/Z HEEVR high/work names, both integer
@@ -73,3 +73,32 @@ precision/scale guard checks and a guarded wide-driver conversion test.
 
 This checkpoint does not expose any additional LAPACKE range names and does not
 qualify the remaining original acceptance scope as complete.
+
+
+## Initial LAPACKE range adapter checks
+
+The eight high/work names now export both integer ABIs. VL/VU/ABSTOL follow
+real scalar by-value C declarations, with C-int layout, C-char flags and
+integer-width-specific M/ISUPPZ outputs and INFO returns. High-level NaN checks
+follow reference order: selected A (-6), ABSTOL (-12), and range-V-only VL/VU
+(-8/-9). Work queries in any length return without reading A or changing M.
+
+Row-major A conversion reads and writes only the selected triangle. Z copying
+uses the returned M columns, with the reference scalar quick-return exception
+that writes Z=1 even when its eigenvalue is excluded. Unlike the reference
+wrapper's predicted-width copy, unused temporary columns are not read or copied.
+This deliberately preserves unused caller columns and permits a null Z when
+N>1 selects M=0. N=1/JOBZ=V still requires its scalar output storage.
+
+The independent C11 worker registers separately resolved OpenBLAS wide drivers
+through the public saved-backend hooks. It passes both integer widths, both
+layouts, upper/lower/lowercase flags, N/V jobs, A/I/V ranges, scalar/empty calls,
+M=0/null unused output, exact header and NaN diagnostics, partial workspace
+queries, guarded integer outputs and ILP64 arguments above 32-bit range.
+Its Julia runner passes two checks.
+
+The direct-DLL and actual-LBT Julia suite passes 148,904 numerical checks,
+against independently resolved OpenBLAS range results. It includes endpoints,
+positive ABSTOL, poisoned unused storage, scalar output semantics, and ignored
+imaginary diagonal NaNs in work calls. The separate Fortran regression suite
+passes 15,752 checks. These are focused checks, not a full-suite artifact.

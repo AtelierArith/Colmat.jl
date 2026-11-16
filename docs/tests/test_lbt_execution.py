@@ -161,6 +161,10 @@ class ExecutionEvidenceTests(unittest.TestCase):
             'LAPACKE_dsyevd_work': ('syevd', 'd', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{Float64}}, {j}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, {j})'),
             'LAPACKE_zheevd': ('heevd', 'z', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}})'),
             'LAPACKE_zheevd_work': ('heevd', 'z', lambda j: f'(Int32, Int8, Int8, {j}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, {j})'),
+            'LAPACKE_dsyevr': ('syevr', 'd', lambda j: f'(Int32, Int8, Int8, Int8, {j}, Ptr{{Float64}}, {j}, Float64, Float64, {j}, {j}, Float64, Ptr{{{j}}}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{{j}}})'),
+            'LAPACKE_dsyevr_work': ('syevr', 'd', lambda j: f'(Int32, Int8, Int8, Int8, {j}, Ptr{{Float64}}, {j}, Float64, Float64, {j}, {j}, Float64, Ptr{{{j}}}, Ptr{{Float64}}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, {j})'),
+            'LAPACKE_zheevr': ('heevr', 'z', lambda j: f'(Int32, Int8, Int8, Int8, {j}, Ptr{{ComplexF64}}, {j}, Float64, Float64, {j}, {j}, Float64, Ptr{{{j}}}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{{j}}})'),
+            'LAPACKE_zheevr_work': ('heevr', 'z', lambda j: f'(Int32, Int8, Int8, Int8, {j}, Ptr{{ComplexF64}}, {j}, Float64, Float64, {j}, {j}, Float64, Ptr{{{j}}}, Ptr{{Float64}}, Ptr{{ComplexF64}}, {j}, Ptr{{{j}}}, Ptr{{ComplexF64}}, {j}, Ptr{{Float64}}, {j}, Ptr{{{j}}}, {j})'),
         }
         for symbol, (family, scalar, signature) in declarations.items():
             self.rows.append(dict(symbol=symbol, interface='LAPACKE', family=family, scalar=scalar,
@@ -225,6 +229,8 @@ class ExecutionEvidenceTests(unittest.TestCase):
             ('LAPACKE_dgesdd_work', lambda s: s.replace('Ptr{Int64}', 'Ptr{Float64}')),
             ('LAPACKE_zheevd_work', lambda s: s.replace('Ptr{Int64}', 'Ptr{Int32}')),
             ('LAPACKE_zheevd_work', lambda s: s.replace(', Ptr{Float64}, Int64, Ptr{Int64}', ', Ptr{ComplexF64}, Int64, Ptr{Int64}')),
+            ('LAPACKE_zheevr', lambda s: s.replace(', Float64, Float64,', ', ComplexF64, Float64,')),
+            ('LAPACKE_zheevr_work', lambda s: s.replace('Ptr{Int64}', 'Ptr{Int32}')),
         ):
             data=copy.deepcopy(self.data)
             index=next(i for i,w in enumerate(data['witnesses']) if w['symbol']==symbol and w['bits']==64)
@@ -256,7 +262,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         executed, data = load_execution(root, rows, native)
         self.assertEqual(len(lapack_rows(rows)), 1106)
         self.assertEqual(len(cblas_rows(rows)), 172)
-        self.assertEqual(len(lapacke_rows(rows)), 124)
+        self.assertEqual(len(lapacke_rows(rows)), 132)
         self.assertEqual(len(executed), 1278 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))
