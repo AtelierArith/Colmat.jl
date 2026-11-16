@@ -2,7 +2,7 @@
 
 Status: all 32 C entries are drafted. Debug numerical, policy, independent C
 caller and typed DLL/LBT checks pass in debug and optimized builds. Immutable
-full-suite proof remains pending. Issue #288 remains open.
+full-suite proof passes; publication checks and final CI/main integration remain pending. Issue #288 remains open.
 
 The canonical inventory contains 32 S/D/C/Z high/work TPQRT, TPQRT2, TPMQRT
 and TPRFB names. Following the 356-name RZ candidate this would reach 388
@@ -105,3 +105,12 @@ completed observations, with 7766 gate assertions. Exact 330-source map,
 optimized DLL hash and log/evidence digests are recorded in
 issue-288-pentagonal-optimized-focused.json. The source is being frozen for
 immutable full Pkg.test; no full-suite proof is claimed for this stage.
+
+Immutable full Pkg.test(allow_reresolve=false) passes at
+d5a996aed69380855f005ca4b2f6a27ba7ec520c. All 330 source hashes,
+manifest, registration and optimized DLL remain unchanged. Imported evidence
+validates 1106 Fortran LAPACK, 172 CBLAS and 388 LAPACKE entries with 6123
+completed witnesses and 1870 forwards per ABI. Exact source/library/log/TOML
+provenance is in issue-288-pentagonal-full-provenance.json. Earlier pending-full
+statements are superseded by this result. Publication checks and final PR CI
+remain required, after preceding candidates merge.
