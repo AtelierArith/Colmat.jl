@@ -104,3 +104,11 @@ The MWE now has exactly real diagonals matching OpenBLAS to rounding error.
 Focused numerical checks pass 159600 factor assertions (including real R
 diagonals) plus 32256 rectangular application and 1040 boundary assertions.
 Rust 460 tests pass after this correction. Full immutable evidence is pending.
+
+Optimized repetition passes the same 191856 numerical, 1040 policy, independent
+C caller and 6486 completed-call gate checks. Typed tracing covers all 324
+candidate names with 1296 completed ABI/route observations and explicitly
+records full_suite_passed=false. The optimized DLL SHA-256 is
+23ee0b32576db80489f651ce99d16dd44997f1de39169a3cfa43c6bfe6b487b1.
+Normal main/parent integration preserves all 312 execution-source hashes.
+A fresh full package run remains required before publishing this scope.
