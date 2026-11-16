@@ -1,8 +1,8 @@
 # Issue 288: SYEV / HEEV candidate contracts
 
 Status: initial implementation, independent C callers and OpenBLAS comparisons
-through both actual DLL/LBT routes pass. Completed-call tracing, optimized
-release, immutable full-suite evidence and platform CI remain pending. Issue #288
+through both actual DLL/LBT routes pass. Completed-call tracing and optimized
+release checks pass; immutable full-suite evidence and platform CI remain pending. Issue #288
 remains open.
 
 This candidate adds eight canonical names: S/D SYEV and C/Z HEEV, each high
@@ -74,3 +74,13 @@ same eigenvalues as OpenBLAS. All 38,600 Julia numerical checks pass, including
 imaginary-only diagonal NaNs in complex work entries, both layouts, N=0/1/3,
 upper/lower and lowercase flags, and both integer ABIs. Independent C runners
 pass two checks; the full Rust suite passes 416 tests; 17 evidence fixtures pass.
+
+
+Focused tracing independently validates all 116 current numerical LAPACKE names
+and all 464 ABI/route observations. The completed-call gate passes 2,326 checks.
+The optimized release repeats the C worker and all numerical checks, including
+the Hermitian diagonal regression. Registration is 1,598 forwards for each ABI.
+Focused artifacts remain explicitly non-full-suite results. The successful
+108-entry snapshot is backed up and retained as stale candidate evidence until
+a new immutable full suite validates all 257 current production/test/worker
+sources, the manifest, registration and optimized DLL.
