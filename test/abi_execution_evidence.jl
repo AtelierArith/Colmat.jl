@@ -262,7 +262,7 @@ function finalize()
     end
     @testset "Actual LAPACK foreign-call evidence" begin
         @test isempty(errors)
-        @test length(expected)==1110
+        @test length(expected)==1120
         for bits in (32, 64)
             executed=Set(e[1] for e in witnesses if e[2]==bits)
             missing=setdiff(expected, executed)

@@ -327,6 +327,20 @@ function load_backend(; verbose::Bool=false)
                 "Colmat Schur eigenvectors require an existing ILP64 LAPACK backend; configure one before loading Colmat.",
             )
         end
+        # BDSDC COMPQ='P' compact output has no public native representation.
+        # Retain the original ILP64 driver for that mode only.
+        register_bdsdc = Libdl.dlsym(_handle[], :colmat_bdsdc_set_fallback)
+        has_bdsdc = Libdl.dlsym(_handle[], :colmat_bdsdc_has_fallback)
+        for (id, symbol) in enumerate(("sbdsdc_", "dbdsdc_"))
+            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+            if previous !== nothing && realpath(previous.libname) != realpath(path)
+                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+                ccall(register_bdsdc, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
+            end
+            ccall(has_bdsdc, Cint, (Cint,), id - 1) != 0 || error(
+                "Colmat BDSDC compact mode requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
+            )
+        end
         register_schur_expert = Libdl.dlsym(_handle[], :colmat_schur_expert_set_fallback)
         has_schur_expert = Libdl.dlsym(_handle[], :colmat_schur_expert_has_fallback)
         for (id, symbol) in enumerate((
