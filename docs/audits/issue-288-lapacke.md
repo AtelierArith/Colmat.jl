@@ -1,13 +1,15 @@
 # Issue #288: implemented LAPACKE numerical subset
 
-The current candidate connects **452 original-scope canonical numerical entries**,
-including the 32 GGQRF/GGRQF/GGLSE/GGGLM high/work entries. Its immutable full
-suite validates 343 source files, 1730 canonical entries and 6395 completed
-witnesses, with 1934 registered forwards per integer ABI.
-See [generalized QR contracts and evidence](issue-288-generalized-qr-contract-plan.md).
+The current candidate connects **476 original-scope canonical numerical entries**,
+including the 32 GGQRF/GGRQF/GGLSE/GGGLM high/work entries and 24
+LACPY/LASET/LASWP high/work entries. Its immutable full suite validates 347
+source files, 1754 canonical entries and 6491 completed witnesses, with 1958
+registered forwards per integer ABI.
+See [generalized QR contracts and evidence](issue-288-generalized-qr-contract-plan.md)
+and [matrix auxiliary contracts](issue-288-matrix-aux-contract-plan.md).
 
 **Issue #288 remains open.** Its original 1,616-entry acceptance scope is frozen
-in `issue-288-lapacke-scope.json`; 1,164 of those entries remain beyond this stage.
+in `issue-288-lapacke-scope.json`; 1,140 of those entries remain beyond this stage.
 Issue #372 additionally coordinates 20 LAPACKE Rook entries with #288. Those
 additions are separate from the original scope and are also still pending.
 Registration alone, successful fallback computation and the current subset's
