@@ -1,8 +1,9 @@
 # Issue #288: LASCL C contracts
 
 Status: the 8 S/D/C/Z high/work entries pass focused type, layout, diagnostic
-and independent-call checks. The immutable full suite is recorded in
-`docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+and independent-call checks. The immutable full suite records 373 sources,
+1,888 canonical entries and 6,999 witnesses (2,092 forwards per integer ABI).
+Issue #288 remains open.
 
 ## Connected names
 
