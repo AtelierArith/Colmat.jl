@@ -10,9 +10,15 @@ for (T, R) in ((Float32, Float32), (Float64, Float64), (ComplexF32, Float32), (C
         lapacke288_selected_entry(name, $J, route) do
             work = fill($T(NaN), max(1, n))
             if $T <: Complex
-                ccall(pointer, $J,
-                    (Cint, Cchar, $J, Ptr{$T}, $J, Ptr{$T}, $J, $J, $J),
-                    layout, compq, n, t, ldt, q, ldq, ifst, ilst)
+                if high
+                    ccall(pointer, $J,
+                        (Cint, Cchar, $J, Ptr{$T}, $J, Ptr{$T}, $J, $J, $J),
+                        layout, compq, n, t, ldt, q, ldq, ifst, ilst)
+                else
+                    ccall(pointer, $J,
+                        (Cint, Cchar, $J, Ptr{$T}, $J, Ptr{$T}, $J, $J, $J, Ptr{$T}),
+                        layout, compq, n, t, ldt, q, ldq, ifst, ilst, work)
+                end
             elseif high
                 fst = Ref{$J}(ifst); lst = Ref{$J}(ilst)
                 ccall(pointer, $J,
