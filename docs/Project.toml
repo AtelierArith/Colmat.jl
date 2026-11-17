@@ -2,6 +2,7 @@
 Colmat = "dcd86e8a-e18c-4a45-9bc6-b65a8e7b2bd3"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterVitepress = "4710194d-e776-4893-9690-8d956a29c365"
+RustToolChain = "e9dc52e2-edb8-4742-9783-5e542d30dbb5"
 
 [compat]
 Documenter = "1.11"
