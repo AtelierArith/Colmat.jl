@@ -5,40 +5,68 @@ for (T, R) in ((Float32, Float32), (Float64, Float64), (ComplexF32, Float32), (C
     J in (Int32, Int64)
     @eval function lapacke_norm_call_lansy(
         ::Type{$T}, ::Type{$J}, pointer, layout, norm, uplo, n, a, lda, work,
-        name, route,
+        name, route, high=false,
     )
         lapacke288_selected_entry(name, $J, route) do
-            ccall(
-                pointer,
-                $R,
-                (Cint, Cchar, Cchar, $J, Ptr{$T}, $J, Ptr{$R}),
-                layout, norm, uplo, n, a, lda, work,
-            )
+            if high
+                ccall(
+                    pointer,
+                    $R,
+                    (Cint, Cchar, Cchar, $J, Ptr{$T}, $J),
+                    layout, norm, uplo, n, a, lda,
+                )
+            else
+                ccall(
+                    pointer,
+                    $R,
+                    (Cint, Cchar, Cchar, $J, Ptr{$T}, $J, Ptr{$R}),
+                    layout, norm, uplo, n, a, lda, work,
+                )
+            end
         end
     end
     @eval function lapacke_norm_call_lantr(
         ::Type{$T}, ::Type{$J}, pointer, layout, norm, uplo, diag, m, n, a,
-        lda, work, name, route,
+        lda, work, name, route, high=false,
     )
         lapacke288_selected_entry(name, $J, route) do
-            ccall(
-                pointer,
-                $R,
-                (Cint, Cchar, Cchar, Cchar, $J, $J, Ptr{$T}, $J, Ptr{$R}),
-                layout, norm, uplo, diag, m, n, a, lda, work,
-            )
+            if high
+                ccall(
+                    pointer,
+                    $R,
+                    (Cint, Cchar, Cchar, Cchar, $J, $J, Ptr{$T}, $J),
+                    layout, norm, uplo, diag, m, n, a, lda,
+                )
+            else
+                ccall(
+                    pointer,
+                    $R,
+                    (Cint, Cchar, Cchar, Cchar, $J, $J, Ptr{$T}, $J, Ptr{$R}),
+                    layout, norm, uplo, diag, m, n, a, lda, work,
+                )
+            end
         end
     end
     @eval function lapacke_norm_call_dense(
         ::Type{$T}, ::Type{$J}, pointer, layout, norm, m, n, a, lda, work, name, route,
+        high=false,
     )
         lapacke288_selected_entry(name, $J, route) do
-            ccall(
-                pointer,
-                $R,
-                (Cint, Cchar, $J, $J, Ptr{$T}, $J, Ptr{$R}),
-                layout, norm, m, n, a, lda, work,
-            )
+            if high
+                ccall(
+                    pointer,
+                    $R,
+                    (Cint, Cchar, $J, $J, Ptr{$T}, $J),
+                    layout, norm, m, n, a, lda,
+                )
+            else
+                ccall(
+                    pointer,
+                    $R,
+                    (Cint, Cchar, $J, $J, Ptr{$T}, $J, Ptr{$R}),
+                    layout, norm, m, n, a, lda, work,
+                )
+            end
         end
     end
 end
@@ -141,17 +169,17 @@ end
         result = if family == "lange"
             lapacke_norm_call_dense(
                 T, J, pointer, layout, norm, m, n, A, ld, work,
-                name, route,
+                name, route, high,
             )
         elseif family == "lansy"
             lapacke_norm_call_lansy(
                 T, J, pointer, layout, norm, uplo, n, A, ld, work,
-                name, route,
+                name, route, high,
             )
         else
             lapacke_norm_call_lantr(
                 T, J, pointer, layout, norm, uplo, diag, m, n, A, ld, work,
-                name, route,
+                name, route, high,
             )
         end
         @test isapprox(result, expected; rtol=50 * eps(R0), atol=50 * eps(R0))
@@ -189,16 +217,16 @@ end
             ld = arg == :ld ? 1 : 4
             result = if family == "lange"
                 lapacke_norm_call_dense(
-                    T, J, pointer, 101, 'M', 3, 3, data, ld, work, name, :dll
+                    T, J, pointer, 101, 'M', 3, 3, data, ld, work, name, :dll, high
                 )
             elseif family == "lansy"
                 lapacke_norm_call_lansy(
-                    T, J, pointer, 101, 'M', 'U', 3, data, ld, work, name, :dll
+                    T, J, pointer, 101, 'M', 'U', 3, data, ld, work, name, :dll, high
                 )
             else
                 lapacke_norm_call_lantr(
                     T, J, pointer, 101, 'M', 'U', 'N', 3, 3, data, ld, work,
-                    name, :dll,
+                    name, :dll, high,
                 )
             end
             @test result == expected
@@ -208,16 +236,16 @@ end
             pointer = Libdl.dlsym(native, name * suffix)
             result = if family == "lange"
                 lapacke_norm_call_dense(
-                    T, J, pointer, 301, 'M', 3, 3, A, 3, work, name, :dll
+                    T, J, pointer, 301, 'M', 3, 3, A, 3, work, name, :dll, true
                 )
             elseif family == "lansy"
                 lapacke_norm_call_lansy(
-                    T, J, pointer, 301, 'M', 'U', 3, A, 3, work, name, :dll
+                    T, J, pointer, 301, 'M', 'U', 3, A, 3, work, name, :dll, true
                 )
             else
                 lapacke_norm_call_lantr(
                     T, J, pointer, 301, 'M', 'U', 'N', 3, 3, A, 3, work,
-                    name, :dll,
+                    name, :dll, true,
                 )
             end
             @test result == -1.0
