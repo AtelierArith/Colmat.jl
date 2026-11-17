@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "5f147aba55543cc5c29f4827c52786b4aee8afd9da8be537be725a6bc7d3bb63",
+  "inventory_registration_sha256": "46dca0dd131d3f23f8eb625df0ce60dda01ffb7a473a54f98a6bee46fc1bbb79",
   "lapacke_target_symbols": [
     "LAPACKE_cgeev",
     "LAPACKE_cgeev_work",
@@ -111,6 +111,8 @@
     "LAPACKE_ctpqrt_work",
     "LAPACKE_ctprfb",
     "LAPACKE_ctprfb_work",
+    "LAPACKE_ctrevc",
+    "LAPACKE_ctrevc_work",
     "LAPACKE_ctrtri",
     "LAPACKE_ctrtri_work",
     "LAPACKE_ctrtrs",
@@ -283,6 +285,8 @@
     "LAPACKE_dtpqrt_work",
     "LAPACKE_dtprfb",
     "LAPACKE_dtprfb_work",
+    "LAPACKE_dtrevc",
+    "LAPACKE_dtrevc_work",
     "LAPACKE_dtrtri",
     "LAPACKE_dtrtri_work",
     "LAPACKE_dtrtrs",
@@ -425,6 +429,8 @@
     "LAPACKE_stpqrt_work",
     "LAPACKE_stprfb",
     "LAPACKE_stprfb_work",
+    "LAPACKE_strevc",
+    "LAPACKE_strevc_work",
     "LAPACKE_strtri",
     "LAPACKE_strtri_work",
     "LAPACKE_strtrs",
@@ -539,6 +545,8 @@
     "LAPACKE_ztpqrt_work",
     "LAPACKE_ztprfb",
     "LAPACKE_ztprfb_work",
+    "LAPACKE_ztrevc",
+    "LAPACKE_ztrevc_work",
     "LAPACKE_ztrtri",
     "LAPACKE_ztrtri_work",
     "LAPACKE_ztrtrs",
@@ -576,7 +584,7 @@
     "LAPACKE_zunmtr",
     "LAPACKE_zunmtr_work"
   ],
-  "library_sha256": "f2a138fa190299fbc2fe7a9b4e86297b1201009924f478f093acd219ee429245",
+  "library_sha256": "11b42e101c20bf8f57183a59f702d1584b4749b74e8787803925952e2563b28d",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -654,7 +662,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "c05d119231f14825a252a5f28a38674cb59f5098",
+  "revision": "4b0e38e1de903e74ca43c0ebd0254c28e4a13177",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -5149,6 +5157,86 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
       "file": "test/lapacke_pentagonal_application.jl",
       "symbol": "LAPACKE_ctprfb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Int32, Ptr{Int32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ctrevc",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Int32, Ptr{Int32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ctrevc",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Int64, Ptr{Int64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ctrevc",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Int64, Ptr{Int64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ctrevc",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 22,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Int32, Ptr{Int32}, Ptr{ComplexF32}, Ptr{Float32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ctrevc_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 22,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Int32, Ptr{Int32}, Ptr{ComplexF32}, Ptr{Float32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ctrevc_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 22,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Int64, Ptr{Int64}, Ptr{ComplexF32}, Ptr{Float32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ctrevc_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 22,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Int64, Ptr{Int64}, Ptr{ComplexF32}, Ptr{Float32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ctrevc_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -12053,6 +12141,86 @@
       "integer_arguments": true
     },
     {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Int32, Ptr{Int32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_dtrevc",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Int32, Ptr{Int32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_dtrevc",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Int64, Ptr{Int64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_dtrevc",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Int64, Ptr{Int64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_dtrevc",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Int32, Ptr{Int32}, Ptr{Float64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_dtrevc_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Int32, Ptr{Int32}, Ptr{Float64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_dtrevc_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Int64, Ptr{Int64}, Ptr{Float64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_dtrevc_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Int64, Ptr{Int64}, Ptr{Float64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_dtrevc_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 8,
       "return_type": "Int32",
       "route": "dll",
@@ -17733,6 +17901,86 @@
       "integer_arguments": true
     },
     {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Int32, Ptr{Int32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_strevc",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Int32, Ptr{Int32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_strevc",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Int64, Ptr{Int64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_strevc",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Int64, Ptr{Int64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_strevc",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Int32, Ptr{Int32}, Ptr{Float32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_strevc_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Int32, Ptr{Int32}, Ptr{Float32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_strevc_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Int64, Ptr{Int64}, Ptr{Float32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_strevc_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Int64, Ptr{Int64}, Ptr{Float32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_strevc_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 8,
       "return_type": "Int32",
       "route": "dll",
@@ -22289,6 +22537,86 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
       "file": "test/lapacke_pentagonal_application.jl",
       "symbol": "LAPACKE_ztprfb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Int32, Ptr{Int32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ztrevc",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Int32, Ptr{Int32})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ztrevc",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Int64, Ptr{Int64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ztrevc",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Int64, Ptr{Int64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ztrevc",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 22,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Int32, Ptr{Int32}, Ptr{ComplexF64}, Ptr{Float64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ztrevc_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 22,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int32}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Int32, Ptr{Int32}, Ptr{ComplexF64}, Ptr{Float64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ztrevc_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 22,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Int64, Ptr{Int64}, Ptr{ComplexF64}, Ptr{Float64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ztrevc_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 22,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Int64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Int64, Ptr{Int64}, Ptr{ComplexF64}, Ptr{Float64})",
+      "file": "test/lapacke_schur_vectors.jl",
+      "symbol": "LAPACKE_ztrevc_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -69211,8 +69539,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "c804dc157b34d68ac651f09acdb36b0cc200592c68693f7989ccf8b087a0bb56",
-    "test/lapacke_execution_checks.jl": "2010cc68783218b1b76e5b4fb78705e8260f802ce9bb74f76278b27b33f73a8a",
+    "deps/rust/src/lapacke.rs": "545c1fe79669aa71f95e1e1dff3288adfe6346c934354e171fb949959a092144",
+    "test/lapacke_execution_checks.jl": "6dde77f0094c2503542f1e428d86296611bd1a1ebe8578ca9417e8de741be61e",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -69348,9 +69676,10 @@
     "deps/rust/src/lapacke/general_expert.rs": "55804c4441eb95b897804fdf162d5f554bd2564052ecbd6ce9157e4bd5e38f18",
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
-    "test/suite.jl": "3429bd4064faf17218559f8b684736b40bae7264100ea259a6a61ad1b6db8501",
+    "test/suite.jl": "8a607d6b481dfac23721e1b35c7aac52a6bd0153c1395ddaa51104f09499a617",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
+    "test/lapacke_schur_vectors.jl": "7ae0a51626afb3a06c02fb822d9e132df7d292ba4afb738d1d8a32ebc44d086f",
     "deps/rust/src/lapacke/general_eigen.rs": "024240192e037e6aebcfea38862c357b41b444bf552dc0d424ffbf0107f67f12",
     "deps/rust/src/matrix_extensions.rs": "ada3f05cd72ad5c1965b58fcd9ff7070d2e03b3a1f81a834b6d02d35de284050",
     "deps/rust/src/bidiagonal.rs": "6a9d35d2c6b05769d0e994b1d3c8ac1fda21183c65bad00d8ac4459839ddadde",
@@ -69399,6 +69728,7 @@
     "deps/rust/src/selfadjoint_vectors.rs": "0c909a0cbc72319cd2784578400f0131287b29ed8cc68de84fb0ed8418ad337d",
     "test/lapacke_positive_qr_abi.jl": "caead8ba5431bae486372a7bfb5b0fff28b1a5a4f8db73eec04ac6eca2203fb5",
     "test/schur_vectors_contracts.jl": "6ee440bb3a80fb2067825f6d598bdce54466dbbb08020f8492cbdf4907a0e799",
+    "deps/rust/src/lapacke/schur_vectors.rs": "313d045b833eedc7d6388604b8376ee7dd09ddf76a76248ca6ffdac31c801d05",
     "test/lapacke_general_eigen.jl": "6457a9ded5ad07170a5d5a34ae1f6091138779c50792a5a25b769dcb860f8a1a",
     "test/reverse_qr.jl": "93d30090108f1bdea6a4ca76c6394a75673ef1623448c5a44751a564883a0039",
     "test/structured_triangular.jl": "3c33d341d81e7c94916e8be71b8e25392ea1c839f9baa7fbcce371c5aec244fe",
