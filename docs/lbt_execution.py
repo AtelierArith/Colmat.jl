@@ -110,6 +110,14 @@ def validate_lapacke_signature(row, witness):
         'ungtr': ['Int32', 'Int8', integer, t, integer, t],
         'ormtr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer, t, t, integer],
         'unmtr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer, t, t, integer],
+        'orgbr': ['Int32', 'Int8', integer, integer, integer, t, integer, t],
+        'ungbr': ['Int32', 'Int8', integer, integer, integer, t, integer, t],
+        'orghr': ['Int32', integer, integer, integer, t, integer, t],
+        'unghr': ['Int32', integer, integer, integer, t, integer, t],
+        'ormbr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'unmbr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, integer, t, integer, t, t, integer],
+        'ormhr': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
+        'unmhr': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
         'ggrqf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
@@ -203,7 +211,7 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
-    if row['family'] in ('orgtr', 'ungtr', 'ormtr', 'unmtr') and row['symbol'].endswith('_work'):
+    if row['family'] in ('orgtr', 'ungtr', 'ormtr', 'unmtr', 'orgbr', 'ungbr', 'orghr', 'unghr', 'ormbr', 'unmbr', 'ormhr', 'unmhr') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
     if row['family'] in ('lange', 'lansy', 'lantr') and row['symbol'].endswith('_work'):
         expected = expected + [real]
