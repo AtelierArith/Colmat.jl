@@ -24,6 +24,7 @@ mod reverse_qr;
 mod rz;
 mod self_adjoint;
 mod self_adjoint_range;
+mod selfadjoint_vectors;
 mod svd;
 mod symmetric_rank;
 mod triangular;

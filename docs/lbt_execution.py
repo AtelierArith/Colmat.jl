@@ -106,6 +106,10 @@ def validate_lapacke_signature(row, witness):
         'lantr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer],
         'lapmr': ['Int32', integer, integer, integer, t, integer, pivot],
         'lapmt': ['Int32', integer, integer, integer, t, integer, pivot],
+        'orgtr': ['Int32', 'Int8', integer, t, integer, t],
+        'ungtr': ['Int32', 'Int8', integer, t, integer, t],
+        'ormtr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer, t, t, integer],
+        'unmtr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer, t, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
         'ggrqf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
@@ -198,6 +202,8 @@ def validate_lapacke_signature(row, witness):
     if row['family'] in ('geqrt', 'gemqrt') and row['symbol'].endswith('_work'):
         expected = expected + [t]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
+        expected = expected + [t, integer]
+    if row['family'] in ('orgtr', 'ungtr', 'ormtr', 'unmtr') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
     if row['family'] in ('lange', 'lansy', 'lantr') and row['symbol'].endswith('_work'):
         expected = expected + [real]
