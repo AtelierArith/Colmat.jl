@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **1958**、ILP64 **1958** シンボルを登録します。
+現行 adapter は LP64 **1970**、ILP64 **1970** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -47,6 +47,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | TREXC / LAEXC / TRSEN / GEESX | native checked Schur moves・既存 GEES | 条件推定は保存した元の ILP64 routine。拒否時の index と全選択 SDIM、整数作業配列と callback の ABI を変換 |
 | TREVC / TREVC3 | public Schur eigenvectors・反転随伴・back-transform | SIDE L/R/B・HOWMNY A/B/S・実数対の SELECT/M と max-component 正規化。native 拒否は保存した元の LAPACK |
 | LACPY / LASET / LASWP | native LACPY/LASET/LASWP と直接 row-major 変換 | 論理矩形・選択三角だけを読み書き。LASWP は行全体を交換し、INCX<0 の Fortran 順序を保持 |
+| TGEVC | 既存 S/P Schur pencil からの固有ベクトル逆代入と Q/Z back-transform | LAPACK の保護付き小規模 solve を Rust 側に移植。SIDE L/R/B、HOWMNY A/S/B、実数共役対、無限固有値、max-component 正規化。C API は #288 |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |
 | SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |
 | SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |
@@ -837,7 +838,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `sygvx` / Fortran | `dsygvx_`, `ssygvx_` | [Cholesky + triangular congruence + self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続 |
 | `sygvx` / LAPACKE | `LAPACKE_dsygvx`, `LAPACKE_dsygvx_work`, `LAPACKE_ssygvx`, `LAPACKE_ssygvx_work` | [Cholesky + triangular congruence + self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `tgevc` / Fortran | `ctgevc_`, `dtgevc_`, `stgevc_`, `ztgevc_` | [gevd / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/mod.rs) | 一般化固有ベクトルはあるが既存 Schur pencil からの独立 helper の同一契約は未接続 |
-| `tgevc` / LAPACKE | `LAPACKE_ctgevc`, `LAPACKE_ctgevc_work`, `LAPACKE_dtgevc`, `LAPACKE_dtgevc_work`, `LAPACKE_stgevc`, `LAPACKE_stgevc_work`, `LAPACKE_ztgevc`, `LAPACKE_ztgevc_work` | [gevd / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/mod.rs) | 一般化固有ベクトルはあるが既存 Schur pencil からの独立 helper の同一契約は未接続; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `tgevc` / LAPACKE | `LAPACKE_ctgevc`, `LAPACKE_ctgevc_work`, `LAPACKE_dtgevc`, `LAPACKE_dtgevc_work`, `LAPACKE_stgevc`, `LAPACKE_stgevc_work`, `LAPACKE_ztgevc`, `LAPACKE_ztgevc_work` | [gevd / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/mod.rs) | 一般化固有ベクトルはあるが既存 Schur pencil からの独立 helper の同一契約は未接続; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `tgsen` / Fortran | `ctgsen_`, `dtgsen_`, `stgsen_`, `ztgsen_` | [generalized reorder_schur / schur_eigenvalues_real / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。 |
 | `tgsen` / LAPACKE | `LAPACKE_ctgsen`, `LAPACKE_ctgsen_work`, `LAPACKE_dtgsen`, `LAPACKE_dtgsen_work`, `LAPACKE_stgsen`, `LAPACKE_stgsen_work`, `LAPACKE_ztgsen`, `LAPACKE_ztgsen_work` | [generalized reorder_schur / schur_eigenvalues_real / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `trsen` / Fortran | `ctrsen_`, `dtrsen_`, `strsen_`, `ztrsen_` | [Schur と reorder_schur](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 8 Fortran シンボル・4型・両 ABI を接続済み。TRSEN JOB=N は native Schur block move による安定選択、M、固有値抽出と Q 更新。GEESX SENSE=N は既存 native GEES 経路。交換拒否時の SDIM は移動済み prefix でなく全選択列数を返す（GEES 共通処理も修正）。S/SEP と RCONDE/RCONDV の公開 native API はなく、JOB/SENSE E/V/B は保存済み元の ILP64 routine に委譲する。LP64 IWORK/BWORK は書き込み済み slot だけ変換し、SELECT callback は thread-local guard で LOGICAL ABI を変換して入れ子呼び出し後に復元する。TRSEN は LWORK=-1 だけ、実数 GEESX は LWORK/LIWORK の collective query。内部所有行列/scratch を確保する。C ABI は別タスク。 |
@@ -1495,7 +1496,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,754 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 1,766 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.

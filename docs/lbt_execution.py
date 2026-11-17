@@ -100,6 +100,7 @@ def validate_lapacke_signature(row, witness):
         'lacpy': ['Int32', 'Int8', integer, integer, t, integer, t, integer],
         'laset': ['Int32', 'Int8', integer, integer, scalar, scalar, t, integer],
         'laswp': ['Int32', integer, t, integer, integer, integer, pivot, integer],
+        'tgevc': ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, integer, t, integer, integer, pivot],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
         'ggrqf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
