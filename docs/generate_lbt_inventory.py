@@ -161,6 +161,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| LANGE / LANSY / LANTR | native matrix norm、row-major 転置 view | M/1/O/I/F/E、対称/三角 storage、unit diag。戻り値は実数で INFO ではない |',
     '| BDSQR / BDSDC / BDSVDX / LASQ1 | native bidiagonal SVD と選択 | U/VT/C 適用、COMPQ N/I、RANGE A/V/I、昇順出力。BDSDC の compact P は保存した元の ILP64 LAPACK に委譲 |',
     '| LAPMR / LAPMT | native row/column permutation | row-major は論理矩形だけを変換。K と forward/backward を保持 |',
+    '| ORGTR/UNGTR・ORMTR/UNMTR | native 三重対角 Q の生成・適用 | row-major は選択三角を保持して論理矩形を変換。UPLO/SIDE/TRANS と lwork query を変換 |',
     '| TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |',
     '| SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |',
     '| SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |',
