@@ -12,6 +12,7 @@ mod lauum;
 mod least_squares;
 mod lq;
 mod matrix_aux;
+mod matrix_norms;
 mod pentagonal_qr;
 mod pivoted_qr;
 mod positive_qr;
