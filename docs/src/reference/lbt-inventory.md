@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **2076**、ILP64 **2076** シンボルを登録します。
+現行 adapter は LP64 **2084**、ILP64 **2084** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -54,6 +54,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | ORGTR/UNGTR・ORMTR/UNMTR | native 三重対角 Q の生成・適用 | row-major は選択三角を保持して論理矩形を変換。UPLO/SIDE/TRANS と lwork query を変換 |
 | ORGBR/ORMBR・ORGHR/ORMHR | native 二重対角/Hessenberg Q の生成・適用 | VECT/SIDE/TRANS/ILO/IHI と lwork query を変換。row-major は論理矩形のみ |
 | TREVC | native Schur 固有ベクトル | SIDE/HOWMNY/SELECT/M、実数共役対、row-major の論理矩形変換。C ABI は #288 |
+| TREXC | native Schur block move | COMPQ V/N、IFST/ILST、実数は pointer・複素数は値渡しの ABI 差を変換。C ABI は #288 |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |
 | SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |
 | SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |
@@ -162,7 +163,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `tgexc` / Fortran | `ctgexc_`, `dtgexc_`, `stgexc_`, `ztgexc_` | [generalized reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。public generalized reorder_schur の block swap/rejection と位置を Fortran index に変換し、S/T と要求された Q/Z の最終有効状態を返す。実数 1×1/2×2 と複素 1×1、実数 TGEXC query、query を持たない実数 TGEX2 の最小 WORK を扱う。内部行列・scratch を別途確保する。 |
 | `tgexc` / LAPACKE | `LAPACKE_ctgexc`, `LAPACKE_ctgexc_work`, `LAPACKE_dtgexc`, `LAPACKE_dtgexc_work`, `LAPACKE_stgexc`, `LAPACKE_stgexc_work`, `LAPACKE_ztgexc`, `LAPACKE_ztgexc_work` | [generalized reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。public generalized reorder_schur の block swap/rejection と位置を Fortran index に変換し、S/T と要求された Q/Z の最終有効状態を返す。実数 1×1/2×2 と複素 1×1、実数 TGEXC query、query を持たない実数 TGEX2 の最小 WORK を扱う。内部行列・scratch を別途確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `trexc` / Fortran | `ctrexc_`, `dtrexc_`, `strexc_`, `ztrexc_` | [reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 6 Fortran シンボル・TREXC は4型、LAEXC は実数2型・両整数 ABI を接続済み。公開 checked Schur move の1x1/2x2交換、任意の移動距離、Q 更新、実数 IFST/ILST の先頭行補正と最終位置、複素 index 入力の保持、拒否時の最後の成功状態を変換する。LAEXC のゼロ block quick return と固定 WORK を保持。所有 Schur 行列と必要な Q を確保する。C ABI は別タスク。 |
-| `trexc` / LAPACKE | `LAPACKE_ctrexc`, `LAPACKE_ctrexc_work`, `LAPACKE_dtrexc`, `LAPACKE_dtrexc_work`, `LAPACKE_strexc`, `LAPACKE_strexc_work`, `LAPACKE_ztrexc`, `LAPACKE_ztrexc_work` | [reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 6 Fortran シンボル・TREXC は4型、LAEXC は実数2型・両整数 ABI を接続済み。公開 checked Schur move の1x1/2x2交換、任意の移動距離、Q 更新、実数 IFST/ILST の先頭行補正と最終位置、複素 index 入力の保持、拒否時の最後の成功状態を変換する。LAEXC のゼロ block quick return と固定 WORK を保持。所有 Schur 行列と必要な Q を確保する。C ABI は別タスク。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `trexc` / LAPACKE | `LAPACKE_ctrexc`, `LAPACKE_ctrexc_work`, `LAPACKE_dtrexc`, `LAPACKE_dtrexc_work`, `LAPACKE_strexc`, `LAPACKE_strexc_work`, `LAPACKE_ztrexc`, `LAPACKE_ztrexc_work` | [reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 6 Fortran シンボル・TREXC は4型、LAEXC は実数2型・両整数 ABI を接続済み。公開 checked Schur move の1x1/2x2交換、任意の移動距離、Q 更新、実数 IFST/ILST の先頭行補正と最終位置、複素 index 入力の保持、拒否時の最後の成功状態を変換する。LAEXC のゼロ block quick return と固定 WORK を保持。所有 Schur 行列と必要な Q を確保する。C ABI は別タスク。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `trmm` / Fortran | `ctrmm_`, `dtrmm_`, `strmm_`, `ztrmm_` | [matmul / triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/mod.rs) | 形状・三角部分・共役・係数を変換する。 |
 | `trmm` / CBLAS | `cblas_ctrmm`, `cblas_dtrmm`, `cblas_strmm`, `cblas_ztrmm` | [matmul / triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/mod.rs) | 形状・三角部分・共役・係数を変換する。; C ABI connected for LP64/ILP64 with row/column-major and explicit enum/coefficient/return conversions; #271 tests DLL and LBT routes |
 | `trmv` / Fortran | `ctrmv_`, `dtrmv_`, `strmv_`, `ztrmv_` | [matmul / triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/mod.rs) | 形状・三角部分・共役・係数を変換する。 |
@@ -1502,7 +1503,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,872 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 1,880 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
