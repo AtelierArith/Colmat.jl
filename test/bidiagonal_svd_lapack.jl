@@ -254,3 +254,11 @@ end
         @test lasq1_call(T, J, -1, copy(d), copy(e)).info == -1
     end
 end
+
+# Invalid-argument probes above set the thread-local diagnostic. Consume it so
+# later tests that assert a clean diagnostic start from zero.
+ccall(
+    Libdl.dlsym(bds_library(), :colmat_blas_last_error),
+    Cint,
+    (),
+)
