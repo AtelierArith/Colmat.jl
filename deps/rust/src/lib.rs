@@ -81,6 +81,7 @@ mod structured_triangular;
 mod structured_triangular_lapack;
 mod structured_tridiagonal;
 mod symmetric_equilibration;
+mod tgevc;
 mod threading;
 mod triangular_lapack;
 mod triangular_product;

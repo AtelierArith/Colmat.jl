@@ -101,6 +101,7 @@ name = "colmat-blas"
 version = "0.2.0"
 dependencies = [
  "colmat",
+ "num-complex",
  "paste",
  "threadteam",
 ]

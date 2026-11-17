@@ -14,3 +14,4 @@ profile-general-evd = []
 colmat = { path = "../colmat-rs/faer", default-features = false, features = ["std", "rayon", "threadteam"] }
 threadteam = { version = "0.6.0", default-features = false, features = ["parallel"] }
 paste = "1.0"
+num-complex = { version = "0.4.6", default-features = false }
