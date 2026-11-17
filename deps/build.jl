@@ -19,18 +19,10 @@ const CARGO = let
         # rustc-wrapper settings from cargo config so broken wrappers do not
         # affect the build.
         if any(depot -> startswith(cmd.exec[1], joinpath(depot, "artifacts")), DEPOT_PATH)
-            setenv(
-                Cmd(vcat(
-                    cmd.exec,
-                    [
-                        "--config",
-                        "build.rustc-wrapper=\"\"",
-                        "--config",
-                        "build.rustc-workspace-wrapper=\"\"",
-                    ],
-                )),
-                cmd.env,
-            )
+            env = copy(cmd.env)
+            push!(env, "RUSTC_WRAPPER=")
+            push!(env, "RUSTC_WORKSPACE_WRAPPER=")
+            setenv(Cmd(cmd.exec), env)
         else
             cmd
         end
