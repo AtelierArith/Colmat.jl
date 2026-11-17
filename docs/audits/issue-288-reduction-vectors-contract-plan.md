@@ -1,8 +1,9 @@
 # Issue #288: ORGBR/ORMBR and ORGHR/ORMHR C contracts
 
 Status: the 32 S/D/C/Z high/work entries pass focused layout, diagnostic and
-independent-call checks. The immutable full suite is recorded in
-`docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+independent-call checks. The immutable full suite records 367 sources, 1,864
+canonical entries and 6,903 witnesses (2,068 forwards per integer ABI). Issue
+#288 remains open.
 
 ## Connected names
 
