@@ -1,8 +1,9 @@
 # Issue #288: ORGTR/UNGTR and ORMTR/UNMTR C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused layout, diagnostic and
-independent-call checks. The immutable full suite is recorded in
-`docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+independent-call checks. The immutable full suite records 365 sources, 1,832
+canonical entries and 6,775 witnesses (2,036 forwards per integer ABI). Issue
+#288 remains open.
 
 ## Connected names
 
