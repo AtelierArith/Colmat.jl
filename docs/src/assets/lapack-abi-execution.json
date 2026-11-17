@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "e33ea02f2b237ee1a89eaca6384677fe04359f539580cbb94e546cdea56b286a",
+  "inventory_registration_sha256": "da551b0dce7313beb6bcd61a8e43d3b237161392b02ff1db8658ec24ab3cc3ce",
   "lapacke_target_symbols": [
     "LAPACKE_cgeev",
     "LAPACKE_cgeev_work",
@@ -83,6 +83,8 @@
     "LAPACKE_clapmr_work",
     "LAPACKE_clapmt",
     "LAPACKE_clapmt_work",
+    "LAPACKE_clascl",
+    "LAPACKE_clascl_work",
     "LAPACKE_claset",
     "LAPACKE_claset_work",
     "LAPACKE_claswp",
@@ -225,6 +227,8 @@
     "LAPACKE_dlapmr_work",
     "LAPACKE_dlapmt",
     "LAPACKE_dlapmt_work",
+    "LAPACKE_dlascl",
+    "LAPACKE_dlascl_work",
     "LAPACKE_dlaset",
     "LAPACKE_dlaset_work",
     "LAPACKE_dlaswp",
@@ -371,6 +375,8 @@
     "LAPACKE_slapmr_work",
     "LAPACKE_slapmt",
     "LAPACKE_slapmt_work",
+    "LAPACKE_slascl",
+    "LAPACKE_slascl_work",
     "LAPACKE_slaset",
     "LAPACKE_slaset_work",
     "LAPACKE_slaswp",
@@ -523,6 +529,8 @@
     "LAPACKE_zlapmr_work",
     "LAPACKE_zlapmt",
     "LAPACKE_zlapmt_work",
+    "LAPACKE_zlascl",
+    "LAPACKE_zlascl_work",
     "LAPACKE_zlaset",
     "LAPACKE_zlaset_work",
     "LAPACKE_zlaswp",
@@ -592,7 +600,7 @@
     "LAPACKE_zunmtr",
     "LAPACKE_zunmtr_work"
   ],
-  "library_sha256": "2f6996e04d7f271973ac03713c2ffe40ee49dae36593f638d82026fc1d1f47f4",
+  "library_sha256": "98a044e4fa53ce8edd4e4950f3ae7b932c4545ef401e1198ded30e441dc62cf8",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -670,7 +678,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "cdcba28df64558d62eb3673ad98057bd730323a3",
+  "revision": "65c1b415c7af61f8d9d9af22adb323637fbc39bc",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -4045,6 +4053,86 @@
       "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64})",
       "file": "test/lapacke_matrix_permutation.jl",
       "symbol": "LAPACKE_clapmt_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Float32, Float32, Int32, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_clascl",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Float32, Float32, Int32, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_clascl",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Float32, Float32, Int64, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_clascl",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Float32, Float32, Int64, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_clascl",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Float32, Float32, Int32, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_clascl_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Float32, Float32, Int32, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_clascl_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Float32, Float32, Int64, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_clascl_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Float32, Float32, Int64, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_clascl_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -9749,6 +9837,86 @@
       "integer_arguments": true
     },
     {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Float64, Float64, Int32, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_dlascl",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Float64, Float64, Int32, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_dlascl",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Float64, Float64, Int64, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_dlascl",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Float64, Float64, Int64, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_dlascl",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Float64, Float64, Int32, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_dlascl_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Float64, Float64, Int32, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_dlascl_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Float64, Float64, Int64, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_dlascl_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Float64, Float64, Int64, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_dlascl_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 28,
       "return_type": "Int32",
       "route": "dll",
@@ -15585,6 +15753,86 @@
       "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64})",
       "file": "test/lapacke_matrix_permutation.jl",
       "symbol": "LAPACKE_slapmt_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Float32, Float32, Int32, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_slascl",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Float32, Float32, Int32, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_slascl",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Float32, Float32, Int64, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_slascl",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Float32, Float32, Int64, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_slascl",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Float32, Float32, Int32, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_slascl_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Float32, Float32, Int32, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_slascl_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Float32, Float32, Int64, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_slascl_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Float32, Float32, Int64, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_slascl_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -21665,6 +21913,86 @@
       "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64})",
       "file": "test/lapacke_matrix_permutation.jl",
       "symbol": "LAPACKE_zlapmt_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Float64, Float64, Int32, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_zlascl",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Float64, Float64, Int32, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_zlascl",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Float64, Float64, Int64, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_zlascl",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Float64, Float64, Int64, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_zlascl",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Float64, Float64, Int32, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_zlascl_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Float64, Float64, Int32, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_zlascl_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Float64, Float64, Int64, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_zlascl_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Float64, Float64, Int64, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_lascl.jl",
+      "symbol": "LAPACKE_zlascl_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -69858,6 +70186,7 @@
     "test/dense_extensions.jl": "30d1c0132eff43cf74a29f9ba47a7b7455d71a782f7f377e2f535d0f6e4e99cf",
     "test/matrix_permutation.jl": "1c7c62302f2da851f970b58ba87981b34748a14edf028ce23746316db1e0854a",
     "test/lapacke_qr_abi_worker.c": "3d29342578c397d977c9b4ad42b9f5a678070540963b0c4c5e95631d2a5ef2e7",
+    "deps/rust/src/lapacke/scaling.rs": "21ffd6a3aa3c020437537d730fe9d463d40b818e4c4eca3434424d60b6a49e06",
     "test/lapacke_matrix_permutation_abi.jl": "e06d3e856f2604b0cb06d246597c7005f4e6a713e65c0176f9185d4079b251f1",
     "test/cblas_matrix_extensions.jl": "5925e4c4a49b2fa62216415138147e35bf36346f70e7678e8ccfd433fc7cf8a0",
     "deps/rust/src/schur_reorder.rs": "ec1ae3b7d07768bb7dc96cd0d8b2617f7555848af8b2d3ef936c0f09b6473c38",
@@ -69867,8 +70196,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "921969e4d457dcf78291f33115f0dcd4fb00b6525c1022229c096b363a48d96f",
-    "test/lapacke_execution_checks.jl": "96161966ce0c5091312402027ebdac2a027e6d0120ef32ec9f0adffbb57f8ee2",
+    "deps/rust/src/lapacke.rs": "b145190f59438d119d5b20f9fb19e11ef1a8d0c8be074584e5a9c42706d5eab2",
+    "test/lapacke_execution_checks.jl": "bdeec0919f523f2e264bb5bdcfcba12e26c3c260dbcc92dd22f8e3f505e6ca01",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -69974,6 +70303,7 @@
     "deps/rust/src/lapack_symmetric.rs": "10e12c953c48cdcf3b89504274835cb4ee9c532bf92b6df007529ec6f9b588c8",
     "test/lapacke_reduction_vectors.jl": "fd1dc452ba8011982bcb5f8fe528e8557774fee6345a6b3244ae1d4450a62d17",
     "test/tridiagonal_evd.jl": "60e3036db814634c4be422c38187db45bda957eadaced39556776c2d7ef32951",
+    "test/lapacke_lascl.jl": "c9c7f505b5e1820b25aeaa3d7ccfbe6bdca1b0b55eaaa2dac21938e5ed663649",
     "deps/rust/src/structured_evd.rs": "ecd8bf1d1010fdcf35e4dfb1349f436503b7462a84ca5cb23b15e00acd10dc7e",
     "test/lapacke_least_squares_policy.jl": "838a02bb438a139a88133c98c91b1600368e525796f265f19c078b5e58cce588",
     "deps/rust/src/lapacke/pivoted_qr.rs": "6a5b2e4f4334a04bc06e1c1e049bbd821463dac870d35fe6d19b5ef02eedfe5c",
@@ -70005,7 +70335,7 @@
     "deps/rust/src/lapacke/general_expert.rs": "55804c4441eb95b897804fdf162d5f554bd2564052ecbd6ce9157e4bd5e38f18",
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
-    "test/suite.jl": "b3b21247d1fc1a535661e8ff4de3937dab57b3c775abc71f2d74d09dd0f582da",
+    "test/suite.jl": "3f5d00ed7e90ae88e1b71e743bcefd121d1e69f6f206f4e4094df308841664f4",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
     "test/lapacke_schur_vectors.jl": "7ae0a51626afb3a06c02fb822d9e132df7d292ba4afb738d1d8a32ebc44d086f",
