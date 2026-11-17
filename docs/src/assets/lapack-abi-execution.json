@@ -558,7 +558,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "d646faa13693538539b30f04ca36637434506bb3",
+  "revision": "60fef044ad6d7c020056e6e2a90e0586e48799dd",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
