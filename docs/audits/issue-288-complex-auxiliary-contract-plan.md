@@ -1,8 +1,9 @@
 # Issue #288: LACGV/LACP2 C contracts
 
 Status: the 8 C/Z high/work entries pass focused layout, stride, diagnostic and
-independent-call checks. The immutable full suite is recorded in
-`docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+independent-call checks. The immutable full suite records 375 sources, 1,896
+canonical entries and 7,031 witnesses (2,100 forwards per integer ABI). Issue
+#288 remains open.
 
 ## Connected names
 
