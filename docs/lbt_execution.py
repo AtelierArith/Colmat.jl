@@ -104,6 +104,8 @@ def validate_lapacke_signature(row, witness):
         'lange': ['Int32', 'Int8', integer, integer, t, integer],
         'lansy': ['Int32', 'Int8', 'Int8', integer, t, integer],
         'lantr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer],
+        'lapmr': ['Int32', integer, integer, integer, t, integer, pivot],
+        'lapmt': ['Int32', integer, integer, integer, t, integer, pivot],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
         'ggrqf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
