@@ -166,6 +166,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| TREVC | native Schur 固有ベクトル | SIDE/HOWMNY/SELECT/M、実数共役対、row-major の論理矩形変換。C ABI は #288 |',
     '| TREXC | native Schur block move | COMPQ V/N、IFST/ILST、実数は pointer・複素数は値渡しの ABI 差を変換。C ABI は #288 |',
     '| LASCL | native safe-range scaling | TYPE G/L/U/H/B/Q/Z、row-major の band 行数、CFROM/CTO と INFO を変換。C ABI は #288 |',
+    '| LACGV / LACP2 | native conjugation / real-to-complex copy | INCX と選択三角、実数 A から複素 B への row-major 変換。LACGV は layout 引数なし |',
     '| TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |',
     '| SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |',
     '| SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |',

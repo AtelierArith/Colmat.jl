@@ -121,6 +121,8 @@ def validate_lapacke_signature(row, witness):
         'trevc': ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, integer, integer, pivot],
         'trexc': [],
         'lascl': ['Int32', 'Int8', integer, integer, real_scalar, real_scalar, integer, integer, t, integer],
+        'lacgv': [integer, t, integer],
+        'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
         'ggrqf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
