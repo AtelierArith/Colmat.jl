@@ -31,6 +31,7 @@ using Test
         "lapmt",
         "trevc",
         "trexc",
+        "lascl",
         "geqrf",
         "geqr2",
         "geqrfp",
@@ -152,7 +153,7 @@ using Test
             w in ("", "_work")
         ),
     )
-    @test length(targets)==588
+    @test length(targets)==596
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(

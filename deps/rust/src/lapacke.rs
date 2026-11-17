@@ -24,6 +24,7 @@ mod reduction_vectors;
 mod reordering;
 mod reverse_qr;
 mod rz;
+mod scaling;
 mod schur_vectors;
 mod self_adjoint;
 mod self_adjoint_range;

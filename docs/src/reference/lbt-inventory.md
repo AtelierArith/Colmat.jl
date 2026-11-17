@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **2084**、ILP64 **2084** シンボルを登録します。
+現行 adapter は LP64 **2092**、ILP64 **2092** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -55,6 +55,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | ORGBR/ORMBR・ORGHR/ORMHR | native 二重対角/Hessenberg Q の生成・適用 | VECT/SIDE/TRANS/ILO/IHI と lwork query を変換。row-major は論理矩形のみ |
 | TREVC | native Schur 固有ベクトル | SIDE/HOWMNY/SELECT/M、実数共役対、row-major の論理矩形変換。C ABI は #288 |
 | TREXC | native Schur block move | COMPQ V/N、IFST/ILST、実数は pointer・複素数は値渡しの ABI 差を変換。C ABI は #288 |
+| LASCL | native safe-range scaling | TYPE G/L/U/H/B/Q/Z、row-major の band 行数、CFROM/CTO と INFO を変換。C ABI は #288 |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |
 | SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |
 | SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |
@@ -648,7 +649,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `larzb` / Fortran | `clarzb_`, `dlarzb_`, `slarzb_`, `zlarzb_` | [Householder generation / native GEMV and GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。 |
 | `larzt` / Fortran | `clarzt_`, `dlarzt_`, `slarzt_`, `zlarzt_` | [Householder generation / native GEMV and GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。 |
 | `lascl` / Fortran | `clascl_`, `dlascl_`, `slascl_`, `zlascl_` | [native strided copy/map/fill, row/column swaps, real component GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/mat/matref.rs) | Fortran のコピー・置換・safe-range LASCL・精度変換・混合積と行列コピー拡張を両 ABI に接続。縮小変換は成分ごとの上限検査と INFO=1 を実装し、単なる cast や飽和と区別する。IMATCOPY は native snapshot、LACRM/LARCM は2回の real GEMM を使う。C API は別の ABI 接続タスク。 |
-| `lascl` / LAPACKE | `LAPACKE_clascl`, `LAPACKE_clascl_work`, `LAPACKE_dlascl`, `LAPACKE_dlascl_work`, `LAPACKE_slascl`, `LAPACKE_slascl_work`, `LAPACKE_zlascl`, `LAPACKE_zlascl_work` | [native strided copy/map/fill, row/column swaps, real component GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/mat/matref.rs) | Fortran のコピー・置換・safe-range LASCL・精度変換・混合積と行列コピー拡張を両 ABI に接続。縮小変換は成分ごとの上限検査と INFO=1 を実装し、単なる cast や飽和と区別する。IMATCOPY は native snapshot、LACRM/LARCM は2回の real GEMM を使う。C API は別の ABI 接続タスク。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `lascl` / LAPACKE | `LAPACKE_clascl`, `LAPACKE_clascl_work`, `LAPACKE_dlascl`, `LAPACKE_dlascl_work`, `LAPACKE_slascl`, `LAPACKE_slascl_work`, `LAPACKE_zlascl`, `LAPACKE_zlascl_work` | [native strided copy/map/fill, row/column swaps, real component GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/mat/matref.rs) | Fortran のコピー・置換・safe-range LASCL・精度変換・混合積と行列コピー拡張を両 ABI に接続。縮小変換は成分ごとの上限検査と INFO=1 を実装し、単なる cast や飽和と区別する。IMATCOPY は native snapshot、LACRM/LARCM は2回の real GEMM を使う。C API は別の ABI 接続タスク。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `laset` / Fortran | `claset_`, `dlaset_`, `slaset_`, `zlaset_` | [native strided copy/map/fill, row/column swaps, real component GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/mat/matref.rs) | Fortran のコピー・置換・safe-range LASCL・精度変換・混合積と行列コピー拡張を両 ABI に接続。縮小変換は成分ごとの上限検査と INFO=1 を実装し、単なる cast や飽和と区別する。IMATCOPY は native snapshot、LACRM/LARCM は2回の real GEMM を使う。C API は別の ABI 接続タスク。 |
 | `laset` / LAPACKE | `LAPACKE_claset`, `LAPACKE_claset_work`, `LAPACKE_dlaset`, `LAPACKE_dlaset_work`, `LAPACKE_slaset`, `LAPACKE_slaset_work`, `LAPACKE_zlaset`, `LAPACKE_zlaset_work` | [native strided copy/map/fill, row/column swaps, real component GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/mat/matref.rs) | Fortran のコピー・置換・safe-range LASCL・精度変換・混合積と行列コピー拡張を両 ABI に接続。縮小変換は成分ごとの上限検査と INFO=1 を実装し、単なる cast や飽和と区別する。IMATCOPY は native snapshot、LACRM/LARCM は2回の real GEMM を使う。C API は別の ABI 接続タスク。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `lasr` / Fortran | `clasr_`, `dlasr_`, `slasr_`, `zlasr_` | [JacobiRotation / apply_on_the_left/right](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/jacobi.rs) | 複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要 |
@@ -1503,7 +1504,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,880 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 0 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
