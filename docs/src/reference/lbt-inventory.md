@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **2100**、ILP64 **2100** シンボルを登録します。
+現行 adapter は LP64 **2108**、ILP64 **2108** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -57,6 +57,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | TREXC | native Schur block move | COMPQ V/N、IFST/ILST、実数は pointer・複素数は値渡しの ABI 差を変換。C ABI は #288 |
 | LASCL | native safe-range scaling | TYPE G/L/U/H/B/Q/Z、row-major の band 行数、CFROM/CTO と INFO を変換。C ABI は #288 |
 | LACGV / LACP2 | native conjugation / real-to-complex copy | INCX と選択三角、実数 A から複素 B への row-major 変換。LACGV は layout 引数なし |
+| TRSEN | native checked Schur selection (JOB=N) | SELECT/M、再並べ替え、row-major T/Q。JOB E/V/B は保存した元の LAPACK |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |
 | SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |
 | SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |
@@ -851,7 +852,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `tgsen` / Fortran | `ctgsen_`, `dtgsen_`, `stgsen_`, `ztgsen_` | [generalized reorder_schur / schur_eigenvalues_real / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。 |
 | `tgsen` / LAPACKE | `LAPACKE_ctgsen`, `LAPACKE_ctgsen_work`, `LAPACKE_dtgsen`, `LAPACKE_dtgsen_work`, `LAPACKE_stgsen`, `LAPACKE_stgsen_work`, `LAPACKE_ztgsen`, `LAPACKE_ztgsen_work` | [generalized reorder_schur / schur_eigenvalues_real / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `trsen` / Fortran | `ctrsen_`, `dtrsen_`, `strsen_`, `ztrsen_` | [Schur と reorder_schur](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 8 Fortran シンボル・4型・両 ABI を接続済み。TRSEN JOB=N は native Schur block move による安定選択、M、固有値抽出と Q 更新。GEESX SENSE=N は既存 native GEES 経路。交換拒否時の SDIM は移動済み prefix でなく全選択列数を返す（GEES 共通処理も修正）。S/SEP と RCONDE/RCONDV の公開 native API はなく、JOB/SENSE E/V/B は保存済み元の ILP64 routine に委譲する。LP64 IWORK/BWORK は書き込み済み slot だけ変換し、SELECT callback は thread-local guard で LOGICAL ABI を変換して入れ子呼び出し後に復元する。TRSEN は LWORK=-1 だけ、実数 GEESX は LWORK/LIWORK の collective query。内部所有行列/scratch を確保する。C ABI は別タスク。 |
-| `trsen` / LAPACKE | `LAPACKE_ctrsen`, `LAPACKE_ctrsen_work`, `LAPACKE_dtrsen`, `LAPACKE_dtrsen_work`, `LAPACKE_strsen`, `LAPACKE_strsen_work`, `LAPACKE_ztrsen`, `LAPACKE_ztrsen_work` | [Schur と reorder_schur](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 8 Fortran シンボル・4型・両 ABI を接続済み。TRSEN JOB=N は native Schur block move による安定選択、M、固有値抽出と Q 更新。GEESX SENSE=N は既存 native GEES 経路。交換拒否時の SDIM は移動済み prefix でなく全選択列数を返す（GEES 共通処理も修正）。S/SEP と RCONDE/RCONDV の公開 native API はなく、JOB/SENSE E/V/B は保存済み元の ILP64 routine に委譲する。LP64 IWORK/BWORK は書き込み済み slot だけ変換し、SELECT callback は thread-local guard で LOGICAL ABI を変換して入れ子呼び出し後に復元する。TRSEN は LWORK=-1 だけ、実数 GEESX は LWORK/LIWORK の collective query。内部所有行列/scratch を確保する。C ABI は別タスク。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `trsen` / LAPACKE | `LAPACKE_ctrsen`, `LAPACKE_ctrsen_work`, `LAPACKE_dtrsen`, `LAPACKE_dtrsen_work`, `LAPACKE_strsen`, `LAPACKE_strsen_work`, `LAPACKE_ztrsen`, `LAPACKE_ztrsen_work` | [Schur と reorder_schur](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 8 Fortran シンボル・4型・両 ABI を接続済み。TRSEN JOB=N は native Schur block move による安定選択、M、固有値抽出と Q 更新。GEESX SENSE=N は既存 native GEES 経路。交換拒否時の SDIM は移動済み prefix でなく全選択列数を返す（GEES 共通処理も修正）。S/SEP と RCONDE/RCONDV の公開 native API はなく、JOB/SENSE E/V/B は保存済み元の ILP64 routine に委譲する。LP64 IWORK/BWORK は書き込み済み slot だけ変換し、SELECT callback は thread-local guard で LOGICAL ABI を変換して入れ子呼び出し後に復元する。TRSEN は LWORK=-1 だけ、実数 GEESX は LWORK/LIWORK の collective query。内部所有行列/scratch を確保する。C ABI は別タスク。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 
 ### 対応する独立公開 API なし（確認範囲付き）
 
@@ -1505,7 +1506,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,896 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 1,904 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
