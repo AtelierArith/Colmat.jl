@@ -21,6 +21,9 @@ println("Building Colmat BLAS with Rust colmat revision ", actual)
 const manifest = joinpath(@__DIR__, "rust", "Cargo.toml")
 const target = joinpath(@__DIR__, "rust", "target")
 
+# Disable user rustc-wrapper settings so a broken wrapper (for example from
+# ~/.cargo/config.toml) cannot break the build. Environment variables take
+# precedence over cargo config.
 withenv("RUSTC_WRAPPER" => "", "RUSTC_WORKSPACE_WRAPPER" => "") do
     run(`$(cargo()) build --release --locked --manifest-path $manifest --target-dir $target`)
 end
