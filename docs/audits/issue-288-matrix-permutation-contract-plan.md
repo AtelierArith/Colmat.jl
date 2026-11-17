@@ -1,8 +1,9 @@
 # Issue #288: LAPMR/LAPMT C contracts
 
-Status: the 32 S/D/C/Z high/work entries pass focused numerical, layout,
-diagnostic and independent C ABI checks. The immutable full suite is recorded
-in `docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+Status: the 16 S/D/C/Z high/work entries (32 symbol/ABI variants) pass focused
+numerical, layout, diagnostic and independent C ABI checks. The immutable full
+suite records 363 sources, 1,816 canonical entries and 6,711 witnesses (2,020
+forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
