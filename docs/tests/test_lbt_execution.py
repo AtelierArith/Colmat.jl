@@ -480,7 +480,7 @@ class RepositoryExecutionEvidenceTests(unittest.TestCase):
         self.assertEqual(len(lapack_rows(rows)), 1110)
         self.assertEqual(len(cblas_rows(rows)), 172)
         self.assertEqual(len(lapacke_rows(rows)), 508)
-        self.assertEqual(len(executed), 1306 + len(lapacke_rows(rows)))
+        self.assertEqual(len(executed), 1282 + len(lapacke_rows(rows)))
         catalogued = {row['symbol'] for row in rows if row['execution_evidence_status'] == 'direct_call_witness'}
         self.assertEqual(catalogued, set(executed))
         for row in rows:

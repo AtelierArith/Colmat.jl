@@ -1,8 +1,10 @@
 # Issue #288: LANGE/LANSY/LANTR C contracts
 
 Status: the 24 S/D/C/Z high/work entries pass focused numerical, layout,
-diagnostic and independent C ABI checks. The immutable full suite is recorded
-in `docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+diagnostic and independent C ABI checks. The immutable full suite records 357
+sources, 1,790 canonical entries and 6,627 witnesses (1,994 forwards per
+integer ABI) in `docs/src/assets/lapack-abi-execution.json`. Issue #288 remains
+open.
 
 ## Connected names
 

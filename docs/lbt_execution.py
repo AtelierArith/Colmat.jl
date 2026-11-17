@@ -197,6 +197,8 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
+    if row['family'] in ('lange', 'lansy', 'lantr') and row['symbol'].endswith('_work'):
+        expected = expected + [real]
     if row['family'] == 'geev' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
         if row['scalar'] in ('c', 'z'):
