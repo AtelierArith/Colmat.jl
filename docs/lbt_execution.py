@@ -119,6 +119,7 @@ def validate_lapacke_signature(row, witness):
         'ormhr': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
         'unmhr': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
         'trevc': ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, integer, integer, pivot],
+        'trexc': [],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
         'ggrqf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
