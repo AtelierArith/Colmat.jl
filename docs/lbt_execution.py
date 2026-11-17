@@ -101,6 +101,9 @@ def validate_lapacke_signature(row, witness):
         'laset': ['Int32', 'Int8', integer, integer, scalar, scalar, t, integer],
         'laswp': ['Int32', integer, t, integer, integer, integer, pivot, integer],
         'tgevc': ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, integer, t, integer, integer, pivot],
+        'lange': ['Int32', 'Int8', integer, integer, t, integer],
+        'lansy': ['Int32', 'Int8', 'Int8', integer, t, integer],
+        'lantr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
         'ggrqf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
@@ -194,6 +197,8 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
+    if row['family'] in ('lange', 'lansy', 'lantr') and row['symbol'].endswith('_work'):
+        expected = expected + [real]
     if row['family'] == 'geev' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
         if row['scalar'] in ('c', 'z'):
@@ -224,8 +229,9 @@ def validate_lapacke_signature(row, witness):
             expected = expected + [real, integer]
         expected = expected + [pivot, integer]
     actual = witness['signature'].replace(' ', '')
+    expected_return = real_scalar if row['family'] in ('lange', 'lansy', 'lantr') else integer
     if (actual != '(' + ','.join(expected) + ')'
-            or witness.get('return_type') != integer
+            or witness.get('return_type') != expected_return
             or witness['integer_arguments'] is not True):
         raise ValueError(f'LAPACKE layout/flag/integer/return signature disagrees with ABI: {row["symbol"]}')
 

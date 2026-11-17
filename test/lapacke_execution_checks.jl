@@ -24,6 +24,9 @@ using Test
         "laset",
         "laswp",
         "tgevc",
+        "lange",
+        "lansy",
+        "lantr",
         "geqrf",
         "geqr2",
         "geqrfp",
@@ -97,7 +100,7 @@ using Test
             w in ("", "_work")
         ),
     )
-    @test length(targets)==484
+    @test length(targets)==508
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
@@ -108,10 +111,19 @@ using Test
         )
         @test observed==targets
     end
+    norm_targets=Set(
+        "LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for
+        f in ("lange", "lansy", "lantr") for w in ("", "_work")
+    )
     for e in ABIEvidence.witnesses
         e[1] in targets || continue
         e[4]=="test/abi_execution_checks.jl" && continue
-        @test ABIEvidence.return_types[e]=="Int"*string(e[2])
+        expected_return = if e[1] in norm_targets
+            e[1][9] in ('s', 'c') ? "Float32" : "Float64"
+        else
+            "Int"*string(e[2])
+        end
+        @test ABIEvidence.return_types[e]==expected_return
         @test startswith(e[6], "(Int32,")
         @test e[7]
         @test isfile(joinpath(ABIEvidence.root, e[4]))
