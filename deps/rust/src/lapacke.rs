@@ -4,6 +4,7 @@
 use crate::kernels::Scalar;
 mod cholesky;
 mod compact_qr;
+mod complex_auxiliary;
 mod general_eigen;
 mod general_expert;
 mod generalized_qr;
