@@ -216,6 +216,13 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t]
     if row['family'] == 'getri' and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
+    if row['family'] == 'trsen':
+        if row['scalar'] in ('s', 'd'):
+            expected = ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, t, pivot, t, t]
+        else:
+            expected = ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, pivot, t, t]
+    if row['family'] == 'trsen' and row['symbol'].endswith('_work'):
+        expected = expected + ([t, integer, pivot, integer] if row['scalar'] in ('s', 'd') else [t, integer])
     if row['family'] == 'trexc':
         if row['scalar'] in ('s', 'd'):
             expected = ['Int32', 'Int8', integer, t, integer, t, integer, pivot, pivot]
