@@ -159,7 +159,8 @@ using Test
         Set("LAPACKE_"*p*f*w for p in ("c", "z") for f in ("lacgv", "lacp2") for
             w in ("", "_work")),
     )
-    @test length(targets)==612
+    union!(targets, Set("LAPACKE_"*p*"larfg"*w for p in ("s", "d", "c", "z") for w in ("", "_work")))
+    @test length(targets)==620
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
@@ -183,7 +184,7 @@ using Test
             "Int"*string(e[2])
         end
         @test ABIEvidence.return_types[e]==expected_return
-        if occursin("lacgv", e[1])
+        if occursin("lacgv", e[1]) || occursin("larfg", e[1])
             @test startswith(e[6], e[2] == 32 ? "(Int32," : "(Int64,")
         else
             @test startswith(e[6], "(Int32,")
