@@ -488,9 +488,9 @@
     "LAPACKE_zunmrz",
     "LAPACKE_zunmrz_work"
   ],
-  "library_sha256": "73111b12170f202377592d98bc49269ed65c290e841c0ac161e17413cd2d22a6",
+  "library_sha256": "5510df4d446d494d1087204f435c2e85d0f3198c8db2f3c7ca8bea2807600f94",
   "julia_version": "1.13.4",
-  "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
+  "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
     "test/band_cholesky.jl:34 [(\"cpbtf2_\", 32, \"dll\"), (\"cpbtrf_\", 32, \"dll\")] widths=Set([32])",
     "test/band_cholesky.jl:34 [(\"cpbtf2_\", 64, \"dll\"), (\"cpbtrf_\", 64, \"dll\")] widths=Set([64])",
@@ -566,7 +566,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "60b31a1d6898555ad4c975f26b89c3ab0c4abbea",
+  "revision": "5eae6aa2dae6e2cbe1ddbcb50bfbb73cf6cc51ae",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -65539,7 +65539,7 @@
     "deps/rust/src/bidiagonal.rs": "6a9d35d2c6b05769d0e994b1d3c8ac1fda21183c65bad00d8ac4459839ddadde",
     "test/rook_subnormal.jl": "ae7715d3ace55112994a0eeead39f24fc7da470f8555f1aec86baf85b5dc1faa",
     "test/lapacke_lauum.jl": "da6792748d9af8b8d704cff15a6c2928463ed8c03972251addd6f80ee4ea3df6",
-    "deps/build.jl": "0b22835cd190886dc0a3a991b77a0eca58bd35f7732cdce3aa7b911457e11275",
+    "deps/build.jl": "1ad80919021d5c524fb22c54f2a4471e4647b86dcd5355aa671d57b4e9521d44",
     "deps/rust/src/pentagonal.rs": "1db27890430157e631976d3fb91a42677738c1805e1fc90efa71f0d227196f1b",
     "test/lapacke_q_generators_abi.jl": "9bc4abb4334ae4d274e2efc8f09d72dd6d3ac79474457c7ff103c8a70cf2f191",
     "test/lapacke_compact_qr_abi.jl": "5b53f9004c93a9a95015bcaf976e4c851c5ad3773c35d9755cfe856dceaafeb0",
