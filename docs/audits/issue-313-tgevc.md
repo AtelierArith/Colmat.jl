@@ -2,7 +2,9 @@
 
 Status: the 4 Fortran S/D/C/Z entries and 8 LAPACKE high/work entries are
 connected and pass focused numerical, diagnostic, layout and independent C ABI
-checks. Issue #313 is complete after the full-suite evidence below is recorded.
+checks. The immutable full suite validates 353 sources, 1,766 canonical entries
+(1,110 Fortran, 172 CBLAS, 484 LAPACKE) and 6,531 completed witnesses, with
+1,970 registered forwards per integer ABI. Issue #313 is complete.
 
 ## What was connected
 
