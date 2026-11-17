@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-apple-darwin24.6.0",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "66f208f1f8e2c696daee38278e555ec6bf793b6f7e25b30c34e1079ea03fa5cf",
+  "inventory_registration_sha256": "5c10d5ad0ecd794cc2d9153a14ac6d2c0a50bcbcf1536d20686b016f9dd60a60",
   "lapacke_target_symbols": [
     "LAPACKE_cgeev",
     "LAPACKE_cgeev_work",
@@ -57,6 +57,14 @@
     "LAPACKE_cgetri_work",
     "LAPACKE_cgetrs",
     "LAPACKE_cgetrs_work",
+    "LAPACKE_cggglm",
+    "LAPACKE_cggglm_work",
+    "LAPACKE_cgglse",
+    "LAPACKE_cgglse_work",
+    "LAPACKE_cggqrf",
+    "LAPACKE_cggqrf_work",
+    "LAPACKE_cggrqf",
+    "LAPACKE_cggrqf_work",
     "LAPACKE_cheev",
     "LAPACKE_cheev_work",
     "LAPACKE_cheevd",
@@ -163,6 +171,14 @@
     "LAPACKE_dgetri_work",
     "LAPACKE_dgetrs",
     "LAPACKE_dgetrs_work",
+    "LAPACKE_dggglm",
+    "LAPACKE_dggglm_work",
+    "LAPACKE_dgglse",
+    "LAPACKE_dgglse_work",
+    "LAPACKE_dggqrf",
+    "LAPACKE_dggqrf_work",
+    "LAPACKE_dggrqf",
+    "LAPACKE_dggrqf_work",
     "LAPACKE_dlauum",
     "LAPACKE_dlauum_work",
     "LAPACKE_dorglq",
@@ -267,6 +283,14 @@
     "LAPACKE_sgetri_work",
     "LAPACKE_sgetrs",
     "LAPACKE_sgetrs_work",
+    "LAPACKE_sggglm",
+    "LAPACKE_sggglm_work",
+    "LAPACKE_sgglse",
+    "LAPACKE_sgglse_work",
+    "LAPACKE_sggqrf",
+    "LAPACKE_sggqrf_work",
+    "LAPACKE_sggrqf",
+    "LAPACKE_sggrqf_work",
     "LAPACKE_slauum",
     "LAPACKE_slauum_work",
     "LAPACKE_sorglq",
@@ -371,6 +395,14 @@
     "LAPACKE_zgetri_work",
     "LAPACKE_zgetrs",
     "LAPACKE_zgetrs_work",
+    "LAPACKE_zggglm",
+    "LAPACKE_zggglm_work",
+    "LAPACKE_zgglse",
+    "LAPACKE_zgglse_work",
+    "LAPACKE_zggqrf",
+    "LAPACKE_zggqrf_work",
+    "LAPACKE_zggrqf",
+    "LAPACKE_zggrqf_work",
     "LAPACKE_zheev",
     "LAPACKE_zheev_work",
     "LAPACKE_zheevd",
@@ -424,7 +456,7 @@
     "LAPACKE_zunmrz",
     "LAPACKE_zunmrz_work"
   ],
-  "library_sha256": "56de174d1d662dc4abc940477fefa6520f83056df5459988b8ba0b454bced7de",
+  "library_sha256": "d5db0d89a5e1bb242916a083b981f0cd5f425560659cf2fc5620bba7f974064c",
   "julia_version": "1.13.3",
   "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
   "ambiguous_shared_entries": [
@@ -502,7 +534,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "21e1675398c21b81d16ae647c28dde7391ea11d3",
+  "revision": "299e5b99a87bdddaba766aafdd09d74947c2c661",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -2837,6 +2869,326 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64)",
       "file": "test/lapacke_getrs.jl",
       "symbol": "LAPACKE_cgetrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cggglm",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cggglm",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cggglm",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cggglm",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cggglm_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cggglm_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cggglm_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cggglm_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cgglse",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cgglse",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cgglse",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cgglse",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cgglse_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cgglse_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cgglse_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_cgglse_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggqrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggqrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggqrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggqrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggqrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggqrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggqrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggqrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggrqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggrqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggrqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggrqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggrqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggrqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggrqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_cggrqf_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -7101,6 +7453,326 @@
       "integer_arguments": true
     },
     {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dggglm",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dggglm",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dggglm",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dggglm",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dggglm_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dggglm_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dggglm_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dggglm_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dgglse",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dgglse",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dgglse",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dgglse",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dgglse_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dgglse_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dgglse_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_dgglse_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggqrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggqrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggqrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggqrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggqrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggqrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggqrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggqrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggrqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggrqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggrqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggrqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggrqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggrqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggrqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_dggrqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 8,
       "return_type": "Int32",
       "route": "dll",
@@ -11261,6 +11933,326 @@
       "integer_arguments": true
     },
     {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sggglm",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sggglm",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sggglm",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sggglm",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sggglm_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sggglm_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sggglm_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sggglm_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sgglse",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sgglse",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sgglse",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sgglse",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sgglse_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sgglse_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sgglse_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_sgglse_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggqrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggqrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggqrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggqrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggqrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggqrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggqrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggqrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggrqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggrqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggrqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggrqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggrqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggrqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggrqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_sggrqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 8,
       "return_type": "Int32",
       "route": "dll",
@@ -15417,6 +16409,326 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64)",
       "file": "test/lapacke_getrs.jl",
       "symbol": "LAPACKE_zgetrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zggglm",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zggglm",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zggglm",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zggglm",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zggglm_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zggglm_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zggglm_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zggglm_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zgglse",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zgglse",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zgglse",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 39,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zgglse",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zgglse_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zgglse_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zgglse_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 56,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "LAPACKE_zgglse_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggqrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggqrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggqrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggqrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggqrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggqrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggqrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggqrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggrqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggrqf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggrqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggrqf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggrqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggrqf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggrqf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 52,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_generalized_qr_pairs.jl",
+      "symbol": "LAPACKE_zggrqf_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -19831,11 +21143,31 @@
       "integer_arguments": true
     },
     {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "cggglm_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64})",
       "file": "test/generalized_qr_drivers.jl",
+      "symbol": "cggglm_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
       "symbol": "cggglm_",
       "bits": 64,
       "integer_arguments": true
@@ -19891,11 +21223,31 @@
       "integer_arguments": true
     },
     {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "cgglse_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Int64})",
       "file": "test/generalized_qr_drivers.jl",
+      "symbol": "cgglse_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
       "symbol": "cgglse_",
       "bits": 64,
       "integer_arguments": true
@@ -29651,11 +31003,31 @@
       "integer_arguments": true
     },
     {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "dggglm_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64})",
       "file": "test/generalized_qr_drivers.jl",
+      "symbol": "dggglm_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
       "symbol": "dggglm_",
       "bits": 64,
       "integer_arguments": true
@@ -29711,11 +31083,31 @@
       "integer_arguments": true
     },
     {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "dgglse_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64})",
       "file": "test/generalized_qr_drivers.jl",
+      "symbol": "dgglse_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
       "symbol": "dgglse_",
       "bits": 64,
       "integer_arguments": true
@@ -39381,11 +40773,31 @@
       "integer_arguments": true
     },
     {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "sggglm_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Int64})",
       "file": "test/generalized_qr_drivers.jl",
+      "symbol": "sggglm_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
       "symbol": "sggglm_",
       "bits": 64,
       "integer_arguments": true
@@ -39441,11 +40853,31 @@
       "integer_arguments": true
     },
     {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "sgglse_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Int64})",
       "file": "test/generalized_qr_drivers.jl",
+      "symbol": "sgglse_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
       "symbol": "sgglse_",
       "bits": 64,
       "integer_arguments": true
@@ -48811,11 +50243,31 @@
       "integer_arguments": true
     },
     {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "zggglm_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64})",
       "file": "test/generalized_qr_drivers.jl",
+      "symbol": "zggglm_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
       "symbol": "zggglm_",
       "bits": 64,
       "integer_arguments": true
@@ -48871,11 +50323,31 @@
       "integer_arguments": true
     },
     {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int32}, Ref{Int32})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
+      "symbol": "zgglse_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 50,
       "return_type": "Nothing",
       "route": "dll",
       "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Int64})",
       "file": "test/generalized_qr_drivers.jl",
+      "symbol": "zgglse_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 100,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ref{Int64}, Ref{Int64})",
+      "file": "test/lapacke_generalized_qr_drivers.jl",
       "symbol": "zgglse_",
       "bits": 64,
       "integer_arguments": true
@@ -62534,8 +64006,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "d6430d3b3b2fbe08d426da00c67c228b454ab161ebc7311d086060a848ae2d4d",
-    "test/lapacke_execution_checks.jl": "1ec11eb3790af5b5e71e035ec5f1764aefc5a4c70b906a3ed26f2a62e8b6fe62",
+    "deps/rust/src/lapacke.rs": "8a541797c55fcde5ca625484f4ca5aaf813002e43396b5f4d786bd7261de7d1c",
+    "test/lapacke_execution_checks.jl": "d6e2a6ced5da9115838765f47f6df215d172be6583bcf389caa37c054d720161",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
     "test/cblas_abi_worker.c": "2ca2bf5ca5524a359e5d399c1a9330f70cb2b6ebec79e6e316b4937ccf8c2930",
@@ -62564,7 +64036,9 @@
     "deps/rust/src/householder_reconstruction.rs": "3fac51d63dc0b9c60dc009df1be99e4d015c0de211509a9cb26168723d09e9e5",
     "test/lapacke_least_squares_rank.jl": "5cb5ace73c44b50771ba692ca6ec91900e7b78aca86797c7d466a9dea71e1beb",
     "test/selected_selfadjoint.jl": "05cad49510e1cf833fc44a391728cae9365690712de2e18bff714f7cccccc8aa",
+    "test/lapacke_generalized_qr_abi.jl": "38e97e043798fced133dde14c9fe8305d0cf8ac7258bed3be3a49722f9dd1695",
     "deps/rust/src/matrix_copy.rs": "deed95c106d4357b65b26dbb62c77fab85c2fb6ef93c8e11a58ef4cec377835e",
+    "test/lapacke_generalized_qr_policy.jl": "26b6036047458f15f4f37beb314a2fc1fb245c2be652ba35fe139db1eec46580",
     "test/pivoted_qr_boundaries.jl": "23d2417a7f49f9b272583324af487c89dc598516651baaf798cdbe0313328821",
     "deps/rust/src/packed_cholesky.rs": "df606eb1abf11361add9fe3c687ba0b7f61ecf0602ccea36b68a76b5f7a23d07",
     "test/qr_compact.jl": "f58f64275034bf33b0e7795ffd78170cdcf4986a8a4672caf857008bde5c9011",
@@ -62662,7 +64136,7 @@
     "deps/rust/src/lapacke/general_expert.rs": "55804c4441eb95b897804fdf162d5f554bd2564052ecbd6ce9157e4bd5e38f18",
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
-    "test/suite.jl": "9ebb77b57aaca4f98870007b487d611d30cf1f3315b0c904add274f3bf5f80a1",
+    "test/suite.jl": "63cba7a63f919474a30d60a77e3a27990fdf7122cb4c814da4fb3f3ebc971180",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
     "deps/rust/src/lapacke/general_eigen.rs": "024240192e037e6aebcfea38862c357b41b444bf552dc0d424ffbf0107f67f12",
     "deps/rust/src/matrix_extensions.rs": "ada3f05cd72ad5c1965b58fcd9ff7070d2e03b3a1f81a834b6d02d35de284050",
@@ -62743,6 +64217,7 @@
     "test/lapacke_syr_abi.jl": "25a7f16bafdb32a45be7ae86b6b97d281bcbcc036b9f2a01b91afb63dd44a4b2",
     "deps/rust/src/lapacke/svd.rs": "83a5652be27482f5505e1b6551efd250007a5a8917d9852a574570cbb4e00d89",
     "test/lapacke_rz.jl": "967a9bd93ef45b1663d248060960dfcfbe8e03db5e500cdfbacfd37431b736a6",
+    "test/lapacke_generalized_qr_pairs.jl": "84fa8c9c6a8af834828962f1b19d76c181ed6588856a723bb8039018d7ccda47",
     "test/precision_conversion.jl": "3ed76d6c98a0a2e3aec48fb3f555bb521732df9a9717a38c2f04c60ce15f6e73",
     "deps/rust/src/schur.rs": "3c51a7c6d68e32ab940248250e232e4cdde0f687a2d06335f86e263f251deda2",
     "test/generalized_qr_pairs.jl": "0b06d32e7d5780f3c6272ac21aff4607302669e1cc7ae246e2562582bae940e3",
@@ -62755,6 +64230,7 @@
     "deps/rust/src/matrix_norms.rs": "b6d9a96126d142ac159bb308a86e3f72937997ce66df21d0ddf9daf89473c7d7",
     "test/q_apply_workspace_boundaries.jl": "1b1b03a4d3f08c19f11c40d7760bb5ac61dd388cb9081b0fff7962e3a29984c2",
     "test/qz.jl": "08b7c52779517c7db7af094fa688cc7fa7a5374515818c51a9e1df0b58f63fd1",
+    "deps/rust/src/lapacke/generalized_qr.rs": "c38797d93497879717b009242e05ef6c6233f8f672550bcf665fcfc87d57836d",
     "deps/rust/src/cblas/matrix_tests.rs": "6ff87fa137f9c7c970dd570acd7922e0cebcca0865242970c6d92abf395a5fc8",
     "deps/rust/src/positive_equilibration.rs": "5d1c33e3f66a3b971710e2d0ba32507c5e0baf824878235098959343ab1cc6c2",
     "test/lapacke_reverse_qr.jl": "cfe14e8a1e3235aa5116acf300ccaf94c8b79ed2b4512bcb0fc3a1719785fca4",
@@ -62822,6 +64298,7 @@
     "test/lapacke_svd_abi.jl": "c8a3cbaded573ec562a3629830d6eeab33bb734dcce20a203e144b6090296093",
     "deps/rust/src/pivoted_cholesky.rs": "7e7ff56b861fcfb8a75c4c1570b5c33c3fb005211223439593a0b99e43c0b299",
     "test/householder.jl": "fa1a13c7294b469967ec58beac64ea758e11591b6be62c32e5ff2394455cdb70",
+    "test/lapacke_generalized_qr_abi_worker.c": "47cde5b73a62601b31fb57620e94bbb3f397ab5341d7e57c0e5e62060c0f3b60",
     "deps/rust/src/generalized_selfadjoint_drivers.rs": "5e3f64d1da808620d8a33f0e611339f38ef0efefcf30474fea137ecd078cb3d5",
     "deps/rust/src/qr_pivoted.rs": "d21b52b525f96f659d71ecf075d812f93b9aae878de29d31ef29142e3fdd5d43",
     "test/structured_tridiagonal_packed.jl": "753a03d5ec3de0e8a80a97a3da3490cf08f7059d2d38223bb05d741252c6422b",
@@ -62832,6 +64309,7 @@
     "test/bunch_kaufman.jl": "edf8908d40b1ce1b68d31a0621602da8bfc8a1cd2df2f87bfdc7c1d07cc2d272",
     "deps/rust/src/structured_triangular.rs": "c3513305eea2297443b1125b55fe1b9b686acc73651824cd799d759ea53577e6",
     "test/geevx_expert_boundaries.jl": "95303867985f86f3ab174f2ae7412d1c22f5c2315c7eb7bbc8cff8d1e5f9c6ba",
-    "deps/rust/src/structured_generalized_selected.rs": "cb82bdb954b2e89a8d3bafb31ef43f5c833e292e9e835c65a6f58bbe06e93d15"
+    "deps/rust/src/structured_generalized_selected.rs": "cb82bdb954b2e89a8d3bafb31ef43f5c833e292e9e835c65a6f58bbe06e93d15",
+    "test/lapacke_generalized_qr_drivers.jl": "5df8c15e595a8ebbbaaf291e2ed18dec92d06a56fb3bb07533a910b390cd97fd"
   }
 }

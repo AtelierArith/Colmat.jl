@@ -1,0 +1,28 @@
+{
+  "full_suite_passed": false,
+  "mode": "debug",
+  "scope": "Independent C declarations for 32 generalized QR/constrained least-squares high/work names, both integer ABIs and layouts",
+  "limitations": "Pair factors are only smoke-checked here; independent reconstruction is covered by the separate pending Julia numerical tests.",
+  "library_sha256": "1cd9ac2efbfbcc6efe7b98d910f1f184fb5354f889b40fc200643249db6b9906",
+  "source_sha256": {
+    "deps/rust/src/lapacke/generalized_qr.rs": "c38797d93497879717b009242e05ef6c6233f8f672550bcf665fcfc87d57836d",
+    "test/lapacke_generalized_qr_abi_worker.c": "47cde5b73a62601b31fb57620e94bbb3f397ab5341d7e57c0e5e62060c0f3b60"
+  },
+  "execution_log_sha256": "468c0990cfc3a775973791a19bec9aab3b086b9f154586ebff30997f21d7b970",
+  "compiler_flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror"
+  ],
+  "coverage": [
+    "all four scalar types",
+    "both integer ABIs",
+    "high/work and both layouts",
+    "guarded TAU, WORK and driver vectors",
+    "analytic one-dimensional complex constrained solutions",
+    "query output preservation",
+    "negative ILP64 values outside int32",
+    "native integer diagnostics asserted and consumed at origin"
+  ]
+}

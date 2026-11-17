@@ -1,0 +1,23 @@
+{
+  "full_suite_passed": true,
+  "revision": "299e5b99a87bdddaba766aafdd09d74947c2c661",
+  "library_sha256": "d5db0d89a5e1bb242916a083b981f0cd5f425560659cf2fc5620bba7f974064c",
+  "manifest_sha256": "34a981477ce0eba8b46c9ab30c65815cd273cddf5b03ab2e7addf4c99c87c33a",
+  "inventory_registration_sha256": "5c10d5ad0ecd794cc2d9153a14ac6d2c0a50bcbcf1536d20686b016f9dd60a60",
+  "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+  "source_count": 343,
+  "execution_toml_sha256": "fdf35fb254756ec886b8bac60b584e9ae38a9e76baf0df267aa3bb459e5ee3df",
+  "execution_log_sha256": "b7b75454a9cb6863b159dcd454b8d6ec50f0768d67164ff2f1b8ae3de62e1fae",
+  "witnesses": 6395,
+  "canonical_entries": 1730,
+  "lapacke_entries": 452,
+  "forwards_per_abi": 1934,
+  "post_integration_publication_checks": {
+    "revision": "28556ac8a45537c9b9ec52343672d865d63cec6a",
+    "python": 28,
+    "inventory": 15,
+    "documentation": "passed",
+    "source_and_library_unchanged": true,
+    "full_suite_repeated_after_integration": false
+  }
+}

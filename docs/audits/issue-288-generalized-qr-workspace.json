@@ -1,0 +1,1614 @@
+{
+  "full_suite_passed": false,
+  "scope": "Existing GGQRF/GGRQF Fortran query/header/WORK contracts; not C adapter execution",
+  "observations": [
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "s",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "s",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "d",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "d",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "c",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "c",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "z",
+      "family": "ggqrf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 32,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "native",
+      "info": 0,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 0
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "query",
+      "implementation": "reference",
+      "info": 0,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "native",
+      "info": -11,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 11
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "insufficient",
+      "implementation": "reference",
+      "info": -11,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "native",
+      "info": -1,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 1
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "negative_first",
+      "implementation": "reference",
+      "info": -1,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "native",
+      "info": -5,
+      "work": [
+        4.0,
+        0.0
+      ],
+      "diagnostic": 5
+    },
+    {
+      "scalar": "z",
+      "family": "ggrqf",
+      "bits": 64,
+      "case": "bad_lda",
+      "implementation": "reference",
+      "info": -5,
+      "work": [
+        128.0,
+        0.0
+      ],
+      "diagnostic": null
+    }
+  ],
+  "source_sha256": {
+    "deps/rust/src/generalized_qr.rs": "c2d3c6df84469b09d7ea6f376caac9c3708235a60feb84f6633f4e67ca176a66",
+    "reproducers/generalized_qr_workspace.py": "23b06a98ffcab7187883527f3f3ee614bfe673c1929622043e69152cabb1d75e"
+  },
+  "library_sha256": "56de174d1d662dc4abc940477fefa6520f83056df5459988b8ba0b454bced7de",
+  "reference_library_sha256": "21931db4109dfb613aa1677649e4a9739b597e1963654357e01b64a638b41a04",
+  "output_sha256": "de2ea492a42c98aad22d96eafdeccc545fff7e6f57d526331ff468ad42bdf972",
+  "diagnostics_sha256": "83567dc75c3d6948b229f68e0eb1211f3d57b1e0a11e373f4ca97cad6a8e41a5"
+}
