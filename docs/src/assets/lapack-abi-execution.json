@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "2493b6af872f1caa5ccde8911265bb766003fe8de2ebe85aebef97ec6abbdd19",
+  "inventory_registration_sha256": "a0399a14d18c04d6dde636487f9041b0b3b371296a2cd129abaeb300dfd92eee",
   "lapacke_target_symbols": [
     "LAPACKE_cgeev",
     "LAPACKE_cgeev_work",
@@ -512,7 +512,7 @@
     "LAPACKE_zunmrz",
     "LAPACKE_zunmrz_work"
   ],
-  "library_sha256": "4d312a5c8031eb9489343b06ca21a26eee48eb5f63446f250a3b5e0a9b5172aa",
+  "library_sha256": "dbeaded075a0de525886bd26c81a57e1b8a259b8c1d6ec79e52c49161472c17f",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -590,7 +590,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "9db5c36e836640f96764d79bd0542274c86298b8",
+  "revision": "40140e1f96444e04eca7729e9f08229c17f99465",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -21109,6 +21109,26 @@
       "integer_arguments": true
     },
     {
+      "line": 20,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{ComplexF32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "cbdsqr_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 20,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{ComplexF32}, Ref{Int64}, Ptr{Float32}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "cbdsqr_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Nothing",
       "route": "dll",
@@ -30959,6 +30979,66 @@
       "integer_arguments": true
     },
     {
+      "line": 51,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Ptr{Int32}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "dbdsdc_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 51,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Ptr{Int64}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "dbdsdc_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "dbdsqr_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "dbdsqr_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 70,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Float64}, Ref{Float64}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ref{Int32}, Ptr{Float64}, Ptr{Int32}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "dbdsvdx_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 70,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Float64}, Ref{Float64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64}, Ptr{Float64}, Ptr{Int64}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "dbdsvdx_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 4,
       "return_type": "Float64",
       "route": "dll",
@@ -34965,6 +35045,26 @@
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Float64}, Ref{Float64}, Ptr{Float64}, Ref{Int64})",
       "file": "test/matrix_copy.jl",
       "symbol": "dlaset_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 86,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "dlasq1_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 86,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "dlasq1_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -40799,6 +40899,66 @@
       "integer_arguments": true
     },
     {
+      "line": 51,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Ptr{Int32}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "sbdsdc_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 51,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Ptr{Int64}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "sbdsdc_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "sbdsqr_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "sbdsqr_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 70,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Float32}, Ref{Float32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32}, Ptr{Float32}, Ptr{Int32}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "sbdsvdx_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 70,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{UInt8}, Ref{UInt8}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Float32}, Ref{Float32}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Int64}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "sbdsvdx_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Nothing",
       "route": "dll",
@@ -44735,6 +44895,26 @@
       "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Float32}, Ref{Float32}, Ptr{Float32}, Ref{Int64})",
       "file": "test/matrix_copy.jl",
       "symbol": "slaset_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 86,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "slasq1_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 86,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "slasq1_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -50265,6 +50445,26 @@
       "signature": "(Ref{Int64}, Ref{Int64}, Ptr{Float32}, Ref{Int64}, Ptr{Float32}, Ptr{Float32}, Ref{Int64}, Ref{Int64})",
       "file": "test/rz.jl",
       "symbol": "stzrzf_",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 20,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ref{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{ComplexF64}, Ref{Int32}, Ptr{Float64}, Ref{Int32})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "zbdsqr_",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 20,
+      "return_type": "Nothing",
+      "route": "dll",
+      "signature": "(Ref{UInt8}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ref{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{ComplexF64}, Ref{Int64}, Ptr{Float64}, Ref{Int64})",
+      "file": "test/bidiagonal_svd_lapack.jl",
+      "symbol": "zbdsqr_",
       "bits": 64,
       "integer_arguments": true
     },
@@ -66346,8 +66546,8 @@
   "source_sha256": {
     "deps/rust/src/lapacke/matrix_norms.rs": "082e6446c18fae6f0f237b4de40fe31332b5b9322f34f83d38cd502ddb1bd2be",
     "test/generalized_eigen.jl": "61f87d9adb758f7a86f4a4fd8c533d32df1c5db481b3eabeeb90775f0c46ebaa",
-    "test/abi_execution_evidence.jl": "d01c658a43a5f526e2a56ff1f89fa88abf0adc9c3679d9686d19ca726994e87f",
-    "src/backend.jl": "4fcc8d56e7ce0482bb1ddc1f959c44d1aa26b00daa77e7072988a5c5993a5500",
+    "test/abi_execution_evidence.jl": "c6a7c5d37ec55133095b071a4ffc470f6d40d39c1173ad27cdeccf56abefabc8",
+    "src/backend.jl": "6773ee0d2abd0268080e53ff63ddb5914975279ec22c73c44e4940c71a9a5e90",
     "test/blas.jl": "2f6a876118fd68685ab8147b6e730149326f615b7f45093036cffe6b70f93165",
     "test/structured_lu.jl": "eadfc11787c2ec3c922ac6e58dd7039ff5acb1bca4e4daa640460c7e10c1d769",
     "deps/rust/src/balance.rs": "01304fd0effda54c4868ce4f85a0861d7c680e1d88472543f6ed308c58534af9",
@@ -66483,7 +66683,7 @@
     "deps/rust/src/symmetric_equilibration.rs": "1e4076af69e7bad2d2fe63e1bb13237d339bc23e68fa9b3c3c6e3e77f9790b17",
     "test/cblas_calls.jl": "31a34dfa3945c3e5d576e8abe0d132600088a3e40512f345f1c8c13c8c0df3bd",
     "test/lapacke_pivoted_qr.jl": "9d371a20dc8b8737e3e76e081dbeb8195e2a0cfbcc7f8870cf04bc59147ee0e1",
-    "deps/rust/src/lib.rs": "acf2b83c704838b0fb935c4f071e22d8755eb3c41bb277a79923db68a4db857d",
+    "deps/rust/src/lib.rs": "a54f4d2c7a25395c555d131ab7ceced755f900b0ea43a2cf62a07e619ab6160f",
     "test/lapacke_range_abi_worker.c": "4d529e3df8aac22ea5fdefe0ff9f4767a0d15b65ca4275aa26bd685965c9b9d9",
     "test/generalized_selfadjoint_fallback_worker.jl": "2ddad3d1d7a94cf5cde048a2f366ac5e97c979529d6cef74d5e20eb8e834f4d8",
     "deps/rust/src/lapack_symmetric.rs": "10e12c953c48cdcf3b89504274835cb4ee9c532bf92b6df007529ec6f9b588c8",
@@ -66519,7 +66719,7 @@
     "deps/rust/src/lapacke/general_expert.rs": "55804c4441eb95b897804fdf162d5f554bd2564052ecbd6ce9157e4bd5e38f18",
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
-    "test/suite.jl": "beeff24b6de1aa87f8f00998dd2d8a077e1c4ccc9b00ad93633cd7963d43b73a",
+    "test/suite.jl": "1365a1eee58da6363b15c032d28d121ec014ccd62e7a0b214809cf4b57ca039b",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
     "deps/rust/src/lapacke/general_eigen.rs": "024240192e037e6aebcfea38862c357b41b444bf552dc0d424ffbf0107f67f12",
@@ -66582,6 +66782,7 @@
     "test/lapacke_matrix_aux_abi_worker.c": "2bac60c503febc9386f6d2c4ba012fa8ceeb82a75d3870895ed4f404d6759340",
     "test/generalized_qr_lbt.jl": "53479d175eb68c58d87d324c81c64b7a002d4ea29b825ff00662441c5638bbd0",
     "test/schur_vectors_extremes.jl": "3f816e87f803a038df76301bd7dc952a229da0825032abd099260666e13d1313",
+    "deps/rust/src/bidiagonal_lapack.rs": "b0d89088ab58a7d31af2df845d05bbae9f642b72d76b9ed4469ee8035a99f1d0",
     "deps/rust/src/storage_conversions.rs": "7c42a99341ce0c679759576e9e7e359ce6219b88ae3fa952ea1e8f9e34004249",
     "test/direct_selfadjoint_abi.jl": "41e1713960fed7def677e629bc032facc2d29a3b533b703f5e0f259e3ff9a9e1",
     "deps/rust/src/geevx_expert.rs": "adbc0e0674a9cd0e16bfff21494e9aa5bd9201233dc2660457600651b7bd7244",
@@ -66594,6 +66795,7 @@
     "test/rook_boundaries.jl": "20d63c17f411378b0b6c26aa6563955e1961c9c0afb5a889984d42c9b0e69419",
     "test/geevx_expert.jl": "81af2a479e0beebf3557558fbbdb0458450b3613ed6fb669cef4c94e4d2c3fc5",
     "deps/rust/src/cblas/triangular_tests.rs": "b1b9341ec0bbc8d71fc3dee47c548662504635a4965fe724144efb0b6047b9d3",
+    "test/bidiagonal_svd_lapack.jl": "8294ed0efb782b649130044e76b86579350cf3cfd7e0c5a1d2ee95639f84e4c0",
     "test/lapacke_general_eigen_abi.jl": "dc871924deebf0eca7a7846cf5af00044ff67c88ebdd886d471cf732de7e2019",
     "test/least_squares.jl": "9407a5e977da69f24bca809a054cd41408c6de4181b1ef862f8a9f07acf15f1c",
     "deps/rust/src/band_cholesky.rs": "bcb23680b707f18eb3886563d4161087960fcf3f739ef7e7bb29e3bd80b5bd9c",
