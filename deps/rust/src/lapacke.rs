@@ -23,6 +23,7 @@ mod qr;
 mod reduction_vectors;
 mod reverse_qr;
 mod rz;
+mod schur_vectors;
 mod self_adjoint;
 mod self_adjoint_range;
 mod selfadjoint_vectors;
