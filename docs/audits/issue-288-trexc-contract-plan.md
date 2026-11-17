@@ -1,8 +1,9 @@
 # Issue #288: TREXC C contracts
 
 Status: the 8 S/D/C/Z high/work entries pass focused layout, index, diagnostic
-and independent-call checks. The immutable full suite is recorded in
-`docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+and independent-call checks. The immutable full suite records 371 sources,
+1,880 canonical entries and 6,967 witnesses (2,084 forwards per integer ABI).
+Issue #288 remains open.
 
 ## Connected names
 
