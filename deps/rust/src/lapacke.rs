@@ -21,6 +21,7 @@ mod q_application;
 mod q_generators;
 mod qr;
 mod reduction_vectors;
+mod reordering;
 mod reverse_qr;
 mod rz;
 mod schur_vectors;
