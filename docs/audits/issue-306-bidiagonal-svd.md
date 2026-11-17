@@ -1,8 +1,10 @@
 # Issue #306: bidiagonal SVD and range selection
 
 Status: the 10 canonical Fortran entries are connected for both integer ABIs
-and pass focused numerical and diagnostic checks. Issue #306 is complete after
-the immutable full-suite artifact is recorded.
+and pass focused numerical and diagnostic checks. The immutable full suite
+validates 359 sources, 1,800 canonical entries (1,120 Fortran, 172 CBLAS, 508
+LAPACKE) and 6,647 completed witnesses, with 2,004 registered forwards per
+integer ABI. Issue #306 is complete.
 
 ## Connected names
 
