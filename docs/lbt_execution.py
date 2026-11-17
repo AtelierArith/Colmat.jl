@@ -120,6 +120,7 @@ def validate_lapacke_signature(row, witness):
         'unmhr': ['Int32', 'Int8', 'Int8', integer, integer, integer, integer, t, integer, t, t, integer],
         'trevc': ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, integer, integer, pivot],
         'trexc': [],
+        'trsen': [],
         'lascl': ['Int32', 'Int8', integer, integer, real_scalar, real_scalar, integer, integer, t, integer],
         'lacgv': [integer, t, integer],
         'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
@@ -218,9 +219,9 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t, integer]
     if row['family'] == 'trsen':
         if row['scalar'] in ('s', 'd'):
-            expected = ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, t, pivot, t, t]
+            expected = ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, t, pivot, real, real]
         else:
-            expected = ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, pivot, t, t]
+            expected = ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, t, integer, t, pivot, real, real]
     if row['family'] == 'trsen' and row['symbol'].endswith('_work'):
         expected = expected + ([t, integer, pivot, integer] if row['scalar'] in ('s', 'd') else [t, integer])
     if row['family'] == 'trexc':

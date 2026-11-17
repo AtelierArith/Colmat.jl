@@ -1,9 +1,9 @@
 # Issue #288: TRSEN C contracts
 
 Status: the 8 S/D/C/Z high/work entries pass focused layout, selection,
-diagnostic and independent-call checks for JOB='N'. The immutable full suite is
-recorded in `docs/src/assets/lapack-abi-execution.json`. Issue #288 remains
-open.
+diagnostic and independent-call checks for JOB='N'. The immutable full suite
+records 377 sources, 1,904 canonical entries and 7,063 witnesses (2,108
+forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
