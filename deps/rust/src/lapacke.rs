@@ -20,6 +20,7 @@ mod positive_qr;
 mod q_application;
 mod q_generators;
 mod qr;
+mod reduction_vectors;
 mod reverse_qr;
 mod rz;
 mod self_adjoint;
