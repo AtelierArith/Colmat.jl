@@ -1,6 +1,7 @@
 [deps]
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+RustToolChain = "e9dc52e2-edb8-4742-9783-5e542d30dbb5"
 
 [compat]
 Libdl = "1"
