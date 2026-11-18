@@ -246,7 +246,7 @@ def validate_lapacke_signature(row, witness):
         if row['scalar'] in ('s', 'd'):
             expected = ['Int32', 'Int8', 'Int8', integer, t, integer, t, integer, t, t, t, t, integer, t, integer]
         else:
-            expected = ['Int32', 'Int8', 'Int8', integer, t, integer, t, integer, t, t, integer, t, integer]
+            expected = ['Int32', 'Int8', 'Int8', integer, t, integer, t, integer, t, t, t, integer, t, integer]
         if row['symbol'].endswith('_work'):
             expected = expected + [t, integer] + ([real] if row['scalar'] in ('c', 'z') else [])
     if row['family'] == 'geesx':

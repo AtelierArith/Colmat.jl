@@ -1,8 +1,9 @@
 # Issue #288: GGEV/GGEV3 C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused layout, eigenvalue/vector,
-diagnostic and independent-call checks. The immutable full suite is recorded in
-`docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+diagnostic and independent-call checks. The immutable full suite records 391
+sources, 1,968 canonical entries and 7,319 witnesses (2,172 forwards per
+integer ABI). Issue #288 remains open.
 
 ## Connected names
 

@@ -19,9 +19,10 @@
     "unsupported": 90
   },
   "execution_evidence": {
-    "not_catalogued": 5146
+    "not_catalogued": 3178,
+    "direct_call_witness": 1968
   },
-  "execution_source_revision": null,
+  "execution_source_revision": "80aff37134599bde9e1b60040282f00b486462eb",
   "independent_algorithm_assessments": {
     "not_assessed": 5146
   }
