@@ -189,6 +189,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| GBEQU / GBEQUB | native band equilibration | 解析用 band AB (KL+KU+1 行)、R/C/ROWCND/COLCND/AMAX、row-major 変換 |',
     '| GTTRF / GTTRS / GTSV | native tridiagonal LU | layout なしの GTTRF、DU2/IPIV、TRANS、row-major B |',
     '| SPTRF / SPTRS / SPSV | native packed Bunch-Kaufman LU | S/D のみ。row-major packed AP の sp_trans 並べ替え、IPIV、row-major B |',
+    '| SYTRF/SYTRS/SYSV・HETRF/HETRS/HESV | native dense Bunch-Kaufman LU | UPLO、IPIV、WORK query、row-major A/B。SY は S/D、HE は C/Z |',
     '| TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |',
     '| SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |',
     '| SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |',
