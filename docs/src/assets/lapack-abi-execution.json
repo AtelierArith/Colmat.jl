@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "8f6a44c9979c964c0c7df439d5f0d3de276cd4d777337c6e6ba11848c70390bf",
+  "inventory_registration_sha256": "eaa5a9386f060f15cc62169a230220fc4b847ea3a8ab264362739b13ef21e495",
   "lapacke_target_symbols": [
     "LAPACKE_cgbequ",
     "LAPACKE_cgbequ_work",
@@ -401,6 +401,12 @@
     "LAPACKE_dpttrs_work",
     "LAPACKE_dsbtrd",
     "LAPACKE_dsbtrd_work",
+    "LAPACKE_dspsv",
+    "LAPACKE_dspsv_work",
+    "LAPACKE_dsptrf",
+    "LAPACKE_dsptrf_work",
+    "LAPACKE_dsptrs",
+    "LAPACKE_dsptrs_work",
     "LAPACKE_dsyev",
     "LAPACKE_dsyev_work",
     "LAPACKE_dsyevd",
@@ -613,6 +619,12 @@
     "LAPACKE_spttrs_work",
     "LAPACKE_ssbtrd",
     "LAPACKE_ssbtrd_work",
+    "LAPACKE_sspsv",
+    "LAPACKE_sspsv_work",
+    "LAPACKE_ssptrf",
+    "LAPACKE_ssptrf_work",
+    "LAPACKE_ssptrs",
+    "LAPACKE_ssptrs_work",
     "LAPACKE_ssyev",
     "LAPACKE_ssyev_work",
     "LAPACKE_ssyevd",
@@ -856,7 +868,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "ce4b271781f0bf9c06cf77ec8fffec7660a431122bfdc1220094ef0fdccdb1cc",
+  "library_sha256": "dee071ecd00655bd74eb54fdfc1ffbaac9bd25cf5876b61e1903e7c3d7f8412b",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -934,7 +946,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "dfe7e9dcdecf60637c3e2797f3de8f2e3d73550a",
+  "revision": "d9481e449bdd859b7235d3bcd36fd667e1b73bc8",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -17053,6 +17065,246 @@
       "integer_arguments": true
     },
     {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dspsv",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dspsv",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dspsv",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dspsv",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dspsv_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dspsv_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dspsv_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dspsv_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Ptr{Int32})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Ptr{Int32})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Ptr{Int64})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Ptr{Int64})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Ptr{Int32})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Ptr{Int32})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Ptr{Int64})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Ptr{Int64})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_dsptrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 30,
       "return_type": "Int32",
       "route": "dll",
@@ -25529,6 +25781,246 @@
       "signature": "(Int32, Int8, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32})",
       "file": "test/lapacke_sbtrd.jl",
       "symbol": "LAPACKE_ssbtrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_sspsv",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_sspsv",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_sspsv",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_sspsv",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_sspsv_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_sspsv_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_sspsv_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_sspsv_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Ptr{Int32})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Ptr{Int32})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrf",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Ptr{Int64})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Ptr{Int64})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Ptr{Int32})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Ptr{Int32})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrf_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Ptr{Int64})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 9,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Ptr{Int64})",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 18,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sptrf.jl",
+      "symbol": "LAPACKE_ssptrs_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -80772,8 +81264,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "3ba696fa7b078476276b67699581ec9284cfff598ea74e0024d6e2d3ab01ceb0",
-    "test/lapacke_execution_checks.jl": "24e97e28bdd79e916ac2941a87e2188f069b64b478293468d70552b58ef023d0",
+    "deps/rust/src/lapacke.rs": "20dca125669a8d34e6d502b930855dcac9026272c339482c778911daaa5b0473",
+    "test/lapacke_execution_checks.jl": "807ed258e57691307f93a8d0f05e6358e5fea370316cce15a93dd6571752d028",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -80853,6 +81345,7 @@
     "deps/rust/src/precision_conversion.rs": "80e1db2119f20797b78941a7739164ace964cadd619308d734364987401f0c8c",
     "test/direct_shared_entries.jl": "4163282a68563432ac98c9de4b979802756ecee50e1e5c090763be93532d91d2",
     "deps/rust/src/lapacke/matrix_aux.rs": "d3faebd20ad9914de88e8b0994620db46098aeeb81ec6c3cc54b81445356e88e",
+    "deps/rust/src/lapacke/packed_lu.rs": "eba5a37135e1e0337ae32a8e680ec3aaed3fa09081b3341bcb65a98320ebcba7",
     "test/lapacke_lauum_abi_worker.c": "20a681a4b0b39fa184faffe28723d61b08048ac99fad718b615a93a5236bc21c",
     "test/structured_generalized_lbt.jl": "36aed2652f2a65afafa6721f11a9a759a48d1e891a9429bf37e6a749202db644",
     "test/ordinary_schur_gees_rejection.jl": "c7cf2d00bc4cf77add449ef9994f286caaf26e8862e47ee320e1d86cde69625b",
@@ -80933,7 +81426,7 @@
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
     "deps/rust/src/lapacke/schur_driver.rs": "6eb09b74d6d092cc66ef54771aa0a3fed021601940ffc8e5f1a7f0f5ff127881",
     "deps/rust/src/lapacke/complex_auxiliary.rs": "475aacab3971a7f9c13b396da0a29b4910ccf6d19200f6531cee430366255449",
-    "test/suite.jl": "5b85135a8427d9060d74ccc7b696aada03efb12d0c43613ee325c927e2dd0cd7",
+    "test/suite.jl": "1a6be8d465daf0b325f1221aa1d8c4b6ec09607187d39411ad8a8a021605ae78",
     "test/lapacke_larfg.jl": "fd653e310ffbef2716705ad7f0f597f75ecde2a11ca2140d5545fbf743f347c5",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
@@ -81005,6 +81498,7 @@
     "test/schur_vectors_extremes.jl": "3f816e87f803a038df76301bd7dc952a229da0825032abd099260666e13d1313",
     "deps/rust/src/lapacke/schur_selection.rs": "6f493edb3954bbc890cda816f9728f2fdad1107ac76f0c6cfe1208adc7dcb201",
     "deps/rust/src/bidiagonal_lapack.rs": "b0d89088ab58a7d31af2df845d05bbae9f642b72d76b9ed4469ee8035a99f1d0",
+    "test/lapacke_sptrf.jl": "dbe6f8ba15e71b2916b4c42cb068dc389e357bb561379d8b9a517b84fc82d459",
     "deps/rust/src/storage_conversions.rs": "7c42a99341ce0c679759576e9e7e359ce6219b88ae3fa952ea1e8f9e34004249",
     "test/direct_selfadjoint_abi.jl": "41e1713960fed7def677e629bc032facc2d29a3b533b703f5e0f259e3ff9a9e1",
     "deps/rust/src/geevx_expert.rs": "adbc0e0674a9cd0e16bfff21494e9aa5bd9201233dc2660457600651b7bd7244",
