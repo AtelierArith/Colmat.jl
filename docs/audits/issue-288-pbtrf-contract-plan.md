@@ -1,8 +1,9 @@
 # Issue #288: PBTRF/PBTRS C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused band-layout,
-factorization/solve, diagnostic and independent-call checks. Issue #288 remains
-open.
+factorization/solve, diagnostic and independent-call checks. The immutable full
+suite records 404 sources, 2,048 canonical entries and 7,647 witnesses (2,252
+forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
