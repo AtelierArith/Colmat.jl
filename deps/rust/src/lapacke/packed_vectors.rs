@@ -70,9 +70,9 @@ unsafe fn tau_nan<T: Scalar>(n: usize, tau: *const T) -> bool {
 }
 
 macro_rules! exports {
-    ($p:ident,$t:ty,$r:ty,$i:ty,[$($suffix:tt)*],$fortran:tt)=>{paste::paste!{
+    ($p:ident,$g:ident,$m:ident,$t:ty,$r:ty,$i:ty,[$($suffix:tt)*],$fortran:tt)=>{paste::paste!{
         #[no_mangle]
-        pub unsafe extern "C" fn [<LAPACKE_ $p upgtr $($suffix)*>](
+        pub unsafe extern "C" fn [<LAPACKE_ $p $g $($suffix)*>](
             layout:i32,uplo:u8,n:$i,ap:*const $t,tau:*const $t,q:*mut $t,ldq:$i,
         )->$i {
             if layout!=ROW_MAJOR && layout!=COL_MAJOR {return -1;}
@@ -81,10 +81,10 @@ macro_rules! exports {
                 if tau_nan(n.max(0) as usize,tau) {return -5;}
             }
             let mut work=vec![<$t>::z();(n.max(0) as usize).saturating_sub(1).max(1)];
-            [<LAPACKE_ $p upgtr_work $($suffix)*>](layout,uplo,n,ap,tau,q,ldq,work.as_mut_ptr())
+            [<LAPACKE_ $p $g _work $($suffix)*>](layout,uplo,n,ap,tau,q,ldq,work.as_mut_ptr())
         }
         #[no_mangle]
-        pub unsafe extern "C" fn [<LAPACKE_ $p upgtr_work $($suffix)*>](
+        pub unsafe extern "C" fn [<LAPACKE_ $p $g _work $($suffix)*>](
             layout:i32,uplo:u8,n:$i,ap:*const $t,tau:*const $t,q:*mut $t,ldq:$i,
             work:*mut $t,
         )->$i {
@@ -92,7 +92,7 @@ macro_rules! exports {
             if layout==ROW_MAJOR && ldq<n {return -7;}
             if layout==COL_MAJOR || n==0 {
                 let mut info:$i=0;
-                crate::structured_tridiagonal::[<$p upgtr $fortran>](&uplo,&n,ap,tau,q,&ldq,work,&mut info);
+                crate::structured_tridiagonal::[<$p $g $fortran>](&uplo,&n,ap,tau,q,&ldq,work,&mut info);
                 return if info<0 {info-1} else {info};
             }
             let nn=n as usize;
@@ -100,12 +100,12 @@ macro_rules! exports {
             let mut qt=match row_to_column(nn,nn,q,ldq as usize){Ok(v)=>v,Err(e)=>return e as $i};
             let (ldq_t,)=((nn.max(1)) as $i,);
             let mut info:$i=0;
-            crate::structured_tridiagonal::[<$p upgtr $fortran>](&uplo,&n,apt.as_ptr(),tau,qt.as_mut_ptr(),&ldq_t,work,&mut info);
+            crate::structured_tridiagonal::[<$p $g $fortran>](&uplo,&n,apt.as_ptr(),tau,qt.as_mut_ptr(),&ldq_t,work,&mut info);
             if info>=0 {for i in 0..nn {for j in 0..nn {*q.add(i*ldq as usize+j)=qt[i+j*nn];}}}
             if info<0 {info-1} else {info}
         }
         #[no_mangle]
-        pub unsafe extern "C" fn [<LAPACKE_ $p upmtr $($suffix)*>](
+        pub unsafe extern "C" fn [<LAPACKE_ $p $m $($suffix)*>](
             layout:i32,side:u8,uplo:u8,trans:u8,m:$i,n:$i,
             ap:*const $t,tau:*const $t,c:*mut $t,ldc:$i,
         )->$i {
@@ -120,10 +120,10 @@ macro_rules! exports {
             let _=tr;
             let lw=if sd==b'L' {n.max(1) as usize} else {m.max(1) as usize};
             let mut work=vec![<$t>::z();lw];
-            [<LAPACKE_ $p upmtr_work $($suffix)*>](layout,side,uplo,trans,m,n,ap,tau,c,ldc,work.as_mut_ptr())
+            [<LAPACKE_ $p $m _work $($suffix)*>](layout,side,uplo,trans,m,n,ap,tau,c,ldc,work.as_mut_ptr())
         }
         #[no_mangle]
-        pub unsafe extern "C" fn [<LAPACKE_ $p upmtr_work $($suffix)*>](
+        pub unsafe extern "C" fn [<LAPACKE_ $p $m _work $($suffix)*>](
             layout:i32,side:u8,uplo:u8,trans:u8,m:$i,n:$i,
             ap:*const $t,tau:*const $t,c:*mut $t,ldc:$i,work:*mut $t,
         )->$i {
@@ -131,7 +131,7 @@ macro_rules! exports {
             if layout==ROW_MAJOR && ldc<n {return -10;}
             if layout==COL_MAJOR || m==0 || n==0 {
                 let mut info:$i=0;
-                crate::structured_tridiagonal::[<$p upmtr $fortran>](&side,&uplo,&trans,&m,&n,ap,tau,c,&ldc,work,&mut info);
+                crate::structured_tridiagonal::[<$p $m $fortran>](&side,&uplo,&trans,&m,&n,ap,tau,c,&ldc,work,&mut info);
                 return if info<0 {info-1} else {info};
             }
             let (mm,nn)=(m as usize,n as usize);
@@ -140,13 +140,17 @@ macro_rules! exports {
             let mut ct=match row_to_column(mm,nn,c,ldc as usize){Ok(v)=>v,Err(e)=>return e as $i};
             let (ldc_t,)=(mm.max(1) as $i,);
             let mut info:$i=0;
-            crate::structured_tridiagonal::[<$p upmtr $fortran>](&side,&uplo,&trans,&m,&n,apt.as_ptr(),tau,ct.as_mut_ptr(),&ldc_t,work,&mut info);
+            crate::structured_tridiagonal::[<$p $m $fortran>](&side,&uplo,&trans,&m,&n,apt.as_ptr(),tau,ct.as_mut_ptr(),&ldc_t,work,&mut info);
             if info>=0 {for i in 0..mm {for j in 0..nn {*c.add(i*ldc as usize+j)=ct[i+j*mm];}}}
             if info<0 {info-1} else {info}
         }
     }};
 }
-exports!(c, colmat::c32, f32, i32, [], _);
-exports!(z, colmat::c64, f64, i32, [], _);
-exports!(c, colmat::c32, f32, i64, [64_], _64_);
-exports!(z, colmat::c64, f64, i64, [64_], _64_);
+exports!(c, upgtr, upmtr, colmat::c32, f32, i32, [], _);
+exports!(z, upgtr, upmtr, colmat::c64, f64, i32, [], _);
+exports!(c, upgtr, upmtr, colmat::c32, f32, i64, [64_], _64_);
+exports!(z, upgtr, upmtr, colmat::c64, f64, i64, [64_], _64_);
+exports!(s, opgtr, opmtr, f32, f32, i32, [], _);
+exports!(d, opgtr, opmtr, f64, f64, i32, [], _);
+exports!(s, opgtr, opmtr, f32, f32, i64, [64_], _64_);
+exports!(d, opgtr, opmtr, f64, f64, i64, [64_], _64_);
