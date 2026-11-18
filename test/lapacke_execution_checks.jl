@@ -177,7 +177,8 @@ using Test
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in ("pptrf", "pptrs") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in ("gbtrf", "gbtrs", "gbsv") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in ("gbequ", "gbequb") for w in ("", "_work")))
-    @test length(targets)==828
+    union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in ("gttrf", "gttrs", "gtsv") for w in ("", "_work")))
+    @test length(targets)==852
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
@@ -201,16 +202,16 @@ using Test
             "Int"*string(e[2])
         end
         @test ABIEvidence.return_types[e]==expected_return
-        if occursin("lacgv", e[1]) || occursin("larfg", e[1])
+        if occursin("lacgv", e[1]) || occursin("larfg", e[1]) || occursin("gttrf", e[1])
             @test startswith(e[6], e[2] == 32 ? "(Int32," : "(Int64,")
         elseif occursin("lartg", e[1])
             @test startswith(e[6], "(Float32,") || startswith(e[6], "(Float64,")
-        elseif occursin("pttrf", e[1])
+        elseif occursin("pttrf", e[1]) || occursin("gttrf", e[1])
             @test startswith(e[6], "(Int32,") || startswith(e[6], "(Int64,")
         else
             @test startswith(e[6], "(Int32,")
         end
-        @test e[7] || occursin("lartg", e[1]) || occursin("pttrf", e[1])
+        @test e[7] || occursin("lartg", e[1]) || occursin("pttrf", e[1]) || occursin("gttrf", e[1])
         @test isfile(joinpath(ABIEvidence.root, e[4]))
         @test 1<=e[5]<=countlines(joinpath(ABIEvidence.root, e[4]))
     end
