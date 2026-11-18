@@ -23,6 +23,7 @@ mod generalized_qr;
 mod generalized_schur;
 mod generalized_schur_vectors;
 mod givens;
+mod hessenberg_schur;
 mod householder;
 mod lauum;
 mod least_squares;
