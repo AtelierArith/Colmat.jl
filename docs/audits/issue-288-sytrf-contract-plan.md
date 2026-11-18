@@ -1,7 +1,9 @@
 # Issue #288: SYTRF/SYTRS/SYSV and HETRF/HETRS/HESV C contracts
 
 Status: the 24 S/D/C/Z high/work entries pass focused factorization/solve,
-driver, layout, diagnostic and independent-call checks. Issue #288 remains open.
+driver, layout, diagnostic and independent-call checks. The immutable full suite
+records 420 sources, 2,180 canonical entries and 8,175 witnesses (2,384 forwards
+per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
