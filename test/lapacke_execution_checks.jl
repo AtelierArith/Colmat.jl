@@ -170,7 +170,8 @@ using Test
     union!(targets, Set("LAPACKE_"*p*"hgeqz"*w for p in ("s", "d", "c", "z") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("c", "z") for f in ("upgtr", "upmtr") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d") for f in ("opgtr", "opmtr") for w in ("", "_work")))
-    @test length(targets)==724
+    union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in ("pttrf", "pttrs") for w in ("", "_work")))
+    @test length(targets)==740
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
@@ -198,10 +199,12 @@ using Test
             @test startswith(e[6], e[2] == 32 ? "(Int32," : "(Int64,")
         elseif occursin("lartg", e[1])
             @test startswith(e[6], "(Float32,") || startswith(e[6], "(Float64,")
+        elseif occursin("pttrf", e[1])
+            @test startswith(e[6], "(Int32,") || startswith(e[6], "(Int64,")
         else
             @test startswith(e[6], "(Int32,")
         end
-        @test e[7] || occursin("lartg", e[1])
+        @test e[7] || occursin("lartg", e[1]) || occursin("pttrf", e[1])
         @test isfile(joinpath(ABIEvidence.root, e[4]))
         @test 1<=e[5]<=countlines(joinpath(ABIEvidence.root, e[4]))
     end
