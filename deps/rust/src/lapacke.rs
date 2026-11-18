@@ -31,6 +31,7 @@ mod reverse_qr;
 mod rz;
 mod scaling;
 mod schur_driver;
+mod schur_expert_driver;
 mod schur_selection;
 mod schur_vectors;
 mod self_adjoint;
