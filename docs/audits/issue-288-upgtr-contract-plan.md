@@ -1,7 +1,9 @@
 # Issue #288: UPGTR/UPMTR C contracts
 
 Status: the 8 C/Z high/work entries pass focused packed-layout, diagnostic and
-independent-call checks. Issue #288 remains open.
+independent-call checks. The immutable full suite records 399 sources, 2,008
+canonical entries and 7,483 witnesses (2,212 forwards per integer ABI). Issue
+#288 remains open.
 
 ## Connected names
 
