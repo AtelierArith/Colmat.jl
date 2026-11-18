@@ -2,7 +2,8 @@
 
 Status: the 12 high/work entries (LANGB for four scalar types, LANHE for the
 complex pair) pass focused norm, layout, diagnostic and independent-call checks.
-Issue #288 remains open.
+The immutable full suite records 426 sources, 2,232 canonical entries and 8,383
+witnesses (2,436 forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
