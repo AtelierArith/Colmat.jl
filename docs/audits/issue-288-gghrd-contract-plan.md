@@ -1,7 +1,9 @@
 # Issue #288: GGHRD/GGHD3 C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused layout, option, diagnostic
-and independent-call checks. Issue #288 remains open.
+and independent-call checks. The immutable full suite records 395 sources,
+1,992 canonical entries and 7,415 witnesses (2,196 forwards per integer ABI).
+Issue #288 remains open.
 
 ## Connected names
 
