@@ -1,8 +1,12 @@
 {
   "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "2cba410c64f5632ea278df239c360713f24923c0d6b394b9159a2afb8d436bc4",
+  "inventory_registration_sha256": "df09444913496cf25f3694876ad6b65f218beba633296a4c31f9a2cb9d8e18fd",
   "lapacke_target_symbols": [
+    "LAPACKE_cgbequ",
+    "LAPACKE_cgbequ_work",
+    "LAPACKE_cgbequb",
+    "LAPACKE_cgbequb_work",
     "LAPACKE_cgbsv",
     "LAPACKE_cgbsv_work",
     "LAPACKE_cgbtrf",
@@ -207,6 +211,10 @@
     "LAPACKE_cupgtr_work",
     "LAPACKE_cupmtr",
     "LAPACKE_cupmtr_work",
+    "LAPACKE_dgbequ",
+    "LAPACKE_dgbequ_work",
+    "LAPACKE_dgbequb",
+    "LAPACKE_dgbequb_work",
     "LAPACKE_dgbsv",
     "LAPACKE_dgbsv_work",
     "LAPACKE_dgbtrf",
@@ -409,6 +417,10 @@
     "LAPACKE_dtrtrs_work",
     "LAPACKE_dtzrzf",
     "LAPACKE_dtzrzf_work",
+    "LAPACKE_sgbequ",
+    "LAPACKE_sgbequ_work",
+    "LAPACKE_sgbequb",
+    "LAPACKE_sgbequb_work",
     "LAPACKE_sgbsv",
     "LAPACKE_sgbsv_work",
     "LAPACKE_sgbtrf",
@@ -611,6 +623,10 @@
     "LAPACKE_strtrs_work",
     "LAPACKE_stzrzf",
     "LAPACKE_stzrzf_work",
+    "LAPACKE_zgbequ",
+    "LAPACKE_zgbequ_work",
+    "LAPACKE_zgbequb",
+    "LAPACKE_zgbequb_work",
     "LAPACKE_zgbsv",
     "LAPACKE_zgbsv_work",
     "LAPACKE_zgbtrf",
@@ -816,7 +832,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "9c84a4ea4f4ba7402ca664ca81bc3af4299fde89ca23cd7176f2467debca847c",
+  "library_sha256": "18156ffcc0af08281382ca55da680bb6b7fb21352bf72448b4b785f9ff025dc3",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -894,7 +910,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "8365c222678d913ee4860c6ddd87028dc3029d0e",
+  "revision": "0d99916116f4c3eed5d6da0eca40fff4290920e8",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -1073,6 +1089,166 @@
   "errors": [],
   "witnesses": [
     {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequ",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequ",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequ",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequ",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequ_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequ_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequ_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequ_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_cgbequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 31,
       "return_type": "Int32",
       "route": "dll",
@@ -9229,6 +9405,166 @@
       "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
       "file": "test/lapacke_packed_vectors.jl",
       "symbol": "LAPACKE_cupmtr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequ",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequ",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequ",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequ",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequ_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequ_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequ_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequ_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_dgbequb_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -17333,6 +17669,166 @@
       "integer_arguments": true
     },
     {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequ",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequ",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequ",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequ",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequ_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequ_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequ_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequ_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_sgbequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 31,
       "return_type": "Int32",
       "route": "dll",
@@ -25409,6 +25905,166 @@
       "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
       "file": "test/lapacke_rz.jl",
       "symbol": "LAPACKE_stzrzf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequ",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequ",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequ",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequ",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequ_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequ_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequ_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequ_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gbequ.jl",
+      "symbol": "LAPACKE_zgbequb_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -79132,8 +79788,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "b7c16ff934e4a23dae8a0185734b41bbe2e199f2bfff7d8835f8886ca91a7a02",
-    "test/lapacke_execution_checks.jl": "b2e4916516dde8bbbefb816add86f5652066121660f884f5d99372c7a588ac1e",
+    "deps/rust/src/lapacke.rs": "4c4bd9c7507c57f12c8be161b6e78688ceba9fee138304a461f969cf6818e1ab",
+    "test/lapacke_execution_checks.jl": "da01f7fcf37b418d4f682a252adf4019b46958780b11bd96095bf0ef134866db",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -79288,10 +79944,11 @@
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/lapacke_gbtrf.jl": "a5091614dd41a08f6716787d0f7d27d384e7515864feb993c128fb52c1d10970",
     "deps/rust/src/lapacke/band_tridiagonal.rs": "d2aa73770686365723a5542b87782a85d044e6690ee5394eb4a61a1f85a92f8f",
+    "deps/rust/src/lapacke/band_equilibration.rs": "a41a93690172aac41b48b468e1804c259ea8afedf5d943562dd0001d2496b44d",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
     "deps/rust/src/lapacke/schur_driver.rs": "6eb09b74d6d092cc66ef54771aa0a3fed021601940ffc8e5f1a7f0f5ff127881",
     "deps/rust/src/lapacke/complex_auxiliary.rs": "475aacab3971a7f9c13b396da0a29b4910ccf6d19200f6531cee430366255449",
-    "test/suite.jl": "63f86a6a3dacc84c5014ce1918dc24717930cd5d45d775ba5d22d3218f190fab",
+    "test/suite.jl": "b38e29a674c981509a0b559549e82f5146c3cc74df4df22e59db16cec9bfd090",
     "test/lapacke_larfg.jl": "fd653e310ffbef2716705ad7f0f597f75ecde2a11ca2140d5545fbf743f347c5",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
@@ -79309,6 +79966,7 @@
     "test/qr_pivoted.jl": "bd2b1b10ba212be4ed196c3d1d62b5a4cc4e4f60d2c4d2d2efb9f05181806227",
     "deps/rust/src/lapack.rs": "b686f70398d15af0862b9a850124a39b9eda3da5e32c2ea8728c2e9901b87310",
     "test/matrix_copy.jl": "6d42862987c8eb55be32c6b57047b15b4dedd0d6fa0ff4d595b42b794d38b5f1",
+    "test/lapacke_gbequ.jl": "88703c373990311c58d8c36c28589c1dc4f0bea4dc3bdb46cd33eb829e2464fa",
     "test/lapacke_range_abi.jl": "1e40322d90ee58cdff955c658b700503ec6372246b6a5eaf640a33a7fae0439e",
     "deps/rust/src/schur_vectors.rs": "2372d00335331795a69fd067e1975498d6e6498e5d185137df1b05a33f578c44",
     "test/lapacke_general_expert_abi_worker.c": "5a8db331a5feb855280791eb361da904dbc46164786e19c61df425ba054f3fe2",

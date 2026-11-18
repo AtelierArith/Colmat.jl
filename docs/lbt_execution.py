@@ -152,6 +152,8 @@ def validate_lapacke_signature(row, witness):
         'gbtrf': ['Int32', integer, integer, integer, integer, t, integer, pivot],
         'gbtrs': ['Int32', 'Int8', integer, integer, integer, integer, t, integer, pivot, t, integer],
         'gbsv': ['Int32', integer, integer, integer, integer, t, integer, pivot, t, integer],
+        'gbequ': ['Int32', integer, integer, integer, integer, t, integer, real, real, real, real, real],
+        'gbequb': ['Int32', integer, integer, integer, integer, t, integer, real, real, real, real, real],
         'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
