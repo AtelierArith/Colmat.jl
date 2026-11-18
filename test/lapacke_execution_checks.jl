@@ -194,7 +194,7 @@ using Test
         else
             @test startswith(e[6], "(Int32,")
         end
-        @test e[7]
+        @test e[7] || occursin("lartg", e[1])
         @test isfile(joinpath(ABIEvidence.root, e[4]))
         @test 1<=e[5]<=countlines(joinpath(ABIEvidence.root, e[4]))
     end

@@ -275,9 +275,10 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [pivot, integer]
     actual = witness['signature'].replace(' ', '')
     expected_return = real_scalar if row['family'] in ('lange', 'lansy', 'lantr') else integer
+    expected_integer_arguments = row['family'] not in ('lartg', 'lartgp', 'lartgs')
     if (actual != '(' + ','.join(expected) + ')'
             or witness.get('return_type') != expected_return
-            or witness['integer_arguments'] is not True):
+            or witness['integer_arguments'] is not expected_integer_arguments):
         raise ValueError(f'LAPACKE layout/flag/integer/return signature disagrees with ABI: {row["symbol"]}')
 
 
