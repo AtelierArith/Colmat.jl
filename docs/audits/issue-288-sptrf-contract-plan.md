@@ -1,7 +1,9 @@
 # Issue #288: SPTRF/SPTRS/SPSV C contracts
 
 Status: the 12 S/D high/work entries pass focused packed-layout, Bunch-Kaufman,
-solve, driver, diagnostic and independent-call checks. Issue #288 remains open.
+solve, driver, diagnostic and independent-call checks. The immutable full suite
+records 418 sources, 2,156 canonical entries and 8,079 witnesses (2,360 forwards
+per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
