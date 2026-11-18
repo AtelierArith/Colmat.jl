@@ -1,8 +1,9 @@
 # Issue #288: LARTGP/LARTGS C contracts
 
 Status: the 8 S/D high/work entries pass focused scalar, diagnostic and
-independent-call checks. The immutable full suite is recorded in
-`docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+independent-call checks. The immutable full suite records 385 sources, 1,936
+canonical entries and 7,191 witnesses (2,140 forwards per integer ABI). Issue
+#288 remains open.
 
 ## Connected names
 
