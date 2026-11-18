@@ -22,6 +22,7 @@ mod lq;
 mod matrix_aux;
 mod matrix_norms;
 mod matrix_permutation;
+mod packed_vectors;
 mod pentagonal_qr;
 mod pivoted_qr;
 mod positive_qr;
