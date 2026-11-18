@@ -3,6 +3,7 @@
 //! Layout is always C int; dimensions, pivots and returned INFO follow lapack_int.
 use crate::kernels::Scalar;
 mod band_cholesky;
+mod band_equilibration;
 mod band_lu;
 mod band_tridiagonal;
 mod block_reflector;
