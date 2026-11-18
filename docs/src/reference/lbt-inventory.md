@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **2172**、ILP64 **2172** シンボルを登録します。
+現行 adapter は LP64 **2180**、ILP64 **2180** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -65,6 +65,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | GEES | native Schur driver (SORT=N/S) | SELECT callback を直接渡し、row-major A/VS、WORK/BWORK、SDIM を変換 |
 | GEESX | native/保存 Schur expert driver | SENSE、RCONDE/RCONDV、WORK/IWORK/RWORK、row-major A/VS |
 | GGEV / GGEV3 | native GEVD driver | JOBVL/JOBVR、alpha/beta、row-major A/B/VL/VR、WORK/RWORK |
+| GGEVX | native/保存 GEVD expert driver | BALANC/SENSE、条件数、ILO/IHI、IWORK/BWORK、row-major A/B/VL/VR |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |
 | SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |
 | SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |
@@ -840,7 +841,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `ggesx` / Fortran | `cggesx_`, `dggesx_`, `sggesx_`, `zggesx_` | [generalized reorder_schur / schur_eigenvalues_real / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。 |
 | `ggesx` / LAPACKE | `LAPACKE_cggesx`, `LAPACKE_cggesx_work`, `LAPACKE_dggesx`, `LAPACKE_dggesx_work`, `LAPACKE_sggesx`, `LAPACKE_sggesx_work`, `LAPACKE_zggesx`, `LAPACKE_zggesx_work` | [generalized reorder_schur / schur_eigenvalues_real / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `ggevx` / Fortran | `cggevx_`, `dggevx_`, `sggevx_`, `zggevx_` | [gevd_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/mod.rs) | Fortran 4シンボル・4型・両 ABI を接続済み。BALANC=N/SENSE=N は native GEVD と ILO/IHI、LSCALE/RSCALE、元の尺度の Schur A/B、ABNRM/BBNRM を構成。その他の balance/condition mode は保存した既存 ILP64 バックエンドへ委譲し、LP64 呼び出しでは整数スカラーと所有する IWORK/BWORK を変換。ロード前の ILP64 expert backend を必須とし、欠落は登録前に診断する。 |
-| `ggevx` / LAPACKE | `LAPACKE_cggevx`, `LAPACKE_cggevx_work`, `LAPACKE_dggevx`, `LAPACKE_dggevx_work`, `LAPACKE_sggevx`, `LAPACKE_sggevx_work`, `LAPACKE_zggevx`, `LAPACKE_zggevx_work` | [gevd_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/mod.rs) | Fortran 4シンボル・4型・両 ABI を接続済み。BALANC=N/SENSE=N は native GEVD と ILO/IHI、LSCALE/RSCALE、元の尺度の Schur A/B、ABNRM/BBNRM を構成。その他の balance/condition mode は保存した既存 ILP64 バックエンドへ委譲し、LP64 呼び出しでは整数スカラーと所有する IWORK/BWORK を変換。ロード前の ILP64 expert backend を必須とし、欠落は登録前に診断する。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `ggevx` / LAPACKE | `LAPACKE_cggevx`, `LAPACKE_cggevx_work`, `LAPACKE_dggevx`, `LAPACKE_dggevx_work`, `LAPACKE_sggevx`, `LAPACKE_sggevx_work`, `LAPACKE_zggevx`, `LAPACKE_zggevx_work` | [gevd_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/mod.rs) | Fortran 4シンボル・4型・両 ABI を接続済み。BALANC=N/SENSE=N は native GEVD と ILO/IHI、LSCALE/RSCALE、元の尺度の Schur A/B、ABNRM/BBNRM を構成。その他の balance/condition mode は保存した既存 ILP64 バックエンドへ委譲し、LP64 呼び出しでは整数スカラーと所有する IWORK/BWORK を変換。ロード前の ILP64 expert backend を必須とし、欠落は登録前に診断する。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `hegv` / Fortran | `chegv_`, `zhegv_` | [Cholesky + triangular congruence + self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続 |
 | `hegv` / LAPACKE | `LAPACKE_chegv`, `LAPACKE_chegv_work`, `LAPACKE_zhegv`, `LAPACKE_zhegv_work` | [Cholesky + triangular congruence + self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `hegvd` / Fortran | `chegvd_`, `zhegvd_` | [Cholesky + triangular congruence + self_adjoint_evd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続 |
@@ -1513,7 +1514,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,968 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 1,976 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.

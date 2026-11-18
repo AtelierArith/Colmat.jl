@@ -10,6 +10,7 @@ mod complex_auxiliary;
 mod general_eigen;
 mod general_expert;
 mod generalized_eigen_driver;
+mod generalized_expert_driver;
 mod generalized_qr;
 mod generalized_schur_vectors;
 mod givens;
