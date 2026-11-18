@@ -48,6 +48,7 @@ mod selfadjoint_vectors;
 mod svd;
 mod symmetric_rank;
 mod triangular;
+mod tridiagonal_evd;
 
 const ROW_MAJOR: i32 = 101;
 const COL_MAJOR: i32 = 102;
