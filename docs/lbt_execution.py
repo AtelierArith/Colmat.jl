@@ -166,6 +166,8 @@ def validate_lapacke_signature(row, witness):
         'hetrf': [],
         'hetrs': ['Int32', 'Int8', integer, integer, t, integer, pivot, t, integer],
         'hesv': [],
+        'gebal': ['Int32', 'Int8', integer, t, integer, pivot, pivot, real],
+        'gebak': ['Int32', 'Int8', 'Int8', integer, integer, integer, real, integer, t, integer],
         'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
