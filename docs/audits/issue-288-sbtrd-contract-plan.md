@@ -1,7 +1,9 @@
 # Issue #288: SBTRD/HBTRD C contracts
 
-Status: the 16 S/D/C/Z high/work entries pass focused band-layout, reduction,
-vector, diagnostic and independent-call checks. Issue #288 remains open.
+Status: the 8 S/D/C/Z high/work entries pass focused band-layout, reduction,
+vector, diagnostic and independent-call checks. The immutable full suite records
+406 sources, 2,056 canonical entries and 7,679 witnesses (2,260 forwards per
+integer ABI). Issue #288 remains open.
 
 ## Connected names
 
