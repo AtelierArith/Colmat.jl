@@ -5,13 +5,21 @@ for (T, J) in ((Float32, Int32), (Float32, Int64), (Float64, Int32), (Float64, I
                (ComplexF32, Int32), (ComplexF32, Int64), (ComplexF64, Int32), (ComplexF64, Int64))
     @eval function lapacke_gghrd_call(
         ::Type{$T}, ::Type{$J}, pointer, layout, compq, compz, n, ilo, ihi,
-        a, lda, b, ldb, q, ldq, z, ldz, name, route,
+        a, lda, b, ldb, q, ldq, z, ldz, work, save, name, route,
     )
         lapacke288_selected_entry(name, $J, route) do
-            ccall(pointer, $J,
-                (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J,
-                 Ptr{$T}, $J, Ptr{$T}, $J),
-                layout, compq, compz, n, ilo, ihi, a, lda, b, ldb, q, ldq, z, ldz)
+            if occursin("_work", name) && save
+                ccall(pointer, $J,
+                    (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J,
+                     Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$T}, $J),
+                    layout, compq, compz, n, ilo, ihi, a, lda, b, ldb, q, ldq,
+                    z, ldz, work, length(work))
+            else
+                ccall(pointer, $J,
+                    (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J,
+                     Ptr{$T}, $J, Ptr{$T}, $J),
+                    layout, compq, compz, n, ilo, ihi, a, lda, b, ldb, q, ldq, z, ldz)
+            end
         end
     end
 end
@@ -38,11 +46,12 @@ end
     for (T, prefix) in
         ((Float32, "s"), (Float64, "d"), (ComplexF32, "c"), (ComplexF64, "z")),
         J in (Int32, Int64), n in (1, 4), family in ("gghrd", "gghd3"),
-        compq in ('N', 'V'), compz in ('N', 'V'), route in (:dll, :lbt_trampoline)
+        familywork in (false, true), compq in ('N', 'V'), compz in ('N', 'V'),
+        route in (:dll, :lbt_trampoline)
 
         suffix = J === Int64 ? "64_" : ""
         interface = J === Int64 ? :ilp64 : :lp64
-        name = "LAPACKE_" * prefix * family
+        name = "LAPACKE_" * prefix * family * (familywork ? "_work" : "")
         @test BLAS.lbt_get_forward(name, interface) == Libdl.dlsym(native, name * suffix)
         pointer = Libdl.dlsym(route === :dll ? native : trampoline, name * suffix)
         rng = MersenneTwister(2000 + n)
@@ -56,7 +65,7 @@ end
         qcol = vec(copy(q0)); zcol = vec(copy(z0))
         @test lapacke_gghrd_call(
             T, J, pointer, 102, compq, compz, n, ilo, ihi, acol, n, bcol, n,
-            qcol, n, zcol, n, name, route,
+            qcol, n, zcol, n, fill(T(NaN), 3n), family == "gghd3", name, route,
         ) == 0
         # Row-major with padding.
         ld = n + 2
@@ -64,7 +73,7 @@ end
         qrow = row_major(q0, ld); zrow = row_major(z0, ld)
         @test lapacke_gghrd_call(
             T, J, pointer, 101, compq, compz, n, ilo, ihi, arow, ld, brow, ld,
-            qrow, ld, zrow, ld, name, route,
+            qrow, ld, zrow, ld, fill(T(NaN), 3n), family == "gghd3", name, route,
         ) == 0
         tol = 500 * eps(real(T))
         @test isapprox(from_row_major(arow, n, n, ld), reshape(acol, n, n); rtol=tol, atol=tol)
@@ -91,24 +100,24 @@ end
         q = Matrix{T}(I, n, n); z = Matrix{T}(I, n, n)
         @test lapacke_gghrd_call(
             T, J, pointer, 301, 'V', 'V', n, 1, n, vec(a), n, vec(b), n,
-            vec(q), n, vec(z), n, name, :dll,
+            vec(q), n, vec(z), n, T[], false, name, :dll,
         ) == -1
         @test lapacke_gghrd_call(
             T, J, pointer, 101, 'V', 'V', n, 1, n, vec(a), n - 1, vec(b), n,
-            vec(q), n, vec(z), n, name, :dll,
+            vec(q), n, vec(z), n, T[], false, name, :dll,
         ) == -8
         @test lapacke_gghrd_call(
             T, J, pointer, 101, 'V', 'V', n, 1, n, vec(a), n, vec(b), n,
-            vec(q), n - 1, vec(z), n, name, :dll,
+            vec(q), n - 1, vec(z), n, T[], false, name, :dll,
         ) == -12
         @test lapacke_gghrd_call(
             T, J, pointer, 101, 'V', 'V', n, 1, n, vec(a), n, vec(b), n,
-            vec(q), n, vec(z), n - 1, name, :dll,
+            vec(q), n, vec(z), n - 1, T[], false, name, :dll,
         ) == -14
         bad = copy(vec(a)); bad[1] = T(NaN)
         @test lapacke_gghrd_call(
             T, J, pointer, 102, 'V', 'V', n, 1, n, bad, n, vec(b), n,
-            vec(q), n, vec(z), n, name, :dll,
+            vec(q), n, vec(z), n, T[], false, name, :dll,
         ) == -7
     end
     ccall(Libdl.dlsym(native, :colmat_blas_last_error), Cint, ())

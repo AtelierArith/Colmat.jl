@@ -97,13 +97,20 @@ macro_rules! exports {
             b:*mut $t,ldb:$i,q:*mut $t,ldq:$i,z:*mut $t,ldz:$i,
         )->$i {
             if layout!=ROW_MAJOR && layout!=COL_MAJOR {return -1;}
-            let (cq,cz)=(compq.to_ascii_uppercase(),compz.to_ascii_uppercase());
             if LAPACKE_get_nancheck()!=0 {
                 if ge_nancheck(layout,n as i64,n as i64,a,lda as i64).unwrap_or(false) {return -7;}
                 if ge_nancheck(layout,n as i64,n as i64,b,ldb as i64).unwrap_or(false) {return -9;}
-                if cq==b'V' && ge_nancheck(layout,n as i64,n as i64,q,ldq as i64).unwrap_or(false) {return -11;}
-                if cz==b'V' && ge_nancheck(layout,n as i64,n as i64,z,ldz as i64).unwrap_or(false) {return -13;}
+                if compq.to_ascii_uppercase()==b'V' && ge_nancheck(layout,n as i64,n as i64,q,ldq as i64).unwrap_or(false) {return -11;}
+                if compz.to_ascii_uppercase()==b'V' && ge_nancheck(layout,n as i64,n as i64,z,ldz as i64).unwrap_or(false) {return -13;}
             }
+            [<LAPACKE_ $p gghrd_work $($suffix)*>](layout,compq,compz,n,ilo,ihi,a,lda,b,ldb,q,ldq,z,ldz)
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p gghrd_work $($suffix)*>](
+            layout:i32,compq:u8,compz:u8,n:$i,ilo:$i,ihi:$i,a:*mut $t,lda:$i,
+            b:*mut $t,ldb:$i,q:*mut $t,ldq:$i,z:*mut $t,ldz:$i,
+        )->$i {
+            let (cq,cz)=(compq.to_ascii_uppercase(),compz.to_ascii_uppercase());
             convert(layout,n as i64,a,lda as i64,b,ldb as i64,q,ldq as i64,z,ldz as i64,cq,cz,|a,la,b,lb,q,lq,z,lz|{
                 let mut info:$i=0;
                 crate::generalized_hessenberg::[<$p gghrd $fortran>](&cq,&cz,&n,&ilo,&ihi,a,&(la as $i),b,&(lb as $i),q,&(lq as $i),z,&(lz as $i),&mut info);
@@ -116,16 +123,25 @@ macro_rules! exports {
             b:*mut $t,ldb:$i,q:*mut $t,ldq:$i,z:*mut $t,ldz:$i,
         )->$i {
             if layout!=ROW_MAJOR && layout!=COL_MAJOR {return -1;}
-            let (cq,cz)=(compq.to_ascii_uppercase(),compz.to_ascii_uppercase());
             if LAPACKE_get_nancheck()!=0 {
                 if ge_nancheck(layout,n as i64,n as i64,a,lda as i64).unwrap_or(false) {return -7;}
                 if ge_nancheck(layout,n as i64,n as i64,b,ldb as i64).unwrap_or(false) {return -9;}
-                if cq==b'V' && ge_nancheck(layout,n as i64,n as i64,q,ldq as i64).unwrap_or(false) {return -11;}
-                if cz==b'V' && ge_nancheck(layout,n as i64,n as i64,z,ldz as i64).unwrap_or(false) {return -13;}
+                if compq.to_ascii_uppercase()==b'V' && ge_nancheck(layout,n as i64,n as i64,q,ldq as i64).unwrap_or(false) {return -11;}
+                if compz.to_ascii_uppercase()==b'V' && ge_nancheck(layout,n as i64,n as i64,z,ldz as i64).unwrap_or(false) {return -13;}
             }
+            let mut work=vec![<$t>::z();(3*n.max(0) as usize).max(1)];
+            [<LAPACKE_ $p gghd3_work $($suffix)*>](layout,compq,compz,n,ilo,ihi,a,lda,b,ldb,q,ldq,z,ldz,work.as_mut_ptr(),work.len() as $i)
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p gghd3_work $($suffix)*>](
+            layout:i32,compq:u8,compz:u8,n:$i,ilo:$i,ihi:$i,a:*mut $t,lda:$i,
+            b:*mut $t,ldb:$i,q:*mut $t,ldq:$i,z:*mut $t,ldz:$i,
+            work:*mut $t,lwork:$i,
+        )->$i {
+            let (cq,cz)=(compq.to_ascii_uppercase(),compz.to_ascii_uppercase());
             convert(layout,n as i64,a,lda as i64,b,ldb as i64,q,ldq as i64,z,ldz as i64,cq,cz,|a,la,b,lb,q,lq,z,lz|{
-                let mut info:$i=0; let mut work=vec![<$t>::z();(3*n.max(0) as usize).max(1)];
-                crate::generalized_hessenberg::[<$p gghd3 $fortran>](&cq,&cz,&n,&ilo,&ihi,a,&(la as $i),b,&(lb as $i),q,&(lq as $i),z,&(lz as $i),work.as_mut_ptr(),&(work.len() as $i),&mut info);
+                let mut info:$i=0;
+                crate::generalized_hessenberg::[<$p gghd3 $fortran>](&cq,&cz,&n,&ilo,&ihi,a,&(la as $i),b,&(lb as $i),q,&(lq as $i),z,&(lz as $i),work,&lwork,&mut info);
                 if info<0 {(info-1) as i64} else {info as i64}
             }) as $i
         }
