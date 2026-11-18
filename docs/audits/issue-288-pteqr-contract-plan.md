@@ -1,7 +1,9 @@
 # Issue #288: PTEQR C contracts
 
 Status: the 8 S/D/C/Z high/work entries pass focused layout, COMPZ, eigenvector,
-diagnostic and independent-call checks. Issue #288 remains open.
+diagnostic and independent-call checks. The immutable full suite records 408
+sources, 2,064 canonical entries and 7,711 witnesses (2,268 forwards per integer
+ABI). Issue #288 remains open.
 
 ## Connected names
 
