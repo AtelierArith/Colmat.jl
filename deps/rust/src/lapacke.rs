@@ -39,6 +39,7 @@ mod q_application;
 mod q_generators;
 mod qr;
 mod qz;
+mod reduction_drivers;
 mod reduction_vectors;
 mod reordering;
 mod reverse_qr;
