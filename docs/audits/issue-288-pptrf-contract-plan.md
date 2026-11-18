@@ -1,8 +1,9 @@
 # Issue #288: PPTRF/PPTRS C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused packed-layout,
-factorization/solve, diagnostic and independent-call checks. Issue #288 remains
-open.
+factorization/solve, diagnostic and independent-call checks. The immutable full
+suite records 410 sources, 2,080 canonical entries and 7,775 witnesses (2,284
+forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
