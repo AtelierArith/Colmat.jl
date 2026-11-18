@@ -9,7 +9,7 @@ See [generalized QR contracts and evidence](issue-288-generalized-qr-contract-pl
 and [matrix auxiliary contracts](issue-288-matrix-aux-contract-plan.md).
 
 **Issue #288 remains open.** Its original 1,616-entry acceptance scope is frozen
-in `issue-288-lapacke-scope.json`; 652 of those entries remain beyond this stage.
+in `issue-288-lapacke-scope.json`; 636 of those entries remain beyond this stage.
 Issue #372 additionally coordinates 20 LAPACKE Rook entries with #288. Those
 additions are separate from the original scope and are also still pending.
 Registration alone, successful fallback computation and the current subset's

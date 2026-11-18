@@ -1,7 +1,9 @@
 # Issue #288: GEEQU/GEEQUB C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused equilibration, layout,
-diagnostic and independent-call checks. Issue #288 remains open.
+diagnostic and independent-call checks. The immutable full suite records 430
+sources, 2,272 canonical entries and 8,559 witnesses (2,476 forwards per integer
+ABI). Issue #288 remains open.
 
 ## Connected names
 
