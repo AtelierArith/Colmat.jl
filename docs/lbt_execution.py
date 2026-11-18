@@ -147,6 +147,8 @@ def validate_lapacke_signature(row, witness):
         'sbtrd': ['Int32', 'Int8', 'Int8', integer, integer, t, integer, real, real, t, integer],
         'hbtrd': ['Int32', 'Int8', 'Int8', integer, integer, t, integer, real, real, t, integer],
         'pteqr': ['Int32', 'Int8', integer, real, real, t, integer],
+        'pptrf': ['Int32', 'Int8', integer, t],
+        'pptrs': ['Int32', 'Int8', integer, integer, t, t, integer],
         'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
