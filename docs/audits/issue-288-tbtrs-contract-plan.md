@@ -1,8 +1,9 @@
 # Issue #288: TBTRS/TPTRS/TPTRI C contracts
 
 Status: the 24 S/D/C/Z high/work entries pass focused triangular band and
-packed solve/inverse, layout, diagnostic and independent-call checks. Issue #288
-remains open.
+packed solve/inverse, layout, diagnostic and independent-call checks. The
+immutable full suite records 424 sources, 2,220 canonical entries and 8,335
+witnesses (2,424 forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
