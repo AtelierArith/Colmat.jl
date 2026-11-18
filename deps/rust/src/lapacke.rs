@@ -26,6 +26,7 @@ mod packed_vectors;
 mod pentagonal_qr;
 mod pivoted_qr;
 mod positive_qr;
+mod positive_tridiagonal;
 mod q_application;
 mod q_generators;
 mod qr;
