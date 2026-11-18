@@ -1,7 +1,9 @@
 # Issue #288: HGEQZ C contracts
 
 Status: the 8 S/D/C/Z high/work entries pass focused layout, eigenvalue/vector,
-diagnostic and independent-call checks for JOB='E'. Issue #288 remains open.
+diagnostic and independent-call checks for JOB='E'. The immutable full suite
+records 397 sources, 2,000 canonical entries and 7,447 witnesses (2,204
+forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
