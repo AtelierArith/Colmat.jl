@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **2260**、ILP64 **2260** シンボルを登録します。
+現行 adapter は LP64 **2268**、ILP64 **2268** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -73,6 +73,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | PTTRF / PTTRS | native positive tridiagonal factorization/solve | layout なしの PTTRF、PTTRS の row-major B、複素数は real D と complex E |
 | PBTRF / PBTRS | native banded positive-definite factorization/solve | row-major band AB (kd+1 行 × LDAB 列)、row-major B、LDAB/LDB 変換 |
 | SBTRD / HBTRD | native banded tridiagonal reduction | row-major band AB、VECT V の Q、D/E、LDAB/LDQ 変換 |
+| PTEQR | native tridiagonal eigensolver | COMPZ N/V/I、row-major Z、4N-4 の実 WORK、D/E |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |
 | SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |
 | SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |
@@ -731,7 +732,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `pstrf` / Fortran | `cpstrf_`, `dpstrf_`, `spstrf_`, `zpstrf_` | [single-pivot native LLT / native GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/cholesky/llt_pivoting/factor.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。adapter が pivot と LAPACK TOL/INFO/PIV を制御し、各 pivot の native LLT と native GEMM の Schur 更新を合成する。自動許容値は N*DLAMCH(E)*最大対角。最初の正 pivot 後に TOL で停止し、完了済み因子と未計算の置換済み三角部分・停止対角を返す。PSTRF/PSTF2 は共通の逐次経路で内部行列・scratch を確保する。 |
 | `pstrf` / LAPACKE | `LAPACKE_cpstrf`, `LAPACKE_cpstrf_work`, `LAPACKE_dpstrf`, `LAPACKE_dpstrf_work`, `LAPACKE_spstrf`, `LAPACKE_spstrf_work`, `LAPACKE_zpstrf`, `LAPACKE_zpstrf_work` | [single-pivot native LLT / native GEMM](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/cholesky/llt_pivoting/factor.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。adapter が pivot と LAPACK TOL/INFO/PIV を制御し、各 pivot の native LLT と native GEMM の Schur 更新を合成する。自動許容値は N*DLAMCH(E)*最大対角。最初の正 pivot 後に TOL で停止し、完了済み因子と未計算の置換済み三角部分・停止対角を返す。PSTRF/PSTF2 は共通の逐次経路で内部行列・scratch を確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `pteqr` / Fortran | `cpteqr_`, `dpteqr_`, `spteqr_`, `zpteqr_` | [bidiagonal_svd + positive tridiagonal factor representation](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | PTEQR の4 Fortran シンボルを両 ABI に接続。正定値三重対角の bidiagonal Cholesky 因子を作り native bidiagonal SVD を使う。降順の固有値、正定値性 INFO、既存 Q の後乗算を扱い、SVD 非収束は保存した LAPACK に委譲。C API は別途接続 |
-| `pteqr` / LAPACKE | `LAPACKE_cpteqr`, `LAPACKE_cpteqr_work`, `LAPACKE_dpteqr`, `LAPACKE_dpteqr_work`, `LAPACKE_spteqr`, `LAPACKE_spteqr_work`, `LAPACKE_zpteqr`, `LAPACKE_zpteqr_work` | [bidiagonal_svd + positive tridiagonal factor representation](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | PTEQR の4 Fortran シンボルを両 ABI に接続。正定値三重対角の bidiagonal Cholesky 因子を作り native bidiagonal SVD を使う。降順の固有値、正定値性 INFO、既存 Q の後乗算を扱い、SVD 非収束は保存した LAPACK に委譲。C API は別途接続; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `pteqr` / LAPACKE | `LAPACKE_cpteqr`, `LAPACKE_cpteqr_work`, `LAPACKE_dpteqr`, `LAPACKE_dpteqr_work`, `LAPACKE_spteqr`, `LAPACKE_spteqr_work`, `LAPACKE_zpteqr`, `LAPACKE_zpteqr_work` | [bidiagonal_svd + positive tridiagonal factor representation](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | PTEQR の4 Fortran シンボルを両 ABI に接続。正定値三重対角の bidiagonal Cholesky 因子を作り native bidiagonal SVD を使う。降順の固有値、正定値性 INFO、既存 Q の後乗算を扱い、SVD 非収束は保存した LAPACK に委譲。C API は別途接続; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `real_rot` / Fortran | `csrot_`, `zdrot_` | [行列/ベクトル view と還元・演算](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/reductions/mod.rs) | 基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ |
 | `real_rot` / CBLAS | `cblas_csrot` | [行列/ベクトル view と還元・演算](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/reductions/mod.rs) | 基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ; C ABI connected for LP64/ILP64 with row/column-major and explicit enum/coefficient/return conversions; #271 tests DLL and LBT routes |
 | `real_scal` / Fortran | `csscal_`, `zdscal_` | [行列/ベクトル view と還元・演算](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/reductions/mod.rs) | 基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ |
@@ -1521,7 +1522,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 2,056 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 0 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
