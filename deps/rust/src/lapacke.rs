@@ -50,6 +50,7 @@ mod self_adjoint;
 mod self_adjoint_range;
 mod selfadjoint_vectors;
 mod svd;
+mod symmetric_lu;
 mod symmetric_rank;
 mod triangular;
 mod tridiagonal_evd;
