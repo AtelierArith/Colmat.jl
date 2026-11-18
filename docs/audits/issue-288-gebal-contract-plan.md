@@ -1,8 +1,9 @@
 # Issue #288: GEBAL/GEBAK C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused balancing,
-back-transform, layout, diagnostic and independent-call checks. Issue #288
-remains open.
+back-transform, layout, diagnostic and independent-call checks. The immutable
+full suite records 422 sources, 2,196 canonical entries and 8,239 witnesses
+(2,400 forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
