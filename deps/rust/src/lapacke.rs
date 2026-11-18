@@ -52,6 +52,7 @@ mod svd;
 mod symmetric_rank;
 mod triangular;
 mod tridiagonal_evd;
+mod tridiagonal_lu;
 
 const ROW_MAJOR: i32 = 101;
 const COL_MAJOR: i32 = 102;
