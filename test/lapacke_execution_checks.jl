@@ -182,7 +182,9 @@ using Test
     union!(targets, Set("LAPACKE_"*p*f*w for (p, f) in (("s", "sytrf"), ("d", "sytrf"), ("s", "sytrs"), ("d", "sytrs"), ("s", "sysv"), ("d", "sysv"), ("c", "hetrf"), ("z", "hetrf"), ("c", "hetrs"), ("z", "hetrs"), ("c", "hesv"), ("z", "hesv")) for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in ("gebal", "gebak") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in ("tbtrs", "tptrs", "tptri") for w in ("", "_work")))
-    @test length(targets)==928
+    union!(targets, Set("LAPACKE_"*p*"langb"*w for p in ("s", "d", "c", "z") for w in ("", "_work")))
+    union!(targets, Set("LAPACKE_"*p*"lanhe"*w for p in ("c", "z") for w in ("", "_work")))
+    @test length(targets)==940
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
@@ -195,8 +197,9 @@ using Test
     end
     norm_targets=Set(
         "LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for
-        f in ("lange", "lansy", "lantr") for w in ("", "_work")
+        f in ("lange", "lansy", "lantr", "langb") for w in ("", "_work")
     )
+    union!(norm_targets, Set("LAPACKE_"*p*"lanhe"*w for p in ("c", "z") for w in ("", "_work")))
     for e in ABIEvidence.witnesses
         e[1] in targets || continue
         e[4]=="test/abi_execution_checks.jl" && continue

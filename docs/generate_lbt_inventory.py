@@ -192,6 +192,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| SYTRF/SYTRS/SYSV・HETRF/HETRS/HESV | native dense Bunch-Kaufman LU | UPLO、IPIV、WORK query、row-major A/B。SY は S/D、HE は C/Z |',
     '| GEBAL / GEBAK | native balancing and back-transform | JOB N/P/S/B、ILO/IHI、real SCALE、row-major A/V、SIDE L/R |',
     '| TBTRS・TPTRS/TPTRI | native triangular band/packed solve and inverse | UPLO/TRANS/DIAG、row-major band AB と packed AP の並べ替え、row-major B |',
+    '| LANGB / LANHE | native band and Hermitian norms | 解析用 band AB (KL+KU+1 行) の row-major 変換、選択三角の変換。row-major は列優先と同じ値を返す |',
     '| TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |',
     '| SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |',
     '| SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |',
