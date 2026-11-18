@@ -1,7 +1,9 @@
 # Issue #288: GEHRD/GEBRD/LARFX C contracts
 
 Status: the 24 S/D/C/Z high/work entries pass focused reduction, reflector,
-layout, diagnostic and independent-call checks. Issue #288 remains open.
+layout, diagnostic and independent-call checks. The immutable full suite records
+428 sources, 2,256 canonical entries and 8,495 witnesses (2,460 forwards per
+integer ABI). Issue #288 remains open.
 
 ## Connected names
 
