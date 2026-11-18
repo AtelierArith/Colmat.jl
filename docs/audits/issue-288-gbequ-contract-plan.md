@@ -1,7 +1,9 @@
 # Issue #288: GBEQU/GBEQUB C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused band-layout, equilibration
-and diagnostic checks. Issue #288 remains open.
+and diagnostic checks. The immutable full suite records 414 sources, 2,120
+canonical entries and 7,935 witnesses (2,324 forwards per integer ABI). Issue
+#288 remains open.
 
 ## Connected names
 
