@@ -1,8 +1,9 @@
 # Issue #288: LARFB C contracts
 
 Status: the 8 S/D/C/Z high/work entries pass focused layout, option, diagnostic
-and independent-call checks. The immutable full suite is recorded in
-`docs/src/assets/lapack-abi-execution.json`. Issue #288 remains open.
+and independent-call checks. The immutable full suite records 383 sources,
+1,928 canonical entries and 7,159 witnesses (2,132 forwards per integer ABI).
+Issue #288 remains open.
 
 ## Connected names
 
