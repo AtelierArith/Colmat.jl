@@ -171,6 +171,8 @@ def validate_lapacke_signature(row, witness):
         'tbtrs': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, integer, t, integer, t, integer],
         'tptrs': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, t, integer],
         'tptri': ['Int32', 'Int8', 'Int8', integer, t],
+        'langb': ['Int32', 'Int8', integer, integer, integer, t, integer],
+        'lanhe': ['Int32', 'Int8', 'Int8', integer, t, integer],
         'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
@@ -337,6 +339,8 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t, integer]
     if row['family'] in ('orgtr', 'ungtr', 'ormtr', 'unmtr', 'orgbr', 'ungbr', 'orghr', 'unghr', 'ormbr', 'unmbr', 'ormhr', 'unmhr') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
+    if row['family'] in ('langb', 'lanhe') and row['symbol'].endswith('_work'):
+        expected = expected + [real]
     if row['family'] in ('lange', 'lansy', 'lantr') and row['symbol'].endswith('_work'):
         expected = expected + [real]
     if row['family'] == 'geev' and row['symbol'].endswith('_work'):
@@ -369,7 +373,7 @@ def validate_lapacke_signature(row, witness):
             expected = expected + [real, integer]
         expected = expected + [pivot, integer]
     actual = witness['signature'].replace(' ', '')
-    expected_return = real_scalar if row['family'] in ('lange', 'lansy', 'lantr') else integer
+    expected_return = real_scalar if row['family'] in ('lange', 'lansy', 'lantr', 'langb', 'lanhe') else integer
     expected_integer_arguments = row['family'] not in ('lartg', 'lartgp', 'lartgs', 'pttrf')
     if (actual != '(' + ','.join(expected) + ')'
             or witness.get('return_type') != expected_return
