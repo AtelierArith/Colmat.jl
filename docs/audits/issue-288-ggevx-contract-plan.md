@@ -2,8 +2,8 @@
 
 Status: the 8 S/D/C/Z high/work entries pass focused layout, eigenvalue/vector,
 diagnostic and independent-call checks for BALANC='N', SENSE='N'. The immutable
-full suite is recorded in `docs/src/assets/lapack-abi-execution.json`. Issue
-#288 remains open.
+full suite records 393 sources, 1,976 canonical entries and 7,351 witnesses
+(2,180 forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
