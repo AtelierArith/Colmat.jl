@@ -1,7 +1,9 @@
 # Issue #288: GBTRF/GBTRS/GBSV C contracts
 
 Status: the 24 S/D/C/Z high/work entries pass focused band-layout, LU, solve,
-driver, diagnostic and independent-call checks. Issue #288 remains open.
+driver, diagnostic and independent-call checks. The immutable full suite records
+412 sources, 2,104 canonical entries and 7,871 witnesses (2,308 forwards per
+integer ABI). Issue #288 remains open.
 
 ## Connected names
 
