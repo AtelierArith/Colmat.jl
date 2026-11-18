@@ -2,6 +2,7 @@
 //! Reference contract: Reference-LAPACK v3.12.1, lapacke_*getrf_work.c.
 //! Layout is always C int; dimensions, pivots and returned INFO follow lapack_int.
 use crate::kernels::Scalar;
+mod balance;
 mod band_cholesky;
 mod band_equilibration;
 mod band_lu;
