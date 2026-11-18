@@ -13,6 +13,7 @@ mod block_reflector_apply;
 mod cholesky;
 mod compact_qr;
 mod complex_auxiliary;
+mod dense_equilibration;
 mod general_eigen;
 mod general_expert;
 mod generalized_eigen_driver;
