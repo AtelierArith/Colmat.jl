@@ -54,6 +54,7 @@ mod svd;
 mod symmetric_lu;
 mod symmetric_rank;
 mod triangular;
+mod triangular_aux;
 mod tridiagonal_evd;
 mod tridiagonal_lu;
 

@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "5e549590a6a82e0dcb893724e1e5d0c3118fdcd887ce733322bda97026bc9f44",
+  "inventory_registration_sha256": "087bf96398783fd3506f16f016da1de3aa50816a4e1d18a9380bceaed638446d",
   "lapacke_target_symbols": [
     "LAPACKE_cgbequ",
     "LAPACKE_cgbequ_work",
@@ -171,6 +171,8 @@
     "LAPACKE_cpttrs_work",
     "LAPACKE_csyr",
     "LAPACKE_csyr_work",
+    "LAPACKE_ctbtrs",
+    "LAPACKE_ctbtrs_work",
     "LAPACKE_ctgevc",
     "LAPACKE_ctgevc_work",
     "LAPACKE_ctpmqrt",
@@ -181,6 +183,10 @@
     "LAPACKE_ctpqrt_work",
     "LAPACKE_ctprfb",
     "LAPACKE_ctprfb_work",
+    "LAPACKE_ctptri",
+    "LAPACKE_ctptri_work",
+    "LAPACKE_ctptrs",
+    "LAPACKE_ctptrs_work",
     "LAPACKE_ctrevc",
     "LAPACKE_ctrevc_work",
     "LAPACKE_ctrexc",
@@ -433,6 +439,8 @@
     "LAPACKE_dsytrf_work",
     "LAPACKE_dsytrs",
     "LAPACKE_dsytrs_work",
+    "LAPACKE_dtbtrs",
+    "LAPACKE_dtbtrs_work",
     "LAPACKE_dtgevc",
     "LAPACKE_dtgevc_work",
     "LAPACKE_dtpmqrt",
@@ -443,6 +451,10 @@
     "LAPACKE_dtpqrt_work",
     "LAPACKE_dtprfb",
     "LAPACKE_dtprfb_work",
+    "LAPACKE_dtptri",
+    "LAPACKE_dtptri_work",
+    "LAPACKE_dtptrs",
+    "LAPACKE_dtptrs_work",
     "LAPACKE_dtrevc",
     "LAPACKE_dtrevc_work",
     "LAPACKE_dtrexc",
@@ -661,6 +673,8 @@
     "LAPACKE_ssytrf_work",
     "LAPACKE_ssytrs",
     "LAPACKE_ssytrs_work",
+    "LAPACKE_stbtrs",
+    "LAPACKE_stbtrs_work",
     "LAPACKE_stgevc",
     "LAPACKE_stgevc_work",
     "LAPACKE_stpmqrt",
@@ -671,6 +685,10 @@
     "LAPACKE_stpqrt_work",
     "LAPACKE_stprfb",
     "LAPACKE_stprfb_work",
+    "LAPACKE_stptri",
+    "LAPACKE_stptri_work",
+    "LAPACKE_stptrs",
+    "LAPACKE_stptrs_work",
     "LAPACKE_strevc",
     "LAPACKE_strevc_work",
     "LAPACKE_strexc",
@@ -851,6 +869,8 @@
     "LAPACKE_zpttrs_work",
     "LAPACKE_zsyr",
     "LAPACKE_zsyr_work",
+    "LAPACKE_ztbtrs",
+    "LAPACKE_ztbtrs_work",
     "LAPACKE_ztgevc",
     "LAPACKE_ztgevc_work",
     "LAPACKE_ztpmqrt",
@@ -861,6 +881,10 @@
     "LAPACKE_ztpqrt_work",
     "LAPACKE_ztprfb",
     "LAPACKE_ztprfb_work",
+    "LAPACKE_ztptri",
+    "LAPACKE_ztptri_work",
+    "LAPACKE_ztptrs",
+    "LAPACKE_ztptrs_work",
     "LAPACKE_ztrevc",
     "LAPACKE_ztrevc_work",
     "LAPACKE_ztrexc",
@@ -908,7 +932,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "e8adbd53c72c726352d376df228c5a61797e0ba1d21aa7a7a749aba130819125",
+  "library_sha256": "47ba4eee338a8c7c07004651d8b549cca2e50bc983360d611dd2825068d4a6ca",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -986,7 +1010,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "558c1c54282bd6c19716d3da1236c91c6ca83ddb",
+  "revision": "ee652f33ef02b15e8393e870ea09e43ba4e153e5",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -7885,6 +7909,86 @@
       "integer_arguments": true
     },
     {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctbtrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctbtrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctbtrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctbtrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctbtrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctbtrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctbtrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctbtrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 12,
       "return_type": "Int32",
       "route": "dll",
@@ -8281,6 +8385,166 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
       "file": "test/lapacke_pentagonal_application.jl",
       "symbol": "LAPACKE_ctprfb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptri",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptri",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptri",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptri",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptri_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptri_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptri_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptri_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ctptrs_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -18385,6 +18649,86 @@
       "integer_arguments": true
     },
     {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtbtrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtbtrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtbtrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtbtrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtbtrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtbtrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtbtrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtbtrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 12,
       "return_type": "Int32",
       "route": "dll",
@@ -18781,6 +19125,166 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
       "file": "test/lapacke_pentagonal_application.jl",
       "symbol": "LAPACKE_dtprfb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptri",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptri",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptri",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptri",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptri_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptri_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptri_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptri_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_dtptrs_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -27505,6 +28009,86 @@
       "integer_arguments": true
     },
     {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stbtrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stbtrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stbtrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stbtrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stbtrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stbtrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stbtrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stbtrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 12,
       "return_type": "Int32",
       "route": "dll",
@@ -27901,6 +28485,166 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
       "file": "test/lapacke_pentagonal_application.jl",
       "symbol": "LAPACKE_stprfb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptri",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptri",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptri",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptri",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptri_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{Float32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptri_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptri_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{Float32})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptri_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_stptrs_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -35105,6 +35849,86 @@
       "integer_arguments": true
     },
     {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztbtrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztbtrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztbtrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztbtrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztbtrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztbtrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztbtrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 11,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztbtrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 12,
       "return_type": "Int32",
       "route": "dll",
@@ -35501,6 +36325,166 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
       "file": "test/lapacke_pentagonal_application.jl",
       "symbol": "LAPACKE_ztprfb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptri",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptri",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptri",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptri",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptri_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptri_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptri_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 30,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptri_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptrs",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptrs",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int32, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptrs_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptrs_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_tbtrs.jl",
+      "symbol": "LAPACKE_ztptrs_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -82904,8 +83888,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "9dfd3f872a310cea9c2eabbf5bf69f76bd5d07edbd70f5670902e7e65a54ffd7",
-    "test/lapacke_execution_checks.jl": "ce76b73b91f3d94fdd61cfff76c28153b542b1db65149dbae23a5d9b4ecf154f",
+    "deps/rust/src/lapacke.rs": "b062ed252c76840493aafd01ae8f7fb948aeb38a422f9092e57f3a6702a64e21",
+    "test/lapacke_execution_checks.jl": "c02bf04bb68fd8b6b5e157f52753a0815fb6dbde507cab81362a052cc9e47b70",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -83016,6 +84000,7 @@
     "test/cblas_calls.jl": "31a34dfa3945c3e5d576e8abe0d132600088a3e40512f345f1c8c13c8c0df3bd",
     "test/lapacke_pivoted_qr.jl": "9d371a20dc8b8737e3e76e081dbeb8195e2a0cfbcc7f8870cf04bc59147ee0e1",
     "deps/rust/src/lib.rs": "a54f4d2c7a25395c555d131ab7ceced755f900b0ea43a2cf62a07e619ab6160f",
+    "test/lapacke_tbtrs.jl": "74c7b1a59ef02ad1c45047e000da5c559d553bf3582f43c6932328ec21dfdae1",
     "deps/rust/src/lapacke/packed_vectors.rs": "cb67f7f4f7320cbec2afdd49ac26fb60f1ce96627495a7e6f45ffe32daddd5ed",
     "test/lapacke_range_abi_worker.c": "4d529e3df8aac22ea5fdefe0ff9f4767a0d15b65ca4275aa26bd685965c9b9d9",
     "test/generalized_selfadjoint_fallback_worker.jl": "2ddad3d1d7a94cf5cde048a2f366ac5e97c979529d6cef74d5e20eb8e834f4d8",
@@ -83067,7 +84052,7 @@
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
     "deps/rust/src/lapacke/schur_driver.rs": "6eb09b74d6d092cc66ef54771aa0a3fed021601940ffc8e5f1a7f0f5ff127881",
     "deps/rust/src/lapacke/complex_auxiliary.rs": "475aacab3971a7f9c13b396da0a29b4910ccf6d19200f6531cee430366255449",
-    "test/suite.jl": "048da0af78c63021739891ee9fd3835498ad1b561069c06e8bb495814ef1bf8b",
+    "test/suite.jl": "e167ab3eae8b0617b2e4eaccd1435ac02160f39267c07fd73bf0b2b576ebdf4b",
     "test/lapacke_larfg.jl": "fd653e310ffbef2716705ad7f0f597f75ecde2a11ca2140d5545fbf743f347c5",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
@@ -83206,6 +84191,7 @@
     "deps/rust/src/lapacke/least_squares.rs": "8c77f1fe03065d34077eec47b884ae40aa353124f837e6cb40a184a465a2c0f2",
     "test/lapacke_cholesky.jl": "71ea43629983e77a5f4bce77f2f77b084a8fd484aa883c858bf6eacd98ffc275",
     "test/lapacke_tgevc_abi.jl": "8fa9347e60af180a2f244ae07bfe724e0523ff025110e0ed8a48141083be457d",
+    "deps/rust/src/lapacke/triangular_aux.rs": "047f5d0b5373efd817b21ba0499892e34687fe77d0b9e66fe9ffd0bb79feeca8",
     "deps/rust/src/cblas/noop_tests.rs": "5364f7303b622934e62bf9934fcaab168dcb0261f2c03f882f74b47d1a35385b",
     "test/generalized_qr_extremes.jl": "f652624b047c5287b9116e55d836f5cdcea1d7904b0dfa055c502dd49c0a23d3",
     "deps/rust/src/generalized_hessenberg.rs": "49ace34175d6afbeb368a67bf5ea6ae87869dd054d80a56311e8975dc573b9cf",
