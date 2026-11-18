@@ -1,8 +1,9 @@
 # Issue #288: GGES/GGES3 C contracts
 
 Status: the 16 S/D/C/Z high/work entries pass focused layout, Schur-form,
-eigenvalue/vector, diagnostic and independent-call checks for SORT='N'. Issue
-#288 remains open.
+eigenvalue/vector, diagnostic and independent-call checks for SORT='N'. The
+immutable full suite records 432 sources, 2,288 canonical entries and 8,623
+witnesses (2,492 forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
