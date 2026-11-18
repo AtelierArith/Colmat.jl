@@ -2,8 +2,8 @@
 
 Status: the 8 S/D/C/Z high/work entries pass focused layout, eigenvalue/vector,
 diagnostic and independent-call checks for SORT='N'. The immutable full suite
-is recorded in `docs/src/assets/lapack-abi-execution.json`. Issue #288 remains
-open.
+records 387 sources, 1,944 canonical entries and 7,223 witnesses (2,148
+forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 

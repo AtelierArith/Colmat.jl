@@ -240,7 +240,7 @@ def validate_lapacke_signature(row, witness):
     if row['family'] == 'trevc' and row['symbol'].endswith('_work'):
         expected = expected + [t] + ([real] if row['scalar'] in ('c', 'z') else [])
     if row['family'] == 'gees':
-        expected = ['Int32', 'Int8', 'Int8', pivot, integer, t, integer, pivot, t] + \
+        expected = ['Int32', 'Int8', 'Int8', 'Ptr{Nothing}', integer, t, integer, pivot, t] + \
             ([] if row['scalar'] in ('c', 'z') else [t]) + [t, integer]
         if row['symbol'].endswith('_work'):
             expected = expected + [t, integer] + ([real, pivot] if row['scalar'] in ('c', 'z') else [pivot])

@@ -1,8 +1,10 @@
 {
   "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "2917d1f6a0efe064dece1846fdbc81bcf49c97ddf3cd9ed35a7da7610134f8e8",
+  "inventory_registration_sha256": "d66f817603e3aa8ecc9e7e7aa4dd7106ee6833252d0c3a86a8b3e0166c31e688",
   "lapacke_target_symbols": [
+    "LAPACKE_cgees",
+    "LAPACKE_cgees_work",
     "LAPACKE_cgeev",
     "LAPACKE_cgeev_work",
     "LAPACKE_cgeevx",
@@ -165,6 +167,8 @@
     "LAPACKE_cunmrz_work",
     "LAPACKE_cunmtr",
     "LAPACKE_cunmtr_work",
+    "LAPACKE_dgees",
+    "LAPACKE_dgees_work",
     "LAPACKE_dgeev",
     "LAPACKE_dgeev_work",
     "LAPACKE_dgeevx",
@@ -325,6 +329,8 @@
     "LAPACKE_dtrtrs_work",
     "LAPACKE_dtzrzf",
     "LAPACKE_dtzrzf_work",
+    "LAPACKE_sgees",
+    "LAPACKE_sgees_work",
     "LAPACKE_sgeev",
     "LAPACKE_sgeev_work",
     "LAPACKE_sgeevx",
@@ -485,6 +491,8 @@
     "LAPACKE_strtrs_work",
     "LAPACKE_stzrzf",
     "LAPACKE_stzrzf_work",
+    "LAPACKE_zgees",
+    "LAPACKE_zgees_work",
     "LAPACKE_zgeev",
     "LAPACKE_zgeev_work",
     "LAPACKE_zgeevx",
@@ -648,7 +656,7 @@
     "LAPACKE_zunmtr",
     "LAPACKE_zunmtr_work"
   ],
-  "library_sha256": "c6c61f279a00865ddd23484faa31b97b467a2b38acf040cc79848ae944a2693d",
+  "library_sha256": "f7cb6cda43b7312540cac895c3872992b4f064af60e51ea7ceabe814a61c9f51",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -726,7 +734,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "6999eaa8cfab8304c0f1891081003c7f6556a2c5",
+  "revision": "be45b81d65ee96be0701aac7ad04778c4c5d117a",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -905,6 +913,86 @@
   "errors": [],
   "witnesses": [
     {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_cgees",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_cgees",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_cgees",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_cgees",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Int32})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_cgees_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Int32})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_cgees_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Int64})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_cgees_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Int64})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_cgees_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 36,
       "return_type": "Int32",
       "route": "dll",
@@ -7381,6 +7469,86 @@
       "signature": "(Int32, Int8, Int8, Int8, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
       "file": "test/lapacke_selfadjoint_vectors.jl",
       "symbol": "LAPACKE_cunmtr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_dgees",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_dgees",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_dgees",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_dgees",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_dgees_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32, Ptr{Float64}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_dgees_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_dgees_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_dgees_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -13805,6 +13973,86 @@
       "integer_arguments": true
     },
     {
+      "line": 29,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_sgees",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_sgees",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_sgees",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 29,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_sgees",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_sgees_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_sgees_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_sgees_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 36,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_sgees_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 36,
       "return_type": "Int32",
       "route": "dll",
@@ -20201,6 +20449,86 @@
       "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
       "file": "test/lapacke_rz.jl",
       "symbol": "LAPACKE_stzrzf_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_zgees",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_zgees",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_zgees",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 13,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_zgees",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Int32})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_zgees_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Int32})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_zgees_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Int64})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_zgees_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int8, Ptr{Nothing}, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Int64})",
+      "file": "test/lapacke_gees.jl",
+      "symbol": "LAPACKE_zgees_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -72164,8 +72492,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "965d87e47c642a1a25833445e00cc4d11da289ecf3046809f96f4b1818c73a96",
-    "test/lapacke_execution_checks.jl": "c8192932d19ed453c73aab164866f94a2c55a9239770f2ac2039b428b4b0cf76",
+    "deps/rust/src/lapacke.rs": "0b9d9a14ddbf449a80493f0015af2dc6fb9463ec2eb407a22c114ab139123a90",
+    "test/lapacke_execution_checks.jl": "ace8245f0f67916013b705b1a6b95f6a16c6ec666a8275522f3cfa0566c9c44b",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -72308,8 +72636,9 @@
     "deps/rust/src/lapacke/general_expert.rs": "55804c4441eb95b897804fdf162d5f554bd2564052ecbd6ce9157e4bd5e38f18",
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
+    "deps/rust/src/lapacke/schur_driver.rs": "6eb09b74d6d092cc66ef54771aa0a3fed021601940ffc8e5f1a7f0f5ff127881",
     "deps/rust/src/lapacke/complex_auxiliary.rs": "475aacab3971a7f9c13b396da0a29b4910ccf6d19200f6531cee430366255449",
-    "test/suite.jl": "e02527a152758da672607bab2f4a4fe2565ff99a64be7075ea31e3ea0d087ab6",
+    "test/suite.jl": "16b988cb8da8d87ebdee1e283969a2ac6406ca195e3f50ed7a6548fa49e59358",
     "test/lapacke_larfg.jl": "fd653e310ffbef2716705ad7f0f597f75ecde2a11ca2140d5545fbf743f347c5",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
@@ -72441,6 +72770,7 @@
     "test/abi_guard_page_worker.c": "5d231d9178dca0ef35ddf6a790c3b96680f6de23c28bc270f34a5bf5f9c10f3f",
     "test/general_equilibration.jl": "176fd5eae4ae21babba09728c1e3520c2d7c79d15cd0ea1580db54edbd5bdcd2",
     "deps/rust/src/packed_updates.rs": "9d1b73678a24b11aa87d9a75bba5213ce000c645b97f6799363c43739d58dc80",
+    "test/lapacke_gees.jl": "457613bef50c9383d65d3a909524daa472feb2ab73266422c27ed754cc99d7c1",
     "deps/rust/src/generalized_qr.rs": "c2d3c6df84469b09d7ea6f376caac9c3708235a60feb84f6633f4e67ca176a66",
     "test/structured_triangular_lapack.jl": "4ce72721db7173825c5a5ffe22f712c4696d93333f8a56084bb9b1353fd49777",
     "deps/rust/src/lapacke/symmetric_rank.rs": "54e3d06f8c01e19aeff24094160897153b2c8e472115c3cdd4b7cb90b3ef77ae",
