@@ -70,13 +70,13 @@ end
         name = "LAPACKE_" * prefix * "larft"
         pointer = Libdl.dlsym(native, name * suffix)
         n, k = 3, 2
-        v = zeros(T, n, k); tau = zeros(T, k); t = zeros(T, k, k)
+        v = zeros(T, n * n); tau = zeros(T, k); t = zeros(T, k * k)
         @test lapacke_larft_call(
-            T, J, pointer, 301, 'F', 'C', n, k, vec(v), n, tau, vec(t), k,
+            T, J, pointer, 301, 'F', 'C', n, k, v, n, tau, t, k,
             name, :dll, true,
         ) == -1
         @test lapacke_larft_call(
-            T, J, pointer, 101, 'F', 'C', n, k, vec(v), n, tau, vec(t), k - 1,
+            T, J, pointer, 101, 'F', 'C', n, k, v, n, tau, t, k - 1,
             name, :dll, true,
         ) == -10
     end
