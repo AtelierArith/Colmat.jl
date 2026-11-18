@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-linux-gnu",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "a9c255057ae2a1c0661d46ca397a55c0c750dc93c0e6aad115b8df887b572b76",
+  "inventory_registration_sha256": "d38e2725e90f2fcc70f12dd7c56ecae1cd849cd4c7496e3d9359a257b6932f35",
   "lapacke_target_symbols": [
     "LAPACKE_cgbequ",
     "LAPACKE_cgbequ_work",
@@ -17,6 +17,8 @@
     "LAPACKE_cgebak_work",
     "LAPACKE_cgebal",
     "LAPACKE_cgebal_work",
+    "LAPACKE_cgebrd",
+    "LAPACKE_cgebrd_work",
     "LAPACKE_cgees",
     "LAPACKE_cgees_work",
     "LAPACKE_cgeesx",
@@ -25,6 +27,8 @@
     "LAPACKE_cgeev_work",
     "LAPACKE_cgeevx",
     "LAPACKE_cgeevx_work",
+    "LAPACKE_cgehrd",
+    "LAPACKE_cgehrd_work",
     "LAPACKE_cgelq2",
     "LAPACKE_cgelq2_work",
     "LAPACKE_cgelqf",
@@ -141,6 +145,8 @@
     "LAPACKE_clarfg_work",
     "LAPACKE_clarft",
     "LAPACKE_clarft_work",
+    "LAPACKE_clarfx",
+    "LAPACKE_clarfx_work",
     "LAPACKE_clascl",
     "LAPACKE_clascl_work",
     "LAPACKE_claset",
@@ -251,6 +257,8 @@
     "LAPACKE_dgebak_work",
     "LAPACKE_dgebal",
     "LAPACKE_dgebal_work",
+    "LAPACKE_dgebrd",
+    "LAPACKE_dgebrd_work",
     "LAPACKE_dgees",
     "LAPACKE_dgees_work",
     "LAPACKE_dgeesx",
@@ -259,6 +267,8 @@
     "LAPACKE_dgeev_work",
     "LAPACKE_dgeevx",
     "LAPACKE_dgeevx_work",
+    "LAPACKE_dgehrd",
+    "LAPACKE_dgehrd_work",
     "LAPACKE_dgelq2",
     "LAPACKE_dgelq2_work",
     "LAPACKE_dgelqf",
@@ -355,6 +365,8 @@
     "LAPACKE_dlarfg_work",
     "LAPACKE_dlarft",
     "LAPACKE_dlarft_work",
+    "LAPACKE_dlarfx",
+    "LAPACKE_dlarfx_work",
     "LAPACKE_dlartgp",
     "LAPACKE_dlartgp_work",
     "LAPACKE_dlartgs",
@@ -487,6 +499,8 @@
     "LAPACKE_sgebak_work",
     "LAPACKE_sgebal",
     "LAPACKE_sgebal_work",
+    "LAPACKE_sgebrd",
+    "LAPACKE_sgebrd_work",
     "LAPACKE_sgees",
     "LAPACKE_sgees_work",
     "LAPACKE_sgeesx",
@@ -495,6 +509,8 @@
     "LAPACKE_sgeev_work",
     "LAPACKE_sgeevx",
     "LAPACKE_sgeevx_work",
+    "LAPACKE_sgehrd",
+    "LAPACKE_sgehrd_work",
     "LAPACKE_sgelq2",
     "LAPACKE_sgelq2_work",
     "LAPACKE_sgelqf",
@@ -591,6 +607,8 @@
     "LAPACKE_slarfg_work",
     "LAPACKE_slarft",
     "LAPACKE_slarft_work",
+    "LAPACKE_slarfx",
+    "LAPACKE_slarfx_work",
     "LAPACKE_slartgp",
     "LAPACKE_slartgp_work",
     "LAPACKE_slartgs",
@@ -723,6 +741,8 @@
     "LAPACKE_zgebak_work",
     "LAPACKE_zgebal",
     "LAPACKE_zgebal_work",
+    "LAPACKE_zgebrd",
+    "LAPACKE_zgebrd_work",
     "LAPACKE_zgees",
     "LAPACKE_zgees_work",
     "LAPACKE_zgeesx",
@@ -731,6 +751,8 @@
     "LAPACKE_zgeev_work",
     "LAPACKE_zgeevx",
     "LAPACKE_zgeevx_work",
+    "LAPACKE_zgehrd",
+    "LAPACKE_zgehrd_work",
     "LAPACKE_zgelq2",
     "LAPACKE_zgelq2_work",
     "LAPACKE_zgelqf",
@@ -847,6 +869,8 @@
     "LAPACKE_zlarfg_work",
     "LAPACKE_zlarft",
     "LAPACKE_zlarft_work",
+    "LAPACKE_zlarfx",
+    "LAPACKE_zlarfx_work",
     "LAPACKE_zlascl",
     "LAPACKE_zlascl_work",
     "LAPACKE_zlaset",
@@ -944,7 +968,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "28d5b6b08216f57babdcfc746227b9ae27baa9149515817891f990825f448bf1",
+  "library_sha256": "0e28f3d705abc933d255b845e9a10501b01a0d79ee442b4836360bb50b4860b6",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1022,7 +1046,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "462fe283969a65618758340be29d9a886dd7fb6f",
+  "revision": "e7cf77d3b25b2efffbf1b0879836e1bc4d3a34b6",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -1761,6 +1785,86 @@
       "integer_arguments": true
     },
     {
+      "line": 33,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgebrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgebrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgebrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgebrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgebrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgebrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgebrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgebrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 13,
       "return_type": "Int32",
       "route": "dll",
@@ -2077,6 +2181,86 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Int64, Ptr{Float32})",
       "file": "test/lapacke_general_expert.jl",
       "symbol": "LAPACKE_cgeevx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgehrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgehrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgehrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgehrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgehrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgehrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgehrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cgehrd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -6721,6 +6905,86 @@
       "integer_arguments": true
     },
     {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF32}, ComplexF32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_clarfx",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF32}, ComplexF32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_clarfx",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, ComplexF32, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_clarfx",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, ComplexF32, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_clarfx",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF32}, ComplexF32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_clarfx_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF32}, ComplexF32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_clarfx_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, ComplexF32, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_clarfx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, ComplexF32, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_clarfx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 11,
       "return_type": "Int32",
       "route": "dll",
@@ -9281,11 +9545,31 @@
       "integer_arguments": true
     },
     {
+      "line": 45,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cunghr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Int32",
       "route": "dll",
       "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
       "file": "test/lapacke_reduction_vectors.jl",
+      "symbol": "LAPACKE_cunghr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
       "symbol": "LAPACKE_cunghr",
       "bits": 32,
       "integer_arguments": true
@@ -9301,11 +9585,31 @@
       "integer_arguments": true
     },
     {
+      "line": 45,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_cunghr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Int64",
       "route": "dll",
       "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
       "file": "test/lapacke_reduction_vectors.jl",
+      "symbol": "LAPACKE_cunghr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
+      "file": "test/lapacke_gehrd.jl",
       "symbol": "LAPACKE_cunghr",
       "bits": 64,
       "integer_arguments": true
@@ -11121,6 +11425,86 @@
       "integer_arguments": true
     },
     {
+      "line": 33,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgebrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgebrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgebrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgebrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgebrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgebrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgebrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgebrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Int32",
       "route": "dll",
@@ -11437,6 +11821,86 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64, Ptr{Int64})",
       "file": "test/lapacke_general_expert.jl",
       "symbol": "LAPACKE_dgeevx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgehrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgehrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgehrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgehrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgehrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgehrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgehrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dgehrd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -15301,6 +15765,86 @@
       "integer_arguments": true
     },
     {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Float64, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dlarfx",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Float64, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dlarfx",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Float64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dlarfx",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Float64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dlarfx",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Float64, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dlarfx_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Float64, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dlarfx_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Float64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dlarfx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Float64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dlarfx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 9,
       "return_type": "Int32",
       "route": "dll",
@@ -16021,11 +16565,31 @@
       "integer_arguments": true
     },
     {
+      "line": 45,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dorghr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Int32",
       "route": "dll",
       "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
       "file": "test/lapacke_reduction_vectors.jl",
+      "symbol": "LAPACKE_dorghr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float64}, Int32, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
       "symbol": "LAPACKE_dorghr",
       "bits": 32,
       "integer_arguments": true
@@ -16038,6 +16602,16 @@
       "file": "test/lapacke_reduction_vectors.jl",
       "symbol": "LAPACKE_dorghr",
       "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_dorghr",
+      "bits": 64,
       "integer_arguments": true
     },
     {
@@ -16046,6 +16620,16 @@
       "route": "dll",
       "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
       "file": "test/lapacke_reduction_vectors.jl",
+      "symbol": "LAPACKE_dorghr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float64}, Int64, Ptr{Float64})",
+      "file": "test/lapacke_gehrd.jl",
       "symbol": "LAPACKE_dorghr",
       "bits": 64,
       "integer_arguments": true
@@ -20581,6 +21165,86 @@
       "integer_arguments": true
     },
     {
+      "line": 33,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgebrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgebrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgebrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgebrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgebrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgebrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgebrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgebrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Int32",
       "route": "dll",
@@ -20897,6 +21561,86 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Int64}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64, Ptr{Int64})",
       "file": "test/lapacke_general_expert.jl",
       "symbol": "LAPACKE_sgeevx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgehrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgehrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgehrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgehrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgehrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgehrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgehrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sgehrd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -24741,6 +25485,86 @@
       "integer_arguments": true
     },
     {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Float32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_slarfx",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Float32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_slarfx",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Float32, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_slarfx",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Float32, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_slarfx",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Float32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_slarfx_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Float32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_slarfx_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Float32, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_slarfx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Float32, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_slarfx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 9,
       "return_type": "Int32",
       "route": "dll",
@@ -25461,11 +26285,31 @@
       "integer_arguments": true
     },
     {
+      "line": 45,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sorghr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Int32",
       "route": "dll",
       "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
       "file": "test/lapacke_reduction_vectors.jl",
+      "symbol": "LAPACKE_sorghr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{Float32}, Int32, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
       "symbol": "LAPACKE_sorghr",
       "bits": 32,
       "integer_arguments": true
@@ -25478,6 +26322,16 @@
       "file": "test/lapacke_reduction_vectors.jl",
       "symbol": "LAPACKE_sorghr",
       "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_sorghr",
+      "bits": 64,
       "integer_arguments": true
     },
     {
@@ -25486,6 +26340,16 @@
       "route": "dll",
       "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
       "file": "test/lapacke_reduction_vectors.jl",
+      "symbol": "LAPACKE_sorghr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{Float32}, Int64, Ptr{Float32})",
+      "file": "test/lapacke_gehrd.jl",
       "symbol": "LAPACKE_sorghr",
       "bits": 64,
       "integer_arguments": true
@@ -30021,6 +30885,86 @@
       "integer_arguments": true
     },
     {
+      "line": 33,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgebrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgebrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgebrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 33,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgebrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgebrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgebrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgebrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 28,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgebrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 13,
       "return_type": "Int32",
       "route": "dll",
@@ -30337,6 +31281,86 @@
       "signature": "(Int32, Int8, Int8, Int8, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{Int64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Int64, Ptr{Float64})",
       "file": "test/lapacke_general_expert.jl",
       "symbol": "LAPACKE_zgeevx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgehrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgehrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgehrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgehrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgehrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgehrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgehrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zgehrd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -34981,6 +36005,86 @@
       "integer_arguments": true
     },
     {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF64}, ComplexF64, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zlarfx",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF64}, ComplexF64, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zlarfx",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, ComplexF64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zlarfx",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, ComplexF64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zlarfx",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF64}, ComplexF64, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zlarfx_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF64}, ComplexF64, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zlarfx_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, ComplexF64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zlarfx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 55,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, ComplexF64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zlarfx_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 11,
       "return_type": "Int32",
       "route": "dll",
@@ -37541,11 +38645,31 @@
       "integer_arguments": true
     },
     {
+      "line": 45,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zunghr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
       "line": 29,
       "return_type": "Int32",
       "route": "dll",
       "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
       "file": "test/lapacke_reduction_vectors.jl",
+      "symbol": "LAPACKE_zunghr",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int32, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
       "symbol": "LAPACKE_zunghr",
       "bits": 32,
       "integer_arguments": true
@@ -37558,6 +38682,16 @@
       "file": "test/lapacke_reduction_vectors.jl",
       "symbol": "LAPACKE_zunghr",
       "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
+      "symbol": "LAPACKE_zunghr",
+      "bits": 64,
       "integer_arguments": true
     },
     {
@@ -37566,6 +38700,16 @@
       "route": "dll",
       "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
       "file": "test/lapacke_reduction_vectors.jl",
+      "symbol": "LAPACKE_zunghr",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 45,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int64, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
+      "file": "test/lapacke_gehrd.jl",
       "symbol": "LAPACKE_zunghr",
       "bits": 64,
       "integer_arguments": true
@@ -84380,8 +85524,8 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "ef479b8fd850eedd39bdaa9e318e77960387e6fe677a7d1f837b1f85afa4ec75",
-    "test/lapacke_execution_checks.jl": "f5a0a17f02eba2fb8b3c01d19f70ce16ceba21e41e5f4797bdd53549d7f6f45f",
+    "deps/rust/src/lapacke.rs": "83c8bc5f83436f03892b7c63998d68924fde0ac367f1000ce2be4675891f0ae5",
+    "test/lapacke_execution_checks.jl": "de412a893c8128c5e2c30e56e5c15fe8bac1fe14672c290c23fc62ee0693635a",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -84545,7 +85689,7 @@
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
     "deps/rust/src/lapacke/schur_driver.rs": "6eb09b74d6d092cc66ef54771aa0a3fed021601940ffc8e5f1a7f0f5ff127881",
     "deps/rust/src/lapacke/complex_auxiliary.rs": "475aacab3971a7f9c13b396da0a29b4910ccf6d19200f6531cee430366255449",
-    "test/suite.jl": "5cfada548e7471cccb416d8f4157ce3fd21adadc1a74b6379e4b4517ce40bc9d",
+    "test/suite.jl": "c129bb6e015a966ce34a3ae0baf0f55dc41672d3de85c5acba96f9816f4778e9",
     "test/lapacke_larfg.jl": "fd653e310ffbef2716705ad7f0f597f75ecde2a11ca2140d5545fbf743f347c5",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
     "test/abi_execution_checks.jl": "896fabe7593eca0cbbc7fee7d72a53c83330eca8cbe00040b9561ec1dbbaaabd",
@@ -84584,6 +85728,7 @@
     "test/threading_worker.jl": "2dacaaadab04aea62c6cf9c908107dfd51f8e90e3a321191c4742e102441907c",
     "deps/rust/src/evd_profile.rs": "fd9e73336b5ec2c9de915df9ae48300a56518423fa3d4f441b7eeb8e6905e3c6",
     "test/lapacke_tgevc.jl": "5acb1aad7b785258264186926beb80eed94416d0e3cbb7c9600436b98c8a4251",
+    "deps/rust/src/lapacke/reduction_drivers.rs": "b9559c04498401db48348aebcb423ad579b1c738332aef82b99667cfed5122dd",
     "test/packed_cholesky.jl": "390ad5ce892b95e0748098487d09e3b76ac1965f4c78c854d6644b0931653b86",
     "test/packed_updates.jl": "e3bd4e46d93e535fc51891e727590965e520e224b37c4cb0d3980437913bca6a",
     "test/tgevc.jl": "13af533ecb34e95b3d4b889eabeae983edd7e6aee23da3dca3a0d309e0f02723",
@@ -84744,6 +85889,7 @@
     "deps/rust/Cargo.lock": "b8394dfdad22b987d1173c9b63bd412f3020f2db822bb95f71e591c1865800e3",
     "Project.toml": "c8e3bec9107a96074fb05e31ff5f91bbc4e9ef5db844d4868e0db673b205fcd9",
     "test/cblas_triangular.jl": "460eff558fe6f84ac4c7f7c4fbe9d464d4d47d49670af4dc855f49a0715f7a31",
+    "test/lapacke_gehrd.jl": "8597edb82ce0ea03b96b6f4a0b6b606ea09d334173ec1300a89e80834f92b94d",
     "test/lapacke_range.jl": "4363cb46fe30812c715447ca902f013994020ec84acf363fb65a4f645108a94a",
     "test/lapacke_svd_abi.jl": "c8a3cbaded573ec562a3629830d6eeab33bb734dcce20a203e144b6090296093",
     "deps/rust/src/pivoted_cholesky.rs": "7e7ff56b861fcfb8a75c4c1570b5c33c3fb005211223439593a0b99e43c0b299",

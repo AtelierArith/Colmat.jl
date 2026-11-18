@@ -173,6 +173,9 @@ def validate_lapacke_signature(row, witness):
         'tptri': ['Int32', 'Int8', 'Int8', integer, t],
         'langb': ['Int32', 'Int8', integer, integer, integer, t, integer],
         'lanhe': ['Int32', 'Int8', 'Int8', integer, t, integer],
+        'gehrd': [],
+        'gebrd': [],
+        'larfx': [],
         'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
@@ -339,6 +342,16 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t, integer]
     if row['family'] in ('orgtr', 'ungtr', 'ormtr', 'unmtr', 'orgbr', 'ungbr', 'orghr', 'unghr', 'ormbr', 'unmbr', 'ormhr', 'unmhr') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
+    if row['family'] == 'larfx':
+        expected = ['Int32', 'Int8', integer, integer, t, scalar, t, integer, t]
+    if row['family'] == 'gehrd':
+        expected = ['Int32', integer, integer, integer, t, integer, t]
+        if row['symbol'].endswith('_work'):
+            expected = expected + [t, integer]
+    if row['family'] == 'gebrd':
+        expected = ['Int32', integer, integer, t, integer, real, real, t, t]
+        if row['symbol'].endswith('_work'):
+            expected = expected + [t, integer]
     if row['family'] in ('langb', 'lanhe') and row['symbol'].endswith('_work'):
         expected = expected + [real]
     if row['family'] in ('lange', 'lansy', 'lantr') and row['symbol'].endswith('_work'):
