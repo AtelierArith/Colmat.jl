@@ -1,7 +1,9 @@
 # Issue #288: OPGTR/OPMTR C contracts
 
 Status: the 8 S/D high/work entries pass focused packed-layout, diagnostic and
-independent-call checks. Issue #288 remains open.
+independent-call checks. The immutable full suite records 400 sources, 2,016
+canonical entries and 7,519 witnesses (2,220 forwards per integer ABI). Issue
+#288 remains open.
 
 ## Connected names
 
