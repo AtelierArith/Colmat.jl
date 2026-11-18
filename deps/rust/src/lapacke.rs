@@ -11,6 +11,7 @@ mod general_eigen;
 mod general_expert;
 mod generalized_qr;
 mod generalized_schur_vectors;
+mod givens;
 mod householder;
 mod lauum;
 mod least_squares;
