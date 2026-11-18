@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **2140**、ILP64 **2140** シンボルを登録します。
+現行 adapter は LP64 **2148**、ILP64 **2148** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -62,6 +62,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | LARFT | native block reflector triangular factor | DIRECT/STOREV、row-major の V/T 変換。T の転置規約を保持 |
 | LARFB | native block reflector application | SIDE/TRANS/DIRECT/STOREV、V/T/C の row-major 変換。WORK 長は K |
 | LARTGP / LARTGS | native Givens rotation with scalar guards | layout 引数なし、f/g/sigma の by-value と NaN 順序を変換 |
+| GEES | native Schur driver (SORT=N/S) | SELECT callback を直接渡し、row-major A/VS、WORK/BWORK、SDIM を変換 |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |
 | SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |
 | SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |
@@ -528,7 +529,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `geequb` / Fortran | `cgeequb_`, `dgeequb_`, `sgeequb_`, `zgeequb_` | [native column magnitude maps, diagonal copies, GEMV and BIN iteration](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/reductions/mod.rs) | 38 Fortran シンボルを両 ABI に接続。GEEQU/GBEQU の abs1・safe range・ゼロ行列診断、radix 版の係数/AMAX、PO/PB/PP の対角読み出しと SCOND を検証。SYEQUB/HEEQUB は native GEMV による BIN 反復を実装し、指数範囲を正規化する。独立した同名 native API があるという分類ではない。内部メモリを確保し caller WORK は保持する。 |
 | `geequb` / LAPACKE | `LAPACKE_cgeequb`, `LAPACKE_cgeequb_work`, `LAPACKE_dgeequb`, `LAPACKE_dgeequb_work`, `LAPACKE_sgeequb`, `LAPACKE_sgeequb_work`, `LAPACKE_zgeequb`, `LAPACKE_zgeequb_work` | [native column magnitude maps, diagonal copies, GEMV and BIN iteration](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/reductions/mod.rs) | 38 Fortran シンボルを両 ABI に接続。GEEQU/GBEQU の abs1・safe range・ゼロ行列診断、radix 版の係数/AMAX、PO/PB/PP の対角読み出しと SCOND を検証。SYEQUB/HEEQUB は native GEMV による BIN 反復を実装し、指数範囲を正規化する。独立した同名 native API があるという分類ではない。内部メモリを確保し caller WORK は保持する。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `gees` / Fortran | `cgees_`, `dgees_`, `sgees_`, `zgees_` | [hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。 |
-| `gees` / LAPACKE | `LAPACKE_cgees`, `LAPACKE_cgees_work`, `LAPACKE_dgees`, `LAPACKE_dgees_work`, `LAPACKE_sgees`, `LAPACKE_sgees_work`, `LAPACKE_zgees`, `LAPACKE_zgees_work` | [hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `gees` / LAPACKE | `LAPACKE_cgees`, `LAPACKE_cgees_work`, `LAPACKE_dgees`, `LAPACKE_dgees_work`, `LAPACKE_sgees`, `LAPACKE_sgees_work`, `LAPACKE_zgees`, `LAPACKE_zgees_work` | [hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `gegs` / Fortran | `cgegs_`, `dgegs_`, `sgegs_`, `zgegs_` | [QR / generalized_hessenberg / hessenberg_to_qz / generalized reorder_schur](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/qz_real/mod.rs) | Fortran 16シンボル・4型・両 ABI を接続済み。HGEQZ の active range と Q/Z=N/I/V、GGES/GGES3/GEGS の dense 還元、homogeneous alpha/beta、SELECT と実数共役対、SDIM を変換。β=0 を保持する。native API が非収束状態を返さないため構造・出力値を検証し、不完全な結果は active range 全体を未収束として INFO=IHI。並べ替え後は QZ を再評価する。内部配列・scratch を確保し、入口ごとの最小合法 WORK と query を提供する。 |
 | `gehd2` / Fortran | `cgehd2_`, `dgehd2_`, `sgehd2_`, `zgehd2_` | [Householder generation / native matrix-vector application](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 16シンボル・4型・両 ABI を接続済み。LAPACK gauge の reflector と native 適用から Hessenberg 還元、Q の明示生成・左右適用を構成。ILO/IHI の部分範囲、外部 A/TAU と相互運用。GEHRD/GEHD2 は共通経路で内部配列を確保する。 |
 | `gehrd` / Fortran | `cgehrd_`, `dgehrd_`, `sgehrd_`, `zgehrd_` | [Householder generation / native matrix-vector application](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 16シンボル・4型・両 ABI を接続済み。LAPACK gauge の reflector と native 適用から Hessenberg 還元、Q の明示生成・左右適用を構成。ILO/IHI の部分範囲、外部 A/TAU と相互運用。GEHRD/GEHD2 は共通経路で内部配列を確保する。 |
@@ -1510,7 +1511,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,936 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 1,944 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
