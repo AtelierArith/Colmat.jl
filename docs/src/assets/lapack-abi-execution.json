@@ -710,7 +710,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "c2bb556715bb1e2dd5da4134f62ba16c1fab56de",
+  "revision": "fd886d318af54a200ecee3008c2f7eb81edbe29a",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -71562,7 +71562,7 @@
     "deps/rust/src/dense_extensions.rs": "3d94f1b720454c1f07fd301191afb5280c6f9d8b5b6e050533ba3264143cb10d",
     "test/lapacke_matrix_norms_abi_worker.c": "6cae1bdd18b6d263ae705a1b625afd0799cbb7430f995f6b099bfa55da74473c",
     "test/Project.toml": "84af0faef36b617dc3e92fba9c7d4afe252d16ebcd56d8291464e8bbd19cf98b",
-    "test/lapacke_larft.jl": "89853dce44a7a6ec55d68ce4f8afba136ab7e84c24967f820635f61f31721292",
+    "test/lapacke_larft.jl": "66b8435db2dc1e83892f59603a4929714d7719f92e40d40f6209656e586f397d",
     "deps/rust/src/qz.rs": "a368c37bbd8e114d62f21f08cac77639715549ee256bdb72930745d57654562c",
     "test/ordinary_schur_expert.jl": "168984a3a00dffc4c357a08698d65ad661ad68e88442e31a7f3f1a251091f5cc",
     "deps/rust/src/selfadjoint_reduction.rs": "cddc3b4b503eca525da1742fed69a363d1d446d3b67e670df0495bde6f6c5437",
