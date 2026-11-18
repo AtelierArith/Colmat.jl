@@ -125,6 +125,7 @@ def validate_lapacke_signature(row, witness):
         'lacgv': [integer, t, integer],
         'larfg': [integer, t, t, integer, t],
         'larft': ['Int32', 'Int8', 'Int8', integer, integer, t, integer, t, t, integer],
+        'larfb': ['Int32', 'Int8', 'Int8', 'Int8', 'Int8', integer, integer, integer, t, integer, t, integer, t, integer],
         'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
@@ -235,6 +236,8 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t]
     if row['family'] == 'trevc' and row['symbol'].endswith('_work'):
         expected = expected + [t] + ([real] if row['scalar'] in ('c', 'z') else [])
+    if row['family'] == 'larfb' and row['symbol'].endswith('_work'):
+        expected = expected + [t, integer]
     if row['family'] in ('orgtr', 'ungtr', 'ormtr', 'unmtr', 'orgbr', 'ungbr', 'orghr', 'unghr', 'ormbr', 'unmbr', 'ormhr', 'unmhr') and row['symbol'].endswith('_work'):
         expected = expected + [t, integer]
     if row['family'] in ('lange', 'lansy', 'lantr') and row['symbol'].endswith('_work'):

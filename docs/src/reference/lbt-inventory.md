@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **2124**、ILP64 **2124** シンボルを登録します。
+現行 adapter は LP64 **2132**、ILP64 **2132** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -60,6 +60,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | TRSEN | native checked Schur selection (JOB=N) | SELECT/M、再並べ替え、row-major T/Q。JOB E/V/B は保存した元の LAPACK |
 | LARFG | native Householder generator | layout 引数なし、INCX と TAU/alpha/x を直接変換 |
 | LARFT | native block reflector triangular factor | DIRECT/STOREV、row-major の V/T 変換。T の転置規約を保持 |
+| LARFB | native block reflector application | SIDE/TRANS/DIRECT/STOREV、V/T/C の row-major 変換。WORK 長は K |
 | TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |
 | SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |
 | SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |
@@ -322,7 +323,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `lantp` / Fortran | `clantp_`, `dlantp_`, `slantp_`, `zlantp_` | [matrix reductions](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/reductions/mod.rs) | band/packed/RFP/tridiagonal 格納を解釈してノルムを構成。誘導 1/∞ norm と elementwise norm の差に注意 |
 | `larf` / Fortran | `clarf_`, `dlarf_`, `slarf_`, `zlarf_` | [make_householder_in_place / block Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。 |
 | `larfb` / Fortran | `clarfb_`, `dlarfb_`, `slarfb_`, `zlarfb_` | [make_householder_in_place / block Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。 |
-| `larfb` / LAPACKE | `LAPACKE_clarfb`, `LAPACKE_clarfb_work`, `LAPACKE_dlarfb`, `LAPACKE_dlarfb_work`, `LAPACKE_slarfb`, `LAPACKE_slarfb_work`, `LAPACKE_zlarfb`, `LAPACKE_zlarfb_work` | [make_householder_in_place / block Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `larfb` / LAPACKE | `LAPACKE_clarfb`, `LAPACKE_clarfb_work`, `LAPACKE_dlarfb`, `LAPACKE_dlarfb_work`, `LAPACKE_slarfb`, `LAPACKE_slarfb_work`, `LAPACKE_zlarfb`, `LAPACKE_zlarfb_work` | [make_householder_in_place / block Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `larfg` / Fortran | `clarfg_`, `dlarfg_`, `slarfg_`, `zlarfg_` | [make_householder_in_place / block Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。 |
 | `larfg` / LAPACKE | `LAPACKE_clarfg`, `LAPACKE_clarfg_work`, `LAPACKE_dlarfg`, `LAPACKE_dlarfg_work`, `LAPACKE_slarfg`, `LAPACKE_slarfg_work`, `LAPACKE_zlarfg`, `LAPACKE_zlarfg_work` | [make_householder_in_place / block Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `larfgp` / Fortran | `clarfgp_`, `dlarfgp_`, `slarfgp_`, `zlarfgp_` | [make_householder_in_place / block Householder](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/householder.rs) | Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。 |
@@ -1508,7 +1509,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 1,920 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 0 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
