@@ -138,6 +138,8 @@ def validate_lapacke_signature(row, witness):
         'hgeqz': [],
         'upgtr': ['Int32', 'Int8', integer, t, t, t, integer],
         'upmtr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, t, t, integer],
+        'opgtr': ['Int32', 'Int8', integer, t, t, t, integer],
+        'opmtr': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, t, t, integer],
         'lacp2': ['Int32', 'Int8', integer, integer, real, integer, t, integer],
         'tzrzf': ['Int32', integer, integer, t, integer, t],
         'ggqrf': ['Int32', integer, integer, integer, t, integer, t, t, integer, t],
@@ -248,7 +250,7 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [t]
     if row['family'] == 'trevc' and row['symbol'].endswith('_work'):
         expected = expected + [t] + ([real] if row['scalar'] in ('c', 'z') else [])
-    if row['family'] in ('upgtr', 'upmtr') and row['symbol'].endswith('_work'):
+    if row['family'] in ('upgtr', 'upmtr', 'opgtr', 'opmtr') and row['symbol'].endswith('_work'):
         expected = expected + [t]
     if row['family'] == 'hgeqz':
         if row['scalar'] in ('s', 'd'):
