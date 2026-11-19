@@ -21,7 +21,12 @@ fn col_index(upper: bool, n: usize, i: usize, j: usize) -> usize {
         j * n - j * (j + 1) / 2 + i
     }
 }
-unsafe fn packed_to_column<T: Scalar>(layout: i32, uplo: u8, n: usize, ap: *const T) -> Vec<T> {
+pub(super) unsafe fn packed_to_column<T: Scalar>(
+    layout: i32,
+    uplo: u8,
+    n: usize,
+    ap: *const T,
+) -> Vec<T> {
     let upper = uplo.to_ascii_uppercase() == b'U';
     let mut out = vec![T::z(); packed_len(n)];
     if layout == COL_MAJOR {
@@ -38,7 +43,13 @@ unsafe fn packed_to_column<T: Scalar>(layout: i32, uplo: u8, n: usize, ap: *cons
     }
     out
 }
-unsafe fn packed_from_column<T: Scalar>(layout: i32, uplo: u8, n: usize, ap: *mut T, source: &[T]) {
+pub(super) unsafe fn packed_from_column<T: Scalar>(
+    layout: i32,
+    uplo: u8,
+    n: usize,
+    ap: *mut T,
+    source: &[T],
+) {
     if layout == COL_MAJOR {
         for k in 0..packed_len(n) {
             *ap.add(k) = source[k];
@@ -53,7 +64,7 @@ unsafe fn packed_from_column<T: Scalar>(layout: i32, uplo: u8, n: usize, ap: *mu
         }
     }
 }
-unsafe fn packed_nan<T: Scalar>(
+pub(super) unsafe fn packed_nan<T: Scalar>(
     layout: i32,
     uplo: u8,
     n: usize,

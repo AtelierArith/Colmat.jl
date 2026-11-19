@@ -14,7 +14,7 @@ fn index(row_major: bool, upper: bool, kd: usize, ld: usize, i: usize, j: usize)
     }
 }
 
-unsafe fn band_to_column<T: Scalar>(
+pub(super) unsafe fn band_to_column<T: Scalar>(
     layout: i32,
     uplo: u8,
     n: usize,
@@ -39,7 +39,7 @@ unsafe fn band_to_column<T: Scalar>(
     out
 }
 
-unsafe fn band_from_column<T: Scalar>(
+pub(super) unsafe fn band_from_column<T: Scalar>(
     layout: i32,
     uplo: u8,
     n: usize,
@@ -68,7 +68,7 @@ unsafe fn band_from_column<T: Scalar>(
     }
 }
 
-unsafe fn band_nan<T: Scalar>(
+pub(super) unsafe fn band_nan<T: Scalar>(
     layout: i32,
     uplo: u8,
     n: usize,

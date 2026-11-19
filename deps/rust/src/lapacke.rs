@@ -61,6 +61,7 @@ mod schur_vectors;
 mod self_adjoint;
 mod self_adjoint_range;
 mod selfadjoint_vectors;
+mod structured_evd;
 mod svd;
 mod symmetric_inverse;
 mod symmetric_lu;

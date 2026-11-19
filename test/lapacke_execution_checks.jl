@@ -199,7 +199,9 @@ using Test
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d") for f in ("sptri", "sytrs2") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d", "c", "z") for f in ("steqr", "stedc") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d") for f in ("sterf", "stev", "stevd") for w in ("", "_work")))
-    @test length(targets)==1276
+    union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d") for f in ("sbev", "spev", "sbevd", "spevd") for w in ("", "_work")))
+    union!(targets, Set("LAPACKE_"*p*f*w for p in ("c", "z") for f in ("hbev", "hpev", "hbevd", "hpevd") for w in ("", "_work")))
+    @test length(targets)==1308
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
