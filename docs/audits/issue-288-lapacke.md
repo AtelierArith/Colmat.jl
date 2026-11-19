@@ -331,3 +331,14 @@ workspace argument (their work entry is the same call). The tests compare the
 reflectors, signs and T blocks against the independent reference LAPACK and
 verify explicit Q from reference LATSQR factors. The full-suite artifact
 validates 1,572 LAPACKE canonical entries.
+
+## Bidiagonal SVD (BDSQR, BDSDC, BDSVDX)
+
+BDSQR (S/D/C/Z) and BDSDC and BDSVDX (S/D) high/work adapters over the native
+bidiagonal SVD. D/E are scanned for NaN (E has N-1 entries); VT, U and C are
+transposed for row-major and written back only when present; BDSVDX Z has 2N
+rows holding [U; V] and only the returned columns are written. BDSDC
+COMPQ='N' and 'I' are verified end to end; COMPQ='P' (the compact IQ/Q form)
+is passed through to the native compact driver and is not separately verified
+in row-major. The full-suite artifact validates 1,588 LAPACKE canonical
+entries.

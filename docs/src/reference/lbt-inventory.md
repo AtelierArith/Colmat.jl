@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **3068**、ILP64 **3068** シンボルを登録します。
+現行 adapter は LP64 **3084**、ILP64 **3084** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -91,6 +91,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |
 | PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |
 | TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |
+| BDSQR・BDSDC・BDSVDX | native 双対角 SVD | VT/U/C を転置して書き戻し、BDSDC は COMPQ=N/I を検証（COMPQ=P は native のコンパクト fallback に渡すのみ）、BDSVDX の Z は 2N 行の [U;V] で返された列のみ書き戻す |
 | GETSLS・GETSQRHRT・ORGTSQR_ROW/UNGTSQR_ROW・ORHR_COL/UNHR_COL | native tall-skinny 最小二乗と TSQR Householder 再構成 | T は NB×(N*スロット数) 配列で row-major の LDT は列数以上。GETSLS/GETSQRHRT/ORGTSQR_ROW は WORK/LWORK を問い合わせ、A/B/T を転置して書き戻す |
 | LAG2C/LAG2D/LAG2S/LAG2Z・LACRM/LARCM・PSTRF | native 精度変換・複素×実行列積・ピボット付き Cholesky | row-major の変換と書き戻し。LAG2* のオーバーフローは正の INFO、LACRM/LARCM は INFO なし（列優先の引数エラーは native チェッカのみ）、PSTRF は三角のみ書き戻し・PIV/RANK を通す |
 | SYTRD/HETRD・SYEQUB/HEEQUB | native 密な三重対角化と対角スケーリング | UPLO 三角のみ NaN 検査・書き戻し、SYTRD/HETRD は WORK/LWORK を問い合わせ、SYEQUB/HEEQUB は A を読み取り専用で扱い、複素は CABS1 を使う |
@@ -863,11 +864,11 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | 系列 / ABI | 全シンボル | 公開機能・根拠 | 契約上の差 |
 |---|---|---|---|
 | `bdsdc` / Fortran | `dbdsdc_`, `sbdsdc_` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない |
-| `bdsdc` / LAPACKE | `LAPACKE_dbdsdc`, `LAPACKE_dbdsdc_work`, `LAPACKE_sbdsdc`, `LAPACKE_sbdsdc_work` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `bdsdc` / LAPACKE | `LAPACKE_dbdsdc`, `LAPACKE_dbdsdc_work`, `LAPACKE_sbdsdc`, `LAPACKE_sbdsdc_work` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `bdsqr` / Fortran | `cbdsqr_`, `dbdsqr_`, `sbdsqr_`, `zbdsqr_` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない |
-| `bdsqr` / LAPACKE | `LAPACKE_cbdsqr`, `LAPACKE_cbdsqr_work`, `LAPACKE_dbdsqr`, `LAPACKE_dbdsqr_work`, `LAPACKE_sbdsqr`, `LAPACKE_sbdsqr_work`, `LAPACKE_zbdsqr`, `LAPACKE_zbdsqr_work` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `bdsqr` / LAPACKE | `LAPACKE_cbdsqr`, `LAPACKE_cbdsqr_work`, `LAPACKE_dbdsqr`, `LAPACKE_dbdsqr_work`, `LAPACKE_sbdsqr`, `LAPACKE_sbdsqr_work`, `LAPACKE_zbdsqr`, `LAPACKE_zbdsqr_work` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `bdsvdx` / Fortran | `dbdsvdx_`, `sbdsvdx_` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない |
-| `bdsvdx` / LAPACKE | `LAPACKE_dbdsvdx`, `LAPACKE_dbdsvdx_work`, `LAPACKE_sbdsvdx`, `LAPACKE_sbdsvdx_work` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `bdsvdx` / LAPACKE | `LAPACKE_dbdsvdx`, `LAPACKE_dbdsvdx_work`, `LAPACKE_sbdsvdx`, `LAPACKE_sbdsvdx_work` | [bidiagonal_svd](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | 二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `geesx` / Fortran | `cgeesx_`, `dgeesx_`, `sgeesx_`, `zgeesx_` | [Schur と reorder_schur](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 8 Fortran シンボル・4型・両 ABI を接続済み。TRSEN JOB=N は native Schur block move による安定選択、M、固有値抽出と Q 更新。GEESX SENSE=N は既存 native GEES 経路。交換拒否時の SDIM は移動済み prefix でなく全選択列数を返す（GEES 共通処理も修正）。S/SEP と RCONDE/RCONDV の公開 native API はなく、JOB/SENSE E/V/B は保存済み元の ILP64 routine に委譲する。LP64 IWORK/BWORK は書き込み済み slot だけ変換し、SELECT callback は thread-local guard で LOGICAL ABI を変換して入れ子呼び出し後に復元する。TRSEN は LWORK=-1 だけ、実数 GEESX は LWORK/LIWORK の collective query。内部所有行列/scratch を確保する。C ABI は別タスク。 |
 | `geesx` / LAPACKE | `LAPACKE_cgeesx`, `LAPACKE_cgeesx_work`, `LAPACKE_dgeesx`, `LAPACKE_dgeesx_work`, `LAPACKE_sgeesx`, `LAPACKE_sgeesx_work`, `LAPACKE_zgeesx`, `LAPACKE_zgeesx_work` | [Schur と reorder_schur](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 8 Fortran シンボル・4型・両 ABI を接続済み。TRSEN JOB=N は native Schur block move による安定選択、M、固有値抽出と Q 更新。GEESX SENSE=N は既存 native GEES 経路。交換拒否時の SDIM は移動済み prefix でなく全選択列数を返す（GEES 共通処理も修正）。S/SEP と RCONDE/RCONDV の公開 native API はなく、JOB/SENSE E/V/B は保存済み元の ILP64 routine に委譲する。LP64 IWORK/BWORK は書き込み済み slot だけ変換し、SELECT callback は thread-local guard で LOGICAL ABI を変換して入れ子呼び出し後に復元する。TRSEN は LWORK=-1 だけ、実数 GEESX は LWORK/LIWORK の collective query。内部所有行列/scratch を確保する。C ABI は別タスク。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `geev` / Fortran | `cgeev_`, `dgeev_`, `sgeev_`, `zgeev_` | [evd_real / evd_cplx / balance](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 公開 native API は固有値・左右固有ベクトル・balance を提供する。GEEVX の条件推定は native API にないため、Fortran SENSE=E/V/B は保存した同じ整数 ABI の backend を優先し、LP64 に元の実装がなければ ILP64 に整数を変換して委譲する。4型の元の ILP64 GEEVX を登録前に要求し、不足時は LBT の変更前に設定エラーにする。SENSE=N は native のまま。 |
@@ -1556,7 +1557,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 2,864 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 2,880 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.

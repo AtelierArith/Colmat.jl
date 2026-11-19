@@ -9,6 +9,7 @@ mod band_lu;
 mod band_norms;
 mod band_positive_extras;
 mod band_tridiagonal;
+mod bidiagonal_svd;
 mod block_reflector;
 mod block_reflector_apply;
 mod blocked_qr;

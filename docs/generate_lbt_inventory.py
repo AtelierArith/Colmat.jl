@@ -201,6 +201,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |',
     '| PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |',
     '| TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |',
+    '| BDSQR・BDSDC・BDSVDX | native 双対角 SVD | VT/U/C を転置して書き戻し、BDSDC は COMPQ=N/I を検証（COMPQ=P は native のコンパクト fallback に渡すのみ）、BDSVDX の Z は 2N 行の [U;V] で返された列のみ書き戻す |',
     '| GETSLS・GETSQRHRT・ORGTSQR_ROW/UNGTSQR_ROW・ORHR_COL/UNHR_COL | native tall-skinny 最小二乗と TSQR Householder 再構成 | T は NB×(N*スロット数) 配列で row-major の LDT は列数以上。GETSLS/GETSQRHRT/ORGTSQR_ROW は WORK/LWORK を問い合わせ、A/B/T を転置して書き戻す |',
     '| LAG2C/LAG2D/LAG2S/LAG2Z・LACRM/LARCM・PSTRF | native 精度変換・複素×実行列積・ピボット付き Cholesky | row-major の変換と書き戻し。LAG2* のオーバーフローは正の INFO、LACRM/LARCM は INFO なし（列優先の引数エラーは native チェッカのみ）、PSTRF は三角のみ書き戻し・PIV/RANK を通す |',
     '| SYTRD/HETRD・SYEQUB/HEEQUB | native 密な三重対角化と対角スケーリング | UPLO 三角のみ NaN 検査・書き戻し、SYTRD/HETRD は WORK/LWORK を問い合わせ、SYEQUB/HEEQUB は A を読み取り専用で扱い、複素は CABS1 を使う |',
