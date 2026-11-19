@@ -1,7 +1,9 @@
 # Issue #288: GEQR/GELQ/GEMQR/GEMLQ C contracts
 
 Status: the 32 S/D/C/Z high/work entries pass focused layout, blocked-reflector,
-round-trip, diagnostic and independent-call checks. Issue #288 remains open.
+round-trip, diagnostic and independent-call checks. The immutable full suite
+records 436 sources, 2,328 canonical entries and 8,783 witnesses (2,532
+forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
