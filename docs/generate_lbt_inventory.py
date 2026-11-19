@@ -201,6 +201,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |',
     '| PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |',
     '| TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |',
+    '| SYTRI/HETRI・SYTRI2/HETRI2・SYTRI2X/HETRI2X | native Bunch-Kaufman inverse | 因子と IPIV を相互利用。row-major は UPLO 三角のみ NaN 検査・書き戻し、TRI2 は WORK 問い合わせ、TRI2X は (N+NB+1)*(NB+3) の作業領域 |',
     '| POEQU/POEQUB・PPEQU・PPSV/PPTRI | native 正定値の平衡化と packed 残り | S/SCOND/AMAX (dense/packed)、PPSV の因子書き戻し、PPTRI の因子→inv(A) |',
     '| TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |',
     '| SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |',
