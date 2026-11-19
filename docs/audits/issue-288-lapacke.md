@@ -191,3 +191,12 @@ write back only that triangle. TRI2 supports the LWORK=-1 query; TRI2X allocates
 (N+NB+1)*(NB+3) elements like the reference wrapper, NB being a hint only.
 Complex symmetric CSYTRI/ZSYTRI remain outside this slice. The full-suite
 artifact validates 1,220 LAPACKE canonical entries.
+
+## Packed HP/SP TRI and SYTRS2/HETRS2 extension
+
+SPTRI (S/D) and HPTRF/HPTRS/HPSV/HPTRI (C/Z) high/work adapters share the
+packed Bunch-Kaufman macro; row-major AP is reordered with the reference
+pp_trans permutation and the Hermitian diagonal imaginary part is excluded from
+the NaN scan. SYTRS2/HETRS2 read the factor without modifying it and allocate
+the N-element WORK array that the native solve does not use. The full-suite
+artifact validates 1,248 LAPACKE canonical entries.
