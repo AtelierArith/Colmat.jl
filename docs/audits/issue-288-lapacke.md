@@ -241,3 +241,12 @@ negative two-by-two pivots) interoperate between layouts. The complex
 symmetric CSYTRF/CSYTRS/CSYSV_ROOK family has a different LDL^T contract and
 stays out of scope, as does HESV_ROOK, which has no LAPACKE inventory entry.
 The full-suite artifact validates 1,336 LAPACKE canonical entries.
+
+## TGEXC extension
+
+TGEXC (S/D/C/Z) high/work adapters over the native generalized Schur
+reordering. Real IFST/ILST are in/out pointers with a WORK/LWORK query; complex
+IFST/ILST are by value and the work entry takes no workspace. A, B, Q and Z are
+transposed for row-major, and the workspace query is forwarded to the native
+solver untransposed. The full-suite artifact validates 1,344 LAPACKE canonical
+entries.
