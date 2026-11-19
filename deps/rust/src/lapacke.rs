@@ -25,6 +25,7 @@ mod generalized_hessenberg;
 mod generalized_qr;
 mod generalized_schur;
 mod generalized_schur_vectors;
+mod generalized_structured;
 mod givens;
 mod hessenberg_schur;
 mod householder;

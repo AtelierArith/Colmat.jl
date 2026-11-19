@@ -161,6 +161,18 @@ def validate_lapacke_signature(row, witness):
         'sptrs': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'spsv': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'sytrf': [],
+        'sbgv': [],
+        'hbgv': [],
+        'spgv': [],
+        'hpgv': [],
+        'sbgvd': [],
+        'hbgvd': [],
+        'spgvd': [],
+        'hpgvd': [],
+        'sbgst': [],
+        'hbgst': [],
+        'spgst': [],
+        'hpgst': [],
         'sygst': [],
         'hegst': [],
         'sygv': [],
@@ -415,6 +427,28 @@ def validate_lapacke_signature(row, witness):
                 expected = expected + ([t, integer, real, integer, pivot, integer] if cplx else [t, integer, pivot, integer])
             else:
                 expected = expected + ([t, integer, real] if cplx else [t, integer])
+    if row['family'] in ('sbgv', 'hbgv', 'sbgvd', 'hbgvd', 'spgv', 'hpgv', 'spgvd', 'hpgvd', 'sbgst', 'hbgst', 'spgst', 'hpgst'):
+        cplx = row['scalar'] in ('c', 'z')
+        band = row['family'][1] == 'b'
+        gst = row['family'].endswith('gst')
+        dc = row['family'].endswith('d')
+        is_work = row['symbol'].endswith('_work')
+        if gst and not band:
+            expected = ['Int32', integer, 'Int8', integer, t, t]
+        elif gst:
+            expected = ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, integer, t, integer]
+            if is_work:
+                expected = expected + ([t, real] if cplx else [t])
+        else:
+            if band:
+                expected = ['Int32', 'Int8', 'Int8', integer, integer, integer, t, integer, t, integer, real, t, integer]
+            else:
+                expected = ['Int32', integer, 'Int8', 'Int8', integer, t, t, real, t, integer]
+            if is_work:
+                if dc:
+                    expected = expected + ([t, integer, real, integer, pivot, integer] if cplx else [t, integer, pivot, integer])
+                else:
+                    expected = expected + ([t, real] if cplx else [t])
     if row['family'] in ('sysv', 'hesv', 'sysv_rook'):
         expected = ['Int32', 'Int8', integer, integer, t, integer, pivot, t, integer]
         if row['symbol'].endswith('_work'):

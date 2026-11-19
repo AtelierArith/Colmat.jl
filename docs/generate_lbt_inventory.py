@@ -201,6 +201,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |',
     '| PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |',
     '| TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |',
+    '| SBGST/HBGST/SPGST/HPGST・SBGV/HBGV/SPGV/HPGV・SBGVD/HBGVD/SPGVD/HPGVD | native band/packed 一般化自己随伴 | band AB/BB（KA+1/KB+1 行）と packed AP/BP を列優先へ変換して書き戻し、row-major の Z/X を転置。GST の B は分割/通常 Cholesky 因子を読み取り専用で使う。GVD 系は WORK/IWORK(/RWORK) を問い合わせ |',
     '| SYGST/HEGST・SYGV/HEGV・SYGVD/HEGVD | native 一般化自己随伴定値問題 | ITYPE 1–3。UPLO 三角のみ NaN 検査、row-major A は JOBZ=V で全体・他は三角、B は三角を書き戻す。GST の B は読み取り専用。GVD 系は WORK/IWORK(/RWORK) を問い合わせ |',
     '| TGEXC | native 一般化 Schur 対の並べ替え (QZ reorder) | 実数は IFST/ILST が入出力ポインタ、複素は値渡し。A/B/Q/Z を転置し、問い合わせは直接 native へ |',
     '| SYTRF/SYTRS/SYSV_ROOK・HETRF/HETRS_ROOK | native rook Bunch-Kaufman | 因子と IPIV（負の2×2 ピボット）を行/列優先で相互利用。複素対称 CSYTRF_ROOK 系と HESV_ROOK は対象外 |',
