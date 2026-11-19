@@ -201,6 +201,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |',
     '| PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |',
     '| TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |',
+    '| SFRK/HFRK | native RFP rank-k 更新 | alpha/beta は値渡し、RFP 矩形 (ROW×COL) と row-major A を転置。INFO を返さないため列優先の引数エラーは native チェッカのみ |',
     '| SBEV/HBEV/SPEV/HPEV・SBEVD/HBEVD/SPEVD/HPEVD | native band/packed 全固有分解 | band AB (KD+1 行) と packed AP を列優先へ変換し、row-major の Z を転置。EVD 系は WORK/IWORK(/RWORK) の問い合わせで確保 |',
     '| STERF/STEQR/STEV/STEVD/STEDC | native 三重対角 EVD (QL/QR, 分割統治) | STERF は matrix_layout なし。row-major Z は COMPZ=V のみ入力として読み、STEDC/STEVD は WORK/IWORK(/RWORK) の問い合わせで確保 |',
     '| SPTRI・HPTRF/HPTRS/HPSV/HPTRI・SYTRS2/HETRS2 | native packed Bunch-Kaufman と dense solve | packed AP を pp_trans で並べ替え、Hermitian 対角の虚部は NaN 検査から除外。SYTRS2 の WORK は使わず N 要素を確保 |',

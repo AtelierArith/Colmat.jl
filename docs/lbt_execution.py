@@ -198,6 +198,8 @@ def validate_lapacke_signature(row, witness):
         'tptrs': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, t, t, integer],
         'tptri': ['Int32', 'Int8', 'Int8', integer, t],
         'langb': ['Int32', 'Int8', integer, integer, integer, t, integer],
+        'sfrk': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, real_scalar, t, integer, real_scalar, t],
+        'hfrk': ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, real_scalar, t, integer, real_scalar, t],
         'lanhe': ['Int32', 'Int8', 'Int8', integer, t, integer],
         'gehrd': [],
         'gebrd': [],

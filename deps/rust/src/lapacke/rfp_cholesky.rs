@@ -20,7 +20,12 @@ fn rfp_dims(transr: u8, n: usize) -> (usize, usize) {
         ((n + 1) / 2, n)
     }
 }
-unsafe fn rfp_to_column<T: Scalar>(layout: i32, transr: u8, n: usize, a: *const T) -> Vec<T> {
+pub(super) unsafe fn rfp_to_column<T: Scalar>(
+    layout: i32,
+    transr: u8,
+    n: usize,
+    a: *const T,
+) -> Vec<T> {
     let (row, col) = rfp_dims(transr, n);
     let mut out = vec![T::z(); row * col];
     if layout == COL_MAJOR {
@@ -36,7 +41,13 @@ unsafe fn rfp_to_column<T: Scalar>(layout: i32, transr: u8, n: usize, a: *const 
     }
     out
 }
-unsafe fn rfp_from_column<T: Scalar>(layout: i32, transr: u8, n: usize, a: *mut T, source: &[T]) {
+pub(super) unsafe fn rfp_from_column<T: Scalar>(
+    layout: i32,
+    transr: u8,
+    n: usize,
+    a: *mut T,
+    source: &[T],
+) {
     let (row, col) = rfp_dims(transr, n);
     if layout == COL_MAJOR {
         for k in 0..row * col {
@@ -50,7 +61,7 @@ unsafe fn rfp_from_column<T: Scalar>(layout: i32, transr: u8, n: usize, a: *mut 
         }
     }
 }
-unsafe fn rfp_nan<T: Scalar>(layout: i32, transr: u8, n: usize, a: *const T) -> bool {
+pub(super) unsafe fn rfp_nan<T: Scalar>(layout: i32, transr: u8, n: usize, a: *const T) -> bool {
     let (row, col) = rfp_dims(transr, n);
     for k in 0..row * col {
         let v = *a.add(k);
