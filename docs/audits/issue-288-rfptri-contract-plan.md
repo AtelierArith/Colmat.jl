@@ -2,7 +2,9 @@
 
 Status: the 24 S/D/C/Z high/work entries pass focused RFP triangular
 solve/multiply/inverse, tridiagonal solve, layout, diagnostic and
-independent-call checks. Issue #288 remains open.
+independent-call checks. The immutable full suite records 446 sources, 2,488
+canonical entries and 9,463 witnesses (2,692 forwards per integer ABI). Issue
+#288 remains open.
 
 ## Connected names
 
