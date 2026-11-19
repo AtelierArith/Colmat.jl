@@ -44,6 +44,7 @@ mod pivoted_qr;
 mod positive_extras;
 mod positive_qr;
 mod positive_tridiagonal;
+mod precision_aux;
 mod q_application;
 mod q_generators;
 mod qr;
