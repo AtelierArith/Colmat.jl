@@ -260,3 +260,13 @@ JOBZ='V' (eigenvectors) and as a triangle otherwise, B as a triangle, and the
 SYGST/HEGST B argument stays read only. The *GVD high-level entries query
 WORK/IWORK (and RWORK). The full-suite artifact validates 1,368 LAPACKE
 canonical entries.
+
+## Band/packed generalized self-adjoint extension
+
+SBGST/HBGST, SPGST/HPGST, SBGV/HBGV, SPGV/HPGV, SBGVD/HBGVD and SPGVD/HPGVD
+(S/D/C/Z) high/work adapters over the native structured generalized solvers.
+Row-major band AB/BB (KA+1 and KB+1 rows) and packed AP/BP are converted to
+column-major and the stored triangles written back; Z or X is transposed for
+JOBZ/VECT='V'. The GST routines read the split or plain Cholesky factor in B
+without modifying it, and the *GVD high-level entries query WORK/IWORK (and
+RWORK). The full-suite artifact validates 1,416 LAPACKE canonical entries.
