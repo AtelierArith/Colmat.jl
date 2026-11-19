@@ -1142,7 +1142,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "e66aa0c0504e844235238245d8a40e097892a14f",
+  "revision": "e5d864cbb421aebc672dbf16d8739fefd9ee4ba4",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -89623,7 +89623,7 @@
     "test/lapacke_complex_auxiliary.jl": "30582c2c2d632bf04cd52d1bf6cda9ac92318371df9fd5abf926360348381811",
     "deps/rust/src/lapacke/packed_cholesky.rs": "6bf9fca0e5a5b710283f1dfb42a348b23f5a895e3688b7239f821c8ff76b5b2c",
     "deps/rust/src/lapacke/general_expert.rs": "55804c4441eb95b897804fdf162d5f554bd2564052ecbd6ce9157e4bd5e38f18",
-    "test/lapacke_geqr.jl": "75498d60acce7c94c01164ebfb466dc9a710d03b1d43778feb01cc27698f9bd9",
+    "test/lapacke_geqr.jl": "bd0397d96d06c0ccc55993f0d6fcec847e90c34142a1fe52405b216ee8ecf284",
     "deps/rust/src/triangular_lapack.rs": "399ec4b7b3cec564eb13ba7607c08b425fe1dc983e3e57f1f849450d9d637b7f",
     "test/lapacke_gbtrf.jl": "a5091614dd41a08f6716787d0f7d27d384e7515864feb993c128fb52c1d10970",
     "deps/rust/src/lapacke/band_tridiagonal.rs": "d2aa73770686365723a5542b87782a85d044e6690ee5394eb4a61a1f85a92f8f",

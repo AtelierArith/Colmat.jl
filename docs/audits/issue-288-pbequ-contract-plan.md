@@ -3,7 +3,8 @@
 Status: the 24 S/D/C/Z high/work entries pass focused band-layout, equilibration,
 split-factor, driver, diagnostic and independent-call checks. The immutable full
 suite records 438 sources, 2,352 canonical entries and 8,879 witnesses (2,556
-forwards per integer ABI). Issue #288 remains open.
+forwards per integer ABI) after the GEMQR/GEMLQ diagnostic buffer fix. Issue
+#288 remains open.
 
 ## Connected names
 
