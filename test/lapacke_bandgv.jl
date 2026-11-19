@@ -1,64 +1,148 @@
 using Test, Colmat, LinearAlgebra, Libdl, Random
 isdefined(@__MODULE__, :lapacke288_selected_entry) || include("lapacke_calls.jl")
 
-# Build and run one LAPACKE ccall from a list of (type, value) pairs. The
-# signatures differ across band/packed, GV/GVD/GST, high/work and real/complex.
-function bg_ccall(p, ::Type{J}, pairs) where {J}
-    types = Expr(:tuple, (t for (t, _) in pairs)...)
-    ex = Expr(:call, :ccall, p, J, types, (v for (_, v) in pairs)...)
-    return Core.eval(@__MODULE__, ex)
+for (T, R) in ((Float32, Float32), (Float64, Float64), (ComplexF32, Float32), (ComplexF64, Float64)),
+    J in (Int32, Int64)
+    # Literal ccalls keep the ABI evidence recorder able to trace every entry.
+    @eval begin
+        function bg_band_high(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, jobz, uplo, n, ka, kb,
+                              a, lda, b, ldb, w, z, ldz)
+            lapacke288_selected_entry(name, $J, route) do
+                ccall(p, $J, (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$R}, Ptr{$T}, $J),
+                      layout, jobz, uplo, n, ka, kb, a, lda, b, ldb, w, z, ldz)
+            end
+        end
+        function bg_pk_high(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, itype, jobz, uplo, n,
+                            a, b, w, z, ldz)
+            lapacke288_selected_entry(name, $J, route) do
+                ccall(p, $J, (Cint, $J, Cchar, Cchar, $J, Ptr{$T}, Ptr{$T}, Ptr{$R}, Ptr{$T}, $J),
+                      layout, itype, jobz, uplo, n, a, b, w, z, ldz)
+            end
+        end
+        function bg_bandgst_high(::Type{$T}, ::Type{$J}, p, name, route, layout, vect, uplo, n, ka, kb,
+                                 a, lda, b, ldb, x, ldx)
+            lapacke288_selected_entry(name, $J, route) do
+                ccall(p, $J, (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$T}, $J),
+                      layout, vect, uplo, n, ka, kb, a, lda, b, ldb, x, ldx)
+            end
+        end
+        function bg_pkgst(::Type{$T}, ::Type{$J}, p, name, route, layout, itype, uplo, n, a, b)
+            lapacke288_selected_entry(name, $J, route) do
+                ccall(p, $J, (Cint, $J, Cchar, $J, Ptr{$T}, Ptr{$T}), layout, itype, uplo, n, a, b)
+            end
+        end
+    end
+    if T <: Complex
+        @eval begin
+            function bg_band_gv_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, jobz, uplo, n, ka, kb,
+                                     a, lda, b, ldb, w, z, ldz, wk, rw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$R}, Ptr{$T}, $J,
+                                  Ptr{$T}, Ptr{$R}),
+                          layout, jobz, uplo, n, ka, kb, a, lda, b, ldb, w, z, ldz, wk, rw)
+                end
+            end
+            function bg_band_gvd_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, jobz, uplo, n, ka, kb,
+                                      a, lda, b, ldb, w, z, ldz, wk, lw, rw, lrw, iw, liw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$R}, Ptr{$T}, $J,
+                                  Ptr{$T}, $J, Ptr{$R}, $J, Ptr{$J}, $J),
+                          layout, jobz, uplo, n, ka, kb, a, lda, b, ldb, w, z, ldz, wk, lw, rw, lrw, iw, liw)
+                end
+            end
+            function bg_pk_gv_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, itype, jobz, uplo, n,
+                                   a, b, w, z, ldz, wk, rw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, $J, Cchar, Cchar, $J, Ptr{$T}, Ptr{$T}, Ptr{$R}, Ptr{$T}, $J, Ptr{$T}, Ptr{$R}),
+                          layout, itype, jobz, uplo, n, a, b, w, z, ldz, wk, rw)
+                end
+            end
+            function bg_pk_gvd_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, itype, jobz, uplo, n,
+                                    a, b, w, z, ldz, wk, lw, rw, lrw, iw, liw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, $J, Cchar, Cchar, $J, Ptr{$T}, Ptr{$T}, Ptr{$R}, Ptr{$T}, $J, Ptr{$T}, $J,
+                                  Ptr{$R}, $J, Ptr{$J}, $J),
+                          layout, itype, jobz, uplo, n, a, b, w, z, ldz, wk, lw, rw, lrw, iw, liw)
+                end
+            end
+            function bg_bandgst_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, vect, uplo, n, ka, kb,
+                                     a, lda, b, ldb, x, ldx, wk, rw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$T}, Ptr{$R}),
+                          layout, vect, uplo, n, ka, kb, a, lda, b, ldb, x, ldx, wk, rw)
+                end
+            end
+        end
+    else
+        @eval begin
+            function bg_band_gv_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, jobz, uplo, n, ka, kb,
+                                     a, lda, b, ldb, w, z, ldz, wk, rw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$R}, Ptr{$T}, $J, Ptr{$T}),
+                          layout, jobz, uplo, n, ka, kb, a, lda, b, ldb, w, z, ldz, wk)
+                end
+            end
+            function bg_band_gvd_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, jobz, uplo, n, ka, kb,
+                                      a, lda, b, ldb, w, z, ldz, wk, lw, rw, lrw, iw, liw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$R}, Ptr{$T}, $J,
+                                  Ptr{$T}, $J, Ptr{$J}, $J),
+                          layout, jobz, uplo, n, ka, kb, a, lda, b, ldb, w, z, ldz, wk, lw, iw, liw)
+                end
+            end
+            function bg_pk_gv_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, itype, jobz, uplo, n,
+                                   a, b, w, z, ldz, wk, rw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, $J, Cchar, Cchar, $J, Ptr{$T}, Ptr{$T}, Ptr{$R}, Ptr{$T}, $J, Ptr{$T}),
+                          layout, itype, jobz, uplo, n, a, b, w, z, ldz, wk)
+                end
+            end
+            function bg_pk_gvd_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, itype, jobz, uplo, n,
+                                    a, b, w, z, ldz, wk, lw, rw, lrw, iw, liw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, $J, Cchar, Cchar, $J, Ptr{$T}, Ptr{$T}, Ptr{$R}, Ptr{$T}, $J, Ptr{$T}, $J,
+                                  Ptr{$J}, $J),
+                          layout, itype, jobz, uplo, n, a, b, w, z, ldz, wk, lw, iw, liw)
+                end
+            end
+            function bg_bandgst_work(::Type{$T}, ::Type{$R}, ::Type{$J}, p, name, route, layout, vect, uplo, n, ka, kb,
+                                     a, lda, b, ldb, x, ldx, wk, rw)
+                lapacke288_selected_entry(name, $J, route) do
+                    ccall(p, $J, (Cint, Cchar, Cchar, $J, $J, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$T}, $J, Ptr{$T}),
+                          layout, vect, uplo, n, ka, kb, a, lda, b, ldb, x, ldx, wk)
+                end
+            end
+        end
+    end
 end
 
 function bg_call(::Type{T}, ::Type{R}, ::Type{J}, p, name, route; shape, kind, work, query=false, layout, itype=1,
                  jobz='N', uplo='U', n, ka=0, kb=0, a, lda=1, b, ldb=1, w=R[], z=T[], ldz=1,
                  wk=T[], rw=R[], iw=J[]) where {T,R,J}
-    cplx = T <: Complex
-    lq = query ? J(-1) : J(length(wk)); lrq = query ? J(-1) : J(length(rw)); liq = query ? J(-1) : J(length(iw))
-    pr = Tuple{DataType,Any}[(Cint, Cint(layout))]
-    if shape === :packed && kind !== :gst
-        push!(pr, (J, J(itype)))
-    elseif shape === :packed
-        push!(pr, (J, J(itype)))
-    end
-    push!(pr, (Cchar, Cchar(jobz)))
-    push!(pr, (Cchar, Cchar(uplo)))
-    push!(pr, (J, J(n)))
-    if shape === :band
-        push!(pr, (J, J(ka))); push!(pr, (J, J(kb)))
-        push!(pr, (Ptr{T}, a)); push!(pr, (J, J(lda)))
-        push!(pr, (Ptr{T}, b)); push!(pr, (J, J(ldb)))
-    else
-        push!(pr, (Ptr{T}, a)); push!(pr, (Ptr{T}, b))
-    end
+    lw = query ? J(-1) : J(length(wk)); lrw = query ? J(-1) : J(length(rw)); liw = query ? J(-1) : J(length(iw))
+    ia = (J(n), J(ka), J(kb), J(lda), J(ldb), J(ldz), J(itype))
+    cl, cu, cj = Cchar(uplo), Cchar(jobz), Cint(layout)
     if kind === :gst
         if shape === :band
-            push!(pr, (Ptr{T}, z)); push!(pr, (J, J(ldz)))
+            return work ? bg_bandgst_work(T, R, J, p, name, route, cj, cu, cl, ia[1], ia[2], ia[3], a, ia[4], b, ia[5], z, ia[6], wk, rw) :
+                          bg_bandgst_high(T, J, p, name, route, cj, cu, cl, ia[1], ia[2], ia[3], a, ia[4], b, ia[5], z, ia[6])
         end
-        # SPGST/SBGST have no eigenvalue output
-    else
-        push!(pr, (Ptr{R}, w)); push!(pr, (Ptr{T}, z)); push!(pr, (J, J(ldz)))
+        return bg_pkgst(T, J, p, name, route, cj, ia[7], cl, ia[1], a, b)
     end
-    if work
-        if kind === :gv
-            push!(pr, (Ptr{T}, wk)); cplx && push!(pr, (Ptr{R}, rw))
-        elseif kind === :gst
-            shape === :band && (push!(pr, (Ptr{T}, wk)); cplx && push!(pr, (Ptr{R}, rw)))
-        else
-            push!(pr, (Ptr{T}, wk)); push!(pr, (J, lq))
-            cplx && (push!(pr, (Ptr{R}, rw)); push!(pr, (J, lrq)))
-            push!(pr, (Ptr{J}, iw)); push!(pr, (J, liq))
+    if shape === :band
+        if !work
+            return bg_band_high(T, R, J, p, name, route, cj, cu, cl, ia[1], ia[2], ia[3], a, ia[4], b, ia[5], w, z, ia[6])
+        elseif kind === :gv
+            return bg_band_gv_work(T, R, J, p, name, route, cj, cu, cl, ia[1], ia[2], ia[3], a, ia[4], b, ia[5], w, z, ia[6], wk, rw)
         end
+        return bg_band_gvd_work(T, R, J, p, name, route, cj, cu, cl, ia[1], ia[2], ia[3], a, ia[4], b, ia[5], w, z, ia[6], wk, lw, rw, lrw, iw, liw)
     end
-    # packed GST has neither jobz nor a z argument; the helper above inserted jobz, so drop it.
-    if shape === :packed && kind === :gst
-        deleteat!(pr, 3)
-    elseif kind === :gst && shape === :band
-        # vect is the jobz slot; keep it.
+    if !work
+        return bg_pk_high(T, R, J, p, name, route, cj, ia[7], cu, cl, ia[1], a, b, w, z, ia[6])
+    elseif kind === :gv
+        return bg_pk_gv_work(T, R, J, p, name, route, cj, ia[7], cu, cl, ia[1], a, b, w, z, ia[6], wk, rw)
     end
-    # band GV/GVD/GST have no itype: remove it
-    lapacke288_selected_entry(name, J, route) do
-        bg_ccall(p, J, pr)
-    end
+    return bg_pk_gvd_work(T, R, J, p, name, route, cj, ia[7], cu, cl, ia[1], a, b, w, z, ia[6], wk, lw, rw, lrw, iw, liw)
 end
 
 function bg_band_col(m, uplo, kd)
