@@ -7,6 +7,7 @@ mod band_cholesky;
 mod band_equilibration;
 mod band_lu;
 mod band_norms;
+mod band_positive_extras;
 mod band_tridiagonal;
 mod block_reflector;
 mod block_reflector_apply;
