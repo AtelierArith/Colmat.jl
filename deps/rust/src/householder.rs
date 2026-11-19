@@ -295,6 +295,74 @@ pub(crate) unsafe fn factor<T: Scalar>(
         *t.offset(j as isize + j as isize * ldt) = tj;
     }
 }
+pub(crate) unsafe fn apply_forward_column_block_adjoint<T: Scalar>(
+    m: usize,
+    n: usize,
+    k: usize,
+    v: *const T,
+    ldv: isize,
+    t: *const T,
+    ldt: isize,
+    c: *mut T,
+    ldc: isize,
+) {
+    let v = basis(b'F', b'C', m, k, v, ldv);
+    let mut triangular = vec![T::z(); k * k];
+    for j in 0..k {
+        for i in 0..=j {
+            triangular[i + j * k] = *t.offset(i as isize + j as isize * ldt);
+        }
+    }
+    let mut projection = vec![T::z(); k * n];
+    let mut transformed = vec![T::z(); k * n];
+    let (m, n, k) = (m as isize, n as isize, k as isize);
+    // W = V^H C, Y = T^H W, C -= V Y.
+    gemm(
+        b'C',
+        b'N',
+        k,
+        n,
+        m,
+        T::o(),
+        v.as_ptr(),
+        m,
+        c,
+        ldc,
+        T::z(),
+        projection.as_mut_ptr(),
+        k,
+    );
+    gemm(
+        b'C',
+        b'N',
+        k,
+        n,
+        k,
+        T::o(),
+        triangular.as_ptr(),
+        k,
+        projection.as_ptr(),
+        k,
+        T::z(),
+        transformed.as_mut_ptr(),
+        k,
+    );
+    gemm(
+        b'N',
+        b'N',
+        m,
+        n,
+        k,
+        -T::o(),
+        v.as_ptr(),
+        m,
+        transformed.as_ptr(),
+        k,
+        T::o(),
+        c,
+        ldc,
+    );
+}
 pub(crate) unsafe fn apply_block<T: Scalar>(
     side: u8,
     tr: u8,
