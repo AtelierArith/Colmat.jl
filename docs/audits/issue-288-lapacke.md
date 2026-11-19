@@ -299,3 +299,12 @@ N-1 entries, N for STEMR), the row-major Z is written only for the returned
 columns, and STEVR/STEGR/STEMR high-level entries query WORK/IWORK. STEMR
 passes NZC and TRYRAC through unchanged. The full-suite artifact validates
 1,496 LAPACKE canonical entries.
+
+## SYTRD/HETRD and SYEQUB/HEEQUB
+
+SYTRD/HETRD (S/D/C/Z), SYEQUB (S/D/C/Z) and HEEQUB (C/Z) high/work adapters
+over the native dense tridiagonal reduction and symmetric scaling. Only the
+UPLO triangle is scanned for NaN; row-major SYTRD/HETRD results are written
+back as a triangle and the high-level entries query WORK/LWORK. SYEQUB/HEEQUB
+read A without modifying it, and complex magnitudes follow LAPACK's CABS1. The
+full-suite artifact validates 1,516 LAPACKE canonical entries.

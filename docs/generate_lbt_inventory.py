@@ -201,6 +201,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |',
     '| PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |',
     '| TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |',
+    '| SYTRD/HETRD・SYEQUB/HEEQUB | native 密な三重対角化と対角スケーリング | UPLO 三角のみ NaN 検査・書き戻し、SYTRD/HETRD は WORK/LWORK を問い合わせ、SYEQUB/HEEQUB は A を読み取り専用で扱い、複素は CABS1 を使う |',
     '| STEVX/STEVR/STEGR/STEMR | native 三重対角の選択固有値 | D/E のみ NaN 検査（STEMR の E は N 要素）、row-major の Z は返された列のみ、STEVR/STEGR/STEMR は WORK/IWORK を問い合わせ、STEMR の NZC/TRYRAC を通す |',
     '| SYEVX/HEEVX・SYGVX/HEGVX・SBGVX/HBGVX・SPGVX/HPGVX | native 選択固有値（密・band・packed、一般化を含む） | UPLO 三角のみ NaN 検査・書き戻し、row-major の Z は返された列のみ、SYEVX/SYGVX は WORK/LWORK を問い合わせ、band の Q は JOBZ=V のみ転置 |',
     '| SBEVX/HBEVX・SPEVX/HPEVX・SPTRD/HPTRD | native band/packed 選択固有値と packed 三重対角化 | band AB・packed AP を列優先へ変換して書き戻し、row-major の Q/Z は JOBZ=V のみ、Z は返された列だけを書き戻す。WORK/IWORK(/RWORK) は固定長で確保 |',

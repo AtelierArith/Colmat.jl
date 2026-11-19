@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-apple-darwin24.6.0",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "ff9dc3da2b6405eb6a9cee4993db520fcc50e8b010dfcf24e7da630c77e8c8d8",
+  "inventory_registration_sha256": "6e4f38a58cebf55eafa3d7710e49ccef61e52348960193c92e2e9fe19ad46201",
   "lapacke_target_symbols": [
     "LAPACKE_cgbequ",
     "LAPACKE_cgbequ_work",
@@ -135,6 +135,8 @@
     "LAPACKE_chbgvx_work",
     "LAPACKE_chbtrd",
     "LAPACKE_chbtrd_work",
+    "LAPACKE_cheequb",
+    "LAPACKE_cheequb_work",
     "LAPACKE_cheev",
     "LAPACKE_cheev_work",
     "LAPACKE_cheevd",
@@ -153,6 +155,8 @@
     "LAPACKE_chegvx_work",
     "LAPACKE_chesv",
     "LAPACKE_chesv_work",
+    "LAPACKE_chetrd",
+    "LAPACKE_chetrd_work",
     "LAPACKE_chetrf",
     "LAPACKE_chetrf_rook",
     "LAPACKE_chetrf_rook_work",
@@ -291,6 +295,8 @@
     "LAPACKE_cstemr_work",
     "LAPACKE_csteqr",
     "LAPACKE_csteqr_work",
+    "LAPACKE_csyequb",
+    "LAPACKE_csyequb_work",
     "LAPACKE_csyr",
     "LAPACKE_csyr_work",
     "LAPACKE_ctbtrs",
@@ -669,6 +675,8 @@
     "LAPACKE_dstevr_work",
     "LAPACKE_dstevx",
     "LAPACKE_dstevx_work",
+    "LAPACKE_dsyequb",
+    "LAPACKE_dsyequb_work",
     "LAPACKE_dsyev",
     "LAPACKE_dsyev_work",
     "LAPACKE_dsyevd",
@@ -689,6 +697,8 @@
     "LAPACKE_dsysv_rook",
     "LAPACKE_dsysv_rook_work",
     "LAPACKE_dsysv_work",
+    "LAPACKE_dsytrd",
+    "LAPACKE_dsytrd_work",
     "LAPACKE_dsytrf",
     "LAPACKE_dsytrf_rook",
     "LAPACKE_dsytrf_rook_work",
@@ -1047,6 +1057,8 @@
     "LAPACKE_sstevr_work",
     "LAPACKE_sstevx",
     "LAPACKE_sstevx_work",
+    "LAPACKE_ssyequb",
+    "LAPACKE_ssyequb_work",
     "LAPACKE_ssyev",
     "LAPACKE_ssyev_work",
     "LAPACKE_ssyevd",
@@ -1067,6 +1079,8 @@
     "LAPACKE_ssysv_rook",
     "LAPACKE_ssysv_rook_work",
     "LAPACKE_ssysv_work",
+    "LAPACKE_ssytrd",
+    "LAPACKE_ssytrd_work",
     "LAPACKE_ssytrf",
     "LAPACKE_ssytrf_rook",
     "LAPACKE_ssytrf_rook_work",
@@ -1261,6 +1275,8 @@
     "LAPACKE_zhbgvx_work",
     "LAPACKE_zhbtrd",
     "LAPACKE_zhbtrd_work",
+    "LAPACKE_zheequb",
+    "LAPACKE_zheequb_work",
     "LAPACKE_zheev",
     "LAPACKE_zheev_work",
     "LAPACKE_zheevd",
@@ -1279,6 +1295,8 @@
     "LAPACKE_zhegvx_work",
     "LAPACKE_zhesv",
     "LAPACKE_zhesv_work",
+    "LAPACKE_zhetrd",
+    "LAPACKE_zhetrd_work",
     "LAPACKE_zhetrf",
     "LAPACKE_zhetrf_rook",
     "LAPACKE_zhetrf_rook_work",
@@ -1417,6 +1435,8 @@
     "LAPACKE_zstemr_work",
     "LAPACKE_zsteqr",
     "LAPACKE_zsteqr_work",
+    "LAPACKE_zsyequb",
+    "LAPACKE_zsyequb_work",
     "LAPACKE_zsyr",
     "LAPACKE_zsyr_work",
     "LAPACKE_ztbtrs",
@@ -1500,7 +1520,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "c5e2484824d4adfb5728bbd071907683f0df1d8d9a7517f52641410f6354a71d",
+  "library_sha256": "e75d30060fa4ad1ecb216c639128f117cd5b4612624ef64f310333b7e88f5d73",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1578,7 +1598,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "715f121dad8b0510a9a61077e217a9102e972853",
+  "revision": "835b03968831a9d8ca5f0f0707caf97710a7c61e",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -7037,6 +7057,86 @@
       "integer_arguments": true
     },
     {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_cheequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_cheequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_cheequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_cheequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_cheequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_cheequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_cheequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_cheequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 30,
       "return_type": "Int32",
       "route": "dll",
@@ -7753,6 +7853,86 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32}, Int64)",
       "file": "test/lapacke_sytrf.jl",
       "symbol": "LAPACKE_chesv_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_chetrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_chetrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_chetrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_chetrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_chetrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_chetrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_chetrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_chetrd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -13433,6 +13613,86 @@
       "signature": "(Int32, Int8, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32}, Int64, Ptr{Float32})",
       "file": "test/lapacke_stedc.jl",
       "symbol": "LAPACKE_csteqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_csyequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_csyequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_csyequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_csyequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_csyequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_csyequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_csyequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{ComplexF32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_csyequb_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -29057,6 +29317,86 @@
       "integer_arguments": true
     },
     {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsyequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsyequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsyequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsyequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsyequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsyequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsyequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsyequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 30,
       "return_type": "Int32",
       "route": "dll",
@@ -29853,6 +30193,86 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
       "file": "test/lapacke_sytrf.jl",
       "symbol": "LAPACKE_dsysv_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsytrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsytrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsytrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsytrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsytrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsytrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsytrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_dsytrd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -44697,6 +45117,86 @@
       "integer_arguments": true
     },
     {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssyequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssyequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssyequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssyequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssyequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssyequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssyequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssyequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 30,
       "return_type": "Int32",
       "route": "dll",
@@ -45493,6 +45993,86 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
       "file": "test/lapacke_sytrf.jl",
       "symbol": "LAPACKE_ssysv_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssytrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssytrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssytrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssytrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssytrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssytrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssytrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_ssytrd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -53417,6 +53997,86 @@
       "integer_arguments": true
     },
     {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zheequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zheequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zheequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zheequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zheequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zheequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zheequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zheequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 30,
       "return_type": "Int32",
       "route": "dll",
@@ -54133,6 +54793,86 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64}, Int64)",
       "file": "test/lapacke_sytrf.jl",
       "symbol": "LAPACKE_zhesv_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zhetrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zhetrd",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zhetrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 10,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zhetrd",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zhetrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zhetrd_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zhetrd_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 15,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zhetrd_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -59813,6 +60553,86 @@
       "signature": "(Int32, Int8, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64}, Int64, Ptr{Float64})",
       "file": "test/lapacke_stedc.jl",
       "symbol": "LAPACKE_zsteqr_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zsyequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zsyequb",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zsyequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 21,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zsyequb",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zsyequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zsyequb_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zsyequb_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 26,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Float64}, Ptr{Float64}, Ptr{Float64}, Ptr{ComplexF64})",
+      "file": "test/lapacke_sytrd.jl",
+      "symbol": "LAPACKE_zsyequb_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -109184,8 +110004,8 @@
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/lapacke/structured_selected.rs": "dc1d7bc7b5278bc6130300c36340707fb67ea7650cb63daafd59cb66e9d436ac",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "0fb801152a8c016910beb7f232a3d78bd3a2127d914036b6322d31bcdff84432",
-    "test/lapacke_execution_checks.jl": "c4d90d898d72d0ae139cdbf6d5d5483c64437c02aadb700d9e6c821a8dafbc54",
+    "deps/rust/src/lapacke.rs": "a2b94605c3e814c34cc4059170f35ab7d004c7c4fc1857c69c1cbcd879fa1365",
+    "test/lapacke_execution_checks.jl": "9f4d3c06cee6f3eed77f8f361eed276dd9da25ed1482965b5319323ce35c34c7",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -109363,7 +110183,7 @@
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
     "deps/rust/src/lapacke/schur_driver.rs": "6eb09b74d6d092cc66ef54771aa0a3fed021601940ffc8e5f1a7f0f5ff127881",
     "deps/rust/src/lapacke/complex_auxiliary.rs": "475aacab3971a7f9c13b396da0a29b4910ccf6d19200f6531cee430366255449",
-    "test/suite.jl": "607a40c0238e162f06a14026a96a9eebb3762b3c306132cebe150bbaa1d19a21",
+    "test/suite.jl": "033431ae1f31d628dc67b0633464203d7362a9731545a8b453ef352a0362d360",
     "deps/rust/src/lapacke/rfp_triangular.rs": "822702c22c5d0eae96728d6edbfdb3535bf79a516524e387185e11f349a59a60",
     "test/lapacke_larfg.jl": "fd653e310ffbef2716705ad7f0f597f75ecde2a11ca2140d5545fbf743f347c5",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
@@ -109501,6 +110321,7 @@
     "deps/rust/src/lapacke/generalized_qr.rs": "c38797d93497879717b009242e05ef6c6233f8f672550bcf665fcfc87d57836d",
     "deps/rust/src/cblas/matrix_tests.rs": "6ff87fa137f9c7c970dd570acd7922e0cebcca0865242970c6d92abf395a5fc8",
     "deps/rust/src/positive_equilibration.rs": "5d1c33e3f66a3b971710e2d0ba32507c5e0baf824878235098959343ab1cc6c2",
+    "test/lapacke_sytrd.jl": "c903daf001071a7bb2890a6201bb23d5b73410c54243bc7a1625f8a287cfbb0f",
     "test/lapacke_gges.jl": "8bfde9d833bd30a5d223789ddcbb90c7e6ed5d722c18c5ceb2aa5fffe43bf23c",
     "deps/rust/src/lapacke/self_adjoint_range.rs": "578924e884fc0f1166d8946aae45c0ae4685a4ee66a89dd0c2440b3e721da587",
     "deps/rust/src/selected_selfadjoint.rs": "c4c9432b74ab94485d0d0846625bf54e8bb562f744e1926df22959a1b6ab4bb3",
@@ -109545,6 +110366,7 @@
     "test/lapacke_pentagonal_qr.jl": "6205833512f0ad7a562246d30dd81900eb6f6daa070f1878896f2b8c21c88f64",
     "deps/rust/src/kernels.rs": "7dc72201f4bb0a4cdf0b784210e5a26a8aa7c39c3f3397d777f35b51ecb5aa70",
     "deps/rust/src/lapacke/selected_generalized.rs": "17ee089d8143cc66b4b70e581f713f758d9e93975f23af0599daf276b9711532",
+    "deps/rust/src/lapacke/self_adjoint_reduction.rs": "a4d78aab4ff472c75de79ba2b93842b0064531f7bc079416fe89bc1c4f5375c7",
     "test/lapacke_qr_abi.jl": "92a997b63d4d8a6c7537942ad189b1b535e0a6a6ee388c57287d514afbd71ecc",
     "deps/rust/src/cblas/three_m.rs": "2a6fca5e78f189a40fee61d892009ff7c297d9f42d72ace96424d971dab81548",
     "test/abi.jl": "fb9095c7d2e829bde735a343244c2839ad05781171a74e59b12ae6d8a78bb2c1",
