@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **2832**、ILP64 **2832** シンボルを登録します。
+現行 adapter は LP64 **2840**、ILP64 **2840** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -91,6 +91,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |
 | PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |
 | TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |
+| TGEXC | native 一般化 Schur 対の並べ替え (QZ reorder) | 実数は IFST/ILST が入出力ポインタ、複素は値渡し。A/B/Q/Z を転置し、問い合わせは直接 native へ |
 | SYTRF/SYTRS/SYSV_ROOK・HETRF/HETRS_ROOK | native rook Bunch-Kaufman | 因子と IPIV（負の2×2 ピボット）を行/列優先で相互利用。複素対称 CSYTRF_ROOK 系と HESV_ROOK は対象外 |
 | SFRK/HFRK | native RFP rank-k 更新 | alpha/beta は値渡し、RFP 矩形 (ROW×COL) と row-major A を転置。INFO を返さないため列優先の引数エラーは native チェッカのみ |
 | SBEV/HBEV/SPEV/HPEV・SBEVD/HBEVD/SPEVD/HPEVD | native band/packed 全固有分解 | band AB (KD+1 行) と packed AP を列優先へ変換し、row-major の Z を転置。EVD 系は WORK/IWORK(/RWORK) の問い合わせで確保 |
@@ -205,7 +206,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `syrk` / CBLAS | `cblas_csyrk`, `cblas_dsyrk`, `cblas_ssyrk`, `cblas_zsyrk` | [matmul / triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/mod.rs) | 形状・三角部分・共役・係数を変換する。; C ABI connected for LP64/ILP64 with row/column-major and explicit enum/coefficient/return conversions; #271 tests DLL and LBT routes |
 | `tgex2` / Fortran | `ctgex2_`, `dtgex2_`, `stgex2_`, `ztgex2_` | [generalized reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。public generalized reorder_schur の block swap/rejection と位置を Fortran index に変換し、S/T と要求された Q/Z の最終有効状態を返す。実数 1×1/2×2 と複素 1×1、実数 TGEXC query、query を持たない実数 TGEX2 の最小 WORK を扱う。内部行列・scratch を別途確保する。 |
 | `tgexc` / Fortran | `ctgexc_`, `dtgexc_`, `stgexc_`, `ztgexc_` | [generalized reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。public generalized reorder_schur の block swap/rejection と位置を Fortran index に変換し、S/T と要求された Q/Z の最終有効状態を返す。実数 1×1/2×2 と複素 1×1、実数 TGEXC query、query を持たない実数 TGEX2 の最小 WORK を扱う。内部行列・scratch を別途確保する。 |
-| `tgexc` / LAPACKE | `LAPACKE_ctgexc`, `LAPACKE_ctgexc_work`, `LAPACKE_dtgexc`, `LAPACKE_dtgexc_work`, `LAPACKE_stgexc`, `LAPACKE_stgexc_work`, `LAPACKE_ztgexc`, `LAPACKE_ztgexc_work` | [generalized reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。public generalized reorder_schur の block swap/rejection と位置を Fortran index に変換し、S/T と要求された Q/Z の最終有効状態を返す。実数 1×1/2×2 と複素 1×1、実数 TGEXC query、query を持たない実数 TGEX2 の最小 WORK を扱う。内部行列・scratch を別途確保する。; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `tgexc` / LAPACKE | `LAPACKE_ctgexc`, `LAPACKE_ctgexc_work`, `LAPACKE_dtgexc`, `LAPACKE_dtgexc_work`, `LAPACKE_stgexc`, `LAPACKE_stgexc_work`, `LAPACKE_ztgexc`, `LAPACKE_ztgexc_work` | [generalized reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。public generalized reorder_schur の block swap/rejection と位置を Fortran index に変換し、S/T と要求された Q/Z の最終有効状態を返す。実数 1×1/2×2 と複素 1×1、実数 TGEXC query、query を持たない実数 TGEX2 の最小 WORK を扱う。内部行列・scratch を別途確保する。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `trexc` / Fortran | `ctrexc_`, `dtrexc_`, `strexc_`, `ztrexc_` | [reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 6 Fortran シンボル・TREXC は4型、LAEXC は実数2型・両整数 ABI を接続済み。公開 checked Schur move の1x1/2x2交換、任意の移動距離、Q 更新、実数 IFST/ILST の先頭行補正と最終位置、複素 index 入力の保持、拒否時の最後の成功状態を変換する。LAEXC のゼロ block quick return と固定 WORK を保持。所有 Schur 行列と必要な Q を確保する。C ABI は別タスク。 |
 | `trexc` / LAPACKE | `LAPACKE_ctrexc`, `LAPACKE_ctrexc_work`, `LAPACKE_dtrexc`, `LAPACKE_dtrexc_work`, `LAPACKE_strexc`, `LAPACKE_strexc_work`, `LAPACKE_ztrexc`, `LAPACKE_ztrexc_work` | [reorder_schur_real/cplx](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/evd/mod.rs) | 6 Fortran シンボル・TREXC は4型、LAEXC は実数2型・両整数 ABI を接続済み。公開 checked Schur move の1x1/2x2交換、任意の移動距離、Q 更新、実数 IFST/ILST の先頭行補正と最終位置、複素 index 入力の保持、拒否時の最後の成功状態を変換する。LAEXC のゼロ block quick return と固定 WORK を保持。所有 Schur 行列と必要な Q を確保する。C ABI は別タスク。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `trmm` / Fortran | `ctrmm_`, `dtrmm_`, `strmm_`, `ztrmm_` | [matmul / triangular::matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/matmul/mod.rs) | 形状・三角部分・共役・係数を変換する。 |
@@ -1547,7 +1548,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 2,628 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 0 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.
