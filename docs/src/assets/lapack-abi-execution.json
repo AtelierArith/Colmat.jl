@@ -1358,7 +1358,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "30a964078d87facd79b35f8718d8f047a61549e7",
+  "revision": "d6f08608913408fa36d62fb05b04b5394293d4c7",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -99521,7 +99521,7 @@
     "test/cblas_abi.jl": "4df40871d5cb834baf159200a1e4fb09b0e3d82ce3dde0218130c60d67712ac1",
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
-    "deps/rust/src/lapacke.rs": "1b21c32eedb416f26a975d4bac2e1a2bbed1fdbfd7d7edeca278abd0fa7b4e1a",
+    "deps/rust/src/lapacke.rs": "1711c4eb31ab69ce1704105c46c4f0302031f26ee72455061c448572e5237659",
     "test/lapacke_execution_checks.jl": "6bcf684268044e8751255da0e294b82926779c0d80781eea7b8bed065b5dacaa",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
