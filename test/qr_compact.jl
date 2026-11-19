@@ -2,13 +2,14 @@ using Test, LinearAlgebra, Random, Colmat
 @testset "Native compact QR Julia entry points" begin
     Random.seed!(290)
     for T in (Float32, Float64, ComplexF32, ComplexF64),
-        (m, n) in ((6, 4), (4, 6), (4, 4), (35, 34), (0, 3), (3, 0)),
+        (m, n) in ((6, 4), (4, 6), (4, 4), (35, 34), (75, 73), (35, 41), (0, 3), (3, 0)),
         degenerate in (false, true)
 
         a=randn(T, m, n)
         if degenerate && n>0
             a[:, 1].=0
             n>2 && (a[:, 3].=a[:, 2])
+            n>36 && (a[:, 37].=0)
         end
         f=qr(a)
         q=Matrix(f.Q)
