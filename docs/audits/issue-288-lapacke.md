@@ -218,3 +218,17 @@ converted to column-major (the band/packed triangle is written back), Z is
 transposed for JOBZ='V', and the *EVD high-level entries query WORK/IWORK
 (and RWORK) first. NaN checks cover only the stored band/packed triangle. The
 full-suite artifact validates 1,308 LAPACKE canonical entries.
+
+## SFRK/HFRK extension and the GEMLQ NaN-scan fix
+
+SFRK (S/D) and HFRK (C/Z) high/work adapters over the native RFP rank-k update.
+alpha and beta are passed by value; the RFP rectangle and the row-major A are
+converted, and a K=0 call still scales C by beta. The routine returns no INFO,
+so column-major argument errors reach only the native checker and the LAPACKE
+status stays zero; row-major reports LDA < KA (-9).
+
+The high-level GEMQR/GEMLQ NaN check scanned an R-by-K footprint for both
+routines although GEMLQ stores a K-by-R reflector block, so it read past a
+tight buffer and occasionally returned -7 in place of a later diagnostic. The
+scan now follows the stored block, with a regression test at the last K-by-R
+element. The full-suite artifact validates 1,316 LAPACKE canonical entries.
