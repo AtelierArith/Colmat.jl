@@ -209,3 +209,12 @@ read only for COMPZ='V' and written back for COMPZ/JOBZ other than 'N'; the
 high-level STEDC/STEVD entries query WORK/IWORK (and RWORK) before allocating.
 Complex STEDC checks unitary starting vectors. The full-suite artifact
 validates 1,276 LAPACKE canonical entries.
+
+## Band/packed self-adjoint EVD extension
+
+SBEV/HBEV, SPEV/HPEV, SBEVD/HBEVD and SPEVD/HPEVD high/work adapters over the
+native structured eigensolvers. Row-major band AB (KD+1 rows) and packed AP are
+converted to column-major (the band/packed triangle is written back), Z is
+transposed for JOBZ='V', and the *EVD high-level entries query WORK/IWORK
+(and RWORK) first. NaN checks cover only the stored band/packed triangle. The
+full-suite artifact validates 1,308 LAPACKE canonical entries.
