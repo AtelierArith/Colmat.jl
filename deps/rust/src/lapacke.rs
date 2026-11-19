@@ -63,6 +63,7 @@ mod schur_driver;
 mod schur_expert_driver;
 mod schur_selection;
 mod schur_vectors;
+mod selected_generalized;
 mod self_adjoint;
 mod self_adjoint_range;
 mod selfadjoint_vectors;

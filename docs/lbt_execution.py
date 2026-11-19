@@ -161,6 +161,14 @@ def validate_lapacke_signature(row, witness):
         'sptrs': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'spsv': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'sytrf': [],
+        'syevx': [],
+        'heevx': [],
+        'sygvx': [],
+        'hegvx': [],
+        'sbgvx': [],
+        'hbgvx': [],
+        'spgvx': [],
+        'hpgvx': [],
         'sbevx': [],
         'hbevx': [],
         'spevx': [],
@@ -463,6 +471,24 @@ def validate_lapacke_signature(row, witness):
             [real_scalar, real_scalar, integer, integer, real_scalar, pivot, real, t, integer]
         if row['symbol'].endswith('_work'):
             expected = expected + [t] + ([real] if row['scalar'] in ('c', 'z') else []) + [pivot]
+        expected = expected + [pivot]
+    if row['family'] in ('syevx', 'heevx', 'sygvx', 'hegvx', 'sbgvx', 'hbgvx', 'spgvx', 'hpgvx'):
+        cplx = row['scalar'] in ('c', 'z')
+        fam = row['family']
+        tail = [real_scalar, real_scalar, integer, integer, real_scalar, pivot, real, t, integer]
+        if fam[1:] == 'yevx' or fam[1:] == 'eevx':
+            expected = ['Int32', 'Int8', 'Int8', 'Int8', integer, t, integer] + tail
+        elif fam[1:] in ('ygvx', 'egvx'):
+            expected = ['Int32', integer, 'Int8', 'Int8', 'Int8', integer, t, integer, t, integer] + tail
+        elif fam[1] == 'b':
+            expected = ['Int32', 'Int8', 'Int8', 'Int8', integer, integer, integer, t, integer, t, integer, t, integer] + tail
+        else:
+            expected = ['Int32', integer, 'Int8', 'Int8', 'Int8', integer, t, t] + tail
+        if row['symbol'].endswith('_work'):
+            if fam[1:] in ('yevx', 'eevx', 'ygvx', 'egvx'):
+                expected = expected + [t, integer] + ([real] if cplx else []) + [pivot]
+            else:
+                expected = expected + [t] + ([real] if cplx else []) + [pivot]
         expected = expected + [pivot]
     if row['family'] in ('sysv', 'hesv', 'sysv_rook'):
         expected = ['Int32', 'Int8', integer, integer, t, integer, pivot, t, integer]
