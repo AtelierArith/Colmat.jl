@@ -59,7 +59,7 @@ julia> libs = filter(l -> realpath(l.libname) == realpath(Colmat.backend_library
 julia> Set(l.interface for l in libs) == Set([:lp64, :ilp64])
 true
 
-julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 3084 for l in libs)
+julia> all(length(BLAS.lbt_forwarded_funcs(cfg, l)) == 3092 for l in libs)
 true
 ```
 
