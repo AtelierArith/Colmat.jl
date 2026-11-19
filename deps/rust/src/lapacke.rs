@@ -75,6 +75,7 @@ mod svd;
 mod symmetric_inverse;
 mod symmetric_lu;
 mod symmetric_rank;
+mod tall_skinny;
 mod triangular;
 mod triangular_aux;
 mod tridiagonal_drivers;

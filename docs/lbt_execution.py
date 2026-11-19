@@ -161,6 +161,12 @@ def validate_lapacke_signature(row, witness):
         'sptrs': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'spsv': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'sytrf': [],
+        'getsls': [],
+        'getsqrhrt': [],
+        'orgtsqr_row': [],
+        'ungtsqr_row': [],
+        'orhr_col': [],
+        'unhr_col': [],
         'lag2s': [],
         'lag2d': [],
         'lag2c': [],
@@ -533,6 +539,19 @@ def validate_lapacke_signature(row, witness):
         expected = ['Int32', integer, integer, real, integer, t, integer, t, integer] + ([real] if row['symbol'].endswith('_work') else [])
     if row['family'] == 'pstrf':
         expected = ['Int32', 'Int8', integer, t, integer, pivot, pivot, real_scalar] + ([real] if row['symbol'].endswith('_work') else [])
+    if row['family'] in ('getsls', 'getsqrhrt', 'orgtsqr_row', 'ungtsqr_row', 'orhr_col', 'unhr_col'):
+        is_work = row['symbol'].endswith('_work')
+        fam = row['family']
+        if fam == 'getsls':
+            expected = ['Int32', 'Int8', integer, integer, integer, t, integer, t, integer]
+        elif fam == 'getsqrhrt':
+            expected = ['Int32', integer, integer, integer, integer, integer, t, integer, t, integer]
+        elif fam in ('orgtsqr_row', 'ungtsqr_row'):
+            expected = ['Int32', integer, integer, integer, integer, t, integer, t, integer]
+        else:
+            expected = ['Int32', integer, integer, integer, t, integer, t, integer, t]
+        if is_work and fam not in ('orhr_col', 'unhr_col'):
+            expected = expected + [t, integer]
     if row['family'] in ('sysv', 'hesv', 'sysv_rook'):
         expected = ['Int32', 'Int8', integer, integer, t, integer, pivot, t, integer]
         if row['symbol'].endswith('_work'):
