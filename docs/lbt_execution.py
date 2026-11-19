@@ -485,7 +485,7 @@ def validate_lapacke_signature(row, witness):
         expected = expected + [pivot, integer]
     actual = witness['signature'].replace(' ', '')
     expected_return = real_scalar if row['family'] in ('lange', 'lansy', 'lantr', 'langb', 'lanhe') else integer
-    expected_integer_arguments = row['family'] not in ('lartg', 'lartgp', 'lartgs', 'pttrf')
+    expected_integer_arguments = row['family'] not in ('lartg', 'lartgp', 'lartgs', 'pttrf', 'sterf')
     if (actual != '(' + ','.join(expected) + ')'
             or witness.get('return_type') != expected_return
             or witness['integer_arguments'] is not expected_integer_arguments):
