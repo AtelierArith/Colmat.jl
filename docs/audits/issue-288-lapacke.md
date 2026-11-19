@@ -200,3 +200,12 @@ pp_trans permutation and the Hermitian diagonal imaginary part is excluded from
 the NaN scan. SYTRS2/HETRS2 read the factor without modifying it and allocate
 the N-element WORK array that the native solve does not use. The full-suite
 artifact validates 1,248 LAPACKE canonical entries.
+
+## Tridiagonal eigen driver extension
+
+STERF (S/D, no matrix_layout), STEQR and STEDC (S/D/C/Z), and STEV/STEVD (S/D)
+high/work adapters over the native tridiagonal eigensolvers. Row-major Z is
+read only for COMPZ='V' and written back for COMPZ/JOBZ other than 'N'; the
+high-level STEDC/STEVD entries query WORK/IWORK (and RWORK) before allocating.
+Complex STEDC checks unitary starting vectors. The full-suite artifact
+validates 1,276 LAPACKE canonical entries.
