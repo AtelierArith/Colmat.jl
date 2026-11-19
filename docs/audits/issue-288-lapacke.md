@@ -270,3 +270,13 @@ column-major and the stored triangles written back; Z or X is transposed for
 JOBZ/VECT='V'. The GST routines read the split or plain Cholesky factor in B
 without modifying it, and the *GVD high-level entries query WORK/IWORK (and
 RWORK). The full-suite artifact validates 1,416 LAPACKE canonical entries.
+
+## Band/packed selected eigenvalues and packed tridiagonal reduction
+
+SBEVX/HBEVX and SPEVX/HPEVX (S/D/C/Z) and SPTRD/HPTRD high/work adapters over
+the native structured selected eigensolvers and packed tridiagonal reduction.
+Row-major band AB and packed AP are converted to column-major and written
+back; for JOBZ='V' the band Q is transposed and only the returned Z columns
+are written. RANGE='A'/'V'/'I' selections, ABSTOL, M and IFAIL pass through
+and WORK/IWORK(/RWORK) use the reference fixed lengths. The full-suite
+artifact validates 1,440 LAPACKE canonical entries.
