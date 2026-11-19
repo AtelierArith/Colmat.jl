@@ -180,3 +180,16 @@ source hashes, manifest, release DLL and the exact
 That successful full artifact replaced the earlier 72-entry snapshot. The
 subsequent complex SYR and SVD full runs supply the current 124-entry snapshot;
 focused artifacts are not published as full-suite evidence.
+
+## SYTRI/HETRI, TRI2 and TRI2X extension
+
+S/D SYTRI/SYTRI2/SYTRI2X and C/Z HETRI/HETRI2/HETRI2X high/work adapters
+(24 symbols, 48 ABI entries) over the native Bunch-Kaufman inverse. Factors and
+IPIV from the SYTRF/HETRF entries are consumed directly. The high-level NaN scan
+covers only the UPLO triangle (the Hermitian diagonal's imaginary part is
+ignored); row-major results write back only that triangle, leaving the
+opposite triangle and LDA padding untouched. TRI2 supports the LWORK=-1 query;
+TRI2X allocates (N+NB+1)*(NB+3) elements like the reference wrapper. The native
+inverse owns its scratch, so NB is a hint only. Complex symmetric CSYTRI/ZSYTRI
+remain outside this slice (different LDL^T contract). The full-suite artifact
+validates 1,196 LAPACKE canonical entries.
