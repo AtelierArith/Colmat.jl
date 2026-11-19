@@ -18,6 +18,7 @@ mod complex_auxiliary;
 mod dense_equilibration;
 mod general_eigen;
 mod general_expert;
+mod generalized_dense;
 mod generalized_eigen_driver;
 mod generalized_expert_driver;
 mod generalized_hessenberg;
