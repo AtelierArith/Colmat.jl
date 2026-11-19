@@ -225,7 +225,8 @@ using Test
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("c", "z") for f in ("ungtsqr_row", "unhr_col") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*"bdsqr"*w for p in ("s", "d", "c", "z") for w in ("", "_work")))
     union!(targets, Set("LAPACKE_"*p*f*w for p in ("s", "d") for f in ("bdsdc", "bdsvdx") for w in ("", "_work")))
-    @test length(targets)==1588
+    union!(targets, Set("LAPACKE_"*p*"gesvdx"*w for p in ("s", "d", "c", "z") for w in ("", "_work")))
+    @test length(targets)==1596
     @test targets==ABIEvidence.expected_lapacke()
     for bits in (32, 64), route in ("dll", "lbt_trampoline")
         observed=Set(
