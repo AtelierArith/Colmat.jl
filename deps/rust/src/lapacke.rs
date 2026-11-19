@@ -66,6 +66,7 @@ mod schur_vectors;
 mod selected_generalized;
 mod self_adjoint;
 mod self_adjoint_range;
+mod self_adjoint_reduction;
 mod selfadjoint_vectors;
 mod structured_evd;
 mod structured_selected;
