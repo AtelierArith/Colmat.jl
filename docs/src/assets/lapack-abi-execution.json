@@ -1,7 +1,7 @@
 {
   "platform": "x86_64-apple-darwin24.6.0",
   "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
-  "inventory_registration_sha256": "f8aa35ccb9871af8a46c827a69c08fc0916a5ac6a01b1b35f668eae577a9c586",
+  "inventory_registration_sha256": "f77292a5fb9354eabf1f69fd7f8980db0d7fe11a6c444070634058f72d4464c0",
   "lapacke_target_symbols": [
     "LAPACKE_cgbequ",
     "LAPACKE_cgbequ_work",
@@ -134,6 +134,8 @@
     "LAPACKE_chesv",
     "LAPACKE_chesv_work",
     "LAPACKE_chetrf",
+    "LAPACKE_chetrf_rook",
+    "LAPACKE_chetrf_rook_work",
     "LAPACKE_chetrf_work",
     "LAPACKE_chetri",
     "LAPACKE_chetri2",
@@ -144,6 +146,8 @@
     "LAPACKE_chetrs",
     "LAPACKE_chetrs2",
     "LAPACKE_chetrs2_work",
+    "LAPACKE_chetrs_rook",
+    "LAPACKE_chetrs_rook_work",
     "LAPACKE_chetrs_work",
     "LAPACKE_chfrk",
     "LAPACKE_chfrk_work",
@@ -604,8 +608,12 @@
     "LAPACKE_dsyevr",
     "LAPACKE_dsyevr_work",
     "LAPACKE_dsysv",
+    "LAPACKE_dsysv_rook",
+    "LAPACKE_dsysv_rook_work",
     "LAPACKE_dsysv_work",
     "LAPACKE_dsytrf",
+    "LAPACKE_dsytrf_rook",
+    "LAPACKE_dsytrf_rook_work",
     "LAPACKE_dsytrf_work",
     "LAPACKE_dsytri",
     "LAPACKE_dsytri2",
@@ -616,6 +624,8 @@
     "LAPACKE_dsytrs",
     "LAPACKE_dsytrs2",
     "LAPACKE_dsytrs2_work",
+    "LAPACKE_dsytrs_rook",
+    "LAPACKE_dsytrs_rook_work",
     "LAPACKE_dsytrs_work",
     "LAPACKE_dtbtrs",
     "LAPACKE_dtbtrs_work",
@@ -934,8 +944,12 @@
     "LAPACKE_ssyevr",
     "LAPACKE_ssyevr_work",
     "LAPACKE_ssysv",
+    "LAPACKE_ssysv_rook",
+    "LAPACKE_ssysv_rook_work",
     "LAPACKE_ssysv_work",
     "LAPACKE_ssytrf",
+    "LAPACKE_ssytrf_rook",
+    "LAPACKE_ssytrf_rook_work",
     "LAPACKE_ssytrf_work",
     "LAPACKE_ssytri",
     "LAPACKE_ssytri2",
@@ -946,6 +960,8 @@
     "LAPACKE_ssytrs",
     "LAPACKE_ssytrs2",
     "LAPACKE_ssytrs2_work",
+    "LAPACKE_ssytrs_rook",
+    "LAPACKE_ssytrs_rook_work",
     "LAPACKE_ssytrs_work",
     "LAPACKE_stbtrs",
     "LAPACKE_stbtrs_work",
@@ -1122,6 +1138,8 @@
     "LAPACKE_zhesv",
     "LAPACKE_zhesv_work",
     "LAPACKE_zhetrf",
+    "LAPACKE_zhetrf_rook",
+    "LAPACKE_zhetrf_rook_work",
     "LAPACKE_zhetrf_work",
     "LAPACKE_zhetri",
     "LAPACKE_zhetri2",
@@ -1132,6 +1150,8 @@
     "LAPACKE_zhetrs",
     "LAPACKE_zhetrs2",
     "LAPACKE_zhetrs2_work",
+    "LAPACKE_zhetrs_rook",
+    "LAPACKE_zhetrs_rook_work",
     "LAPACKE_zhetrs_work",
     "LAPACKE_zhfrk",
     "LAPACKE_zhfrk_work",
@@ -1320,7 +1340,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "6e83938ff0a57c85ac4b22d4f818086511467eb7f775439d63b0a0109c411b62",
+  "library_sha256": "2b7388db257e90bfd45ef86861754bc1c7342983bd9854bf5782e1155475e48d",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1398,7 +1418,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "310065bd8114f7ad9f99e0bc1e58b1c041453007",
+  "revision": "a3ba9c2c00d325d0405d4b5d75934e6d243f534a",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -6897,6 +6917,86 @@
       "integer_arguments": true
     },
     {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrf_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrf_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrf_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrf_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrf_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrf_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrf_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrf_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 12,
       "return_type": "Int32",
       "route": "dll",
@@ -7293,6 +7393,86 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64, Ptr{ComplexF32})",
       "file": "test/lapacke_hptri.jl",
       "symbol": "LAPACKE_chetrs2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrs_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrs_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrs_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrs_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrs_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF32}, Int32, Ptr{Int32}, Ptr{ComplexF32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrs_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrs_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF32}, Int64, Ptr{Int64}, Ptr{ComplexF32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_chetrs_rook_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -26117,6 +26297,86 @@
       "integer_arguments": true
     },
     {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsysv_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsysv_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsysv_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsysv_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 38,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsysv_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 38,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsysv_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 38,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsysv_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 38,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsysv_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 38,
       "return_type": "Int32",
       "route": "dll",
@@ -26273,6 +26533,86 @@
       "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Int64})",
       "file": "test/lapacke_sytri.jl",
       "symbol": "LAPACKE_dsytrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrf_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrf_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrf_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrf_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrf_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrf_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrf_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrf_rook_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -26673,6 +27013,86 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64, Ptr{Float64})",
       "file": "test/lapacke_hptri.jl",
       "symbol": "LAPACKE_dsytrs2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrs_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrs_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrs_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrs_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrs_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float64}, Int32, Ptr{Int32}, Ptr{Float64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrs_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrs_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float64}, Int64, Ptr{Int64}, Ptr{Float64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_dsytrs_rook_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -39757,6 +40177,86 @@
       "integer_arguments": true
     },
     {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssysv_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssysv_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssysv_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 44,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssysv_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 38,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssysv_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 38,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssysv_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 38,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssysv_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 38,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssysv_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 38,
       "return_type": "Int32",
       "route": "dll",
@@ -39913,6 +40413,86 @@
       "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Int64})",
       "file": "test/lapacke_sytri.jl",
       "symbol": "LAPACKE_ssytrf",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrf_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrf_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrf_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrf_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrf_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrf_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrf_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrf_rook_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -40313,6 +40893,86 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64, Ptr{Float32})",
       "file": "test/lapacke_hptri.jl",
       "symbol": "LAPACKE_ssytrs2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrs_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrs_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrs_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrs_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrs_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{Float32}, Int32, Ptr{Int32}, Ptr{Float32}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrs_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrs_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{Float32}, Int64, Ptr{Int64}, Ptr{Float32}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_ssytrs_rook_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -47517,6 +48177,86 @@
       "integer_arguments": true
     },
     {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrf_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrf_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrf_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 16,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64})",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrf_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrf_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrf_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrf_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 12,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrf_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
       "line": 12,
       "return_type": "Int32",
       "route": "dll",
@@ -47913,6 +48653,86 @@
       "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64, Ptr{ComplexF64})",
       "file": "test/lapacke_hptri.jl",
       "symbol": "LAPACKE_zhetrs2_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrs_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrs_rook",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrs_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrs_rook",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrs_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int32",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int32, Int32, Ptr{ComplexF64}, Int32, Ptr{Int32}, Ptr{ComplexF64}, Int32)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrs_rook_work",
+      "bits": 32,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "dll",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrs_rook_work",
+      "bits": 64,
+      "integer_arguments": true
+    },
+    {
+      "line": 27,
+      "return_type": "Int64",
+      "route": "lbt_trampoline",
+      "signature": "(Int32, Int8, Int64, Int64, Ptr{ComplexF64}, Int64, Ptr{Int64}, Ptr{ComplexF64}, Int64)",
+      "file": "test/lapacke_rook_lu.jl",
+      "symbol": "LAPACKE_zhetrs_rook_work",
       "bits": 64,
       "integer_arguments": true
     },
@@ -101482,7 +102302,7 @@
     "deps/rust/src/structured_selected_evd.rs": "645ec72a9814cf5a6e1dc4827dc4b06f9110edc2efbaf574c5a2e1b291ad0d74",
     "deps/rust/src/block_unitary.rs": "b0b2d59cedbe4dd9ad65a0fe226e8b9dc2b4f6470406c5254ceaf35f5ec4f807",
     "deps/rust/src/lapacke.rs": "714ca04a5739586f74be323f60ef7c7cbc928f9a7f80cf2002b8d4940eea3d00",
-    "test/lapacke_execution_checks.jl": "70efbf6089347dd235a3c11c7d0b7f112b748daaffa203b06bee0b208b2bbced",
+    "test/lapacke_execution_checks.jl": "8eba84e201b036ec8bbc1be8801fb2870b8658bce47cf4dbe628d7e6a12774e9",
     "test/lq.jl": "8bbda1cf5e714c716210292151f9996b80f1988cb11cec99e41ec321ece7da44",
     "test/lapacke_matrix_permutation_abi_worker.c": "81dc0c44c07e78a98ed391902c7f8b9c7b217d389b12edc6c92c160ffccfe10b",
     "test/selfadjoint_range_boundaries.jl": "cd5c56ba092b66e5d343b3a3bf65a31fc9ea733f506338ec293805404959c7ff",
@@ -101554,7 +102374,7 @@
     "test/structured_generalized_band_gvx.jl": "4b89c769647de3112ab1e78c77503de92a74deb244cc00230b7597b63ced5dd6",
     "test/cblas_execution_checks.jl": "aed46fd85f080a3e5445f024af35e026ef171de1db84b0243dccfbbf64b4a653",
     "test/structured_generalized_band.jl": "adaf9ca831ef27112b38dcafc5efd1ec05e895044262091bf9393e61e539e3bd",
-    "deps/rust/src/bunch_kaufman.rs": "34d068c40107cf1d19bc53d2ee652d8e0dd49748f766215406f378127d1d0ab1",
+    "deps/rust/src/bunch_kaufman.rs": "1d84edfbbacce8781012e8662e8a26f2ba6f5ffde1f16a02c2c19d25f833cc31",
     "deps/rust/src/lapacke/generalized_schur.rs": "1d5d499de087d700475bfa63525fde032e1e9b508ce7bbf50bcafd145944fe01",
     "test/lapacke_getrf.jl": "e007a9ffb0da5fc6fc6f99c6897d9aee383157fcf55a85a70ca4f65858dc8d6d",
     "test/structured_blas.jl": "8692f28d66a907df9862e61ade6a72d8d7da3407cbde0a699bbbe381021eca44",
@@ -101655,7 +102475,7 @@
     "test/structured_triangular_boundaries.jl": "9fad4d07edd1d373527e6bc008f6fbd8d44da91280192c0250d77c8f08232ccd",
     "deps/rust/src/lapacke/schur_driver.rs": "6eb09b74d6d092cc66ef54771aa0a3fed021601940ffc8e5f1a7f0f5ff127881",
     "deps/rust/src/lapacke/complex_auxiliary.rs": "475aacab3971a7f9c13b396da0a29b4910ccf6d19200f6531cee430366255449",
-    "test/suite.jl": "7fb49c6f43f9a91f8dc978bcc2461c880b7146ac1d3c59bac61461ee190a0ebb",
+    "test/suite.jl": "b50f9e62144528a50d0bc8da1846505c581e1809d56796db5cfc72037cac7625",
     "deps/rust/src/lapacke/rfp_triangular.rs": "822702c22c5d0eae96728d6edbfdb3535bf79a516524e387185e11f349a59a60",
     "test/lapacke_larfg.jl": "fd653e310ffbef2716705ad7f0f597f75ecde2a11ca2140d5545fbf743f347c5",
     "test/lapacke_matrix_aux.jl": "d7d6db83218b3d8b594ed38f9fb80c77e05ca30b7b6324f09471aa26f9937a5a",
@@ -101672,7 +102492,7 @@
     "deps/rust/src/pentagonal.rs": "1db27890430157e631976d3fb91a42677738c1805e1fc90efa71f0d227196f1b",
     "test/lapacke_q_generators_abi.jl": "9bc4abb4334ae4d274e2efc8f09d72dd6d3ac79474457c7ff103c8a70cf2f191",
     "test/lapacke_stedc.jl": "c1c6e80bebba91e0ba41c680e35ff46ac3b8e7a02191924c86791c824d59142f",
-    "deps/rust/src/lapacke/symmetric_lu.rs": "3850f2182a895e4efc0f555883a6dc7440395af93f7b7306bc0619e31a35825f",
+    "deps/rust/src/lapacke/symmetric_lu.rs": "bc45ad36153b5c244228e1c2657edf8b19025350d3e3c3802ce3fbf7c0d16c81",
     "test/lapacke_compact_qr_abi.jl": "5b53f9004c93a9a95015bcaf976e4c851c5ad3773c35d9755cfe856dceaafeb0",
     "test/lapacke_rfptri.jl": "28878f9409bfe7810b94f113c80c647e1fa021647e53984475e05f08f81930e7",
     "test/qr_pivoted.jl": "bd2b1b10ba212be4ed196c3d1d62b5a4cc4e4f60d2c4d2d2efb9f05181806227",
@@ -101857,6 +102677,7 @@
     "test/symmetric_equilibration.jl": "fb381b0573b36cff1fcbebe77b2bc382c5a00b608d10fe84e957548d9ab0cdcb",
     "test/lapacke_ggevx.jl": "0afe78f1bd37be1e4159a0a7dd8b4d660b247aa5e87e22ca1d085b7310ef57e4",
     "test/lapacke_least_squares.jl": "180c9537c741dda26e6e658f8a803f07b520e03c04745460187cb397ed9152f1",
+    "test/lapacke_rook_lu.jl": "9a7905f553ea9b1403fdf793180f6a6a6edeba1375532a29a62efd4492d3b0eb",
     "test/lapacke_q_generators_abi_worker.c": "52c7613cc249051d8d3589b976b18ad526c365906c7a8b48453faeb795cc7bbe",
     "deps/rust/src/cblas.rs": "9e091dc02f49c3ff8af0c262a6e6a46b418959c4d97c458c27250343413f760b",
     "deps/rust/src/lapacke/rfp_cholesky.rs": "50baa2519850dcc70d6d4e0c36abdb7eff40267ba7628c533b1c09323298ac23",

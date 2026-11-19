@@ -853,7 +853,7 @@ mod packed_tests {
 }
 
 #[path = "bunch_kaufman_rook.rs"]
-mod rook;
+pub(crate) mod rook;
 
 #[cfg(test)]
 mod subnormal_block_regression {
