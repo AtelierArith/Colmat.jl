@@ -63,6 +63,7 @@ mod self_adjoint_range;
 mod selfadjoint_vectors;
 mod svd;
 mod symmetric_inverse;
+mod tridiagonal_drivers;
 mod symmetric_lu;
 mod symmetric_rank;
 mod triangular;
