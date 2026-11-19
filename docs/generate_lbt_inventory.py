@@ -201,6 +201,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |',
     '| PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |',
     '| TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |',
+    '| SPTRI・HPTRF/HPTRS/HPSV/HPTRI・SYTRS2/HETRS2 | native packed Bunch-Kaufman と dense solve | packed AP を pp_trans で並べ替え、Hermitian 対角の虚部は NaN 検査から除外。SYTRS2 の WORK は使わず N 要素を確保 |',
     '| SYTRI/HETRI・SYTRI2/HETRI2・SYTRI2X/HETRI2X | native Bunch-Kaufman inverse | 因子と IPIV を相互利用。row-major は UPLO 三角のみ NaN 検査・書き戻し、TRI2 は WORK 問い合わせ、TRI2X は (N+NB+1)*(NB+3) の作業領域 |',
     '| POEQU/POEQUB・PPEQU・PPSV/PPTRI | native 正定値の平衡化と packed 残り | S/SCOND/AMAX (dense/packed)、PPSV の因子書き戻し、PPTRI の因子→inv(A) |',
     '| TFSM / TFTRI・PTSV | native RFP 三角演算と正定値三重対角求解 | SIDE/UPLO/TRANS/DIAG、row-major RFP 矩形転置と B、PTSV の D/E と row-major B |',

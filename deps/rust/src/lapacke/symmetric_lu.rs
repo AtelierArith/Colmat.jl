@@ -81,6 +81,41 @@ macro_rules! exports {
             if info<0 {info-1} else {info}
         }
         #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p $family trs2 $($suffix)*>](
+            layout:i32,uplo:u8,n:$i,nrhs:$i,a:*const $t,lda:$i,
+            ipiv:*const $i,b:*mut $t,ldb:$i,
+        )->$i {
+            if layout!=ROW_MAJOR && layout!=COL_MAJOR {return -1;}
+            if LAPACKE_get_nancheck()!=0 {
+                if ge_nancheck(layout,n as i64,n as i64,a,lda as i64).unwrap_or(false) {return -5;}
+                if ge_nancheck(layout,n as i64,nrhs as i64,b,ldb as i64).unwrap_or(false) {return -8;}
+            }
+            let mut work=vec![<$t>::z();n.max(1) as usize];
+            [<LAPACKE_ $p $family trs2_work $($suffix)*>](layout,uplo,n,nrhs,a,lda,ipiv,b,ldb,work.as_mut_ptr())
+        }
+        #[no_mangle]
+        pub unsafe extern "C" fn [<LAPACKE_ $p $family trs2_work $($suffix)*>](
+            layout:i32,uplo:u8,n:$i,nrhs:$i,a:*const $t,lda:$i,
+            ipiv:*const $i,b:*mut $t,ldb:$i,work:*mut $t,
+        )->$i {
+            if layout!=ROW_MAJOR && layout!=COL_MAJOR {return -1;}
+            if layout==ROW_MAJOR && lda<n {return -6;}
+            if layout==ROW_MAJOR && ldb<nrhs {return -9;}
+            if layout==COL_MAJOR || n==0 || nrhs==0 {
+                let mut info:$i=0;
+                crate::bunch_kaufman::[<$p $family trs2 $fortran>](&uplo,&n,&nrhs,a,&lda,ipiv,b,&ldb,work,&mut info);
+                return if info<0 {info-1} else {info};
+            }
+            let (nn,rr)=(n as usize,nrhs as usize);
+            let at=match row_to_column(nn,nn,a,lda as usize){Ok(v)=>v,Err(e)=>return e as $i};
+            let mut bt=match row_to_column(nn,rr,b,ldb as usize){Ok(v)=>v,Err(e)=>return e as $i};
+            let (la,lb)=(nn.max(1) as $i,nn.max(1) as $i);
+            let mut info:$i=0;
+            crate::bunch_kaufman::[<$p $family trs2 $fortran>](&uplo,&n,&nrhs,at.as_ptr(),&la,ipiv,bt.as_mut_ptr(),&lb,work,&mut info);
+            if info>=0 {for i in 0..nn {for j in 0..rr {*b.add(i*ldb as usize+j)=bt[i+j*nn];}}}
+            if info<0 {info-1} else {info}
+        }
+        #[no_mangle]
         pub unsafe extern "C" fn [<LAPACKE_ $p $family sv $($suffix)*>](
             layout:i32,uplo:u8,n:$i,nrhs:$i,a:*mut $t,lda:$i,
             ipiv:*mut $i,b:*mut $t,ldb:$i,
