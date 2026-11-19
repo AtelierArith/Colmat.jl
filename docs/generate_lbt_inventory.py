@@ -198,6 +198,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| GGES / GGES3 | native generalized Schur driver | JOBVSL/JOBVR/SORT、alpha/beta、row-major A/B/VSL/VSR、GGES3 の work query |',
     '| HSEQR | native Hessenberg Schur decomposition | JOB E/S、COMPZ N/I/V、ILO/IHI、WR/WI vs W、row-major H/Z |',
     '| GEQR/GELQ・GEMQR/GEMLQ | native blocked QR/LQ interfaces | T/TSIZE 記述子、row-major A (R×K と K×R)、row-major C、work query |',
+    '| PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |',
     '| TGEXC / TGEX2 / TGSEN / GGESX | public QZ reorder・保存因子の固有値抽出 | 条件・分離推定は既存 ILP64 LAPACK。整数配列・callback LOGICAL を変換し、内部行列を確保 |',
     '| SBTRD/HBTRD/SPTRD/HPTRD・OPGTR/UPGTR/OPMTR/UPMTR | native tridiag / Householder | band/packed 展開、外部 AP/TAU 相互利用、VECT=U の X*Q 更新。専用 band bulge chase ではない |',
     '| SBG/HBG/SPG/HPG の GST/GV/GVD/GVX | native triangular/split Cholesky・合同変換・全 EVD | packed ITYPE と band split 因子を変換。GVX の Q は全一般化固有基底、正の ABSTOL と境界 guard は保存した元の LAPACK |',
