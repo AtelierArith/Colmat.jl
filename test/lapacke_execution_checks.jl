@@ -228,12 +228,12 @@ using Test
             @test startswith(e[6], e[2] == 32 ? "(Int32," : "(Int64,")
         elseif occursin("lartg", e[1])
             @test startswith(e[6], "(Float32,") || startswith(e[6], "(Float64,")
-        elseif occursin("pttrf", e[1]) || occursin("gttrf", e[1])
+        elseif occursin("pttrf", e[1]) || occursin("gttrf", e[1]) || occursin("sterf", e[1])
             @test startswith(e[6], "(Int32,") || startswith(e[6], "(Int64,")
         else
             @test startswith(e[6], "(Int32,")
         end
-        @test e[7] || occursin("lartg", e[1]) || occursin("pttrf", e[1]) || occursin("gttrf", e[1])
+        @test e[7] || occursin("lartg", e[1]) || occursin("pttrf", e[1]) || occursin("gttrf", e[1]) || occursin("sterf", e[1])
         @test isfile(joinpath(ABIEvidence.root, e[4]))
         @test 1<=e[5]<=countlines(joinpath(ABIEvidence.root, e[4]))
     end
