@@ -161,7 +161,9 @@ end
         for family in ("gemqr", "gemlq")
             fname = "LAPACKE_" * prefix * family
             pointer = Libdl.dlsym(native, fname * suffix)
-            a = zeros(T, k * k)
+            # The row-major reflector block is R-by-K for GEMQR and K-by-R
+            # for GEMLQ, so the diagnostic buffer covers the larger footprint.
+            a = zeros(T, max(k * k, m * k))
             tbuf = zeros(T, m + n + 16)
             c = zeros(T, m * n)
             @test lapacke_gemqr_call(
