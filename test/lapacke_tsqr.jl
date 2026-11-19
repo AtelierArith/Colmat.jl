@@ -135,7 +135,7 @@ end
         end
         # --- ORHR_COL: reconstruct Householder vectors from an orthonormal Q ---
         Q0 = Matrix(qr(randn(rng, T, m, n)).Q)[:, 1:n]
-        name = "LAPACKE_" * prefix * (T <: Complex ? "unhr_col" : "orhr_col")
+        name = "LAPACKE_" * prefix * (T <: Complex ? "unhr_col" : "orhr_col") * (work ? "_work" : "")
         @test BLAS.lbt_get_forward(name, interface) == Libdl.dlsym(native, name * suffix)
         p = Libdl.dlsym(lib, name * suffix)
         for layout in (102, 101)
