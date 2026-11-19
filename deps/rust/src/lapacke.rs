@@ -10,6 +10,7 @@ mod band_norms;
 mod band_tridiagonal;
 mod block_reflector;
 mod block_reflector_apply;
+mod blocked_qr;
 mod cholesky;
 mod compact_qr;
 mod complex_auxiliary;
