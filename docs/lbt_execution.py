@@ -161,6 +161,12 @@ def validate_lapacke_signature(row, witness):
         'sptrs': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'spsv': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'sytrf': [],
+        'sygst': [],
+        'hegst': [],
+        'sygv': [],
+        'hegv': [],
+        'sygvd': [],
+        'hegvd': [],
         'tgexc': [],
         'sytrf_rook': [],
         'sytrs_rook': [],
@@ -399,6 +405,16 @@ def validate_lapacke_signature(row, witness):
             expected = expected + [pivot, pivot] + ([t, integer] if row['symbol'].endswith('_work') else [])
         else:
             expected = expected + [integer, integer]
+    if row['family'] in ('sygst', 'hegst'):
+        expected = ['Int32', integer, 'Int8', integer, t, integer, t, integer]
+    if row['family'] in ('sygv', 'hegv', 'sygvd', 'hegvd'):
+        cplx = row['scalar'] in ('c', 'z')
+        expected = ['Int32', integer, 'Int8', 'Int8', integer, t, integer, t, integer, real]
+        if row['symbol'].endswith('_work'):
+            if row['family'].endswith('d'):
+                expected = expected + ([t, integer, real, integer, pivot, integer] if cplx else [t, integer, pivot, integer])
+            else:
+                expected = expected + ([t, integer, real] if cplx else [t, integer])
     if row['family'] in ('sysv', 'hesv', 'sysv_rook'):
         expected = ['Int32', 'Int8', integer, integer, t, integer, pivot, t, integer]
         if row['symbol'].endswith('_work'):
