@@ -319,3 +319,15 @@ argument errors reach only the native checker; PSTRF writes back the UPLO
 triangle and passes PIV and RANK through. Row-major A/B/C are transposed with
 leading-dimension checks. The full-suite artifact validates 1,540 LAPACKE
 canonical entries.
+
+## Tall-skinny least squares and TSQR reconstruction
+
+GETSLS, GETSQRHRT, ORGTSQR_ROW/UNGTSQR_ROW and ORHR_COL/UNHR_COL (S/D/C/Z)
+high/work adapters over the native tall-skinny least-squares solve and the TSQR
+Householder reconstruction. T is an NB-by-(N*slots) array, so the row-major
+LDT must cover its column count; A, B and T are transposed and written back,
+and GETSLS/GETSQRHRT/ORGTSQR_ROW query WORK/LWORK. ORHR_COL/UNHR_COL have no
+workspace argument (their work entry is the same call). The tests compare the
+reflectors, signs and T blocks against the independent reference LAPACK and
+verify explicit Q from reference LATSQR factors. The full-suite artifact
+validates 1,572 LAPACKE canonical entries.
