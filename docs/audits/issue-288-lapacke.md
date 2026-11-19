@@ -290,3 +290,12 @@ the stored triangles are scanned for NaN, row-major A/B are written back as
 triangles, and Z is written only for the returned columns (the band Q only for
 JOBZ='V'). RANGE='A'/'V'/'I', ABSTOL, M and IFAIL pass through. The full-suite
 artifact validates 1,472 LAPACKE canonical entries.
+
+## Tridiagonal selected eigenpairs
+
+STEVX and STEVR (S/D) and STEGR and STEMR (S/D/C/Z) high/work adapters over the
+native tridiagonal selected eigensolvers. D and E are scanned for NaN (E has
+N-1 entries, N for STEMR), the row-major Z is written only for the returned
+columns, and STEVR/STEGR/STEMR high-level entries query WORK/IWORK. STEMR
+passes NZC and TRYRAC through unchanged. The full-suite artifact validates
+1,496 LAPACKE canonical entries.
