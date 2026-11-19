@@ -97,6 +97,10 @@ end
             T, R, J, pointer, 101, m, n, a, n - 1, r, c, rc, cc, amax,
             name, :dll,
         ) == -5
+        @test lapacke_geequ_call(
+            T, R, J, pointer, 102, m, n, a, m - 1, r, c, rc, cc, amax,
+            name, :dll,
+        ) == -5
         bad = copy(a); bad[1] = T(NaN)
         @test lapacke_geequ_call(
             T, R, J, pointer, 102, m, n, bad, m, r, c, rc, cc, amax,

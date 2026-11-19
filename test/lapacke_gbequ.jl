@@ -107,6 +107,10 @@ end
             T, R, J, pointer, 101, m, n, kl, ku, ab, n - 1, r, c, rc, cc,
             amax, name, :dll,
         ) == -7
+        @test lapacke_gbequ_call(
+            T, R, J, pointer, 102, m, n, kl, ku, ab, kl + ku, r, c, rc, cc,
+            amax, name, :dll,
+        ) == -7
         bad = copy(ab); bad[ku + 1 + 1] = T(NaN)
         @test lapacke_gbequ_call(
             T, R, J, pointer, 102, m, n, kl, ku, bad, AR(kl, ku), r, c, rc, cc,

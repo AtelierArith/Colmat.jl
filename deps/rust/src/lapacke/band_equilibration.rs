@@ -85,7 +85,7 @@ macro_rules! exports {
             if layout==COL_MAJOR {
                 let mut info:$i=0;
                 crate::general_equilibration::[<$p $fname $fortran>](&m,&n,&kl,&ku,ab,&ldab,r,c,rowcnd,colcnd,amax,&mut info);
-                return info;
+                return if info<0 {info-1} else {info};
             }
             let (mm,nn,kk,uu)=(m as usize,n as usize,kl.max(0) as usize,ku.max(0) as usize);
             let tmp=band_to_column(layout,mm,nn,kk,uu,ab,ldab as usize);
