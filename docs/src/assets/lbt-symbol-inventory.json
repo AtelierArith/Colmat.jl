@@ -8,8 +8,8 @@
     "Fortran": 2329,
     "CBLAS": 212
   },
-  "lp64": 2912,
-  "ilp64": 2912,
+  "lp64": 2936,
+  "ilp64": 2936,
   "capability_assessments": {
     "unverified": 1918,
     "conditional": 194,
@@ -19,10 +19,9 @@
     "unsupported": 90
   },
   "execution_evidence": {
-    "not_catalogued": 2438,
-    "direct_call_witness": 2708
+    "not_catalogued": 5146
   },
-  "execution_source_revision": "f2520c564a545d6f1ddc16e1857e29d90e406df7",
+  "execution_source_revision": null,
   "independent_algorithm_assessments": {
     "not_assessed": 5146
   }
