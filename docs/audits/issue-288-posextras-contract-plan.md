@@ -1,8 +1,9 @@
 # Issue #288: POEQU/POEQUB/PPEQU/PPSV/PPTRI C contracts
 
 Status: the 40 S/D/C/Z high/work entries pass focused equilibration, solve,
-inverse, layout, diagnostic and independent-call checks. Issue #288 remains
-open.
+inverse, layout, diagnostic and independent-call checks. The immutable full
+suite records 444 sources, 2,464 canonical entries and 9,351 witnesses (2,668
+forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
