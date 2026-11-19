@@ -280,3 +280,13 @@ back; for JOBZ='V' the band Q is transposed and only the returned Z columns
 are written. RANGE='A'/'V'/'I' selections, ABSTOL, M and IFAIL pass through
 and WORK/IWORK(/RWORK) use the reference fixed lengths. The full-suite
 artifact validates 1,440 LAPACKE canonical entries.
+
+## Dense, band and packed selected eigenpairs
+
+SYEVX/HEEVX, SYGVX/HEGVX, SBGVX/HBGVX and SPGVX/HPGVX (S/D/C/Z) high/work
+adapters over the native selected eigensolvers. The dense entries query
+WORK/LWORK; the band and packed entries use the reference fixed lengths. Only
+the stored triangles are scanned for NaN, row-major A/B are written back as
+triangles, and Z is written only for the returned columns (the band Q only for
+JOBZ='V'). RANGE='A'/'V'/'I', ABSTOL, M and IFAIL pass through. The full-suite
+artifact validates 1,472 LAPACKE canonical entries.
