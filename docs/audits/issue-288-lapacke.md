@@ -232,3 +232,12 @@ routines although GEMLQ stores a K-by-R reflector block, so it read past a
 tight buffer and occasionally returned -7 in place of a later diagnostic. The
 scan now follows the stored block, with a regression test at the last K-by-R
 element. The full-suite artifact validates 1,316 LAPACKE canonical entries.
+
+## Rook Bunch-Kaufman extension
+
+SYTRF/SYTRS/SYSV_ROOK (S/D) and HETRF/HETRS_ROOK (C/Z) high/work adapters over
+the native rook Bunch-Kaufman factor and solve; factors and IPIV (including
+negative two-by-two pivots) interoperate between layouts. The complex
+symmetric CSYTRF/CSYTRS/CSYSV_ROOK family has a different LDL^T contract and
+stays out of scope, as does HESV_ROOK, which has no LAPACKE inventory entry.
+The full-suite artifact validates 1,336 LAPACKE canonical entries.
