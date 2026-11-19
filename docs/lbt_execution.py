@@ -161,6 +161,13 @@ def validate_lapacke_signature(row, witness):
         'sptrs': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'spsv': ['Int32', 'Int8', integer, integer, t, pivot, t, integer],
         'sytrf': [],
+        'lag2s': [],
+        'lag2d': [],
+        'lag2c': [],
+        'lag2z': [],
+        'lacrm': [],
+        'larcm': [],
+        'pstrf': [],
         'sytrd': [],
         'hetrd': [],
         'syequb': [],
@@ -516,6 +523,16 @@ def validate_lapacke_signature(row, witness):
         expected = ['Int32', 'Int8', integer, t, integer, real, real, t] + ([t, integer] if row['symbol'].endswith('_work') else [])
     if row['family'] in ('syequb', 'heequb'):
         expected = ['Int32', 'Int8', integer, t, integer, real, real, real] + ([t] if row['symbol'].endswith('_work') else [])
+    if row['family'] in ('lag2s', 'lag2d', 'lag2c', 'lag2z'):
+        pair = {'lag2s': ('Float64', 'Float32'), 'lag2d': ('Float32', 'Float64'),
+                'lag2c': ('ComplexF64', 'ComplexF32'), 'lag2z': ('ComplexF32', 'ComplexF64')}[row['family']]
+        expected = ['Int32', integer, integer, f'Ptr{{{pair[0]}}}', integer, f'Ptr{{{pair[1]}}}', integer]
+    if row['family'] == 'lacrm':
+        expected = ['Int32', integer, integer, t, integer, real, integer, t, integer] + ([real] if row['symbol'].endswith('_work') else [])
+    if row['family'] == 'larcm':
+        expected = ['Int32', integer, integer, real, integer, t, integer, t, integer] + ([real] if row['symbol'].endswith('_work') else [])
+    if row['family'] == 'pstrf':
+        expected = ['Int32', 'Int8', integer, t, integer, pivot, pivot, real_scalar] + ([real] if row['symbol'].endswith('_work') else [])
     if row['family'] in ('sysv', 'hesv', 'sysv_rook'):
         expected = ['Int32', 'Int8', integer, integer, t, integer, pivot, t, integer]
         if row['symbol'].endswith('_work'):

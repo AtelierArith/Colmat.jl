@@ -308,3 +308,14 @@ UPLO triangle is scanned for NaN; row-major SYTRD/HETRD results are written
 back as a triangle and the high-level entries query WORK/LWORK. SYEQUB/HEEQUB
 read A without modifying it, and complex magnitudes follow LAPACK's CABS1. The
 full-suite artifact validates 1,516 LAPACKE canonical entries.
+
+## Mixed-precision conversion, LACRM/LARCM and PSTRF
+
+DLAG2S, SLAG2D, ZLAG2C and CLAG2Z, CLACRM/ZLACRM, CLARCM/ZLARCM and
+SPSTRF/DPSTRF/CPSTRF/ZPSTRF high/work adapters over the native conversion,
+complex-by-real product and pivoted Cholesky kernels. The conversions report
+overflow as a positive INFO; LACRM/LARCM return no INFO, so column-major
+argument errors reach only the native checker; PSTRF writes back the UPLO
+triangle and passes PIV and RANK through. Row-major A/B/C are transposed with
+leading-dimension checks. The full-suite artifact validates 1,540 LAPACKE
+canonical entries.
