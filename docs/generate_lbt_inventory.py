@@ -201,6 +201,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| PBEQU / PBSTF / PBSV | native positive-definite band extras | S/SCOND/AMAX、split Cholesky 因子、row-major band AB (KD+1 行) と B |',
     '| PFTRF / PFTRI / PFTRS | native RFP Cholesky | TRANSR/UPLO、RFP 矩形 (ROW×COL) の転置、row-major B |',
     '| TRTTF/TFTTR・TFTTP/TPTTF・TPTTR/TRTTP | native full/RFP/packed 変換 | RFP 矩形の転置 (dtf_trans)、packed の pp_trans 並べ替え、row-major A/LDA |',
+    '| TGEXC | native 一般化 Schur 対の並べ替え (QZ reorder) | 実数は IFST/ILST が入出力ポインタ、複素は値渡し。A/B/Q/Z を転置し、問い合わせは直接 native へ |',
     '| SYTRF/SYTRS/SYSV_ROOK・HETRF/HETRS_ROOK | native rook Bunch-Kaufman | 因子と IPIV（負の2×2 ピボット）を行/列優先で相互利用。複素対称 CSYTRF_ROOK 系と HESV_ROOK は対象外 |',
     '| SFRK/HFRK | native RFP rank-k 更新 | alpha/beta は値渡し、RFP 矩形 (ROW×COL) と row-major A を転置。INFO を返さないため列優先の引数エラーは native チェッカのみ |',
     '| SBEV/HBEV/SPEV/HPEV・SBEVD/HBEVD/SPEVD/HPEVD | native band/packed 全固有分解 | band AB (KD+1 行) と packed AP を列優先へ変換し、row-major の Z を転置。EVD 系は WORK/IWORK(/RWORK) の問い合わせで確保 |',
