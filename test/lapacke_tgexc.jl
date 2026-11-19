@@ -50,7 +50,6 @@ tg_fromrow(v, n, ld) = [v[(i - 1) * ld + j] for i in 1:n, j in 1:n]
         J in (Int32, Int64), n in (1, 4), (wq, wz) in ((1, 1), (0, 0)), work in (false, true),
         route in (:dll, :lbt_trampoline)
 
-        (!(T <: Real) && work) && continue
         suffix = J === Int64 ? "64_" : ""
         interface = J === Int64 ? :ilp64 : :lp64
         name = "LAPACKE_" * prefix * "tgexc" * (work ? "_work" : "")
