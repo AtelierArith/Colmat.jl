@@ -250,3 +250,13 @@ IFST/ILST are by value and the work entry takes no workspace. A, B, Q and Z are
 transposed for row-major, and the workspace query is forwarded to the native
 solver untransposed. The full-suite artifact validates 1,344 LAPACKE canonical
 entries.
+
+## Dense generalized self-adjoint extension
+
+SYGST/HEGST, SYGV/HEGV and SYGVD/HEGVD (S/D/C/Z) high/work adapters over the
+native generalized reduction and drivers, for ITYPE 1-3. The NaN scan covers
+only the UPLO triangle of A and B; row-major A is written back whole for
+JOBZ='V' (eigenvectors) and as a triangle otherwise, B as a triangle, and the
+SYGST/HEGST B argument stays read only. The *GVD high-level entries query
+WORK/IWORK (and RWORK). The full-suite artifact validates 1,368 LAPACKE
+canonical entries.
