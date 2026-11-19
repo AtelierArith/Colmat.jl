@@ -1,8 +1,9 @@
 # Issue #288: PFTRF/PFTRI/PFTRS C contracts
 
 Status: the 24 S/D/C/Z high/work entries pass focused RFP-layout,
-factorization, inversion, solve, diagnostic and independent-call checks. Issue
-#288 remains open.
+factorization, inversion, solve, diagnostic and independent-call checks. The
+immutable full suite records 440 sources, 2,376 canonical entries and 8,983
+witnesses (2,580 forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
