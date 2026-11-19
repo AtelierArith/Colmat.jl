@@ -1,8 +1,9 @@
 # Issue #288: HSEQR C contracts
 
 Status: the 8 S/D/C/Z high/work entries pass focused layout, COMPZ,
-eigenvalue/vector, Schur-form, diagnostic and independent-call checks. Issue
-#288 remains open.
+eigenvalue/vector, Schur-form, diagnostic and independent-call checks. The
+immutable full suite records 434 sources, 2,296 canonical entries and 8,655
+witnesses (2,500 forwards per integer ABI). Issue #288 remains open.
 
 ## Connected names
 
