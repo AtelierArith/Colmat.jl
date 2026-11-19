@@ -180,6 +180,16 @@ end
                 T, J, pointer, 101, 'L', 'N', m, n, k, a, lda_ok, tbuf,
                 length(tbuf), c, n - 1, T[], false, fname, :dll,
             ) == -11
+            # The reflector NaN scan follows the stored block: R-by-K for
+            # GEMQR and K-by-R for GEMLQ. This entry lies in the K-by-R
+            # block's last column, outside an R-by-K scan, and the scan
+            # never reaches past the K-by-R footprint.
+            exact = fill(T(0), family == "gemqr" ? (m - 1) * lda_ok + k : (k - 1) * lda_ok + m)
+            exact[end] = T(NaN)
+            @test lapacke_gemqr_call(
+                T, J, pointer, 101, 'L', 'N', m, n, k, exact, lda_ok, tbuf,
+                length(tbuf), copy(c), n, T[], false, fname, :dll,
+            ) == -7
         end
     end
     ccall(Libdl.dlsym(native, :colmat_blas_last_error), Cint, ())

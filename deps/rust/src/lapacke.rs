@@ -51,6 +51,7 @@ mod reordering;
 mod reverse_qr;
 mod rfp_cholesky;
 mod rfp_conversions;
+mod rfp_rank;
 mod rfp_triangular;
 mod rz;
 mod scaling;
