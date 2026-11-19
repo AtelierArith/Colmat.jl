@@ -1,7 +1,9 @@
 # Issue #288: TRTTF/TFTTR/TFTTP/TPTTF/TPTTR/TRTTP C contracts
 
 Status: the 48 S/D/C/Z high/work entries pass focused conversion, layout,
-diagnostic and independent-call checks. Issue #288 remains open.
+diagnostic and independent-call checks. The immutable full suite records 442
+sources, 2,424 canonical entries and 9,183 witnesses (2,628 forwards per
+integer ABI). Issue #288 remains open.
 
 ## Connected names
 
