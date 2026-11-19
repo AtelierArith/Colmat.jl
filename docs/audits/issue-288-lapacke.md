@@ -1,6 +1,6 @@
 # Issue #288: implemented LAPACKE numerical subset
 
-The current candidate connects **1,084 original-scope canonical numerical
+The current candidate connects **1,132 original-scope canonical numerical
 entries**, including the core dense LU/Cholesky/eigendecomposition drivers and,
 among the later stages, the 32 GGQRF/GGRQF/GGLSE/GGGLM, 24 LACPY/LASET/LASWP, 8
 TGEVC, 24 LANGE/LANSY/LANTR, 16 LAPMR/LAPMT, 32 ORGTR/UNGTR/ORMTR/UNMTR and
@@ -8,15 +8,15 @@ ORGBR/ORMBR/ORGHR/ORMHR, 16 GGHRD/GGHD3, 8 HGEQZ, 16 PTTRF/PTTRS, 16
 PBTRF/PBTRS, 16 PPTRF/PPTRS, 24 GBTRF/GBTRS/GBSV, 24 GTTRF/GTTRS/GTSV, 24
 SYTRF/SYTRS/SYSV and HETRF/HETRS/HESV, 16 GEBAL/GEBAK, 24 TBTRS/TPTRS/TPTRI, 24
 GEHRD/GEBRD/LARFX, 16 GEEQU/GEEQUB, 16 GGES/GGES3, 8 HSEQR, 32
-GEQR/GELQ/GEMQR/GEMLQ, 24 PBEQU/PBSTF/PBSV and 24 PFTRF/PFTRI/PFTRS high/work
-entries. Its immutable full suite validates 440 source files, 2376 canonical
-entries and 8983 completed witnesses, with 2580 registered forwards per integer
-ABI.
+GEQR/GELQ/GEMQR/GEMLQ, 24 PBEQU/PBSTF/PBSV, 24 PFTRF/PFTRI/PFTRS and 48
+TRTTF/TFTTR/TFTTP/TPTTF/TPTTR/TRTTP high/work entries. Its immutable full
+suite validates 442 source files, 2424 canonical entries and 9183 completed
+witnesses, with 2628 registered forwards per integer ABI.
 See [generalized QR contracts and evidence](issue-288-generalized-qr-contract-plan.md)
 and [matrix auxiliary contracts](issue-288-matrix-aux-contract-plan.md).
 
 **Issue #288 remains open.** Its original 1,616-entry acceptance scope is frozen
-in `issue-288-lapacke-scope.json`; 532 of those entries remain beyond this stage.
+in `issue-288-lapacke-scope.json`; 484 of those entries remain beyond this stage.
 Issue #372 additionally coordinates 20 LAPACKE Rook entries with #288. Those
 additions are separate from the original scope and are also still pending.
 Registration alone, successful fallback computation and the current subset's

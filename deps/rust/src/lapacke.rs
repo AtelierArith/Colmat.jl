@@ -49,6 +49,7 @@ mod reduction_vectors;
 mod reordering;
 mod reverse_qr;
 mod rfp_cholesky;
+mod rfp_conversions;
 mod rz;
 mod scaling;
 mod schur_driver;
