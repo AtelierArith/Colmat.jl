@@ -29,7 +29,7 @@ macro_rules! exports {
             if layout==COL_MAJOR || m==0 || n==0 {
                 let mut info:$i=0;
                 crate::general_equilibration::[<$p $fname $fortran>](&m,&n,a,&lda,r,c,rowcnd,colcnd,amax,&mut info);
-                return info;
+                return if info<0 {info-1} else {info};
             }
             let (mm,nn)=(m as usize,n as usize);
             let at=match row_to_column(mm,nn,a,lda as usize){Ok(v)=>v,Err(e)=>return e as $i};

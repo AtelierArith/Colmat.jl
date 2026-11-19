@@ -193,6 +193,10 @@ end
             T, R, J, peq, 101, 'U', n, kd, ab, n - 1, s, cond, amax,
             ename, :dll,
         ) == -6
+        @test lapacke_pbequ_call(
+            T, R, J, peq, 102, 'U', n, kd, ab, kd, s, cond, amax,
+            ename, :dll,
+        ) == -6
         bad = copy(ab); bad[kd + 1] = T(NaN)
         @test lapacke_pbequ_call(
             T, R, J, peq, 102, 'U', n, kd, bad, BR(kd), s, cond, amax,
