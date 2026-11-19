@@ -69,7 +69,9 @@ macro_rules! apply {
             if LAPACKE_get_nancheck()!=0 {
                 if ge_nancheck(layout,m as i64,n as i64,c,ldc as i64).unwrap_or(false) {return -10;}
                 let r=if side.to_ascii_uppercase()==b'L' {m} else {n};
-                if ge_nancheck(layout,r as i64,k as i64,a,lda as i64).unwrap_or(false) {return -7;}
+                // GEMQR stores an R-by-K reflector block, GEMLQ a K-by-R block.
+                let (ar,ac)=if $aorient {(r as i64,k as i64)} else {(k as i64,r as i64)};
+                if ge_nancheck(layout,ar,ac,a,lda as i64).unwrap_or(false) {return -7;}
                 // T is a compact array of TSIZE entries, not a matrix.
                 if (0..tsize.max(0) as usize).any(|i| {let v=*t.add(i); v!=v}) {return -9;}
             }
