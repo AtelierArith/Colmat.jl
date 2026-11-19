@@ -78,6 +78,7 @@ mod triangular_aux;
 mod tridiagonal_drivers;
 mod tridiagonal_evd;
 mod tridiagonal_lu;
+mod tridiagonal_selected;
 
 const ROW_MAJOR: i32 = 101;
 const COL_MAJOR: i32 = 102;
