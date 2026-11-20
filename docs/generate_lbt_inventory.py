@@ -159,6 +159,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| LACPY / LASET / LASWP | native LACPY/LASET/LASWP と直接 row-major 変換 | 論理矩形・選択三角だけを読み書き。LASWP は行全体を交換し、INCX<0 の Fortran 順序を保持 |',
     '| TGEVC | 既存 S/P Schur pencil からの固有ベクトル逆代入と Q/Z back-transform | LAPACK の保護付き小規模 solve を Rust 側に移植。SIDE L/R/B、HOWMNY A/S/B、実数共役対、無限固有値、max-component 正規化。C API は #288 |',
     '| LANGE / LANSY / LANTR | native matrix norm、row-major 転置 view | M/1/O/I/F/E、対称/三角 storage、unit diag。戻り値は実数で INFO ではない |',
+    '| TGSEN | native 一般化 Schur 対のクラスタ並べ替え | SELECT は LOGICAL（整数）配列。A/B/Q/Z を転置して全体を書き戻し、WORK/LWORK/LIWORK を問い合わせる。IJOB>=1 の TGSYL 段は問い合わせ最小値より 1 要素以上の LWORK を要するため、高水準入口は余裕を足す |',
     '| GESVDX | native 選択特異値分解 | RANGE=A/V/I、row-major の U は M×NS・VT は NS×N で選択された NS 組のみ書き戻し。高水準は WORK/LWORK を問い合わせ、SUPERB を整数 workspace として使う |',
     '| BDSQR / BDSDC / BDSVDX / LASQ1 | native bidiagonal SVD と選択 | U/VT/C 適用、COMPQ N/I、RANGE A/V/I、昇順出力。BDSDC の compact P は保存した元の ILP64 LAPACK に委譲 |',
     '| LAPMR / LAPMT | native row/column permutation | row-major は論理矩形だけを変換。K と forward/backward を保持 |',

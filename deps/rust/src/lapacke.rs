@@ -51,6 +51,7 @@ mod q_generators;
 mod qr;
 mod qz;
 mod qz_reorder;
+mod qz_select;
 mod reduction_drivers;
 mod reduction_vectors;
 mod reordering;
