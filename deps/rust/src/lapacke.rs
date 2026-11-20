@@ -75,6 +75,7 @@ mod selfadjoint_vectors;
 mod structured_evd;
 mod structured_selected;
 mod svd;
+mod svd_preconditioned;
 mod svd_selected;
 mod symmetric_inverse;
 mod symmetric_lu;

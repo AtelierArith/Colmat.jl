@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **3108**、ILP64 **3108** シンボルを登録します。
+現行 adapter は LP64 **3116**、ILP64 **3116** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -49,6 +49,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | LACPY / LASET / LASWP | native LACPY/LASET/LASWP と直接 row-major 変換 | 論理矩形・選択三角だけを読み書き。LASWP は行全体を交換し、INCX<0 の Fortran 順序を保持 |
 | TGEVC | 既存 S/P Schur pencil からの固有ベクトル逆代入と Q/Z back-transform | LAPACK の保護付き小規模 solve を Rust 側に移植。SIDE L/R/B、HOWMNY A/S/B、実数共役対、無限固有値、max-component 正規化。C API は #288 |
 | LANGE / LANSY / LANTR | native matrix norm、row-major 転置 view | M/1/O/I/F/E、対称/三角 storage、unit diag。戻り値は実数で INFO ではない |
+| GESVDQ | native QR 前処理付き SVD | A は転置して書き戻し（QR 因子）、U は JOBU=A で M×M・F で N×N・他は M×N（R は NUMRANK 列）、V は論理的な NUMRANK または N 行×N 列で書き戻す。高水準は IWORK/WORK/RWORK を問い合わせる |
 | GGESX | native 一般化 Schur 分解（並べ替えと条件推定） | SELECTCTG callback を native の並べ替えに渡し、A/B/VSL/VSR を転置して全体を書き戻す。WORK/LWORK/LIWORK を問い合わせ、SENSE の TGSYL 段のため高水準入口は LWORK に余裕を足す |
 | TGSEN | native 一般化 Schur 対のクラスタ並べ替え | SELECT は LOGICAL（整数）配列。A/B/Q/Z を転置して全体を書き戻し、WORK/LWORK/LIWORK を問い合わせる。IJOB>=1 の TGSYL 段は問い合わせ最小値より 1 要素以上の LWORK を要するため、高水準入口は余裕を足す |
 | GESVDX | native 選択特異値分解 | RANGE=A/V/I、row-major の U は M×NS・VT は NS×N で選択された NS 組のみ書き戻し。高水準は WORK/LWORK を問い合わせ、SUPERB を整数 workspace として使う |
@@ -881,7 +882,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `gejsv` / Fortran | `cgejsv_`, `dgejsv_`, `sgejsv_`, `zgejsv_` | [independent Jacobi SVD algorithm required](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | Not exported by this adapter. Existing LAPACK backend remains responsible; ordinary native SVD is not substituted for Jacobi sweeps or expert accuracy modes. |
 | `gejsv` / LAPACKE | `LAPACKE_cgejsv`, `LAPACKE_cgejsv_work`, `LAPACKE_dgejsv`, `LAPACKE_dgejsv_work`, `LAPACKE_sgejsv`, `LAPACKE_sgejsv_work`, `LAPACKE_zgejsv`, `LAPACKE_zgejsv_work` | [independent Jacobi SVD algorithm required](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | Not exported by this adapter. Existing LAPACK backend remains responsible; ordinary native SVD is not substituted for Jacobi sweeps or expert accuracy modes.; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `gesvdq` / Fortran | `cgesvdq_`, `dgesvdq_`, `sgesvdq_`, `zgesvdq_` | [column-pivoted QR + native SVD + Q application](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | JOBA=A/M/H use QR rank truncation with row pivoting, R transpose and full/thin/rank/factored vectors. JOBA=E condition estimation uses the saved ILP64 expert driver; native failure also falls back. |
-| `gesvdq` / LAPACKE | `LAPACKE_cgesvdq`, `LAPACKE_cgesvdq_work`, `LAPACKE_dgesvdq`, `LAPACKE_dgesvdq_work`, `LAPACKE_sgesvdq`, `LAPACKE_sgesvdq_work`, `LAPACKE_zgesvdq`, `LAPACKE_zgesvdq_work` | [column-pivoted QR + native SVD + Q application](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | JOBA=A/M/H use QR rank truncation with row pivoting, R transpose and full/thin/rank/factored vectors. JOBA=E condition estimation uses the saved ILP64 expert driver; native failure also falls back.; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `gesvdq` / LAPACKE | `LAPACKE_cgesvdq`, `LAPACKE_cgesvdq_work`, `LAPACKE_dgesvdq`, `LAPACKE_dgesvdq_work`, `LAPACKE_sgesvdq`, `LAPACKE_sgesvdq_work`, `LAPACKE_zgesvdq`, `LAPACKE_zgesvdq_work` | [column-pivoted QR + native SVD + Q application](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | JOBA=A/M/H use QR rank truncation with row pivoting, R transpose and full/thin/rank/factored vectors. JOBA=E condition estimation uses the saved ILP64 expert driver; native failure also falls back.; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `gesvj` / Fortran | `cgesvj_`, `dgesvj_`, `sgesvj_`, `zgesvj_` | [independent Jacobi SVD algorithm required](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | Not exported by this adapter. Existing LAPACK backend remains responsible; ordinary native SVD is not substituted for Jacobi sweeps or expert accuracy modes. |
 | `gesvj` / LAPACKE | `LAPACKE_cgesvj`, `LAPACKE_cgesvj_work`, `LAPACKE_dgesvj`, `LAPACKE_dgesvj_work`, `LAPACKE_sgesvj`, `LAPACKE_sgesvj_work`, `LAPACKE_zgesvj`, `LAPACKE_zgesvj_work` | [independent Jacobi SVD algorithm required](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | Not exported by this adapter. Existing LAPACK backend remains responsible; ordinary native SVD is not substituted for Jacobi sweeps or expert accuracy modes.; C ABI/row-major/enum/戻り値を別途変換する必要がある |
 | `ggesx` / Fortran | `cggesx_`, `dggesx_`, `sggesx_`, `zggesx_` | [generalized reorder_schur / schur_eigenvalues_real / QZ](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/gevd/reorder.rs) | Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。 |
@@ -1560,7 +1561,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 2,904 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 2,912 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.

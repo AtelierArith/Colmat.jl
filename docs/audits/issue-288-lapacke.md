@@ -372,3 +372,12 @@ native sorter; row-major A, B, VSL and VSR are transposed and written back
 whole; WORK/LWORK/LIWORK are queried, and (as for TGSEN) the high-level entries
 pad LWORK because the SENSE estimates run LAPACK's TGSYL step. The full-suite
 artifact validates 1,612 LAPACKE canonical entries.
+
+## GESVDQ
+
+GESVDQ (S/D/C/Z) high/work adapters over the native QR-preconditioned SVD.
+Row-major A is transposed and written back (it holds the QR factors); U is
+written at its logical size (M-by-M for JOBU='A', N-by-N for 'F', M-by-N
+otherwise, NUMRANK columns for 'R') and V at NUMRANK or N rows by N columns.
+The high-level entry queries IWORK/WORK/RWORK. The full-suite artifact
+validates 1,620 LAPACKE canonical entries.
