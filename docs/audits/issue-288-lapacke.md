@@ -381,3 +381,32 @@ written at its logical size (M-by-M for JOBU='A', N-by-N for 'F', M-by-N
 otherwise, NUMRANK columns for 'R') and V at NUMRANK or N rows by N columns.
 The high-level entry queries IWORK/WORK/RWORK. The full-suite artifact
 validates 1,620 LAPACKE canonical entries.
+
+## Final scope reconciliation (2026-11-20)
+
+Every in-scope LAPACKE family of the original 1,616-entry list that has a
+public native numerical entry is now connected for both integer ABIs, both
+layouts and the high/work entry points; the full-suite execution artifact
+validates 1,620 LAPACKE canonical entries across the frozen scope plus the 20
+Rook entries coordinated in #372. The remaining scope names are separated
+explicitly rather than replaced by an ordinary solver:
+
+- **GEJSV and GESVJ** (S/D/C/Z, 16 canonical entries): colmat-rs and
+  Colmat.jl have no Jacobi-SVD numerical entry. They are not registered with
+  LBT and are left to the standard LAPACK, because answering them with the
+  ordinary SVD would silently change the algorithm and its accuracy contract.
+- **Complex symmetric LDL^T** (CSYTRF/ZSYTRF, CSYTRS/ZSYTRS, CSYSV/ZSYSV,
+  CSYTRI/ZSYTRI, CSYTRI2/ZSYTRI2, CSYTRI2X/ZSYTRI2X, CSYTRS2/ZSYTRS2, the CSP/ZSP
+  packed counterparts and their ROOK forms): the native Bunch-Kaufman routines
+  are Hermitian LDL^H; the factor and IPIV contract differ, so these are not
+  registered and are left to the standard LAPACK.
+- **HESV_ROOK** has no LAPACKE inventory entry.
+- **Unverified modes**: BDSDC COMPQ='P' is passed through to the native
+  compact driver without a separate row-major verification.
+- Condition and separation estimators (xxCON, xxRFS, ...), expert drivers
+  without a public native entry, GSVD/CS, modified Givens helpers and the
+  helper/auxiliary symbols stay outside this issue, as stated in #263.
+
+The two real-valued LAPACKE families with a defined layout contract (STERF
+without matrix_layout, LAG2*/LACRM/LARCM without INFO) follow the reference
+conventions recorded in their sections.
