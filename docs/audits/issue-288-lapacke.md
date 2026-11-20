@@ -363,3 +363,12 @@ LWORK-2*M*(N-M) = 0, which LAPACK reports as an illegal TGSYL argument and
 the native routine then corrupts the heap), so the high-level entries pad the
 queried workspace and callers of the work entry should do the same. The
 full-suite artifact validates 1,604 LAPACKE canonical entries.
+
+## GGESX
+
+GGESX (S/D/C/Z) high/work adapters over the native generalized Schur
+factorization with ordering and condition estimates. SELECTCTG is handed to the
+native sorter; row-major A, B, VSL and VSR are transposed and written back
+whole; WORK/LWORK/LIWORK are queried, and (as for TGSEN) the high-level entries
+pad LWORK because the SENSE estimates run LAPACK's TGSYL step. The full-suite
+artifact validates 1,612 LAPACKE canonical entries.

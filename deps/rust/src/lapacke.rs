@@ -25,6 +25,7 @@ mod generalized_expert_driver;
 mod generalized_hessenberg;
 mod generalized_qr;
 mod generalized_schur;
+mod generalized_schur_sorted;
 mod generalized_schur_vectors;
 mod generalized_structured;
 mod givens;
