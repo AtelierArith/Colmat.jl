@@ -159,6 +159,7 @@ lines += ['',f"現行 adapter は LP64 **{meta['lp64']}**、ILP64 **{meta['ilp64
     '| LACPY / LASET / LASWP | native LACPY/LASET/LASWP と直接 row-major 変換 | 論理矩形・選択三角だけを読み書き。LASWP は行全体を交換し、INCX<0 の Fortran 順序を保持 |',
     '| TGEVC | 既存 S/P Schur pencil からの固有ベクトル逆代入と Q/Z back-transform | LAPACK の保護付き小規模 solve を Rust 側に移植。SIDE L/R/B、HOWMNY A/S/B、実数共役対、無限固有値、max-component 正規化。C API は #288 |',
     '| LANGE / LANSY / LANTR | native matrix norm、row-major 転置 view | M/1/O/I/F/E、対称/三角 storage、unit diag。戻り値は実数で INFO ではない |',
+    '| GESVDQ | native QR 前処理付き SVD | A は転置して書き戻し（QR 因子）、U は JOBU=A で M×M・F で N×N・他は M×N（R は NUMRANK 列）、V は論理的な NUMRANK または N 行×N 列で書き戻す。高水準は IWORK/WORK/RWORK を問い合わせる |',
     '| GGESX | native 一般化 Schur 分解（並べ替えと条件推定） | SELECTCTG callback を native の並べ替えに渡し、A/B/VSL/VSR を転置して全体を書き戻す。WORK/LWORK/LIWORK を問い合わせ、SENSE の TGSYL 段のため高水準入口は LWORK に余裕を足す |',
     '| TGSEN | native 一般化 Schur 対のクラスタ並べ替え | SELECT は LOGICAL（整数）配列。A/B/Q/Z を転置して全体を書き戻し、WORK/LWORK/LIWORK を問い合わせる。IJOB>=1 の TGSYL 段は問い合わせ最小値より 1 要素以上の LWORK を要するため、高水準入口は余裕を足す |',
     '| GESVDX | native 選択特異値分解 | RANGE=A/V/I、row-major の U は M×NS・VT は NS×N で選択された NS 組のみ書き戻し。高水準は WORK/LWORK を問い合わせ、SUPERB を整数 workspace として使う |',
