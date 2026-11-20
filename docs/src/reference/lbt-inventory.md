@@ -28,7 +28,7 @@ colmat-rs の対象は `deps/upstream.toml` の `4e6ed0e34659147a5c744ab6431f150
 | Fortran | 2,329 |
 | CBLAS | 212 |
 
-現行 adapter は LP64 **3084**、ILP64 **3084** シンボルを登録します。
+現行 adapter は LP64 **3092**、ILP64 **3092** シンボルを登録します。
 GEEVX の条件数推定は native ではなく既存 backend へ委譲します。LAPACKE 全体を提供する変更ではありません。
 
 ## 今回接続した LAPACK
@@ -49,6 +49,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | LACPY / LASET / LASWP | native LACPY/LASET/LASWP と直接 row-major 変換 | 論理矩形・選択三角だけを読み書き。LASWP は行全体を交換し、INCX<0 の Fortran 順序を保持 |
 | TGEVC | 既存 S/P Schur pencil からの固有ベクトル逆代入と Q/Z back-transform | LAPACK の保護付き小規模 solve を Rust 側に移植。SIDE L/R/B、HOWMNY A/S/B、実数共役対、無限固有値、max-component 正規化。C API は #288 |
 | LANGE / LANSY / LANTR | native matrix norm、row-major 転置 view | M/1/O/I/F/E、対称/三角 storage、unit diag。戻り値は実数で INFO ではない |
+| GESVDX | native 選択特異値分解 | RANGE=A/V/I、row-major の U は M×NS・VT は NS×N で選択された NS 組のみ書き戻し。高水準は WORK/LWORK を問い合わせ、SUPERB を整数 workspace として使う |
 | BDSQR / BDSDC / BDSVDX / LASQ1 | native bidiagonal SVD と選択 | U/VT/C 適用、COMPQ N/I、RANGE A/V/I、昇順出力。BDSDC の compact P は保存した元の ILP64 LAPACK に委譲 |
 | LAPMR / LAPMT | native row/column permutation | row-major は論理矩形だけを変換。K と forward/backward を保持 |
 | ORGTR/UNGTR・ORMTR/UNMTR | native 三重対角 Q の生成・適用 | row-major は選択三角を保持して論理矩形を変換。UPLO/SIDE/TRANS と lwork query を変換 |
@@ -619,7 +620,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 | `gerqf` / LAPACKE | `LAPACKE_cgerqf`, `LAPACKE_cgerqf_work`, `LAPACKE_dgerqf`, `LAPACKE_dgerqf_work`, `LAPACKE_sgerqf`, `LAPACKE_sgerqf_work`, `LAPACKE_zgerqf`, `LAPACKE_zgerqf_work` | [reversed native-backed QR / adjoint QR LQ / prefix Householder application](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/qr/no_pivoting/factor.rs) | Forty-eight Fortran symbols connected for both integer ABIs. Both axes are reversed around existing standard QR/LQ, then triangular placement and TAU order are reversed back. QL uses H(k)...H(1); complex RQ uses H(1)^H...H(k)^H with conjugated row-vector storage. Thin Q uses the last columns (QL) or rows (RQ). Generation snapshots only stored reflector tails, and application skips zero coefficients and validates only active prefix extents. Blocked/unblocked names share an unblocked composition and own temporary storage; they do not claim dedicated native QL/RQ APIs or reference blocking performance. C API is separate.; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `gesc2` / Fortran | `cgesc2_`, `dgesc2_`, `sgesc2_`, `zgesc2_` | [FullPivLu rank truncation + guarded triangular solve / matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/lu/full_pivoting/factor.rs) | GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続 |
 | `gesvdx` / Fortran | `cgesvdx_`, `dgesvdx_`, `sgesvdx_`, `zgesvdx_` | [native SVD + singular-value selection](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | A/I/V selection, descending S, U/VT, query and minimum work are connected for four types and both integer ABIs; native failure uses the saved ILP64 driver. |
-| `gesvdx` / LAPACKE | `LAPACKE_cgesvdx`, `LAPACKE_cgesvdx_work`, `LAPACKE_dgesvdx`, `LAPACKE_dgesvdx_work`, `LAPACKE_sgesvdx`, `LAPACKE_sgesvdx_work`, `LAPACKE_zgesvdx`, `LAPACKE_zgesvdx_work` | [native SVD + singular-value selection](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | A/I/V selection, descending S, U/VT, query and minimum work are connected for four types and both integer ABIs; native failure uses the saved ILP64 driver.; C ABI/row-major/enum/戻り値を別途変換する必要がある |
+| `gesvdx` / LAPACKE | `LAPACKE_cgesvdx`, `LAPACKE_cgesvdx_work`, `LAPACKE_dgesvdx`, `LAPACKE_dgesvdx_work`, `LAPACKE_sgesvdx`, `LAPACKE_sgesvdx_work`, `LAPACKE_zgesvdx`, `LAPACKE_zgesvdx_work` | [native SVD + singular-value selection](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/svd/mod.rs) | A/I/V selection, descending S, U/VT, query and minimum work are connected for four types and both integer ABIs; native failure uses the saved ILP64 driver.; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
 | `getc2` / Fortran | `cgetc2_`, `dgetc2_`, `sgetc2_`, `zgetc2_` | [FullPivLu rank truncation + guarded triangular solve / matmul](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/lu/full_pivoting/factor.rs) | GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続 |
 | `getsls` / Fortran | `cgetsls_`, `dgetsls_`, `sgetsls_`, `zgetsls_` | [QR / LQ / SVD / RZ / triangular solve](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/solvers.rs) | Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。 |
 | `getsls` / LAPACKE | `LAPACKE_cgetsls`, `LAPACKE_cgetsls_work`, `LAPACKE_dgetsls`, `LAPACKE_dgetsls_work`, `LAPACKE_sgetsls`, `LAPACKE_sgetsls_work`, `LAPACKE_zgetsls`, `LAPACKE_zgetsls_work` | [QR / LQ / SVD / RZ / triangular solve](https://github.com/tensor4all/colmat-rs/blob/4e6ed0e34659147a5c744ab6431f150e78db6f82/faer/src/linalg/solvers.rs) | Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。; C ABI connected for LP64/ILP64; #288 tests explicit layout/char/integer/INFO contracts and DLL/LBT routes; NaN policy helpers retain C-int flags in both interfaces |
@@ -1557,7 +1558,7 @@ GEEVX の条件数推定は native ではなく既存 backend へ委譲します
 
 ## Direct ABI execution evidence (#317, #271)
 
-`direct_call_witness` covers 2,880 canonical entries, with LP64 and ILP64 recorded separately.
+`direct_call_witness` covers 2,888 canonical entries, with LP64 and ILP64 recorded separately.
 The [ABI evidence snapshot](../assets/lapack-abi-execution.json) identifies the exact source/native revisions, manifest and test source SHA-256 hashes. Stale evidence is rejected.
 CBLAS records completed named DLL/LBT calls explicitly: enums stay Cint, dimensions/strides use the selected integer ABI, and ROTG has no integer arguments.
 LARTG/LARTGP/LARTGS have no integer arguments; their entry names still distinguish the two LBT tables. Shared native addresses do not identify individual aliases; named LBT stubs provide that evidence.

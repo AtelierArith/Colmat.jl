@@ -342,3 +342,12 @@ COMPQ='N' and 'I' are verified end to end; COMPQ='P' (the compact IQ/Q form)
 is passed through to the native compact driver and is not separately verified
 in row-major. The full-suite artifact validates 1,588 LAPACKE canonical
 entries.
+
+## GESVDX
+
+GESVDX (S/D/C/Z) high/work adapters over the native selected SVD. RANGE
+'A'/'V'/'I' selections pass through; the row-major U is M-by-NS and VT is
+NS-by-N and only the NS selected triplets are written back. The high-level
+entry queries WORK/LWORK and uses the caller's SUPERB array as the integer
+workspace (12*min(M,N) entries). The full-suite artifact validates 1,596
+LAPACKE canonical entries.
