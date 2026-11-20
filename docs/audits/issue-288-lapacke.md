@@ -351,3 +351,15 @@ NS-by-N and only the NS selected triplets are written back. The high-level
 entry queries WORK/LWORK and uses the caller's SUPERB array as the integer
 workspace (12*min(M,N) entries). The full-suite artifact validates 1,596
 LAPACKE canonical entries.
+
+## TGSEN
+
+TGSEN (S/D/C/Z) high/work adapters over the native generalized Schur cluster
+reordering with optional condition estimates (IJOB). SELECT is a LOGICAL
+(integer) array; row-major A, B, Q and Z are transposed and written back whole
+and WORK/LWORK/LIWORK are queried. LAPACK's TGSYL step (IJOB >= 1) needs one
+element more LWORK than the reported minimum (the query value leaves
+LWORK-2*M*(N-M) = 0, which LAPACK reports as an illegal TGSYL argument and
+the native routine then corrupts the heap), so the high-level entries pad the
+queried workspace and callers of the work entry should do the same. The
+full-suite artifact validates 1,604 LAPACKE canonical entries.
