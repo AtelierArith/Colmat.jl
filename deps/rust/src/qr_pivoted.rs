@@ -44,6 +44,11 @@ pub(crate) unsafe fn pivoted_qr<T: ReflectorScalar>(
     let fixed_count = fixed.iter().filter(|&&x| x).count();
     let mut initial = 0.0_f64;
     let mut exception = 0;
+    // Residual column norms are maintained between steps, as in LAPACK's GEQP3.
+    // Recomputing every remaining column norm from scratch at each step makes
+    // the factorization O(n^3) in norm passes alone (and was 12-30x slower than
+    // the reference backends).
+    let mut norms: Vec<f64> = Vec::with_capacity(n);
     for j in 0..n {
         let norm = nrm2(m as isize, a.offset(j as isize * lda), 1);
         if norm.is_nan() {
@@ -59,6 +64,7 @@ pub(crate) unsafe fn pivoted_qr<T: ReflectorScalar>(
             exception = n + j + 1;
         }
         initial = initial.max(norm);
+        norms.push(norm);
     }
     let mut result = PivotedQr {
         permutation,
@@ -68,15 +74,12 @@ pub(crate) unsafe fn pivoted_qr<T: ReflectorScalar>(
         exception,
     };
     let mut work = vec![T::z(); n + nrhs];
+    let recompute_tol = T::EPS.sqrt();
     for j in 0..m.min(n).min(max_rank) {
         let mut pivot = j;
         let mut best = -1.0;
         for col in j..n {
-            let norm = nrm2(
-                (m - j) as isize,
-                a.offset(j as isize + col as isize * lda),
-                1,
-            );
+            let norm = norms[col];
             if norm.is_nan() {
                 result.residual = f64::NAN;
                 result.exception = col + 1;
@@ -105,6 +108,7 @@ pub(crate) unsafe fn pivoted_qr<T: ReflectorScalar>(
                 );
             }
             result.permutation.swap(j, pivot);
+            norms.swap(j, pivot);
         }
         let column = a.offset(j as isize * (lda + 1));
         if best.is_finite() {
@@ -140,6 +144,29 @@ pub(crate) unsafe fn pivoted_qr<T: ReflectorScalar>(
                 work.as_mut_ptr(),
             );
             *column = beta;
+        }
+        // Downdate the residual norms of the trailing columns, falling back to
+        // a fresh norm when cancellation makes the update unreliable.
+        if j + 1 < n {
+            let remaining = (m - j - 1) as isize;
+            for k in (j + 1)..n {
+                let r = (*a.offset(j as isize + k as isize * lda)).magnitude();
+                let norm = norms[k];
+                if !norm.is_finite() || r.is_nan() {
+                    norms[k] = nrm2(remaining, a.offset((j + 1) as isize + k as isize * lda), 1);
+                    continue;
+                }
+                if r == 0.0 {
+                    continue;
+                }
+                let ratio = r / norm;
+                let temp = 1.0 - ratio * ratio;
+                if temp <= recompute_tol {
+                    norms[k] = nrm2(remaining, a.offset((j + 1) as isize + k as isize * lda), 1);
+                } else {
+                    norms[k] = norm * temp.sqrt();
+                }
+            }
         }
         result.rank = j + 1;
     }

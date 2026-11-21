@@ -66,11 +66,16 @@ pub(crate) unsafe fn generate<T: ReflectorScalar>(
         return;
     }
     let (r, im) = (ar / scale, ai / scale);
-    let mut tail = 0.0_f64;
+    // Scaled sum of squares for the tail. Repeated hypot calls are accurate but
+    // dominate reflector generation for long columns.
+    let mut tail_scale = 0.0f64;
+    let mut tail_ssq = 1.0f64;
     for i in 0..n - 1 {
         let z = *x.offset(i * inc);
-        tail = tail.hypot(z.re() / scale).hypot(z.im() / scale);
+        add_sq(&mut tail_scale, &mut tail_ssq, z.re() / scale);
+        add_sq(&mut tail_scale, &mut tail_ssq, z.im() / scale);
     }
+    let tail = tail_scale * tail_ssq.sqrt();
     if im == 0.0 && (tail == 0.0 || (positive && tail <= T::EPS * r.abs())) {
         if positive && r < 0.0 {
             *tau = T::real(2.0);
@@ -134,21 +139,40 @@ pub(crate) unsafe fn apply<T: Scalar>(
     let left = side == b'L';
     let len = if left { m } else { n };
     let v = v.offset(start(len, inc));
+    // One reflector update is tiny even when the matrix is not; a thread team
+    // per call costs more than the update for the sizes used by QR panels.
+    let threaded = (m.max(0) as usize).saturating_mul(n.max(0) as usize) >= (1 << 18);
     if left {
         // w = C^H v; C -= tau v w^H.
-        gemv(
-            b'C',
-            m,
-            n,
-            T::o(),
-            c,
-            ldc,
-            v.offset(-start(len, inc)),
-            inc,
-            T::z(),
-            work,
-            1,
-        );
+        if threaded {
+            gemv(
+                b'C',
+                m,
+                n,
+                T::o(),
+                c,
+                ldc,
+                v.offset(-start(len, inc)),
+                inc,
+                T::z(),
+                work,
+                1,
+            );
+        } else {
+            gemv_seq(
+                b'C',
+                m,
+                n,
+                T::o(),
+                c,
+                ldc,
+                v.offset(-start(len, inc)),
+                inc,
+                T::z(),
+                work,
+                1,
+            );
+        }
         for j in 0..n {
             for i in 0..m {
                 *c.offset(i + j * ldc) =
@@ -157,19 +181,35 @@ pub(crate) unsafe fn apply<T: Scalar>(
         }
     } else {
         // w = C v; C -= tau w v^H.
-        gemv(
-            b'N',
-            m,
-            n,
-            T::o(),
-            c,
-            ldc,
-            v.offset(-start(len, inc)),
-            inc,
-            T::z(),
-            work,
-            1,
-        );
+        if threaded {
+            gemv(
+                b'N',
+                m,
+                n,
+                T::o(),
+                c,
+                ldc,
+                v.offset(-start(len, inc)),
+                inc,
+                T::z(),
+                work,
+                1,
+            );
+        } else {
+            gemv_seq(
+                b'N',
+                m,
+                n,
+                T::o(),
+                c,
+                ldc,
+                v.offset(-start(len, inc)),
+                inc,
+                T::z(),
+                work,
+                1,
+            );
+        }
         for j in 0..n {
             for i in 0..m {
                 *c.offset(i + j * ldc) =
@@ -234,6 +274,21 @@ unsafe fn basis<T: Scalar>(
     ld: isize,
 ) -> Vec<T> {
     let mut out = vec![T::z(); n * k];
+    basis_into(direct, store, n, k, v, ld, &mut out);
+    out
+}
+
+/// Fill a caller-owned `n x k` buffer with the explicit reflector basis.
+pub(crate) unsafe fn basis_into<T: Scalar>(
+    direct: u8,
+    store: u8,
+    n: usize,
+    k: usize,
+    v: *const T,
+    ld: isize,
+    out: &mut [T],
+) {
+    debug_assert_eq!(out.len(), n * k);
     for j in 0..k {
         let pivot = if direct == b'F' { j } else { n - k + j };
         for i in 0..n {
@@ -248,7 +303,6 @@ unsafe fn basis<T: Scalar>(
             };
         }
     }
-    out
 }
 pub(crate) unsafe fn factor<T: Scalar>(
     direct: u8,
@@ -265,6 +319,39 @@ pub(crate) unsafe fn factor<T: Scalar>(
         return;
     }
     let b = basis(direct, store, n, k, v, ldv);
+    factor_with_basis(direct, n, k, &b, tau, t, ldt);
+}
+
+/// `factor` with a precomputed basis, so a QR panel builds the basis once and
+/// shares it with the trailing update.
+pub(crate) unsafe fn factor_with_basis<T: Scalar>(
+    direct: u8,
+    n: usize,
+    k: usize,
+    b: &[T],
+    tau: *const T,
+    t: *mut T,
+    ldt: isize,
+) {
+    // Pairwise column Gram matrix with one BLAS-3 call. The scalar recurrence
+    // below used to recompute these O(k^2 n) dot products one column at a time,
+    // which dominated QR factorization and LARFB.
+    let mut gram = vec![T::z(); k * k];
+    gemm(
+        b'C',
+        b'N',
+        k as isize,
+        k as isize,
+        n as isize,
+        T::o(),
+        b.as_ptr(),
+        n as isize,
+        b.as_ptr(),
+        n as isize,
+        T::z(),
+        gram.as_mut_ptr(),
+        k as isize,
+    );
     for step in 0..k {
         let j = if direct == b'F' { step } else { k - 1 - step };
         let previous: Vec<usize> = if direct == b'F' {
@@ -273,24 +360,20 @@ pub(crate) unsafe fn factor<T: Scalar>(
             ((j + 1)..k).collect()
         };
         let tj = *tau.add(j);
-        let mut inner = vec![T::z(); k];
         if tj != T::z() {
             for &i in &previous {
-                for r in 0..n {
-                    inner[i] = inner[i] + b[r + i * n].cj() * b[r + j * n];
-                }
-            }
-        }
-        for &i in &previous {
-            let mut value = T::z();
-            if tj != T::z() {
+                let mut value = T::z();
                 for &l in &previous {
                     if (direct == b'F' && i <= l) || (direct == b'B' && i >= l) {
-                        value = value + *t.offset(i as isize + l as isize * ldt) * inner[l];
+                        value = value + *t.offset(i as isize + l as isize * ldt) * gram[l + j * k];
                     }
                 }
+                *t.offset(i as isize + j as isize * ldt) = -tj * value;
             }
-            *t.offset(i as isize + j as isize * ldt) = -tj * value;
+        } else {
+            for &i in &previous {
+                *t.offset(i as isize + j as isize * ldt) = T::z();
+            }
         }
         *t.offset(j as isize + j as isize * ldt) = tj;
     }
@@ -306,62 +389,102 @@ pub(crate) unsafe fn apply_forward_column_block_adjoint<T: Scalar>(
     c: *mut T,
     ldc: isize,
 ) {
-    let v = basis(b'F', b'C', m, k, v, ldv);
+    let b = basis(b'F', b'C', m, k, v, ldv);
+    let mut projection = vec![T::z(); k * n];
+    let mut transformed = vec![T::z(); k * n];
+    apply_forward_column_block_adjoint_with_basis(
+        m,
+        n,
+        k,
+        &b,
+        t,
+        ldt,
+        c,
+        ldc,
+        &mut projection,
+        &mut transformed,
+    );
+}
+
+/// `apply_forward_column_block_adjoint` with caller-owned basis and work
+/// buffers, and one thread-team acquisition for all three GEMMs.
+#[allow(clippy::too_many_arguments)]
+pub(crate) unsafe fn apply_forward_column_block_adjoint_with_basis<T: Scalar>(
+    m: usize,
+    n: usize,
+    k: usize,
+    b: &[T],
+    t: *const T,
+    ldt: isize,
+    c: *mut T,
+    ldc: isize,
+    projection: &mut [T],
+    transformed: &mut [T],
+) {
+    if m == 0 || n == 0 || k == 0 {
+        return;
+    }
+    debug_assert_eq!(b.len(), m * k);
+    debug_assert_eq!(projection.len(), k * n);
+    debug_assert_eq!(transformed.len(), k * n);
     let mut triangular = vec![T::z(); k * k];
     for j in 0..k {
         for i in 0..=j {
             triangular[i + j * k] = *t.offset(i as isize + j as isize * ldt);
         }
     }
-    let mut projection = vec![T::z(); k * n];
-    let mut transformed = vec![T::z(); k * n];
     let (m, n, k) = (m as isize, n as isize, k as isize);
     // W = V^H C, Y = T^H W, C -= V Y.
-    gemm(
-        b'C',
-        b'N',
-        k,
-        n,
-        m,
-        T::o(),
-        v.as_ptr(),
-        m,
-        c,
-        ldc,
-        T::z(),
-        projection.as_mut_ptr(),
-        k,
-    );
-    gemm(
-        b'C',
-        b'N',
-        k,
-        n,
-        k,
-        T::o(),
-        triangular.as_ptr(),
-        k,
-        projection.as_ptr(),
-        k,
-        T::z(),
-        transformed.as_mut_ptr(),
-        k,
-    );
-    gemm(
-        b'N',
-        b'N',
-        m,
-        n,
-        k,
-        -T::o(),
-        v.as_ptr(),
-        m,
-        transformed.as_ptr(),
-        k,
-        T::o(),
-        c,
-        ldc,
-    );
+    crate::threading::with_par(|mut par| {
+        gemm_with_par(
+            b'C',
+            b'N',
+            k,
+            n,
+            m,
+            T::o(),
+            b.as_ptr(),
+            m,
+            c,
+            ldc,
+            T::z(),
+            projection.as_mut_ptr(),
+            k,
+            par.reborrow(),
+        );
+        gemm_with_par(
+            b'C',
+            b'N',
+            k,
+            n,
+            k,
+            T::o(),
+            triangular.as_ptr(),
+            k,
+            projection.as_ptr(),
+            k,
+            T::z(),
+            transformed.as_mut_ptr(),
+            k,
+            par.reborrow(),
+        );
+        gemm_with_par(
+            b'N',
+            b'N',
+            m,
+            n,
+            k,
+            -T::o(),
+            b.as_ptr(),
+            m,
+            transformed.as_ptr(),
+            k,
+            T::o(),
+            c,
+            ldc,
+            par,
+        );
+    });
 }
 pub(crate) unsafe fn apply_block<T: Scalar>(
     side: u8,
@@ -391,66 +514,116 @@ pub(crate) unsafe fn apply_block<T: Scalar>(
             }
         }
     }
-    let mut bt = vec![T::z(); order * k];
-    gemm(
-        b'N',
-        tr,
-        order as isize,
-        k as isize,
-        k as isize,
-        T::o(),
-        b.as_ptr(),
-        order as isize,
-        triangular.as_ptr(),
-        k as isize,
-        T::z(),
-        bt.as_mut_ptr(),
-        order as isize,
-    );
-    let mut h = vec![T::z(); order * order];
-    gemm(
-        b'N',
-        b'C',
-        order as isize,
-        order as isize,
-        k as isize,
-        -T::o(),
-        bt.as_ptr(),
-        order as isize,
-        b.as_ptr(),
-        order as isize,
-        T::z(),
-        h.as_mut_ptr(),
-        order as isize,
-    );
-    for i in 0..order {
-        h[i + i * order] = h[i + i * order] + T::o();
-    }
-    let mut out = vec![T::z(); m * n];
-    let (a, la, b, lb) = if side == b'L' {
-        (h.as_ptr(), order as isize, c as *const T, ldc)
+    // Apply H = I - V T V^H from its factored form. Materializing the full
+    // order x order matrix costs O(order^3) per panel; the three-GEMM form
+    // below is the O(order^2 k) LARFB route.
+    let width = k * m.max(n);
+    let mut work = vec![T::z(); width];
+    let mut transformed = vec![T::z(); width];
+    // T^H (or T^T for real) when transpose='C'/'T', T for transpose='N'.
+    let t_op = if tr == b'N' {
+        b'N'
+    } else if <T as Scalar>::COMPLEX {
+        b'C'
     } else {
-        (c as *const T, ldc, h.as_ptr(), order as isize)
+        b'T'
     };
-    gemm(
-        b'N',
-        b'N',
-        m as isize,
-        n as isize,
-        order as isize,
-        T::o(),
-        a,
-        la,
-        b,
-        lb,
-        T::z(),
-        out.as_mut_ptr(),
-        m as isize,
-    );
-    for j in 0..n {
-        for i in 0..m {
-            *c.offset(i as isize + j as isize * ldc) = out[i + j * m];
-        }
+    if side == b'L' {
+        // W = V^H C
+        gemm(
+            b'C',
+            b'N',
+            k as isize,
+            n as isize,
+            order as isize,
+            T::o(),
+            b.as_ptr(),
+            order as isize,
+            c as *const T,
+            ldc,
+            T::z(),
+            work.as_mut_ptr(),
+            k as isize,
+        );
+        // W <- T^H W, then C -= V W.
+        gemm(
+            t_op,
+            b'N',
+            k as isize,
+            n as isize,
+            k as isize,
+            T::o(),
+            triangular.as_ptr(),
+            k as isize,
+            work.as_ptr(),
+            k as isize,
+            T::z(),
+            transformed.as_mut_ptr(),
+            k as isize,
+        );
+        gemm(
+            b'N',
+            b'N',
+            m as isize,
+            n as isize,
+            k as isize,
+            -T::o(),
+            b.as_ptr(),
+            order as isize,
+            transformed.as_ptr(),
+            k as isize,
+            T::o(),
+            c,
+            ldc,
+        );
+    } else {
+        // W = C V
+        gemm(
+            b'N',
+            b'N',
+            m as isize,
+            k as isize,
+            order as isize,
+            T::o(),
+            c as *const T,
+            ldc,
+            b.as_ptr(),
+            order as isize,
+            T::z(),
+            work.as_mut_ptr(),
+            m as isize,
+        );
+        // W <- W T^H, then C -= W V^H.
+        gemm(
+            b'N',
+            t_op,
+            m as isize,
+            k as isize,
+            k as isize,
+            T::o(),
+            work.as_ptr(),
+            m as isize,
+            triangular.as_ptr(),
+            k as isize,
+            T::z(),
+            transformed.as_mut_ptr(),
+            m as isize,
+        );
+        gemm(
+            b'N',
+            b'C',
+            m as isize,
+            n as isize,
+            k as isize,
+            -T::o(),
+            transformed.as_ptr(),
+            m as isize,
+            b.as_ptr(),
+            order as isize,
+            T::o(),
+            c,
+            ldc,
+        );
     }
 }
 macro_rules! exports {

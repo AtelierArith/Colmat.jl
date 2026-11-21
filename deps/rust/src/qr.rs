@@ -2,7 +2,7 @@
 use crate::householder::ReflectorScalar;
 use crate::kernels::Scalar;
 use colmat::dyn_stack::{MemBuffer, MemStack};
-use colmat::{Mat, MatRef};
+use colmat::{Mat, MatMut, Par};
 
 // Factor one active column at a time so an exactly zero column still occupies
 // its LAPACK diagonal position. The native rank-revealing panel may otherwise
@@ -23,6 +23,19 @@ pub(crate) unsafe fn compact_qr<T: ReflectorScalar>(
     }
     let mut tau = vec![T::z(); k];
     let mut work = vec![T::z(); nb];
+    // Panel scratch reused across panels: basis V, the two k x n trailing-update
+    // buffers, one 1x1 coefficient, and the native column-QR workspace.
+    let mut basis_buf = vec![T::z(); m * nb];
+    let mut projection = vec![T::z(); nb * n];
+    let mut transformed = vec![T::z(); nb * n];
+    let mut coeff = Mat::<T>::zeros(1, 1);
+    let mut qr_mem = MemBuffer::new(qr_in_place_scratch::<T>(
+        m,
+        1,
+        1,
+        Par::Seq.shape(),
+        Default::default(),
+    ));
     for start in (0..k).step_by(nb) {
         let block = nb.min(k - start);
         let end = start + block;
@@ -42,85 +55,87 @@ pub(crate) unsafe fn compact_qr<T: ReflectorScalar>(
             for j in start..end {
                 let height = m - j;
                 let column = a.offset(j as isize * (lda + 1));
-                let mut panel = MatRef::from_raw_parts(column, height, 1, 1, lda).to_owned();
-                // Scale the active column before native reflector generation, whose
-                // tiny-tail branch deliberately treats subnormals as zero.
+                // Scale only when the native reflector's tiny-tail branch could
+                // misread the column (subnormals or overflow). Normal inputs take
+                // no extra pass; the native factorization works in place.
                 let mut scale = 0.0_f64;
                 for i in 0..height {
-                    let z = panel[(i, 0)];
+                    let z = *column.add(i);
                     scale = scale.max(z.re().abs()).max(z.im().abs());
                 }
-                if scale > 0.0 && scale.is_finite() {
+                let scaled =
+                    scale > 0.0 && scale.is_finite() && (scale < T::SAFE || scale > 1.0 / T::SAFE);
+                if scaled {
                     for i in 0..height {
-                        let z = panel[(i, 0)];
-                        panel[(i, 0)] = T::parts(z.re() / scale, z.im() / scale);
+                        let z = *column.add(i);
+                        *column.add(i) = T::parts(z.re() / scale, z.im() / scale);
                     }
-                } else {
-                    scale = 1.0;
                 }
-                let mut coeff = Mat::<T>::zeros(1, 1);
-                crate::threading::with_par(|par| {
-                    let mut mem = MemBuffer::new(qr_in_place_scratch::<T>(
-                        height,
-                        1,
-                        1,
-                        par.shape(),
-                        Default::default(),
-                    ));
+                // A single active column cannot use more than one participant.
+                // Requesting a team per column made threaded GEQRT slower than
+                // the sequential build for every benchmarked order.
+                {
+                    let par = Par::Seq;
+                    let mut panel = MatMut::from_raw_parts_mut(column, height, 1, 1, lda);
                     qr_in_place(
                         panel.as_mut(),
                         coeff.as_mut(),
                         par,
-                        MemStack::new(&mut mem),
+                        MemStack::new(&mut qr_mem),
                         Default::default(),
                     );
-                });
-                let beta = panel[(0, 0)];
-                panel[(0, 0)] = T::parts(beta.re() * scale, beta.im() * scale);
+                }
+                if scaled {
+                    // Only beta is rescaled; the reflector tail is normalized.
+                    let beta = *column;
+                    *column = T::parts(beta.re() * scale, beta.im() * scale);
+                }
                 // Native H = I - v v^H / coeff; LAPACK H = I - tau v v^H.
                 tau[j] = T::real(1.0 / coeff[(0, 0)].re());
-                for i in 0..height {
-                    *column.add(i) = panel[(i, 0)];
-                }
                 if j + 1 < end && tau[j] != T::z() {
-                    panel[(0, 0)] = T::o();
+                    let beta = *column;
+                    *column = T::o();
                     crate::householder::apply(
                         b'L',
                         height as isize,
                         (end - j - 1) as isize,
-                        panel.as_ref().as_ptr(),
+                        column,
                         1,
                         tau[j].cj(),
                         a.offset(j as isize + (j + 1) as isize * lda),
                         lda,
                         work.as_mut_ptr(),
                     );
+                    *column = beta;
                 }
             }
         }
-        crate::householder::factor(
+        let rows = m - start;
+        let basis = &mut basis_buf[..rows * block];
+        crate::householder::basis_into(b'F', b'C', rows, block, panel, lda, basis);
+        crate::householder::factor_with_basis(
             b'F',
-            b'C',
-            m - start,
+            rows,
             block,
-            panel,
-            lda,
+            basis,
             tau.as_ptr().add(start),
             block_t,
             ldt,
         );
         if end < n {
+            let cols = n - end;
             // Apply H^H = I - V T^H V^H to the columns outside this panel.
-            crate::householder::apply_forward_column_block_adjoint(
-                m - start,
-                n - end,
+            crate::householder::apply_forward_column_block_adjoint_with_basis(
+                rows,
+                cols,
                 block,
-                panel,
-                lda,
+                basis,
                 block_t,
                 ldt,
                 a.offset(start as isize + end as isize * lda),
                 lda,
+                &mut projection[..block * cols],
+                &mut transformed[..block * cols],
             );
         }
     }

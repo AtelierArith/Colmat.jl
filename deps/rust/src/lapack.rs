@@ -121,46 +121,99 @@ pub fn solve_lu<T: Scalar>(a: MatRef<'_, T>, p: &[usize], mut b: MatMut<'_, T>, 
 }
 /// Factor the caller's buffer in place. The lower triangle is used regardless of
 /// the caller's UPLO: an upper-triangular view is transposed before the call.
+/// colmat-rs #192 tunes the f64/c64 LLT block to 64 for Zen 5. On AVX2-only
+/// x86-64 (Skylake and similar) 32 is faster; see colmat-rs issue #257. Fall
+/// back to the untuned LDLT default (128) only when neither applies.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn prefer_narrow_llt_block() -> bool {
+    std::is_x86_feature_detected!("avx2") && !std::is_x86_feature_detected!("avx512f")
+}
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+fn prefer_narrow_llt_block() -> bool {
+    false
+}
 pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
     use colmat::linalg::cholesky::llt::factor::*;
+    let mut params: colmat::Spec<LltParams, T> = Default::default();
+    if params.config.block_size >= 128 || prefer_narrow_llt_block() {
+        params.config.block_size = 32;
+        params.config.recursion_threshold = 32;
+    }
     crate::threading::with_par(|par| {
         let mut mem = MemBuffer::new(cholesky_in_place_scratch::<T>(
             a.nrows(),
             par.shape(),
-            Default::default(),
+            params,
         ));
         match cholesky_in_place(
             a.as_mut(),
             Default::default(),
             par,
             MemStack::new(&mut mem),
-            Default::default(),
+            params,
         ) {
             Ok(_) => 0,
             Err(LltError::NonPositivePivot { index }) => index + 1,
         }
     })
 }
-/// LAPACK owns only the requested triangle. The public native in-place
-/// factorizer may use the opposite triangle as scratch, so isolate that scratch
-/// from caller storage and copy back the selected factor, including failure data.
+/// A zero-filled vector without the generic `vec![x; n]` clone loop. Every
+/// `Scalar` in this crate is a float or a pair of floats, whose zero value has
+/// the all-zero bit pattern, so `write_bytes` produces a valid `T`.
+pub(crate) unsafe fn zeroed_vec<T: Scalar>(len: usize) -> Vec<T> {
+    let mut v = Vec::with_capacity(len);
+    std::ptr::write_bytes(v.as_mut_ptr(), 0, len);
+    v.set_len(len);
+    v
+}
+
+/// Factor the caller's buffer through an isolated dense temporary. The native
+/// right-looking LLT may write the opposite triangle, so the caller's unselected
+/// triangle must stay untouched. The temporary is filled with plain copies
+/// rather than a per-element closure, which dominated the factorization at
+/// n=1024.
 pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
-    let input = input_ref(a, n, n, ld);
-    let mut factor = Mat::from_fn(n, n, |i, j| {
-        if i < j {
-            T::z()
-        } else if i == j {
-            // LAPACK assumes Hermitian diagonal imaginary components are zero,
-            // even when the caller leaves them unset or NaN.
-            T::real(input[(i, i)].re())
-        } else if u == b'L' {
-            input[(i, j)]
-        } else {
-            input[(j, i)].cj()
+    if n == 0 {
+        return 0;
+    }
+    let mut scratch = zeroed_vec::<T>(n * n);
+    let dst = scratch.as_mut_ptr();
+    if u == b'L' {
+        for j in 0..n {
+            std::ptr::copy_nonoverlapping(
+                a.offset(j as isize + j as isize * ld),
+                dst.add(j + j * n),
+                n - j,
+            );
         }
-    });
-    let info = cholesky(factor.as_mut());
-    cholesky_output(&factor, a, ld, u);
+    } else {
+        for j in 0..n {
+            for i in j..n {
+                // The lower triangle of the transposed view is the caller's upper.
+                *dst.add(i + j * n) = (*a.offset(j as isize + i as isize * ld)).cj();
+            }
+        }
+    }
+    // LAPACK ignores the imaginary part of a Hermitian diagonal.
+    for j in 0..n {
+        *dst.add(j + j * n) = T::real((*dst.add(j + j * n)).re());
+    }
+    let info = cholesky(MatMut::from_raw_parts_mut(dst, n, n, 1, n as isize));
+    if u == b'L' {
+        for j in 0..n {
+            std::ptr::copy_nonoverlapping(
+                dst.add(j + j * n),
+                a.offset(j as isize + j as isize * ld),
+                n - j,
+            );
+        }
+    } else {
+        for j in 0..n {
+            for i in j..n {
+                *a.offset(j as isize + i as isize * ld) = (*dst.add(i + j * n)).cj();
+            }
+        }
+    }
     info
 }
 

@@ -1,5 +1,23 @@
-use colmat::{c32, c64, Accum, Conj, MatMut, MatRef};
+use colmat::{c32, c64, Accum, Conj, MatMut, MatRef, Par};
 use std::ops::{Add, Div, Mul, Neg, Sub};
+
+/// Accumulate `x^2` into a scaled sum of squares (`scale^2 * ssq`) without
+/// overflow or underflow. This is LAPACK's `?nrm2` update step; `hypot` gives
+/// the same result but is far slower in the inner loops.
+#[inline]
+pub(crate) fn add_sq(scale: &mut f64, ssq: &mut f64, x: f64) {
+    let x = x.abs();
+    if x != 0.0 {
+        if *scale < x {
+            let ratio = *scale / x;
+            *ssq = 1.0 + *ssq * ratio * ratio;
+            *scale = x;
+        } else {
+            let ratio = x / *scale;
+            *ssq += ratio * ratio;
+        }
+    }
+}
 
 pub trait Scalar:
     colmat::traits::ComplexField
@@ -155,6 +173,29 @@ pub unsafe fn gemm<T: Scalar>(
     c: *mut T,
     ldc: isize,
 ) {
+    crate::threading::with_par(|par| {
+        gemm_with_par(ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, par)
+    });
+}
+
+/// GEMM on an existing parallelism token. Callers that issue several GEMMs with
+/// the same shape reuse one team acquisition instead of paying it per call.
+pub(crate) unsafe fn gemm_with_par<T: Scalar>(
+    ta: u8,
+    tb: u8,
+    m: isize,
+    n: isize,
+    k: isize,
+    alpha: T,
+    a: *const T,
+    lda: isize,
+    b: *const T,
+    ldb: isize,
+    beta: T,
+    c: *mut T,
+    ldc: isize,
+    par: Par<'_>,
+) {
     if m == 0 || n == 0 {
         return;
     }
@@ -183,26 +224,24 @@ pub unsafe fn gemm<T: Scalar>(
         Accum::Add
     };
     let dst = MatMut::from_raw_parts_mut(c, m as usize, n as usize, 1, ldc);
-    crate::threading::with_par(|par| {
-        colmat::linalg::matmul::matmul_with_conj(
-            dst,
-            acc,
-            lhs,
-            if matches!(ta, b'C' | b'R') {
-                Conj::Yes
-            } else {
-                Conj::No
-            },
-            rhs,
-            if matches!(tb, b'C' | b'R') {
-                Conj::Yes
-            } else {
-                Conj::No
-            },
-            alpha,
-            par,
-        );
-    });
+    colmat::linalg::matmul::matmul_with_conj(
+        dst,
+        acc,
+        lhs,
+        if matches!(ta, b'C' | b'R') {
+            Conj::Yes
+        } else {
+            Conj::No
+        },
+        rhs,
+        if matches!(tb, b'C' | b'R') {
+            Conj::Yes
+        } else {
+            Conj::No
+        },
+        alpha,
+        par,
+    );
 }
 
 pub unsafe fn gemv<T: Scalar>(
@@ -217,6 +256,41 @@ pub unsafe fn gemv<T: Scalar>(
     beta: T,
     y: *mut T,
     iy: isize,
+) {
+    gemv_impl(t, m, n, alpha, a, lda, x, ix, beta, y, iy, true);
+}
+
+/// Sequential GEMV for small updates such as one Householder reflector
+/// application. Acquiring a thread team per reflector dominates the work.
+pub(crate) unsafe fn gemv_seq<T: Scalar>(
+    t: u8,
+    m: isize,
+    n: isize,
+    alpha: T,
+    a: *const T,
+    lda: isize,
+    x: *const T,
+    ix: isize,
+    beta: T,
+    y: *mut T,
+    iy: isize,
+) {
+    gemv_impl(t, m, n, alpha, a, lda, x, ix, beta, y, iy, false);
+}
+
+unsafe fn gemv_impl<T: Scalar>(
+    t: u8,
+    m: isize,
+    n: isize,
+    alpha: T,
+    a: *const T,
+    lda: isize,
+    x: *const T,
+    ix: isize,
+    beta: T,
+    y: *mut T,
+    iy: isize,
+    threaded: bool,
 ) {
     // Reference BLAS quick return also applies to a zero inner dimension.
     if m == 0 || n == 0 || (alpha == T::z() && beta == T::o()) {
@@ -235,15 +309,6 @@ pub unsafe fn gemv<T: Scalar>(
         return;
     }
     let x = x.offset(start(cols, ix));
-    // A vector is a one-column matrix. Negative input/output strides are valid.
-    // Stage the result to support strided output. The public buffers never
-    // become Rust-owned and no borrowed view escapes this call.
-    let mut result = vec![T::z(); rows as usize];
-    if beta != T::z() {
-        for i in 0..rows {
-            result[i as usize] = beta * *y.offset(i * iy);
-        }
-    }
     let lhs = MatRef::from_raw_parts(
         a,
         rows as usize,
@@ -252,8 +317,50 @@ pub unsafe fn gemv<T: Scalar>(
         if matches!(t, b'N' | b'R') { lda } else { 1 },
     );
     let rhs = MatRef::from_raw_parts(x, cols as usize, 1, ix, 0);
+    let trans = if matches!(t, b'C' | b'R') {
+        Conj::Yes
+    } else {
+        Conj::No
+    };
+    // The common Householder path writes a contiguous vector. Borrow it directly
+    // instead of staging through an owned buffer and copying back.
+    if iy == 1 {
+        if beta != T::z() {
+            scale(rows, 1, beta, y, 1);
+        }
+        let dst = MatMut::from_raw_parts_mut(y, rows as usize, 1, 1, 1);
+        let compute = |par: Par<'_>| {
+            colmat::linalg::matmul::matmul_with_conj(
+                dst,
+                if beta == T::z() {
+                    Accum::Replace
+                } else {
+                    Accum::Add
+                },
+                lhs,
+                trans,
+                rhs,
+                Conj::No,
+                alpha,
+                par,
+            )
+        };
+        if threaded {
+            crate::threading::with_par(compute);
+        } else {
+            compute(Par::Seq);
+        }
+        return;
+    }
+    // Strided output (including negative strides) is staged.
+    let mut result = vec![T::z(); rows as usize];
+    if beta != T::z() {
+        for i in 0..rows {
+            result[i as usize] = beta * *y.offset(i * iy);
+        }
+    }
     let dst = MatMut::from_raw_parts_mut(result.as_mut_ptr(), rows as usize, 1, 1, rows);
-    crate::threading::with_par(|par| {
+    let compute = |par: Par<'_>| {
         colmat::linalg::matmul::matmul_with_conj(
             dst,
             if beta == T::z() {
@@ -262,17 +369,18 @@ pub unsafe fn gemv<T: Scalar>(
                 Accum::Add
             },
             lhs,
-            if matches!(t, b'C' | b'R') {
-                Conj::Yes
-            } else {
-                Conj::No
-            },
+            trans,
             rhs,
             Conj::No,
             alpha,
             par,
         )
-    });
+    };
+    if threaded {
+        crate::threading::with_par(compute);
+    } else {
+        compute(Par::Seq);
+    }
     for i in 0..rows {
         *y.offset(i * iy) = result[i as usize];
     }
@@ -302,12 +410,14 @@ pub unsafe fn nrm2<T: Scalar>(n: isize, x: *const T, inc: isize) -> f64 {
     if n <= 0 || inc <= 0 {
         return 0.0;
     }
-    // hypot avoids overflow/underflow from squaring the entries directly.
-    let mut norm = 0.0f64;
+    // Scaled sum of squares, as in LAPACK's ?nrm2. Per-element hypot is
+    // accurate but much too slow for the repeated column-norm passes of GEQP3.
+    let mut scale = 0.0f64;
+    let mut ssq = 1.0f64;
     for i in 0..n {
-        norm = norm.hypot((*x.offset(i * inc)).magnitude());
+        add_sq(&mut scale, &mut ssq, (*x.offset(i * inc)).magnitude());
     }
-    norm
+    scale * ssq.sqrt()
 }
 pub unsafe fn asum<T: Scalar>(n: isize, x: *const T, inc: isize) -> f64 {
     if n <= 0 || inc <= 0 {
