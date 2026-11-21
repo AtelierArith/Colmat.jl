@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "406c6e84eae895b4d7ff549330fe1c85c5091c16",
+  "revision": "c7bf908e993bf1f4bacc1b0daa2985361fd66e05",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -114386,7 +114386,7 @@
     "deps/rust/src/lapacke/pentagonal_qr.rs": "512dc1becd6445e5c6cb6094468251149db22ad34334816a00581da9e7fe42cc",
     "test/geevx_expert_processes.jl": "f63981f05cb5e2dcb5ffa855be884d98ae83594f2f69c647ac1d4c10be4ffac0",
     "test/qz_reorder.jl": "702ee5fc87f32027f533530a99b742e8ca340d86a43230d368201a7b8136ed44",
-    "test/support_matrix.jl": "9cd3980ff3c079d46662f496aea1cc7e7b2590925fc9cc40bedf21a059ef5b70",
+    "test/support_matrix.jl": "e35c2b47857396b88eb0e2e77b43971ce6669ac55019305b65a8ed48ae67d765",
     "test/rook_extremes.jl": "1dab9a89140d55f05b6c30125b6142dd8c16b1dcdadb5640d2a31a318e4d5856",
     "test/generalized_qr_drivers.jl": "141e85b8fa6410acea65d401ba9b7258cde9168c9e739f98992f4af9dc64a1c2",
     "test/lapacke_lq_abi_worker.c": "d74502e531cf5a744cac20f516a8f112eaf32661ea6ad21ebab4a6504f1ce887",

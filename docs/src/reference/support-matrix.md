@@ -1,4 +1,4 @@
-# Measured Julia API support matrix
+# Measured Julia API mapping
 
 Records, separately, whether calls on ordinary arrays succeed and whether Colmat provides their entry points.
 Entry points are chosen from the Julia 1.13 wrapper implementations and cross-checked against the LBT registration targets. This is not a dynamic call-count measurement or a trace of library internals.
@@ -6,7 +6,7 @@ Entry points are chosen from the Julia 1.13 wrapper implementations and cross-ch
 ## Verification conditions
 
 - Julia: `1.13.4` / `x86_64-linux-gnu`.
-- Colmat source: `406c6e84eae895b4d7ff549330fe1c85c5091c16`.
+- Colmat source: `c7bf908e993bf1f4bacc1b0daa2985361fd66e05`.
 - Rust colmat source: `e1c83482f5a61449d30e989808c3ba5f751ec391`.
 - Julia BLAS integer ABI: `ilp64`.
 - Colmat execution width: `8`.
