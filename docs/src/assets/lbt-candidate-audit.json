@@ -4,7 +4,7 @@
   "baseline_tsv_sha256": "3ed76587a3ae9834690333efe80bc08804e76d8d464272dfad3028dbe6b0915d",
   "reassessment_native_revision": "b376b3ce209184df8b46c734f7882a21e31d3f58",
   "policy_sha256": "b8ad2ab832ef857daffe45eeb517bd97b907c49376cd5283de30cffb8193d001",
-  "generated_at": "2026-11-21T18:50:20.184526+00:00",
+  "generated_at": "2026-11-21T21:39:54.267733+00:00",
   "issue_snapshot_saved_at": "2026-11-15T17:50:48.731648+00:00",
   "issue_snapshot_sha256": "63d3c3890a14ae26d68e67629d6fcf6ab05a9918a95d57a0ae1632d0d8a925fa",
   "canonical_symbols": 5146,
@@ -59,8 +59,8 @@
     "removed": [],
     "unverified_original_exclusions": 1918,
     "additions_by_interface": {
-      "LAPACKE": 20,
-      "Fortran": 20
+      "Fortran": 20,
+      "LAPACKE": 20
     },
     "baseline_numerical_lapacke": 148
   },

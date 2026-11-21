@@ -310,3 +310,92 @@ operations (`qr_pivot`) show no systematic change.
   means in `summary.md` include the 32/64/96 sizes where adapter fixed costs
   dominate.
 
+## Small complex compact QR (`?geqrt`, `?gemqrt`)
+
+At `n=32/64/96` the ComplexF64 `qr`/`Matrix(qr(A).Q)` cells were 1.2-1.5x slower
+than OpenBLAS while Float64 was near parity. The gap was in the Householder
+path, not in the compact-WY blocking: `householder::apply` recomputed
+`tau * v(i) * conj(w(j))` for every element (two complex products per update),
+the BLAS-2 product went through faer's GEMM packing for a one-column right-hand
+side, and the T build formed a full `k x k` Gram matrix plus an allocation per
+column. Reflector generation also divided twice per element.
+
+Changes:
+
+- `kernels::axpy`, `gemv_conj_contiguous` and `gemv_n_contiguous`: contiguous
+  Householder kernels that hoist the conjugated coefficient out of the update
+  loop. On x86-64 they dispatch to AVX2/FMA implementations (`is_x86_feature_detected!`,
+  the same pattern faer uses for GEMM); other targets and CPUs keep the scalar
+  loop. `householder::apply` uses them when `INC=1` and the update is below the
+  existing 2^18-element threading threshold, so large updates keep the previous
+  threaded GEMV.
+- `householder::generate`: the tail norm uses the already-known maximum scale
+  instead of a dynamic `?lassq` update (two divisions per element), and the
+  final normalization uses reciprocals. Subnormal columns keep the division form
+  because their reciprocal overflows.
+- `householder::factor_with_basis`: for `DIRECT='F'` T is now built column by
+  column as in LARFT (`w = V[:, :j]^H v_j` through `gemv_conj_contiguous`, then
+  one contiguous axpy per previous column) instead of a `k x k` Gram GEMM plus a
+  branchy triple loop. `DIRECT='B'` keeps the Gram matrix.
+- `multiply_q` sizes the basis, dense `T`, and both block-update buffers once per
+  GEMQRT call and reuses them for every block.
+
+`benchmarks/backends` medians (25 samples, best of two alternating rounds,
+Colmat/OpenBLAS; the host was shared, so the least-disturbed round of each cell
+is used). Before the change the same cells measured 1.27-1.45x for the c64
+factor (matching the reported 1.33-1.48x) and 1.13-1.38x for explicit `Q`.
+
+| dtype | op | T | n=32 | n=64 | n=96 |
+|---|---|---:|---:|---:|---:|
+| c64 | `qr` (factor) | 1 | 0.60 | 0.70 | 0.78 |
+| c64 | `qr` (factor) | 4 | 0.59 | 0.73 | 0.78 |
+| c64 | `qr` (factor) | 8 | 0.63 | 0.66 | 0.76 |
+| c64 | `Matrix(qr(A).Q)` | 1 | 0.79 | 0.78 | 0.85 |
+| c64 | `Matrix(qr(A).Q)` | 4 | 0.83 | 0.92 | 0.94 |
+| c64 | `Matrix(qr(A).Q)` | 8 | 0.81 | 0.88 | 0.87 |
+| f64 | `qr` (factor) | 1 | 0.57 | 0.73 | 0.85 |
+| f64 | `Matrix(qr(A).Q)` | 1 | 0.68 | 0.86 | 0.98 |
+| f64 | `Matrix(qr(A).Q)` | 8 | 0.67 | 0.86 | 0.96 |
+
+At `n=256` the new tree is 0.62-0.68x (c64) and 0.77-0.80x (f64) for the factor.
+Guard at `n=512/1024`, 1T/8T: c64 improves 10-35%; f64 stays within +-4% of the
+baseline (median ms, n=1024, 1T: factor 26.1 vs 26.1, Q 65.2 vs 65.3; 8T:
+11.1 vs 10.9 and 19.7 vs 20.7). No threshold or semantics changed: compact `T`
+storage, TAU, row-major LAPACKE paths, and both integer ABIs are untouched.
+
+
+## Small general EVD (`?geevx`)
+
+Small `eigen(A)` calls entered the resident team even though the Hessenberg and
+Schur work was effectively sequential, and inverse balancing allocated a second
+vector matrix and renormalized every column with a componentwise `hypot` even
+when no scale changed. The adapter now:
+
+- transforms the owned vector matrix in place during inverse balancing and skips
+  renormalization when no row scale changed (the Schur eigenvector routine
+  already returns unit-norm columns);
+- gates the EVD with `with_par_if` and `GENERAL_EVD_WORK = 100_000_000`: n<=256
+  runs `Par::Seq`, n>=512 keeps the team.
+
+This removes a 2-4.4x small-n penalty at 4T/8T: n=32 0.63->0.21 ms, n=64
+2.7->1.1 ms, n=96 5.6->2.3 ms, n=128 8.3->4.3 ms, n=256 48->22.7 ms. n=96/128
+are now 0.81-0.95x OpenBLAS; n=32/64 remain ~1.4x because the pinned upstream
+Schur/Hessenberg kernels are slower (standalone `hessenberg_schur` 145-153 us at
+n=32 vs OpenBLAS `DHSEQR` 106 us). `SENSE=N` still takes the native path; expert
+modes keep the saved fallback.
+
+## Complex pivoted QR F-row (`?geqp3`)
+
+The `?laqps` F-row GEMV dominated ComplexF64 pivoted QR (97 of 158 ms at n=1024,
+1T). It is a transposed read of the trailing block, and the generic path walked
+one output column per pass, re-fetching the reflector and deinterleaving each
+complex operand separately (37-39 GB/s). `kernels::conj_gemv` keeps eight output
+columns in flight (four when the block fits L3), one `vpermt2pd` deinterleave per
+eight complex, with AVX-512 runtime dispatch and column-block threading;
+`col_axpy` covers the column update, F accumulation and row update. The kernel
+reaches 58 GB/s at 16 MB and 104 GB/s at 4 MB.
+
+Julia-API c64 `qr(A, ColumnNorm())`, n=1024, min/median ms: 1T 186/201 vs
+OpenBLAS 214/229, 4T 71/75 vs 75/76, 8T 49/53 vs 79/84. The isolated `?geqp3`
+ccall still trails OpenBLAS's tuned ccall at 1T, but the path Julia users call is
+at parity or ahead. f64 guard cells are unchanged within noise.
