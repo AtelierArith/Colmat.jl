@@ -79,15 +79,18 @@ only borrowed for one factorization.
 
 Changes:
 
-- factor in place. LAPACK owns only the selected triangle; the native LLT uses
-  the opposite triangle as scratch, so save that half (the diagonal belongs to
-  the factor), factor the caller's buffer, and restore it. The save buffer is
+- factor in place. LAPACK owns only the selected triangle; the native LLT writes
+  some of the opposite triangle as scratch, so that part is saved and restored.
+- for `UPLO='U'` there is **no save at all**. The lower triangle of the
+  transposed view is the caller's upper triangle, and the native leaf stages a
+  row-major view through a column-major copy of its *lower* triangle; it never
+  writes the caller's lower (unselected) triangle. This was verified bit for bit
+  at n=1..1024, widths 1/4/8, f64/c64. The factor is written where LAPACK
+  expects it and no transpose copy remains.
+- for `UPLO='L'` the strict upper triangle is still saved and restored: a
+  column-major leaf writes 7,680 of 523,776 strict-upper entries at n=1024 f64
+  (3,584 for c64), so that half cannot be left alone. The save buffer is
   `n * (n - 1) / 2` elements per calling thread and is reused.
-- for `UPLO='U'` the lower triangle of the transposed view is the caller's
-  upper triangle, so the factor is written where LAPACK expects it. No
-  transpose copy remains; the transposed view is only about 25-30% slower than
-  a column-major factor (1.5 vs 1.1 ms at n=1024, 8T), less than the copies it
-  replaces.
 - `threading::with_par` keeps one `threadteam::Team` resident per calling
   thread. Building a pool and reserving its members on every BLAS call cost
   about 3.8 ms at 8 threads (`into_team` makes every member acknowledge and be
@@ -97,8 +100,12 @@ Changes:
 
 The pinned `colmat-benchmark` harness measures the kernel itself, without this
 adapter: at `n=1024`, f64, 8T, column-major, its `cholesky` cell is 1.45 ms
-(best of five, `--prime-ms 250`, colmat-rs `b376b3ce`). The remaining adapter
-cost is the isolated temporary copy required by the LAPACK triangle contract.
+(best of five, `--prime-ms 250`, colmat-rs `b376b3ce`).
+
+Dropping the U save brings the Julia API to parity or ahead of OpenBLAS at
+`n=1024` (median ms, same-process alternating runs): f64 1T 9.9-10.3 vs
+10.2-10.3 (mins 7.84 vs 7.91), f64 8T 4.2-4.4 vs 5.1-5.2; c64 1T 23.3-23.5 vs
+25.9-28.5, c64 8T 5.1 vs 8.4-11.9. The `UPLO='L'` path is unchanged.
 
 ## Panel scratch and team acquisition
 
@@ -210,6 +217,14 @@ The pivot order is identical to the unblocked algorithm and to OpenBLAS on the
 and reconstruction in the regression tests, and the `?geqp3rk` RHS column equals
 `Q^H B`.
 
+ComplexF64 still spent 15.1 ms in the per-column norm downdate at n=1024: one
+`hypot`/`abs` and a branch per remaining column, reading the updated row through
+stride `lda`. The row is now staged contiguously (`rowfull`), the row-update GEMM
+writes contiguous memory, and the downdate is a branch-free `re^2 + im^2` pass
+that marks columns needing the same `?nrm2` recompute LAPACK uses. The pass is
+1.0 ms, and c64 `?geqp3` improves 0.79-0.94x at n=256/512/1024; the residual 1T
+gap is the DRAM-bound `F`-row GEMV (39 vs OpenBLAS's 57 GB/s).
+
 ## Small-shape team entry
 
 The resident team fixed the cost of *building* a pool, but entering it still
@@ -275,11 +290,11 @@ operations (`qr_pivot`) show no systematic change.
 
 ## What is left
 
-- **Cholesky** is at parity or faster than OpenBLAS at 4-8 threads on the Zen 4
-  host after the in-place change. At `n=1024` (`median ms`, f64/c64): 1T 10.3 /
-  24.1 vs 7.8 / 27.3; 4T 5.5 / 9.8 vs 4.5 / 10.7; 8T 3.0 / 6.4 vs 4.7 / 9.7.
-  The remaining 1T f64 gap is the native AVX-512 LLT kernel; colmat-rs #257
-  tracks the block-size follow-up.
+- **Cholesky** is at parity or faster than OpenBLAS at every thread count after
+  dropping the `UPLO='U'` save. At `n=1024` (`median ms`, f64/c64, alternating
+  runs): 1T 9.9-10.3 / 23.3-23.5 vs 10.2-10.3 / 25.9-28.5; 8T 4.2-4.4 / 5.1 vs
+  5.1-5.2 / 8.4-11.9. The native AVX-512 LLT kernel still has headroom;
+  colmat-rs #257 tracks the block-size follow-up.
 - **SVD** at 1 thread is about 1.14x slower for `svd` and 1.2-1.4x for
   `svdvals`. Profiling showed ~97% of the call inside
   `colmat::linalg::svd::svdd`; colmat-rs #259 tracks the values-only gap.

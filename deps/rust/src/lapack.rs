@@ -161,14 +161,36 @@ pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
     })
 }
 thread_local! {
-    /// `factor_cholesky` saves the `n * (n - 1) / 2` elements of the triangle
-    /// LAPACK does not own before factoring in place. The BLAS entry point is
+    /// `factor_cholesky` saves the elements of the triangle LAPACK does not own
+    /// that a column-major factorization overwrites. The BLAS entry point is
     /// called once per factorization and allocating a fresh buffer at n=1024
     /// dominated the call with page-fault jitter, so each calling thread keeps
     /// its buffer and grows it to the largest shape it has seen. `u64` gives
     /// the 8-byte alignment every `Scalar` needs.
     static CHOLESKY_SCRATCH: std::cell::RefCell<Vec<u64>> =
         const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Save or restore the `n * (n - 1) / 2` elements of the strict upper triangle.
+/// Both directions visit the entries in the same order, so `saved` can be a
+/// plain stack of column segments.
+unsafe fn copy_strict_upper<T: Scalar>(
+    n: usize,
+    a: *mut T,
+    ld: isize,
+    saved: *mut T,
+    into_saved: bool,
+) {
+    let mut len = 0;
+    for j in 1..n {
+        let opposite = a.offset(j as isize * ld);
+        if into_saved {
+            std::ptr::copy_nonoverlapping(opposite, saved.add(len), j);
+        } else {
+            std::ptr::copy_nonoverlapping(saved.add(len), opposite, j);
+        }
+        len += j;
+    }
 }
 
 unsafe fn factor_cholesky_in<T: Scalar>(
@@ -178,29 +200,18 @@ unsafe fn factor_cholesky_in<T: Scalar>(
     a: *mut T,
     ld: isize,
 ) -> usize {
-    // LAPACK owns only the selected triangle. The native right-looking LLT
-    // writes the opposite triangle as scratch, so save that half (the diagonal
-    // belongs to the factor) and put it back afterwards. This lets the factor
-    // run in place: for UPLO='U' the lower triangle of the transposed view is
-    // the caller's upper triangle.
-    let mut len = 0;
+    // LAPACK owns only the selected triangle. The native LLT writes some of the
+    // opposite triangle for a column-major (UPLO='L') input, so that part is
+    // saved and put back. For UPLO='U' the transposed view makes every leaf
+    // row-major, which the native leaf stages through a column-major copy of its
+    // lower triangle: it never touches the caller's lower triangle, so there is
+    // nothing to save.
     if u == b'L' {
-        for j in 0..n {
-            std::ptr::copy_nonoverlapping(a.offset(j as isize * ld), saved.add(len), j);
-            len += j;
-        }
-    } else {
-        for j in 0..n {
-            let count = n - j - 1;
-            std::ptr::copy_nonoverlapping(
-                a.offset((j + 1) as isize + j as isize * ld),
-                saved.add(len),
-                count,
-            );
-            len += count;
-        }
+        copy_strict_upper(n, a, ld, saved, true);
     }
-    // LAPACK ignores the imaginary part of a Hermitian diagonal.
+    // LAPACK ignores the imaginary part of a Hermitian diagonal. The native leaf
+    // divides the diagonal by its real square root, so a non-zero imaginary part
+    // would survive in the factor.
     for j in 0..n {
         let diag = a.offset(j as isize + j as isize * ld);
         *diag = T::real((*diag).re());
@@ -211,35 +222,27 @@ unsafe fn factor_cholesky_in<T: Scalar>(
     } else {
         cholesky(matrix.transpose_mut())
     };
-    let mut len = 0;
     if u == b'L' {
-        for j in 0..n {
-            std::ptr::copy_nonoverlapping(saved.add(len), a.offset(j as isize * ld), j);
-            len += j;
-        }
-    } else {
-        for j in 0..n {
-            let count = n - j - 1;
-            std::ptr::copy_nonoverlapping(
-                saved.add(len),
-                a.offset((j + 1) as isize + j as isize * ld),
-                count,
-            );
-            len += count;
-        }
+        copy_strict_upper(n, a, ld, saved, false);
     }
     info
 }
 /// Factor the caller's buffer in place while preserving the triangle LAPACK
-/// does not own. The saved half is reused per calling thread; the UPLO='U'
-/// path factors the lower triangle of the transposed view, which is the
-/// caller's upper triangle.
+/// does not own. The saved part is reused per calling thread; the UPLO='U' path
+/// factors the lower triangle of the transposed view, which is the caller's
+/// upper triangle and is left untouched.
 pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
     if n == 0 {
         return 0;
     }
-    let saved = n * (n - 1) / 2;
-    let words = (saved * core::mem::size_of::<T>()).div_ceil(8);
+    let words = if u == b'L' {
+        (n * (n - 1) / 2 * core::mem::size_of::<T>()).div_ceil(8)
+    } else {
+        0
+    };
+    if words == 0 {
+        return factor_cholesky_in(core::ptr::NonNull::<T>::dangling().as_ptr(), u, n, a, ld);
+    }
     CHOLESKY_SCRATCH.with(|scratch| match scratch.try_borrow_mut() {
         Ok(mut buffer) => {
             if buffer.len() < words {
@@ -1188,5 +1191,14 @@ mod cholesky_triangle_regression {
     fn both_triangles_match_the_factor_contract() {
         check(&spd_f64(37));
         check(&spd_c64(37));
+    }
+
+    /// The 37-square case stays inside one leaf of the blocked recursion; at
+    /// 257 the factorization splits into leaves and runs its trailing updates,
+    /// so the preserved-opposite-triangle contract has to hold there too.
+    #[test]
+    fn blocked_triangle_matches_the_factor_contract() {
+        check(&spd_f64(257));
+        check(&spd_c64(257));
     }
 }
