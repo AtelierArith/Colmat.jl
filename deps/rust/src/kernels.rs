@@ -36,6 +36,7 @@ pub trait Scalar:
     fn abs1(self) -> f64;
     fn magnitude(self) -> f64;
     fn re(self) -> f64;
+    fn reim(self) -> (f64, f64);
     fn real(x: f64) -> Self;
 }
 macro_rules! real_scalar {
@@ -59,6 +60,9 @@ macro_rules! real_scalar {
             }
             fn re(self) -> f64 {
                 self as f64
+            }
+            fn reim(self) -> (f64, f64) {
+                (self as f64, 0.0)
             }
             fn real(x: f64) -> Self {
                 x as Self
@@ -89,6 +93,9 @@ macro_rules! complex_scalar {
             }
             fn re(self) -> f64 {
                 self.re as f64
+            }
+            fn reim(self) -> (f64, f64) {
+                (self.re as f64, self.im as f64)
             }
             fn real(x: f64) -> Self {
                 Self::new(x as $r, 0.0)
@@ -257,7 +264,7 @@ pub unsafe fn gemv<T: Scalar>(
     y: *mut T,
     iy: isize,
 ) {
-    gemv_impl(t, m, n, alpha, a, lda, x, ix, beta, y, iy, true);
+    crate::threading::with_par(|par| gemv_impl(t, m, n, alpha, a, lda, x, ix, beta, y, iy, par));
 }
 
 /// Sequential GEMV for small updates such as one Householder reflector
@@ -275,9 +282,29 @@ pub(crate) unsafe fn gemv_seq<T: Scalar>(
     y: *mut T,
     iy: isize,
 ) {
-    gemv_impl(t, m, n, alpha, a, lda, x, ix, beta, y, iy, false);
+    gemv_impl(t, m, n, alpha, a, lda, x, ix, beta, y, iy, Par::Seq);
 }
 
+/// GEMV on an existing parallelism token, so a blocked routine can issue
+/// several GEMVs per team acquisition instead of one.
+pub(crate) unsafe fn gemv_with_par<T: Scalar>(
+    t: u8,
+    m: isize,
+    n: isize,
+    alpha: T,
+    a: *const T,
+    lda: isize,
+    x: *const T,
+    ix: isize,
+    beta: T,
+    y: *mut T,
+    iy: isize,
+    par: Par<'_>,
+) {
+    gemv_impl(t, m, n, alpha, a, lda, x, ix, beta, y, iy, par);
+}
+
+#[allow(clippy::too_many_arguments)]
 unsafe fn gemv_impl<T: Scalar>(
     t: u8,
     m: isize,
@@ -290,7 +317,7 @@ unsafe fn gemv_impl<T: Scalar>(
     beta: T,
     y: *mut T,
     iy: isize,
-    threaded: bool,
+    par: Par<'_>,
 ) {
     // Reference BLAS quick return also applies to a zero inner dimension.
     if m == 0 || n == 0 || (alpha == T::z() && beta == T::o()) {
@@ -345,11 +372,7 @@ unsafe fn gemv_impl<T: Scalar>(
                 par,
             )
         };
-        if threaded {
-            crate::threading::with_par(compute);
-        } else {
-            compute(Par::Seq);
-        }
+        compute(par);
         return;
     }
     // Strided output (including negative strides) is staged.
@@ -376,11 +399,7 @@ unsafe fn gemv_impl<T: Scalar>(
             par,
         )
     };
-    if threaded {
-        crate::threading::with_par(compute);
-    } else {
-        compute(Par::Seq);
-    }
+    compute(par);
     for i in 0..rows {
         *y.offset(i * iy) = result[i as usize];
     }
@@ -410,12 +429,15 @@ pub unsafe fn nrm2<T: Scalar>(n: isize, x: *const T, inc: isize) -> f64 {
     if n <= 0 || inc <= 0 {
         return 0.0;
     }
-    // Scaled sum of squares, as in LAPACK's ?nrm2. Per-element hypot is
-    // accurate but much too slow for the repeated column-norm passes of GEQP3.
+    // Scaled sum of squares, as in LAPACK's ?nrm2. Feeding `magnitude` would
+    // take one `hypot` per element, which dominated the initial norm pass of
+    // complex GEQP3; splitting the components is the same norm without it.
     let mut scale = 0.0f64;
     let mut ssq = 1.0f64;
     for i in 0..n {
-        add_sq(&mut scale, &mut ssq, (*x.offset(i * inc)).magnitude());
+        let (re, im) = (*x.offset(i * inc)).reim();
+        add_sq(&mut scale, &mut ssq, re);
+        add_sq(&mut scale, &mut ssq, im);
     }
     scale * ssq.sqrt()
 }
