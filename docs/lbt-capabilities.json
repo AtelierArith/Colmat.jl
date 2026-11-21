@@ -142,7 +142,7 @@
       "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
       "note": "Connects 20 Fortran symbols for real SY / complex HE to both ABIs. Uses public Rook pivoting and converts the two swap indices of each two-column block separately into ROOK IPIV. Verifies bidirectional solve/inverse with external LAPACK factors and reconstruction from element matrices. TRF/SV query and minimum caller work are 1, and internal scratch is natively owned. Symmetric congruence scaling for subnormal rows and common scaling for D/RHS blocks avoid native #212. LAPACKE waits for the shared conversion in #288. No claim of the same algorithm, pivot columns, or performance as the dedicated Fortran routines. Complex symmetric SY has a separate contract.",
       "evidence": {
-        "revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+        "revision": "e1c83482f5a61449d30e989808c3ba5f751ec391",
         "scalars": [
           "s",
           "d",
@@ -1233,7 +1233,7 @@
       "note": "Connects 28 Fortran symbols to both ABIs. Converts packed/RFP triangular storage into an owned O(n^2) work matrix and uses native LLT and Cholesky solves. The inverse is obtained by solving with an identity matrix natively and restoring the stored triangle. Handles UPLO, real N/T versus complex N/C, odd/even RFP, and folded-block conjugation, without reading the imaginary diagonal. Verifies solve/inverse interoperability with external factors, the non-positive-definite INFO, and empty/zero RHS. Caller storage is not shared with the opposite-triangle scratch of native LLT. C ABI is a separate task."
     }
   ],
-  "assessment_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+  "assessment_revision": "e1c83482f5a61449d30e989808c3ba5f751ec391",
   "scalar_overrides": [
     {
       "routines": [
@@ -1264,7 +1264,7 @@
       "source": "faer/src/linalg/cholesky/bunch_kaufman/mod.rs",
       "note": "Scope of review: the public Bunch-Kaufman factor/solve has a complex Hermitian LDL^H contract. It differs from the SY/SP family that passes complex symmetric LDL^T and its IPIV/factors. Does not conclude that the same compact factor contract can be obtained from a general LU.",
       "evidence": {
-        "revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+        "revision": "e1c83482f5a61449d30e989808c3ba5f751ec391",
         "scalars": [
           "c",
           "z"
