@@ -351,18 +351,15 @@ unsafe fn run_panel<T: ReflectorScalar>(
                 for col in 0..step {
                     row[col] = f[step + col * total].cj();
                 }
-                crate::kernels::gemv_seq(
-                    b'N',
-                    (m - j) as isize,
-                    step as isize,
-                    -T::o(),
+                crate::kernels::col_axpy::<T, false>(
+                    column,
                     a.offset(j as isize + start as isize * lda),
                     lda,
                     row.as_ptr(),
-                    1,
-                    T::o(),
-                    column,
-                    1,
+                    m - j,
+                    step,
+                    -T::o(),
+                    Par::Seq,
                 );
             }
             crate::householder::generate(
@@ -384,20 +381,18 @@ unsafe fn run_panel<T: ReflectorScalar>(
             *column = T::o();
             let trailing = total - j - 1;
             // F[step+1:, step] = tau * A[j:m, j+1:]^H * A[j:m, j]. This is the
-            // panel's dominant non-GEMM cost, so it uses the panel's team.
+            // panel's dominant non-GEMM cost: it reads the whole trailing matrix
+            // once per step, so it uses the panel's team and the specialized
+            // transposed GEMV.
             if trailing > 0 {
-                crate::kernels::gemv_with_par(
-                    adj,
-                    (m - j) as isize,
-                    trailing as isize,
-                    *tau.add(j),
+                crate::kernels::conj_gemv(
+                    f.as_mut_ptr().add(step + 1 + step * total),
                     a.offset(j as isize + (j + 1) as isize * lda),
                     lda,
                     column,
-                    1,
-                    T::z(),
-                    f.as_mut_ptr().add(step + 1 + step * total),
-                    1,
+                    m - j,
+                    trailing,
+                    *tau.add(j),
                     par.reborrow(),
                 );
             }
@@ -407,33 +402,24 @@ unsafe fn run_panel<T: ReflectorScalar>(
                 f[col + step * total] = T::z();
             }
             if step > 0 {
-                crate::kernels::gemv_seq(
-                    adj,
-                    (m - j) as isize,
-                    step as isize,
-                    -(*tau.add(j)),
+                crate::kernels::conj_gemv(
+                    auxv.as_mut_ptr(),
                     a.offset(j as isize + start as isize * lda),
                     lda,
                     column,
-                    1,
-                    T::z(),
-                    auxv.as_mut_ptr(),
-                    1,
+                    m - j,
+                    step,
+                    -(*tau.add(j)),
+                    Par::Seq,
                 );
-                crate::kernels::gemm_with_par(
-                    b'N',
-                    b'N',
-                    relall as isize,
-                    1,
-                    step as isize,
-                    T::o(),
+                crate::kernels::col_axpy::<T, false>(
+                    f.as_mut_ptr().add(step * total),
                     f.as_ptr(),
                     total as isize,
                     auxv.as_ptr(),
-                    step as isize,
+                    relall,
+                    step,
                     T::o(),
-                    f.as_mut_ptr().add(step * total),
-                    total as isize,
                     par.reborrow(),
                 );
             }
@@ -448,20 +434,14 @@ unsafe fn run_panel<T: ReflectorScalar>(
                 row[col] = rowfull[col];
             }
             if relall > len {
-                crate::kernels::gemm_with_par(
-                    b'N',
-                    adj,
-                    1,
-                    (relall - len) as isize,
-                    len as isize,
-                    -T::o(),
-                    row.as_ptr(),
-                    1,
+                crate::kernels::col_axpy::<T, true>(
+                    rowfull.as_mut_ptr().add(len),
                     f.as_ptr().add(len),
                     total as isize,
-                    T::o(),
-                    rowfull.as_mut_ptr().add(len),
-                    1,
+                    row.as_ptr(),
+                    relall - len,
+                    len,
+                    -T::o(),
                     par.reborrow(),
                 );
                 for col in len..relall {
@@ -933,3 +913,86 @@ rank_complex_exports!(c, c32, f32, i32, _);
 rank_complex_exports!(z, c64, f64, i32, _);
 rank_complex_exports!(c, c32, f32, i64, _64_);
 rank_complex_exports!(z, c64, f64, i64, _64_);
+
+#[cfg(test)]
+mod blocked_c64_tests {
+    use super::*;
+
+    fn next(state: &mut u64) -> f64 {
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((*state >> 11) as f64) / ((1u64 << 53) as f64) - 0.5
+    }
+
+    /// A blocked complex factorization must reconstruct its input: `Q R = A P`.
+    /// The SIMD panel kernels only take part for larger shapes, so this uses a
+    /// matrix wide enough to leave the small-block path.
+    #[test]
+    fn blocked_c64_reconstructs() {
+        unsafe {
+            for &(n, panel) in &[(97usize, 16usize), (128, 16), (200, 16)] {
+                let mut s = 11u64;
+                let mut a = vec![c64::new(0.0, 0.0); n * n];
+                for v in a.iter_mut() {
+                    *v = c64::new(next(&mut s), next(&mut s));
+                }
+                let orig = a.clone();
+                let mut tau = vec![c64::new(0.0, 0.0); n];
+                let r = pivoted_qr_panel(
+                    n,
+                    n,
+                    0,
+                    a.as_mut_ptr(),
+                    n as isize,
+                    tau.as_mut_ptr(),
+                    &vec![false; n],
+                    n,
+                    -1.0,
+                    -1.0,
+                    panel,
+                );
+                assert_eq!(r.rank, n, "n={n}: rank");
+                // Q = H0 H1 ... H_{k-1}, applied to the identity from the left in
+                // reverse order.
+                let mut q = vec![c64::new(0.0, 0.0); n * n];
+                for j in 0..n {
+                    q[j + j * n] = c64::new(1.0, 0.0);
+                }
+                let mut work = vec![c64::new(0.0, 0.0); n];
+                for j in (0..n).rev() {
+                    let beta = a[j + j * n];
+                    a[j + j * n] = c64::new(1.0, 0.0);
+                    crate::householder::apply(
+                        b'L',
+                        (n - j) as isize,
+                        n as isize,
+                        a.as_ptr().add(j + j * n),
+                        1,
+                        tau[j],
+                        q.as_mut_ptr().add(j),
+                        n as isize,
+                        work.as_mut_ptr(),
+                    );
+                    a[j + j * n] = beta;
+                }
+                // residual = A[:, p] - Q R, with R upper triangular.
+                let mut worst = 0.0f64;
+                let mut scale = 0.0f64;
+                for j in 0..n {
+                    let tgt = r.permutation[j];
+                    for i in 0..n {
+                        let mut acc = orig[i + tgt * n];
+                        for c in 0..=j {
+                            acc -= q[i + c * n] * a[c + j * n];
+                        }
+                        worst = worst.max(acc.norm());
+                        scale = scale.max(orig[i + tgt * n].norm());
+                    }
+                }
+                let err = worst / (scale * n as f64);
+                assert!(err < 1e-13, "n={n} panel={panel}: residual {err:e}");
+            }
+        }
+    }
+}

@@ -431,6 +431,466 @@ pub unsafe fn dot<T: Scalar>(
     }
     sum
 }
+/// `?laqps` F row: `y[c] = alpha * sum_i conj(A[i, c]) x[i]` for a column-major
+/// block of `rows` by `cols` elements with leading dimension `lda`.
+///
+/// LAPACK computes this with one transposed GEMV per reflector, and that GEMV
+/// reads the whole trailing matrix: it is the dominant cost of a complex
+/// column-pivoted QR. The generic path walks one output column at a time, so the
+/// reflector vector is re-fetched from cache for every column and the kernel
+/// reaches about two thirds of the streaming read bandwidth on a trailing block
+/// larger than the last-level cache. The specialized kernel keeps eight output
+/// columns in flight (one pass over the reflector feeds eight columns) and
+/// deinterleaves `(re, im)` with `vpermt2pd`, which matches the streaming read
+/// rate. Real scalars keep the generic path, where the same shape already runs
+/// at the read rate.
+#[allow(clippy::too_many_arguments)]
+pub(crate) unsafe fn conj_gemv<T: Scalar>(
+    y: *mut T,
+    a: *const T,
+    lda: isize,
+    x: *const T,
+    rows: usize,
+    cols: usize,
+    alpha: T,
+    par: Par<'_>,
+) {
+    #[cfg(target_arch = "x86_64")]
+    {
+        // The crate implements `Scalar` for f32, f64, c32 and c64, so a complex
+        // scalar of 16 bytes is `Complex<f64>`: the layout `frow::run` reads.
+        if T::COMPLEX
+            && core::mem::size_of::<T>() == 16
+            && rows >= 32
+            && cols >= 1
+            && std::is_x86_feature_detected!("avx512f")
+            && std::is_x86_feature_detected!("fma")
+        {
+            let (ar, ai) = alpha.reim();
+            frow::run(
+                y as *mut c64,
+                a as *const c64,
+                lda,
+                x as *const c64,
+                rows,
+                cols,
+                ar,
+                ai,
+                par,
+            );
+            return;
+        }
+    }
+    gemv_with_par(
+        if T::COMPLEX { b'C' } else { b'T' },
+        rows as isize,
+        cols as isize,
+        alpha,
+        a,
+        lda,
+        x,
+        1,
+        T::z(),
+        y,
+        1,
+        par,
+    );
+}
+
+/// `y[i] += alpha * sum_c op(A[i, c]) x[c]` for a column-major block of `rows`
+/// by `cols` elements with leading dimension `lda`, `op` conjugating when
+/// `CONJ`. The panel's column update, `F` accumulation and row update are all
+/// this shape, and it is a level-2 operation whose generic path leaves most of
+/// the load bandwidth unused. Real scalars keep the generic GEMV.
+#[allow(clippy::too_many_arguments)]
+pub(crate) unsafe fn col_axpy<T: Scalar, const CONJ: bool>(
+    y: *mut T,
+    a: *const T,
+    lda: isize,
+    x: *const T,
+    rows: usize,
+    cols: usize,
+    alpha: T,
+    par: Par<'_>,
+) {
+    #[cfg(target_arch = "x86_64")]
+    {
+        if T::COMPLEX
+            && core::mem::size_of::<T>() == 16
+            && rows >= 64
+            && std::is_x86_feature_detected!("avx512f")
+            && std::is_x86_feature_detected!("fma")
+        {
+            frow::run_axpy::<CONJ>(
+                y as *mut c64,
+                a as *const c64,
+                lda,
+                x as *const c64,
+                rows,
+                cols,
+                alpha.reim(),
+                par,
+            );
+            return;
+        }
+    }
+    if !T::COMPLEX || !CONJ {
+        gemv_with_par(
+            b'N',
+            rows as isize,
+            cols as isize,
+            alpha,
+            a,
+            lda,
+            x,
+            1,
+            T::o(),
+            y,
+            1,
+            par,
+        );
+        return;
+    }
+    // Conjugated columns on a machine without the SIMD path.
+    for c in 0..cols {
+        let t = alpha * *x.add(c);
+        for i in 0..rows {
+            *y.add(i) += t * (*a.add(i + c * lda as usize)).cj();
+        }
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+mod frow {
+    use super::*;
+    use std::arch::x86_64::*;
+
+    /// Deinterleave two 512-bit vectors of `(re, im)` pairs into their real and
+    /// imaginary parts: 8 complex in, 8 reals out each.
+    #[inline]
+    #[target_feature(enable = "avx512f,avx2,fma")]
+    unsafe fn split8(x: __m512d, y: __m512d) -> (__m512d, __m512d) {
+        let even = _mm512_setr_epi64(0, 2, 4, 6, 8, 10, 12, 14);
+        let odd = _mm512_setr_epi64(1, 3, 5, 7, 9, 11, 13, 15);
+        (
+            _mm512_permutex2var_pd(x, even, y),
+            _mm512_permutex2var_pd(x, odd, y),
+        )
+    }
+
+    #[inline]
+    #[target_feature(enable = "avx512f,avx2,fma")]
+    unsafe fn hsum(v: __m512d) -> f64 {
+        let lo = _mm512_castpd512_pd256(v);
+        let hi = _mm512_extractf64x4_pd(v, 1);
+        let s = _mm256_add_pd(lo, hi);
+        let s = _mm_add_pd(_mm256_castpd256_pd128(s), _mm256_extractf128_pd(s, 1));
+        _mm_cvtsd_f64(_mm_add_sd(s, _mm_unpackhi_pd(s, s)))
+    }
+
+    /// Columns `[c0, c0 + n * CN)` of the F row, `CN` columns in flight.
+    #[target_feature(enable = "avx512f,avx2,fma")]
+    unsafe fn dot_cols<const CN: usize>(
+        y: *mut c64,
+        a: *const f64,
+        lda2: usize,
+        x: *const f64,
+        rows: usize,
+        c0: usize,
+        nblocks: usize,
+    ) {
+        for b in 0..nblocks {
+            let c = c0 + b * CN;
+            let mut accre = [_mm512_setzero_pd(); CN];
+            let mut accim = [_mm512_setzero_pd(); CN];
+            let mut i = 0usize;
+            while i + 8 <= rows {
+                let (xrv, xiv) = split8(
+                    _mm512_loadu_pd(x.add(2 * i)),
+                    _mm512_loadu_pd(x.add(2 * i + 8)),
+                );
+                for k in 0..CN {
+                    let p = a.add((c + k) * lda2 + 2 * i);
+                    let (arv, aiv) = split8(_mm512_loadu_pd(p), _mm512_loadu_pd(p.add(8)));
+                    accre[k] = _mm512_fmadd_pd(arv, xrv, accre[k]);
+                    accre[k] = _mm512_fmadd_pd(aiv, xiv, accre[k]);
+                    accim[k] = _mm512_fmadd_pd(arv, xiv, accim[k]);
+                    accim[k] = _mm512_fnmadd_pd(aiv, xrv, accim[k]);
+                }
+                i += 8;
+            }
+            for k in 0..CN {
+                let mut re = hsum(accre[k]);
+                let mut im = hsum(accim[k]);
+                let p = a.add((c + k) * lda2);
+                let mut t = i;
+                while t < rows {
+                    let ar = *p.add(2 * t);
+                    let ai = *p.add(2 * t + 1);
+                    re += ar * *x.add(2 * t) + ai * *x.add(2 * t + 1);
+                    im += ar * *x.add(2 * t + 1) - ai * *x.add(2 * t);
+                    t += 1;
+                }
+                *y.add(c + k) = c64::new(re, im);
+            }
+        }
+    }
+
+    /// One column at a time for the leftover columns (at most seven).
+    #[target_feature(enable = "avx512f,avx2,fma")]
+    unsafe fn col1(y: *mut f64, a: *const f64, lda2: usize, x: *const f64, rows: usize, c: usize) {
+        let mut accre = _mm512_setzero_pd();
+        let mut accim = _mm512_setzero_pd();
+        let p = a.add(c * lda2);
+        let mut i = 0usize;
+        while i + 8 <= rows {
+            let (xrv, xiv) = split8(
+                _mm512_loadu_pd(x.add(2 * i)),
+                _mm512_loadu_pd(x.add(2 * i + 8)),
+            );
+            let (arv, aiv) = split8(
+                _mm512_loadu_pd(p.add(2 * i)),
+                _mm512_loadu_pd(p.add(2 * i + 8)),
+            );
+            accre = _mm512_fmadd_pd(arv, xrv, accre);
+            accre = _mm512_fmadd_pd(aiv, xiv, accre);
+            accim = _mm512_fmadd_pd(arv, xiv, accim);
+            accim = _mm512_fnmadd_pd(aiv, xrv, accim);
+            i += 8;
+        }
+        let mut re = hsum(accre);
+        let mut im = hsum(accim);
+        while i < rows {
+            let ar = *p.add(2 * i);
+            let ai = *p.add(2 * i + 1);
+            re += ar * *x.add(2 * i) + ai * *x.add(2 * i + 1);
+            im += ar * *x.add(2 * i + 1) - ai * *x.add(2 * i);
+            i += 1;
+        }
+        *y.add(2 * c) = re;
+        *y.add(2 * c + 1) = im;
+    }
+
+    type Ptr3 = (
+        colmat::utils::thread::Ptr<c64>,
+        colmat::utils::thread::Ptr<f64>,
+        colmat::utils::thread::Ptr<f64>,
+    );
+
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn run_range(
+        ptrs: &Ptr3,
+        eight: bool,
+        lda2: usize,
+        rows: usize,
+        c0: usize,
+        nblocks: usize,
+    ) {
+        if eight {
+            dot_cols::<8>(ptrs.0 .0, ptrs.1 .0, lda2, ptrs.2 .0, rows, c0, nblocks)
+        } else {
+            dot_cols::<4>(ptrs.0 .0, ptrs.1 .0, lda2, ptrs.2 .0, rows, c0, nblocks)
+        }
+    }
+
+    /// Interleave `(re, im)` halves back into `(re, im)` pairs.
+    #[inline]
+    #[target_feature(enable = "avx512f,avx2,fma")]
+    unsafe fn join8(yr: __m512d, yi: __m512d) -> (__m512d, __m512d) {
+        let lo = _mm512_setr_epi64(0, 8, 1, 9, 2, 10, 3, 11);
+        let hi = _mm512_setr_epi64(4, 12, 5, 13, 6, 14, 7, 15);
+        (
+            _mm512_permutex2var_pd(yr, lo, yi),
+            _mm512_permutex2var_pd(yr, hi, yi),
+        )
+    }
+
+    /// `y[r] += alpha * sum_c op(A[r, c]) x[c]` over rows `[r0, r1)` of a
+    /// column-major block; `op` conjugates when `CONJ`.
+    #[target_feature(enable = "avx512f,avx2,fma")]
+    unsafe fn axpy_rows<const CONJ: bool>(
+        y: *mut f64,
+        a: *const f64,
+        lda2: usize,
+        x: *const f64,
+        r0: usize,
+        r1: usize,
+        cols: usize,
+        alpha: (f64, f64),
+    ) {
+        let (alr, ali) = alpha;
+        for c in 0..cols {
+            let (xr, xi) = (*x.add(2 * c), *x.add(2 * c + 1));
+            let tr = alr * xr - ali * xi;
+            let ti = alr * xi + ali * xr;
+            let trv = _mm512_set1_pd(tr);
+            let tiv = _mm512_set1_pd(ti);
+            let src = a.add(c * lda2);
+            let mut i = r0;
+            while i + 8 <= r1 {
+                let (ar, ai) = split8(
+                    _mm512_loadu_pd(src.add(2 * i)),
+                    _mm512_loadu_pd(src.add(2 * i + 8)),
+                );
+                let (yr, yi) = split8(
+                    _mm512_loadu_pd(y.add(2 * i)),
+                    _mm512_loadu_pd(y.add(2 * i + 8)),
+                );
+                let (yr, yi) = if CONJ {
+                    (
+                        _mm512_fmadd_pd(trv, ar, _mm512_fmadd_pd(tiv, ai, yr)),
+                        _mm512_fmadd_pd(tiv, ar, _mm512_fnmadd_pd(trv, ai, yi)),
+                    )
+                } else {
+                    (
+                        _mm512_fmadd_pd(trv, ar, _mm512_fnmadd_pd(tiv, ai, yr)),
+                        _mm512_fmadd_pd(tiv, ar, _mm512_fmadd_pd(trv, ai, yi)),
+                    )
+                };
+                let (lo, hi) = join8(yr, yi);
+                _mm512_storeu_pd(y.add(2 * i), lo);
+                _mm512_storeu_pd(y.add(2 * i + 8), hi);
+                i += 8;
+            }
+            while i < r1 {
+                let ar = *src.add(2 * i);
+                let ai = *src.add(2 * i + 1);
+                let yr = *y.add(2 * i);
+                let yi = *y.add(2 * i + 1);
+                if CONJ {
+                    *y.add(2 * i) = yr + tr * ar + ti * ai;
+                    *y.add(2 * i + 1) = yi + ti * ar - tr * ai;
+                } else {
+                    *y.add(2 * i) = yr + tr * ar - ti * ai;
+                    *y.add(2 * i + 1) = yi + ti * ar + tr * ai;
+                }
+                i += 1;
+            }
+        }
+    }
+
+    type AxpyPtrs = (
+        colmat::utils::thread::Ptr<c64>,
+        colmat::utils::thread::Ptr<c64>,
+        colmat::utils::thread::Ptr<c64>,
+    );
+
+    #[allow(clippy::too_many_arguments)]
+    unsafe fn axpy_range<const CONJ: bool>(
+        ptrs: &AxpyPtrs,
+        lda2: usize,
+        r0: usize,
+        r1: usize,
+        cols: usize,
+        alpha: (f64, f64),
+    ) {
+        axpy_rows::<CONJ>(
+            ptrs.0 .0 as *mut f64,
+            ptrs.1 .0 as *const f64,
+            lda2,
+            ptrs.2 .0 as *const f64,
+            r0,
+            r1,
+            cols,
+            alpha,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) unsafe fn run_axpy<const CONJ: bool>(
+        y: *mut c64,
+        a: *const c64,
+        lda: isize,
+        x: *const c64,
+        rows: usize,
+        cols: usize,
+        alpha: (f64, f64),
+        par: Par<'_>,
+    ) {
+        let lda2 = 2 * lda as usize;
+        let degree = par.degree().max(1);
+        let workers = degree.min(rows / 256).max(1);
+        let per = rows.div_ceil(workers);
+        let ptrs = (
+            colmat::utils::thread::Ptr(y),
+            colmat::utils::thread::Ptr(a as *mut c64),
+            colmat::utils::thread::Ptr(x as *mut c64),
+        );
+        if workers > 1 {
+            colmat::utils::thread::for_each(par, workers, 0..workers, |t| {
+                let r0 = t * per;
+                let r1 = (r0 + per).min(rows);
+                if r0 < r1 {
+                    unsafe { axpy_range::<CONJ>(&ptrs, lda2, r0, r1, cols, alpha) }
+                }
+            });
+        } else {
+            unsafe { axpy_range::<CONJ>(&ptrs, lda2, 0, rows, cols, alpha) }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) unsafe fn run(
+        y: *mut c64,
+        a: *const c64,
+        lda: isize,
+        x: *const c64,
+        rows: usize,
+        cols: usize,
+        alpha_re: f64,
+        alpha_im: f64,
+        par: Par<'_>,
+    ) {
+        let a = a as *const f64;
+        let x = x as *const f64;
+        let lda2 = 2 * lda as usize;
+        // Eight columns in flight measure best once the block leaves the
+        // last-level cache; inside it, four columns leave more registers for the
+        // load stream.
+        let eight = rows.saturating_mul(cols) * 16 > 6_000_000;
+        let cn = if eight { 8 } else { 4 };
+        let nblocks = cols / cn;
+        let degree = par.degree().max(1);
+        let workers = degree.min(nblocks).max(1);
+        let per = nblocks.div_ceil(workers);
+        let block = if eight { 8 } else { 4 };
+        if workers > 1 {
+            let ptrs = (
+                colmat::utils::thread::Ptr(y),
+                colmat::utils::thread::Ptr(a as *mut f64),
+                colmat::utils::thread::Ptr(x as *mut f64),
+            );
+            colmat::utils::thread::for_each(par, workers, 0..workers, |t| {
+                let b0 = t * per;
+                let n = nblocks.saturating_sub(b0).min(per);
+                if n > 0 {
+                    unsafe { run_range(&ptrs, eight, lda2, rows, b0 * block, n) }
+                }
+            });
+        } else {
+            let ptrs = (
+                colmat::utils::thread::Ptr(y),
+                colmat::utils::thread::Ptr(a as *mut f64),
+                colmat::utils::thread::Ptr(x as *mut f64),
+            );
+            unsafe { run_range(&ptrs, eight, lda2, rows, 0, nblocks) }
+        }
+        // Leftover columns, and the alpha scaling of everything computed above.
+        let yf = y as *mut f64;
+        for c in (nblocks * cn)..cols {
+            col1(yf, a, lda2, x, rows, c);
+        }
+        if alpha_re != 1.0 || alpha_im != 0.0 {
+            for c in 0..cols {
+                let re = *yf.add(2 * c);
+                let im = *yf.add(2 * c + 1);
+                *yf.add(2 * c) = alpha_re * re - alpha_im * im;
+                *yf.add(2 * c + 1) = alpha_re * im + alpha_im * re;
+            }
+        }
+    }
+}
+
 pub unsafe fn nrm2<T: Scalar>(n: isize, x: *const T, inc: isize) -> f64 {
     if n <= 0 || inc <= 0 {
         return 0.0;
@@ -931,6 +1391,208 @@ pub unsafe fn trmatrix<T: Scalar>(
             for i in 0..m {
                 trmv(ut, b'N', d, n, full.as_ptr(), dim, b.offset(i), ldb, true);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod conj_gemv_tests {
+    use super::*;
+
+    fn state() -> u64 {
+        0x9e37_79b9_7f4a_7c15
+    }
+    fn next(s: &mut u64) -> f64 {
+        *s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((*s >> 11) as f64) / ((1u64 << 53) as f64) - 0.5
+    }
+
+    /// The `?laqps` F row against the textbook dot product, for every path the
+    /// kernel picks: the generic GEMV (small blocks and real scalars) and the
+    /// specialized complex kernels (4 columns, 8 columns, and the leftovers).
+    #[test]
+    fn conj_gemv_matches_dot() {
+        for &(rows, cols) in &[
+            (1usize, 1usize),
+            (7, 3),
+            (33, 17),
+            (64, 40),
+            (100, 70),
+            // the panel's F column shapes: many rows, few columns
+            (500, 1),
+            (500, 2),
+            (500, 3),
+            (500, 5),
+            (500, 7),
+            (500, 15),
+            (977, 13),
+            (97, 7),
+            // rows*cols*16 > 6e6: the eight-column kernel
+            (1024, 401),
+        ] {
+            let mut s = state();
+            let mut a = vec![c64::new(0.0, 0.0); rows * cols];
+            for v in a.iter_mut() {
+                *v = c64::new(next(&mut s), next(&mut s));
+            }
+            let mut x = vec![c64::new(0.0, 0.0); rows];
+            for v in x.iter_mut() {
+                *v = c64::new(next(&mut s), next(&mut s));
+            }
+            let alpha = c64::new(0.75, -1.25);
+            let mut y = vec![c64::new(9.0, 9.0); cols];
+            unsafe {
+                conj_gemv(
+                    y.as_mut_ptr(),
+                    a.as_ptr(),
+                    rows as isize,
+                    x.as_ptr(),
+                    rows,
+                    cols,
+                    alpha,
+                    colmat::Par::Seq,
+                );
+            }
+            let mut worst = 0.0f64;
+            for c in 0..cols {
+                let mut acc = c64::new(0.0, 0.0);
+                for i in 0..rows {
+                    acc += a[i + c * rows].conj() * x[i];
+                }
+                acc = alpha * acc;
+                worst = worst.max((y[c] - acc).norm());
+            }
+            let scale = rows as f64;
+            assert!(
+                worst <= 1e-12 * scale,
+                "({rows}, {cols}): max |y - dot| = {worst:e}"
+            );
+        }
+    }
+
+    /// The threaded split must produce the same F row as the sequential run.
+    #[test]
+    fn conj_gemv_threaded_matches_sequential() {
+        let (rows, cols) = (256usize, 203usize);
+        let mut s = state();
+        let mut a = vec![c64::new(0.0, 0.0); rows * cols];
+        for v in a.iter_mut() {
+            *v = c64::new(next(&mut s), next(&mut s));
+        }
+        let mut x = vec![c64::new(0.0, 0.0); rows];
+        for v in x.iter_mut() {
+            *v = c64::new(next(&mut s), next(&mut s));
+        }
+        let mut seq = vec![c64::new(0.0, 0.0); cols];
+        let mut par = vec![c64::new(0.0, 0.0); cols];
+        colmat::team::with_team(4, |token| unsafe {
+            conj_gemv(
+                seq.as_mut_ptr(),
+                a.as_ptr(),
+                rows as isize,
+                x.as_ptr(),
+                rows,
+                cols,
+                c64::new(1.0, 0.0),
+                colmat::Par::Seq,
+            );
+            conj_gemv(
+                par.as_mut_ptr(),
+                a.as_ptr(),
+                rows as isize,
+                x.as_ptr(),
+                rows,
+                cols,
+                c64::new(1.0, 0.0),
+                token,
+            );
+        });
+        for c in 0..cols {
+            assert!(
+                (seq[c] - par[c]).norm() <= 1e-12 * rows as f64,
+                "column {c}: {} vs {}",
+                seq[c],
+                par[c]
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod col_axpy_tests {
+    use super::*;
+
+    fn next(s: &mut u64) -> f64 {
+        *s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((*s >> 11) as f64) / ((1u64 << 53) as f64) - 0.5
+    }
+
+    fn check<const CONJ: bool>(rows: usize, cols: usize, lda: usize) {
+        let mut s = 0x1234_5678_9abc_def0u64;
+        let mut a = vec![c64::new(0.0, 0.0); lda * cols];
+        for v in a.iter_mut() {
+            *v = c64::new(next(&mut s), next(&mut s));
+        }
+        let mut x = vec![c64::new(0.0, 0.0); cols];
+        for v in x.iter_mut() {
+            *v = c64::new(next(&mut s), next(&mut s));
+        }
+        let alpha = c64::new(0.5, 1.5);
+        let mut y = vec![c64::new(0.25, -0.75); rows];
+        let want: Vec<c64> = (0..rows)
+            .map(|i| {
+                let mut acc = c64::new(0.0, 0.0);
+                for c in 0..cols {
+                    let v = a[i + c * lda];
+                    acc += alpha * if CONJ { v.conj() } else { v } * x[c];
+                }
+                y[i] + acc
+            })
+            .collect();
+        unsafe {
+            col_axpy::<c64, CONJ>(
+                y.as_mut_ptr(),
+                a.as_ptr(),
+                lda as isize,
+                x.as_ptr(),
+                rows,
+                cols,
+                alpha,
+                colmat::Par::Seq,
+            );
+        }
+        let mut worst = 0.0f64;
+        for i in 0..rows {
+            worst = worst.max((y[i] - want[i]).norm());
+        }
+        assert!(
+            worst <= 1e-12 * cols as f64,
+            "CONJ={CONJ} rows={rows} cols={cols} lda={lda}: {worst:e}"
+        );
+    }
+
+    #[test]
+    fn col_axpy_matches_manual() {
+        for &(rows, cols, lda) in &[
+            // below the SIMD threshold: the scalar conjugated fallback
+            (7usize, 3usize, 7usize),
+            (33, 16, 33),
+            (63, 5, 63),
+            (64usize, 1usize, 64usize),
+            (64, 3, 64),
+            (65, 7, 70),
+            (100, 16, 100),
+            (127, 17, 130),
+            (300, 5, 300),
+            (1000, 16, 1000),
+            (511, 33, 511),
+        ] {
+            check::<false>(rows, cols, lda);
+            check::<true>(rows, cols, lda);
         }
     }
 }
