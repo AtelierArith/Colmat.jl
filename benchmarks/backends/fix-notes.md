@@ -171,12 +171,26 @@ Microbenchmark (minimum of five calls, milliseconds; colmat-rs `b376b3ce`):
 | `cholesky`, f64, n=1024, 1T | 18.7 | 14.4 |
 | `cholesky`, c64, n=1024, 1T | 53.2 | 42.7 |
 
+Full backend suite for `cholesky` on the Zen 4 host, `n=1024`, median of five
+(`benchmarks/backends/results/linux-amd-2026-11-21-final2`; the mask has
+`threads + 1` CPUs):
+
+| dtype | T | OpenBLAS | MKL | Colmat | Colmat/OpenBLAS |
+|---|---:|---:|---:|---:|---:|
+| f64 | 1 | 7.84 | 8.96 | 10.26 | 1.31 |
+| f64 | 4 | 4.52 | 2.31 | 5.50 | 1.22 |
+| f64 | 8 | 4.73 | 1.94 | 2.98 | 0.63 |
+| c64 | 1 | 27.26 | 27.45 | 24.12 | 0.88 |
+| c64 | 4 | 10.65 | 5.77 | 9.84 | 0.92 |
+| c64 | 8 | 9.67 | 4.82 | 6.41 | 0.66 |
+
 ## What is left
 
-- **Cholesky** is still about 1.5-1.7x slower than OpenBLAS at 1 thread
-  (`n=1024`: 14.4 vs 8.6 ms f64, 42.7 vs 28.0 ms c64). The adapter's copy is
-  ~2 ms at n=1024; the rest is the native LLT kernel. colmat-rs #257 tracks the
-  Skylake block-size follow-up; the adapter forces 32 on AVX2-only parts.
+- **Cholesky** is at parity or faster than OpenBLAS at 4-8 threads on the Zen 4
+  host after the in-place change. At `n=1024` (`median ms`, f64/c64): 1T 10.3 /
+  24.1 vs 7.8 / 27.3; 4T 5.5 / 9.8 vs 4.5 / 10.7; 8T 3.0 / 6.4 vs 4.7 / 9.7.
+  The remaining 1T f64 gap is the native AVX-512 LLT kernel; colmat-rs #257
+  tracks the block-size follow-up.
 - **SVD** at 1 thread is about 1.14x slower for `svd` and 1.2-1.4x for
   `svdvals`. Profiling showed ~97% of the call inside
   `colmat::linalg::svd::svdd`; colmat-rs #259 tracks the values-only gap.
