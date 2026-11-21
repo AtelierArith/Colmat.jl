@@ -210,6 +210,69 @@ The pivot order is identical to the unblocked algorithm and to OpenBLAS on the
 and reconstruction in the regression tests, and the `?geqp3rk` RHS column equals
 `Q^H B`.
 
+## Small-shape team entry
+
+The resident team fixed the cost of *building* a pool, but entering it still
+opens a root threadteam scope on every call: the leader reads and changes its
+affinity, members acknowledge and place themselves, and the leader restores its
+mask on exit. An empty `with_par` measures 7.9 us at 4 threads and 8.9 us at 8
+threads on the Zen 4 host, independent of the operation. At n=32/64/96 that is
+larger than the work itself, and it was the reason the 4T/8T geometric mean
+looked far worse than the n>=256 throughput.
+
+Changes in `threading.rs`, `kernels.rs`, `lapack.rs`,
+`triangular_lapack.rs` and `householder.rs`:
+
+- `threading::with_par_if(work, limit, f)` takes the resident team only when
+  `work` exceeds `limit`; below it the call runs on `Par::Seq`. A thread-local
+  depth counter keeps every nested `with_par` in that call sequential (and is
+  released on unwind), so an outer sequential decision also covers panel
+  helpers and GEMMs instead of re-acquiring a token per helper.
+- the thresholds are expressed in real element updates, with four per update
+  for a complex scalar (`threading::real_work`):
+
+  | operation | work | limit |
+  |---|---|---:|---:|
+  | `gemm` | `m*n*k` | 700 000 |
+  | `lu` (`?getrf`) | `m*n*min(m,n)` | 8 000 000 |
+  | `cholesky` (`?potrf`) | `n^3` | 9 000 000 |
+  | triangular solve (`?trtrs`) | `n^2*k` | 2 000 000 |
+  | one QR panel (LARFT/LARFB) | `rows*cols*block` | 1 500 000 |
+
+  The limits are the measured 4T/8T crossovers rounded to the sequential side,
+  so n=32/64 in the benchmark use `Par::Seq` while n=96 and above stay threaded
+  wherever the team is already faster.
+- `householder::apply_block` now issues its three GEMMs under one team
+  acquisition instead of three, matching the existing
+  `apply_forward_column_block_adjoint_with_basis`. This also removes two team
+  entries per block from the explicit-Q (`?gemqrt`) path at every size.
+
+No factorization algorithm, pivot scheme or pinning setting changed. A call
+above its limit still uses the same pinned resident team, so the `threads + 1`
+CPU-mask requirement and the large-shape throughput are untouched.
+
+Median microseconds (my harness, 15 samples, `taskset` mask `threads + 1`),
+Float64, 4 threads:
+
+| operation | n=32 before -> after | n=64 before -> after | n=96 before -> after |
+|---|---:|---:|---:|
+| `gemm` | 9.28 -> 0.98 | 15.02 -> 6.87 | 23.01 -> 22.85 |
+| `lu` | 12.06 -> 3.33 | 22.15 -> 12.23 | 38.11 -> 29.24 |
+| `cholesky` | 10.66 -> 2.06 | 16.22 -> 7.56 | 26.18 -> 17.10 |
+| `qr` factor | 24.14 -> 14.97 | 73.15 -> 44.03 | 139.19 -> 88.82 |
+| `Matrix(qr(A).Q)` | 54.29 -> 19.49 | 151.28 -> 67.00 | 262.88 -> 144.00 |
+| triangular solve | 10.43 -> 1.76 | 17.61 -> 7.68 | 24.80 -> 23.60 |
+
+The geometric mean over these six operations and n=32/64/96 is 2.24x at 4T and
+2.32x at 8T for Float64, and 1.45x / 1.52x for ComplexF64. At n=256/512/1024
+the same comparison is 1.01x (4T) and 1.02x (8T), within run-to-run noise.
+
+Guard at n=1024, four alternating baseline/new processes per cell: minimum and
+median of every touched operation (gemm, lu, cholesky, qr factor, explicit Q,
+triangular solve, both dtypes, 4T/8T) stay within +-3%, except `Matrix(qr(A).Q)`
+which is 3-4% faster from the consolidated block application. Untouched
+operations (`qr_pivot`) show no systematic change.
+
 ## What is left
 
 - **Cholesky** is at parity or faster than OpenBLAS at 4-8 threads on the Zen 4

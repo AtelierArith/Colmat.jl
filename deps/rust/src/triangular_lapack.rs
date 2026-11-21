@@ -33,11 +33,14 @@ unsafe fn solve<T: Scalar>(
     let upper = (u == b'U') == (t == b'N');
     let conj = if t == b'C' { Conj::Yes } else { Conj::No };
     let rhs = MatMut::from_raw_parts_mut(b, n, k, 1, lb);
-    crate::threading::with_par(|par| match (upper, unit) {
-        (false, false) => solve_lower_triangular_in_place_with_conj(matrix, conj, rhs, par),
-        (false, true) => solve_unit_lower_triangular_in_place_with_conj(matrix, conj, rhs, par),
-        (true, false) => solve_upper_triangular_in_place_with_conj(matrix, conj, rhs, par),
-        (true, true) => solve_unit_upper_triangular_in_place_with_conj(matrix, conj, rhs, par),
+    let work = crate::threading::real_work(n, n, k, T::COMPLEX);
+    crate::threading::with_par_if(work, crate::threading::TRSM_WORK, |par| {
+        match (upper, unit) {
+            (false, false) => solve_lower_triangular_in_place_with_conj(matrix, conj, rhs, par),
+            (false, true) => solve_unit_lower_triangular_in_place_with_conj(matrix, conj, rhs, par),
+            (true, false) => solve_upper_triangular_in_place_with_conj(matrix, conj, rhs, par),
+            (true, true) => solve_unit_upper_triangular_in_place_with_conj(matrix, conj, rhs, par),
+        }
     });
 }
 pub(crate) unsafe fn inverse<T: Scalar>(u: u8, unit: bool, n: usize, a: *mut T, ld: isize) {
