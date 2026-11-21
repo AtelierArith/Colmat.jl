@@ -89,6 +89,28 @@ Changes:
 - Cholesky only overrides the pinned adapter's untuned `128/64` LLT defaults; a
   newer colmat-rs that already picks `64/32` keeps its choice.
 
+## LLT block-size validation (Skylake)
+
+The adapter picks the 32-wide LLT block on AVX2-only x86-64 and otherwise keeps
+colmat-rs's native choice (64 on current main). Re-verified on the benchmark
+host (Intel iMac 2019, Core i9-9900K, `b376b3ce`, `Par::Seq`, min of 5-10):
+
+| dtype | n | bs=32 | bs=64 | auto |
+|---|---:|---:|---:|---:|
+| f64 | 512 | **1.335** | 1.393 | 1.392 (64) |
+| f64 | 1024 | **11.234** | 14.567 | 13.571 (64) |
+| c64 | 512 | **4.564** | 5.878 | 5.963 (64) |
+| c64 | 1024 | 51.427 | 50.342 | 51.499 (64) |
+| f32 | 512 | 0.702 | **0.652** | 0.692 (128) |
+| f32 | 1024 | **5.256** | 5.504 | 6.887 (128) |
+| c32 | 512 | **2.323** | 2.482 | 3.127 (128) |
+| c32 | 1024 | **18.453** | 24.390 | 23.513 (128) |
+
+32 is the best single choice on this AVX2 part. Only c64 n=1024 (~2%) and f32
+n=512 (~7%) prefer 64; f32 n=512 with 32 is still within 1.4% of auto. The
+adapter therefore keeps the uniform 32 override rather than adding type/size
+special cases. colmat-rs issue #257 tracks an ISA-aware default upstream.
+
 ## Verification
 
 `test/qr_pivoted.jl`, `test/qr_standard.jl`, `test/qr_compact.jl`,
