@@ -88,6 +88,13 @@ wrapper are included:
 Sizes: 32/64/96 and 128/256/512, plus 768/1024 for GEMM and 1024 for the
 factorizations and decompositions. General `eig` stops at 512.
 
+`summary.md` computes geometric means over every size. At 4T/8T the 32/64/96
+cells are dominated by a fixed thread-team entry cost (about 10 us on the Zen 4
+host), and OpenBLAS stops scaling past four threads there; the aggregate can
+therefore look worse than the throughput a large matrix gets. Read the size
+tables or the `n >= 128` rows for throughput, and keep the small sizes as a
+guard on per-call overhead.
+
 Each case runs BenchmarkTools with five samples. One sample bundles enough calls
 to last roughly 20 ms for fast operations; slow operations use one call per
 sample. Inputs come from fixed seeds, so every backend sees identical matrices.
