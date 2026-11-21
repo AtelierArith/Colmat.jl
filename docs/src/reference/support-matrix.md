@@ -6,7 +6,7 @@ Entry points are selected from the Julia 1.13 wrapper implementation, and the LB
 ## Verification conditions
 
 - Julia: `1.13.4` / `x86_64-linux-gnu`.
-- Colmat source: `658cf1c0679662eeae3a739bd75da58828430410`.
+- Colmat source: `08581c59f5d3f0b92faf6dcb1d87c6341efeeba8`.
 - Rust colmat source: `e1c83482f5a61449d30e989808c3ba5f751ec391`.
 - Julia BLAS integer ABI: `ilp64`.
 - Colmat execution width: `8`.
