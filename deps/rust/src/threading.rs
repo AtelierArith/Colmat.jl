@@ -33,6 +33,25 @@ pub const LU_WORK: usize = 8_000_000;
 pub const CHOLESKY_WORK: usize = 9_000_000;
 pub const TRSM_WORK: usize = 2_000_000;
 pub const QR_PANEL_WORK: usize = 1_500_000;
+/// One dense self-adjoint eigendecomposition (reduction, tridiagonal solve and
+/// back-transformation), estimated as `n^3` real updates.
+///
+/// The resident team's rendezvous is the dominant cost of a 32-square
+/// decomposition: measured on the benchmark host, n=32 runs about 5% faster
+/// sequentially at 4 and 8 threads, while n=48 already pays the entry back at 8
+/// threads and n=64 is 20-30% faster threaded. Complex scalars have their own
+/// limit because a complex 32-square is only at the fixed-cost boundary, not
+/// past it, while a complex 48-square is clearly threaded.
+pub const SELFADJOINT_WORK: usize = 100_000;
+pub const SELFADJOINT_WORK_COMPLEX: usize = 300_000;
+/// One dense SVD (bidiagonalization, bidiagonal solve and vector
+/// back-transformation), estimated as `m*n*min(m,n)` real updates.
+///
+/// Like the self-adjoint driver, a 32-square SVD is slower on the resident team
+/// (the entry alone is about 9 us, more than the factorization takes); 48
+/// squares already pay it back at 8 threads and 64 squares gain 5-15%.
+pub const SVD_WORK: usize = 100_000;
+pub const SVD_WORK_COMPLEX: usize = 300_000;
 /// One general eigendecomposition (Hessenberg, Schur and eigenvectors).
 ///
 /// The Schur iteration is sequential for `n < 75` (`lahqr`), and the parallel
