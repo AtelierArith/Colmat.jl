@@ -671,78 +671,103 @@ impl General for colmat::c64 {
     balance_impl!(colmat::c64, f64);
 }
 
+/// Undo balancing on `v` in place and restore LAPACK's eigenvector
+/// normalization: every column has unit 2-norm and the largest component of a
+/// conjugate pair is real.
+///
+/// The Schur eigenvector routine already normalizes, so the second normalization
+/// is only needed when a scale factor actually changed the rows.
 fn unbalance<T: crate::householder::ReflectorScalar>(
-    v: &Mat<T>,
+    v: &mut Mat<T>,
     p: &[usize],
     s: &[f64],
     left: bool,
     wi: &[f64],
-) -> Mat<T> {
+) {
     let n = v.nrows();
-    let mut out = Mat::zeros(n, v.ncols());
-    for j in 0..v.ncols() {
-        for i in 0..n {
-            out[(p[i], j)] = v[(i, j)] * T::real(if left { 1.0 / s[i] } else { s[i] });
+    let m = v.ncols();
+    let identity = p.iter().enumerate().all(|(i, &x)| x == i);
+    let scaled = s.iter().any(|&x| x != 1.0);
+    let factor = |i: usize| T::real(if left { 1.0 / s[i] } else { s[i] });
+    if identity {
+        if scaled {
+            for i in 0..n {
+                let f = factor(i);
+                for j in 0..m {
+                    v[(i, j)] = v[(i, j)] * f;
+                }
+            }
+        }
+    } else {
+        let source = v.clone();
+        for j in 0..m {
+            for i in 0..n {
+                v[(p[i], j)] = source[(i, j)] * factor(i);
+            }
+        }
+    }
+    if !identity || scaled {
+        use colmat::traits::ext::ComplexFieldExt;
+        use colmat::traits::math_utils::{hypot, recip, zero};
+        let mut j = 0;
+        while j < m {
+            let paired = !T::COMPLEX && wi[j] > 0.0 && j + 1 < m;
+            let norm = if paired {
+                hypot(&v.col(j).norm_l2(), &v.col(j + 1).norm_l2())
+            } else {
+                v.col(j).norm_l2()
+            };
+            if norm != zero() {
+                let inv = recip(&norm);
+                for c in j..j + if paired { 2 } else { 1 } {
+                    for i in 0..n {
+                        v[(i, c)] = v[(i, c)].mul_real(&inv);
+                    }
+                }
+            }
+            j += if paired { 2 } else { 1 };
         }
     }
     let mut j = 0;
-    while j < out.ncols() {
-        let paired = !T::COMPLEX && wi[j] > 0.0 && j + 1 < out.ncols();
-        let cols = if paired { 2 } else { 1 };
-        let mut norm = 0.0f64;
-        for c in j..j + cols {
-            for i in 0..n {
-                norm = norm.hypot(out[(i, c)].magnitude());
-            }
-        }
-        if norm != 0.0 {
-            for c in j..j + cols {
-                for i in 0..n {
-                    // Divide components by the real norm: complex division can
-                    // overflow when squaring a large real denominator.
-                    let value = out[(i, c)];
-                    out[(i, c)] = T::parts(value.re() / norm, value.im() / norm);
-                }
-            }
-        }
-        if n > 0 && T::COMPLEX {
+    while j < m {
+        let paired = !T::COMPLEX && wi[j] > 0.0 && j + 1 < m;
+        if T::COMPLEX && n > 0 {
             let mut best = 0;
             for i in 1..n {
-                if out[(i, j)].magnitude() > out[(best, j)].magnitude() {
+                if v[(i, j)].magnitude() > v[(best, j)].magnitude() {
                     best = i;
                 }
             }
-            let x = out[(best, j)];
+            let x = v[(best, j)];
             if x.magnitude() > 0.0 {
                 let phase = x.cj() / T::real(x.magnitude());
                 for i in 0..n {
-                    out[(i, j)] *= phase;
+                    v[(i, j)] *= phase;
                 }
             }
         }
         if paired && n > 0 {
             let mut best = 0;
             for i in 1..n {
-                if out[(i, j)].re().hypot(out[(i, j + 1)].re())
-                    > out[(best, j)].re().hypot(out[(best, j + 1)].re())
+                if v[(i, j)].re().hypot(v[(i, j + 1)].re())
+                    > v[(best, j)].re().hypot(v[(best, j + 1)].re())
                 {
                     best = i;
                 }
             }
-            let (a, b) = (out[(best, j)].re(), out[(best, j + 1)].re());
+            let (a, b) = (v[(best, j)].re(), v[(best, j + 1)].re());
             let r = a.hypot(b);
             if r > 0.0 {
                 let (c, s) = (T::real(a / r), T::real(b / r));
                 for i in 0..n {
-                    let (x, y) = (out[(i, j)], out[(i, j + 1)]);
-                    out[(i, j)] = x * c + y * s;
-                    out[(i, j + 1)] = y * c - x * s;
+                    let (x, y) = (v[(i, j)], v[(i, j + 1)]);
+                    v[(i, j)] = x * c + y * s;
+                    v[(i, j + 1)] = y * c - x * s;
                 }
             }
         }
-        j += cols;
+        j += if paired { 2 } else { 1 };
     }
-    out
 }
 unsafe fn general_driver<T: General>(
     job: u8,
@@ -764,7 +789,7 @@ unsafe fn general_driver<T: General>(
         T::balance(input_mut(a, n, n, la), job)?
     };
     let abnrm;
-    let e = {
+    let mut e = {
         let mat = input_ref(a, n, n, la);
         abnrm = {
             let _measure = crate::evd_profile::Scope::new(1);
@@ -776,20 +801,20 @@ unsafe fn general_driver<T: General>(
         crate::general_evd::compute(input_mut(a, n, n, la), jl == b'V', jr == b'V')?
     };
     if jl == b'V' {
-        let transformed = {
+        {
             let _measure = crate::evd_profile::Scope::new(5);
-            unbalance(&e.left, &p, &s, true, &e.wi)
-        };
+            unbalance(&mut e.left, &p, &s, true, &e.wi);
+        }
         let _measure = crate::evd_profile::Scope::new(6);
-        output(&transformed, vl, ll);
+        output(&e.left, vl, ll);
     }
     if jr == b'V' {
-        let transformed = {
+        {
             let _measure = crate::evd_profile::Scope::new(7);
-            unbalance(&e.right, &p, &s, false, &e.wi)
-        };
+            unbalance(&mut e.right, &p, &s, false, &e.wi);
+        }
         let _measure = crate::evd_profile::Scope::new(8);
-        output(&transformed, vr, lr);
+        output(&e.right, vr, lr);
     }
     let encoded = {
         let _measure = crate::evd_profile::Scope::new(9);
@@ -939,7 +964,8 @@ mod balanced_normalization_regression {
         });
         for left in [false, true] {
             let factor = 2.0f64.powi(if left { -exponent } else { exponent });
-            let output = unbalance(&vectors, &[0, 1], &[factor, 1.0], left, &[0.0, 0.0]);
+            let mut output = vectors.clone();
+            unbalance(&mut output, &[0, 1], &[factor, 1.0], left, &[0.0, 0.0]);
             for j in 0..2 {
                 let mut norm = 0.0f64;
                 for i in 0..2 {

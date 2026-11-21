@@ -33,6 +33,16 @@ pub const LU_WORK: usize = 8_000_000;
 pub const CHOLESKY_WORK: usize = 9_000_000;
 pub const TRSM_WORK: usize = 2_000_000;
 pub const QR_PANEL_WORK: usize = 1_500_000;
+/// One general eigendecomposition (Hessenberg, Schur and eigenvectors).
+///
+/// The Schur iteration is sequential for `n < 75` (`lahqr`), and the parallel
+/// sections of the reduction and eigenvector back substitution are short
+/// relative to the resident team's per-call rendezvous until the matrix is
+/// large. Measured on the benchmark host, serial wins at n=256, threading wins
+/// from n=512 (about 6% with 4 threads and 15% with 8), and n=1024 is 10%
+/// faster threaded with both. The limit therefore keeps n<=256 sequential and
+/// threads the larger suite sizes.
+pub const GENERAL_EVD_WORK: usize = 100_000_000;
 
 /// Element updates of a dense multiply-like operation, with four per update
 /// for a complex scalar. Saturates instead of overflowing on absurd shapes.
