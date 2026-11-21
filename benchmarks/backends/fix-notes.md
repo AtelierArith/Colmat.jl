@@ -60,11 +60,44 @@ not simply be removed.
 
 Changes:
 
-- the temporary is allocated with an all-zero `write_bytes` fill and filled with
-  per-column `copy_nonoverlapping`; only the selected triangle is copied back;
+- the temporary is isolated from caller storage and filled with per-column
+  `copy_nonoverlapping`; only the selected triangle is copied back (it is now
+  per-thread and reused, see the UPLO section below);
 - the LLT block size is 32 instead of the automatic 128. A sweep over
   block sizes 16/32/64/128/256 and recursion thresholds 16/32/64/128 on this host
   found 32 fastest (about 16-20% better at n=512/1024).
+
+## Cholesky UPLO='U', scratch reuse and the resident team
+
+Two costs were outside the LLT kernel itself. The benchmark calls
+`cholesky(Hermitian(A))`, whose default `UPLO='U'` took the adapter's
+per-element strided transpose branch, with a `cj()` and a multiply-add per
+element for both the copy in and the copy out. The adapter also allocated and
+zeroed a fresh `n x n` temporary on every call. At `n=1024` the 8 MiB
+allocation and its page faults showed up as jitter even though the temporary is
+only borrowed for one factorization.
+
+Changes:
+
+- the `UPLO='U'` path factors `A^T`: its lower triangle is the caller's upper
+  triangle transposed, and the upper factor of `A` is the transpose of the lower
+  factor of `A^T`, without conjugation. The copy in goes through faer's
+  `copy_from_triangular_lower`, which reads the row-major source in cache tiles,
+  and the copy back transposes a 32x32 tile at a time.
+- the dense temporary is per calling thread and reused. It grows to the largest
+  shape that thread has seen; the lower triangle is fully overwritten and the
+  unselected triangle is the kernel's scratch, so old contents are never read.
+- `threading::with_par` keeps one `threadteam::Team` resident per calling
+  thread. Building a pool and reserving its members on every BLAS call cost
+  about 3.8 ms at 8 threads (`into_team` makes every member acknowledge and be
+  placed), more than the factorization. A token from the resident team is a
+  lock and a dispatch. Setting the width to 1 drops the team, so a
+  single-threaded process leaves no parked members behind.
+
+The pinned `colmat-benchmark` harness measures the kernel itself, without this
+adapter: at `n=1024`, f64, 8T, column-major, its `cholesky` cell is 1.45 ms
+(best of five, `--prime-ms 250`, colmat-rs `b376b3ce`). The remaining adapter
+cost is the isolated temporary copy required by the LAPACK triangle contract.
 
 ## Panel scratch and team acquisition
 

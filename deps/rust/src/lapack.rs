@@ -157,27 +157,26 @@ pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
         }
     })
 }
-/// A zero-filled vector without the generic `vec![x; n]` clone loop. Every
-/// `Scalar` in this crate is a float or a pair of floats, whose zero value has
-/// the all-zero bit pattern, so `write_bytes` produces a valid `T`.
-pub(crate) unsafe fn zeroed_vec<T: Scalar>(len: usize) -> Vec<T> {
-    let mut v = Vec::with_capacity(len);
-    std::ptr::write_bytes(v.as_mut_ptr(), 0, len);
-    v.set_len(len);
-    v
+thread_local! {
+    /// Dense LLT temporaries are `n * n` elements and the BLAS entry point is
+    /// called once per factorization. Allocating and zeroing a fresh 8 MiB at
+    /// n=1024 dominated the call and caused page-fault jitter, so each calling
+    /// thread keeps its buffer and grows it to the largest shape it has seen.
+    /// `u64` gives the 8-byte alignment every `Scalar` needs; the lower
+    /// triangle is fully overwritten and the unselected triangle is scratch by
+    /// contract, so reused contents are never read.
+    static CHOLESKY_SCRATCH: std::cell::RefCell<Vec<u64>> =
+        const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Factor the caller's buffer through an isolated dense temporary. The native
-/// right-looking LLT may write the opposite triangle, so the caller's unselected
-/// triangle must stay untouched. The temporary is filled with plain copies
-/// rather than a per-element closure, which dominated the factorization at
-/// n=1024.
-pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
-    if n == 0 {
-        return 0;
-    }
-    let mut scratch = zeroed_vec::<T>(n * n);
-    let dst = scratch.as_mut_ptr();
+unsafe fn factor_cholesky_in<T: Scalar>(
+    dst: *mut T,
+    u: u8,
+    n: usize,
+    a: *mut T,
+    ld: isize,
+) -> usize {
+    let mut tmp = MatMut::from_raw_parts_mut(dst, n, n, 1, n as isize);
     if u == b'L' {
         for j in 0..n {
             std::ptr::copy_nonoverlapping(
@@ -187,18 +186,20 @@ pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) 
             );
         }
     } else {
-        for j in 0..n {
-            for i in j..n {
-                // The lower triangle of the transposed view is the caller's upper.
-                *dst.add(i + j * n) = (*a.offset(j as isize + i as isize * ld)).cj();
-            }
-        }
+        // Factor A^T instead of A. Its lower triangle is the caller's upper
+        // triangle transposed, and the upper factor of A is the transpose of
+        // the lower factor of A^T (no conjugation). Copying through faer's
+        // triangular copy lets the row-major source be read in cache tiles;
+        // the per-element strided transpose is what made UPLO='U' several
+        // times slower than UPLO='L' at large n.
+        let src = MatRef::from_raw_parts(a as *const T, n, n, 1, ld);
+        tmp.copy_from_triangular_lower(src.transpose());
     }
     // LAPACK ignores the imaginary part of a Hermitian diagonal.
     for j in 0..n {
         *dst.add(j + j * n) = T::real((*dst.add(j + j * n)).re());
     }
-    let info = cholesky(MatMut::from_raw_parts_mut(dst, n, n, 1, n as isize));
+    let info = cholesky(tmp);
     if u == b'L' {
         for j in 0..n {
             std::ptr::copy_nonoverlapping(
@@ -208,13 +209,53 @@ pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) 
             );
         }
     } else {
-        for j in 0..n {
-            for i in j..n {
-                *a.offset(j as isize + i as isize * ld) = (*dst.add(i + j * n)).cj();
+        // The upper triangle of the transposed factor is L^T, the caller's U.
+        // Writing it straight through a transposed view is a strided write per
+        // element; transpose a cache-sized tile at a time instead.
+        const TILE: usize = 32;
+        let mut j0 = 0;
+        while j0 < n {
+            let j1 = (j0 + TILE).min(n);
+            let mut i0 = 0;
+            while i0 < n {
+                let i1 = (i0 + TILE).min(n);
+                for j in j0..j1 {
+                    let end = (j + 1).min(i1);
+                    for i in i0..end {
+                        *a.offset(i as isize + j as isize * ld) = *dst.add(j + i * n);
+                    }
+                }
+                i0 = i1;
             }
+            j0 = j1;
         }
     }
     info
+}
+
+/// Factor the caller's buffer through an isolated dense temporary. The native
+/// right-looking LLT writes the opposite triangle, so the caller's unselected
+/// triangle must stay untouched. The buffer is reused per calling thread, and
+/// the UPLO='U' path factors A^T through faer's tiled triangular copy so it
+/// reads the row-major source in cache blocks instead of one strided element
+/// at a time.
+pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
+    if n == 0 {
+        return 0;
+    }
+    let words = (n * n * core::mem::size_of::<T>()).div_ceil(8);
+    CHOLESKY_SCRATCH.with(|scratch| match scratch.try_borrow_mut() {
+        Ok(mut buffer) => {
+            if buffer.len() < words {
+                buffer.resize(words, 0);
+            }
+            factor_cholesky_in(buffer.as_mut_ptr() as *mut T, u, n, a, ld)
+        }
+        Err(_) => {
+            let mut buffer = vec![0u64; words];
+            factor_cholesky_in(buffer.as_mut_ptr() as *mut T, u, n, a, ld)
+        }
+    })
 }
 
 pub fn solve_cholesky<T: Scalar>(a: MatRef<'_, T>, mut b: MatMut<'_, T>, u: u8) {
@@ -1049,5 +1090,107 @@ mod shared_evd_regression {
     #[test]
     fn shared_general_complex64() {
         check::<colmat::c64>(&[0, 900, -1000]);
+    }
+}
+
+#[cfg(test)]
+mod cholesky_triangle_regression {
+    use super::*;
+    use colmat::{c64, Mat};
+
+    fn spd_f64(n: usize) -> Mat<f64> {
+        let l = Mat::<f64>::from_fn(n, n, |i, j| {
+            if i == j {
+                2.0 + i as f64 * 0.01
+            } else if i > j {
+                ((i * 7 + j * 3) % 11) as f64 / 23.0 - 0.2
+            } else {
+                0.0
+            }
+        });
+        Mat::from_fn(n, n, |i, j| (0..n).map(|k| l[(i, k)] * l[(j, k)]).sum())
+    }
+
+    fn spd_c64(n: usize) -> Mat<c64> {
+        let l = Mat::<c64>::from_fn(n, n, |i, j| {
+            let re = if i == j {
+                2.0 + i as f64 * 0.01
+            } else if i > j {
+                ((i * 7 + j * 3) % 11) as f64 / 23.0 - 0.2
+            } else {
+                0.0
+            };
+            let im = if i > j {
+                ((i * 5 + j * 2) % 7) as f64 / 31.0 - 0.1
+            } else {
+                0.0
+            };
+            c64::new(re, im)
+        });
+        Mat::from_fn(n, n, |i, j| {
+            (0..n).map(|k| l[(i, k)] * l[(j, k)].conj()).sum()
+        })
+    }
+
+    fn check<T: Scalar>(original: &Mat<T>) {
+        let n = original.nrows();
+        for u in [b'L', b'U'] {
+            let selected = |i: usize, j: usize| {
+                if u == b'L' {
+                    i >= j
+                } else {
+                    i <= j
+                }
+            };
+            let mut a = Mat::<T>::from_fn(n, n, |i, j| {
+                if selected(i, j) {
+                    original[(i, j)]
+                } else {
+                    T::real(12345.0)
+                }
+            });
+            let opposite_before: Vec<T> = (0..n)
+                .flat_map(|j| (0..n).map(move |i| (i, j)))
+                .filter(|&(i, j)| !selected(i, j))
+                .map(|(i, j)| a[(i, j)])
+                .collect();
+            let info =
+                unsafe { factor_cholesky(u, n, a.as_mut().as_ptr_mut(), a.as_ref().col_stride()) };
+            assert_eq!(info, 0);
+            let opposite_after: Vec<T> = (0..n)
+                .flat_map(|j| (0..n).map(move |i| (i, j)))
+                .filter(|&(i, j)| !selected(i, j))
+                .map(|(i, j)| a[(i, j)])
+                .collect();
+            assert_eq!(opposite_before, opposite_after, "u={}", u as char);
+            // Reconstruct A from the selected factor: L L^H or U^H U.
+            let mut scale = 0.0f64;
+            let mut error = 0.0f64;
+            for j in 0..n {
+                for i in 0..n {
+                    let mut sum = T::z();
+                    for k in 0..n.min(i.min(j) + 1) {
+                        sum += if u == b'L' {
+                            a[(i, k)] * a[(j, k)].cj()
+                        } else {
+                            a[(k, i)].cj() * a[(k, j)]
+                        };
+                    }
+                    error = error.max((sum - original[(i, j)]).abs1());
+                    scale = scale.max(original[(i, j)].abs1());
+                }
+            }
+            assert!(
+                error <= 1e-10 * scale.max(1.0),
+                "u={} error={error}",
+                u as char
+            );
+        }
+    }
+
+    #[test]
+    fn both_triangles_match_the_factor_contract() {
+        check(&spd_f64(37));
+        check(&spd_c64(37));
     }
 }
