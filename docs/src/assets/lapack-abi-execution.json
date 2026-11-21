@@ -1624,7 +1624,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "e5f1341aaa9bbc3c18514db82953f601de5e66686f32a74bd08908151801752c",
+  "library_sha256": "a20fab20b51277bd19019dd0b308e451b7f74f12f5acf18b0d20d45927923492",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "fc4747ed8f936b013313d755813f0b5151dc70e1",
+  "revision": "7a09d14b21102deb7f138ef80f5253c0b7131a2d",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -114632,7 +114632,7 @@
     "test/lapacke_compact_qr_abi.jl": "5b53f9004c93a9a95015bcaf976e4c851c5ad3773c35d9755cfe856dceaafeb0",
     "test/lapacke_rfptri.jl": "28878f9409bfe7810b94f113c80c647e1fa021647e53984475e05f08f81930e7",
     "test/qr_pivoted.jl": "bd2b1b10ba212be4ed196c3d1d62b5a4cc4e4f60d2c4d2d2efb9f05181806227",
-    "deps/rust/src/lapack.rs": "0976ce066cad513b2c4127976fb11abd95eced972ef153c7ae1c55d6d769f245",
+    "deps/rust/src/lapack.rs": "c12268fc91e5384f3db8d57a8f5b3c93fdde5a9c3922513439f27a0dd8b4391d",
     "test/matrix_copy.jl": "6d42862987c8eb55be32c6b57047b15b4dedd0d6fa0ff4d595b42b794d38b5f1",
     "test/lapacke_gbequ.jl": "48362d36138001ceda8706e5595dea347877afe4a3fbd225e43e8f199a81954c",
     "test/lapacke_range_abi.jl": "1e40322d90ee58cdff955c658b700503ec6372246b6a5eaf640a33a7fae0439e",
@@ -114849,7 +114849,7 @@
     "test/lapacke_generalized_qr_abi_worker.c": "47cde5b73a62601b31fb57620e94bbb3f397ab5341d7e57c0e5e62060c0f3b60",
     "deps/rust/src/generalized_selfadjoint_drivers.rs": "5e3f64d1da808620d8a33f0e611339f38ef0efefcf30474fea137ecd078cb3d5",
     "test/lapacke_givens.jl": "4daaeb72e47a5452f269e07bea01cab8b034e5ea53f68b4d9c1aa9406d43d4aa",
-    "deps/rust/src/qr_pivoted.rs": "be37feaa49250aa6f8e0a8083292ba44973be34967f4c81b23e849ad9bbffc02",
+    "deps/rust/src/qr_pivoted.rs": "0e435642fa9a74478db728ce393db9b6836d20297240f9b7c148967070e290e8",
     "test/structured_tridiagonal_packed.jl": "753a03d5ec3de0e8a80a97a3da3490cf08f7059d2d38223bb05d741252c6422b",
     "test/lapacke_triangular_abi.jl": "4ae773fe2198329f0547155cc6379f00909cb5bb2c003b5740b4742e8a1369f8",
     "deps/rust/src/tridiagonal_evd.rs": "a100f993e4a7c7015caeccf13f365089d8234026f68d53aab3d5d65a9353ae2a",
