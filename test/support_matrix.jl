@@ -37,9 +37,9 @@ end
 
 function backing(symbol)
     lib = BLAS.lbt_find_backing_library(symbol, INTERFACE)
-    isnothing(lib) && return ("forwarding target unavailable", "unknown")
+    isnothing(lib) && return ("forwarding target unavailable", "Unknown")
     native = realpath(lib.libname) == realpath(Colmat.backend_library())
-    return (basename(lib.libname), native ? "Colmat" : "existing backend")
+    return (basename(lib.libname), native ? "Colmat" : "Existing backend")
 end
 
 function fixture(T)
@@ -119,9 +119,9 @@ function check_case(id, T)
 end
 
 const CASES = [
-    (id=:matmul, api="A * B", op=:gemm, rust="matrix product"),
-    (id=:mul, api="mul!(C, A, B)", op=:gemm, rust="matrix product"),
-    (id=:matvec, api="A * x", op=:gemv, rust="matrix product"),
+    (id=:matmul, api="A * B", op=:gemm, rust="Matrix product"),
+    (id=:mul, api="mul!(C, A, B)", op=:gemm, rust="Matrix product"),
+    (id=:matvec, api="A * x", op=:gemv, rust="Matrix product"),
     (id=:dot, api="dot(x, x)", op=:dot, rust="Rust compatibility layer"),
     (id=:norm, api="norm(x)", op=:norm, rust="Rust compatibility layer"),
     (id=:axpy, api="BLAS.axpy!", op=:axpy, rust="Rust compatibility layer"),
@@ -160,13 +160,13 @@ function probe()
             @testset "$(case.api)" begin
                 for T in TYPES
                     @test check_case(case.id, T)
-                    push!(results, "success")
+                    push!(results, "Success")
                     symbol = entry(T, case.op)
                     lib, route = backing(symbol)
                     push!(libraries, lib)
                     push!(routes, route)
                     push!(symbols, symbol)
-                    @test route != "unknown"
+                    @test route != "Unknown"
                 end
             end
             push!(rows, (; case..., results, libraries, routes, symbols))
@@ -184,11 +184,11 @@ function report(path, rows)
         println(io, "# Measured Julia API mapping\n")
         println(
             io,
-            "Records, separately, whether calls on ordinary arrays succeed and whether Colmat provides their entry points.",
+            "This records separately whether calls on ordinary arrays succeed and whether Colmat provides that entry point.",
         )
         println(
             io,
-            "Entry points are chosen from the Julia 1.13 wrapper implementations and cross-checked against the LBT registration targets. This is not a dynamic call-count measurement or a trace of library internals.\n",
+            "Entry points are selected from the Julia 1.13 wrapper implementation, and the LBT forwarding target is checked. This is not a measurement of dynamic call counts or a trace that follows the library internals.\n",
         )
         println(io, "## Verification conditions\n")
         println(io, "- Julia: `$(VERSION)` / `$(Sys.MACHINE)`.")
@@ -196,11 +196,11 @@ function report(path, rows)
         println(io, "- Rust colmat source: `$(rust_revision)`.")
         println(io, "- Julia BLAS integer ABI: `$(INTERFACE)`.")
         println(io, "- Colmat execution width: `$(Colmat.get_num_threads())`.")
-        println(io, "- Element types in order: Float32 / Float64 / ComplexF32 / ComplexF64.\n")
+        println(io, "- Element types are listed in the order Float32 / Float64 / ComplexF32 / ComplexF64.\n")
         println(io, "## Results\n")
         println(
             io,
-            "| Julia API | Float32 | Float64 | ComplexF32 | ComplexF64 | Entry-point registration | Rust-side implementation / connection |",
+            "| Julia API | Float32 | Float64 | ComplexF32 | ComplexF64 | Forwarding target of the main entry | Rust-side implementation / connection |",
         )
         println(io, "|---|---|---|---|---|---|---|")
         for row in rows
@@ -209,9 +209,9 @@ function report(path, rows)
                 "| `$(row.api)` | $(join(row.results," | ")) | $(join(unique(row.routes)," / ")) | $(all(==("Colmat"), row.routes) ? replace(row.rust, " (not connected)" => " (connected)") : row.rust) |",
             )
         end
-        println(io, "\n## Entry symbols and actual libraries\n")
-        println(io, "Each row verifies the same API as the table above. Symbols follow the four types in order.\n")
-        println(io, "| Julia API | Verified entry points | LBT registration |")
+        println(io, "\n## Entry symbols and the actual libraries\n")
+        println(io, "Each row examines the same API as the table above. Symbols follow the order of the four types above.\n")
+        println(io, "| Julia API | Entry examined | LBT forwarding target |")
         println(io, "|---|---|---|")
         for row in rows
             println(
@@ -219,34 +219,34 @@ function report(path, rows)
                 "| `$(row.api)` | $(join(("`$s`" for s in row.symbols),", ")) | $(join(("`$s`" for s in unique(row.libraries)),", ")) |",
             )
         end
-        println(io, "\n## What the verdicts mean\n")
+        println(io, "\n## Scope of the assessment\n")
         println(
             io,
-            "- \"Success\" means the probe met the reference computation or factorization residual on its small finite inputs.",
+            "- \"Success\" means that the reference computation or the decomposition residual was satisfied for this probe's small finite inputs.",
         )
         println(
             io,
-            "- Residuals of matrix products, solves, and factorization reconstruction are checked with scalar multiply-adds that do not call BLAS.",
+            "- Residuals for matrix products, solves, and decomposition reconstruction are checked with scalar sum-of-products that do not call BLAS.",
         )
         println(
             io,
-            "- A success on the \"existing backend\" does not mean the corresponding Rust colmat factorization is connected.",
+            "- Success on the \"existing backend\" does not mean that the corresponding Rust colmat decomposition is connected.",
         )
         println(
             io,
-            "- The Rust-side feature names are correspondence candidates confirmed in `faer/src/linalg/solvers.rs` at the pinned revision. This probe does not claim to have executed unconnected Rust functions directly.",
+            "- The Rust-side capability names are candidates confirmed in `faer/src/linalg/solvers.rs` at the pinned revision. This does not claim that the probe directly executed Rust functions that are not connected.",
         )
         println(
             io,
-            "- This table is not an exhaustive BLAS / LAPACK verification. It does not cover singular matrices, non-finite values, generalized eigenvalues, or other operating systems.",
+            "- This table is not exhaustive verification of all BLAS / LAPACK. It also does not include singular matrices, non-finite values, generalized eigenvalues, or results on other OSes.",
         )
         println(
             io,
-            "- It verifies high-level Julia APIs, separate from the existing regression tests such as the direct LP64 ABI tests and negative strides.\n",
+            "- This is a check of the high-level Julia API, separate from the existing regression tests such as the direct LP64 ABI tests and negative-stride tests.\n",
         )
         println(io, "## Regeneration\n")
         println(
-            io, "Run from the repository root in a fresh Julia process after building.\n"
+            io, "Run this from the repository root in a fresh Julia process after building.\n"
         )
         println(
             io,
@@ -254,7 +254,7 @@ function report(path, rows)
         )
         return println(
             io,
-            "The table is not overwritten when verification fails. The call cases and the verification method are in `test/support_matrix.jl`.",
+            "If verification fails, the table is not overwritten. The call cases and verification methods are in `test/support_matrix.jl`.",
         )
     end
 end
