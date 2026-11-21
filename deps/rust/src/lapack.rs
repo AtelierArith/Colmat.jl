@@ -54,7 +54,8 @@ pub fn lu<T: Scalar>(mut a: MatMut<'_, T>) -> (Vec<usize>, usize) {
     }
     let mut row_perm = vec![0usize; m];
     let mut row_perm_inv = vec![0usize; m];
-    crate::threading::with_par(|par| {
+    let work = crate::threading::real_work(m, n, k, T::COMPLEX);
+    crate::threading::with_par_if(work, crate::threading::LU_WORK, |par| {
         let mut mem = MemBuffer::new(lu_in_place_scratch::<usize, T>(
             m,
             n,
@@ -139,7 +140,9 @@ pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
         params.config.block_size = 32;
         params.config.recursion_threshold = 32;
     }
-    crate::threading::with_par(|par| {
+    let n = a.nrows();
+    let work = crate::threading::real_work(n, n, n, T::COMPLEX);
+    crate::threading::with_par_if(work, crate::threading::CHOLESKY_WORK, |par| {
         let mut mem = MemBuffer::new(cholesky_in_place_scratch::<T>(
             a.nrows(),
             par.shape(),

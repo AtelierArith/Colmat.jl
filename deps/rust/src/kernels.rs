@@ -180,7 +180,13 @@ pub unsafe fn gemm<T: Scalar>(
     c: *mut T,
     ldc: isize,
 ) {
-    crate::threading::with_par(|par| {
+    let work = crate::threading::real_work(
+        m.max(0) as usize,
+        n.max(0) as usize,
+        k.max(0) as usize,
+        T::COMPLEX,
+    );
+    crate::threading::with_par_if(work, crate::threading::GEMM_WORK, |par| {
         gemm_with_par(ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, par)
     });
 }

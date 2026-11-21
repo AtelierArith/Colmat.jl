@@ -1,6 +1,46 @@
 use colmat::Par;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// Work (real element updates; one complex update counts four) at or below
+/// which the corresponding operation runs on `Par::Seq`.
+///
+/// Entering the resident team opens a root scope: the leader reads and sets its
+/// affinity, every reserved member acknowledges and places itself, and the
+/// leader restores its mask on exit. That rendezvous costs about 8 us at 4
+/// threads and 9 us at 8 threads, independent of the operation, so a call whose
+/// parallel work is shorter than that is faster without a team. The limits
+/// below are the measured crossovers on the benchmark host (Zen 4, 4 and 8
+/// threads, f64/c64) rounded to the sequential side, so a shape in the
+/// benchmark suite never takes the slower path:
+///
+/// * `gemm`: `m*n*k`; n=64 (262k) is 2x faster sequentially, n=96 (884k) is a
+///   tie at 4 threads and 1.3x faster threaded at 8. The limit keeps n=96
+///   threaded.
+/// * `lu`: `m*n*min(m,n)`; n=160 (4.1M) is 12% faster sequentially, n=192
+///   (7.1M) is a 5% win threaded, n=256 (16.8M) is 19% faster threaded.
+/// * `cholesky`: `n^3`; n=192 (7.1M) is a tie, n=256 (16.8M) is 25% faster
+///   threaded.
+/// * `trsm`/triangular solve: `m*n*min(m,n)`; n=96 (884k) is 6% faster
+///   sequentially, n=128 (2.1M) is 15% faster threaded.
+/// * one QR panel: `rows*cols*block`; n=224 panels (1.37M) are 8% faster
+///   sequentially, n=256 panels (1.8M) are a tie, n=320+ are faster threaded.
+///
+/// A `par::Team` is still used for every larger call, so the pinned team's
+/// throughput advantage above these sizes is unchanged.
+pub const GEMM_WORK: usize = 700_000;
+pub const LU_WORK: usize = 8_000_000;
+pub const CHOLESKY_WORK: usize = 9_000_000;
+pub const TRSM_WORK: usize = 2_000_000;
+pub const QR_PANEL_WORK: usize = 1_500_000;
+
+/// Element updates of a dense multiply-like operation, with four per update
+/// for a complex scalar. Saturates instead of overflowing on absurd shapes.
+pub fn real_work(a: usize, b: usize, c: usize, complex: bool) -> usize {
+    a.saturating_mul(b)
+        .saturating_mul(c)
+        .saturating_mul(if complex { 4 } else { 1 })
+}
 
 static WIDTH: AtomicUsize = AtomicUsize::new(1);
 thread_local! {
@@ -11,6 +51,27 @@ thread_local! {
     // doing it once per factorization dominated short calls; a token from the
     // resident team is a lock and a dispatch.
     static TEAM: RefCell<(usize, Option<threadteam::Team>)> = const { RefCell::new((1, None)) };
+    // Nonzero while `with_par_if` runs a call whose work is below its limit.
+    // Every nested `with_par` in that call must then stay sequential: taking an
+    // outer team scope and then letting an inner helper acquire its own token
+    // would either deadlock (same thread re-entering the team gate) or pay the
+    // entry the fast path is avoiding.
+    static SERIAL_DEPTH: Cell<usize> = const { Cell::new(0) };
+}
+
+struct SerialScope;
+
+impl SerialScope {
+    fn enter() -> Self {
+        SERIAL_DEPTH.with(|depth| depth.set(depth.get() + 1));
+        SerialScope
+    }
+}
+
+impl Drop for SerialScope {
+    fn drop(&mut self) {
+        SERIAL_DEPTH.with(|depth| depth.set(depth.get() - 1));
+    }
 }
 
 #[no_mangle]
@@ -45,6 +106,9 @@ pub fn with_par<R>(f: impl FnOnce(Par<'_>) -> R) -> R {
         });
         return f(Par::Seq);
     }
+    if SERIAL_DEPTH.with(|depth| depth.get()) != 0 {
+        return f(Par::Seq);
+    }
     TEAM.with(|slot| {
         let Ok(mut held) = slot.try_borrow_mut() else {
             return f(Par::Seq);
@@ -67,4 +131,57 @@ pub fn with_par<R>(f: impl FnOnce(Par<'_>) -> R) -> R {
         exec.team(|token| f(Par::Team(token)))
             .expect("owned BLAS team")
     })
+}
+
+/// Run `f` on the resident team only when `work` exceeds `limit`; otherwise run
+/// it, and every nested `with_par` inside it, on `Par::Seq`.
+///
+/// `work` is in real element updates (see [`real_work`]), so callers pass the
+/// shape-derived flop estimate they already use for blocking decisions. The
+/// sequential branch also releases a team left over from an earlier wider
+/// setting, exactly like the one-thread branch of [`with_par`].
+pub fn with_par_if<R>(work: usize, limit: usize, f: impl FnOnce(Par<'_>) -> R) -> R {
+    if work > limit {
+        return with_par(f);
+    }
+    if WIDTH.load(Ordering::Relaxed) == 1 {
+        return with_par(f);
+    }
+    let _serial = SerialScope::enter();
+    f(Par::Seq)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn real_work_scales_complex_and_saturates() {
+        assert_eq!(real_work(32, 64, 96, false), 32 * 64 * 96);
+        // One complex multiply-add counts as four real updates.
+        assert_eq!(real_work(32, 64, 96, true), 4 * 32 * 64 * 96);
+        assert_eq!(real_work(usize::MAX, 2, 2, false), usize::MAX);
+        assert_eq!(real_work(usize::MAX, 2, 2, true), usize::MAX);
+    }
+
+    #[test]
+    fn small_work_uses_sequential_token_for_the_whole_callee() {
+        // Below the limit the callee gets `Seq` and any helper that would
+        // otherwise acquire its own team must stay `Seq` as well. The depth
+        // guard must return to zero when the callee returns.
+        with_par_if(1, usize::MAX, |outer| {
+            assert!(matches!(outer, Par::Seq));
+            with_par(|nested| assert!(matches!(nested, Par::Seq)));
+        });
+        assert_eq!(SERIAL_DEPTH.with(|depth| depth.get()), 0);
+    }
+
+    #[test]
+    fn sequential_region_unwinds_on_panic() {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            with_par_if(1, usize::MAX, |_| panic!("callee failed"));
+        }));
+        assert!(result.is_err());
+        assert_eq!(SERIAL_DEPTH.with(|depth| depth.get()), 0);
+    }
 }

@@ -435,7 +435,13 @@ pub(crate) unsafe fn apply_forward_column_block_adjoint_with_basis<T: Scalar>(
     }
     let (m, n, k) = (m as isize, n as isize, k as isize);
     // W = V^H C, Y = T^H W, C -= V Y.
-    crate::threading::with_par(|mut par| {
+    let work = crate::threading::real_work(
+        m.max(0) as usize,
+        n.max(0) as usize,
+        k.max(0) as usize,
+        T::COMPLEX,
+    );
+    crate::threading::with_par_if(work, crate::threading::QR_PANEL_WORK, |mut par| {
         gemm_with_par(
             b'C',
             b'N',
@@ -528,103 +534,115 @@ pub(crate) unsafe fn apply_block<T: Scalar>(
     } else {
         b'T'
     };
-    if side == b'L' {
-        // W = V^H C
-        gemm(
-            b'C',
-            b'N',
-            k as isize,
-            n as isize,
-            order as isize,
-            T::o(),
-            b.as_ptr(),
-            order as isize,
-            c as *const T,
-            ldc,
-            T::z(),
-            work.as_mut_ptr(),
-            k as isize,
-        );
-        // W <- T^H W, then C -= V W.
-        gemm(
-            t_op,
-            b'N',
-            k as isize,
-            n as isize,
-            k as isize,
-            T::o(),
-            triangular.as_ptr(),
-            k as isize,
-            work.as_ptr(),
-            k as isize,
-            T::z(),
-            transformed.as_mut_ptr(),
-            k as isize,
-        );
-        gemm(
-            b'N',
-            b'N',
-            m as isize,
-            n as isize,
-            k as isize,
-            -T::o(),
-            b.as_ptr(),
-            order as isize,
-            transformed.as_ptr(),
-            k as isize,
-            T::o(),
-            c,
-            ldc,
-        );
-    } else {
-        // W = C V
-        gemm(
-            b'N',
-            b'N',
-            m as isize,
-            k as isize,
-            order as isize,
-            T::o(),
-            c as *const T,
-            ldc,
-            b.as_ptr(),
-            order as isize,
-            T::z(),
-            work.as_mut_ptr(),
-            m as isize,
-        );
-        // W <- W T^H, then C -= W V^H.
-        gemm(
-            b'N',
-            t_op,
-            m as isize,
-            k as isize,
-            k as isize,
-            T::o(),
-            work.as_ptr(),
-            m as isize,
-            triangular.as_ptr(),
-            k as isize,
-            T::z(),
-            transformed.as_mut_ptr(),
-            m as isize,
-        );
-        gemm(
-            b'N',
-            b'C',
-            m as isize,
-            n as isize,
-            k as isize,
-            -T::o(),
-            transformed.as_ptr(),
-            m as isize,
-            b.as_ptr(),
-            order as isize,
-            T::o(),
-            c,
-            ldc,
-        );
-    }
+    let panel_work = crate::threading::real_work(order, m.max(n), k, T::COMPLEX);
+    // One team acquisition for the three GEMMs of a block, as in
+    // `apply_forward_column_block_adjoint_with_basis`; below the panel limit
+    // the whole block stays sequential.
+    crate::threading::with_par_if(panel_work, crate::threading::QR_PANEL_WORK, |mut par| {
+        if side == b'L' {
+            // W = V^H C
+            gemm_with_par(
+                b'C',
+                b'N',
+                k as isize,
+                n as isize,
+                order as isize,
+                T::o(),
+                b.as_ptr(),
+                order as isize,
+                c as *const T,
+                ldc,
+                T::z(),
+                work.as_mut_ptr(),
+                k as isize,
+                par.reborrow(),
+            );
+            // W <- T^H W, then C -= V W.
+            gemm_with_par(
+                t_op,
+                b'N',
+                k as isize,
+                n as isize,
+                k as isize,
+                T::o(),
+                triangular.as_ptr(),
+                k as isize,
+                work.as_ptr(),
+                k as isize,
+                T::z(),
+                transformed.as_mut_ptr(),
+                k as isize,
+                par.reborrow(),
+            );
+            gemm_with_par(
+                b'N',
+                b'N',
+                m as isize,
+                n as isize,
+                k as isize,
+                -T::o(),
+                b.as_ptr(),
+                order as isize,
+                transformed.as_ptr(),
+                k as isize,
+                T::o(),
+                c,
+                ldc,
+                par,
+            );
+        } else {
+            // W = C V
+            gemm_with_par(
+                b'N',
+                b'N',
+                m as isize,
+                k as isize,
+                order as isize,
+                T::o(),
+                c as *const T,
+                ldc,
+                b.as_ptr(),
+                order as isize,
+                T::z(),
+                work.as_mut_ptr(),
+                m as isize,
+                par.reborrow(),
+            );
+            // W <- W T^H, then C -= W V^H.
+            gemm_with_par(
+                b'N',
+                t_op,
+                m as isize,
+                k as isize,
+                k as isize,
+                T::o(),
+                work.as_ptr(),
+                m as isize,
+                triangular.as_ptr(),
+                k as isize,
+                T::z(),
+                transformed.as_mut_ptr(),
+                m as isize,
+                par.reborrow(),
+            );
+            gemm_with_par(
+                b'N',
+                b'C',
+                m as isize,
+                n as isize,
+                k as isize,
+                -T::o(),
+                transformed.as_ptr(),
+                m as isize,
+                b.as_ptr(),
+                order as isize,
+                T::o(),
+                c,
+                ldc,
+                par,
+            );
+        }
+    });
 }
 macro_rules! exports {
     ($p:ident,$t:ty,$i:ty,$s:tt) => { paste! {
