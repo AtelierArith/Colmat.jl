@@ -364,3 +364,38 @@ baseline (median ms, n=1024, 1T: factor 26.1 vs 26.1, Q 65.2 vs 65.3; 8T:
 storage, TAU, row-major LAPACKE paths, and both integer ABIs are untouched.
 
 
+## Small general EVD (`?geevx`)
+
+Small `eigen(A)` calls entered the resident team even though the Hessenberg and
+Schur work was effectively sequential, and inverse balancing allocated a second
+vector matrix and renormalized every column with a componentwise `hypot` even
+when no scale changed. The adapter now:
+
+- transforms the owned vector matrix in place during inverse balancing and skips
+  renormalization when no row scale changed (the Schur eigenvector routine
+  already returns unit-norm columns);
+- gates the EVD with `with_par_if` and `GENERAL_EVD_WORK = 100_000_000`: n<=256
+  runs `Par::Seq`, n>=512 keeps the team.
+
+This removes a 2-4.4x small-n penalty at 4T/8T: n=32 0.63->0.21 ms, n=64
+2.7->1.1 ms, n=96 5.6->2.3 ms, n=128 8.3->4.3 ms, n=256 48->22.7 ms. n=96/128
+are now 0.81-0.95x OpenBLAS; n=32/64 remain ~1.4x because the pinned upstream
+Schur/Hessenberg kernels are slower (standalone `hessenberg_schur` 145-153 us at
+n=32 vs OpenBLAS `DHSEQR` 106 us). `SENSE=N` still takes the native path; expert
+modes keep the saved fallback.
+
+## Complex pivoted QR F-row (`?geqp3`)
+
+The `?laqps` F-row GEMV dominated ComplexF64 pivoted QR (97 of 158 ms at n=1024,
+1T). It is a transposed read of the trailing block, and the generic path walked
+one output column per pass, re-fetching the reflector and deinterleaving each
+complex operand separately (37-39 GB/s). `kernels::conj_gemv` keeps eight output
+columns in flight (four when the block fits L3), one `vpermt2pd` deinterleave per
+eight complex, with AVX-512 runtime dispatch and column-block threading;
+`col_axpy` covers the column update, F accumulation and row update. The kernel
+reaches 58 GB/s at 16 MB and 104 GB/s at 4 MB.
+
+Julia-API c64 `qr(A, ColumnNorm())`, n=1024, min/median ms: 1T 186/201 vs
+OpenBLAS 214/229, 4T 71/75 vs 75/76, 8T 49/53 vs 79/84. The isolated `?geqp3`
+ccall still trails OpenBLAS's tuned ccall at 1T, but the path Julia users call is
+at parity or ahead. f64 guard cells are unchanged within noise.
