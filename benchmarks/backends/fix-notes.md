@@ -184,6 +184,32 @@ Full backend suite for `cholesky` on the Zen 4 host, `n=1024`, median of five
 | c64 | 4 | 10.65 | 5.77 | 9.84 | 0.92 |
 | c64 | 8 | 9.67 | 4.82 | 6.41 | 0.66 |
 
+## Blocked column-pivoted QR (`?geqp3`)
+
+The first fix removed the per-element norm recomputation but left the factor
+unblocked and called `qr::standard_qr` for a single column at every pivot step.
+That path allocates a basis and two panel buffers, performs a GEMM, and acquires
+a thread team per column; at 4T/8T the tiny factorizations were about 20x slower
+than sequential, and the trailing update stayed at BLAS-2.
+
+Changes in `qr_pivoted.rs` and `kernels.rs`:
+
+- the factorization now follows LAPACK `?laqps`: a global pivot search over the
+  remaining columns, exact residual norms maintained through the panel `F`
+  recurrence, one `m x n x panel` GEMM per panel, and one team acquisition per
+  panel shared by the panel GEMV, `F` update, row update and trailing GEMM;
+- single reflectors come from `householder::generate`, without a per-column
+  compact-WY allocation or GEMM;
+- small shapes (roughly `k <= 8` or `m*n < 50k`, complex weighted 5x) stay on
+  the unblocked level-2 path, where the panel overhead is not amortized;
+- `nrm2` accumulates real and imaginary components directly instead of calling
+  `hypot` per element.
+
+The pivot order is identical to the unblocked algorithm and to OpenBLAS on the
+100x100 check; blocked widths 4 and 5 reproduce the unblocked (1) permutation
+and reconstruction in the regression tests, and the `?geqp3rk` RHS column equals
+`Q^H B`.
+
 ## What is left
 
 - **Cholesky** is at parity or faster than OpenBLAS at 4-8 threads on the Zen 4
@@ -195,9 +221,11 @@ Full backend suite for `cholesky` on the Zen 4 host, `n=1024`, median of five
   `svdvals`. Profiling showed ~97% of the call inside
   `colmat::linalg::svd::svdd`; colmat-rs #259 tracks the values-only gap.
   At 8 threads Colmat is faster than OpenBLAS (0.70-0.90x).
-- **Pivoted QR** is still unblocked and does not scale at 8 threads: 2.25x
-  (f64) and 3.23x (c64) at 1T, 4.7x/5.8x at 8T at n=1024. Blocking the pivot
-  panel into compact-WY form is a separate change.
+- **Pivoted QR** now uses the blocked `?laqps` scheme. At `n=1024` (median ms,
+  f64/c64): 1T 59.8 / 224.2 vs OpenBLAS 56.8 / 171.9 (1.05x / 1.30x); 4T 31.5 /
+  86.2 vs 35.9 / 68.4 (0.88x / 1.26x); 8T 27.0 / 62.5 vs 34.0 / 45.3 (0.79x /
+  1.38x). The remaining complex gap is the serial panel work (F update, row
+  update and norm downdate); f64 is at parity or faster from 4T.
 - **QR factor** is at parity or better at 1 thread (0.89x f64, 1.14x c64) and
   1.05x/0.50x at 8 threads, n=1024.
 - **Cholesky / GEMM / LU** at 8 threads still vary with size; the geometric
