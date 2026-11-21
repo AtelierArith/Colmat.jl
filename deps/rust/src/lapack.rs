@@ -157,64 +157,98 @@ pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
         }
     })
 }
-/// A zero-filled vector without the generic `vec![x; n]` clone loop. Every
-/// `Scalar` in this crate is a float or a pair of floats, whose zero value has
-/// the all-zero bit pattern, so `write_bytes` produces a valid `T`.
-pub(crate) unsafe fn zeroed_vec<T: Scalar>(len: usize) -> Vec<T> {
-    let mut v = Vec::with_capacity(len);
-    std::ptr::write_bytes(v.as_mut_ptr(), 0, len);
-    v.set_len(len);
-    v
+thread_local! {
+    /// `factor_cholesky` saves the `n * (n - 1) / 2` elements of the triangle
+    /// LAPACK does not own before factoring in place. The BLAS entry point is
+    /// called once per factorization and allocating a fresh buffer at n=1024
+    /// dominated the call with page-fault jitter, so each calling thread keeps
+    /// its buffer and grows it to the largest shape it has seen. `u64` gives
+    /// the 8-byte alignment every `Scalar` needs.
+    static CHOLESKY_SCRATCH: std::cell::RefCell<Vec<u64>> =
+        const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Factor the caller's buffer through an isolated dense temporary. The native
-/// right-looking LLT may write the opposite triangle, so the caller's unselected
-/// triangle must stay untouched. The temporary is filled with plain copies
-/// rather than a per-element closure, which dominated the factorization at
-/// n=1024.
-pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
-    if n == 0 {
-        return 0;
-    }
-    let mut scratch = zeroed_vec::<T>(n * n);
-    let dst = scratch.as_mut_ptr();
+unsafe fn factor_cholesky_in<T: Scalar>(
+    saved: *mut T,
+    u: u8,
+    n: usize,
+    a: *mut T,
+    ld: isize,
+) -> usize {
+    // LAPACK owns only the selected triangle. The native right-looking LLT
+    // writes the opposite triangle as scratch, so save that half (the diagonal
+    // belongs to the factor) and put it back afterwards. This lets the factor
+    // run in place: for UPLO='U' the lower triangle of the transposed view is
+    // the caller's upper triangle.
+    let mut len = 0;
     if u == b'L' {
         for j in 0..n {
-            std::ptr::copy_nonoverlapping(
-                a.offset(j as isize + j as isize * ld),
-                dst.add(j + j * n),
-                n - j,
-            );
+            std::ptr::copy_nonoverlapping(a.offset(j as isize * ld), saved.add(len), j);
+            len += j;
         }
     } else {
         for j in 0..n {
-            for i in j..n {
-                // The lower triangle of the transposed view is the caller's upper.
-                *dst.add(i + j * n) = (*a.offset(j as isize + i as isize * ld)).cj();
-            }
+            let count = n - j - 1;
+            std::ptr::copy_nonoverlapping(
+                a.offset((j + 1) as isize + j as isize * ld),
+                saved.add(len),
+                count,
+            );
+            len += count;
         }
     }
     // LAPACK ignores the imaginary part of a Hermitian diagonal.
     for j in 0..n {
-        *dst.add(j + j * n) = T::real((*dst.add(j + j * n)).re());
+        let diag = a.offset(j as isize + j as isize * ld);
+        *diag = T::real((*diag).re());
     }
-    let info = cholesky(MatMut::from_raw_parts_mut(dst, n, n, 1, n as isize));
+    let matrix = MatMut::from_raw_parts_mut(a, n, n, 1, ld);
+    let info = if u == b'L' {
+        cholesky(matrix)
+    } else {
+        cholesky(matrix.transpose_mut())
+    };
+    let mut len = 0;
     if u == b'L' {
         for j in 0..n {
-            std::ptr::copy_nonoverlapping(
-                dst.add(j + j * n),
-                a.offset(j as isize + j as isize * ld),
-                n - j,
-            );
+            std::ptr::copy_nonoverlapping(saved.add(len), a.offset(j as isize * ld), j);
+            len += j;
         }
     } else {
         for j in 0..n {
-            for i in j..n {
-                *a.offset(j as isize + i as isize * ld) = (*dst.add(i + j * n)).cj();
-            }
+            let count = n - j - 1;
+            std::ptr::copy_nonoverlapping(
+                saved.add(len),
+                a.offset((j + 1) as isize + j as isize * ld),
+                count,
+            );
+            len += count;
         }
     }
     info
+}
+/// Factor the caller's buffer in place while preserving the triangle LAPACK
+/// does not own. The saved half is reused per calling thread; the UPLO='U'
+/// path factors the lower triangle of the transposed view, which is the
+/// caller's upper triangle.
+pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
+    if n == 0 {
+        return 0;
+    }
+    let saved = n * (n - 1) / 2;
+    let words = (saved * core::mem::size_of::<T>()).div_ceil(8);
+    CHOLESKY_SCRATCH.with(|scratch| match scratch.try_borrow_mut() {
+        Ok(mut buffer) => {
+            if buffer.len() < words {
+                buffer.resize(words, 0);
+            }
+            factor_cholesky_in(buffer.as_mut_ptr() as *mut T, u, n, a, ld)
+        }
+        Err(_) => {
+            let mut buffer = vec![0u64; words];
+            factor_cholesky_in(buffer.as_mut_ptr() as *mut T, u, n, a, ld)
+        }
+    })
 }
 
 pub fn solve_cholesky<T: Scalar>(a: MatRef<'_, T>, mut b: MatMut<'_, T>, u: u8) {
@@ -1049,5 +1083,107 @@ mod shared_evd_regression {
     #[test]
     fn shared_general_complex64() {
         check::<colmat::c64>(&[0, 900, -1000]);
+    }
+}
+
+#[cfg(test)]
+mod cholesky_triangle_regression {
+    use super::*;
+    use colmat::{c64, Mat};
+
+    fn spd_f64(n: usize) -> Mat<f64> {
+        let l = Mat::<f64>::from_fn(n, n, |i, j| {
+            if i == j {
+                2.0 + i as f64 * 0.01
+            } else if i > j {
+                ((i * 7 + j * 3) % 11) as f64 / 23.0 - 0.2
+            } else {
+                0.0
+            }
+        });
+        Mat::from_fn(n, n, |i, j| (0..n).map(|k| l[(i, k)] * l[(j, k)]).sum())
+    }
+
+    fn spd_c64(n: usize) -> Mat<c64> {
+        let l = Mat::<c64>::from_fn(n, n, |i, j| {
+            let re = if i == j {
+                2.0 + i as f64 * 0.01
+            } else if i > j {
+                ((i * 7 + j * 3) % 11) as f64 / 23.0 - 0.2
+            } else {
+                0.0
+            };
+            let im = if i > j {
+                ((i * 5 + j * 2) % 7) as f64 / 31.0 - 0.1
+            } else {
+                0.0
+            };
+            c64::new(re, im)
+        });
+        Mat::from_fn(n, n, |i, j| {
+            (0..n).map(|k| l[(i, k)] * l[(j, k)].conj()).sum()
+        })
+    }
+
+    fn check<T: Scalar>(original: &Mat<T>) {
+        let n = original.nrows();
+        for u in [b'L', b'U'] {
+            let selected = |i: usize, j: usize| {
+                if u == b'L' {
+                    i >= j
+                } else {
+                    i <= j
+                }
+            };
+            let mut a = Mat::<T>::from_fn(n, n, |i, j| {
+                if selected(i, j) {
+                    original[(i, j)]
+                } else {
+                    T::real(12345.0)
+                }
+            });
+            let opposite_before: Vec<T> = (0..n)
+                .flat_map(|j| (0..n).map(move |i| (i, j)))
+                .filter(|&(i, j)| !selected(i, j))
+                .map(|(i, j)| a[(i, j)])
+                .collect();
+            let info =
+                unsafe { factor_cholesky(u, n, a.as_mut().as_ptr_mut(), a.as_ref().col_stride()) };
+            assert_eq!(info, 0);
+            let opposite_after: Vec<T> = (0..n)
+                .flat_map(|j| (0..n).map(move |i| (i, j)))
+                .filter(|&(i, j)| !selected(i, j))
+                .map(|(i, j)| a[(i, j)])
+                .collect();
+            assert_eq!(opposite_before, opposite_after, "u={}", u as char);
+            // Reconstruct A from the selected factor: L L^H or U^H U.
+            let mut scale = 0.0f64;
+            let mut error = 0.0f64;
+            for j in 0..n {
+                for i in 0..n {
+                    let mut sum = T::z();
+                    for k in 0..n.min(i.min(j) + 1) {
+                        sum += if u == b'L' {
+                            a[(i, k)] * a[(j, k)].cj()
+                        } else {
+                            a[(k, i)].cj() * a[(k, j)]
+                        };
+                    }
+                    error = error.max((sum - original[(i, j)]).abs1());
+                    scale = scale.max(original[(i, j)].abs1());
+                }
+            }
+            assert!(
+                error <= 1e-10 * scale.max(1.0),
+                "u={} error={error}",
+                u as char
+            );
+        }
+    }
+
+    #[test]
+    fn both_triangles_match_the_factor_contract() {
+        check(&spd_f64(37));
+        check(&spd_c64(37));
     }
 }

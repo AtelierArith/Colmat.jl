@@ -60,11 +60,45 @@ not simply be removed.
 
 Changes:
 
-- the temporary is allocated with an all-zero `write_bytes` fill and filled with
-  per-column `copy_nonoverlapping`; only the selected triangle is copied back;
+- the temporary is isolated from caller storage and filled with per-column
+  `copy_nonoverlapping`; only the selected triangle is copied back (it is now
+  per-thread and reused, see the UPLO section below);
 - the LLT block size is 32 instead of the automatic 128. A sweep over
   block sizes 16/32/64/128/256 and recursion thresholds 16/32/64/128 on this host
   found 32 fastest (about 16-20% better at n=512/1024).
+
+## Cholesky UPLO='U', scratch reuse and the resident team
+
+Two costs were outside the LLT kernel itself. The benchmark calls
+`cholesky(Hermitian(A))`, whose default `UPLO='U'` took the adapter's
+per-element strided transpose branch, with a `cj()` and a multiply-add per
+element for both the copy in and the copy out. The adapter also allocated and
+zeroed a fresh `n x n` temporary on every call. At `n=1024` the 8 MiB
+allocation and its page faults showed up as jitter even though the temporary is
+only borrowed for one factorization.
+
+Changes:
+
+- factor in place. LAPACK owns only the selected triangle; the native LLT uses
+  the opposite triangle as scratch, so save that half (the diagonal belongs to
+  the factor), factor the caller's buffer, and restore it. The save buffer is
+  `n * (n - 1) / 2` elements per calling thread and is reused.
+- for `UPLO='U'` the lower triangle of the transposed view is the caller's
+  upper triangle, so the factor is written where LAPACK expects it. No
+  transpose copy remains; the transposed view is only about 25-30% slower than
+  a column-major factor (1.5 vs 1.1 ms at n=1024, 8T), less than the copies it
+  replaces.
+- `threading::with_par` keeps one `threadteam::Team` resident per calling
+  thread. Building a pool and reserving its members on every BLAS call cost
+  about 3.8 ms at 8 threads (`into_team` makes every member acknowledge and be
+  placed), more than the factorization. A token from the resident team is a
+  lock and a dispatch. Setting the width to 1 drops the team, so a
+  single-threaded process leaves no parked members behind.
+
+The pinned `colmat-benchmark` harness measures the kernel itself, without this
+adapter: at `n=1024`, f64, 8T, column-major, its `cholesky` cell is 1.45 ms
+(best of five, `--prime-ms 250`, colmat-rs `b376b3ce`). The remaining adapter
+cost is the isolated temporary copy required by the LAPACK triangle contract.
 
 ## Panel scratch and team acquisition
 
@@ -137,12 +171,26 @@ Microbenchmark (minimum of five calls, milliseconds; colmat-rs `b376b3ce`):
 | `cholesky`, f64, n=1024, 1T | 18.7 | 14.4 |
 | `cholesky`, c64, n=1024, 1T | 53.2 | 42.7 |
 
+Full backend suite for `cholesky` on the Zen 4 host, `n=1024`, median of five
+(`benchmarks/backends/results/linux-amd-2026-11-21-final2`; the mask has
+`threads + 1` CPUs):
+
+| dtype | T | OpenBLAS | MKL | Colmat | Colmat/OpenBLAS |
+|---|---:|---:|---:|---:|---:|
+| f64 | 1 | 7.84 | 8.96 | 10.26 | 1.31 |
+| f64 | 4 | 4.52 | 2.31 | 5.50 | 1.22 |
+| f64 | 8 | 4.73 | 1.94 | 2.98 | 0.63 |
+| c64 | 1 | 27.26 | 27.45 | 24.12 | 0.88 |
+| c64 | 4 | 10.65 | 5.77 | 9.84 | 0.92 |
+| c64 | 8 | 9.67 | 4.82 | 6.41 | 0.66 |
+
 ## What is left
 
-- **Cholesky** is still about 1.5-1.7x slower than OpenBLAS at 1 thread
-  (`n=1024`: 14.4 vs 8.6 ms f64, 42.7 vs 28.0 ms c64). The adapter's copy is
-  ~2 ms at n=1024; the rest is the native LLT kernel. colmat-rs #257 tracks the
-  Skylake block-size follow-up; the adapter forces 32 on AVX2-only parts.
+- **Cholesky** is at parity or faster than OpenBLAS at 4-8 threads on the Zen 4
+  host after the in-place change. At `n=1024` (`median ms`, f64/c64): 1T 10.3 /
+  24.1 vs 7.8 / 27.3; 4T 5.5 / 9.8 vs 4.5 / 10.7; 8T 3.0 / 6.4 vs 4.7 / 9.7.
+  The remaining 1T f64 gap is the native AVX-512 LLT kernel; colmat-rs #257
+  tracks the block-size follow-up.
 - **SVD** at 1 thread is about 1.14x slower for `svd` and 1.2-1.4x for
   `svdvals`. Profiling showed ~97% of the call inside
   `colmat::linalg::svd::svdd`; colmat-rs #259 tracks the values-only gap.

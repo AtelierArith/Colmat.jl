@@ -29,14 +29,24 @@ measurements assume the machine is otherwise idle.
 
 ```sh
 for threads in 1 4 8; do
+  # Give the team leader a CPU of its own. Colmat is a libblastrampoline
+  # backend whose threadteam places the caller apart from its members, so a
+  # mask exactly as wide as the thread budget leaves no spare CPU and the run
+  # becomes intermittently serial. OpenBLAS and MKL do not care, but compare
+  # every backend on the same mask with at least threads + 1 CPUs.
+  case $threads in 1) cpus=4;; 4) cpus=4-9;; 8) cpus=0-11;; esac
   for backend in openblas mkl colmat; do
-    COLMAT_BENCH_BACKEND=$backend \
-    COLMAT_BENCH_THREADS=$threads \
-    COLMAT_BENCH_OUTPUT=benchmarks/backends/results/after/${backend}_t${threads}.toml \
+    taskset -c $cpus env \
+      COLMAT_BENCH_BACKEND=$backend \
+      COLMAT_BENCH_THREADS=$threads \
+      COLMAT_BENCH_OUTPUT=benchmarks/backends/results/after/${backend}_t${threads}.toml \
       julia --startup-file=no -t 1 --project=benchmarks/backends benchmarks/backends/run.jl
   done
 done
 ```
+
+The masks above are for a 16-CPU host; on another host keep at least
+`threads + 1` CPUs in the mask and pin every backend to the same set.
 
 Then summarize:
 
