@@ -14,7 +14,7 @@ function getBaseRepository(base: string): string {
 }
 
 const baseTemp = {
-  base: 'REPLACE_ME_DOCUMENTER_VITEPRESS',// ビルド時に置換
+  base: 'REPLACE_ME_DOCUMENTER_VITEPRESS', // replaced at build time
 }
 
 const navTemp = {
@@ -28,19 +28,19 @@ const nav = [
   }
 ]
 
-// サイト全体の設定
+// Site-wide configuration
 export default defineConfig({
-  lang: 'ja-JP',
-  base: 'REPLACE_ME_DOCUMENTER_VITEPRESS',// ビルド時に置換
+  lang: 'en-US',
+  base: 'REPLACE_ME_DOCUMENTER_VITEPRESS', // replaced at build time
   title: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
   description: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
   lastUpdated: true,
   cleanUrls: true,
-  outDir: 'REPLACE_ME_DOCUMENTER_VITEPRESS', // 出力先はビルド時に決まる
+  outDir: 'REPLACE_ME_DOCUMENTER_VITEPRESS', // the output directory is decided at build time
   head: [
     ['link', { rel: 'icon', href: 'REPLACE_ME_DOCUMENTER_VITEPRESS_FAVICON' }],
     ['script', {src: `${getBaseRepository(baseTemp.base)}versions.js`}],
-    // 独自ドメインの指定は deploy_url で管理する
+    // The custom domain is managed through deploy_url
     ['script', {src: `${baseTemp.base}siteinfo.js`}],
     // REPLACE_ME_DOCUMENTER_VITEPRESS_NOINDEX
   ],
@@ -79,35 +79,35 @@ export default defineConfig({
     },
     ssr: {
       noExternal: [
-        // Vite による処理が必要な依存関係
+        // Dependencies that Vite must process
         '@nolebase/vitepress-plugin-enhanced-readabilities',
         '@nolebase/ui',
       ],
     },
   },
   themeConfig: {
-    outline: { level: 'deep', label: 'このページの内容' },
-    docFooter: { prev: '前のページ', next: '次のページ' },
-    lastUpdated: { text: '最終更新' },
-    sidebarMenuLabel: 'メニュー',
-    returnToTopLabel: '先頭に戻る',
-    darkModeSwitchLabel: '表示モード',
-    lightModeSwitchTitle: 'ライトモードに切り替える',
-    darkModeSwitchTitle: 'ダークモードに切り替える',
-    skipToContentLabel: '本文に移動',
+    outline: { level: 'deep', label: 'On this page' },
+    docFooter: { prev: 'Previous page', next: 'Next page' },
+    lastUpdated: { text: 'Last updated' },
+    sidebarMenuLabel: 'Menu',
+    returnToTopLabel: 'Back to top',
+    darkModeSwitchLabel: 'Appearance',
+    lightModeSwitchTitle: 'Switch to light mode',
+    darkModeSwitchTitle: 'Switch to dark mode',
+    skipToContentLabel: 'Skip to content',
     logo: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
     search: {
       provider: 'local',
       options: {
         detailedView: true,
         translations: {
-          button: { buttonText: '検索', buttonAriaLabel: 'ドキュメントを検索' },
+          button: { buttonText: 'Search', buttonAriaLabel: 'Search the documentation' },
           modal: {
-            noResultsText: '検索結果が見つかりません',
-            resetButtonTitle: '検索をリセット',
-            displayDetails: '詳細を表示',
-            backButtonTitle: '検索を閉じる',
-            footer: { selectText: '選択', navigateText: '移動', closeText: '閉じる' }
+            noResultsText: 'No results found',
+            resetButtonTitle: 'Reset the search',
+            displayDetails: 'Display details',
+            backButtonTitle: 'Close the search',
+            footer: { selectText: 'Select', navigateText: 'Navigate', closeText: 'Close' }
           }
         }
       }
@@ -117,13 +117,13 @@ export default defineConfig({
     sidebarDrawer: 'REPLACE_ME_DOCUMENTER_VITEPRESS_SIDEBAR_DRAWER',
     editLink: {
       pattern: 'https://github.com/AtelierArith/Colmat.jl/edit/main/docs/src/:path',
-      text: 'このページを編集'
+      text: 'Edit this page'
     },
     socialLinks: [
       { icon: 'github', link: 'REPLACE_ME_DOCUMENTER_VITEPRESS' }
     ],
     footer: {
-      message: '作成ツール: <a href="https://luxdl.github.io/DocumenterVitepress.jl/dev/" target="_blank"><strong>DocumenterVitepress.jl</strong></a><br>',
+      message: 'Made with <a href="https://luxdl.github.io/DocumenterVitepress.jl/dev/" target="_blank"><strong>DocumenterVitepress.jl</strong></a><br>',
       copyright: `© ${new Date().getUTCFullYear()}.`
     }
   }

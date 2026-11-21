@@ -1,6 +1,6 @@
 {
-  "platform": "x86_64-apple-darwin24.6.0",
-  "native_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
+  "platform": "x86_64-linux-gnu",
+  "native_revision": "e1c83482f5a61449d30e989808c3ba5f751ec391",
   "inventory_registration_sha256": "bde69f0a94a168a01db21a5e6db9f1422eac979500a9c59b7d5775d1c4d5f0a2",
   "lapacke_target_symbols": [
     "LAPACKE_cbdsqr",
@@ -1624,7 +1624,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "8874ed372c9d89589d53996497894a4ff5a8886daa5fc6633b635f0a22ba536b",
+  "library_sha256": "963554e1b79e3b2b6c87dad00cd4cfcde7ef4516e5443f1b6f260d7a558c2883",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "451884e0b7b9187b8426732b741969c77eecac99",
+  "revision": "08581c59f5d3f0b92faf6dcb1d87c6341efeeba8",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -114331,7 +114331,7 @@
     "test/matrix_norms.jl": "24ac6c2a5eac74eb0c46399cad45cc5161230490cece32c7b8b0f2649807c821",
     "deps/rust/src/lq.rs": "dd4d60222f14f4297999067993631945a099697ef1353096a313eed78c51ca5b",
     "deps/rust/src/band_lu.rs": "f47cafd035ef78f0df2f61bc1f4af082f5b41b34fec54c73e48d6514deb3ce8f",
-    "deps/upstream.toml": "0debbbc2e3fd91898588be6c19a7384f00bbaddfcd55996c91683441bfda55e9",
+    "deps/upstream.toml": "26bdd02f9219d60b2eef4c14a246ad3f7e5d70825c63e4474a0bd6b5b8d7010d",
     "deps/rust/src/dense_extensions.rs": "3d94f1b720454c1f07fd301191afb5280c6f9d8b5b6e050533ba3264143cb10d",
     "test/lapacke_matrix_norms_abi_worker.c": "6cae1bdd18b6d263ae705a1b625afd0799cbb7430f995f6b099bfa55da74473c",
     "test/Project.toml": "84af0faef36b617dc3e92fba9c7d4afe252d16ebcd56d8291464e8bbd19cf98b",
@@ -114386,7 +114386,7 @@
     "deps/rust/src/lapacke/pentagonal_qr.rs": "512dc1becd6445e5c6cb6094468251149db22ad34334816a00581da9e7fe42cc",
     "test/geevx_expert_processes.jl": "f63981f05cb5e2dcb5ffa855be884d98ae83594f2f69c647ac1d4c10be4ffac0",
     "test/qz_reorder.jl": "702ee5fc87f32027f533530a99b742e8ca340d86a43230d368201a7b8136ed44",
-    "test/support_matrix.jl": "aaed899afc763da8102f6ed1fda575d7eb849c5bd1624bbd990a4f10f9cfb64c",
+    "test/support_matrix.jl": "24431ea3616dadf525bf64879e2f4b4d68b2bb5934d7317cd5c9bc63c3813bc1",
     "test/rook_extremes.jl": "1dab9a89140d55f05b6c30125b6142dd8c16b1dcdadb5640d2a31a318e4d5856",
     "test/generalized_qr_drivers.jl": "141e85b8fa6410acea65d401ba9b7258cde9168c9e739f98992f4af9dc64a1c2",
     "test/lapacke_lq_abi_worker.c": "d74502e531cf5a744cac20f516a8f112eaf32661ea6ad21ebab4a6504f1ce887",

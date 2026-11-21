@@ -5,11 +5,11 @@ Entry points are selected from the Julia 1.13 wrapper implementation, and the LB
 
 ## Verification conditions
 
-- Julia: `1.13.3` / `x86_64-linux-gnu`.
-- Colmat source: `bc0dce2af48590dec20f99976ad7aee8b999a447`.
+- Julia: `1.13.4` / `x86_64-linux-gnu`.
+- Colmat source: `08581c59f5d3f0b92faf6dcb1d87c6341efeeba8`.
 - Rust colmat source: `e1c83482f5a61449d30e989808c3ba5f751ec391`.
 - Julia BLAS integer ABI: `ilp64`.
-- Colmat execution width: `1`.
+- Colmat execution width: `8`.
 - Element types are listed in the order Float32 / Float64 / ComplexF32 / ComplexF64.
 
 ## Results
@@ -26,8 +26,8 @@ Entry points are selected from the Julia 1.13 wrapper implementation, and the LB
 | `UpperTriangular(A) \ B` | Success | Success | Success | Success | Colmat | Rust compatibility layer |
 | `lu(A)` | Success | Success | Success | Success | Colmat | partial_piv_lu (connected) |
 | `lu(A) \ x` | Success | Success | Success | Success | Colmat | LU solve (connected) |
-| `qr(A)` | Success | Success | Success | Success | Existing backend | qr (not connected) |
-| `qr(A, ColumnNorm())` | Success | Success | Success | Success | Existing backend | col_piv_qr (not connected) |
+| `qr(A)` | Success | Success | Success | Success | Colmat | qr (connected) |
+| `qr(A, ColumnNorm())` | Success | Success | Success | Success | Colmat | col_piv_qr (connected) |
 | `svd(A)` | Success | Success | Success | Success | Colmat | svd (connected) |
 | `svd(A; alg=LinearAlgebra.QRIteration())` | Success | Success | Success | Success | Colmat | svd (connected) |
 | `svdvals(A)` | Success | Success | Success | Success | Colmat | SVD (connected) |
@@ -51,8 +51,8 @@ Each row examines the same API as the table above. Symbols follow the order of t
 | `UpperTriangular(A) \ B` | `strsm_`, `dtrsm_`, `ctrsm_`, `ztrsm_` | `libcolmat_blas.so` |
 | `lu(A)` | `sgetrf_`, `dgetrf_`, `cgetrf_`, `zgetrf_` | `libcolmat_blas.so` |
 | `lu(A) \ x` | `sgetrs_`, `dgetrs_`, `cgetrs_`, `zgetrs_` | `libcolmat_blas.so` |
-| `qr(A)` | `sgeqrt_`, `dgeqrt_`, `cgeqrt_`, `zgeqrt_` | `libopenblas64_.so` |
-| `qr(A, ColumnNorm())` | `sgeqp3_`, `dgeqp3_`, `cgeqp3_`, `zgeqp3_` | `libopenblas64_.so` |
+| `qr(A)` | `sgeqrt_`, `dgeqrt_`, `cgeqrt_`, `zgeqrt_` | `libcolmat_blas.so` |
+| `qr(A, ColumnNorm())` | `sgeqp3_`, `dgeqp3_`, `cgeqp3_`, `zgeqp3_` | `libcolmat_blas.so` |
 | `svd(A)` | `sgesdd_`, `dgesdd_`, `cgesdd_`, `zgesdd_` | `libcolmat_blas.so` |
 | `svd(A; alg=LinearAlgebra.QRIteration())` | `sgesvd_`, `dgesvd_`, `cgesvd_`, `zgesvd_` | `libcolmat_blas.so` |
 | `svdvals(A)` | `sgesdd_`, `dgesdd_`, `cgesdd_`, `zgesdd_` | `libcolmat_blas.so` |
@@ -78,7 +78,6 @@ julia --project=test test/support_matrix.jl --output=docs/src/reference/support-
 ```
 
 If verification fails, the table is not overwritten. The call cases and verification methods are in `test/support_matrix.jl`.
-
 ## Householder ABI connection (#264)
 
 This addendum is a verification separate from the existing Linux measurement table. It used Julia 1.13.3 /
