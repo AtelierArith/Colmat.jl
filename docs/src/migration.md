@@ -1,30 +1,33 @@
-# 0.2 への設計変更
+# The 0.2 redesign
 
-0.2 では Julia–Rust バインディングから BLAS バックエンドへ設計を変更しました。
-旧版との後方互換性はありません。
+Version 0.2 changed the design from a Julia–Rust binding to a BLAS backend.
+It is not backward compatible with the old version.
 
-| 旧版の使い方 | 現在の使い方 |
+| Old usage | Current usage |
 |---|---|
-| `FaerMatrix` / `FaerVector` を作る | 通常の `Matrix` / `Vector` を使う |
-| 専用型に対して乗算や `mul!` を呼ぶ | 同じ Base / LinearAlgebra API を通常配列に使う |
-| `FaerTeam` で乗算する | `BLAS.set_num_threads` または `Colmat.set_num_threads` を使う |
-| `close` / `with_resource` で Rust ハンドルを解放する | 通常配列は Julia が所有。専用ハンドルの管理は不要 |
-| RustCall でバインディングを生成する | Cargo で BLAS ABI 共有ライブラリをビルドする |
-| 専用の分解・疎行列・反復法・NPY API を使う | これらの Colmat API は削除。利用側で対応する Julia API を選ぶ |
+| Create `FaerMatrix` / `FaerVector` | Use ordinary `Matrix` / `Vector` |
+| Call multiplication or `mul!` on dedicated types | Use the same Base / LinearAlgebra APIs on ordinary arrays |
+| Multiply with `FaerTeam` | Use `BLAS.set_num_threads` or `Colmat.set_num_threads` |
+| Release Rust handles with `close` / `with_resource` | Ordinary arrays are owned by Julia; no dedicated handle management is needed |
+| Generate bindings with RustCall | Build the BLAS ABI shared library with Cargo |
+| Use the dedicated factorization, sparse, iterative, and NPY APIs | These Colmat APIs were removed; choose the corresponding Julia API on the use side |
 
-通常配列の LU・SVD・一般／自己随伴固有値・Cholesky は LAPACK ABI を経由して
-colmat-rs の分解を使います。旧専用型 API の互換層を提供する変更ではありません。
+LU, SVD, general/self-adjoint eigenvalues, and Cholesky for ordinary arrays go through
+the LAPACK ABI to colmat-rs factorizations. This is not a change that provides a
+compatibility layer for the old dedicated-type API.
 
-## 旧資料
+## Old material
 
-旧版の機能台帳、Issue #1 の計画、RustCall や旧 API の再現コードは、現在の
-ドキュメントから削除しました。旧コードと一緒に参照する場合は、設計変更前の
-Git commit `ced1e13bf765f18b44e92317bc053b8e212fed4e` を使用してください。
+The old feature ledger, the Issue #1 plan, and the reproducers for RustCall and the old
+API have been removed from the current documentation. To consult them together with the
+old code, use the Git commit before the redesign,
+`ced1e13bf765f18b44e92317bc053b8e212fed4e`.
 
 ```sh
 git show ced1e13bf765f18b44e92317bc053b8e212fed4e:docs/implementation-status.md
 git ls-tree -r --name-only ced1e13bf765f18b44e92317bc053b8e212fed4e docs/reproducers
 ```
 
-旧記録のテスト件数や依存 revision は、その旧実装を検証した履歴です。
-現在の対応範囲や検証結果には転用しません。
+The test counts and dependency revisions in the old records describe the history of
+verifying that old implementation. Do not reuse them as the current coverage or
+verification results.

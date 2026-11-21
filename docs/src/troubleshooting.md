@@ -1,22 +1,22 @@
-# トラブルシューティング
+# Troubleshooting
 
-## 共有ライブラリが見つからない
+## The shared library is not found
 
-`Colmat's BLAS library is missing` と表示されたら、対象の Julia プロジェクトで
-ビルドし、Julia を再起動してください。
+If `Colmat's BLAS library is missing` appears, build in the target Julia project and
+restart Julia.
 
 ```julia
 using Pkg
 Pkg.build("Colmat")
 ```
 
-ビルドが失敗する場合は、リポジトリ利用時の `deps/build.log` を確認します。
-Git・Cargo・OS の開発ツールが実行可能であることも確認してください。
+If the build fails, check `deps/build.log` when using the repository. Also make sure that
+Git, Cargo, and the OS development tools are available.
 
-## Rust ソースのコミットが一致しない
+## The Rust source commit does not match
 
-ビルドは checkout の実際の HEAD と `deps/upstream.toml` を照合します。
-次のコマンドは状態の確認だけを行います。
+The build compares the actual checkout HEAD against `deps/upstream.toml`.
+The following commands only inspect the state.
 
 ```sh
 git -C deps/colmat-rs rev-parse HEAD
@@ -24,30 +24,31 @@ git -C deps/colmat-rs status --short
 cat deps/upstream.toml
 ```
 
-ローカル変更がある場合は保存してから、指定 revision のクリーンな checkout を
-用意してください。意図的な依存更新の手順は[開発](@ref)を参照してください。
+If there are local changes, save them and then prepare a clean checkout at the specified
+revision. For the procedure for an intentional dependency update, see [Development](@ref).
 
-## OpenBLAS も表示される
+## OpenBLAS also appears
 
-`BLAS.get_config()` に複数のライブラリが出るのは、未提供の BLAS と LAPACK の
-転送先を残しているためです。GEMM の実際の転送先は[はじめに](@ref)の方法で
-確認できます。ライブラリの表示順だけで全ルーチンの実行先は判断できません。
+Multiple libraries appearing in `BLAS.get_config()` is expected because the forwarding
+targets for unsupported BLAS and LAPACK routines are retained. You can check the actual
+GEMM forwarding target with the method in [Getting started](@ref). The display order of
+libraries alone does not tell you where each routine runs.
 
-## 別のバックエンドをロードした後に戻したい
+## Returning after another backend was loaded
 
-並列計算を止めてから `Colmat.load_backend()` を呼びます。
-[バックエンドとフォールバック](@ref)に切り替え範囲と順序の説明があります。
+Stop parallel computation, then call `Colmat.load_backend()`.
+[Backends and fallbacks](@ref) explains the scope and ordering of switching.
 
-## スレッド数が一致しない
+## Thread counts do not match
 
-`Colmat.get_num_threads()` は Colmat の設定値、`BLAS.get_num_threads()` は LBT が
-保持する値です。`Colmat.set_num_threads(n)` は LBT の記録値を更新しないため、
-Colmat だけを変更すると両者が一致しないことがあります。登録済みの各バックエンドを
-まとめて揃える場合は `BLAS.set_num_threads(n)` を使います。詳細は
-[スレッド設定](@ref)を参照してください。
+`Colmat.get_num_threads()` returns Colmat's configuration value, while
+`BLAS.get_num_threads()` returns the value held by LBT. `Colmat.set_num_threads(n)` does
+not update the value recorded by LBT, so changing only Colmat can leave the two out of
+sync. To align every registered backend at once, use `BLAS.set_num_threads(n)`.
+See [Thread settings](@ref) for details.
 
-## 旧版の名前が見つからない
+## An old name is not found
 
-`FaerMatrix`・`FaerScratch`・`FaerTeam`・`with_resource` などは 0.2 で削除しました。
-通常の `Matrix` / `Vector` と `LinearAlgebra` を使用してください。
-旧 API の対応方針は[0.2 への設計変更](@ref)を参照してください。
+`FaerMatrix`, `FaerScratch`, `FaerTeam`, `with_resource`, and similar names were removed
+in 0.2. Use ordinary `Matrix` / `Vector` and `LinearAlgebra`.
+See [The 0.2 redesign](@ref) for the policy on the old API.

@@ -1,8 +1,8 @@
 # Colmat.jl
 
-Rust の [colmat](https://github.com/tensor4all/colmat-rs) を使う Julia の BLAS / LAPACK バックエンドです。
-`using Colmat` で libblastrampoline の転送先を登録します。通常の `Matrix` と
-`LinearAlgebra` をそのまま使えます。専用の行列型・RustCall は不要です。
+A Julia BLAS / LAPACK backend that uses Rust's [colmat](https://github.com/tensor4all/colmat-rs).
+`using Colmat` registers its forwarding targets with libblastrampoline. Ordinary `Matrix`
+and `LinearAlgebra` work as-is; no dedicated matrix types or RustCall are needed.
 
 ```julia
 using Colmat, LinearAlgebra
@@ -12,11 +12,11 @@ B = randn(80, 60)
 C = A * B
 mul!(C, A, B)
 
-BLAS.get_config()           # Colmat と既存のフォールバックを表示
-BLAS.set_num_threads(2)     # Colmat と既存バックエンドの両方を設定
+BLAS.get_config()           # shows Colmat and the existing fallbacks
+BLAS.set_num_threads(2)     # sets both Colmat and the existing backends
 ```
 
-Julia 1.13、Git、Rust 1.89 以降が必要です。初回ビルドにはネットワーク接続が必要です。
+Julia 1.13, Git, and Rust 1.89 or later are required. The first build needs a network connection.
 
 ```sh
 julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
@@ -24,54 +24,57 @@ julia --project examples/poc.jl
 julia --project -e 'using Pkg; Pkg.test()'
 ```
 
-ビルドは `deps/upstream.toml` に記録した Rust ソースと `Cargo.lock` を使用します。
-ビルド中に upstream の HEAD を自動更新しません。共有ライブラリの再ビルド後は
-Julia を再起動してください。
+The build uses the Rust source recorded in `deps/upstream.toml` and `Cargo.lock`.
+It does not automatically update the upstream HEAD during the build. Restart Julia after
+rebuilding the shared library.
 
-## 提供範囲
+## Scope
 
-LP64 / ILP64、Float32 / Float64 / ComplexF32 / ComplexF64 を提供します。
+LP64 / ILP64 and Float32 / Float64 / ComplexF32 / ComplexF64 are supported.
 
-| 分類 | Colmat に転送するルーチン |
+| Category | Routines forwarded to Colmat |
 |---|---|
 | Level 1 | copy, swap, scal, axpy, axpby, dot / dotu / dotc, nrm2, asum, iamax, rot |
 | Level 2 | gemv, symv, hemv, ger / geru / gerc, syr, her, trmv, trsv |
 | Level 3 | gemm, symm, hemm, syrk, syr2k, herk, her2k, trmm, trsm |
 
-行列積は Julia のメモリを借用して Rust colmat のカーネルで実行します。
-対称・Hermitian・三角行列積などは必要に応じて一時領域を確保します。
-一部のベクトル演算と三角求解はこのパッケージの Rust 互換層で実装しています。
-LU・Cholesky・求解・逆行列・SVD・一般/自己随伴固有値・Schur/QZ・一般化 Hessenberg・
-最小二乗は入力配列をコピーせず、呼び出し側のメモリを借用して処理します。
-初期スレッド数はロード時の `BLAS.get_num_threads()` を引き継ぎます。設定した並列実行幅は行列積に適用されます。
+Matrix multiplication borrows Julia's memory and runs the Rust colmat kernels.
+Symmetric, Hermitian, and triangular products allocate temporary storage as needed.
+Some vector operations and triangular solves are implemented in this package's Rust
+compatibility layer.
+LU, Cholesky, solves, inverses, SVD, general/self-adjoint eigenvalues, Schur/QZ,
+generalized Hessenberg, and least squares process the caller's memory without copying
+the input arrays.
+The initial thread count inherits `BLAS.get_num_threads()` at load time. The configured
+parallel width applies to matrix multiplication.
 
-通常配列の `lu`・`svd`・`eigen`・`cholesky` を colmat-rs に接続します。
+The ordinary-array `lu`, `svd`, `eigen`, and `cholesky` entry points are connected to colmat-rs.
 
-| LAPACK 系列 | Colmat の処理 |
+| LAPACK family | What Colmat handles |
 |---|---|
-| getrf / getrs / getri / gesv | LU、求解、逆行列 |
-| potrf / potrs / potri | Cholesky、求解、逆行列 |
-| gesdd / gesvd | SVD、full / thin / overwrite |
-| geev / geevx | 一般固有値・左右固有ベクトル・balance |
-| syev / heev / syevd / heevd / syevr / heevr | 自己随伴固有値と A/I/V 範囲選択 |
+| getrf / getrs / getri / gesv | LU, solves, inverses |
+| potrf / potrs / potri | Cholesky, solves, inverses |
+| gesdd / gesvd | SVD, full / thin / overwrite |
+| geev / geevx | General eigenvalues, left/right eigenvectors, balancing |
+| syev / heev / syevd / heevd / syevr / heevr | Self-adjoint eigenvalues and A/I/V range selection |
 
-未提供の BLAS / LAPACK は既存バックエンドを維持します。
-`geevx` は `SENSE=N` が native で、条件数推定は既存バックエンドへ委譲します。
-SVD と自己随伴 EVD の複数ドライバーは共通の native 分解へ接続し、Netlib の各算法の
-同一実行を保証しません。範囲選択は全自己随伴 EVD からの選択で、native MRRR ではありません。
+Unsupported BLAS / LAPACK routines keep the existing backend.
+For `geevx`, `SENSE=N` is native and condition estimation is delegated to the existing backend.
+Several SVD and self-adjoint EVD drivers connect to a common native factorization; the
+package does not guarantee that each Netlib algorithm runs identically. Range selection
+chooses from the full self-adjoint EVD and is not native MRRR.
 
-LBT 全5,146シンボルの公開 API 対応と制約は
-[全ルーチン対応表](docs/src/reference/lbt-inventory.md)、通常 Julia API の実行結果は
-[実測対応表](docs/src/reference/support-matrix.md)に記録します。
+The public API correspondence and restrictions for all 5,146 LBT symbols are recorded in
+[the full routine mapping](docs/src/reference/lbt-inventory.md), and ordinary Julia API
+execution results in [the measured mapping](docs/src/reference/support-matrix.md).
 
-ロードによる切り替えは Julia プロセス全体に適用されます。ほかのバックエンドを
-後からロードした場合は `Colmat.load_backend()` で Colmat を再選択できます。
-バックエンドの切り替えは並列計算を始める前に行ってください。
+Switching on load applies to the whole Julia process. If another backend is loaded later,
+`Colmat.load_backend()` re-selects Colmat. Switch backends before starting parallel computation.
 
-0.2 は設計を全面変更しました。0.1 の `FaerMatrix` などの API は提供しません。
+Version 0.2 redesigned the package completely. The 0.1 APIs such as `FaerMatrix` are not provided.
 
-[マニュアル](docs/src/index.md) / [導入例](docs/src/getting-started.md) /
-[BLAS 対応範囲](docs/src/reference/coverage.md) / [API](docs/src/reference/api.md) /
-[開発](docs/src/development.md) / [トラブル対処](docs/src/troubleshooting.md)
+[Manual](docs/src/index.md) / [Getting started](docs/src/getting-started.md) /
+[BLAS coverage](docs/src/reference/coverage.md) / [API](docs/src/reference/api.md) /
+[Development](docs/src/development.md) / [Troubleshooting](docs/src/troubleshooting.md)
 
-旧版の資料を参照する方法は [0.2 への設計変更](docs/src/migration.md) に記載しています。
+How to consult the old version's material is described in [the 0.2 redesign](docs/src/migration.md).

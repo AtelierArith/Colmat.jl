@@ -11,26 +11,26 @@ makedocs(;
         repo="github.com/AtelierArith/Colmat.jl",
         devbranch="main",
         devurl="dev",
-        description="Julia ユーザのための Colmat.jl 日本語マニュアル",
+        description="Colmat.jl manual for Julia users",
     ),
     modules=[Colmat],
     pages=[
-        "ホーム" => "index.md",
-        "インストール" => "installation.md",
-        "はじめに" => "getting-started.md",
-        "使い方と設計" => [
-            "バックエンドとフォールバック" => "manual/backend.md",
-            "スレッド設定" => "manual/threading.md",
+        "Home" => "index.md",
+        "Installation" => "installation.md",
+        "Getting started" => "getting-started.md",
+        "Usage and design" => [
+            "Backends and fallbacks" => "manual/backend.md",
+            "Thread settings" => "manual/threading.md",
         ],
-        "リファレンス" => [
-            "LBT 全ルーチン対応表" => "reference/lbt-inventory.md",
-            "BLAS 対応範囲" => "reference/coverage.md",
-            "Julia API の実測対応表" => "reference/support-matrix.md",
-            "公開 API" => "reference/api.md",
+        "Reference" => [
+            "Full LBT routine mapping" => "reference/lbt-inventory.md",
+            "BLAS coverage" => "reference/coverage.md",
+            "Measured Julia API mapping" => "reference/support-matrix.md",
+            "Public API" => "reference/api.md",
         ],
-        "トラブルシューティング" => "troubleshooting.md",
-        "0.2 への設計変更" => "migration.md",
-        "開発" => "development.md",
+        "Troubleshooting" => "troubleshooting.md",
+        "0.2 redesign" => "migration.md",
+        "Development" => "development.md",
     ],
 )
 

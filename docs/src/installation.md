@@ -1,26 +1,25 @@
-# インストール
+# Installation
 
-## 必要な環境
+## Requirements
 
-- Julia 1.13。
-- Rust 1.89 以降と Cargo。
-- Git。
-- 初回の Rust ソース・Cargo 依存関係取得に必要なネットワーク接続。
+- Julia 1.13.
+- Rust 1.89 or later and Cargo.
+- Git.
+- A network connection for the initial download of the Rust source and Cargo dependencies.
 
-Rust のコンパイルに必要な、その OS の開発ツールも用意してください。
-現在の CI 設定は Linux と macOS を対象にしています。
+Also install the development tools for your OS that Rust compilation requires.
+The current CI configuration targets Linux and macOS.
 
-## リポジトリからビルドする
+## Building from the repository
 
-リポジトリのルートで実行します。
+Run the following from the repository root.
 
 ```sh
 julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
 julia --project examples/poc.jl
 ```
 
-別の Julia プロジェクトからこの checkout を利用する場合は、そのプロジェクトで
-ローカルパッケージとして登録します。
+To use this checkout from another Julia project, register it there as a local package.
 
 ```julia
 using Pkg
@@ -28,24 +27,25 @@ Pkg.develop(path="/absolute/path/to/Colmat.jl")
 Pkg.build("Colmat")
 ```
 
-ビルド後、新しい Julia プロセスで `using Colmat, LinearAlgebra` を実行します。
-モジュールのロード時に Rust のダウンロードやコンパイルは行いません。
+After building, run `using Colmat, LinearAlgebra` in a new Julia process.
+Loading the module does not download or compile Rust.
 
-## ビルドで生成するもの
+## What the build produces
 
-`deps/build.jl` は次の順に処理します。
+`deps/build.jl` performs the following steps in order.
 
-1. Rust ソースがなければ `deps/colmat-rs` に取得する。
-2. checkout のコミットと `deps/upstream.toml` の revision を照合する。
-3. `cargo build --release --locked` で BLAS 共有ライブラリを作る。
-4. ライブラリを `deps/usr/lib` に配置する。
+1. If the Rust source is absent, fetch it into `deps/colmat-rs`.
+2. Verify the checkout commit against the revision in `deps/upstream.toml`.
+3. Build the BLAS shared library with `cargo build --release --locked`.
+4. Install the library into `deps/usr/lib`.
 
-Rust ソースと Cargo 依存関係は `deps/upstream.toml` と `deps/rust/Cargo.lock`
-で固定します。ビルド中に upstream の HEAD へ自動更新しません。
-既存 checkout のコミットが一致しない場合や追跡ファイルに変更がある場合は停止します。
+The Rust source and Cargo dependencies are pinned by `deps/upstream.toml` and
+`deps/rust/Cargo.lock`. The build does not automatically update the upstream HEAD.
+It stops if the commit of an existing checkout does not match or if tracked files have
+local changes.
 
-ビルド用 Julia 依存関係は `deps/Project.toml`、文書用は `docs/Project.toml` に
-分離しています。RustCall のインストールは不要です。
+Julia dependencies for the build live in `deps/Project.toml`, and those for the
+documentation in `docs/Project.toml`. RustCall does not need to be installed.
 
-共有ライブラリを再ビルドした後は Julia を再起動してください。
-診断方法は[トラブルシューティング](@ref)を参照してください。
+Restart Julia after rebuilding the shared library.
+See [Troubleshooting](@ref) for diagnostics.
