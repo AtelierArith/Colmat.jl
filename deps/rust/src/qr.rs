@@ -3,7 +3,6 @@ use crate::householder::ReflectorScalar;
 use crate::kernels::Scalar;
 use colmat::dyn_stack::{MemBuffer, MemStack};
 use colmat::{Mat, MatMut, Par};
-
 // Factor one active column at a time so an exactly zero column still occupies
 // its LAPACK diagonal position. The native rank-revealing panel may otherwise
 // pack subsequent nonzero columns into that position.
@@ -162,6 +161,14 @@ unsafe fn multiply_q<T: Scalar>(
     if (side == b'L' && tr == b'N') || (side == b'R' && tr != b'N') {
         starts.reverse();
     }
+    // Size the block scratch once: every block reuses the same buffers, so a
+    // GEMQRT call allocates four arrays instead of four per block.
+    let order = if side == b'L' { m } else { n };
+    let widest = nb.min(k);
+    let mut basis = vec![T::z(); order * widest];
+    let mut triangular = vec![T::z(); widest * widest];
+    let mut work = vec![T::z(); widest * m.max(n)];
+    let mut transformed = vec![T::z(); widest * m.max(n)];
     for j in starts {
         let block = nb.min(k - j);
         let (rows, cols, offset) = if side == b'L' {
@@ -169,20 +176,27 @@ unsafe fn multiply_q<T: Scalar>(
         } else {
             (m, n - j, j as isize * ldc)
         };
-        crate::householder::apply_block(
+        let panel = v.offset(j as isize * (ldv + 1));
+        // V has one row per order of Q: the remaining rows of C on the left
+        // and the remaining columns of C on the right.
+        let local = if side == b'L' { rows } else { cols };
+        let basis = &mut basis[..local * block];
+        crate::householder::basis_into(b'F', b'C', local, block, panel, ldv, basis);
+        crate::householder::apply_block_with_basis(
             side,
             tr,
             b'F',
-            b'C',
             rows,
             cols,
             block,
-            v.offset(j as isize * (ldv + 1)),
-            ldv,
+            basis,
             t.offset(j as isize * ldt),
             ldt,
             c.offset(offset),
             ldc,
+            &mut triangular[..block * block],
+            &mut work,
+            &mut transformed,
         );
     }
 }

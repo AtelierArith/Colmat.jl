@@ -66,16 +66,27 @@ pub(crate) unsafe fn generate<T: ReflectorScalar>(
         return;
     }
     let (r, im) = (ar / scale, ai / scale);
-    // Scaled sum of squares for the tail. Repeated hypot calls are accurate but
-    // dominate reflector generation for long columns.
-    let mut tail_scale = 0.0f64;
-    let mut tail_ssq = 1.0f64;
-    for i in 0..n - 1 {
-        let z = *x.offset(i * inc);
-        add_sq(&mut tail_scale, &mut tail_ssq, z.re() / scale);
-        add_sq(&mut tail_scale, &mut tail_ssq, z.im() / scale);
+    // Scaled sum of squares for the tail. `scale` is already the largest
+    // component, so every normalized term is at most one: a plain accumulation
+    // is overflow-free and avoids the two divisions per element that a
+    // dynamic-scale update would take. Subnormal columns keep the division
+    // form because their reciprocal overflows.
+    let inv_scale = 1.0 / scale;
+    let mut tail_ssq = 0.0f64;
+    if inv_scale.is_finite() {
+        for i in 0..n - 1 {
+            let z = *x.offset(i * inc);
+            let (xr, xi) = (z.re() * inv_scale, z.im() * inv_scale);
+            tail_ssq += xr * xr + xi * xi;
+        }
+    } else {
+        for i in 0..n - 1 {
+            let z = *x.offset(i * inc);
+            let (xr, xi) = (z.re() / scale, z.im() / scale);
+            tail_ssq += xr * xr + xi * xi;
+        }
     }
-    let tail = tail_scale * tail_ssq.sqrt();
+    let tail = tail_ssq.sqrt();
     if im == 0.0 && (tail == 0.0 || (positive && tail <= T::EPS * r.abs())) {
         if positive && r < 0.0 {
             *tau = T::real(2.0);
@@ -111,11 +122,29 @@ pub(crate) unsafe fn generate<T: ReflectorScalar>(
     let divisor = dr.abs().max(im.abs());
     let (rr, ii) = (dr / divisor, im / divisor);
     let denom = rr * rr + ii * ii;
-    for i in 0..n - 1 {
-        let p = x.offset(i * inc);
-        let z = *p;
-        let (xr, xi) = ((z.re() / scale) / divisor, (z.im() / scale) / divisor);
-        *p = T::parts((xr * rr + xi * ii) / denom, (xi * rr - xr * ii) / denom);
+    // Two reciprocals replace two divisions per element in the loop.
+    let inv_divisor = 1.0 / divisor;
+    let inv_denom = 1.0 / denom;
+    if inv_scale.is_finite() && inv_divisor.is_finite() {
+        for i in 0..n - 1 {
+            let p = x.offset(i * inc);
+            let z = *p;
+            let (xr, xi) = (
+                z.re() * inv_scale * inv_divisor,
+                z.im() * inv_scale * inv_divisor,
+            );
+            *p = T::parts(
+                (xr * rr + xi * ii) * inv_denom,
+                (xi * rr - xr * ii) * inv_denom,
+            );
+        }
+    } else {
+        for i in 0..n - 1 {
+            let p = x.offset(i * inc);
+            let z = *p;
+            let (xr, xi) = ((z.re() / scale) / divisor, (z.im() / scale) / divisor);
+            *p = T::parts((xr * rr + xi * ii) / denom, (xi * rr - xr * ii) / denom);
+        }
     }
     *a = T::real(beta * scale);
 }
@@ -142,6 +171,24 @@ pub(crate) unsafe fn apply<T: Scalar>(
     // One reflector update is tiny even when the matrix is not; a thread team
     // per call costs more than the update for the sizes used by QR panels.
     let threaded = (m.max(0) as usize).saturating_mul(n.max(0) as usize) >= (1 << 18);
+    if inc == 1 && !threaded {
+        // Contiguous Householder fast path: one BLAS-2 product, then a rank-1
+        // update whose conjugated coefficient is hoisted out of the inner loop.
+        if left {
+            crate::kernels::gemv_conj_contiguous(m, n, c, ldc, v, work);
+            for j in 0..n {
+                let alpha = -tau * (*work.offset(j)).cj();
+                crate::kernels::axpy(m, alpha, v, c.offset(j * ldc));
+            }
+        } else {
+            crate::kernels::gemv_n_contiguous(m, n, c, ldc, v, work);
+            for j in 0..n {
+                let alpha = -tau * (*v.offset(j)).cj();
+                crate::kernels::axpy(m, alpha, work, c.offset(j * ldc));
+            }
+        }
+        return;
+    }
     if left {
         // w = C^H v; C -= tau v w^H.
         if threaded {
@@ -333,9 +380,54 @@ pub(crate) unsafe fn factor_with_basis<T: Scalar>(
     t: *mut T,
     ldt: isize,
 ) {
-    // Pairwise column Gram matrix with one BLAS-3 call. The scalar recurrence
-    // below used to recompute these O(k^2 n) dot products one column at a time,
-    // which dominated QR factorization and LARFB.
+    if k == 0 {
+        return;
+    }
+    let mut value = vec![T::z(); k];
+    if direct == b'F' {
+        // Column-wise T construction, as in LARFT: the coefficient vector
+        // `w = V[:, 0..j]^H v_j` costs O(n j) for a column instead of forming
+        // the full k x k Gram matrix, and the triangular recurrence below is
+        // one contiguous axpy per previous column.
+        let mut w = vec![T::z(); k];
+        for j in 0..k {
+            let tj = *tau.add(j);
+            let column = t.offset(j as isize * ldt);
+            if tj != T::z() {
+                if j > 0 {
+                    gemv_conj_contiguous(
+                        (n - j) as isize,
+                        j as isize,
+                        b.as_ptr().add(j),
+                        n as isize,
+                        b.as_ptr().add(j + j * n),
+                        w.as_mut_ptr(),
+                    );
+                    for v in &mut value[..j] {
+                        *v = T::z();
+                    }
+                    for l in 0..j {
+                        let g = w[l];
+                        let source = std::slice::from_raw_parts(t.offset(l as isize * ldt), l + 1);
+                        for (acc, src) in value[..=l].iter_mut().zip(source) {
+                            *acc = *acc + *src * g;
+                        }
+                    }
+                }
+                for (i, v) in value[..j].iter().enumerate() {
+                    *column.add(i) = -tj * *v;
+                }
+            } else {
+                for i in 0..j {
+                    *column.add(i) = T::z();
+                }
+            }
+            *column.add(j) = tj;
+        }
+        return;
+    }
+    // Backward direction: the coefficient vector of each column depends on all
+    // later columns, so one Gram matrix is still the cheapest source.
     let mut gram = vec![T::z(); k * k];
     gemm(
         b'C',
@@ -353,29 +445,29 @@ pub(crate) unsafe fn factor_with_basis<T: Scalar>(
         k as isize,
     );
     for step in 0..k {
-        let j = if direct == b'F' { step } else { k - 1 - step };
-        let previous: Vec<usize> = if direct == b'F' {
-            (0..j).collect()
-        } else {
-            ((j + 1)..k).collect()
-        };
+        let j = k - 1 - step;
         let tj = *tau.add(j);
+        let column = t.offset(j as isize * ldt);
         if tj != T::z() {
-            for &i in &previous {
-                let mut value = T::z();
-                for &l in &previous {
-                    if (direct == b'F' && i <= l) || (direct == b'B' && i >= l) {
-                        value = value + *t.offset(i as isize + l as isize * ldt) * gram[l + j * k];
-                    }
+            for v in &mut value[j + 1..k] {
+                *v = T::z();
+            }
+            for l in j + 1..k {
+                let g = gram[l + j * k];
+                let source = std::slice::from_raw_parts(t.offset(l as isize * ldt).add(l), k - l);
+                for (acc, src) in value[l..k].iter_mut().zip(source) {
+                    *acc = *acc + *src * g;
                 }
-                *t.offset(i as isize + j as isize * ldt) = -tj * value;
+            }
+            for (i, v) in value[j + 1..k].iter().enumerate() {
+                *column.add(j + 1 + i) = -tj * *v;
             }
         } else {
-            for &i in &previous {
-                *t.offset(i as isize + j as isize * ldt) = T::z();
+            for i in j + 1..k {
+                *column.add(i) = T::z();
             }
         }
-        *t.offset(j as isize + j as isize * ldt) = tj;
+        *column.add(j) = tj;
     }
 }
 pub(crate) unsafe fn apply_forward_column_block_adjoint<T: Scalar>(
@@ -512,7 +604,59 @@ pub(crate) unsafe fn apply_block<T: Scalar>(
     }
     let order = if side == b'L' { m } else { n };
     let b = basis(direct, store, order, k, v, ldv);
+    let width = k * m.max(n);
     let mut triangular = vec![T::z(); k * k];
+    let mut work = vec![T::z(); width];
+    let mut transformed = vec![T::z(); width];
+    apply_block_with_basis(
+        side,
+        tr,
+        direct,
+        m,
+        n,
+        k,
+        &b,
+        t,
+        ldt,
+        c,
+        ldc,
+        &mut triangular,
+        &mut work,
+        &mut transformed,
+    );
+}
+
+/// `apply_block` with caller-owned scratch: the basis, the dense copy of `T`,
+/// and the two `k x max(m,n)` work buffers. A caller that applies several
+/// blocks (GEMQRT) sizes them once instead of allocating and zeroing per block.
+#[allow(clippy::too_many_arguments)]
+pub(crate) unsafe fn apply_block_with_basis<T: Scalar>(
+    side: u8,
+    tr: u8,
+    direct: u8,
+    m: usize,
+    n: usize,
+    k: usize,
+    b: &[T],
+    t: *const T,
+    ldt: isize,
+    c: *mut T,
+    ldc: isize,
+    triangular: &mut [T],
+    work: &mut [T],
+    transformed: &mut [T],
+) {
+    if m == 0 || n == 0 || k == 0 {
+        return;
+    }
+    let order = if side == b'L' { m } else { n };
+    debug_assert_eq!(b.len(), order * k);
+    debug_assert_eq!(triangular.len(), k * k);
+    debug_assert!(work.len() >= k * m.max(n));
+    debug_assert!(transformed.len() >= k * m.max(n));
+    for v in triangular.iter_mut() {
+        *v = T::z();
+    }
     for j in 0..k {
         for i in 0..k {
             if (direct == b'F' && i <= j) || (direct == b'B' && i >= j) {
@@ -523,9 +667,6 @@ pub(crate) unsafe fn apply_block<T: Scalar>(
     // Apply H = I - V T V^H from its factored form. Materializing the full
     // order x order matrix costs O(order^3) per panel; the three-GEMM form
     // below is the O(order^2 k) LARFB route.
-    let width = k * m.max(n);
-    let mut work = vec![T::z(); width];
-    let mut transformed = vec![T::z(); width];
     // T^H (or T^T for real) when transpose='C'/'T', T for transpose='N'.
     let t_op = if tr == b'N' {
         b'N'

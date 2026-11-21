@@ -38,6 +38,7 @@ pub trait Scalar:
     fn re(self) -> f64;
     fn reim(self) -> (f64, f64);
     fn real(x: f64) -> Self;
+    fn from_parts(re: f64, im: f64) -> Self;
 }
 macro_rules! real_scalar {
     ($t:ty) => {
@@ -66,6 +67,9 @@ macro_rules! real_scalar {
             }
             fn real(x: f64) -> Self {
                 x as Self
+            }
+            fn from_parts(re: f64, _im: f64) -> Self {
+                re as Self
             }
         }
     };
@@ -99,6 +103,9 @@ macro_rules! complex_scalar {
             }
             fn real(x: f64) -> Self {
                 Self::new(x as $r, 0.0)
+            }
+            fn from_parts(re: f64, im: f64) -> Self {
+                Self::new(re as $r, im as $r)
             }
         }
     };
@@ -1055,6 +1062,380 @@ pub unsafe fn ger<T: Scalar>(
         }
     }
 }
+// ---------------------------------------------------------------------------
+// Contiguous kernels for Householder application
+//
+// `householder::apply` runs once per reflector, so a QR panel executes the
+// BLAS-2 product `w = C^H v` and the rank-1 update `C -= tau v w^H` many times
+// on shrinking shapes. The generic loops recompute the conjugated coefficient
+// for every element; the kernels below hoist it and use AVX2/FMA when the CPU
+// provides them, matching the dispatch faer already uses for GEMM.
+// ---------------------------------------------------------------------------
+
+#[inline]
+unsafe fn axpy_scalar<T: Scalar>(n: isize, alpha: T, x: *const T, y: *mut T) {
+    for i in 0..n {
+        *y.offset(i) = *y.offset(i) + alpha * *x.offset(i);
+    }
+}
+
+/// `y += alpha * x` for contiguous length-`n` vectors.
+pub(crate) unsafe fn axpy<T: Scalar>(n: isize, alpha: T, x: *const T, y: *mut T) {
+    if n <= 0 || alpha == T::z() {
+        return;
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            match (T::COMPLEX, std::mem::size_of::<T>()) {
+                (true, 16) => {
+                    let (ar, ai) = alpha.reim();
+                    axpy_c64(n as usize, ar, ai, x.cast(), y.cast());
+                    return;
+                }
+                (false, 8) => {
+                    axpy_f64(n as usize, alpha.re(), x.cast(), y.cast());
+                    return;
+                }
+                (true, 8) => {
+                    let (ar, ai) = alpha.reim();
+                    axpy_c32(n as usize, ar as f32, ai as f32, x.cast(), y.cast());
+                    return;
+                }
+                (false, 4) => {
+                    axpy_f32(n as usize, alpha.re() as f32, x.cast(), y.cast());
+                    return;
+                }
+                _ => {}
+            }
+        }
+    }
+    axpy_scalar(n, alpha, x, y);
+}
+
+/// `y[j] = sum_i conj(a[i,j]) * x[i]` for a column-major `m x n` matrix and a
+/// contiguous `x`.
+pub(crate) unsafe fn gemv_conj_contiguous<T: Scalar>(
+    m: isize,
+    n: isize,
+    a: *const T,
+    lda: isize,
+    x: *const T,
+    y: *mut T,
+) {
+    if m <= 0 || n <= 0 {
+        return;
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            match (T::COMPLEX, std::mem::size_of::<T>()) {
+                (true, 16) => {
+                    for j in 0..n {
+                        let (re, im) = dot_conj_c64(m as usize, a.offset(j * lda).cast(), x.cast());
+                        *y.offset(j) = T::from_parts(re, im);
+                    }
+                    return;
+                }
+                (false, 8) => {
+                    for j in 0..n {
+                        *y.offset(j) = T::from_parts(
+                            dot_f64(m as usize, a.offset(j * lda).cast(), x.cast()),
+                            0.0,
+                        );
+                    }
+                    return;
+                }
+                (true, 8) => {
+                    for j in 0..n {
+                        let (re, im) = dot_conj_c32(m as usize, a.offset(j * lda).cast(), x.cast());
+                        *y.offset(j) = T::from_parts(re as f64, im as f64);
+                    }
+                    return;
+                }
+                (false, 4) => {
+                    for j in 0..n {
+                        *y.offset(j) = T::from_parts(
+                            dot_f32(m as usize, a.offset(j * lda).cast(), x.cast()) as f64,
+                            0.0,
+                        );
+                    }
+                    return;
+                }
+                _ => {}
+            }
+        }
+    }
+    for j in 0..n {
+        let mut sum = T::z();
+        for i in 0..m {
+            sum = sum + (*a.offset(i + j * lda)).cj() * *x.offset(i);
+        }
+        *y.offset(j) = sum;
+    }
+}
+
+/// `y[i] = sum_j a[i,j] * x[j]` for a column-major `m x n` matrix and a
+/// contiguous `x`. Replaces `y` entirely (LAPACK's `beta = 0` form).
+pub(crate) unsafe fn gemv_n_contiguous<T: Scalar>(
+    m: isize,
+    n: isize,
+    a: *const T,
+    lda: isize,
+    x: *const T,
+    y: *mut T,
+) {
+    if m <= 0 || n <= 0 {
+        return;
+    }
+    for i in 0..m {
+        *y.offset(i) = T::z();
+    }
+    for j in 0..n {
+        let xj = *x.offset(j);
+        axpy(m, xj, a.offset(j * lda), y);
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+mod simd {
+    use std::arch::x86_64::*;
+
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    unsafe fn hsum_pd(v: __m256d) -> f64 {
+        let lo = _mm256_castpd256_pd128(v);
+        let hi = _mm256_extractf128_pd(v, 1);
+        let s = _mm_add_pd(lo, hi);
+        let s = _mm_hadd_pd(s, s);
+        _mm_cvtsd_f64(s)
+    }
+
+    #[inline]
+    #[target_feature(enable = "avx2")]
+    unsafe fn hsum_ps(v: __m256) -> f32 {
+        let lo = _mm256_castps256_ps128(v);
+        let hi = _mm256_extractf128_ps(v, 1);
+        let s = _mm_add_ps(lo, hi);
+        let s = _mm_hadd_ps(s, s);
+        let s = _mm_hadd_ps(s, s);
+        _mm_cvtss_f32(s)
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn axpy_f64(n: usize, alpha: f64, x: *const f64, y: *mut f64) {
+        let a = _mm256_set1_pd(alpha);
+        let mut i = 0;
+        while i + 4 <= n {
+            let xv = _mm256_loadu_pd(x.add(i));
+            let yv = _mm256_loadu_pd(y.add(i));
+            _mm256_storeu_pd(y.add(i), _mm256_fmadd_pd(a, xv, yv));
+            i += 4;
+        }
+        while i < n {
+            *y.add(i) += alpha * *x.add(i);
+            i += 1;
+        }
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn axpy_f32(n: usize, alpha: f32, x: *const f32, y: *mut f32) {
+        let a = _mm256_set1_ps(alpha);
+        let mut i = 0;
+        while i + 8 <= n {
+            let xv = _mm256_loadu_ps(x.add(i));
+            let yv = _mm256_loadu_ps(y.add(i));
+            _mm256_storeu_ps(y.add(i), _mm256_fmadd_ps(a, xv, yv));
+            i += 8;
+        }
+        while i < n {
+            *y.add(i) += alpha * *x.add(i);
+            i += 1;
+        }
+    }
+
+    /// `y += (ar + i ai) * x` for interleaved complex f64.
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn axpy_c64(n: usize, ar: f64, ai: f64, x: *const f64, y: *mut f64) {
+        let arv = _mm256_set1_pd(ar);
+        let aiv = _mm256_set1_pd(ai);
+        let mut i = 0;
+        // Two complex values (four doubles) per iteration.
+        while i + 4 <= 2 * n {
+            let xv = _mm256_loadu_pd(x.add(i));
+            let xs = _mm256_permute_pd(xv, 0b0101);
+            let yv = _mm256_loadu_pd(y.add(i));
+            // p + [ar*xr, ar*xi]; s = [ai*xi, ai*xr]; addsub => complex product.
+            let p = _mm256_mul_pd(xv, arv);
+            let s = _mm256_mul_pd(xs, aiv);
+            let t = _mm256_addsub_pd(p, s);
+            _mm256_storeu_pd(y.add(i), _mm256_add_pd(yv, t));
+            i += 4;
+        }
+        while i < 2 * n {
+            let xr = *x.add(i);
+            let xi = *x.add(i + 1);
+            *y.add(i) += ar * xr - ai * xi;
+            *y.add(i + 1) += ar * xi + ai * xr;
+            i += 2;
+        }
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn axpy_c32(n: usize, ar: f32, ai: f32, x: *const f32, y: *mut f32) {
+        let arv = _mm256_set1_ps(ar);
+        let aiv = _mm256_set1_ps(ai);
+        let mut i = 0;
+        while i + 8 <= 2 * n {
+            let xv = _mm256_loadu_ps(x.add(i));
+            let xs = _mm256_permute_ps(xv, 0b1011_0001);
+            let yv = _mm256_loadu_ps(y.add(i));
+            let p = _mm256_mul_ps(xv, arv);
+            let s = _mm256_mul_ps(xs, aiv);
+            let t = _mm256_addsub_ps(p, s);
+            _mm256_storeu_ps(y.add(i), _mm256_add_ps(yv, t));
+            i += 8;
+        }
+        while i < 2 * n {
+            let xr = *x.add(i);
+            let xi = *x.add(i + 1);
+            *y.add(i) += ar * xr - ai * xi;
+            *y.add(i + 1) += ar * xi + ai * xr;
+            i += 2;
+        }
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn dot_f64(n: usize, x: *const f64, y: *const f64) -> f64 {
+        let mut acc = _mm256_setzero_pd();
+        let mut i = 0;
+        while i + 4 <= n {
+            acc = _mm256_fmadd_pd(_mm256_loadu_pd(x.add(i)), _mm256_loadu_pd(y.add(i)), acc);
+            i += 4;
+        }
+        let mut sum = hsum_pd(acc);
+        while i < n {
+            sum += *x.add(i) * *y.add(i);
+            i += 1;
+        }
+        sum
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn dot_f32(n: usize, x: *const f32, y: *const f32) -> f32 {
+        let mut acc = _mm256_setzero_ps();
+        let mut i = 0;
+        while i + 8 <= n {
+            acc = _mm256_fmadd_ps(_mm256_loadu_ps(x.add(i)), _mm256_loadu_ps(y.add(i)), acc);
+            i += 8;
+        }
+        let mut sum = hsum_ps(acc);
+        while i < n {
+            sum += *x.add(i) * *y.add(i);
+            i += 1;
+        }
+        sum
+    }
+
+    /// `sum_i conj(a_i) * x_i` for interleaved complex f64.
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn dot_conj_c64(n: usize, a: *const f64, x: *const f64) -> (f64, f64) {
+        let mut pre0 = _mm256_setzero_pd();
+        let mut pre1 = _mm256_setzero_pd();
+        let mut qac0 = _mm256_setzero_pd();
+        let mut qac1 = _mm256_setzero_pd();
+        let mut i = 0;
+        // Four complex values per iteration with independent accumulators.
+        while i + 8 <= 2 * n {
+            let av0 = _mm256_loadu_pd(a.add(i));
+            let av1 = _mm256_loadu_pd(a.add(i + 4));
+            let xv0 = _mm256_loadu_pd(x.add(i));
+            let xv1 = _mm256_loadu_pd(x.add(i + 4));
+            let xs0 = _mm256_permute_pd(xv0, 0b0101);
+            let xs1 = _mm256_permute_pd(xv1, 0b0101);
+            pre0 = _mm256_fmadd_pd(av0, xv0, pre0);
+            pre1 = _mm256_fmadd_pd(av1, xv1, pre1);
+            qac0 = _mm256_fmadd_pd(av0, xs0, qac0);
+            qac1 = _mm256_fmadd_pd(av1, xs1, qac1);
+            i += 8;
+        }
+        while i + 4 <= 2 * n {
+            let av = _mm256_loadu_pd(a.add(i));
+            let xv = _mm256_loadu_pd(x.add(i));
+            let xs = _mm256_permute_pd(xv, 0b0101);
+            pre0 = _mm256_fmadd_pd(av, xv, pre0);
+            qac0 = _mm256_fmadd_pd(av, xs, qac0);
+            i += 4;
+        }
+        let pre = _mm256_add_pd(pre0, pre1);
+        let qac = _mm256_add_pd(qac0, qac1);
+        let re = hsum_pd(pre);
+        let sign = _mm256_set_pd(-1.0, 1.0, -1.0, 1.0);
+        let im = hsum_pd(_mm256_mul_pd(qac, sign));
+        let (mut re, mut im) = (re, im);
+        while i < 2 * n {
+            let ar = *a.add(i);
+            let ai = *a.add(i + 1);
+            let xr = *x.add(i);
+            let xi = *x.add(i + 1);
+            re += ar * xr + ai * xi;
+            im += ar * xi - ai * xr;
+            i += 2;
+        }
+        (re, im)
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn dot_conj_c32(n: usize, a: *const f32, x: *const f32) -> (f32, f32) {
+        let mut pre0 = _mm256_setzero_ps();
+        let mut pre1 = _mm256_setzero_ps();
+        let mut qac0 = _mm256_setzero_ps();
+        let mut qac1 = _mm256_setzero_ps();
+        let mut i = 0;
+        // Eight complex values per iteration with independent accumulators.
+        while i + 16 <= 2 * n {
+            let av0 = _mm256_loadu_ps(a.add(i));
+            let av1 = _mm256_loadu_ps(a.add(i + 8));
+            let xv0 = _mm256_loadu_ps(x.add(i));
+            let xv1 = _mm256_loadu_ps(x.add(i + 8));
+            let xs0 = _mm256_permute_ps(xv0, 0b1011_0001);
+            let xs1 = _mm256_permute_ps(xv1, 0b1011_0001);
+            pre0 = _mm256_fmadd_ps(av0, xv0, pre0);
+            pre1 = _mm256_fmadd_ps(av1, xv1, pre1);
+            qac0 = _mm256_fmadd_ps(av0, xs0, qac0);
+            qac1 = _mm256_fmadd_ps(av1, xs1, qac1);
+            i += 16;
+        }
+        while i + 8 <= 2 * n {
+            let av = _mm256_loadu_ps(a.add(i));
+            let xv = _mm256_loadu_ps(x.add(i));
+            let xs = _mm256_permute_ps(xv, 0b1011_0001);
+            pre0 = _mm256_fmadd_ps(av, xv, pre0);
+            qac0 = _mm256_fmadd_ps(av, xs, qac0);
+            i += 8;
+        }
+        let pre = _mm256_add_ps(pre0, pre1);
+        let qac = _mm256_add_ps(qac0, qac1);
+        let re = hsum_ps(pre);
+        let sign = _mm256_set_ps(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+        let im = hsum_ps(_mm256_mul_ps(qac, sign));
+        let (mut re, mut im) = (re, im);
+        while i < 2 * n {
+            let ar = *a.add(i);
+            let ai = *a.add(i + 1);
+            let xr = *x.add(i);
+            let xi = *x.add(i + 1);
+            re += ar * xr + ai * xi;
+            im += ar * xi - ai * xr;
+            i += 2;
+        }
+        (re, im)
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+use simd::*;
+
 pub unsafe fn rank1<T: Scalar>(
     u: u8,
     n: isize,
