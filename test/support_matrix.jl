@@ -181,7 +181,7 @@ function report(path, rows)
         read(`git -C $(joinpath(ROOT,"deps","colmat-rs")) rev-parse HEAD`, String)
     )
     open(path, "w") do io
-        println(io, "# Measured Julia API support matrix\n")
+        println(io, "# Measured Julia API mapping\n")
         println(
             io,
             "Records, separately, whether calls on ordinary arrays succeed and whether Colmat provides their entry points.",
