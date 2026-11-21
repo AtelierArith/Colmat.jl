@@ -138,6 +138,10 @@ pub(crate) unsafe fn pivoted_qr_panel<T: ReflectorScalar>(
     let mut f = vec![T::z(); total.max(1) * panel];
     let mut auxv = vec![T::z(); panel];
     let mut row = vec![T::z(); panel];
+    // Contiguous staging for the row of `A` a panel step updates. The axpy that
+    // updates it vectorizes in place, and the norm downdate then reads the row
+    // sequentially instead of stepping through one cache line per column.
+    let mut rowfull = vec![T::z(); total.max(1)];
     let mut work = vec![T::z(); total.max(1)];
     let adj = if T::COMPLEX { b'C' } else { b'T' };
     let recompute_tol = T::EPS.sqrt();
@@ -168,6 +172,7 @@ pub(crate) unsafe fn pivoted_qr_panel<T: ReflectorScalar>(
                     &mut f,
                     &mut auxv,
                     &mut row,
+                    &mut rowfull,
                     &mut work,
                     &mut result,
                     par,
@@ -193,6 +198,7 @@ pub(crate) unsafe fn pivoted_qr_panel<T: ReflectorScalar>(
                 &mut f,
                 &mut auxv,
                 &mut row,
+                &mut rowfull,
                 &mut work,
                 &mut result,
                 Par::Seq,
@@ -251,6 +257,7 @@ unsafe fn run_panel<T: ReflectorScalar>(
     f: &mut [T],
     auxv: &mut [T],
     row: &mut [T],
+    rowfull: &mut [T],
     work: &mut [T],
     result: &mut PivotedQr,
     mut par: Par<'_>,
@@ -333,6 +340,9 @@ unsafe fn run_panel<T: ReflectorScalar>(
                     work.as_mut_ptr(),
                 );
                 *column = beta;
+            }
+            for col in 0..relall {
+                rowfull[col] = *a.offset(j as isize + (start + col) as isize * lda);
             }
         } else {
             // Apply the reflectors already generated in this panel to the new
@@ -427,12 +437,15 @@ unsafe fn run_panel<T: ReflectorScalar>(
                     par.reborrow(),
                 );
             }
-            // A[j, j+1:] -= A[j, start:j] * F[j+1:, 0:step+1]^H. The row of `A`
-            // is contiguous in `row`, so this is one 1-by-`n` GEMM rather than
-            // a scalar triple loop over strided storage.
+            // A[j, j+1:] -= A[j, start:j] * F[j+1:, 0:step+1]^H. The row is
+            // staged in `rowfull`, so the 1-by-`n` GEMM writes contiguous memory
+            // and the downdate below reads the same buffer.
             let len = step + 1;
+            for col in 0..relall {
+                rowfull[col] = *a.offset(j as isize + (start + col) as isize * lda);
+            }
             for col in 0..len {
-                row[col] = *a.offset(j as isize + (start + col) as isize * lda);
+                row[col] = rowfull[col];
             }
             if relall > len {
                 crate::kernels::gemm_with_par(
@@ -447,10 +460,13 @@ unsafe fn run_panel<T: ReflectorScalar>(
                     f.as_ptr().add(len),
                     total as isize,
                     T::o(),
-                    a.offset(j as isize + (start + len) as isize * lda),
-                    lda,
+                    rowfull.as_mut_ptr().add(len),
+                    1,
                     par.reborrow(),
                 );
+                for col in len..relall {
+                    *a.offset(j as isize + (start + col) as isize * lda) = rowfull[col];
+                }
             }
             *column = beta;
         }
@@ -458,31 +474,28 @@ unsafe fn run_panel<T: ReflectorScalar>(
         // a fresh norm when cancellation makes the update unreliable.
         if step + 1 < relfree {
             let remaining = (m - j - 1) as isize;
+            // Downdate every residual norm from the removed component, without a
+            // branch or a square root per column, so the pass vectorizes. A
+            // column whose update lost too much accuracy is marked with NaN.
             for col in (step + 1)..relfree {
                 let target = start + col;
-                let r = (*a.offset(j as isize + target as isize * lda)).magnitude();
+                let (re, im) = rowfull[col].reim();
                 let norm = norms[target];
-                if !norm.is_finite() || r.is_nan() {
+                let r2 = re * re + im * im;
+                let temp = 1.0 - r2 / (norm * norm);
+                let bad = !norm.is_finite() || r2.is_nan() || !(temp > recompute_tol);
+                norms[target] = if bad { f64::NAN } else { norm * temp.sqrt() };
+            }
+            // The rare column that needs a fresh norm gets the same `?nrm2` pass
+            // LAPACK uses after its panel.
+            for col in (step + 1)..relfree {
+                let target = start + col;
+                if norms[target].is_nan() {
                     norms[target] = nrm2(
                         remaining,
                         a.offset((j + 1) as isize + target as isize * lda),
                         1,
                     );
-                    continue;
-                }
-                if r == 0.0 {
-                    continue;
-                }
-                let ratio = r / norm;
-                let temp = 1.0 - ratio * ratio;
-                if temp <= recompute_tol {
-                    norms[target] = nrm2(
-                        remaining,
-                        a.offset((j + 1) as isize + target as isize * lda),
-                        1,
-                    );
-                } else {
-                    norms[target] = norm * temp.sqrt();
                 }
             }
         }
