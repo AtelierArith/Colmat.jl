@@ -15,7 +15,7 @@ class CandidateAuditTests(unittest.TestCase):
         symbols = [("dsytrf_", "Fortran", "sytrf", False),
                    ("LAPACKE_dsytrf_work", "LAPACKE", "sytrf", False),
                    ("dsytrf_rook_", "Fortran", "sytrf_rook", True)]
-        old = [dict(symbol=s, interface=i, family=f, colmat_api="対応する独立公開 API なし" if rook else "公開機能あり",
+        old = [dict(symbol=s, interface=i, family=f, colmat_api="No independent public API" if rook else "Public feature available",
                     adapter_lp64="false", adapter_ilp64="false") for s, i, f, rook in symbols]
         current = [{**row, "capability_status": "representation"} for row in old]
         issues = {n: {"body": ""} for n in range(264, 315)}
@@ -36,8 +36,8 @@ class CandidateAuditTests(unittest.TestCase):
 
     def test_already_connected_numerics_are_attributed_to_baseline(self):
         old, current, issues = self.fixture()
-        old.append(dict(symbol="dgetrf_", interface="Fortran", family="getrf", colmat_api="公開機能あり", adapter_lp64="true", adapter_ilp64="true"))
-        old.append(dict(symbol="LAPACKE_dgetrf_work", interface="LAPACKE", family="getrf", colmat_api="公開機能あり", adapter_lp64="false", adapter_ilp64="false"))
+        old.append(dict(symbol="dgetrf_", interface="Fortran", family="getrf", colmat_api="Public feature available", adapter_lp64="true", adapter_ilp64="true"))
+        old.append(dict(symbol="LAPACKE_dgetrf_work", interface="LAPACKE", family="getrf", colmat_api="Public feature available", adapter_lp64="false", adapter_ilp64="false"))
         current += [{**row, "capability_status": "representation"} for row in old[-2:]]
         coverage, summary = reconcile(old, current, issues, 372)
         entry=next(row for row in coverage if row["symbol"]=="LAPACKE_dgetrf_work")

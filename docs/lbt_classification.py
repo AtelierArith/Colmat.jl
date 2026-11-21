@@ -15,8 +15,8 @@ def classify(family, scalar, groups, revision, overrides=()):
             group = override
             break
     if group is None:
-        return dict(status="unverified", api="未照合", source="faer/src/linalg/mod.rs",
-                    note="規則未登録。公開 API の意味・型・保存形式・オプションとの対応は未照合。名称や suffix/prefix は不存在の根拠ではない。",
+        return dict(status="unverified", api="unverified", source="faer/src/linalg/mod.rs",
+                    note="Rules not registered. The correspondence with the public API meaning, types, storage format, and options is unverified. Names and suffix/prefix are not evidence of absence.",
                     evidence_status="not_reviewed", evidence=None,
                     algorithm_status="not_assessed")
     result = dict(group)
@@ -30,8 +30,8 @@ def classify(family, scalar, groups, revision, overrides=()):
         if scalar not in evidence["scalars"]:
             raise ValueError(f"Capability evidence does not cover scalar {scalar}")
     elif result["status"] == "unsupported":
-        result.update(status="unverified", api="未照合",
-                      note="旧規則では非対応と仮分類したが、revision・型・保存形式・オプションと確認方法の記録が不足している。再照合対象。旧メモ: " + result["note"])
+        result.update(status="unverified", api="unverified",
+                      note="The old rules tentatively classified this as unsupported, but the record of the revision, types, storage formats, options, and verification method is insufficient. Re-review target. Old note: " + result["note"])
     result["evidence_status"] = "scoped_review" if evidence else "not_catalogued"
     if result["status"] == "unverified":
         result["evidence_status"] = "not_reviewed"

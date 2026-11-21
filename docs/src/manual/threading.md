@@ -1,16 +1,16 @@
-# スレッド設定
+# Thread settings
 
-## Colmat とフォールバックをまとめて設定する
+## Setting Colmat and the fallbacks together
 
 ```julia
 using Colmat, LinearAlgebra
 BLAS.set_num_threads(2)
 ```
 
-LBT に Colmat のスレッド設定関数を登録しているため、この標準 API から Colmat と
-スレッド設定に対応するロード済みライブラリを設定できます。
+Because Colmat registers its thread-setting function with LBT, this standard API sets
+both Colmat and every loaded library that supports thread settings.
 
-## Colmat だけを設定する
+## Setting only Colmat
 
 ```jldoctest
 julia> using Colmat
@@ -23,32 +23,35 @@ julia> Colmat.set_num_threads(2); Colmat.get_num_threads()
 julia> Colmat.set_num_threads(saved)
 ```
 
-初期値は `using Colmat` した時点の `BLAS.get_num_threads()` の値です。
-`Colmat.set_num_threads(n)` は `1:typemax(Cint)` の整数を受け取り、
-範囲外には `ArgumentError` を返します。
-`Colmat.get_num_threads()` は Colmat 自身の設定値を返します。
-`BLAS.get_num_threads()` は LBT が保持する値を返すため、両者は別物です。
-`Colmat.set_num_threads(n)` だけを呼んでも LBT の記録値は更新されません。
+The initial value is the value of `BLAS.get_num_threads()` at the time `using Colmat` runs.
+`Colmat.set_num_threads(n)` accepts integers in `1:typemax(Cint)` and raises
+`ArgumentError` for values outside that range.
+`Colmat.get_num_threads()` returns Colmat's own configuration value.
+`BLAS.get_num_threads()` returns the value held by LBT, so the two are different.
+Calling only `Colmat.set_num_threads(n)` does not update the value recorded by LBT.
 
 ```julia
 BLAS.set_num_threads(8)     # colmat=8, BLAS.get_num_threads() == 8
-Colmat.set_num_threads(3)   # colmat=3, BLAS.get_num_threads() は 8 のまま
+Colmat.set_num_threads(3)   # colmat=3, BLAS.get_num_threads() stays 8
 ```
 
-逆向きの `BLAS.set_num_threads(n)` は、LBT に登録済みの各バックエンドの setter を
-呼ぶため、Colmat の設定値も `n` になります。全体を揃えたいときは
-`BLAS.set_num_threads(n)` を使ってください。
+The reverse direction, `BLAS.set_num_threads(n)`, calls the setter of every backend
+registered with LBT, so Colmat's configuration value also becomes `n`. Use
+`BLAS.set_num_threads(n)` when you want everything aligned.
 
-## 実行幅とプール
+## Execution width and pools
 
-設定値は行列積の並列実行幅で、呼び出し側を含む参加者数です。
-ベクトル演算や三角求解のすべてを並列化する設定ではありません。
+The configuration value is the parallel execution width of matrix multiplication, that
+is, the number of participants including the caller. It does not make every vector
+operation or triangular solve parallel.
 
-各呼び出し元 OS スレッドがプールを遅延生成します。プールの実行幅が設定値と
-異なれば、次の並列経路で古いプールを解放して作り直します。
-実行幅1では逐次経路を使います。プール作成やチーム取得が失敗した場合も逐次経路へ
-戻るため、設定値が常に実際の並列参加数になるとは限りません。
+Each calling OS thread lazily creates a pool. If the pool's execution width differs from
+the configuration value, the next parallel path releases the old pool and recreates it.
+Width one uses the sequential path. If pool creation or team acquisition fails, execution
+also falls back to the sequential path, so the configuration value is not always the
+actual number of parallel participants.
 
-複数の Julia スレッドから同時に行列積を呼ぶと、各呼び出し元がそれぞれ参加者を
-確保します。外側の Julia 並列処理と組み合わせる際は、Colmat の実行幅も考慮して
-設定してください。設定変更は進行中の計算を作り直す操作ではありません。
+When multiple Julia threads call matrix multiplication at the same time, each caller
+acquires its own participants. When combining this with outer Julia parallelism, choose
+the configuration with Colmat's execution width in mind. Changing the setting does not
+recreate computations that are already in progress.

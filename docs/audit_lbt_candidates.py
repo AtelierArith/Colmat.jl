@@ -14,6 +14,10 @@ from pathlib import Path
 BASELINE_REVISION = "3c850a88a05b3c09eadd84d3722b1704cf1421f1"
 BASELINE_NATIVE = "e1c83482f5a61449d30e989808c3ba5f751ec391"
 
+# The pinned #262 baseline predates the English labels; accept both spellings.
+NEGATIVE_API_LABELS = {"No independent public API", "No independent public API (within reviewed scope)",
+                       "対応する独立公開 API なし"}
+
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -29,7 +33,7 @@ def reconcile(baseline, current, issues, rook_issue):
     if "LAPACKE" not in issues[288]["body"] or "CBLAS" not in issues[271]["body"]:
         raise ValueError("Shared C API scope needs reassessment")
     mentions = {n: set(re.findall(r"[A-Za-z][A-Za-z0-9_]*", item["body"])) for n, item in issues.items()}
-    original_positive = {s for s, row in old.items() if row["colmat_api"] != "対応する独立公開 API なし"}
+    original_positive = {s for s, row in old.items() if row["colmat_api"] not in NEGATIVE_API_LABELS}
     original_candidates = {s for s in original_positive if not (
         old[s]["adapter_lp64"] == "true" and old[s]["adapter_ilp64"] == "true")}
     positive = {s for s, row in now.items() if row["capability_status"] not in ("unsupported", "unverified")}

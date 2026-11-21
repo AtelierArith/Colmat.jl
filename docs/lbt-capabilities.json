@@ -24,7 +24,7 @@
       "status": "native",
       "api": "matmul / triangular::matmul",
       "source": "faer/src/linalg/matmul/mod.rs",
-      "note": "形状・三角部分・共役・係数を変換する。"
+      "note": "Converts shapes, triangular parts, conjugates, and coefficients."
     },
     {
       "routines": [
@@ -50,7 +50,7 @@
       "status": "native",
       "api": "triangular_solve / triangular_inverse",
       "source": "faer/src/linalg/triangular_solve.rs",
-      "note": "TRTRS/TRTRI/TRTI2 の12 Fortran シンボルを両 ABI に接続し native solve/inverse を使用。unit diagonal は読まず保持。TRTRS/TRTRI は特異対角を検査し、TRTI2 は正の INFO を定義しない。既存 BLAS TRSM/TRSV の経路変更を意味しない"
+      "note": "Connects the 12 Fortran symbols of TRTRS/TRTRI/TRTI2 to both ABIs using native solve/inverse. The unit diagonal is preserved without being read. TRTRS/TRTRI check for a singular diagonal, and TRTI2 defines no positive INFO. This does not change the paths of the existing BLAS TRSM/TRSV."
     },
     {
       "routines": [
@@ -64,7 +64,7 @@
       "status": "native",
       "api": "PartialPivLu / lu_in_place / solve",
       "source": "faer/src/linalg/lu/partial_pivoting/factor.rs",
-      "note": "最終置換と LAPACK の逐次 IPIV の変換が必要。getf2/getrf2 の実行アルゴリズムの同一性は保証しない"
+      "note": "Requires converting the final permutation to LAPACK's sequential IPIV. Does not guarantee that getf2/getrf2 run the same algorithm."
     },
     {
       "routines": [
@@ -74,7 +74,7 @@
       "status": "composition",
       "api": "FullPivLu rank truncation + guarded triangular solve / matmul",
       "source": "faer/src/linalg/lu/full_pivoting/factor.rs",
-      "note": "GETC2/GESC2 の8 Fortran シンボルを両 ABI に接続。native LU を摂動が必要なピボットの前で止め、保護付き消去を継続。行/列置換を逐次 IPIV/JPIV に変換し、GESC2 は各段階で SCALE を管理。C API は別途接続"
+      "note": "Connects the eight Fortran symbols of GETC2/GESC2 to both ABIs. Stops native LU before a pivot that needs perturbation and continues with guarded elimination. Converts row/column permutations to sequential IPIV/JPIV, and GESC2 manages SCALE at every step. C API is connected separately."
     },
     {
       "routines": [
@@ -88,7 +88,7 @@
       "status": "native",
       "api": "Llt / cholesky_in_place / solve",
       "source": "faer/src/linalg/cholesky/llt/factor.rs",
-      "note": "上三角入力は下三角へ共役変換し INFO を変換"
+      "note": "Conjugately transforms upper-triangular input to lower-triangular form and converts INFO"
     },
     {
       "routines": [
@@ -98,7 +98,7 @@
       "status": "composition",
       "api": "single-pivot native LLT / native GEMM",
       "source": "faer/src/linalg/cholesky/llt_pivoting/factor.rs",
-      "note": "Fortran 8シンボル・4型・両 ABI を接続済み。adapter が pivot と LAPACK TOL/INFO/PIV を制御し、各 pivot の native LLT と native GEMM の Schur 更新を合成する。自動許容値は N*DLAMCH(E)*最大対角。最初の正 pivot 後に TOL で停止し、完了済み因子と未計算の置換済み三角部分・停止対角を返す。PSTRF/PSTF2 は共通の逐次経路で内部行列・scratch を確保する。"
+      "note": "Eight Fortran symbols, four types, and both ABIs are connected. The adapter controls pivoting together with LAPACK TOL/INFO/PIV and composes a native LLT and a native GEMM Schur update for each pivot. The automatic tolerance is N*DLAMCH(E)*largest diagonal. It stops at TOL after the first positive pivot and returns the completed factors, the uncomputed permuted triangle, and the stopping diagonal. PSTRF/PSTF2 share the sequential path and allocate internal matrices and scratch."
     },
     {
       "routines": [
@@ -122,7 +122,7 @@
       "status": "representation",
       "api": "cholesky::lblt::factor / solve / inverse (Partial pivoting)",
       "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
-      "note": "Fortran 32シンボル・実 SY/複素 HE・両 ABI を接続済み。native の分離 D と最終置換を classic IPIV と interleaved な A へ変換し、外部因子も読み込む。UPLO=U は反転基底で処理する。TRF/TF2、TRS/TRS2、TRI/TRI2/TRI2X、SV は共通 native 経路と内部 scratch を使用。TRF/SV query は1、TRI2 query はmax(1,N)、TRI2X の NB は hint。複素対称 SY 系は対象外。"
+      "note": "Connects 32 Fortran symbols for real SY / complex HE to both ABIs. Converts the native split D and final permutation to classic IPIV and interleaved A, and also reads external factors. UPLO=U is handled with a reversed basis. TRF/TF2, TRS/TRS2, TRI/TRI2/TRI2X, and SV share the native path and internal scratch. TRF/SV query is 1, TRI2 query is max(1,N), and NB for TRI2X is a hint. Complex symmetric SY is out of scope."
     },
     {
       "routines": [
@@ -140,7 +140,7 @@
       "status": "representation",
       "api": "Bunch-Kaufman cholesky_in_place with LbltParams.pivoting=Rook/RookDiag",
       "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
-      "note": "Fortran 20シンボル・実 SY/複素 HE・両 ABI を接続。公開 Rook pivoting を使い、2列 block の2つの swap index を個別に ROOK IPIV へ変換。外部 LAPACK 因子との双方向 solve/inverse、要素行列による再構成を検証。TRF/SV query と最小 caller work は1、内部 scratch は native 所有。subnormal 行の合同スケーリングと D/RHS block の共通スケーリングで native #212 を回避。LAPACKE は #288 の共通変換待ち。専用 Fortran routine と同一算法・同一 pivot 列・同一性能は主張しない。複素対称 SY は別契約。",
+      "note": "Connects 20 Fortran symbols for real SY / complex HE to both ABIs. Uses public Rook pivoting and converts the two swap indices of each two-column block separately into ROOK IPIV. Verifies bidirectional solve/inverse with external LAPACK factors and reconstruction from element matrices. TRF/SV query and minimum caller work are 1, and internal scratch is natively owned. Symmetric congruence scaling for subnormal rows and common scaling for D/RHS blocks avoid native #212. LAPACKE waits for the shared conversion in #288. No claim of the same algorithm, pivot columns, or performance as the dedicated Fortran routines. Complex symmetric SY has a separate contract.",
       "evidence": {
         "revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
         "scalars": [
@@ -169,7 +169,7 @@
       "status": "representation",
       "api": "qr_in_place / block Householder",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
-      "note": "Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT は4型・両 ABI を接続済み。native QR の各 active column から係数を変換し、LAPACK T を構成。GEQRT3 は再帰算法ではなく共通経路。内部配列を確保する。"
+      "note": "Fortran GEQRT/GEQRT2/GEQRT3/GEMQRT are connected for four types and both ABIs. Converts coefficients from each active column of the native QR and constructs the LAPACK T. GEQRT3 uses the common path rather than a recursive algorithm. Allocates internal arrays."
     },
     {
       "routines": [
@@ -227,7 +227,7 @@
       "status": "native",
       "api": "svd / thin_svd / svd_scratch",
       "source": "faer/src/linalg/svd/mod.rs",
-      "note": "U/V と LAPACK の VT、full/thin/overwrite、workspace query を変換。gesvd/gesdd を別々の Netlib アルゴリズムとして再現しない"
+      "note": "Converts U/V and LAPACK's VT, full/thin/overwrite, and the workspace query. Does not reproduce gesvd/gesdd as separate Netlib algorithms"
     },
     {
       "routines": [
@@ -270,7 +270,7 @@
       "status": "representation",
       "api": "native bidiag panels / LAPACK reflector gauge / native GEMV updates",
       "source": "faer/src/linalg/svd/bidiag.rs",
-      "note": "20 Fortran シンボルを両 ABI に接続。各 active column/row を正規化して native bidiag_in_place の1列 panel を使い、複素 beta と reciprocal coefficient の慣習を LAPACK の実数 D/E・複素 TAUQ/TAUP・保存ベクトルへ変換する。GEBRD/GEBD2 は共通 unblocked 合成。LABRD は所有する working matrix を逐次更新し、caller A22 を保持したまま先頭 NB 行/列と deferred X/Y を返す。Q/P は同じ保存形式から native GEMV/rank-one 更新で生成・左右適用する。caller WORK の最小長/query を扱うが内部領域は別途確保。4型・両 ABI・上下二重対角・矩形・外部因子相互運用を検証。C ABI は別タスク。"
+      "note": "Connects 20 Fortran symbols to both ABIs. Normalizes each active column/row, uses the single-column panel of native bidiag_in_place, and converts complex beta and the reciprocal-coefficient convention to LAPACK's real D/E, complex TAUQ/TAUP, and stored vectors. GEBRD/GEBD2 share the unblocked composition. LABRD updates its owned working matrix in sequence, preserving caller A22 while returning the first NB rows/columns and the deferred X/Y. Q/P are generated and applied left/right from the same storage form with native GEMV and rank-one updates. Handles the minimum length and query of caller WORK but allocates internal storage separately. Verifies four types, both ABIs, upper/lower bidiagonal form, rectangular shapes, and interoperability with external factors. C ABI is a separate task."
     },
     {
       "routines": [
@@ -282,7 +282,7 @@
       "status": "conditional",
       "api": "bidiagonal_svd",
       "source": "faer/src/linalg/svd/mod.rs",
-      "note": "二重対角 SVD はある。選択範囲や LAPACK compact 表現・特定の dqds/QR 算法は独立 API ではない"
+      "note": "Bidiagonal SVD is available. Range selection, the LAPACK compact representation, and a specific dqds/QR algorithm are not independent APIs"
     },
     {
       "routines": [
@@ -292,7 +292,7 @@
       "status": "conditional",
       "api": "evd_real / evd_cplx / balance",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "公開 native API は固有値・左右固有ベクトル・balance を提供する。GEEVX の条件推定は native API にないため、Fortran SENSE=E/V/B は保存した同じ整数 ABI の backend を優先し、LP64 に元の実装がなければ ILP64 に整数を変換して委譲する。4型の元の ILP64 GEEVX を登録前に要求し、不足時は LBT の変更前に設定エラーにする。SENSE=N は native のまま。"
+      "note": "The public native API provides eigenvalues, left/right eigenvectors, and balancing. GEEVX condition estimation is not in the native API, so Fortran SENSE=E/V/B prefers the saved backend with the same integer ABI and converts integers to ILP64 if there is no original LP64 implementation. An original ILP64 GEEVX for all four types is required before registration; if missing, initialization fails before LBT is changed. SENSE=N remains native."
     },
     {
       "routines": [
@@ -302,7 +302,7 @@
       "status": "representation",
       "api": "balance_in_place_with / balance_eigenvectors_in_place",
       "source": "faer/src/linalg/evd/balance.rs",
-      "note": "GEBAL/GEBAK の8 Fortran シンボルを両 ABI に接続。native の最終 perm/scale を ILO/IHI/SCALE の swap encoding に変換し、左右の逆変換を区別。C API は別途接続"
+      "note": "Connects the eight Fortran symbols of GEBAL/GEBAK to both ABIs. Converts the native final permutation/scaling to the ILO/IHI/SCALE swap encoding and distinguishes left from right back-transformation. C API is connected separately"
     },
     {
       "routines": [
@@ -314,7 +314,7 @@
       "status": "native",
       "api": "self_adjoint_evd",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "UPLO・実数 eigenvalue・workspace を変換。各 LAPACK ドライバー固有の算出経路は同一ではない"
+      "note": "Converts UPLO, real eigenvalues, and the workspace. The computation path is not identical across the individual LAPACK drivers"
     },
     {
       "routines": [
@@ -322,9 +322,9 @@
         "heevr"
       ],
       "status": "composition",
-      "api": "self_adjoint_evd と全スペクトルからの選択",
+      "api": "self_adjoint_evd and selection from the full spectrum",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "部分範囲は全固有値からフィルター可能。MRRR・Sturm count・inverse iteration の直接 API はない"
+      "note": "Partial ranges can be filtered from the full spectrum. There is no direct API for MRRR, Sturm count, or inverse iteration"
     },
     {
       "routines": [
@@ -364,7 +364,7 @@
       "status": "native",
       "api": "tridiagonal_self_adjoint_evd",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "STEV/STEVD/STEQR/STEDC/STERF の14 Fortran シンボルを両 ABI に接続。既存 Q の後乗算、workspace query と最小 WORK を扱う。native 非収束時は保存した ILP64 LAPACK に渡し部分結果を維持"
+      "note": "Connects the 14 Fortran symbols of STEV/STEVD/STEQR/STEDC/STERF to both ABIs. Handles post-multiplication by an existing Q and the workspace query with the minimum WORK. On native non-convergence, passes control to the saved ILP64 LAPACK and keeps partial results"
     },
     {
       "routines": [
@@ -374,9 +374,9 @@
         "stemr"
       ],
       "status": "composition",
-      "api": "tridiagonal_self_adjoint_evd と全スペクトルからの選択",
+      "api": "tridiagonal_self_adjoint_evd and selection from the full spectrum",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "STEVR/STEVX/STEGR/STEMR の12 Fortran シンボルを両 ABI に接続。native 全スペクトルから A/I/V を選択し、専用 MRRR とは算法が異なる。STEMR の TRYRAC=true、STEVR/STEVX の正の ABSTOL と native 非収束は保存した ILP64 LAPACK に委譲。C API は別途接続"
+      "note": "Connects the 12 Fortran symbols of STEVR/STEVX/STEGR/STEMR to both ABIs. Selects A/I/V from the native full spectrum, using an algorithm different from dedicated MRRR. STEMR's TRYRAC=true, positive ABSTOL for STEVR/STEVX, and native non-convergence are delegated to the saved ILP64 LAPACK. C API is connected separately"
     },
     {
       "routines": [
@@ -385,7 +385,7 @@
       "status": "composition",
       "api": "bidiagonal_svd + positive tridiagonal factor representation",
       "source": "faer/src/linalg/svd/mod.rs",
-      "note": "PTEQR の4 Fortran シンボルを両 ABI に接続。正定値三重対角の bidiagonal Cholesky 因子を作り native bidiagonal SVD を使う。降順の固有値、正定値性 INFO、既存 Q の後乗算を扱い、SVD 非収束は保存した LAPACK に委譲。C API は別途接続"
+      "note": "Connects the four Fortran symbols of PTEQR to both ABIs. Builds the bidiagonal Cholesky factor of the positive-definite tridiagonal matrix and uses the native bidiagonal SVD. Handles descending eigenvalues, the positive-definiteness INFO, and post-multiplication by an existing Q, delegating SVD non-convergence to the saved LAPACK. C API is connected separately"
     },
     {
       "routines": [
@@ -393,12 +393,12 @@
         "stein"
       ],
       "status": "unverified",
-      "api": "未照合",
+      "api": "unverified",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: Sturm-count bisection と inverse iteration の独立公開 API はない",
+      "note": "Re-review target because the confirmation record for the old unsupported classification is insufficient. Does not assert that the semantic public contract, types, storage formats, and options are confirmed absent. Old note: no independent public API for Sturm-count bisection and inverse iteration",
       "prior_assessment": {
         "status": "unsupported",
-        "note": "Sturm-count bisection と inverse iteration の独立公開 API はない",
+        "note": "No independent public API for Sturm-count bisection and inverse iteration",
         "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
       }
     },
@@ -414,7 +414,7 @@
       "status": "conditional",
       "api": "Cholesky + triangular congruence + self_adjoint_evd",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "SYGV/HEGV・GVD・GVX の12 Fortran シンボルを両 ABI に接続。ITYPE=1/2/3、UPLO、B 正規化と範囲選択を構成。GV/GVD は共通の native EVD、GVX は全スペクトルから選択し、正の ABSTOL と native 失敗は保存した ILP64 LAPACK に委譲。C API は別途接続"
+      "note": "Connects the 12 Fortran symbols of SYGV/HEGV, GVD, and GVX to both ABIs. Composes ITYPE=1/2/3, UPLO, B normalization, and range selection. GV/GVD use a common native EVD; GVX selects from the full spectrum, with positive ABSTOL and native failures delegated to the saved ILP64 LAPACK. C API is connected separately"
     },
     {
       "routines": [
@@ -426,7 +426,7 @@
       "status": "composition",
       "api": "factorized triangular B + triangular_solve / triangular::matmul",
       "source": "faer/src/linalg/triangular_solve.rs",
-      "note": "SYGST/SYGS2/HEGST/HEGS2 の8 Fortran シンボルを両 ABI に接続。因子化済み B を読み、ITYPE=1 は三角 solve、2/3 は三角 matmul で標準形を構成。GS2/GST は共通の native kernel を使用。C API は別途接続"
+      "note": "Connects the eight Fortran symbols of SYGST/SYGS2/HEGST/HEGS2 to both ABIs. Reads the factorized B; ITYPE=1 uses a triangular solve and 2/3 use triangular matmul to form the standard form. GS2/GST share the native kernel. C API is connected separately"
     },
     {
       "routines": [
@@ -439,7 +439,7 @@
       "status": "composition",
       "api": "hessenberg_schur_real/cplx / reorder_schur_real/cplx / Householder",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "Fortran 20シンボル・4型・両 ABI を接続済み。active block の native Schur と基底変換、既存 Z の更新、GEES の SELECT callback・実数共役対・SDIM と並べ替えを構成。HSEQR/LAHQR/LAQR0/LAQR4 は共通 native 経路で、Netlib の各 QR 算法の選択は再現しない。内部配列を確保し、非収束時は公開 API が部分 index を返さないため active range 全体を未収束として INFO=IHI を返す。"
+      "note": "Connects 20 Fortran symbols, four types, and both ABIs. Composes the native Schur factorization of the active block and the basis change, updates the existing Z, and handles the GEES SELECT callback, real conjugate pairs, SDIM, and reordering. HSEQR/LAHQR/LAQR0/LAQR4 share the native path and do not reproduce Netlib's per-entry QR algorithm selection. Allocates internal arrays; on non-convergence, because the public API returns no partial indices, reports the whole active range as non-converged with INFO=IHI."
     },
     {
       "routines": [
@@ -447,9 +447,9 @@
         "trsen"
       ],
       "status": "conditional",
-      "api": "Schur と reorder_schur",
+      "api": "Schur and reorder_schur",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "8 Fortran シンボル・4型・両 ABI を接続済み。TRSEN JOB=N は native Schur block move による安定選択、M、固有値抽出と Q 更新。GEESX SENSE=N は既存 native GEES 経路。交換拒否時の SDIM は移動済み prefix でなく全選択列数を返す（GEES 共通処理も修正）。S/SEP と RCONDE/RCONDV の公開 native API はなく、JOB/SENSE E/V/B は保存済み元の ILP64 routine に委譲する。LP64 IWORK/BWORK は書き込み済み slot だけ変換し、SELECT callback は thread-local guard で LOGICAL ABI を変換して入れ子呼び出し後に復元する。TRSEN は LWORK=-1 だけ、実数 GEESX は LWORK/LIWORK の collective query。内部所有行列/scratch を確保する。C ABI は別タスク。"
+      "note": "Connects eight Fortran symbols, four types, and both ABIs. TRSEN JOB=N performs stable selection with native Schur block moves, plus M, eigenvalue extraction, and Q updates. GEESX SENSE=N uses the existing native GEES path. On rejected swaps, SDIM returns the total number of selected columns rather than the moved prefix (the common GEES handling is fixed too). No public native API exists for S/SEP or RCONDE/RCONDV, so JOB/SENSE E/V/B are delegated to the saved original ILP64 routines. For LP64, only written IWORK/BWORK slots are converted, and the SELECT callback converts the LOGICAL ABI with a thread-local guard, restoring it after nested calls. TRSEN handles only LWORK=-1, and real GEESX performs the collective LWORK/LIWORK query. Allocates internally owned matrices and scratch. C ABI is a separate task."
     },
     {
       "routines": [
@@ -459,7 +459,7 @@
       "status": "representation",
       "api": "eigenvectors_from_schur_real/cplx + reverse-adjoint left vectors",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "8 Fortran シンボル・4型・両 ABI を接続済み。右側は公開 Schur eigenvector helper、左側は反転した転置/随伴 Schur 形式から生成し元の列順へ戻す。SIDE L/R/B、HOWMNY A/B/S、SELECT の実数2x2対の標準化と M/MM、back-transform、実数共役対の packing、最大成分による正規化を変換。TREVC3 は同じ native helper と行列積を共有し、固有の blocked back-substitution 算法を主張しない。query はこの合成経路の最小 WORK/RWORK を返し、内部所有行列/scratch は O(n²)。native 拒否時は保存した元の ILP64 TREVC/TREVC3 に委譲し、LP64 SELECT/M/INFO を変換する。C ABI は別タスク。"
+      "note": "Connects eight Fortran symbols, four types, and both ABIs. The right side uses the public Schur eigenvector helper, and the left side is generated from a reversed transpose/adjoint Schur form and then restored to the original column order. Converts SIDE L/R/B, HOWMNY A/B/S, normalization of real 2x2 pairs in SELECT and M/MM, back-transformation, packing of real conjugate pairs, and max-component normalization. TREVC3 shares the same native helper and matrix products and does not claim its own blocked back-substitution algorithm. The query returns the minimum WORK/RWORK of this composed path, and internally owned matrices/scratch are O(n^2). On native rejection it delegates to the saved original ILP64 TREVC/TREVC3, converting LP64 SELECT/M/INFO. C ABI is a separate task."
     },
     {
       "routines": [
@@ -469,7 +469,7 @@
       "status": "native",
       "api": "reorder_schur_real/cplx",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "6 Fortran シンボル・TREXC は4型、LAEXC は実数2型・両整数 ABI を接続済み。公開 checked Schur move の1x1/2x2交換、任意の移動距離、Q 更新、実数 IFST/ILST の先頭行補正と最終位置、複素 index 入力の保持、拒否時の最後の成功状態を変換する。LAEXC のゼロ block quick return と固定 WORK を保持。所有 Schur 行列と必要な Q を確保する。C ABI は別タスク。"
+      "note": "Connects six Fortran symbols: TREXC for four types and LAEXC for the two real types, both integer ABIs. Converts 1x1/2x2 exchanges in the public checked Schur move, arbitrary move distances, Q updates, the leading-row correction and final position of real IFST/ILST, preservation of complex index input, and the last successful state on rejection. Preserves LAEXC's zero-block quick return and fixed WORK. Allocates the owned Schur matrix and the required Q. C ABI is a separate task."
     },
     {
       "routines": [
@@ -480,7 +480,7 @@
       "status": "representation",
       "api": "gevd_real / gevd_cplx",
       "source": "faer/src/linalg/gevd/mod.rs",
-      "note": "Fortran 12シンボル・4型・両 ABI を接続済み。native GEVD の homogeneous alpha/beta と左右固有ベクトルを変換する。実数 transpose-left の共役対の虚部列を反転して LAPACK adjoint-left へ揃え、最大成分ノルムで正規化。各 driver は共通 native 経路で内部配列・scratch を確保する。"
+      "note": "Connects 12 Fortran symbols, four types, and both ABIs. Converts the native GEVD homogeneous alpha/beta and left/right eigenvectors. Flips the imaginary columns of conjugate pairs in the real transpose-left form to match LAPACK adjoint-left and normalizes by the max-component norm. Each driver shares the native path and allocates internal arrays and scratch."
     },
     {
       "routines": [
@@ -489,7 +489,7 @@
       "status": "conditional",
       "api": "gevd_real/cplx",
       "source": "faer/src/linalg/gevd/mod.rs",
-      "note": "Fortran 4シンボル・4型・両 ABI を接続済み。BALANC=N/SENSE=N は native GEVD と ILO/IHI、LSCALE/RSCALE、元の尺度の Schur A/B、ABNRM/BBNRM を構成。その他の balance/condition mode は保存した既存 ILP64 バックエンドへ委譲し、LP64 呼び出しでは整数スカラーと所有する IWORK/BWORK を変換。ロード前の ILP64 expert backend を必須とし、欠落は登録前に診断する。"
+      "note": "Connects four Fortran symbols, four types, and both ABIs. BALANC=N/SENSE=N composes native GEVD with ILO/IHI, LSCALE/RSCALE, Schur A/B in the original scale, and ABNRM/BBNRM. Other balance/condition modes are delegated to the saved existing ILP64 backend, converting integer scalars and owned IWORK/BWORK for LP64 calls. An ILP64 expert backend is required before loading, and a missing one is diagnosed before registration."
     },
     {
       "routines": [
@@ -501,7 +501,7 @@
       "status": "composition",
       "api": "QR / generalized_hessenberg / hessenberg_to_qz / generalized reorder_schur",
       "source": "faer/src/linalg/gevd/qz_real/mod.rs",
-      "note": "Fortran 16シンボル・4型・両 ABI を接続済み。HGEQZ の active range と Q/Z=N/I/V、GGES/GGES3/GEGS の dense 還元、homogeneous alpha/beta、SELECT と実数共役対、SDIM を変換。β=0 を保持する。native API が非収束状態を返さないため構造・出力値を検証し、不完全な結果は active range 全体を未収束として INFO=IHI。並べ替え後は QZ を再評価する。内部配列・scratch を確保し、入口ごとの最小合法 WORK と query を提供する。"
+      "note": "Connects 16 Fortran symbols, four types, and both ABIs. Converts the HGEQZ active range and Q/Z=N/I/V, the dense reduction of GGES/GGES3/GEGS, homogeneous alpha/beta, SELECT and real conjugate pairs, and SDIM. Preserves beta=0. Because the native API does not return a non-convergence state, the structure and outputs are validated, and an incomplete result reports the whole active range as non-converged with INFO=IHI. Re-evaluates QZ after reordering. Allocates internal arrays and scratch and provides the minimum legal WORK and query for each entry point."
     },
     {
       "routines": [
@@ -511,7 +511,7 @@
       "status": "conditional",
       "api": "generalized reorder_schur / schur_eigenvalues_real / QZ",
       "source": "faer/src/linalg/gevd/reorder.rs",
-      "note": "Fortran 8シンボル・4型・両 ABI を接続済み。TGSEN IJOB=0 と GGESX SENSE=N は native。実数共役対は全ブロックを選択し、TGSEN の homogeneous alpha/beta は保存因子から取得する。条件・分離推定は保持した既存 ILP64 LAPACK に委譲し、LP64 SELECT/IWORK/BWORK と callback LOGICAL の幅を変換する。内部行列・scratch を確保し、WORK/IWORK query と最小領域を変換する。"
+      "note": "Connects eight Fortran symbols, four types, and both ABIs. TGSEN IJOB=0 and GGESX SENSE=N are native. All blocks are selected for real conjugate pairs, and homogeneous alpha/beta for TGSEN is taken from the saved factors. Condition and separation estimates are delegated to the retained existing ILP64 LAPACK, converting LP64 SELECT/IWORK/BWORK and the callback LOGICAL width. Allocates internal matrices and scratch and converts WORK/IWORK queries and minimum sizes."
     },
     {
       "routines": [
@@ -521,7 +521,7 @@
       "status": "representation",
       "api": "generalized_hessenberg",
       "source": "faer/src/linalg/gevd/gen_hessenberg/mod.rs",
-      "note": "Fortran 8シンボル・4型・両 ABI を接続済み。active block を公開 generalized_hessenberg へ渡し、範囲外との結合と COMPQ/COMPZ=N/I/V を native GEMM で変換する。B の厳密下三角を読まず、出力でゼロにする。GGHRD/GGHD3 は共通 native 経路で内部行列・scratch を確保する。GGHD3 の最小 WORK と query は1。"
+      "note": "Connects eight Fortran symbols, four types, and both ABIs. Passes the active block to the public generalized_hessenberg and converts its coupling with the outside range and COMPQ/COMPZ=N/I/V with native GEMM. Never reads the strict lower triangle of B and zeroes it in the output. GGHRD/GGHD3 share the native path and allocate internal matrices and scratch. The minimum WORK and query for GGHD3 are 1."
     },
     {
       "routines": [
@@ -531,7 +531,7 @@
       "status": "native",
       "api": "generalized reorder_schur_real/cplx",
       "source": "faer/src/linalg/gevd/reorder.rs",
-      "note": "Fortran 8シンボル・4型・両 ABI を接続済み。public generalized reorder_schur の block swap/rejection と位置を Fortran index に変換し、S/T と要求された Q/Z の最終有効状態を返す。実数 1×1/2×2 と複素 1×1、実数 TGEXC query、query を持たない実数 TGEX2 の最小 WORK を扱う。内部行列・scratch を別途確保する。"
+      "note": "Connects eight Fortran symbols, four types, and both ABIs. Converts block swaps/rejections and positions from the public generalized reorder_schur to Fortran indices and returns S/T together with the final valid state of the requested Q/Z. Handles real 1x1/2x2 and complex 1x1 blocks, the real TGEXC query, and the minimum WORK of real TGEX2, which has no query. Allocates internal matrices and scratch separately."
     },
     {
       "routines": [
@@ -540,7 +540,7 @@
       "status": "conditional",
       "api": "gevd / QZ",
       "source": "faer/src/linalg/gevd/mod.rs",
-      "note": "一般化固有ベクトルはあるが既存 Schur pencil からの独立 helper の同一契約は未接続"
+      "note": "Generalized eigenvectors exist, but the same contract as an independent helper from an existing Schur pencil is not connected"
     },
     {
       "routines": [
@@ -550,9 +550,9 @@
         "ggglm"
       ],
       "status": "composition",
-      "api": "native-backed QR/RQ・reflector apply・三角 solve の合成",
+      "api": "native-backed QR/RQ, reflector apply, triangular solve composition",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
-      "note": "Fortran 16シンボル・4型・両 ABI を接続済み。GGQRF/GGRQF は既存 QR/RQ と Q 適用を合成し、外部の ORG/UNGQR/RQ と互換な reflector を返す。GGLSE/GGGLM は同じ因子から等式制約・最小ノルム解を求め、2種類の厳密な triangular rank failure を INFO=1/2 に分離する。query、最小 WORK、C/D の破壊的 payload を扱う。専用 public driver・rank-revealing 判定・Netlib と同一算法/性能は主張せず、内部行列・係数・scratch を別途確保する。"
+      "note": "Connects 16 Fortran symbols, four types, and both ABIs. GGQRF/GGRQF compose existing QR/RQ and Q application and return reflectors compatible with external ORG/UNGQR/RQ. GGLSE/GGGLM compute equality-constrained and minimum-norm solutions from the same factors and distinguish two kinds of exact triangular rank failure as INFO=1/2. Handles queries, minimum WORK, and destructive C/D payloads. Makes no claim of a dedicated public driver, rank-revealing determination, or the same algorithm/performance as Netlib, and allocates internal matrices, coefficients, and scratch separately."
     },
     {
       "routines": [
@@ -571,9 +571,9 @@
         "real_rot"
       ],
       "status": "composition",
-      "api": "行列/ベクトル view と還元・演算",
+      "api": "matrix/vector views and reductions/operations",
       "source": "faer/src/linalg/reductions/mod.rs",
-      "note": "基本演算として実現可能。現行の多くは colmat-rs の専用 kernel ではなく Rust 互換層のループ"
+      "note": "Implementable as basic operations. Most current paths use loops in the Rust compatibility layer rather than dedicated colmat-rs kernels"
     },
     {
       "routines": [
@@ -596,7 +596,7 @@
       "status": "representation",
       "api": "JacobiRotation::rotg / make_givens",
       "source": "faer/src/linalg/jacobi.rs",
-      "note": "既存 ROT の算術互換入口。modified Givens ROTMG/ROTM は別物。"
+      "note": "Arithmetic-compatible entry point for the existing ROT. Modified Givens ROTMG/ROTM are different."
     },
     {
       "routines": [
@@ -620,12 +620,12 @@
         "rotmg"
       ],
       "status": "unverified",
-      "api": "未照合",
+      "api": "unverified",
       "source": "faer/src/linalg/jacobi.rs",
-      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: modified Givens rotation の公開 API はない",
+      "note": "Re-review target because the confirmation record for the old unsupported classification is insufficient. Does not assert that the semantic public contract, types, storage formats, and options are confirmed absent. Old note: no public API for modified Givens rotation",
       "prior_assessment": {
         "status": "unsupported",
-        "note": "modified Givens rotation の公開 API はない",
+        "note": "No public API for modified Givens rotation",
         "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
       }
     },
@@ -679,7 +679,7 @@
       "status": "composition",
       "api": "native strided copy/map/fill, row/column swaps, real component GEMM",
       "source": "faer/src/mat/matref.rs",
-      "note": "Fortran のコピー・置換・safe-range LASCL・精度変換・混合積と行列コピー拡張を両 ABI に接続。縮小変換は成分ごとの上限検査と INFO=1 を実装し、単なる cast や飽和と区別する。IMATCOPY は native snapshot、LACRM/LARCM は2回の real GEMM を使う。C API は別の ABI 接続タスク。"
+      "note": "Connects Fortran copy, permutation, safe-range LASCL, precision conversion, mixed products, and matrix-copy extensions to both ABIs. Narrowing conversions implement per-component upper-bound checks and INFO=1, distinguishing them from a plain cast or saturation. IMATCOPY uses a native snapshot, and LACRM/LARCM use two real GEMM operations. C API is a separate ABI connection task."
     },
     {
       "routines": [
@@ -694,7 +694,7 @@
       "status": "representation",
       "api": "make_householder_in_place / block Householder",
       "source": "faer/src/linalg/householder.rs",
-      "note": "Fortran 4型・LP64/ILP64 を接続済み。LAPACK 係数・実数 beta・positive gauge は Rust adapter で生成し、適用は native GEMV/SYMV/GEMM を合成。F/B・C/R 保存を変換。LARFB は内部作業配列を確保する。CBLAS/LAPACKE の接続は別途。"
+      "note": "Connects four Fortran types and LP64/ILP64. LAPACK coefficients, real beta, and the positive gauge are generated by the Rust adapter, and application composes native GEMV/SYMV/GEMM. Converts F/B and C/R storage. LARFB allocates internal work arrays. CBLAS/LAPACKE connections are separate."
     },
     {
       "routines": [
@@ -704,7 +704,7 @@
       "status": "native",
       "api": "triangular::matmul",
       "source": "faer/src/linalg/matmul/triangular.rs",
-      "note": "LAUUM/LAUU2 の8 Fortran シンボルを両 ABI に接続。借用した三角因子とその転置/共役の積を native triangular::matmul で構成し、指定した三角だけを更新。C API は別途接続"
+      "note": "Connects the eight Fortran symbols of LAUUM/LAUU2 to both ABIs. Constructs the product of the borrowed triangular factor with its transpose/conjugate using native triangular::matmul and updates only the specified triangle. C API is connected separately"
     },
     {
       "routines": [
@@ -735,7 +735,7 @@
       "status": "representation",
       "api": "native interval matmul / packed outer products / triangular_solve",
       "source": "faer/src/linalg/matmul/mod.rs",
-      "note": "44 Fortran BLAS シンボルを両 ABI に接続。band/packed の格納区間だけを native 乗算に渡し、負 stride、複素対称と Hermitian、実対角、unit diagonal を区別する。三角 solve は区間の native 内積と対角 solve を合成し、no-transpose のゼロ列は参照 Netlib 同様に飛ばす。full dense 展開は行わず、積の X snapshot と必要な row gather に内部領域を確保する。C ABI は別タスク。"
+      "note": "Connects 44 Fortran BLAS symbols to both ABIs. Passes only the stored band/packed interval to native multiplication and distinguishes negative strides, complex symmetric versus Hermitian, real diagonals, and the unit diagonal. Triangular solves compose the interval's native dot product and a diagonal solve, and zero columns in the no-transpose case are skipped as in the reference Netlib. No full dense expansion; allocates internal storage for the X snapshot of the product and the necessary row gathers. C ABI is a separate task."
     },
     {
       "routines": [
@@ -751,7 +751,7 @@
       "status": "representation",
       "api": "native column PartialPivLu / rank-one matmul / interval triangular_solve",
       "source": "faer/src/linalg/lu/partial_pivoting/factor.rs",
-      "note": "32 Fortran シンボルを両 ABI に接続。band の格納列を native LU で因子化し、行交換と skew-strided 外積更新で LAPACK の interleaved IPIV・fill-in を保持する。三重対角は4行 band の O(n) 領域へ変換し、DL/D/DU/DU2 と隣接 pivot を入出力する。外部因子から N/T/C solve が可能。GTSV は最初の特異 pivot で停止し、途中 B と第2上対角を保存する DL の独自契約も扱う。full dense 展開はしない。C ABI は別タスク。"
+      "note": "Connects 32 Fortran symbols to both ABIs. Factors the stored band columns with native LU and preserves LAPACK's interleaved IPIV and fill-in through row exchanges and skew-strided outer-product updates. Converts tridiagonal systems to an O(n) four-row band region and reads/writes DL/D/DU/DU2 and adjacent pivots. Supports N/T/C solves from external factors. GTSV also handles its own DL contract, stopping at the first singular pivot and preserving the partial B and second superdiagonal. No full dense expansion. C ABI is a separate task."
     },
     {
       "routines": [
@@ -763,7 +763,7 @@
       "status": "representation",
       "api": "native diagonal Llt / triangular_solve / triangular::matmul",
       "source": "faer/src/linalg/cholesky/llt/factor.rs",
-      "note": "16 Fortran シンボルを両 ABI に接続。保存区間だけを native LLT・三角 solve・selected-triangle rank update で処理し、full dense 展開はしない。PBTRF/PBTF2 は同じ unblocked 合成で、専用 blocked band kernel の主張ではない。上下・実対角・非正定値 INFO・外部因子と相互運用する solve を検証。O(min(kd,n)) の vector snapshot を内部確保。C ABI は別タスク。"
+      "note": "Connects 16 Fortran symbols to both ABIs. Processes only the stored interval with native LLT, triangular solves, and selected-triangle rank updates, without full dense expansion. PBTRF/PBTF2 share the unblocked composition and do not claim a dedicated blocked band kernel. Verifies upper/lower storage, real diagonals, the non-positive-definite INFO, and solves interoperating with external factors. Allocates an O(min(kd,n)) vector snapshot internally. C ABI is a separate task."
     },
     {
       "routines": [
@@ -775,7 +775,7 @@
       "status": "representation",
       "api": "native LDL panels / unit band triangular_solve / real matmul",
       "source": "faer/src/linalg/cholesky/ldlt/factor.rs",
-      "note": "16 Fortran シンボルを両 ABI に接続。実数 D と実数/複素 E を保持し、各列を2の冪で正規化して native LDL panel の確定した第1列と native real Schur update を使う。solve は O(n) の unit band と実数対角 solve を合成し、複素 upper/lower の共役を区別する。full dense 展開はしない。外部因子の再利用、非正定値 INFO・途中出力、極小/巨大値、空・ゼロ RHS、混合 ABI を検証。参照 complex PTTS2 のゼロ RHS 書換えと N=1 の逆数あふれは単独再現を残し、Native は未使用配列を触らず正規化で有限解を保つ。C ABI は別タスク。"
+      "note": "Connects 16 Fortran symbols to both ABIs. Preserves real D and real/complex E, normalizes each column by a power of two, and uses the determined first column of the native LDL panel and the native real Schur update. Solves compose an O(n) unit band with a real diagonal solve and distinguish complex upper/lower conjugation. No full dense expansion. Verifies reuse of external factors, non-positive-definite INFO and partial output, tiny/huge values, empty/zero RHS, and mixed ABIs. The reference complex PTTS2 rewrite for a zero RHS and its N=1 reciprocal overflow are documented as separate reproducers; the native implementation avoids touching unused arrays and keeps finite solutions through normalization. C ABI is a separate task."
     },
     {
       "routines": [
@@ -811,7 +811,7 @@
       "status": "representation",
       "api": "dense expansion / native full-spectrum self-adjoint EVD",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "24 Fortran シンボルを両 ABI に接続。band/packed の指定区間から所有する O(n²) の Hermitian 行列へ展開し、native 全 EVD を使う。BEV/BEVD と PEV/PEVD は共通経路で、専用 band/packed 算法を提供する主張ではない。VX は全スペクトルから A/I/V を選択し、band の Q は全固有ベクトル、AB は対角化された三重対角行列を返す。正の ABSTOL・native 失敗・精度に基づく guard 内の値域端点は保存した ILP64 expert driver に渡し、LP64 の整数配列を変換する。workspace query と最小合法 work を保持するが native 内部領域は別途確保。C ABI は別タスク。"
+      "note": "Connects 24 Fortran symbols to both ABIs. Expands the specified band/packed interval into an owned O(n^2) Hermitian matrix and uses the native full EVD. BEV/BEVD and PEV/PEVD share a path and do not claim dedicated band/packed algorithms. VX selects A/I/V from the full spectrum, band Q returns all eigenvectors, and AB returns the diagonalized tridiagonal matrix. Positive ABSTOL, native failures, and range endpoints inside the precision-based guard are passed to the saved ILP64 expert driver, converting LP64 integer arrays. Preserves the workspace query and minimum legal work but allocates the native internal region separately. C ABI is a separate task."
     },
     {
       "routines": [
@@ -831,7 +831,7 @@
       "status": "representation",
       "api": "native LLT / split-factor solves / self_adjoint_evd",
       "source": "faer/src/linalg/evd/mod.rs",
-      "note": "24 Fortran シンボル・4型・両 ABI を接続済み。packed は三角 Cholesky、band は PBSTF split 因子を保存し、合同変換・native 全 EVD・B 正規化を合成する。GVD も共通の native EVD を使用し、同名 divide-and-conquer 算法とは主張しない。GVX は A/I/V を選択し、band の全基底 Q は一般化固有ベクトル、AB は対角三重対角形を返す。正の ABSTOL・native 失敗・値域端点の precision guard は保存した元の ILP64 driver に委譲し、LP64 IWORK/IFAIL を書き込み済み slot だけ変換する。O(n²) の所有行列と scratch を確保。C ABI は別タスク。"
+      "note": "Connects 24 Fortran symbols, four types, and both ABIs. Packed input stores a triangular Cholesky factor and band input the PBSTF split factor; composes the congruence transformation, native full EVD, and B normalization. GVD also uses the common native EVD and does not claim the identically named divide-and-conquer algorithm. GVX selects A/I/V; the band full-basis Q returns generalized eigenvectors, and AB returns the diagonal tridiagonal form. Positive ABSTOL, native failures, and precision-guarded range endpoints are delegated to the saved original ILP64 driver, converting only written LP64 IWORK/IFAIL slots. Allocates an O(n^2) owned matrix and scratch. C ABI is a separate task."
     },
     {
       "routines": [
@@ -847,7 +847,7 @@
       "status": "representation",
       "api": "native tridiag / Householder generation and application",
       "source": "faer/src/linalg/evd/tridiag.rs",
-      "note": "16 Fortran シンボル・4型・両 ABI を接続済み。SPTRD/HPTRD は packed を所有 dense 行列へ展開し、既存 native 三重対角化の実 beta gauge と LAPACK AP/TAU 形式へ変換する。OPGTR/UPGTR/OPMTR/UPMTR は packed reflector の有効な尾部だけを読み、native Householder 適用を共有。係数ゼロの尾部・対角・三重対角成分は Q の生成/適用で参照しない。SBTRD/HBTRD は band を展開して同じ reduction を合成し、D/E と VECT=V の Q、VECT=U の X*Q を返す。VECT=N は Q を参照しない。複素 band の E は非負に位相調整。固定 WORK・INFO・格納 guard を検証。内部所有行列は O(n²)、専用 band bulge chase と同じ性能は主張しない。C ABI は別タスク。"
+      "note": "Connects 16 Fortran symbols, four types, and both ABIs. SPTRD/HPTRD expand packed storage into an owned dense matrix and convert the real beta gauge of the existing native tridiagonalization to LAPACK AP/TAU form. OPGTR/UPGTR/OPMTR/UPMTR read only the valid tail of the packed reflector and share native Householder application. Zero coefficients in the tail, diagonal, and tridiagonal entries are not referenced when forming or applying Q. SBTRD/HBTRD expand the band and compose the same reduction, returning D/E with Q for VECT=V and X*Q for VECT=U. VECT=N does not reference Q. Complex band E is phase-adjusted to be nonnegative. Verifies fixed WORK, INFO, and storage guards. Internally owned matrices are O(n^2); no claim of the same performance as a dedicated band bulge chase. C ABI is a separate task."
     },
     {
       "routines": [
@@ -868,7 +868,7 @@
       "status": "representation",
       "api": "RFP selected-triangle conversion / native triangular::matmul",
       "source": "faer/src/linalg/matmul/triangular.rs",
-      "note": "SSFRK/DSFRK/CHFRK/ZHFRK の4 Fortran 入口を両 ABI に接続。RFP 偶奇、UPLO、実数 N/T・複素 N/C と rank-k transpose を変換する。O(n²) の内部 native 行列を確保する。beta=0 は旧 C、ゼロ積は A を読まない。Hermitian 対角は実部だけを読み、出力虚部は0。専用の同名 native RFP API が存在するという分類ではない。"
+      "note": "Connects the four Fortran entry points SSFRK/DSFRK/CHFRK/ZHFRK to both ABIs. Converts RFP odd/even, UPLO, real N/T versus complex N/C, and rank-k transpose. Allocates an O(n^2) internal native matrix. beta=0 uses the old C, and a zero product does not read A. The Hermitian diagonal reads only the real part, and the output imaginary part is zero. This is not a classification asserting that dedicated native RFP APIs of the same name exist."
     },
     {
       "routines": [
@@ -880,7 +880,7 @@
       "status": "representation",
       "api": "factorized triangular/split B + native triangular_solve / matmul / reflectors",
       "source": "faer/src/linalg/triangular_solve.rs",
-      "note": "8 Fortran シンボル・4型・両 ABI を接続済み。packed GST は外部の三角 Cholesky 因子を読み、ITYPE=1/2/3 を合同変換する。band GST は PBSTF split 因子 S を読み、native block triangular solve と reflector 合成で C=X^H A X と X^H B X=I を作り、元の帯幅内に保存する。指定外三角・padding と BB を保持し、複素 Hermitian 対角は実部だけを読む。dense 内部行列を確保し、専用 band bulge-chasing と同じ性能ではない。band の native 拒否は保存した ILP64 driver を使う。C ABI は別タスク。"
+      "note": "Connects eight Fortran symbols, four types, and both ABIs. Packed GST reads an external triangular Cholesky factor and applies the congruence transformation for ITYPE=1/2/3. Band GST reads the PBSTF split factor S and, through native block triangular solves and reflector composition, forms C=X^H A X and X^H B X=I within the original bandwidth. Preserves the unspecified triangle, padding, and BB, and reads only the real part of the complex Hermitian diagonal. Allocates dense internal matrices and does not claim the same performance as a dedicated band bulge chase. Band native rejections use the saved ILP64 driver. C ABI is a separate task."
     },
     {
       "routines": [
@@ -905,12 +905,12 @@
         "disna"
       ],
       "status": "unverified",
-      "api": "未照合",
+      "api": "unverified",
       "source": "faer/src/linalg/mod.rs",
-      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: 対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない",
+      "note": "Re-review target because the confirmation record for the old unsupported classification is insufficient. Does not assert that the semantic public contract, types, storage formats, and options are confirmed absent. Old note: no public API for the corresponding condition-number/eigenspace-separation estimate. A mathematical substitute via exact inverse is not the same API or complexity",
       "prior_assessment": {
         "status": "unsupported",
-        "note": "対応する条件数/固有空間分離推定の公開 API はない。exact inverse による数学的代替は同じ API/計算量ではない",
+        "note": "No public API for the corresponding condition-number/eigenspace-separation estimate. A mathematical substitute via exact inverse is not the same API or complexity",
         "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
       }
     },
@@ -943,12 +943,12 @@
         "hpsvx"
       ],
       "status": "unverified",
-      "api": "未照合",
+      "api": "unverified",
       "source": "faer/src/linalg/mod.rs",
-      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない",
+      "note": "Re-review target because the confirmation record for the old unsupported classification is insufficient. Does not assert that the semantic public contract, types, storage formats, and options are confirmed absent. Old note: no public API for an expert driver with iterative refinement, FERR/BERR, and equilibration",
       "prior_assessment": {
         "status": "unsupported",
-        "note": "iterative refinement・FERR/BERR・equilibration を含む expert driver の公開 API はない",
+        "note": "No public API for an expert driver with iterative refinement, FERR/BERR, and equilibration",
         "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
       }
     },
@@ -967,12 +967,12 @@
         "latdf"
       ],
       "status": "unverified",
-      "api": "未照合",
+      "api": "unverified",
       "source": "faer/src/linalg/mod.rs",
-      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: 専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない",
+      "note": "Re-review target because the confirmation record for the old unsupported classification is insufficient. Does not assert that the semantic public contract, types, storage formats, and options are confirmed absent. Old note: no public API for a dedicated Sylvester/scaled solve or overflow avoidance. Not identical to an ordinary triangular solve",
       "prior_assessment": {
         "status": "unsupported",
-        "note": "専用 Sylvester/scaled solve/overflow 回避の公開 API はない。通常の三角 solve と同一ではない",
+        "note": "No public API for a dedicated Sylvester/scaled solve or overflow avoidance. Not identical to an ordinary triangular solve",
         "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
       }
     },
@@ -992,12 +992,12 @@
         "unbdb"
       ],
       "status": "unverified",
-      "api": "未照合",
+      "api": "unverified",
       "source": "faer/src/linalg/mod.rs",
-      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない",
+      "note": "Re-review target because the confirmation record for the old unsupported classification is insufficient. Does not assert that the semantic public contract, types, storage formats, and options are confirmed absent. Old note: no public API for GSVD / CS decomposition / bidiagonal-block reduction",
       "prior_assessment": {
         "status": "unsupported",
-        "note": "GSVD / CS decomposition / bidiagonal-block reduction の公開 API はない",
+        "note": "No public API for GSVD / CS decomposition / bidiagonal-block reduction",
         "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
       }
     },
@@ -1007,12 +1007,12 @@
         "gedmdq"
       ],
       "status": "unverified",
-      "api": "未照合",
+      "api": "unverified",
       "source": "faer/src/linalg/mod.rs",
-      "note": "旧非対応分類の確認記録が不足しているため再照合対象。意味上の公開契約・型・保存形式・オプションの不存在を確認済みとは判定しない。旧メモ: Dynamic Mode Decomposition の公開 API はない",
+      "note": "Re-review target because the confirmation record for the old unsupported classification is insufficient. Does not assert that the semantic public contract, types, storage formats, and options are confirmed absent. Old note: no public API for Dynamic Mode Decomposition",
       "prior_assessment": {
         "status": "unsupported",
-        "note": "Dynamic Mode Decomposition の公開 API はない",
+        "note": "No public API for Dynamic Mode Decomposition",
         "source": "AtelierArith/Colmat.jl@b72a4cf2e48c47d838eb41945d75dc242622e096:docs/lbt-capabilities.json"
       }
     },
@@ -1026,7 +1026,7 @@
       "status": "composition",
       "api": "JacobiRotation / apply_on_the_left/right",
       "source": "faer/src/linalg/jacobi.rs",
-      "note": "複数 Givens rotation の適用を合成する候補。配列係数・pivot/direction の規約変換が必要"
+      "note": "Candidate for composing the application of multiple Givens rotations. Requires conversion of array coefficients and the pivot/direction convention"
     },
     {
       "routines": [
@@ -1045,7 +1045,7 @@
       "status": "representation",
       "api": "matrix reductions",
       "source": "faer/src/linalg/reductions/mod.rs",
-      "note": "band/packed/RFP/tridiagonal 格納を解釈してノルムを構成。誘導 1/∞ norm と elementwise norm の差に注意"
+      "note": "Interprets band/packed/RFP/tridiagonal storage to construct the norm. Note the difference between induced 1/infinity norms and elementwise norms"
     },
     {
       "routines": [
@@ -1059,7 +1059,7 @@
       "status": "composition",
       "api": "borrowed strided MatRef/MatMut copy and conjugation",
       "source": "faer/src/mat/matref.rs",
-      "note": "TR/TP/TF の24 Fortran シンボルを両 ABI に接続。三角領域だけを読み書きし、RFP の偶奇・UPLO・実数 N/T・複素数 N/C と折返し共役を変換する。dense 全体への展開は行わない。"
+      "note": "Connects the 24 Fortran symbols of TR/TP/TF to both ABIs. Reads and writes only triangular regions and converts RFP odd/even, UPLO, real N/T, complex N/C, and folded conjugation. Does not expand to full dense storage."
     },
     {
       "routines": [
@@ -1077,7 +1077,7 @@
       "status": "composition",
       "api": "native column magnitude maps, diagonal copies, GEMV and BIN iteration",
       "source": "faer/src/linalg/reductions/mod.rs",
-      "note": "38 Fortran シンボルを両 ABI に接続。GEEQU/GBEQU の abs1・safe range・ゼロ行列診断、radix 版の係数/AMAX、PO/PB/PP の対角読み出しと SCOND を検証。SYEQUB/HEEQUB は native GEMV による BIN 反復を実装し、指数範囲を正規化する。独立した同名 native API があるという分類ではない。内部メモリを確保し caller WORK は保持する。"
+      "note": "Connects 38 Fortran symbols to both ABIs. Verifies GEEQU/GBEQU abs1, safe range, and zero-matrix diagnostics; the radix variant coefficients/AMAX; and the PO/PB/PP diagonal readout and SCOND. SYEQUB/HEEQUB implement BIN iteration with native GEMV and normalize the exponent range. This is not a classification asserting independent native APIs of the same name. Allocates internal memory and preserves caller WORK."
     },
     {
       "routines": [
@@ -1102,7 +1102,7 @@
       "status": "composition",
       "api": "native rectangular / triangular block matmul",
       "source": "faer/src/linalg/matmul/mod.rs",
-      "note": "ORM22/UNM22 の4 Fortran シンボルを両 ABI に接続。Q の行区分 (N1,N2) と列区分 (N2,N1) を区別し、Q12 の lower・Q21 の upper を native triangular matmul で適用する。指定しない三角と leading-dimension padding は読まない。左右・実 N/T と複素 N/C・空ブロックを処理し、C と同じ形の O(m*n) 内部結果を確保して最後に戻す。query は m*n、実計算の最小 work は参照実行コードと同じ NQ（空ブロック時1）。最小長でも native 内部領域は別途必要。C ABI は別タスク。"
+      "note": "Connects the four Fortran symbols of ORM22/UNM22 to both ABIs. Distinguishes the row partition (N1,N2) and column partition (N2,N1) of Q and applies the lower part of Q12 and the upper part of Q21 with native triangular matmul. Does not read the unspecified triangle or leading-dimension padding. Handles left/right, real N/T, complex N/C, and empty blocks, allocating an O(m*n) internal result in the same form as C and copying it back at the end. The query is m*n, and the minimum work for the actual computation is NQ as in the reference execution code (1 for empty blocks). Even at the minimum length, native internal storage is needed separately. C ABI is a separate task."
     },
     {
       "routines": [
@@ -1123,7 +1123,7 @@
       "status": "representation",
       "api": "qr_in_place / Householder / triangular solve",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
-      "note": "Fortran 36シンボル・4型・両 ABI を接続済み。A/TAU の係数変換、Q の生成・左右適用と GEQRS を提供。複素通常版と非負対角版は LAPACK gauge の reflector を生成し実数 beta を保持。内部配列を確保し、各入口の算法名と同一の Netlib 実装を使う保証はない。"
+      "note": "Connects 36 Fortran symbols, four types, and both ABIs. Provides A/TAU coefficient conversion, Q formation and left/right application, and GEQRS. The complex ordinary and nonnegative-diagonal variants generate LAPACK-gauge reflectors and preserve real beta. Allocates internal arrays, and no guarantee is made that each entry point uses the same Netlib implementation as its algorithm name."
     },
     {
       "routines": [
@@ -1134,7 +1134,7 @@
       "status": "composition",
       "api": "QR / reflector application / residual column norms",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
-      "note": "Fortran 4型・LP64/ILP64 を接続済み。GEQP3/GEQPF は固定 JPVT と置換方向を変換。GEQP3RK は残差列ノルムを再計算して KMAX/ABSTOL/RELTOL による途中停止と付随右辺の更新を実装。native の対角値による rank 判定とは区別する。内部作業配列を確保する。"
+      "note": "Connects four Fortran types and LP64/ILP64. GEQP3/GEQPF convert fixed JPVT and the permutation direction. GEQP3RK recomputes residual column norms and implements early termination via KMAX/ABSTOL/RELTOL together with updates to the accompanying right-hand side. Distinguishes this from native rank determination by diagonal values. Allocates internal work arrays."
     },
     {
       "routines": [
@@ -1160,7 +1160,7 @@
       "status": "composition",
       "api": "adjoint QR / Householder / triangular solve",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
-      "note": "Fortran 56シンボル・4型・両 ABI を接続済み。随伴 QR から A/TAU と行保存 T を構成。短幅パネルは [L B] を段階的に分解し外部 T と相互運用。GELQ は MB=1 の合法なヘッダー形式を選ぶ。内部配列を確保し、GELQT3 は共通経路を使用。"
+      "note": "Connects 56 Fortran symbols, four types, and both ABIs. Constructs A/TAU and the row-stored T from the adjoint QR. Short-wide panels factor [L B] in stages and interoperate with external T. GELQ chooses the legal MB=1 header form. Allocates internal arrays, and GELQT3 uses the common path."
     },
     {
       "routines": [
@@ -1177,7 +1177,7 @@
       "status": "composition",
       "api": "Householder generation / native GEMV and GEMM",
       "source": "faer/src/linalg/householder.rs",
-      "note": "Fortran 32シンボル・4型・両 ABI を接続済み。upper trapezoid の [R 0]Z と疎な反射を構成。LARZT/LARZB は LAPACK が規定する backward・行保存を提供。複素 T の共役、暗黙成分と尾部の重なりを扱い、作用しない中央領域を読まない。内部配列を確保する。"
+      "note": "Connects 32 Fortran symbols, four types, and both ABIs. Constructs the upper-trapezoidal [R 0]Z and sparse reflectors. LARZT/LARZB provide the backward and row-preserving behavior specified by LAPACK. Handles conjugation of complex T and overlap between implicit components and the tail, and does not read the central region on which they do not act. Allocates internal arrays."
     },
     {
       "routines": [
@@ -1192,7 +1192,7 @@
       "status": "composition",
       "api": "QR / LQ / SVD / RZ / triangular solve",
       "source": "faer/src/linalg/solvers.rs",
-      "note": "Fortran 28シンボル・4型・両 ABI を接続済み。full-rank は QR/LQ、GELSS/GELSD は共通 native SVD、GELSY/GELSX は固定列 QR と RZ による完全直交分解。leading R の条件判定は特異値を使い Netlib の増分推定とは丸め経路が異なる。尺度・rank・残差・B の配置を変換し、内部配列を確保する。"
+      "note": "Connects 28 Fortran symbols, four types, and both ABIs. Full-rank cases use QR/LQ, GELSS/GELSD use the common native SVD, and GELSY/GELSX use fixed-column QR and RZ for a complete orthogonal factorization. The leading-R condition test uses singular values and therefore has a different rounding path from Netlib's incremental estimate. Converts scaling, rank, residuals, and the layout of B, and allocates internal arrays."
     },
     {
       "routines": [
@@ -1206,7 +1206,7 @@
       "status": "composition",
       "api": "Householder generation / native matrix-vector application",
       "source": "faer/src/linalg/householder.rs",
-      "note": "Fortran 16シンボル・4型・両 ABI を接続済み。LAPACK gauge の reflector と native 適用から Hessenberg 還元、Q の明示生成・左右適用を構成。ILO/IHI の部分範囲、外部 A/TAU と相互運用。GEHRD/GEHD2 は共通経路で内部配列を確保する。"
+      "note": "Connects 16 Fortran symbols, four types, and both ABIs. Composes Hessenberg reduction and explicit Q formation/left-right application from LAPACK-gauge reflectors and native application. Handles ILO/IHI partial ranges and interoperates with external A/TAU. GEHRD/GEHD2 share the path and allocate internal arrays."
     },
     {
       "routines": [
@@ -1215,7 +1215,7 @@
       "status": "representation",
       "api": "native diagonal Llt / triangular_solve / triangular::matmul",
       "source": "faer/src/linalg/cholesky/llt/factor.rs",
-      "note": "4 Fortran シンボルを両 ABI に接続。後半を逆順に消去して前半を更新し、前半を順方向に因子化する split Cholesky を合成する。通常 POTRF への置き換えではなく、S の上三角・下三角・跨ぎ部分から A=S^H*S を独立再構成する。split point は min(n,(n+kd)/2) とし、余分な宣言幅でも存在しない列を読まない。参照 PBSTF が m>n の場合に範囲外列を読む差を単独再現と文書に記録。C ABI は別タスク。"
+      "note": "Connects four Fortran symbols to both ABIs. Composes split Cholesky by eliminating the second half in reverse order, updating the first half, and then factorizing the first half forward. This is not a replacement by ordinary POTRF; A=S^H*S is reconstructed independently from the upper, lower, and crossing parts of S. The split point is min(n,(n+kd)/2), and nonexistent columns are not read even with an excess declared width. The difference that the reference PBSTF reads out-of-range columns when m>n is documented as a separate reproducer. C ABI is a separate task."
     },
     {
       "routines": [
@@ -1230,7 +1230,7 @@
       "status": "representation",
       "api": "native Llt / triangular_solve",
       "source": "faer/src/linalg/cholesky/llt/factor.rs",
-      "note": "28 Fortran シンボルを両 ABI に接続。packed/RFP の三角格納を所有された O(n²) 作業行列へ変換し、native LLT・Cholesky solve を使う。inverse は単位行列を native solve して保存三角を戻す。UPLO、実 N/T・複素 N/C、odd/even の RFP と folded block の共役を扱い、対角虚部を読まない。外部因子の solve/inverse 相互運用、非正定値 INFO、空・ゼロ RHS を検証。caller storage は native LLT の反対三角 scratch と共有しない。C ABI は別タスク。"
+      "note": "Connects 28 Fortran symbols to both ABIs. Converts packed/RFP triangular storage into an owned O(n^2) work matrix and uses native LLT and Cholesky solves. The inverse is obtained by solving with an identity matrix natively and restoring the stored triangle. Handles UPLO, real N/T versus complex N/C, odd/even RFP, and folded-block conjugation, without reading the imaginary diagonal. Verifies solve/inverse interoperability with external factors, the non-positive-definite INFO, and empty/zero RHS. Caller storage is not shared with the opposite-triangle scratch of native LLT. C ABI is a separate task."
     }
   ],
   "assessment_revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
@@ -1262,7 +1262,7 @@
       "status": "unsupported",
       "api": "—",
       "source": "faer/src/linalg/cholesky/bunch_kaufman/mod.rs",
-      "note": "確認範囲: 公開 Bunch-Kaufman factor/solve は複素 Hermitian LDL^H 契約。複素対称 LDL^T とその IPIV/因子を渡す SY/SP 系とは異なる。一般 LU から同じ compact factor 契約が得られるとは判定しない。",
+      "note": "Scope of review: the public Bunch-Kaufman factor/solve has a complex Hermitian LDL^H contract. It differs from the SY/SP family that passes complex symmetric LDL^T and its IPIV/factors. Does not conclude that the same compact factor contract can be obtained from a general LU.",
       "evidence": {
         "revision": "4e6ed0e34659147a5c744ab6431f150e78db6f82",
         "scalars": [

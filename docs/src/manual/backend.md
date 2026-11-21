@@ -1,88 +1,93 @@
-# バックエンドとフォールバック
+# Backends and fallbacks
 
-## 呼び出しの流れ
+## Call flow
 
 ```text
-Julia Matrix / Vector と LinearAlgebra
+Julia Matrix / Vector and LinearAlgebra
                   ↓
            libblastrampoline
                   ↓
-        libcolmat_blas の BLAS ABI
+        BLAS ABI of libcolmat_blas
                   ↓
-       Rust colmat / Rust 互換層
+       Rust colmat / Rust compatibility layer
 ```
 
-`Colmat.__init__()` は `Colmat.load_backend()` を実行します。
-ライブラリの存在と互換層の ABI バージョンを確認し、ILP64、LP64 の順に
-`BLAS.lbt_forward` で登録します。
+`Colmat.__init__()` runs `Colmat.load_backend()`.
+It checks that the library exists and the compatibility layer's ABI version, then
+registers ILP64 and LP64, in that order, with `BLAS.lbt_forward`.
 
-Julia の配列は呼び出し中だけ Rust が借用します。Julia 側に Rust の行列所有権や
-寿命管理用ハンドルを公開しません。`mul!` などの変更規則は Julia の API に従います。
+Rust borrows Julia arrays only for the duration of the call. No Rust matrix ownership or
+lifetime-management handle is exposed on the Julia side. Mutation rules such as those of
+`mul!` follow the Julia API.
 
-## 未提供ルーチンの扱い
+## Handling unsupported routines
 
-登録には `clear=false` を指定します。Colmat が提供するシンボルを置き換え、
-未提供の BLAS / LAPACK の転送先は保持します。
+Registration uses `clear=false`. It replaces the symbols Colmat provides and retains the
+forwarding targets of unsupported BLAS / LAPACK routines.
 
-| 呼び出し | 実行先 |
+| Call | Where it runs |
 |---|---|
-| 対応する型の GEMM / GEMV など | Colmat |
-| 帯・packed 格納や未提供 BLAS | 既存の転送先 |
-| LAPACK の LU / SVD / 一般・自己随伴固有値 / Cholesky | Colmat |
-| QR / Schur / 一般化固有値など、まだ未接続の LAPACK | 既存の転送先 |
-| 整数や BigFloat など、この BLAS の対象外の型 | Julia の型ごとの既存実装 |
+| GEMM / GEMV and similar for supported types | Colmat |
+| Band/packed storage or unsupported BLAS | The existing forwarding target |
+| LAPACK LU / SVD / general and self-adjoint eigenvalues / Cholesky | Colmat |
+| LAPACK such as QR / Schur / generalized eigenvalues that is not connected yet | The existing forwarding target |
+| Types outside this BLAS, such as integers or BigFloat | Julia's existing per-type implementation |
 
-フォールバック側の共有ライブラリ内部から呼ぶ BLAS が LBT を経由するかは、
-そのライブラリのリンク構成に依存します。LBT に入口が登録されたことと、
-他の未接続分解の内部計算まで Colmat に切り替わることは同じではありません。
-疎行列ソルバーの選択も、このパッケージのロードだけでは置き換えません。
+Whether BLAS calls made from inside the fallback's shared library go through LBT depends
+on that library's link configuration. Having an entry registered in LBT is not the same
+as switching the internal computations of other unconnected factorizations to Colmat.
+Loading this package alone also does not replace the choice of sparse solver.
 
-## 切り替えの範囲と順序
+## Scope and ordering of switching
 
-変更は Julia プロセス全体に適用され、LBT を経由する他パッケージにも影響します。
-計算ごと、配列ごと、Julia Task ごとの設定ではありません。
+Changes apply to the whole Julia process and also affect other packages that go through
+LBT. They are not per-computation, per-array, or per-Julia-Task settings.
 
-別の BLAS プロバイダーを後からロードすると、そのプロバイダーが転送先を変更する
-場合があります。Colmat を再選択するときは次を実行します。
+Loading another BLAS provider later may cause that provider to change the forwarding
+targets. To re-select Colmat, run:
 
 ```julia
 Colmat.load_backend()
 ```
 
-この呼び出しも未提供ルーチンの現在の転送先を保持します。最初の OpenBLAS 構成へ
-戻す操作や、フォールバックを特定ライブラリに固定する操作ではありません。
+This call also retains the current forwarding targets of unsupported routines. It does
+not restore an original OpenBLAS configuration or pin the fallback to a specific library.
 
-バックエンドの切り替えは並列 BLAS 計算を開始する前に済ませてください。
-Colmat 内部の設定ロックは、他パッケージや直接の LBT 操作を同期しません。
+Finish switching backends before starting parallel BLAS computation.
+Colmat's internal configuration lock does not synchronize other packages or direct LBT
+operations.
 
 
-## LAPACK の変換と未対応オプション
+## LAPACK conversion and unsupported options
 
-LU の最終置換を LAPACK の IPIV に、SVD の V を VT に変換します。
-LU・Cholesky の因数分解は呼び出し側の配列を借用して in-place で実行し、
-SVD・一般/自己随伴 EVD・Schur/QZ・一般化 Hessenberg・最小二乗も入力を
-コピーせずに読み取ります。
-workspace query は LAPACK の `lwork=-1` 等を受け付けますが、native の作業領域は
-現在 adapter 内部で確保します。LAPACK の work 配列だけで割り当てなしに動く
-実装ではありません。
+Colmat converts the final LU permutation to LAPACK's IPIV and the SVD's V to VT.
+The LU and Cholesky factorizations borrow the caller's array and run in place, and SVD,
+general/self-adjoint EVD, Schur/QZ, generalized Hessenberg, and least squares also read
+their input without copying it.
+Workspace queries accept LAPACK's `lwork=-1` and similar forms, but the native workspace
+is currently allocated inside the adapter. This is not an implementation that runs
+without allocation using only the LAPACK work array.
 
-一般 EVD は native balance、左右固有ベクトル計算、Schur 計算を使用します。
-現在は返却する Schur 形式を得るための処理を追加実行するため、性能上の制約があります。
+General EVD uses native balancing, left/right eigenvector computation, and Schur
+computation. It currently performs additional work to obtain the returned Schur form, so
+there is a performance limitation.
 
-GEEVX の `SENSE=N` は native、`SENSE=E/V/B` の条件数推定は保存した元の実装を使います。
-同じ整数 ABI の実装を優先し、LP64 に元の GEEVX がない場合は、整数を変換して
-保存した ILP64 実装へ委譲します。Colmat のロード前に4型の ILP64 GEEVX が必要です。
-不足時は LBT の変更前に設定エラーで停止します。合法な expert mode を不正な
-`SENSE` として報告しません。`load_backend()` の再実行では Colmat 自身を
-元の backend として保存せず、既存の実装を保持します。
+For GEEVX, `SENSE=N` is native, and condition estimation for `SENSE=E/V/B` uses the saved
+original implementation. An implementation with the same integer ABI is preferred; if
+there is no original LP64 GEEVX, integers are converted and the call is delegated to the
+saved ILP64 implementation. All four types require an ILP64 GEEVX before Colmat is
+loaded. If it is missing, initialization stops with a configuration error before LBT is
+changed. A valid expert mode is not reported as an invalid `SENSE`. Re-running
+`load_backend()` does not save Colmat itself as an original backend and retains the
+existing implementation.
 
-GGEV/GGEV3/GEGV と GGEVX の `BALANC=N/SENSE=N` は native GEVD を使います。
-GGEVX のその他の balance/condition mode は保存した ILP64 backend へ委譲し、
-LP64 呼び出しでは整数を変換します。そのため、Colmat をロードする前に4型の
-ILP64 GGEVX が必要です。通常の Julia は OpenBLAS を提供します。不足時には
-LBT 登録の変更前に設定エラーで停止します。
+GGEV/GGEV3/GEGV and GGEVX with `BALANC=N/SENSE=N` use native GEVD.
+Other balance/condition modes of GGEVX are delegated to the saved ILP64 backend, with
+integer conversion for LP64 calls. Therefore all four types require an ILP64 GGEVX before
+Colmat is loaded. Ordinary Julia provides OpenBLAS. If it is missing, initialization
+stops with a configuration error before changing the LBT registration.
 
-SYEVR/HEEVR は全スペクトルを計算して `RANGE=A/I/V` の結果を選択します。
-colmat-rs に MRRR や Sturm-count の公開 API があるという意味ではありません。
-ドライバーごとの数値実装・保存形式・未対応機能は
-[LBT と colmat-rs の全ルーチン対応表](@ref)で確認できます。
+SYEVR/HEEVR compute the full spectrum and then select the `RANGE=A/I/V` results.
+This does not mean colmat-rs has a public MRRR or Sturm-count API.
+Per-driver numerical implementations, storage formats, and unsupported features are
+documented in [Full LBT and colmat-rs routine mapping](@ref).

@@ -1,8 +1,8 @@
-# はじめに
+# Getting started
 
-[インストール](@ref)のビルドを済ませ、新しい Julia プロセスで実行してください。
+Complete the build described in [Installation](@ref) and run the examples in a new Julia process.
 
-## 通常の配列で計算する
+## Computing with ordinary arrays
 
 ```jldoctest
 julia> using Colmat, LinearAlgebra
@@ -22,14 +22,14 @@ julia> dot(x, x) == 13.0
 true
 ```
 
-入力と結果は通常の `Matrix` / `Vector` です。行列を Colmat 専用型へ変換する
-操作はありません。行列のメモリは引き続き Julia が所有します。
+Inputs and results are ordinary `Matrix` / `Vector` values. There is no operation that
+converts a matrix to a Colmat-specific type, and Julia still owns the matrix memory.
 
-## 転送先を確認する
+## Checking the forwarding targets
 
-`BLAS.get_config()` はロード済みのライブラリを表示します。フォールバックを
-保持するため、OpenBLAS などが Colmat と一緒に表示されるのは正常です。
-ルーチンごとの転送先は次のように確認できます。
+`BLAS.get_config()` shows the loaded libraries. It is normal for OpenBLAS and similar
+libraries to appear together with Colmat because their fallbacks are retained.
+You can check the forwarding target for an individual routine as follows.
 
 ```jldoctest
 julia> using Colmat, LinearAlgebra
@@ -42,10 +42,10 @@ julia> realpath(lib.libname) == realpath(Colmat.backend_library())
 true
 ```
 
-この確認は倍精度 GEMM の転送先を調べます。他のルーチンの対応状況は
-[BLAS 対応範囲](@ref)を参照してください。
+This check inspects the forwarding target of double-precision GEMM. For the status of
+other routines, see [BLAS coverage](@ref).
 
-## LAPACK を使う演算
+## Operations that use LAPACK
 
 ```jldoctest
 julia> using Colmat, LinearAlgebra
@@ -59,5 +59,5 @@ julia> F = svd(A); F.U * Diagonal(F.S) * F.Vt ≈ A
 true
 ```
 
-これらの LU・SVD ドライバーは colmat-rs の分解・求解へ接続します。
-転送の境界は[バックエンドとフォールバック](@ref)で説明します。
+These LU and SVD drivers connect to colmat-rs factorizations and solves.
+The forwarding boundary is described in [Backends and fallbacks](@ref).
