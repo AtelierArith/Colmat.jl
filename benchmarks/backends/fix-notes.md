@@ -79,14 +79,15 @@ only borrowed for one factorization.
 
 Changes:
 
-- the `UPLO='U'` path factors `A^T`: its lower triangle is the caller's upper
-  triangle transposed, and the upper factor of `A` is the transpose of the lower
-  factor of `A^T`, without conjugation. The copy in goes through faer's
-  `copy_from_triangular_lower`, which reads the row-major source in cache tiles,
-  and the copy back transposes a 32x32 tile at a time.
-- the dense temporary is per calling thread and reused. It grows to the largest
-  shape that thread has seen; the lower triangle is fully overwritten and the
-  unselected triangle is the kernel's scratch, so old contents are never read.
+- factor in place. LAPACK owns only the selected triangle; the native LLT uses
+  the opposite triangle as scratch, so save that half (the diagonal belongs to
+  the factor), factor the caller's buffer, and restore it. The save buffer is
+  `n * (n - 1) / 2` elements per calling thread and is reused.
+- for `UPLO='U'` the lower triangle of the transposed view is the caller's
+  upper triangle, so the factor is written where LAPACK expects it. No
+  transpose copy remains; the transposed view is only about 25-30% slower than
+  a column-major factor (1.5 vs 1.1 ms at n=1024, 8T), less than the copies it
+  replaces.
 - `threading::with_par` keeps one `threadteam::Team` resident per calling
   thread. Building a pool and reserving its members on every BLAS call cost
   about 3.8 ms at 8 threads (`into_team` makes every member acknowledge and be

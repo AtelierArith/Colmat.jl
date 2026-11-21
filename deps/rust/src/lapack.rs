@@ -158,92 +158,85 @@ pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
     })
 }
 thread_local! {
-    /// Dense LLT temporaries are `n * n` elements and the BLAS entry point is
-    /// called once per factorization. Allocating and zeroing a fresh 8 MiB at
-    /// n=1024 dominated the call and caused page-fault jitter, so each calling
-    /// thread keeps its buffer and grows it to the largest shape it has seen.
-    /// `u64` gives the 8-byte alignment every `Scalar` needs; the lower
-    /// triangle is fully overwritten and the unselected triangle is scratch by
-    /// contract, so reused contents are never read.
+    /// `factor_cholesky` saves the `n * (n - 1) / 2` elements of the triangle
+    /// LAPACK does not own before factoring in place. The BLAS entry point is
+    /// called once per factorization and allocating a fresh buffer at n=1024
+    /// dominated the call with page-fault jitter, so each calling thread keeps
+    /// its buffer and grows it to the largest shape it has seen. `u64` gives
+    /// the 8-byte alignment every `Scalar` needs.
     static CHOLESKY_SCRATCH: std::cell::RefCell<Vec<u64>> =
         const { std::cell::RefCell::new(Vec::new()) };
 }
 
 unsafe fn factor_cholesky_in<T: Scalar>(
-    dst: *mut T,
+    saved: *mut T,
     u: u8,
     n: usize,
     a: *mut T,
     ld: isize,
 ) -> usize {
-    let mut tmp = MatMut::from_raw_parts_mut(dst, n, n, 1, n as isize);
+    // LAPACK owns only the selected triangle. The native right-looking LLT
+    // writes the opposite triangle as scratch, so save that half (the diagonal
+    // belongs to the factor) and put it back afterwards. This lets the factor
+    // run in place: for UPLO='U' the lower triangle of the transposed view is
+    // the caller's upper triangle.
+    let mut len = 0;
     if u == b'L' {
         for j in 0..n {
-            std::ptr::copy_nonoverlapping(
-                a.offset(j as isize + j as isize * ld),
-                dst.add(j + j * n),
-                n - j,
-            );
+            std::ptr::copy_nonoverlapping(a.offset(j as isize * ld), saved.add(len), j);
+            len += j;
         }
     } else {
-        // Factor A^T instead of A. Its lower triangle is the caller's upper
-        // triangle transposed, and the upper factor of A is the transpose of
-        // the lower factor of A^T (no conjugation). Copying through faer's
-        // triangular copy lets the row-major source be read in cache tiles;
-        // the per-element strided transpose is what made UPLO='U' several
-        // times slower than UPLO='L' at large n.
-        let src = MatRef::from_raw_parts(a as *const T, n, n, 1, ld);
-        tmp.copy_from_triangular_lower(src.transpose());
+        for j in 0..n {
+            let count = n - j - 1;
+            std::ptr::copy_nonoverlapping(
+                a.offset((j + 1) as isize + j as isize * ld),
+                saved.add(len),
+                count,
+            );
+            len += count;
+        }
     }
     // LAPACK ignores the imaginary part of a Hermitian diagonal.
     for j in 0..n {
-        *dst.add(j + j * n) = T::real((*dst.add(j + j * n)).re());
+        let diag = a.offset(j as isize + j as isize * ld);
+        *diag = T::real((*diag).re());
     }
-    let info = cholesky(tmp);
+    let matrix = MatMut::from_raw_parts_mut(a, n, n, 1, ld);
+    let info = if u == b'L' {
+        cholesky(matrix)
+    } else {
+        cholesky(matrix.transpose_mut())
+    };
+    let mut len = 0;
     if u == b'L' {
         for j in 0..n {
-            std::ptr::copy_nonoverlapping(
-                dst.add(j + j * n),
-                a.offset(j as isize + j as isize * ld),
-                n - j,
-            );
+            std::ptr::copy_nonoverlapping(saved.add(len), a.offset(j as isize * ld), j);
+            len += j;
         }
     } else {
-        // The upper triangle of the transposed factor is L^T, the caller's U.
-        // Writing it straight through a transposed view is a strided write per
-        // element; transpose a cache-sized tile at a time instead.
-        const TILE: usize = 32;
-        let mut j0 = 0;
-        while j0 < n {
-            let j1 = (j0 + TILE).min(n);
-            let mut i0 = 0;
-            while i0 < n {
-                let i1 = (i0 + TILE).min(n);
-                for j in j0..j1 {
-                    let end = (j + 1).min(i1);
-                    for i in i0..end {
-                        *a.offset(i as isize + j as isize * ld) = *dst.add(j + i * n);
-                    }
-                }
-                i0 = i1;
-            }
-            j0 = j1;
+        for j in 0..n {
+            let count = n - j - 1;
+            std::ptr::copy_nonoverlapping(
+                saved.add(len),
+                a.offset((j + 1) as isize + j as isize * ld),
+                count,
+            );
+            len += count;
         }
     }
     info
 }
-
-/// Factor the caller's buffer through an isolated dense temporary. The native
-/// right-looking LLT writes the opposite triangle, so the caller's unselected
-/// triangle must stay untouched. The buffer is reused per calling thread, and
-/// the UPLO='U' path factors A^T through faer's tiled triangular copy so it
-/// reads the row-major source in cache blocks instead of one strided element
-/// at a time.
+/// Factor the caller's buffer in place while preserving the triangle LAPACK
+/// does not own. The saved half is reused per calling thread; the UPLO='U'
+/// path factors the lower triangle of the transposed view, which is the
+/// caller's upper triangle.
 pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
     if n == 0 {
         return 0;
     }
-    let words = (n * n * core::mem::size_of::<T>()).div_ceil(8);
+    let saved = n * (n - 1) / 2;
+    let words = (saved * core::mem::size_of::<T>()).div_ceil(8);
     CHOLESKY_SCRATCH.with(|scratch| match scratch.try_borrow_mut() {
         Ok(mut buffer) => {
             if buffer.len() < words {
