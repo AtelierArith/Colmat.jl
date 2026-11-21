@@ -37,9 +37,9 @@ end
 
 function backing(symbol)
     lib = BLAS.lbt_find_backing_library(symbol, INTERFACE)
-    isnothing(lib) && return ("転送先を取得できず", "不明")
+    isnothing(lib) && return ("forwarding target unavailable", "unknown")
     native = realpath(lib.libname) == realpath(Colmat.backend_library())
-    return (basename(lib.libname), native ? "Colmat" : "既存バックエンド")
+    return (basename(lib.libname), native ? "Colmat" : "existing backend")
 end
 
 function fixture(T)
@@ -119,34 +119,34 @@ function check_case(id, T)
 end
 
 const CASES = [
-    (id=:matmul, api="A * B", op=:gemm, rust="行列積"),
-    (id=:mul, api="mul!(C, A, B)", op=:gemm, rust="行列積"),
-    (id=:matvec, api="A * x", op=:gemv, rust="行列積"),
-    (id=:dot, api="dot(x, x)", op=:dot, rust="Rust 互換層"),
-    (id=:norm, api="norm(x)", op=:norm, rust="Rust 互換層"),
-    (id=:axpy, api="BLAS.axpy!", op=:axpy, rust="Rust 互換層"),
-    (id=:trsv, api="UpperTriangular(A) \\ x", op=:trsv, rust="Rust 互換層"),
-    (id=:trsm, api="UpperTriangular(A) \\ B", op=:trsm, rust="Rust 互換層"),
-    (id=:lu, api="lu(A)", op=:getrf, rust="partial_piv_lu（未接続）"),
-    (id=:solve, api="lu(A) \\ x", op=:getrs, rust="LU solve（未接続）"),
-    (id=:qr, api="qr(A)", op=:geqrt, rust="qr（未接続）"),
-    (id=:pivoted_qr, api="qr(A, ColumnNorm())", op=:geqp3, rust="col_piv_qr（未接続）"),
-    (id=:svd, api="svd(A)", op=:gesdd, rust="svd（未接続）"),
+    (id=:matmul, api="A * B", op=:gemm, rust="matrix product"),
+    (id=:mul, api="mul!(C, A, B)", op=:gemm, rust="matrix product"),
+    (id=:matvec, api="A * x", op=:gemv, rust="matrix product"),
+    (id=:dot, api="dot(x, x)", op=:dot, rust="Rust compatibility layer"),
+    (id=:norm, api="norm(x)", op=:norm, rust="Rust compatibility layer"),
+    (id=:axpy, api="BLAS.axpy!", op=:axpy, rust="Rust compatibility layer"),
+    (id=:trsv, api="UpperTriangular(A) \\ x", op=:trsv, rust="Rust compatibility layer"),
+    (id=:trsm, api="UpperTriangular(A) \\ B", op=:trsm, rust="Rust compatibility layer"),
+    (id=:lu, api="lu(A)", op=:getrf, rust="partial_piv_lu (not connected)"),
+    (id=:solve, api="lu(A) \\ x", op=:getrs, rust="LU solve (not connected)"),
+    (id=:qr, api="qr(A)", op=:geqrt, rust="qr (not connected)"),
+    (id=:pivoted_qr, api="qr(A, ColumnNorm())", op=:geqp3, rust="col_piv_qr (not connected)"),
+    (id=:svd, api="svd(A)", op=:gesdd, rust="svd (not connected)"),
     (
         id=:svd_qr,
         api="svd(A; alg=LinearAlgebra.QRIteration())",
         op=:gesvd,
-        rust="svd（未接続）",
+        rust="svd (not connected)",
     ),
-    (id=:svdvals, api="svdvals(A)", op=:gesdd, rust="SVD（未接続）"),
-    (id=:eigen, api="eigen(A)", op=:geevx, rust="eigen（未接続）"),
+    (id=:svdvals, api="svdvals(A)", op=:gesdd, rust="SVD (not connected)"),
+    (id=:eigen, api="eigen(A)", op=:geevx, rust="eigen (not connected)"),
     (
         id=:hermitian,
         api="eigen(Hermitian(A))",
         op=:hermitian,
-        rust="self_adjoint_eigen（未接続）",
+        rust="self_adjoint_eigen (not connected)",
     ),
-    (id=:cholesky, api="cholesky(Hermitian(A))", op=:potrf, rust="llt（未接続）"),
+    (id=:cholesky, api="cholesky(Hermitian(A))", op=:potrf, rust="llt (not connected)"),
 ]
 
 function probe()
@@ -160,13 +160,13 @@ function probe()
             @testset "$(case.api)" begin
                 for T in TYPES
                     @test check_case(case.id, T)
-                    push!(results, "成功")
+                    push!(results, "success")
                     symbol = entry(T, case.op)
                     lib, route = backing(symbol)
                     push!(libraries, lib)
                     push!(routes, route)
                     push!(symbols, symbol)
-                    @test route != "不明"
+                    @test route != "unknown"
                 end
             end
             push!(rows, (; case..., results, libraries, routes, symbols))
@@ -181,37 +181,37 @@ function report(path, rows)
         read(`git -C $(joinpath(ROOT,"deps","colmat-rs")) rev-parse HEAD`, String)
     )
     open(path, "w") do io
-        println(io, "# Julia API の実測対応表\n")
+        println(io, "# Measured Julia API support matrix\n")
         println(
             io,
-            "通常配列の呼び出しが成功するかと、その入口を Colmat が提供するかを分けて記録します。",
+            "Records, separately, whether calls on ordinary arrays succeed and whether Colmat provides their entry points.",
         )
         println(
             io,
-            "入口は Julia 1.13 のラッパー実装から選び、LBT の登録先を照合します。動的な呼び出し回数の計測やライブラリ内部を追跡したトレースではありません。\n",
+            "Entry points are chosen from the Julia 1.13 wrapper implementations and cross-checked against the LBT registration targets. This is not a dynamic call-count measurement or a trace of library internals.\n",
         )
-        println(io, "## 検証条件\n")
-        println(io, "- Julia: `$(VERSION)` / `$(Sys.MACHINE)`。")
-        println(io, "- Colmat ソース: `$(revision)`。")
-        println(io, "- Rust colmat ソース: `$(rust_revision)`。")
-        println(io, "- Julia の BLAS 整数 ABI: `$(INTERFACE)`。")
-        println(io, "- Colmat 実行幅: `$(Colmat.get_num_threads())`。")
-        println(io, "- 要素型は Float32 / Float64 / ComplexF32 / ComplexF64 の順。\n")
-        println(io, "## 実行結果\n")
+        println(io, "## Verification conditions\n")
+        println(io, "- Julia: `$(VERSION)` / `$(Sys.MACHINE)`.")
+        println(io, "- Colmat source: `$(revision)`.")
+        println(io, "- Rust colmat source: `$(rust_revision)`.")
+        println(io, "- Julia BLAS integer ABI: `$(INTERFACE)`.")
+        println(io, "- Colmat execution width: `$(Colmat.get_num_threads())`.")
+        println(io, "- Element types in order: Float32 / Float64 / ComplexF32 / ComplexF64.\n")
+        println(io, "## Results\n")
         println(
             io,
-            "| Julia API | Float32 | Float64 | ComplexF32 | ComplexF64 | 主な入口の登録先 | Rust 側の実装・接続 |",
+            "| Julia API | Float32 | Float64 | ComplexF32 | ComplexF64 | Entry-point registration | Rust-side implementation / connection |",
         )
         println(io, "|---|---|---|---|---|---|---|")
         for row in rows
             println(
                 io,
-                "| `$(row.api)` | $(join(row.results," | ")) | $(join(unique(row.routes)," / ")) | $(all(==("Colmat"), row.routes) ? replace(row.rust, "（未接続）" => "（接続済み）") : row.rust) |",
+                "| `$(row.api)` | $(join(row.results," | ")) | $(join(unique(row.routes)," / ")) | $(all(==("Colmat"), row.routes) ? replace(row.rust, " (not connected)" => " (connected)") : row.rust) |",
             )
         end
-        println(io, "\n## 入口シンボルと実際のライブラリ\n")
-        println(io, "各行は上表と同じ API を確認しています。シンボルは上記4型の順です。\n")
-        println(io, "| Julia API | 確認した入口 | LBT の登録先 |")
+        println(io, "\n## Entry symbols and actual libraries\n")
+        println(io, "Each row verifies the same API as the table above. Symbols follow the four types in order.\n")
+        println(io, "| Julia API | Verified entry points | LBT registration |")
         println(io, "|---|---|---|")
         for row in rows
             println(
@@ -219,34 +219,34 @@ function report(path, rows)
                 "| `$(row.api)` | $(join(("`$s`" for s in row.symbols),", ")) | $(join(("`$s`" for s in unique(row.libraries)),", ")) |",
             )
         end
-        println(io, "\n## 判定の範囲\n")
+        println(io, "\n## What the verdicts mean\n")
         println(
             io,
-            "- 「成功」は、このプローブの小さな有限値入力で参照計算または分解の残差を満たしたことを表します。",
+            "- \"Success\" means the probe met the reference computation or factorization residual on its small finite inputs.",
         )
         println(
             io,
-            "- 行列積・求解・分解再構成の残差は、BLAS を呼ばないスカラーの積和で確認します。",
+            "- Residuals of matrix products, solves, and factorization reconstruction are checked with scalar multiply-adds that do not call BLAS.",
         )
         println(
             io,
-            "- 「既存バックエンド」での成功は、Rust colmat の該当分解が接続済みであるという意味ではありません。",
+            "- A success on the \"existing backend\" does not mean the corresponding Rust colmat factorization is connected.",
         )
         println(
             io,
-            "- Rust 側の機能名は固定 revision の `faer/src/linalg/solvers.rs` で確認した対応候補です。未接続の Rust 関数をこのプローブが直接実行したとは主張しません。",
+            "- The Rust-side feature names are correspondence candidates confirmed in `faer/src/linalg/solvers.rs` at the pinned revision. This probe does not claim to have executed unconnected Rust functions directly.",
         )
         println(
             io,
-            "- この表は全 BLAS / LAPACK の網羅検証ではありません。特異行列、非有限値、一般化固有値、他 OS の結果も含みません。",
+            "- This table is not an exhaustive BLAS / LAPACK verification. It does not cover singular matrices, non-finite values, generalized eigenvalues, or other operating systems.",
         )
         println(
             io,
-            "- LP64 の直接 ABI テストや負ストライド等の既存回帰テストとは別の、Julia 高水準 API の確認です。\n",
+            "- It verifies high-level Julia APIs, separate from the existing regression tests such as the direct LP64 ABI tests and negative strides.\n",
         )
-        println(io, "## 再生成\n")
+        println(io, "## Regeneration\n")
         println(
-            io, "リポジトリのルートで、ビルド後の新しい Julia プロセスから実行します。\n"
+            io, "Run from the repository root in a fresh Julia process after building.\n"
         )
         println(
             io,
@@ -254,7 +254,7 @@ function report(path, rows)
         )
         return println(
             io,
-            "検証が失敗したときは表を上書きしません。呼び出しケースと検証方法は `test/support_matrix.jl` にあります。",
+            "The table is not overwritten when verification fails. The call cases and the verification method are in `test/support_matrix.jl`.",
         )
     end
 end
