@@ -17,6 +17,27 @@ pub(crate) struct PivotedQr {
 /// Panel width for the blocked factorization. The trailing update of a panel is
 /// one GEMM, which is where the parallel speedup comes from.
 const PANEL: usize = 16;
+/// Narrower panels for factorizations whose trailing matrix is still small: the
+/// panel's `F` bookkeeping and the per-column rank-1 update dominate there, and
+/// a 16-wide panel only pulls ahead for large trailing matrices.
+const SMALL_PANEL: usize = 8;
+/// Scaled `m*n` below which the narrow panel is the faster one: 8 wins for real
+/// matrices up to about 245 wide and for complex ones up to about 200 wide,
+/// while a 256-wide factorization is already faster with 16. The complex limit
+/// is larger because the weight below already counts five real updates per
+/// complex one.
+const SMALL_PANEL_WORK_REAL: usize = 60_000;
+const SMALL_PANEL_WORK_COMPLEX: usize = 200_000;
+/// Real element updates below which a pivoted-QR panel stays off the resident
+/// team. A 256-wide real panel (about 1M updates) is 6% faster threaded at four
+/// and eight threads, while the last, smaller panel of the same factorization
+/// is faster sequential; 400k keeps the large panels threaded.
+const PIVOTED_PANEL_WORK: usize = 400_000;
+/// Real work at or below which trailing updates stay on the level-2 path. On
+/// the current Householder kernels the unblocked path wins to 128 wide real and
+/// 80 wide complex; the panel only pulls ahead once its trailing GEMM is large.
+const UNBLOCKED_WORK_REAL: usize = 16_384;
+const UNBLOCKED_WORK_COMPLEX: usize = 32_000;
 
 unsafe fn swap_columns<T: Scalar>(m: usize, a: *mut T, lda: isize, i: usize, j: usize) {
     if i == j {
@@ -27,6 +48,36 @@ unsafe fn swap_columns<T: Scalar>(m: usize, a: *mut T, lda: isize, i: usize, j: 
             a.offset(row as isize + i as isize * lda),
             a.offset(row as isize + j as isize * lda),
         );
+    }
+}
+
+/// Panel width policy. Blocking only pays for itself when the panel leaves a
+/// trailing matrix worth multiplying. Small real factorizations (up to 64x64)
+/// stay on the level-2 path, which avoids the panel's extra GEMVs; complex
+/// arithmetic does four times the work per element, so even a 32x32 complex
+/// factorization is faster blocked. The panel narrows from 16 to 8 while the
+/// trailing matrix is small, where the wider panel's bookkeeping outweighs the
+/// GEMM it feeds.
+fn panel_width(m: usize, n: usize, complex: bool, k: usize) -> usize {
+    let work = m
+        .saturating_mul(n)
+        .saturating_mul(if complex { 5 } else { 1 });
+    let small = if complex {
+        SMALL_PANEL_WORK_COMPLEX
+    } else {
+        SMALL_PANEL_WORK_REAL
+    };
+    let unblocked = if complex {
+        UNBLOCKED_WORK_COMPLEX
+    } else {
+        UNBLOCKED_WORK_REAL
+    };
+    if k <= 8 || work <= unblocked {
+        1
+    } else if work < small {
+        SMALL_PANEL.min(k)
+    } else {
+        PANEL.min(k)
     }
 }
 
@@ -43,18 +94,7 @@ pub(crate) unsafe fn pivoted_qr<T: ReflectorScalar>(
     rel_tol: f64,
 ) -> PivotedQr {
     let k = m.min(n).min(max_rank);
-    // Blocking only pays for itself when the panel leaves a trailing matrix
-    // worth multiplying. Small factorizations stay on the level-2 path, which
-    // avoids the panel's extra GEMVs. Complex arithmetic does four times the
-    // work per element, so its panels amortize the thread team earlier.
-    let work = m
-        .saturating_mul(n)
-        .saturating_mul(if T::COMPLEX { 5 } else { 1 });
-    let panel = if k <= 8 || work < 40_000 {
-        1
-    } else {
-        PANEL.min(k)
-    };
+    let panel = panel_width(m, n, T::COMPLEX, k);
     pivoted_qr_panel(
         m, n, nrhs, a, lda, tau, fixed, max_rank, abs_tol, rel_tol, panel,
     )
@@ -151,8 +191,12 @@ pub(crate) unsafe fn pivoted_qr_panel<T: ReflectorScalar>(
         // One team acquisition per panel: the panel issues one large GEMV per
         // reflector plus the trailing GEMM, and paying the pool handshake per
         // call made the threaded factorization slower than the sequential one.
+        // Small panels stay sequential: entering the resident team costs about
+        // 8 us, more than a panel of a small factorization does.
         let outcome = if panel > 1 {
-            crate::threading::with_par(|par| {
+            let panel_work =
+                crate::threading::real_work(m - start, total - start, width, T::COMPLEX);
+            crate::threading::with_par_if(panel_work, PIVOTED_PANEL_WORK, |par| {
                 run_panel(
                     m,
                     n,
@@ -523,6 +567,29 @@ mod tests {
         ((*state >> 11) as f64) / ((1u64 << 53) as f64) - 0.5
     }
 
+    #[test]
+    fn panel_width_policy() {
+        // The unblocked path wins through 128 wide real and 80 wide complex.
+        // Both narrow to 8 while the trailing matrix is small and widen to 16
+        // for large ones. `k <= 8` always stays unblocked.
+        assert_eq!(panel_width(32, 32, false, 32), 1);
+        assert_eq!(panel_width(64, 64, false, 64), 1);
+        assert_eq!(panel_width(128, 128, false, 128), 1);
+        assert_eq!(panel_width(160, 160, false, 160), 8);
+        assert_eq!(panel_width(256, 256, false, 256), 16);
+        assert_eq!(panel_width(512, 512, false, 512), 16);
+        assert_eq!(panel_width(64, 64, true, 64), 1);
+        assert_eq!(panel_width(80, 80, true, 80), 1);
+        assert_eq!(panel_width(96, 96, true, 96), 8);
+        assert_eq!(panel_width(128, 128, true, 128), 8);
+        assert_eq!(panel_width(256, 256, true, 256), 16);
+        assert_eq!(panel_width(512, 512, true, 512), 16);
+        assert_eq!(panel_width(1000, 8, false, 8), 1);
+        assert_eq!(panel_width(1000, 8, true, 8), 1);
+        // A rank limit below the panel width still caps the panel.
+        assert_eq!(panel_width(128, 128, true, 5), 1);
+    }
+
     // The panel's `F` recurrence must select the same pivots and produce the
     // same factorization as applying one reflector at a time.
     #[test]
@@ -541,7 +608,7 @@ mod tests {
                 false, false,
             ];
             let mut permutations = Vec::new();
-            for panel in [1usize, 4] {
+            for panel in [1usize, 4, 8] {
                 let mut a = original.clone();
                 let mut tau = vec![0.0_f64; m.min(n)];
                 let result = pivoted_qr_panel(
@@ -590,7 +657,9 @@ mod tests {
                     }
                 }
             }
-            assert_eq!(permutations[0], permutations[1]);
+            for other in &permutations[1..] {
+                assert_eq!(&permutations[0], other);
+            }
         }
     }
 

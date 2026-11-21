@@ -30,6 +30,8 @@ pub trait Scalar:
     + Neg<Output = Self>
 {
     const COMPLEX: bool;
+    /// True for `f64`: the only scalar with a dispatched AVX2 reflector path.
+    const REAL64: bool;
     fn z() -> Self;
     fn o() -> Self;
     fn cj(self) -> Self;
@@ -44,6 +46,7 @@ macro_rules! real_scalar {
     ($t:ty) => {
         impl Scalar for $t {
             const COMPLEX: bool = false;
+            const REAL64: bool = core::mem::size_of::<$t>() == 8;
             fn z() -> Self {
                 0.0
             }
@@ -80,6 +83,7 @@ macro_rules! complex_scalar {
     ($t:ty, $r:ty) => {
         impl Scalar for $t {
             const COMPLEX: bool = true;
+            const REAL64: bool = false;
             fn z() -> Self {
                 Self::new(0.0, 0.0)
             }
@@ -1079,9 +1083,10 @@ unsafe fn axpy_scalar<T: Scalar>(n: isize, alpha: T, x: *const T, y: *mut T) {
     }
 }
 
-/// `y += alpha * x` for contiguous length-`n` vectors.
+/// `y += alpha * x` for contiguous length-`n` vectors. A zero length or a null
+/// input is a no-op, so degenerate callers never dereference storage.
 pub(crate) unsafe fn axpy<T: Scalar>(n: isize, alpha: T, x: *const T, y: *mut T) {
-    if n <= 0 || alpha == T::z() {
+    if n <= 0 || alpha == T::z() || x.is_null() || y.is_null() {
         return;
     }
     #[cfg(target_arch = "x86_64")]
@@ -1123,7 +1128,7 @@ pub(crate) unsafe fn gemv_conj_contiguous<T: Scalar>(
     x: *const T,
     y: *mut T,
 ) {
-    if m <= 0 || n <= 0 {
+    if m <= 0 || n <= 0 || a.is_null() || x.is_null() || y.is_null() {
         return;
     }
     #[cfg(target_arch = "x86_64")]
@@ -1185,7 +1190,7 @@ pub(crate) unsafe fn gemv_n_contiguous<T: Scalar>(
     x: *const T,
     y: *mut T,
 ) {
-    if m <= 0 || n <= 0 {
+    if m <= 0 || n <= 0 || a.is_null() || x.is_null() || y.is_null() {
         return;
     }
     for i in 0..m {
