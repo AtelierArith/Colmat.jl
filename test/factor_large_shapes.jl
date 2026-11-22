@@ -42,6 +42,12 @@ using LinearAlgebra: LAPACK
         @test F.L * F.U ≈ A[F.p, :]
         @test sort(F.p) == collect(1:n)
 
+        # QR factor and explicit Q across the panel boundaries.
+        Fqr = qr(A)
+        @test Matrix(Fqr.Q) * Fqr.R ≈ A
+        Q = Matrix(Fqr.Q)
+        @test Q' * Q ≈ Matrix{T}(I, n, n)
+
         # Thin SVD: the square 'A' job takes the thin native route.
         U2, s, V = svd(A)
         @test U2 * Diagonal(s) * V' ≈ A
