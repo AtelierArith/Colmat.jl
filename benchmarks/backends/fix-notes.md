@@ -436,3 +436,12 @@ f64 `svd_thin` n=32 at 4T/8T improves from 1.13/1.15x to 0.98/0.97x OpenBLAS;
 c64 n=32 is 1.03-1.05x and n=64/96 beat it. The residual f64 n=64/96 1T gap
 (1.07/1.03x) is in the pinned `dgesdd` core (307-324 vs 291-294 us at n=64),
 not the adapter; the workspace query must keep the documented LAPACK minimum.
+
+For small f64 `UPLO='U'` (`n < 128`) the row-major transposed view is now
+replaced by a column-major temporary: copy the upper triangle into the temp's
+lower with faer's tiled copy, factor, and write the factor back. The temp copy
+wins at n=32/64/96 (core 1.17-1.27x, shim 1.08-1.22x, Julia API 7-14% at
+n=64/96); from n=128 the in-place view wins and is kept, with a regression test
+at n=127/128. c64 keeps the in-place path: its column-major core is only ~5%
+faster and the shim/API see no gain, so the remaining c64 small/mid delta is the
+Julia-side `Hermitian` copy/allocation, not layout.
