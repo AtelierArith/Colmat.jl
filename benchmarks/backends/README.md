@@ -1,4 +1,4 @@
-# Backend comparison: OpenBLAS, MKL, AOCL, Colmat and AppleAccelerate
+# Backend comparison: OpenBLAS, MKL, AOCL, PureBLAS, Colmat and AppleAccelerate
 
 A self-contained Julia benchmark for the dense kernels Colmat exposes through
 libblastrampoline. It does not use an external harness: `run.sh` builds/checks
@@ -8,8 +8,8 @@ the library, runs one process per backend and thread budget, and writes
 ## Quick start
 
 ```sh
-./benchmarks/run.sh                  # OpenBLAS, MKL, Colmat; 1/4/8 threads
-./benchmarks/run.sh --quick          # tiny smoke run (~1 minute)
+./benchmarks/run.sh                  # OpenBLAS, MKL, AOCL, PureBLAS, Colmat; 1/4/8 threads
+./benchmarks/run.sh --quick          # tiny smoke run (still a few minutes with PureBLAS)
 ./benchmarks/run.sh --build          # rebuild Colmat first
 ./benchmarks/run.sh --threads 1 8 --backends openblas colmat
 ```
@@ -28,6 +28,21 @@ also calls `MKL_Set_Num_Threads(n)`. Without it a "1 thread" MKL
 `potrf`/`gesdd`/`syevd` cell still uses 8 threads: at n=1024, `cholesky` measured
 1.57 ms with `BLAS.set_num_threads(1)` alone and 6.97 ms after
 `MKL_Set_Num_Threads(1)`; `svdvals` 88.5 ms vs 141.1 ms.
+
+PureBLAS also ignores `BLAS.set_num_threads(n)`: it registers no
+libblastrampoline thread interface. Its pool is built from Julia threads, so
+the runner launches this arm with `-t $threads` (all other arms stay at
+`-t 1`), and `run.jl` calls `PureBLAS.set_num_threads(n)` before the first
+measured call. The value that call returns is recorded as `vendor_threads`;
+it is capped by `Threads.nthreads()` and, by default, by the physical cores in
+the process affinity mask. The mask is `threads + threads/2` **logical** CPUs,
+so on the 16-logical-CPU / 8-core SMT host a 4T run gets 6 logical CPUs = 3
+physical cores and an 8T run gets 12 = 6 cores. Left alone, that default cap
+would silently run the 4T/8T cells at 3T/6T while every other backend runs
+4T/8T. The runner therefore sets `PUREBLAS_MT_ALL_THREADS=1` for this arm only,
+so the requested budget is honored like the other arms. The trade-off is that
+workers may then be placed on SMT siblings; that is the same CPU set the other
+backends are given, so the comparison is like-for-like.
 
 Results go to `benchmarks/backends/results/runs/<timestamp>/` by default. An
 explicit `--out` directory must not already contain TOML results, so a report
@@ -85,6 +100,14 @@ against `svd`. The residual is stored in the TOML/CSV.
   `Project.toml`).
 - `aocl`: AMD AOCL through `AOCL.jl`/`AOCL_jll` (5.3.x); the runner sets
   `OMP_NUM_THREADS`, `BLIS_NUM_THREADS` and `FLA_NUM_THREADS` for the process.
+- `pureblas`: the pure-Julia `PureBLAS.jl` (0.1.2, pinned by `rev` in
+  `Project.toml`/`Manifest.toml` because it is unregistered). `run.jl` calls
+  `PureBLAS.activate()`, which installs in-process libblastrampoline function
+  pointers, so `BLAS.get_config()` still lists the originally loaded library.
+  The library column records `PureBLAS.jl (LBT function pointers)` instead.
+  Its load-time `@strict_function ... :no_spill` self-check of the generated
+  gemm microkernel fails on this AVX-512 host (the tile spills), so the
+  environment disables StrictMode checks; see Environment below.
 - `colmat`: this repository's Rust BLAS/LAPACK library.
 
 Each backend runs in a separate process because libblastrampoline forwards are
@@ -100,13 +123,28 @@ places the caller apart from its members, and on an SMT host the spare CPU must
 not be a sibling of a team member; 1T/4T/8T therefore use 2/6/12 CPUs on a
 16-logical-CPU host. A mask exactly as wide as the budget makes runs
 intermittently serial. Use `--no-affinity` to disable this. On macOS no
-`taskset` is available and the runner runs unpinned.
+`taskset` is available and the runner runs unpinned. The `pureblas` arm is the
+one exception to `-t 1`: it gets `-t $threads` because its pool is built from
+Julia threads, and it sets `PUREBLAS_MT_ALL_THREADS=1` so the mask's
+physical-core count does not cap the requested budget (see above); the
+affinity mask itself is unchanged.
 
 ## Environment
 
 `benchmarks/backends/Project.toml` pins the benchmark-only dependencies
 (BenchmarkTools, MKL, TOML, Statistics, ...) and loads Colmat from this
 repository. `run.sh` instantiates it automatically.
+
+`benchmarks/backends/LocalPreferences.toml` sets
+`[StrictMode] checks_enabled = false`, and `StrictMode` is a direct dependency
+of the benchmark project so that Julia reads the preference. PureBLAS checks
+its generated gemm microkernel at load time with `@strict_function ...` and
+throws when the tile spills vector registers; on this AVX-512 host that makes
+`using PureBLAS` fail, before any benchmark runs. StrictMode guarantees are
+compile-time assertions only — with the preference off the macros expand to
+the bare definitions — so no measured code changes. Remove the preference to
+run the check on a host where it passes. The first `Pkg.instantiate()` after a
+fresh clone precompiles PureBLAS (several minutes).
 
 ## Caveats
 

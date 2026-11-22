@@ -1,0 +1,6 @@
+# PureBLAS's load-time StrictMode self-check gates on :no_spill of its generated
+# gemm microkernel. On this AVX-512 host the native tile spills and loading the
+# package throws, which would make the benchmark arm unusable. StrictMode checks
+# are compile-time only; disabling them here does not change the measured code.
+[StrictMode]
+checks_enabled = false

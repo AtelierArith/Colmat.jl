@@ -6,8 +6,8 @@ harness, fetch revisions, or require a second checkout.
 ## Backend comparison
 
 ```sh
-./benchmarks/run.sh                  # OpenBLAS, MKL, AOCL, Colmat; 1/4/8 threads
-./benchmarks/run.sh --backends openblas mkl aocl colmat apple   # + AppleAccelerate (macOS)
+./benchmarks/run.sh                  # OpenBLAS, MKL, AOCL, PureBLAS, Colmat; 1/4/8 threads
+./benchmarks/run.sh --backends openblas mkl aocl pureblas colmat apple   # + AppleAccelerate (macOS)
 ./benchmarks/run.sh --quick          # tiny smoke run
 ./benchmarks/run.sh --help
 ```
@@ -25,6 +25,14 @@ benchmarks/backends/results/runs/<timestamp>/<backend>_t<N>.toml
 both use Accelerate's multi-threaded mode. The MKL arm calls
 `MKL_Set_Num_Threads` because the libblastrampoline setter does not cover MKL's
 LAPACK threading.
+
+`pureblas` is the pure-Julia PureBLAS.jl (unregistered, pinned by `rev`). Like
+MKL, it is not controlled by `BLAS.set_num_threads`: its pool is built from
+Julia threads, so the runner launches that arm with `-t $threads` and `run.jl`
+calls `PureBLAS.set_num_threads(n)`, recording the capped result as
+`vendor_threads`. Without `-t $threads` the pool is capped at one thread. The
+runner also sets `PUREBLAS_MT_ALL_THREADS=1` so the affinity mask's
+physical-core count does not silently lower the requested budget.
 
 The suite covers `gemm`, `lu`, `cholesky`, `qr` (factor and explicit Q),
 column-pivoted QR, `svdvals`, thin SVD, self-adjoint eigen and general eigen
