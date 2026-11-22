@@ -59,29 +59,38 @@ pub fn lu<T: Scalar>(mut a: MatMut<'_, T>) -> (Vec<usize>, usize) {
     let mut row_perm_inv = vec![0usize; m];
     let work = crate::threading::real_work(m, n, k, T::COMPLEX);
     crate::threading::with_par_if(work, crate::threading::LU_WORK, |par| {
-        let mut mem = MemBuffer::new(lu_in_place_scratch::<usize, T>(
-            m,
-            n,
-            par.shape(),
-            Default::default(),
-        ));
-        lu_in_place(
-            a.as_mut(),
-            &mut row_perm,
-            &mut row_perm_inv,
-            par,
-            MemStack::new(&mut mem),
-            Default::default(),
-        );
+        let req = lu_in_place_scratch::<usize, T>(m, n, par.shape(), Default::default());
+        with_native_scratch(req, |stack| {
+            lu_in_place(
+                a.as_mut(),
+                &mut row_perm,
+                &mut row_perm_inv,
+                par,
+                stack,
+                Default::default(),
+            );
+        });
     });
     let p = row_perm;
+    // Recover LAPACK's sequential pivot positions from the final permutation in
+    // O(m + k) instead of scanning the remaining rows for every column. `current`
+    // tracks the row at each position and `inverse` the position of each row;
+    // swapping a pair updates both in constant time.
     let mut current: Vec<usize> = (0..m).collect();
+    let mut inverse = row_perm_inv;
+    for (i, slot) in inverse.iter_mut().enumerate() {
+        *slot = i;
+    }
     let mut piv = vec![0; k];
     let mut info = 0;
     for j in 0..k {
-        let pos = (j..m).find(|&i| current[i] == p[j]).unwrap();
+        let pos = inverse[p[j]];
         piv[j] = pos;
+        let at_j = current[j];
+        let at_pos = current[pos];
         current.swap(j, pos);
+        inverse[at_j] = pos;
+        inverse[at_pos] = j;
     }
     for i in 0..k {
         if a[(i, i)] == T::z() {
@@ -143,24 +152,22 @@ pub fn cholesky<T: Scalar>(mut a: MatMut<'_, T>) -> usize {
         params.config.block_size = 32;
         params.config.recursion_threshold = 32;
     }
+
     let n = a.nrows();
     let work = crate::threading::real_work(n, n, n, T::COMPLEX);
-    crate::threading::with_par_if(work, crate::threading::CHOLESKY_WORK, |par| {
-        let mut mem = MemBuffer::new(cholesky_in_place_scratch::<T>(
-            a.nrows(),
-            par.shape(),
-            params,
-        ));
-        match cholesky_in_place(
-            a.as_mut(),
-            Default::default(),
-            par,
-            MemStack::new(&mut mem),
-            params,
-        ) {
-            Ok(_) => 0,
-            Err(LltError::NonPositivePivot { index }) => index + 1,
-        }
+    let limit = if T::COMPLEX {
+        crate::threading::CHOLESKY_WORK_COMPLEX
+    } else {
+        crate::threading::CHOLESKY_WORK
+    };
+    crate::threading::with_par_if(work, limit, |par| {
+        let req = cholesky_in_place_scratch::<T>(a.nrows(), par.shape(), params);
+        with_native_scratch(req, |stack| {
+            match cholesky_in_place(a.as_mut(), Default::default(), par, stack, params) {
+                Ok(_) => 0,
+                Err(LltError::NonPositivePivot { index }) => index + 1,
+            }
+        })
     })
 }
 thread_local! {
@@ -178,44 +185,51 @@ thread_local! {
         const { std::cell::RefCell::new(Vec::new()) };
 }
 
-/// Save or restore the `n * (n - 1) / 2` elements of the strict upper triangle.
-/// Both directions visit the entries in the same order, so `saved` can be a
-/// plain stack of column segments.
-unsafe fn copy_strict_upper<T: Scalar>(
+/// Number of strict-upper elements inside the diagonal blocks of width `block`
+/// that the LLT may write.
+fn block_upper_len(n: usize, block: usize) -> usize {
+    (1..n).map(|j| j - (j / block) * block).sum()
+}
+
+/// Save or restore only the strict upper elements that sit inside a diagonal
+/// block of width `block`. colmat's blocked right-looking LLT writes the
+/// opposite triangle only inside its recursion base blocks; the trailing
+/// updates are triangular-lower and never touch the upper-right block. The full
+/// triangle is `O(n^2)` per call and dominated small factorizations, while the
+/// diagonal blocks hold about `n * block / 2` entries.
+unsafe fn copy_block_upper<T: Scalar>(
     n: usize,
     a: *mut T,
     ld: isize,
+    block: usize,
     saved: *mut T,
     into_saved: bool,
 ) {
     let mut len = 0;
     for j in 1..n {
-        let opposite = a.offset(j as isize * ld);
+        let start = (j / block) * block;
+        let count = j - start;
+        let opposite = a.offset(start as isize + j as isize * ld);
         if into_saved {
-            std::ptr::copy_nonoverlapping(opposite, saved.add(len), j);
+            std::ptr::copy_nonoverlapping(opposite, saved.add(len), count);
         } else {
-            std::ptr::copy_nonoverlapping(saved.add(len), opposite, j);
+            std::ptr::copy_nonoverlapping(saved.add(len), opposite, count);
         }
-        len += j;
+        len += count;
     }
 }
 
-unsafe fn factor_cholesky_in<T: Scalar>(
+/// Factor a `UPLO='L'` buffer in place while preserving the strict upper
+/// triangle LAPACK does not own. The native LLT writes part of that triangle
+/// inside its recursion base blocks, so those elements are saved and put back.
+unsafe fn factor_cholesky_lower<T: Scalar>(
     saved: *mut T,
-    u: u8,
     n: usize,
     a: *mut T,
     ld: isize,
+    block: usize,
 ) -> usize {
-    // LAPACK owns only the selected triangle. The native LLT writes some of the
-    // opposite triangle for a column-major (UPLO='L') input, so that part is
-    // saved and put back. For UPLO='U' the transposed view makes every leaf
-    // row-major, which the native leaf stages through a column-major copy of its
-    // lower triangle: it never touches the caller's lower triangle, so there is
-    // nothing to save.
-    if u == b'L' {
-        copy_strict_upper(n, a, ld, saved, true);
-    }
+    copy_block_upper(n, a, ld, block, saved, true);
     // LAPACK ignores the imaginary part of a Hermitian diagonal. The native leaf
     // divides the diagonal by its real square root, so a non-zero imaginary part
     // would survive in the factor.
@@ -224,14 +238,8 @@ unsafe fn factor_cholesky_in<T: Scalar>(
         *diag = T::real((*diag).re());
     }
     let matrix = MatMut::from_raw_parts_mut(a, n, n, 1, ld);
-    let info = if u == b'L' {
-        cholesky(matrix)
-    } else {
-        cholesky(matrix.transpose_mut())
-    };
-    if u == b'L' {
-        copy_strict_upper(n, a, ld, saved, false);
-    }
+    let info = cholesky(matrix);
+    copy_block_upper(n, a, ld, block, saved, false);
     info
 }
 /// Factor an upper-triangle buffer through a column-major copy: the caller's
@@ -255,6 +263,133 @@ unsafe fn cholesky_upper_via_temp<T: Scalar>(
     let mut dst = MatMut::from_raw_parts_mut(a, n, n, ld, 1);
     dst.copy_from_triangular_lower(lower.as_ref().conjugate());
     info
+}
+
+/// Factor one diagonal panel of a `UPLO='U'` buffer. The caller's upper
+/// triangle is read into the column-major lower triangle of a scratch block,
+/// colmat's LLT factors that block, and `U = L^H` is written back to the
+/// caller's upper triangle only. The caller's strict lower triangle is never
+/// touched, and the scratch block keeps `L` for the panel solve that follows.
+/// Factoring the small column-major scratch is faster than factoring the
+/// caller's block through its `ld` stride or through a transposed view.
+unsafe fn cholesky_upper_diagonal_block<T: Scalar>(
+    caller: *mut T,
+    ld: isize,
+    block: usize,
+    temp: *mut T,
+) -> usize {
+    for j in 0..block {
+        for i in 0..j {
+            // caller[row i, col j] is upper; temp[row j, col i] is lower.
+            let upper = *caller.offset(i as isize + j as isize * ld);
+            *temp.offset(j as isize + i as isize * block as isize) = upper.cj();
+        }
+        let diagonal = *caller.offset(j as isize + j as isize * ld);
+        *temp.offset(j as isize + j as isize * block as isize) = T::real(diagonal.re());
+    }
+    let matrix = MatMut::from_raw_parts_mut(temp, block, block, 1, block as isize);
+    let info = cholesky(matrix);
+    for j in 0..block {
+        for i in 0..j {
+            let lower = *temp.offset(j as isize + i as isize * block as isize);
+            *caller.offset(i as isize + j as isize * ld) = lower.cj();
+        }
+        *caller.offset(j as isize + j as isize * ld) =
+            *temp.offset(j as isize + j as isize * block as isize);
+    }
+    info
+}
+
+unsafe fn cholesky_upper_panels<T: Scalar>(
+    n: usize,
+    a: *mut T,
+    ld: isize,
+    block: usize,
+    temp: *mut T,
+    mut par: colmat::Par<'_>,
+) -> usize {
+    use colmat::linalg::matmul::triangular::{matmul, BlockStructure::*};
+    use colmat::linalg::triangular_solve::solve_lower_triangular_in_place;
+    use colmat::Accum;
+    let mut j0 = 0;
+    while j0 < n {
+        let b = block.min(n - j0);
+        let j1 = j0 + b;
+        let info = cholesky_upper_diagonal_block::<T>(
+            a.offset(j0 as isize + j0 as isize * ld),
+            ld,
+            b,
+            temp,
+        );
+        if info != 0 {
+            return info;
+        }
+        if j1 == n {
+            break;
+        }
+        let mut panel = MatMut::from_raw_parts_mut(
+            a.offset(j0 as isize + j1 as isize * ld),
+            b,
+            n - j1,
+            1,
+            ld,
+        );
+        let lower = MatRef::from_raw_parts(temp, b, b, 1, b as isize);
+        solve_lower_triangular_in_place(lower, panel.as_mut(), par.reborrow());
+        let mut trailing = MatMut::from_raw_parts_mut(
+            a.offset(j1 as isize + j1 as isize * ld),
+            n - j1,
+            n - j1,
+            1,
+            ld,
+        );
+        let solved = panel.as_ref();
+        matmul(
+            trailing.as_mut(),
+            TriangularUpper,
+            Accum::Add,
+            solved.adjoint(),
+            Rectangular,
+            solved,
+            Rectangular,
+            -T::o(),
+            par.reborrow(),
+        );
+        j0 = j1;
+    }
+    0
+}
+
+/// Blocked `UPLO='U'` factorization. Each panel factors its diagonal block in a
+/// small scratch block (O(block^2)), then uses the column-major `L` it leaves
+/// there for the triangular solve `U01 = L^-1 A01` and the Hermitian
+/// rank-`block` update `A11 -= U01^H U01`, both of which run on colmat's regular
+/// BLAS kernels. No pass over the full triangle is needed, so the upper layout
+/// costs nothing beyond the panel bookkeeping, and the caller's lower triangle
+/// stays untouched.
+unsafe fn cholesky_upper_blocked<T: Scalar>(
+    n: usize,
+    a: *mut T,
+    ld: isize,
+    block: usize,
+) -> usize {
+    let work = crate::threading::real_work(n, n, n, T::COMPLEX);
+    let limit = crate::threading::CHOLESKY_UPPER_WORK;
+    let words = (block * block * core::mem::size_of::<T>()).div_ceil(8);
+    crate::threading::with_par_if(work, limit, |par| {
+        CHOLESKY_UPPER_TEMP.with(|scratch| match scratch.try_borrow_mut() {
+            Ok(mut buffer) => {
+                if buffer.len() < words {
+                    buffer.resize(words, 0);
+                }
+                cholesky_upper_panels(n, a, ld, block, buffer.as_mut_ptr() as *mut T, par)
+            }
+            Err(_) => {
+                let mut buffer = vec![0u64; words];
+                cholesky_upper_panels(n, a, ld, block, buffer.as_mut_ptr() as *mut T, par)
+            }
+        })
+    })
 }
 
 /// Below this dimension an `f64` `UPLO='U'` factorization goes through a
@@ -294,39 +429,46 @@ pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) 
     if n == 0 {
         return 0;
     }
-    if u == b'U' && upper_via_temp::<T>(n) {
-        let words = (n * n * core::mem::size_of::<T>()).div_ceil(8);
-        return CHOLESKY_UPPER_TEMP.with(|scratch| match scratch.try_borrow_mut() {
-            Ok(mut buffer) => {
-                if buffer.len() < words {
-                    buffer.resize(words, 0);
+    if u == b'U' {
+        if upper_via_temp::<T>(n) {
+            let words = (n * n * core::mem::size_of::<T>()).div_ceil(8);
+            return CHOLESKY_UPPER_TEMP.with(|scratch| match scratch.try_borrow_mut() {
+                Ok(mut buffer) => {
+                    if buffer.len() < words {
+                        buffer.resize(words, 0);
+                    }
+                    cholesky_upper_via_temp(buffer.as_mut_ptr() as *mut T, n, a, ld)
                 }
-                cholesky_upper_via_temp(buffer.as_mut_ptr() as *mut T, n, a, ld)
-            }
-            Err(_) => {
-                let mut buffer = vec![0u64; words];
-                cholesky_upper_via_temp(buffer.as_mut_ptr() as *mut T, n, a, ld)
-            }
-        });
+                Err(_) => {
+                    let mut buffer = vec![0u64; words];
+                    cholesky_upper_via_temp(buffer.as_mut_ptr() as *mut T, n, a, ld)
+                }
+            });
+        }
+        // 256 bytes per panel row: 16 complex or 32 real scalars on AVX2.
+        // Measured on the Zen 3 host, 16 is clearly better for c64 and 32 for
+        // f64 at n = 96/128; the wider AVX-512 machines get one step more.
+        let block = if prefer_narrow_llt_block() {
+            if T::COMPLEX { 16 } else { 32 }
+        } else if T::COMPLEX {
+            32
+        } else {
+            64
+        };
+        return cholesky_upper_blocked::<T>(n, a, ld, block);
     }
-    let words = if u == b'L' {
-        (n * (n - 1) / 2 * core::mem::size_of::<T>()).div_ceil(8)
-    } else {
-        0
-    };
-    if words == 0 {
-        return factor_cholesky_in(core::ptr::NonNull::<T>::dangling().as_ptr(), u, n, a, ld);
-    }
+    let block = if prefer_narrow_llt_block() { 32 } else { 128 };
+    let words = (block_upper_len(n, block) * core::mem::size_of::<T>()).div_ceil(8);
     CHOLESKY_SCRATCH.with(|scratch| match scratch.try_borrow_mut() {
         Ok(mut buffer) => {
             if buffer.len() < words {
                 buffer.resize(words, 0);
             }
-            factor_cholesky_in(buffer.as_mut_ptr() as *mut T, u, n, a, ld)
+            factor_cholesky_lower(buffer.as_mut_ptr() as *mut T, n, a, ld, block)
         }
         Err(_) => {
             let mut buffer = vec![0u64; words];
-            factor_cholesky_in(buffer.as_mut_ptr() as *mut T, u, n, a, ld)
+            factor_cholesky_lower(buffer.as_mut_ptr() as *mut T, n, a, ld, block)
         }
     })
 }
@@ -424,10 +566,14 @@ fn svd_native<T: Scalar>(
 ) -> Result<(), ()> {
     use colmat::linalg::svd::*;
     let (m, n) = (a.nrows(), a.ncols());
+    let thin = m.min(n);
+    // A full request on a square matrix asks for exactly the thin vectors, and
+    // the native thin driver is the faster route; request `Full` only when it
+    // really is wider than the thin one.
     let cv = |x: usize, dim: usize| {
         if x == 0 {
             ComputeSvdVectors::No
-        } else if x == dim {
+        } else if x == dim && dim > thin {
             ComputeSvdVectors::Full
         } else {
             ComputeSvdVectors::Thin
