@@ -55,6 +55,10 @@ if [[ -z "$OUT" ]]; then
     OUT="$BENCH/results/runs/$TIMESTAMP"
 fi
 mkdir -p "$OUT" "$OUT/logs"
+if compgen -G "$OUT/*.toml" >/dev/null; then
+    echo "ERROR: $OUT already contains TOML results; choose a fresh --out" >&2
+    exit 2
+fi
 
 echo "== Colmat backend benchmark =="
 echo "root:     $ROOT"
@@ -89,12 +93,38 @@ NCPU="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
 if [[ "$(uname -s)" == "Darwin" ]] || ! command -v taskset >/dev/null 2>&1; then
     AFFINITY=0
 fi
+CPUS=()
+if [[ "$AFFINITY" == 1 ]]; then
+    # Build the allowed CPU list, not just a count: a container or scheduler
+    # allocation may allow only 8-15, where a hard-coded "0-N" mask is invalid.
+    ALLOWED="$(taskset -pc $$ 2>/dev/null | sed 's/.*: //' || true)"
+    if [[ -n "$ALLOWED" ]]; then
+        IFS=',' read -ra PARTS <<< "$ALLOWED"
+        for part in "${PARTS[@]}"; do
+            if [[ "$part" == *-* ]]; then
+                lo="${part%-*}"
+                hi="${part#*-}"
+                for ((i=lo; i<=hi; i++)); do CPUS+=("$i"); done
+            else
+                CPUS+=("$part")
+            fi
+        done
+    fi
+fi
+if [[ ${#CPUS[@]} -eq 0 ]]; then
+    for ((i=0; i<NCPU; i++)); do CPUS+=("$i"); done
+fi
+NCPU="${#CPUS[@]}"
 CPU_START="${COLMAT_BENCH_CPU_START:-0}"
+(( CPU_START < 0 )) && CPU_START=0
+(( CPU_START >= NCPU )) && CPU_START=0
 mask_for() {
     local t="$1"
     local last=$(( CPU_START + t ))
     (( last >= NCPU )) && last=$(( NCPU - 1 ))
-    echo "${CPU_START}-${last}"
+    local -a selected=()
+    for ((i=CPU_START; i<=last; i++)); do selected+=("${CPUS[$i]}"); done
+    (IFS=,; echo "${selected[*]}")
 }
 
 run_one() {

@@ -252,7 +252,7 @@ for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
 end
 println(md)
 
-failed = [r for r in rows if r.residual isa AbstractString]
+failed = [r for r in rows if !(r.residual isa Real && isfinite(r.residual))]
 println(md, "## Checks\n")
 println(md, "Every case runs a reconstruction/orthogonality/entry probe outside the timed region. $(isempty(failed) ? "All probes returned a finite residual." : "$(length(failed)) probes failed; see summary.csv.")\n")
 println(md, "Times are the best of one BenchmarkTools run: one evaluation per sample for slow calls, several for fast calls (about 20 ms of work per sample).")

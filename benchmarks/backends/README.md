@@ -14,7 +14,9 @@ the library, runs one process per backend and thread budget, and writes
 ./benchmarks/run.sh --threads 1 8 --backends openblas colmat
 ```
 
-Results go to `benchmarks/backends/results/runs/<timestamp>/` by default:
+Results go to `benchmarks/backends/results/runs/<timestamp>/` by default. An
+explicit `--out` directory must not already contain TOML results, so a report
+cannot mix a new run with a stale baseline:
 
 ```
 summary.md        tables and geometric means
@@ -73,11 +75,13 @@ process-global. The `openblas` process is the reference for the ratios.
 
 ## Affinity
 
-On Linux the runner pins each process to `threads + 1` CPUs by default: Colmat's
-thread team places the caller apart from its members, so a mask exactly as wide
-as the budget leaves no spare CPU and makes runs intermittently serial. Use
-`--no-affinity` to disable this. On macOS no `taskset` is available and the
-runner runs unpinned.
+On Linux the runner pins each process to `threads + 1` CPUs by default, taken
+from the process's **allowed CPU list** (`taskset -pc $$`), not from a hard-coded
+range: inside a container or scheduler allocation the allowed set may be, for
+example, `8-15`. Colmat's thread team places the caller apart from its members,
+so a mask exactly as wide as the budget leaves no spare CPU and makes runs
+intermittently serial. Use `--no-affinity` to disable this. On macOS no `taskset`
+is available and the runner runs unpinned.
 
 ## Environment
 
