@@ -1,7 +1,7 @@
-# Summarize backend benchmark TOML files into Markdown and CSV.
+# Summarize one directory of run.jl TOMLs into summary.csv and summary.md.
 #
-#   COLMAT_BENCH_RESULTS_DIR=benchmarks/backends/results/after \
-#   julia --startup-file=no --project=benchmarks/backends benchmarks/backends/summarize.jl
+#   COLMAT_BENCH_RESULTS_DIR=benchmarks/backends/results/20260101-120000 \
+#     julia --startup-file=no --project=benchmarks/backends benchmarks/backends/summarize.jl
 
 using TOML
 using Printf
@@ -10,10 +10,9 @@ using Statistics
 const DIR = get(
     ENV,
     "COLMAT_BENCH_RESULTS_DIR",
-    joinpath(@__DIR__, "results", "after"),
+    joinpath(@__DIR__, "results"),
 )
 const BACKENDS = ["openblas", "mkl", "colmat"]
-
 const OPS = [
     "gemm" => "GEMM `mul!`",
     "lu" => "`lu`",
@@ -35,28 +34,60 @@ struct Row
     n::Int
     min_ns::Float64
     median_ns::Float64
+    mean_ns::Float64
+    samples::Int
+    evals::Int
     allocs::Int
     bytes::Int
     residual::Any
 end
 
+struct Meta
+    backend::String
+    threads::Int
+    julia_version::String
+    cpu::String
+    machine::String
+    blas_config::String
+    samples::Int
+    git_commit::String
+    library_sha256::String
+    library::String
+end
+
 rows = Row[]
-files = filter(f -> endswith(f, ".toml"), readdir(DIR; join=true))
+meta = Dict{Tuple{String,Int},Meta}()
+files = sort(filter(f -> endswith(f, ".toml"), readdir(DIR; join=true)))
 for file in files
     data = TOML.parsefile(file)
-    backend = data["backend"]
-    threads = Int(data["blas_threads"])
+    backend = get(data, "backend", "unknown")
+    threads = Int(get(data, "threads", get(data, "blas_threads", 1)))
+    meta[(backend, threads)] = Meta(
+        backend,
+        threads,
+        string(get(data, "julia_version", "?")),
+        string(get(data, "cpu", "?")),
+        string(get(data, "machine", "?")),
+        string(get(data, "blas_config", "?")),
+        Int(get(data, "samples", 0)),
+        string(get(data, "git_commit", "unknown")),
+        string(get(data, "library_sha256", "n/a")),
+        string(get(data, "library", "")),
+    )
     for c in data["cases"]
         push!(
             rows,
             Row(
                 backend,
                 threads,
-                c["op"],
-                c["eltype"],
+                string(c["op"]),
+                string(c["eltype"]),
                 Int(c["n"]),
                 Float64(c["minimum_ns"]),
                 Float64(c["median_ns"]),
+                Float64(c["mean_ns"]),
+                Int(c["samples"]),
+                Int(c["evals"]),
                 Int(c["allocs"]),
                 Int(c["bytes"]),
                 c["residual"],
@@ -64,25 +95,28 @@ for file in files
         )
     end
 end
-isempty(rows) && error("no results found in $(DIR)")
+isempty(rows) && error("no TOML cases found in $(DIR)")
 
-sort!(rows; by=r -> (r.threads, r.eltype, r.op, r.n, r.backend))
+sort!(rows; by = r -> (r.threads, r.eltype, r.op, r.n, r.backend))
+lookup = Dict((r.backend, r.threads, r.op, r.eltype, r.n) => r for r in rows)
+thread_list = sort(unique(r.threads for r in rows))
 
-lookup = Dict(
-    (r.backend, r.threads, r.op, r.eltype, r.n) => r for r in rows
-)
+# ---------------------------------------------------------------------------
+# CSV
+# ---------------------------------------------------------------------------
 
 csv = open(joinpath(DIR, "summary.csv"), "w")
 println(
     csv,
-    "backend,threads,op,eltype,n,min_ms,median_ms,median_speedup_vs_openblas,allocs,bytes,residual",
+    "backend,threads,op,eltype,n,min_ms,median_ms,mean_ms,median_ratio_to_openblas,min_ratio_to_openblas,samples,evals,allocs,bytes,residual",
 )
 for r in rows
     base = get(lookup, ("openblas", r.threads, r.op, r.eltype, r.n), nothing)
-    speedup = base === nothing ? NaN : base.median_ns / r.median_ns
+    med_ratio = base === nothing ? NaN : base.median_ns / r.median_ns
+    min_ratio = base === nothing ? NaN : base.min_ns / r.min_ns
     @printf(
         csv,
-        "%s,%d,%s,%s,%d,%.6g,%.6g,%.4f,%d,%d,%s\n",
+        "%s,%d,%s,%s,%d,%.6g,%.6g,%.6g,%.4f,%.4f,%d,%d,%d,%d,%s\n",
         r.backend,
         r.threads,
         r.op,
@@ -90,7 +124,11 @@ for r in rows
         r.n,
         r.min_ns / 1e6,
         r.median_ns / 1e6,
-        speedup,
+        r.mean_ns / 1e6,
+        med_ratio,
+        min_ratio,
+        r.samples,
+        r.evals,
         r.allocs,
         r.bytes,
         r.residual,
@@ -98,126 +136,126 @@ for r in rows
 end
 close(csv)
 
+# ---------------------------------------------------------------------------
+# Markdown helpers
+# ---------------------------------------------------------------------------
+
 fmt_ms(x) = x < 1.0 ? @sprintf("%.3f", x) : @sprintf("%.2f", x)
-thread_list = sort(unique(r.threads for r in rows))
+gm(v) = isempty(v) ? NaN : exp(mean(log.(v)))
+
+function medians_table(md, threads, T, op_label, op)
+    println(
+        md,
+        "| Operation | n | OpenBLAS | MKL | Colmat | MKL/OpenBLAS | Colmat/OpenBLAS |",
+    )
+    println(md, "|---|---:|---:|---:|---:|---:|---:|")
+    ns = sort(unique([
+        r.n for r in rows if
+        r.op == op && r.eltype == T && r.threads == threads
+    ]))
+    for n in ns
+        vals = Dict{String,Float64}()
+        for b in BACKENDS
+            r = get(lookup, (b, threads, op, T, n), nothing)
+            r !== nothing && (vals[b] = r.median_ns / 1e6)
+        end
+        o = get(vals, "openblas", NaN)
+        m = get(vals, "mkl", NaN)
+        c = get(vals, "colmat", NaN)
+        println(
+            md,
+            "| $(op_label) | $(n) | $(fmt_ms(o)) | $(fmt_ms(m)) | $(fmt_ms(c)) | ",
+            @sprintf("%.2f", m / o),
+            " | ",
+            @sprintf("%.2f", c / o),
+            " |",
+        )
+    end
+    return nothing
+end
+
+function aggregate_table(op::String, T::String, threads::Int; field=:median_ns)
+    ratios_m = Float64[]
+    ratios_c = Float64[]
+    for n in sort(unique([
+        r.n for r in rows if
+        r.op == op && r.eltype == T && r.threads == threads
+    ]))
+        o = get(lookup, ("openblas", threads, op, T, n), nothing)
+        m = get(lookup, ("mkl", threads, op, T, n), nothing)
+        c = get(lookup, ("colmat", threads, op, T, n), nothing)
+        o === nothing && continue
+        obase = field === :median_ns ? o.median_ns : o.min_ns
+        obase == 0 && continue
+        if m !== nothing
+            push!(ratios_m, (field === :median_ns ? m.median_ns : m.min_ns) / obase)
+        end
+        if c !== nothing
+            push!(ratios_c, (field === :median_ns ? c.median_ns : c.min_ns) / obase)
+        end
+    end
+    return (gm(ratios_m), gm(ratios_c))
+end
+
+# ---------------------------------------------------------------------------
+# Markdown
+# ---------------------------------------------------------------------------
 
 md = open(joinpath(DIR, "summary.md"), "w")
-println(md, "# Colmat.jl backend comparison\n")
-println(
-    md,
-    "Median wall time per call in milliseconds (BenchmarkTools, single Julia thread). ",
-    "`Colmat/OpenBLAS` is the time ratio, so values below 1.0 mean Colmat is faster. ",
-    "Timings include the allocations and input copies performed by the public Julia API.\n",
-)
-println(
-    md,
-    "Families follow `tensor4all/colmat-benchmark`: `gemm`, `lu`, `cholesky`, ",
-    "`qr_factor`, `qr` (explicit Q), `svd_values`, `svd_thin`, `eigh` and `eig`, ",
-    "plus column-pivoted QR.\n",
-)
+println(md, "# Colmat backend comparison\n")
+println(md, "Median wall time per call in milliseconds, one process per backend and thread budget. `Colmat/OpenBLAS` is the time ratio, so values below 1.0 mean Colmat is faster. Timings include the allocations and input copies of the public Julia API.\n")
+println(md, "Source directory: `$(DIR)`\n")
+if !isempty(meta)
+    first_meta = first(sort(collect(values(meta)); by = m -> (m.threads, m.backend)))
+    println(md, "Julia $(first_meta.julia_version) on $(first_meta.machine), `$(first_meta.cpu)`. Commit `$(first_meta.git_commit)`.\n")
+end
+
+println(md, "## Environment\n")
+println(md, "| backend | threads | BLAS library | samples | library sha256 |")
+println(md, "|---|---:|---|---:|---|")
+for (key, m) in sort(collect(meta); by = kv -> (kv[1][2], kv[1][1]))
+    sha = m.library_sha256 == "n/a" ? "" : m.library_sha256[1:min(end, 12)]
+    println(md, "| $(m.backend) | $(m.threads) | `$(m.blas_config)` | $(m.samples) | `$(sha)` |")
+end
+println(md)
+
 for threads in thread_list
     println(md, "## Threads = $(threads)\n")
     for T in ("Float64", "ComplexF64")
         println(md, "### $(T)\n")
-        println(
-            md,
-            "| Operation | n | OpenBLAS | MKL | Colmat | MKL/OpenBLAS | Colmat/OpenBLAS |",
-        )
-        println(md, "|---|---:|---:|---:|---:|---:|---:|")
         for (op, label) in OPS
-            ns = sort(unique([
-                r.n for r in rows if
-                r.op == op && r.eltype == T && r.threads == threads
-            ]))
-            for n in ns
-                vals = Dict{String,Float64}()
-                for b in BACKENDS
-                    r = get(lookup, (b, threads, op, T, n), nothing)
-                    r !== nothing && (vals[b] = r.median_ns / 1e6)
-                end
-                o = get(vals, "openblas", NaN)
-                m = get(vals, "mkl", NaN)
-                c = get(vals, "colmat", NaN)
-                println(
-                    md,
-                    "| $(label) | $(n) | $(fmt_ms(o)) | $(fmt_ms(m)) | $(fmt_ms(c)) | ",
-                    @sprintf("%.2f", m / o),
-                    " | ",
-                    @sprintf("%.2f", c / o),
-                    " |",
-                )
-            end
+            medians_table(md, threads, T, label, op)
         end
         println(md)
     end
 end
 
-# Geometric mean ratios per operation across sizes, per thread setting.
-println(md, "## Geometric mean time ratio across sizes\n")
-println(
-    md,
-    "The median includes Julia GC and allocation; the minimum-time table after this one ",
-    "separates that from the steady-state kernel/adapter cost.\n",
-)
-println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
-println(md, "|---:|---|---|---:|---:|")
-gm(v) = isempty(v) ? NaN : exp(mean(log.(v)))
-for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
-    ratios_m = Float64[]
-    ratios_c = Float64[]
-    for n in sort(unique([
-        r.n for r in rows if r.op == op && r.eltype == T && r.threads == threads
-    ]))
-        o = get(lookup, ("openblas", threads, op, T, n), nothing)
-        m = get(lookup, ("mkl", threads, op, T, n), nothing)
-        c = get(lookup, ("colmat", threads, op, T, n), nothing)
-        o === nothing && continue
-        m !== nothing && push!(ratios_m, m.median_ns / o.median_ns)
-        c !== nothing && push!(ratios_c, c.median_ns / o.median_ns)
-    end
-    isempty(ratios_m) && isempty(ratios_c) && continue
-    println(
-        md,
-        "| $(threads) | $(label) | $(T) | ",
-        @sprintf("%.2f", gm(ratios_m)),
-        " | ",
-        @sprintf("%.2f", gm(ratios_c)),
-        " |",
-    )
-end
-println(md, "## Minimum-time ratio across sizes\n")
-println(
-    md,
-    "Each cell is the geometric mean of the per-size minimum times (Colmat/OpenBLAS; MKL/OpenBLAS), ",
-    "which removes most of the Julia GC/allocation variance that dominates microsecond cells.\n",
-)
+println(md, "## Geometric mean time ratio across sizes (median)\n")
+println(md, "The median includes Julia GC/allocation. The minimum-time table after this one separates that from the steady-state kernel/adapter cost.\n")
 println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
 println(md, "|---:|---|---|---:|---:|")
 for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
-    ratios_m = Float64[]
-    ratios_c = Float64[]
-    for n in sort(unique([
-        r.n for r in rows if r.op == op && r.eltype == T && r.threads == threads
-    ]))
-        o = get(lookup, ("openblas", threads, op, T, n), nothing)
-        m = get(lookup, ("mkl", threads, op, T, n), nothing)
-        c = get(lookup, ("colmat", threads, op, T, n), nothing)
-        o === nothing && continue
-        o.min_ns == 0 && continue
-        m !== nothing && push!(ratios_m, m.min_ns / o.min_ns)
-        c !== nothing && push!(ratios_c, c.min_ns / o.min_ns)
-    end
-    isempty(ratios_m) && isempty(ratios_c) && continue
-    println(
-        md,
-        "| $(threads) | $(label) | $(T) | ",
-        @sprintf("%.2f", gm(ratios_m)),
-        " | ",
-        @sprintf("%.2f", gm(ratios_c)),
-        " |",
-    )
+    m, c = aggregate_table(op, T, threads; field=:median_ns)
+    (isnan(m) && isnan(c)) && continue
+    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", m)) | $(@sprintf("%.2f", c)) |")
 end
 println(md)
+
+println(md, "## Geometric mean time ratio across sizes (minimum)\n")
+println(md, "Each cell is the geometric mean of the per-size minimum times, which removes most of the GC/allocation variance that dominates microsecond cells.\n")
+println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
+println(md, "|---:|---|---|---:|---:|")
+for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
+    m, c = aggregate_table(op, T, threads; field=:min_ns)
+    (isnan(m) && isnan(c)) && continue
+    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", m)) | $(@sprintf("%.2f", c)) |")
+end
+println(md)
+
+failed = [r for r in rows if r.residual isa AbstractString]
+println(md, "## Checks\n")
+println(md, "Every case runs a reconstruction/orthogonality/entry probe outside the timed region. $(isempty(failed) ? "All probes returned a finite residual." : "$(length(failed)) probes failed; see summary.csv.")\n")
+println(md, "Times are the best of one BenchmarkTools run: one evaluation per sample for slow calls, several for fast calls (about 20 ms of work per sample).")
 close(md)
 
 println("wrote ", joinpath(DIR, "summary.md"))

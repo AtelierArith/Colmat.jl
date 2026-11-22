@@ -1,18 +1,14 @@
-# One BLAS/LAPACK backend in an isolated process, measured at the Julia API.
+# One backend, one thread budget, one process.
 #
-#   COLMAT_BENCH_BACKEND=openblas|mkl|colmat \
-#   COLMAT_BENCH_THREADS=1 \
-#   COLMAT_BENCH_OUTPUT=results/after/openblas_t1.toml \
-#   julia --startup-file=no -t 1 --project=benchmarks/backends benchmarks/backends/run.jl
+#   COLMAT_BENCH_BACKEND=colmat \
+#   COLMAT_BENCH_THREADS=4 \
+#   COLMAT_BENCH_OUTPUT=results/colmat_t4.toml \
+#     julia --startup-file=no -t 1 --project=benchmarks/backends benchmarks/backends/run.jl
 #
-# The suite mirrors the families of tensor4all/colmat-benchmark: gemm, lu,
-# cholesky, qr_factor, qr (explicit Q), svd_values, svd_thin, eigh and eig, with
-# f64/c64 at 1/4/8 threads. Column-pivoted QR is kept as an extra family because
-# this repository changed its implementation.
-#
-# Each backend reserves the LBT forwards for itself, so every backend runs in its
-# own process. Inputs come from fixed seeds, so the cases are identical across
-# backends.
+# The suite is self-contained: gemm, lu, cholesky, qr factor, explicit Q,
+# column-pivoted QR, svdvals, thin svd, self-adjoint eigen and general eigen,
+# f64/c64, fixed seeds. It writes one TOML; summarize.jl turns a directory of
+# these files into CSV and Markdown.
 
 using LinearAlgebra
 using Random
@@ -22,12 +18,12 @@ using Dates
 using Printf
 using BenchmarkTools
 
-const BACKEND = get(ENV, "COLMAT_BENCH_BACKEND", "openblas")
+const BACKEND = get(ENV, "COLMAT_BENCH_BACKEND", "colmat")
 const THREADS = parse(Int, get(ENV, "COLMAT_BENCH_THREADS", "1"))
 const OUTPUT = get(
     ENV,
     "COLMAT_BENCH_OUTPUT",
-    joinpath(@__DIR__, "results", "after", "$(BACKEND)_t$(THREADS).toml"),
+    joinpath(@__DIR__, "results", "$(BACKEND)_t$(THREADS).toml"),
 )
 const SAMPLES = parse(Int, get(ENV, "COLMAT_BENCH_SAMPLES", "5"))
 const QUICK = get(ENV, "COLMAT_BENCH_QUICK", "false") == "true"
@@ -44,7 +40,7 @@ const EIG_SIZES = QUICK ? [32, 128] : vcat(SMALL, MID)
 
 function select_backend(name)
     if name == "openblas"
-        # Julia's default backend; nothing to load.
+        # Julia's default backend.
     elseif name == "mkl"
         @eval using MKL
     elseif name == "colmat"
@@ -65,8 +61,10 @@ BLAS.set_num_threads(THREADS)
 """
     measure(f; samples, target)
 
-Warm `f`, pick an evaluation count so that one sample lasts about `target`
-seconds, and run BenchmarkTools. Timings are per evaluation, in nanoseconds.
+Warm `f`, choose an evaluation count so one sample lasts about `target`
+seconds, collect `samples` BenchmarkTools samples, and report per-evaluation
+times in nanoseconds. `GC.gc()` runs once before the case so the median is not
+carried over from the previous case's allocations.
 """
 function measure(f; samples=SAMPLES, target=0.02)
     f()
@@ -75,6 +73,7 @@ function measure(f; samples=SAMPLES, target=0.02)
         t = min(t, @elapsed f())
     end
     evals = clamp(round(Int, target / max(t, 1.0e-9)), 1, 64)
+    GC.gc()
     trial = run(@benchmarkable($f()); samples=samples, evals=evals, seconds=600.0)
     return (
         minimum_ns = minimum(trial.times),
@@ -99,7 +98,7 @@ function relres(x, y)
     return s == 0 ? d : d / s
 end
 
-"""Plain-loop entry check for GEMM, independent of any BLAS backend."""
+"""Entry check for GEMM that does not use a BLAS backend."""
 function gemm_entry_error(C, A, B, rng)
     n = size(A, 1)
     err = 0.0
@@ -285,11 +284,11 @@ const SYMBOLS = [
     "dgesdd_", "zgesdd_", "dgesvd_", "zgesvd_",
 ]
 
-forwarding = Dict{String,Any}()
-for s in SYMBOLS
+function forwarding_target(s)
     lib = BLAS.lbt_find_backing_library(s, :ilp64)
-    forwarding[s] = lib === nothing ? "none" : basename(lib.libname)
+    return lib === nothing ? "none" : basename(lib.libname)
 end
+forwarding = Dict{String,Any}(s => forwarding_target(s) for s in SYMBOLS)
 
 config = BLAS.get_config()
 blas_config = join(
@@ -302,12 +301,16 @@ result = Dict{String,Any}(
     "julia_version" => string(VERSION),
     "machine" => Sys.MACHINE,
     "cpu" => Sys.CPU_NAME,
-    "blas_threads" => THREADS,
+    "threads" => THREADS,
     "blas_num_threads" => BLAS.get_num_threads(),
     "blas_config" => blas_config,
     "forwarding" => forwarding,
     "samples" => SAMPLES,
+    "quick" => QUICK,
     "timestamp" => string(Dates.now()),
+    "git_commit" => get(ENV, "COLMAT_BENCH_GIT_COMMIT", "unknown"),
+    "library_sha256" => BACKEND == "colmat" ? get(ENV, "COLMAT_BENCH_LIB_SHA", "n/a") : "n/a",
+    "library" => BACKEND == "colmat" ? Colmat.backend_library() : "",
     "cases" => RESULTS,
 )
 

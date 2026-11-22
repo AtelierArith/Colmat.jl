@@ -1,76 +1,37 @@
-# Backend comparison: GEMM, LU, Cholesky, QR, SVD, eigen
+# Backend comparison: OpenBLAS, MKL and Colmat
 
-Compares Colmat against OpenBLAS and MKL (`MKL_jll` 2023.2.0, the last release with
-a macOS x86_64 build) at the Julia API. The families and thread budgets mirror
-`tensor4all/colmat-benchmark`: `gemm`, `lu`, `cholesky`, `qr_factor`, `qr`
-(explicit Q), `svd_values`, `svd_thin`, `eigh` and `eig`, `f64`/`c64`, 1/4/8
-threads. Column-pivoted QR is kept as an extra family because its implementation
-changed here.
+A self-contained Julia benchmark for the dense kernels Colmat exposes through
+libblastrampoline. It does not use an external harness: `run.sh` builds/checks
+the library, runs one process per backend and thread budget, and writes
+`summary.csv` plus `summary.md`.
 
-Each backend runs in its own Julia process because libblastrampoline forwards are
-process-global.
-
-## Setup
-
-Julia 1.13. Build Colmat first:
+## Quick start
 
 ```sh
-julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
-julia --project=benchmarks/backends -e 'using Pkg; Pkg.instantiate()'
+./benchmarks/run.sh                  # OpenBLAS, MKL, Colmat; 1/4/8 threads
+./benchmarks/run.sh --quick          # tiny smoke run (~1 minute)
+./benchmarks/run.sh --build          # rebuild Colmat first
+./benchmarks/run.sh --threads 1 8 --backends openblas colmat
 ```
 
-`benchmarks/backends/Project.toml` pins `MKL_jll = "=2023.2.0"` for macOS support
-and loads Colmat from this repository.
+Results go to `benchmarks/backends/results/runs/<timestamp>/` by default:
 
-## Running
-
-Run one process per backend and thread count. Do not run them concurrently: the
-measurements assume the machine is otherwise idle.
-
-```sh
-for threads in 1 4 8; do
-  # Give the team leader a CPU of its own. Colmat is a libblastrampoline
-  # backend whose threadteam places the caller apart from its members, so a
-  # mask exactly as wide as the thread budget leaves no spare CPU and the run
-  # becomes intermittently serial. OpenBLAS and MKL do not care, but compare
-  # every backend on the same mask with at least threads + 1 CPUs.
-  case $threads in 1) cpus=4;; 4) cpus=4-9;; 8) cpus=0-11;; esac
-  for backend in openblas mkl colmat; do
-    taskset -c $cpus env \
-      COLMAT_BENCH_BACKEND=$backend \
-      COLMAT_BENCH_THREADS=$threads \
-      COLMAT_BENCH_OUTPUT=benchmarks/backends/results/after/${backend}_t${threads}.toml \
-      julia --startup-file=no -t 1 --project=benchmarks/backends benchmarks/backends/run.jl
-  done
-done
+```
+summary.md        tables and geometric means
+summary.csv       long-format rows with min/median/mean, allocations, residual
+<backend>_t<N>.toml
+logs/<backend>_t<N>.log
 ```
 
-The masks above are for a 16-CPU host; on another host keep at least
-`threads + 1` CPUs in the mask and pin every backend to the same set.
-
-Then summarize:
-
-```sh
-COLMAT_BENCH_RESULTS_DIR=benchmarks/backends/results/after \
-  julia --startup-file=no --project=benchmarks/backends benchmarks/backends/summarize.jl
-```
-
-This writes `results/after/summary.md` and `results/after/summary.csv`.
-`results/after/ENVIRONMENT.md` records the exact revisions and binaries;
-`results/pre-fix/` keeps the measurements taken before the pivoted-QR and
-threading fixes.
-
-## Fixes measured here
-
-`fix-notes.md` describes the three changes in `deps/rust/src`: LAPACK-style
-column-norm downdating for GEQP3, a scaled sum-of-squares `nrm2`, sequential
-per-column reflectors and small-update GEMV, and a factored block-reflector
-apply that no longer materializes the full `order x order` matrix.
+Use `--out DIR` to choose the directory. The environment variables
+`COLMAT_BENCH_BACKENDS`, `COLMAT_BENCH_THREADS_LIST`, `COLMAT_BENCH_SAMPLES`,
+`COLMAT_BENCH_QUICK`, `COLMAT_BENCH_AFFINITY` and `COLMAT_BENCH_CPU_START`
+provide the same controls.
 
 ## What is measured
 
-Public Julia API calls on square matrices, so allocations and copies done by the
-wrapper are included:
+Public Julia API calls on square matrices. Allocations and input copies done by
+the public API are included.
 
 | Case | Julia call | LAPACK entry on Julia 1.13 |
 |---|---|---|
@@ -85,31 +46,48 @@ wrapper are included:
 | `eigh` | `eigen(Hermitian(A*A' + nI))` | `?syevr` / `?heevr` |
 | `eig` | `eigen(A)` | `?geevx` |
 
-Sizes: 32/64/96 and 128/256/512, plus 768/1024 for GEMM and 1024 for the
-factorizations and decompositions. General `eig` stops at 512.
+Sizes are 32/64/96 and 128/256/512, plus 768/1024 for GEMM and 1024 for the
+factorizations/decompositions. General `eig` stops at 512. `--quick` uses
+32/128 only. Every case uses fixed seeds, so all backends see identical inputs.
 
-`summary.md` computes geometric means over every size. At 4T/8T the 32/64/96
-cells are dominated by a fixed thread-team entry cost (about 10 us on the Zen 4
-host), and OpenBLAS stops scaling past four threads there; the aggregate can
-therefore look worse than the throughput a large matrix gets. Read the size
-tables or the `n >= 128` rows for throughput, and keep the small sizes as a
-guard on per-call overhead.
+Each case runs BenchmarkTools with five samples. One sample bundles enough
+calls to last about 20 ms for fast operations; slow operations use one call per
+sample. `GC.gc()` runs once before each case. The Markdown report shows the
+median table, a minimum-time table and geometric means for both: the minimum
+removes most of the Julia GC/allocation variance that dominates microsecond
+cells.
 
-Each case runs BenchmarkTools with five samples. One sample bundles enough calls
-to last roughly 20 ms for fast operations; slow operations use one call per
-sample. Inputs come from fixed seeds, so every backend sees identical matrices.
-`run.jl` records the library that each LAPACK symbol is forwarded to and checks a
-reconstruction residual outside the timed region.
+Every case has a probe outside the timed region: GEMM is checked with a plain
+loop, factorizations by reconstruction/orthogonality residual, and `svd_values`
+against `svd`. The residual is stored in the TOML/CSV.
 
-Only use the numbers if the target library is the backend under test (for example
-`libcolmat_blas.dylib` for `colmat`).
+## Backends
+
+- `openblas`: Julia's bundled OpenBLAS, the baseline.
+- `mkl`: Intel oneAPI MKL through `MKL.jl`/`MKL_jll` (pinned in
+  `Project.toml`).
+- `colmat`: this repository's Rust BLAS/LAPACK library.
+
+Each backend runs in a separate process because libblastrampoline forwards are
+process-global. The `openblas` process is the reference for the ratios.
+
+## Affinity
+
+On Linux the runner pins each process to `threads + 1` CPUs by default: Colmat's
+thread team places the caller apart from its members, so a mask exactly as wide
+as the budget leaves no spare CPU and makes runs intermittently serial. Use
+`--no-affinity` to disable this. On macOS no `taskset` is available and the
+runner runs unpinned.
+
+## Environment
+
+`benchmarks/backends/Project.toml` pins the benchmark-only dependencies
+(BenchmarkTools, MKL, TOML, Statistics, ...) and loads Colmat from this
+repository. `run.sh` instantiates it automatically.
 
 ## Caveats
 
-These numbers describe one machine, one Julia version, and this repository
-revision. They are not a general performance claim. In particular, MKL 2023.2 is
-older than current oneAPI releases and has no current macOS build, so MKL numbers
-here reflect that older build.
-
-The public Julia API copies the input for the destructive decompositions. Those
-copies are charged to every backend equally and are included in all numbers.
+These are single-machine numbers. The median includes Julia GC, so use the
+minimum table for the steady-state kernel/adapter comparison and the median
+table for the end-to-end public API. Do not run other heavy jobs on the same
+CPUs while a run is in progress.
