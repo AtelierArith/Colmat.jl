@@ -189,12 +189,17 @@ function aggregate_table(op::String, T::String, threads::Int; field=:median_ns)
         m = get(lookup, ("mkl", threads, op, T, n), nothing)
         a = get(lookup, ("aocl", threads, op, T, n), nothing)
         c = get(lookup, ("colmat", threads, op, T, n), nothing)
-        o === nothing && continue
-        obase = value(o)
-        obase == 0 && continue
-        m !== nothing && push!(ratios[:mkl_ob], value(m) / obase)
-        a !== nothing && push!(ratios[:aocl_ob], value(a) / obase)
-        c !== nothing && push!(ratios[:colmat_ob], value(c) / obase)
+        # Each pair is independent: a subset run such as `--backends aocl
+        # colmat` has no OpenBLAS row but still has a valid Colmat/AOCL
+        # aggregate.
+        if o !== nothing
+            obase = value(o)
+            if obase != 0
+                m !== nothing && push!(ratios[:mkl_ob], value(m) / obase)
+                a !== nothing && push!(ratios[:aocl_ob], value(a) / obase)
+                c !== nothing && push!(ratios[:colmat_ob], value(c) / obase)
+            end
+        end
         c !== nothing && m !== nothing && value(m) != 0 && push!(ratios[:colmat_mkl], value(c) / value(m))
         c !== nothing && a !== nothing && value(a) != 0 && push!(ratios[:colmat_aocl], value(c) / value(a))
     end
@@ -240,7 +245,7 @@ println(md, "| Threads | Operation | Type | MKL/OpenBLAS | AOCL/OpenBLAS | Colma
 println(md, "|---:|---|---|---:|---:|---:|---:|---:|")
 for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
     r = aggregate_table(op, T, threads; field=:median_ns)
-    (isnan(r.mkl_ob) && isnan(r.aocl_ob) && isnan(r.colmat_ob)) && continue
+    (isnan(r.mkl_ob) && isnan(r.aocl_ob) && isnan(r.colmat_ob) && isnan(r.colmat_mkl) && isnan(r.colmat_aocl)) && continue
     println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", r.mkl_ob)) | $(@sprintf("%.2f", r.aocl_ob)) | $(@sprintf("%.2f", r.colmat_ob)) | $(@sprintf("%.2f", r.colmat_mkl)) | $(@sprintf("%.2f", r.colmat_aocl)) |")
 end
 println(md)
@@ -251,7 +256,7 @@ println(md, "| Threads | Operation | Type | MKL/OpenBLAS | AOCL/OpenBLAS | Colma
 println(md, "|---:|---|---|---:|---:|---:|---:|---:|")
 for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
     r = aggregate_table(op, T, threads; field=:min_ns)
-    (isnan(r.mkl_ob) && isnan(r.aocl_ob) && isnan(r.colmat_ob)) && continue
+    (isnan(r.mkl_ob) && isnan(r.aocl_ob) && isnan(r.colmat_ob) && isnan(r.colmat_mkl) && isnan(r.colmat_aocl)) && continue
     println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", r.mkl_ob)) | $(@sprintf("%.2f", r.aocl_ob)) | $(@sprintf("%.2f", r.colmat_ob)) | $(@sprintf("%.2f", r.colmat_mkl)) | $(@sprintf("%.2f", r.colmat_aocl)) |")
 end
 println(md)
