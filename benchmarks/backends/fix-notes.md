@@ -445,3 +445,16 @@ n=64/96); from n=128 the in-place view wins and is kept, with a regression test
 at n=127/128. c64 keeps the in-place path: its column-major core is only ~5%
 faster and the shim/API see no gain, so the remaining c64 small/mid delta is the
 Julia-side `Hermitian` copy/allocation, not layout.
+
+## SVD / self-adjoint EVD native workspace reuse
+
+`svd_native` and the self-adjoint driver allocated a fresh native workspace per
+call. In a Julia process the first touch of that 254 KiB region costs about 12 us
+of a 64-square call, and the workspace is dead after the factorization. Both now
+use a per-calling-thread `Vec<u64>` scratch through `with_native_scratch`, which
+re-aligns, grows on demand, falls back to a fresh `MemBuffer` on reentry, and
+caps retention at 16 MiB: n=512/1024 keep the old allocate/free behaviour, while
+n<=256 reuses the buffer. f64 `svd_thin` n=32 improves from 0.996x to 0.917x
+OpenBLAS and n=96 from 1.015x to 1.000x; n=64 remains 1.077x because the pinned
+divide-and-conquer core itself is 10% behind at the LAPACK boundary, not the
+adapter. `eigh` improves about 1% at every size; n=512/1024 are within noise.

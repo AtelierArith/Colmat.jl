@@ -1,7 +1,6 @@
 //! LAPACK drivers over colmat's public decomposition and solve APIs.
 use crate::kernels::{flag, Scalar};
-use colmat::dyn_stack::{MemBuffer, MemStack};
-use colmat::prelude::Reborrow;
+use colmat::dyn_stack::{MemBuffer, MemStack, StackReq};
 use colmat::{Conj, Mat, MatMut, MatRef};
 
 /// Borrow a column-major Fortran buffer without copying it.
@@ -367,6 +366,50 @@ pub unsafe fn cholesky_output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize, u: u8
 type SvdResult<T> = (Mat<T>, Vec<f64>, Mat<T>);
 type GeneralOutput<T> = (Vec<T>, Vec<f64>, usize, usize, Vec<f64>, f64);
 
+thread_local! {
+    /// Native SVD/EVD workspace. A 64-square SVD needs about 250 KiB, and a
+    /// fresh allocation first-touches new pages inside the Julia process (about
+    /// 12 us of the call, measured with the buffer reused); the workspace is
+    /// dead after every factorization, so each calling thread keeps and grows
+    /// one buffer. `u64` gives at least the 8-byte alignment every `Scalar`
+    /// needs; `with_native_scratch` re-aligns to the request.
+    static NATIVE_SCRATCH: std::cell::RefCell<Vec<u64>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Largest native workspace kept per calling thread. The SVD/EVD scratch grows
+/// with the problem: 254 KiB at n=64, 3.9 MiB at n=256 and 15 MiB at n=512, so
+/// the small- and mid-shape calls reuse it, while a 1024-square (60 MiB for
+/// f64) keeps the previous behaviour and frees its buffer at the end of the
+/// call. The cap bounds the memory a pool of calling threads can hold.
+const NATIVE_SCRATCH_LIMIT: usize = 16 << 20;
+
+/// Run `f` on a stack of at least `req` bytes borrowed from the calling thread's
+/// scratch buffer, falling back to a fresh allocation on reentry.
+fn with_native_scratch<R>(req: StackReq, f: impl FnOnce(&mut MemStack) -> R) -> R {
+    if req.size_bytes() > NATIVE_SCRATCH_LIMIT {
+        let mut mem = MemBuffer::new(req);
+        return f(MemStack::new(&mut mem));
+    }
+    let align = req.align_bytes().max(core::mem::align_of::<u64>());
+    let words = (req.size_bytes() + align - 1).div_ceil(core::mem::size_of::<u64>());
+    NATIVE_SCRATCH.with(|scratch| match scratch.try_borrow_mut() {
+        Ok(mut buffer) => {
+            if buffer.len() < words {
+                buffer.resize(words, 0);
+            }
+            let base = buffer.as_mut_ptr() as usize;
+            let ptr = ((base + align - 1) & !(align - 1)) as *mut core::mem::MaybeUninit<u8>;
+            let bytes = unsafe { core::slice::from_raw_parts_mut(ptr, req.size_bytes()) };
+            f(MemStack::new(bytes))
+        }
+        Err(_) => {
+            let mut mem = MemBuffer::new(req);
+            f(MemStack::new(&mut mem))
+        }
+    })
+}
+
 /// Compute the SVD into caller-provided vectors. The native driver overwrites
 /// every element of each requested singular-vector matrix before reading it, so
 /// LAPACK's buffers can be borrowed directly when their layout matches the
@@ -397,23 +440,18 @@ fn svd_native<T: Scalar>(
         crate::threading::SVD_WORK
     };
     crate::threading::with_par_if(work, limit, |par| {
-        let mut mem = MemBuffer::new(svd_scratch::<T>(
-            m,
-            n,
-            cv(u, m),
-            cv(v, n),
-            par.shape(),
-            Default::default(),
-        ));
-        colmat::linalg::svd::svd(
-            a.as_ref(),
-            s.as_mut(),
-            left,
-            right,
-            par,
-            MemStack::new(&mut mem),
-            Default::default(),
-        )
+        let req = svd_scratch::<T>(m, n, cv(u, m), cv(v, n), par.shape(), Default::default());
+        with_native_scratch(req, |stack| {
+            colmat::linalg::svd::svd(
+                a.as_ref(),
+                s.as_mut(),
+                left,
+                right,
+                par,
+                stack,
+                Default::default(),
+            )
+        })
         .map_err(|_| ())
     })
 }
@@ -463,7 +501,7 @@ pub fn selfadj<T: Scalar>(a: MatRef<'_, T>, vectors: bool) -> Result<(Vec<f64>, 
         crate::threading::SELFADJOINT_WORK
     };
     crate::threading::with_par_if(work, limit, |par| {
-        let mut mem = MemBuffer::new(self_adjoint_evd_scratch::<T>(
+        let req = self_adjoint_evd_scratch::<T>(
             n,
             if vectors {
                 ComputeEigenvectors::Yes
@@ -472,15 +510,17 @@ pub fn selfadj<T: Scalar>(a: MatRef<'_, T>, vectors: bool) -> Result<(Vec<f64>, 
             },
             par.shape(),
             Default::default(),
-        ));
-        self_adjoint_evd(
-            a.as_ref(),
-            s.as_mut(),
-            if vectors { Some(u.as_mut()) } else { None },
-            par,
-            MemStack::new(&mut mem),
-            Default::default(),
-        )
+        );
+        with_native_scratch(req, |stack| {
+            self_adjoint_evd(
+                a.as_ref(),
+                s.as_mut(),
+                if vectors { Some(u.as_mut()) } else { None },
+                par,
+                stack,
+                Default::default(),
+            )
+        })
         .map_err(|_| ())?;
         Ok(((0..n).map(|i| s[i].re()).collect(), u))
     })
