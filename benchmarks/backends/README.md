@@ -75,13 +75,15 @@ process-global. The `openblas` process is the reference for the ratios.
 
 ## Affinity
 
-On Linux the runner pins each process to `threads + 1` CPUs by default, taken
-from the process's **allowed CPU list** (`taskset -pc $$`), not from a hard-coded
-range: inside a container or scheduler allocation the allowed set may be, for
-example, `8-15`. Colmat's thread team places the caller apart from its members,
-so a mask exactly as wide as the budget leaves no spare CPU and makes runs
-intermittently serial. Use `--no-affinity` to disable this. On macOS no `taskset`
-is available and the runner runs unpinned.
+On Linux the runner pins each process to `threads + threads/2` CPUs by default
+(at least `threads + 1`), taken from the process's **allowed CPU list**
+(`taskset -pc $$`), not from a hard-coded range: inside a container or scheduler
+allocation the allowed set may be, for example, `8-15`. Colmat's thread team
+places the caller apart from its members, and on an SMT host the spare CPU must
+not be a sibling of a team member; 1T/4T/8T therefore use 2/6/12 CPUs on a
+16-logical-CPU host. A mask exactly as wide as the budget makes runs
+intermittently serial. Use `--no-affinity` to disable this. On macOS no
+`taskset` is available and the runner runs unpinned.
 
 ## Environment
 

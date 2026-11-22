@@ -120,7 +120,11 @@ CPU_START="${COLMAT_BENCH_CPU_START:-0}"
 (( CPU_START >= NCPU )) && CPU_START=0
 mask_for() {
     local t="$1"
-    local last=$(( CPU_START + t ))
+    # Give the team a spare CPU for the caller, and enough room that the spare
+    # is not an SMT sibling of a member: 1T->2, 4T->6, 8T->12 CPUs.
+    local span=$(( t + t / 2 ))
+    (( span < t + 1 )) && span=$(( t + 1 ))
+    local last=$(( CPU_START + span - 1 ))
     (( last >= NCPU )) && last=$(( NCPU - 1 ))
     local -a selected=()
     for ((i=CPU_START; i<=last; i++)); do selected+=("${CPUS[$i]}"); done
