@@ -242,29 +242,6 @@ unsafe fn factor_cholesky_lower<T: Scalar>(
     copy_block_upper(n, a, ld, block, saved, false);
     info
 }
-/// Factor an upper-triangle buffer through a column-major copy: the caller's
-/// upper triangle is mirrored into the lower triangle of `temp`, factored there,
-/// and written back conjugated. The caller's lower triangle is never touched, so
-/// no save/restore is needed. `temp` holds `n * n` elements.
-unsafe fn cholesky_upper_via_temp<T: Scalar>(
-    temp: *mut T,
-    n: usize,
-    a: *mut T,
-    ld: isize,
-) -> usize {
-    let mut lower = MatMut::from_raw_parts_mut(temp, n, n, 1, n as isize);
-    let transposed = MatRef::from_raw_parts(a, n, n, ld, 1);
-    lower.copy_from_triangular_lower(transposed);
-    for j in 0..n {
-        let diag = &mut lower[(j, j)];
-        *diag = T::real((*diag).re());
-    }
-    let info = cholesky(lower.as_mut());
-    let mut dst = MatMut::from_raw_parts_mut(a, n, n, ld, 1);
-    dst.copy_from_triangular_lower(lower.as_ref().conjugate());
-    info
-}
-
 /// Factor one diagonal panel of a `UPLO='U'` buffer. The caller's upper
 /// triangle is read into the column-major lower triangle of a scratch block,
 /// colmat's LLT factors that block, and `U = L^H` is written back to the
@@ -384,59 +361,15 @@ unsafe fn cholesky_upper_blocked<T: Scalar>(n: usize, a: *mut T, ld: isize, bloc
     })
 }
 
-/// Below this dimension an `f64` `UPLO='U'` factorization goes through a
-/// column-major copy. The in-place transposed view is fastest from here up, but
-/// its leaves are row-major and their solves and trailing updates pay for it:
-/// the crossover is where copying the triangle both ways stops paying for
-/// itself. Measured on this Zen 4 host at 1/4/8 threads, median in-place divided
-/// by the column-major copy, so a value above 1 is a win for the copy:
-///
-/// | n   | f64            | c64        |
-/// |-----|----------------|------------|
-/// | 32  | 1.22/1.24/1.73 | 1.0        |
-/// | 64  | 1.27/1.23/1.24 | 1.04-1.06  |
-/// | 96  | 1.19/1.17/1.17 | 1.05-1.06  |
-/// | 128 | 0.87-0.89      | 0.90       |
-/// | 256 | 0.39-0.74      | 0.53-0.82  |
-///
-/// The copy stops paying between 96 and 128, so the bound is 128.
-const CHOLESKY_UPPER_TEMP_BELOW: usize = 128;
-
-/// Whether `UPLO='U'` should be factored through a column-major copy. The shim
-/// entry point reproduces the f64 gain (n = 32/64/96/127: 1.23/1.14/1.12/1.08)
-/// and the Julia `cholesky(H)` API about half of it, but c64 measured neutral
-/// through the same entry point (0.98-1.00) even though its core factorization
-/// gained ~5%, so only f64 takes this path. `f32`/`c32` also keep the in-place
-/// view; their leaf blocking was not measured.
-fn upper_via_temp<T: Scalar>(n: usize) -> bool {
-    core::mem::size_of::<T>() == 8 && !T::COMPLEX && n < CHOLESKY_UPPER_TEMP_BELOW
-}
-
 /// Factor the caller's buffer in place while preserving the triangle LAPACK
 /// does not own. The saved part is reused per calling thread; the UPLO='U' path
-/// factors the lower triangle of the transposed view, which is the caller's
-/// upper triangle and is left untouched, or mirrors it into a column-major
-/// buffer below [`CHOLESKY_UPPER_TEMP_BELOW`].
+/// factors each diagonal panel in a column-major scratch block and applies the
+/// panel and trailing update with the BLAS kernels.
 pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) -> usize {
     if n == 0 {
         return 0;
     }
     if u == b'U' {
-        if upper_via_temp::<T>(n) {
-            let words = (n * n * core::mem::size_of::<T>()).div_ceil(8);
-            return CHOLESKY_UPPER_TEMP.with(|scratch| match scratch.try_borrow_mut() {
-                Ok(mut buffer) => {
-                    if buffer.len() < words {
-                        buffer.resize(words, 0);
-                    }
-                    cholesky_upper_via_temp(buffer.as_mut_ptr() as *mut T, n, a, ld)
-                }
-                Err(_) => {
-                    let mut buffer = vec![0u64; words];
-                    cholesky_upper_via_temp(buffer.as_mut_ptr() as *mut T, n, a, ld)
-                }
-            });
-        }
         // 256 bytes per panel row: 16 complex or 32 real scalars on AVX2.
         // Measured on the Zen 3 host, 16 is clearly better for c64 and 32 for
         // f64 at n = 96/128; the wider AVX-512 machines get one step more.
@@ -1595,10 +1528,9 @@ mod cholesky_triangle_regression {
         check(&spd_c64(257));
     }
 
-    /// `UPLO='U'` is factored through a column-major copy below
-    /// [`super::CHOLESKY_UPPER_TEMP_BELOW`] and in place above it, so the
-    /// preserved-opposite-triangle contract and the reconstruction are checked
-    /// on both sides of the bound.
+    /// `UPLO='U'` factors its diagonal panels in a column-major scratch block,
+    /// so the preserved-opposite-triangle contract and the reconstruction are
+    /// checked on both sides of a panel boundary.
     #[test]
     fn crossover_triangle_matches_the_factor_contract() {
         check(&spd_f64(127));
