@@ -1624,7 +1624,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "4c0e7b424d321c8747fed5241e513b884ac23c992c840f19b5160cd9468ebb81",
+  "library_sha256": "517f52836d3cb9541a1980bef7f4947b7642ef2c5b92314076beb300f7b94f46",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "92adb6a1fc21ab06edba495957955747bc3129a7",
+  "revision": "c347870ca370517ad3349f11cff18ffbc5092bfb",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -114472,7 +114472,7 @@
     "test/lapacke_compact_qr_abi.jl": "5b53f9004c93a9a95015bcaf976e4c851c5ad3773c35d9755cfe856dceaafeb0",
     "test/lapacke_rfptri.jl": "28878f9409bfe7810b94f113c80c647e1fa021647e53984475e05f08f81930e7",
     "test/qr_pivoted.jl": "bd2b1b10ba212be4ed196c3d1d62b5a4cc4e4f60d2c4d2d2efb9f05181806227",
-    "deps/rust/src/lapack.rs": "24ee200e20abfa71155be1214034e4128fda4739bf4dbc78e2dabc70d3ac458a",
+    "deps/rust/src/lapack.rs": "93f35bce7d2b06137a044fad3d88e16194e9a9d72a94e11a25685128865a9dc4",
     "test/matrix_copy.jl": "6d42862987c8eb55be32c6b57047b15b4dedd0d6fa0ff4d595b42b794d38b5f1",
     "test/lapacke_gbequ.jl": "48362d36138001ceda8706e5595dea347877afe4a3fbd225e43e8f199a81954c",
     "test/lapacke_range_abi.jl": "1e40322d90ee58cdff955c658b700503ec6372246b6a5eaf640a33a7fae0439e",
