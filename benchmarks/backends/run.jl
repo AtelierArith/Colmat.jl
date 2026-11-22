@@ -46,10 +46,12 @@ function select_backend(name)
         @eval using MKL
     elseif name == "colmat"
         @eval using Colmat
+    elseif name == "aocl"
+        @eval using AOCL
     elseif name == "apple"
         @eval using AppleAccelerate
     else
-        error("unknown backend $(name); expected openblas, mkl, colmat or apple")
+        error("unknown backend $(name); expected openblas, mkl, aocl, colmat or apple")
     end
     return nothing
 end
@@ -336,7 +338,13 @@ result = Dict{String,Any}(
     "timestamp" => string(Dates.now()),
     "git_commit" => get(ENV, "COLMAT_BENCH_GIT_COMMIT", "unknown"),
     "library_sha256" => BACKEND == "colmat" ? get(ENV, "COLMAT_BENCH_LIB_SHA", "n/a") : "n/a",
-    "library" => BACKEND == "colmat" ? Colmat.backend_library() : "",
+    "library" => if BACKEND == "colmat"
+        Colmat.backend_library()
+    elseif BACKEND == "aocl"
+        string(AOCL.AOCL_jll.libaocl64)
+    else
+        ""
+    end,
     "cases" => RESULTS,
 )
 

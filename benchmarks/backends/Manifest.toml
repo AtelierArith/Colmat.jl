@@ -2,7 +2,21 @@
 
 julia_version = "1.13.4"
 manifest_format = "2.1"
-project_hash = "a60b421cb4e4e45d415a0cb39a94ecc02fa4029c"
+project_hash = "f27a477e93c217f04d08a1d03792ee0d8c693dfb"
+
+[[deps.AOCL]]
+deps = ["AOCL_jll", "LinearAlgebra"]
+git-tree-sha1 = "14c1d4799c750c0a40d4d6d849ced910227ee8b0"
+registries = "General"
+uuid = "f52889c3-24a9-4d04-95e9-8e965a4fc4c7"
+version = "5.3.1"
+
+[[deps.AOCL_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "26cff8f75174cb3dc978265f56345441dce0893d"
+registries = "General"
+uuid = "b124843c-0c82-53c8-91a7-62bfdd90e290"
+version = "5.3.2+0"
 
 [[deps.AppleAccelerate]]
 deps = ["Libdl", "LinearAlgebra", "SparseArrays"]

@@ -1,4 +1,4 @@
-# Backend comparison: OpenBLAS, MKL, Colmat and AppleAccelerate
+# Backend comparison: OpenBLAS, MKL, AOCL, Colmat and AppleAccelerate
 
 A self-contained Julia benchmark for the dense kernels Colmat exposes through
 libblastrampoline. It does not use an external harness: `run.sh` builds/checks
@@ -83,6 +83,8 @@ against `svd`. The residual is stored in the TOML/CSV.
 - `openblas`: Julia's bundled OpenBLAS, the baseline.
 - `mkl`: Intel oneAPI MKL through `MKL.jl`/`MKL_jll` (pinned in
   `Project.toml`).
+- `aocl`: AMD AOCL through `AOCL.jl`/`AOCL_jll` (5.3.x); the runner sets
+  `OMP_NUM_THREADS`, `BLIS_NUM_THREADS` and `FLA_NUM_THREADS` for the process.
 - `colmat`: this repository's Rust BLAS/LAPACK library.
 
 Each backend runs in a separate process because libblastrampoline forwards are
