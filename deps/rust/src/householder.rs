@@ -149,9 +149,100 @@ pub(crate) unsafe fn generate<T: ReflectorScalar>(
     *a = T::real(beta * scale);
 }
 
+/// `C -= tau * v * w^H` with `w = C^H v`, for one real column-contiguous
+/// reflector. Four AVX2 accumulators keep the projection independent of the FMA
+/// latency, and the update is one fused multiply-add per element. The generic
+/// path below runs at SSE2 width because the crate targets baseline x86-64, so
+/// this recovers for small real factorizations the throughput the reference
+/// backends get from their dispatched kernels. Pivots are unaffected: the
+/// selection rule and the residual-norm downdate are unchanged.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn larf_left_f64_avx2(m: usize, n: usize, tau: f64, v: *const f64, c: *mut f64, ldc: isize) {
+    use core::arch::x86_64::*;
+    for j in 0..n {
+        let cj = c.offset(j as isize * ldc);
+        let mut a0 = _mm256_setzero_pd();
+        let mut a1 = _mm256_setzero_pd();
+        let mut a2 = _mm256_setzero_pd();
+        let mut a3 = _mm256_setzero_pd();
+        let mut i = 0usize;
+        while i + 16 <= m {
+            a0 = _mm256_fmadd_pd(_mm256_loadu_pd(cj.add(i)), _mm256_loadu_pd(v.add(i)), a0);
+            a1 = _mm256_fmadd_pd(
+                _mm256_loadu_pd(cj.add(i + 4)),
+                _mm256_loadu_pd(v.add(i + 4)),
+                a1,
+            );
+            a2 = _mm256_fmadd_pd(
+                _mm256_loadu_pd(cj.add(i + 8)),
+                _mm256_loadu_pd(v.add(i + 8)),
+                a2,
+            );
+            a3 = _mm256_fmadd_pd(
+                _mm256_loadu_pd(cj.add(i + 12)),
+                _mm256_loadu_pd(v.add(i + 12)),
+                a3,
+            );
+            i += 16;
+        }
+        while i + 4 <= m {
+            a0 = _mm256_fmadd_pd(_mm256_loadu_pd(cj.add(i)), _mm256_loadu_pd(v.add(i)), a0);
+            i += 4;
+        }
+        let s = _mm256_add_pd(_mm256_add_pd(a0, a1), _mm256_add_pd(a2, a3));
+        let s = _mm_add_pd(_mm256_castpd256_pd128(s), _mm256_extractf128_pd(s, 1));
+        let s = _mm_add_sd(s, _mm_unpackhi_pd(s, s));
+        let mut dot = _mm_cvtsd_f64(s);
+        while i < m {
+            dot += *cj.add(i) * *v.add(i);
+            i += 1;
+        }
+        let f = -tau * dot;
+        let fv = _mm256_set1_pd(f);
+        let mut i = 0usize;
+        while i + 8 <= m {
+            let x0 = _mm256_loadu_pd(cj.add(i));
+            let x1 = _mm256_loadu_pd(cj.add(i + 4));
+            let y0 = _mm256_loadu_pd(v.add(i));
+            let y1 = _mm256_loadu_pd(v.add(i + 4));
+            _mm256_storeu_pd(cj.add(i), _mm256_fmadd_pd(fv, y0, x0));
+            _mm256_storeu_pd(cj.add(i + 4), _mm256_fmadd_pd(fv, y1, x1));
+            i += 8;
+        }
+        while i < m {
+            *cj.add(i) += f * *v.add(i);
+            i += 1;
+        }
+    }
+}
+
 // WORK is the LAPACK caller's length-N (left) or length-M (right) buffer.
 // GEMV uses the native colmat multiplication path, including conjugation.
 pub(crate) unsafe fn apply<T: Scalar>(
+    side: u8,
+    m: isize,
+    n: isize,
+    v: *const T,
+    inc: isize,
+    tau: T,
+    c: *mut T,
+    ldc: isize,
+    work: *mut T,
+) {
+    // LAPACK callers always provide WORK (N entries for a left update, M for a
+    // right one). A direct call with a null pointer must not dereference it:
+    // supply the documented scratch so the update is still applied.
+    if work.is_null() && m != 0 && n != 0 && tau != T::z() {
+        let left = side == b'L';
+        let mut owned = vec![T::z(); (if left { n } else { m }).max(0) as usize];
+        return apply_impl(side, m, n, v, inc, tau, c, ldc, owned.as_mut_ptr());
+    }
+    apply_impl(side, m, n, v, inc, tau, c, ldc, work);
+}
+
+#[allow(clippy::too_many_arguments)]
+unsafe fn apply_impl<T: Scalar>(
     side: u8,
     m: isize,
     n: isize,
@@ -172,8 +263,24 @@ pub(crate) unsafe fn apply<T: Scalar>(
     // per call costs more than the update for the sizes used by QR panels.
     let threaded = (m.max(0) as usize).saturating_mul(n.max(0) as usize) >= (1 << 18);
     if inc == 1 && !threaded {
-        // Contiguous Householder fast path: one BLAS-2 product, then a rank-1
-        // update whose conjugated coefficient is hoisted out of the inner loop.
+        // Real left update: the fused kernel keeps each trailing column in cache
+        // between the projection and the rank-1 update and needs no scratch, so
+        // prefer it over the general two-pass path. Other scalars and sides use
+        // the shared contiguous kernels.
+        if left && T::REAL64 && m > 0 && n > 0 {
+            #[cfg(target_arch = "x86_64")]
+            if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
+                larf_left_f64_avx2(
+                    m as usize,
+                    n as usize,
+                    tau.re(),
+                    v as *const f64,
+                    c as *mut f64,
+                    ldc,
+                );
+                return;
+            }
+        }
         if left {
             crate::kernels::gemv_conj_contiguous(m, n, c, ldc, v, work);
             for j in 0..n {
@@ -894,6 +1001,121 @@ mod tests {
             assert_eq!(tau, 0.0);
         }
     }
+    #[test]
+    #[cfg(target_arch = "x86_64")]
+    fn avx2_reflector_matches_scalar_reference() {
+        if !is_x86_feature_detected!("avx2") || !is_x86_feature_detected!("fma") {
+            return;
+        }
+        // 37 rows exercises the 16-wide body, the 4-wide tail and the scalar
+        // remainder; the reference below is the plain two-pass scalar update.
+        let (m, n) = (37usize, 23usize);
+        let mut state = 17u64;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((state >> 11) as f64) / ((1u64 << 53) as f64) - 0.5
+        };
+        let mut v = vec![0.0f64; m];
+        v[0] = 1.0;
+        for x in v.iter_mut().skip(1) {
+            *x = next();
+        }
+        let c0: Vec<f64> = (0..m * n).map(|_| next()).collect();
+        let mut want = c0.clone();
+        let tau = 1.37f64;
+        for j in 0..n {
+            let mut dot = 0.0;
+            for i in 0..m {
+                dot += c0[i + j * m] * v[i];
+            }
+            let f = -tau * dot;
+            for i in 0..m {
+                want[i + j * m] += f * v[i];
+            }
+        }
+        // The fused kernel needs no scratch, and a null WORK must not be
+        // dereferenced: `apply` allocates a local vector in that case.
+        let mut got = c0.clone();
+        unsafe {
+            apply::<f64>(
+                b'L',
+                m as isize,
+                n as isize,
+                v.as_ptr(),
+                1,
+                tau,
+                got.as_mut_ptr(),
+                m as isize,
+                std::ptr::null_mut(),
+            );
+        }
+        for (g, w) in got.iter().zip(want.iter()) {
+            assert!((g - w).abs() < 1e-12, "{g} vs {w}");
+        }
+        // Same result through the shared two-pass contiguous kernels with a
+        // real scratch vector, so the fallback path stays covered.
+        let mut got = c0.clone();
+        let mut work = vec![0.0f64; n];
+        unsafe {
+            crate::kernels::gemv_conj_contiguous(
+                m as isize,
+                n as isize,
+                got.as_ptr(),
+                m as isize,
+                v.as_ptr(),
+                work.as_mut_ptr(),
+            );
+            for j in 0..n {
+                let alpha = -tau * work[j];
+                crate::kernels::axpy(m as isize, alpha, v.as_ptr(), got.as_mut_ptr().add(j * m));
+            }
+        }
+        for (g, w) in got.iter().zip(want.iter()) {
+            assert!((g - w).abs() < 1e-12, "{g} vs {w}");
+        }
+    }
+
+    #[test]
+    fn contiguous_kernels_accept_null_and_empty() {
+        unsafe {
+            // Null pointers and zero lengths are no-ops, not dereferences.
+            crate::kernels::axpy(3, 1.0f64, null(), null_mut());
+            crate::kernels::axpy(0, 1.0f64, null(), null_mut());
+            crate::kernels::gemv_conj_contiguous(
+                3,
+                2,
+                null::<f64>(),
+                3,
+                null::<f64>(),
+                null_mut::<f64>(),
+            );
+            crate::kernels::gemv_n_contiguous(
+                3,
+                2,
+                null::<f64>(),
+                3,
+                null::<f64>(),
+                null_mut::<f64>(),
+            );
+            crate::kernels::gemv_conj_contiguous(
+                0,
+                2,
+                null::<f64>(),
+                1,
+                null::<f64>(),
+                null_mut::<f64>(),
+            );
+            let x = [1.0f64, 2.0];
+            let mut y = [7.0f64, 8.0];
+            crate::kernels::axpy(0, 1.0f64, x.as_ptr(), y.as_mut_ptr());
+            crate::kernels::gemv_conj_contiguous(0, 2, x.as_ptr(), 1, x.as_ptr(), y.as_mut_ptr());
+            crate::kernels::gemv_n_contiguous(0, 2, x.as_ptr(), 1, x.as_ptr(), y.as_mut_ptr());
+            assert_eq!(y, [7.0, 8.0]);
+        }
+    }
+
     #[test]
     fn padded_output_and_invalid_arguments() {
         unsafe {

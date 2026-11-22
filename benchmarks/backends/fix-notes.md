@@ -399,3 +399,40 @@ Julia-API c64 `qr(A, ColumnNorm())`, n=1024, min/median ms: 1T 186/201 vs
 OpenBLAS 214/229, 4T 71/75 vs 75/76, 8T 49/53 vs 79/84. The isolated `?geqp3`
 ccall still trails OpenBLAS's tuned ccall at 1T, but the path Julia users call is
 at parity or ahead. f64 guard cells are unchanged within noise.
+## Small pivoted QR (`?geqp3`, n<=96)
+
+The small-shape `qr(A, ColumnNorm())` loss was fixed overhead, not the pivot
+search: reflector application was 50-66% of the time and the generic f64 path
+ran at SSE2 width, while c64 n<=96 chose the unblocked path by mistake and every
+panel paid a ~8 us resident-team entry.
+
+Changes:
+
+- a runtime-dispatched AVX2/FMA `larf_left_f64_avx2` for non-threaded, unit-stride
+  left applications (four accumulators for `w = C^H v`, one FMA per element for
+  the update); other scalars/sides and threaded updates keep the scalar path;
+- `panel_width` policy: real unblocked through `m*n <= 16_384`, panel 8 through
+  `m*n < 60_000`, panel 16 above; complex unblocked through `m*n*5 <= 32_000`,
+  panel 8 through `m*n*5 < 200_000`, panel 16 above; `k <= 8` still forces
+  unblocked;
+- pivoted panels use `with_par_if(..., 400_000, ...)`, so small panels stay
+  `Par::Seq` and nested helpers see the serial depth guard instead of acquiring
+  another team.
+
+Julia API f64 `qr(A, ColumnNorm())` n=32/64/96 is now 11.1/33.9/90.3 us versus
+OpenBLAS 13.3/39.2/102.0; c64 n=32/64 is a tie and n=96 at 8T is 183 us versus
+308 before and 471 for OpenBLAS. n>=512 is unchanged within noise.
+
+## Small `eigh` / `svd_thin`
+
+`svd` now writes into LAPACK's U/VT buffers directly when the layout fits (VT is
+the same buffer viewed with V's shape and transposed strides, with complex
+entries conjugated in place); owned buffers, zero-fills, a memcpy and a
+transpose copy remain only for `JOBZ='O'`, `r=0` and complex singular values.
+`eigh`/`svd` use `with_par_if` with `SELFADJOINT_WORK`/`SVD_WORK = 100_000`
+(complex 300_000), so 32-square calls stay sequential at every thread count.
+
+f64 `svd_thin` n=32 at 4T/8T improves from 1.13/1.15x to 0.98/0.97x OpenBLAS;
+c64 n=32 is 1.03-1.05x and n=64/96 beat it. The residual f64 n=64/96 1T gap
+(1.07/1.03x) is in the pinned `dgesdd` core (307-324 vs 291-294 us at n=64),
+not the adapter; the workspace query must keep the documented LAPACK minimum.

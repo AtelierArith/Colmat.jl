@@ -1,6 +1,7 @@
 //! LAPACK drivers over colmat's public decomposition and solve APIs.
 use crate::kernels::{flag, Scalar};
 use colmat::dyn_stack::{MemBuffer, MemStack};
+use colmat::prelude::Reborrow;
 use colmat::{Conj, Mat, MatMut, MatRef};
 
 /// Borrow a column-major Fortran buffer without copying it.
@@ -30,7 +31,7 @@ pub unsafe fn input_ref_transposed<'a, T: Scalar>(
 ) -> MatRef<'a, T> {
     MatRef::from_raw_parts(a, n, n, ld, 1)
 }
-pub unsafe fn output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize) {
+pub unsafe fn output_ref<T: Scalar>(a: MatRef<'_, T>, p: *mut T, ld: isize) {
     // The destination is column-major, so a contiguous source is a single copy.
     if a.row_stride() == 1 && a.col_stride() == a.nrows() as isize && ld == a.nrows() as isize {
         std::ptr::copy_nonoverlapping(a.as_ptr(), p, a.nrows() * a.ncols());
@@ -41,6 +42,9 @@ pub unsafe fn output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize) {
             *p.offset(i as isize + j as isize * ld) = a[(i, j)];
         }
     }
+}
+pub unsafe fn output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize) {
+    output_ref(a.as_ref(), p, ld);
 }
 /// Factor the caller's buffer in place. `a` is overwritten with the L/U factors,
 /// matching LAPACK's xGETRF contract.
@@ -292,22 +296,36 @@ pub unsafe fn cholesky_output<T: Scalar>(a: &Mat<T>, p: *mut T, ld: isize, u: u8
 type SvdResult<T> = (Mat<T>, Vec<f64>, Mat<T>);
 type GeneralOutput<T> = (Vec<T>, Vec<f64>, usize, usize, Vec<f64>, f64);
 
-pub fn svd<T: Scalar>(a: MatRef<'_, T>, u: usize, v: usize) -> Result<SvdResult<T>, ()> {
-    use colmat::{diag::Diag, linalg::svd::*};
+/// Compute the SVD into caller-provided vectors. The native driver overwrites
+/// every element of each requested singular-vector matrix before reading it, so
+/// LAPACK's buffers can be borrowed directly when their layout matches the
+/// column-major result (see `svd_driver`).
+fn svd_native<T: Scalar>(
+    a: MatRef<'_, T>,
+    u: usize,
+    v: usize,
+    mut s: colmat::diag::DiagMut<'_, T>,
+    left: Option<MatMut<'_, T>>,
+    right: Option<MatMut<'_, T>>,
+) -> Result<(), ()> {
+    use colmat::linalg::svd::*;
     let (m, n) = (a.nrows(), a.ncols());
-    let mut s = Diag::<T>::zeros(m.min(n));
-    let mut left = Mat::<T>::zeros(m, u);
-    let mut right = Mat::<T>::zeros(n, v);
-    crate::threading::with_par(|par| {
-        let cv = |x: usize, dim: usize| {
-            if x == 0 {
-                ComputeSvdVectors::No
-            } else if x == dim {
-                ComputeSvdVectors::Full
-            } else {
-                ComputeSvdVectors::Thin
-            }
-        };
+    let cv = |x: usize, dim: usize| {
+        if x == 0 {
+            ComputeSvdVectors::No
+        } else if x == dim {
+            ComputeSvdVectors::Full
+        } else {
+            ComputeSvdVectors::Thin
+        }
+    };
+    let work = crate::threading::real_work(m, n, m.min(n), T::COMPLEX);
+    let limit = if T::COMPLEX {
+        crate::threading::SVD_WORK_COMPLEX
+    } else {
+        crate::threading::SVD_WORK
+    };
+    crate::threading::with_par_if(work, limit, |par| {
         let mut mem = MemBuffer::new(svd_scratch::<T>(
             m,
             n,
@@ -319,15 +337,31 @@ pub fn svd<T: Scalar>(a: MatRef<'_, T>, u: usize, v: usize) -> Result<SvdResult<
         colmat::linalg::svd::svd(
             a.as_ref(),
             s.as_mut(),
-            if u == 0 { None } else { Some(left.as_mut()) },
-            if v == 0 { None } else { Some(right.as_mut()) },
+            left,
+            right,
             par,
             MemStack::new(&mut mem),
             Default::default(),
         )
-        .map_err(|_| ())?;
-        Ok((left, (0..m.min(n)).map(|i| s[i].re()).collect(), right))
+        .map_err(|_| ())
     })
+}
+
+pub fn svd<T: Scalar>(a: MatRef<'_, T>, u: usize, v: usize) -> Result<SvdResult<T>, ()> {
+    use colmat::diag::Diag;
+    let (m, n) = (a.nrows(), a.ncols());
+    let mut s = Diag::<T>::zeros(m.min(n));
+    let mut left = Mat::<T>::zeros(m, u);
+    let mut right = Mat::<T>::zeros(n, v);
+    svd_native(
+        a,
+        u,
+        v,
+        s.as_mut(),
+        if u == 0 { None } else { Some(left.as_mut()) },
+        if v == 0 { None } else { Some(right.as_mut()) },
+    )?;
+    Ok((left, (0..m.min(n)).map(|i| s[i].re()).collect(), right))
 }
 pub fn selfadj<T: Scalar>(a: MatRef<'_, T>, vectors: bool) -> Result<(Vec<f64>, Mat<T>), ()> {
     use colmat::{diag::Diag, linalg::evd::*};
@@ -351,7 +385,13 @@ pub fn selfadj<T: Scalar>(a: MatRef<'_, T>, vectors: bool) -> Result<(Vec<f64>, 
     let a = normalized.as_ref().map_or(a, |matrix| matrix.as_ref());
     let mut s = Diag::<T>::zeros(n);
     let mut u = Mat::<T>::zeros(n, if vectors { n } else { 0 });
-    crate::threading::with_par(|par| {
+    let work = crate::threading::real_work(n, n, n, T::COMPLEX);
+    let limit = if T::COMPLEX {
+        crate::threading::SELFADJOINT_WORK_COMPLEX
+    } else {
+        crate::threading::SELFADJOINT_WORK
+    };
+    crate::threading::with_par_if(work, limit, |par| {
         let mut mem = MemBuffer::new(self_adjoint_evd_scratch::<T>(
             n,
             if vectors {
@@ -548,45 +588,119 @@ unsafe fn svd_driver<T: Scalar, R: Scalar, I: LapackInt>(
     } else {
         r
     } as usize;
-    let result = if r == 0 {
-        Ok((
-            Mat::<T>::identity(m as usize, ucols),
-            vec![],
-            Mat::<T>::identity(n as usize, vcols),
-        ))
-    } else {
-        let mat = input_ref(a, m as usize, n as usize, la);
-        if !mat.is_all_finite() {
-            Err(())
-        } else {
-            svd(mat, ucols, vcols)
+    if r == 0 {
+        let left = Mat::<T>::identity(m as usize, ucols);
+        let right = Mat::<T>::identity(n as usize, vcols);
+        if ucols > 0 {
+            let (dest, ld) = if ju == b'O' && (!dd || m >= n) {
+                (a, la)
+            } else {
+                (u, lu)
+            };
+            output(&left, dest, ld);
         }
-    };
-    match result {
-        Err(_) => *info = I::from_i64(1),
-        Ok((left, values, right)) => {
-            for (i, v) in values.iter().enumerate() {
-                *s.add(i) = R::real(*v);
-            }
-            if ucols > 0 {
-                let (dest, ld) = if ju == b'O' && (!dd || m >= n) {
-                    (a, la)
-                } else {
-                    (u, lu)
-                };
-                output(&left, dest, ld);
-            }
-            if vcols > 0 {
-                let (dest, ld) = if (!dd && jv == b'O') || (dd && ju == b'O' && m < n) {
-                    (a, la)
-                } else {
-                    (vt, lv)
-                };
-                for j in 0..n as usize {
-                    for i in 0..vcols {
-                        *dest.offset(i as isize + j as isize * ld) = right[(j, i)].cj();
-                    }
+        if vcols > 0 {
+            let (dest, ld) = if (!dd && jv == b'O') || (dd && ju == b'O' && m < n) {
+                (a, la)
+            } else {
+                (vt, lv)
+            };
+            for j in 0..n as usize {
+                for i in 0..vcols {
+                    *dest.offset(i as isize + j as isize * ld) = right[(j, i)].cj();
                 }
+            }
+        }
+        return;
+    }
+    let mat = input_ref(a, m as usize, n as usize, la);
+    // The native driver checks the input with a full `norm_max` scan before it
+    // writes anything, so an explicit finiteness pass here would only repeat it.
+    let left_direct = ucols > 0 && lu >= m && !(ju == b'O' && (!dd || m >= n));
+    let right_direct =
+        vcols > 0 && lv >= vcols as isize && !((!dd && jv == b'O') || (dd && ju == b'O' && m < n));
+    // Real singular values share the caller's scalar type: let the native driver
+    // write them straight into LAPACK's S array. Complex values need one scratch
+    // diagonal, whose real parts are copied out below.
+    let mut complex_values = if T::COMPLEX {
+        vec![T::z(); r as usize]
+    } else {
+        Vec::new()
+    };
+    let values: &mut [T] = if T::COMPLEX {
+        &mut complex_values
+    } else {
+        unsafe { std::slice::from_raw_parts_mut(s.cast::<T>(), r as usize) }
+    };
+    let mut left_store: Option<Mat<T>> = None;
+    let mut left_view = if ucols == 0 {
+        None
+    } else if left_direct {
+        Some(unsafe { MatMut::from_raw_parts_mut(u, m as usize, ucols, 1, lu) })
+    } else {
+        left_store = Some(Mat::<T>::zeros(m as usize, ucols));
+        left_store.as_mut().map(|left| left.as_mut())
+    };
+    let mut right_store: Option<Mat<T>> = None;
+    let mut right_view = if vcols == 0 {
+        None
+    } else if right_direct {
+        // LAPACK stores V^H, and the native driver produces V column-major. A
+        // view of the destination with V's shape and transposed strides maps
+        // entry (row, col) of V to `vt[col, row]`; for real scalars that is
+        // already V^H, and complex entries are conjugated in place below.
+        Some(unsafe { MatMut::from_raw_parts_mut(vt, n as usize, vcols, lv, 1) })
+    } else {
+        right_store = Some(Mat::<T>::zeros(n as usize, vcols));
+        right_store.as_mut().map(|right| right.as_mut())
+    };
+    let status = svd_native(
+        mat,
+        ucols,
+        vcols,
+        colmat::diag::DiagMut::from_slice_mut(values),
+        left_view.as_mut().map(|left| left.as_mut()),
+        right_view.as_mut().map(|right| right.as_mut()),
+    );
+    drop(left_view);
+    drop(right_view);
+    if status.is_err() {
+        *info = I::from_i64(1);
+        return;
+    }
+    if T::COMPLEX {
+        for (i, value) in complex_values.iter().enumerate() {
+            *s.add(i) = R::real(value.re());
+        }
+    }
+    if let Some(left) = left_store.as_ref() {
+        let (dest, ld) = if ju == b'O' && (!dd || m >= n) {
+            (a, la)
+        } else {
+            (u, lu)
+        };
+        output(left, dest, ld);
+    }
+    if right_direct {
+        if T::COMPLEX {
+            // The native driver wrote V through the transposed view, so the
+            // destination holds V^T unconjugated; conjugate it in place.
+            for j in 0..n as usize {
+                for i in 0..vcols {
+                    let place = vt.offset(i as isize + j as isize * lv);
+                    *place = (*place).cj();
+                }
+            }
+        }
+    } else if let Some(right) = right_store.as_ref() {
+        let (dest, ld) = if (!dd && jv == b'O') || (dd && ju == b'O' && m < n) {
+            (a, la)
+        } else {
+            (vt, lv)
+        };
+        for j in 0..n as usize {
+            for i in 0..vcols {
+                *dest.offset(i as isize + j as isize * ld) = right[(j, i)].cj();
             }
         }
     }
