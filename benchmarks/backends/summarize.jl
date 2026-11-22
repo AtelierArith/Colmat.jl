@@ -154,6 +154,11 @@ end
 
 # Geometric mean ratios per operation across sizes, per thread setting.
 println(md, "## Geometric mean time ratio across sizes\n")
+println(
+    md,
+    "The median includes Julia GC and allocation; the minimum-time table after this one ",
+    "separates that from the steady-state kernel/adapter cost.\n",
+)
 println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
 println(md, "|---:|---|---|---:|---:|")
 gm(v) = isempty(v) ? NaN : exp(mean(log.(v)))
@@ -169,6 +174,38 @@ for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
         o === nothing && continue
         m !== nothing && push!(ratios_m, m.median_ns / o.median_ns)
         c !== nothing && push!(ratios_c, c.median_ns / o.median_ns)
+    end
+    isempty(ratios_m) && isempty(ratios_c) && continue
+    println(
+        md,
+        "| $(threads) | $(label) | $(T) | ",
+        @sprintf("%.2f", gm(ratios_m)),
+        " | ",
+        @sprintf("%.2f", gm(ratios_c)),
+        " |",
+    )
+end
+println(md, "## Minimum-time ratio across sizes\n")
+println(
+    md,
+    "Each cell is the geometric mean of the per-size minimum times (Colmat/OpenBLAS; MKL/OpenBLAS), ",
+    "which removes most of the Julia GC/allocation variance that dominates microsecond cells.\n",
+)
+println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
+println(md, "|---:|---|---|---:|---:|")
+for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
+    ratios_m = Float64[]
+    ratios_c = Float64[]
+    for n in sort(unique([
+        r.n for r in rows if r.op == op && r.eltype == T && r.threads == threads
+    ]))
+        o = get(lookup, ("openblas", threads, op, T, n), nothing)
+        m = get(lookup, ("mkl", threads, op, T, n), nothing)
+        c = get(lookup, ("colmat", threads, op, T, n), nothing)
+        o === nothing && continue
+        o.min_ns == 0 && continue
+        m !== nothing && push!(ratios_m, m.min_ns / o.min_ns)
+        c !== nothing && push!(ratios_c, c.min_ns / o.min_ns)
     end
     isempty(ratios_m) && isempty(ratios_c) && continue
     println(
