@@ -1624,7 +1624,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "68129c32e8417e796aae44cd260f7f73a58a077cfb76abeb91578c2ac536e88a",
+  "library_sha256": "09a693ed913df19f0efef8410abaf6093b7f4fa4d4b296e05f3a9887645e0ec9",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1662,8 +1662,8 @@
     "test/direct_factor_abi.jl:8 [(\"zgetf2_\", 64, \"dll\"), (\"zgetrf2_\", 64, \"dll\")] widths=Set([64])",
     "test/direct_factor_abi.jl:82 [(\"cpotf2_\", 32, \"dll\"), (\"cpotrf2_\", 32, \"dll\")] widths=Set([32])",
     "test/direct_factor_abi.jl:82 [(\"cpotf2_\", 64, \"dll\"), (\"cpotrf2_\", 64, \"dll\")] widths=Set([64])",
-    "test/direct_factor_abi.jl:82 [(\"dpotf2_\", 32, \"dll\"), (\"dpotrf2_\", 32, \"dll\")] widths=Set([32])",
-    "test/direct_factor_abi.jl:82 [(\"dpotf2_\", 64, \"dll\"), (\"dpotrf2_\", 64, \"dll\")] widths=Set([64])",
+    "test/direct_factor_abi.jl:82 [(\"dpotf2_\", 32, \"dll\"), (\"dpotrf2_\", 32, \"dll\"), (\"dpotrf_\", 32, \"dll\")] widths=Set([32])",
+    "test/direct_factor_abi.jl:82 [(\"dpotf2_\", 64, \"dll\"), (\"dpotrf2_\", 64, \"dll\"), (\"dpotrf_\", 64, \"dll\")] widths=Set([64])",
     "test/direct_factor_abi.jl:82 [(\"spotf2_\", 32, \"dll\"), (\"spotrf2_\", 32, \"dll\")] widths=Set([32])",
     "test/direct_factor_abi.jl:82 [(\"spotf2_\", 64, \"dll\"), (\"spotrf2_\", 64, \"dll\")] widths=Set([64])",
     "test/direct_factor_abi.jl:82 [(\"zpotf2_\", 32, \"dll\"), (\"zpotrf2_\", 32, \"dll\")] widths=Set([32])",
@@ -1682,8 +1682,8 @@
     "test/givens.jl:42 [(\"slartgs_\", 32, \"dll\"), (\"slartgs_\", 64, \"dll\")] widths=Set{Int64}()",
     "test/lapacke_cholesky.jl:35 [(\"cpotf2_\", 32, \"dll\"), (\"cpotrf2_\", 32, \"dll\")] widths=Set([32])",
     "test/lapacke_cholesky.jl:35 [(\"cpotf2_\", 64, \"dll\"), (\"cpotrf2_\", 64, \"dll\")] widths=Set([64])",
-    "test/lapacke_cholesky.jl:35 [(\"dpotf2_\", 32, \"dll\"), (\"dpotrf2_\", 32, \"dll\")] widths=Set([32])",
-    "test/lapacke_cholesky.jl:35 [(\"dpotf2_\", 64, \"dll\"), (\"dpotrf2_\", 64, \"dll\")] widths=Set([64])",
+    "test/lapacke_cholesky.jl:35 [(\"dpotf2_\", 32, \"dll\"), (\"dpotrf2_\", 32, \"dll\"), (\"dpotrf_\", 32, \"dll\")] widths=Set([32])",
+    "test/lapacke_cholesky.jl:35 [(\"dpotf2_\", 64, \"dll\"), (\"dpotrf2_\", 64, \"dll\"), (\"dpotrf_\", 64, \"dll\")] widths=Set([64])",
     "test/lapacke_cholesky.jl:35 [(\"spotf2_\", 32, \"dll\"), (\"spotrf2_\", 32, \"dll\")] widths=Set([32])",
     "test/lapacke_cholesky.jl:35 [(\"spotf2_\", 64, \"dll\"), (\"spotrf2_\", 64, \"dll\")] widths=Set([64])",
     "test/lapacke_cholesky.jl:35 [(\"zpotf2_\", 32, \"dll\"), (\"zpotrf2_\", 32, \"dll\")] widths=Set([32])",
@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "758b1c147e562e7b9b412ba9402585b5ce23b619",
+  "revision": "dab24e316b8b56ddf3a431a268a342340622fb8b",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -84353,51 +84353,11 @@
     {
       "line": 82,
       "return_type": "Nothing",
-      "route": "dll",
-      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
-      "file": "test/direct_factor_abi.jl",
-      "symbol": "dpotrf_",
-      "bits": 32,
-      "integer_arguments": true
-    },
-    {
-      "line": 35,
-      "return_type": "Nothing",
-      "route": "dll",
-      "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ref{Int32})",
-      "file": "test/lapacke_cholesky.jl",
-      "symbol": "dpotrf_",
-      "bits": 32,
-      "integer_arguments": true
-    },
-    {
-      "line": 82,
-      "return_type": "Nothing",
       "route": "lbt_trampoline",
       "signature": "(Ref{UInt8}, Ref{Int32}, Ptr{Float64}, Ref{Int32}, Ptr{Int32}, Int64)",
       "file": "test/direct_factor_abi.jl",
       "symbol": "dpotrf_",
       "bits": 32,
-      "integer_arguments": true
-    },
-    {
-      "line": 82,
-      "return_type": "Nothing",
-      "route": "dll",
-      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ptr{Int64}, Int64)",
-      "file": "test/direct_factor_abi.jl",
-      "symbol": "dpotrf_",
-      "bits": 64,
-      "integer_arguments": true
-    },
-    {
-      "line": 35,
-      "return_type": "Nothing",
-      "route": "dll",
-      "signature": "(Ref{UInt8}, Ref{Int64}, Ptr{Float64}, Ref{Int64}, Ref{Int64})",
-      "file": "test/lapacke_cholesky.jl",
-      "symbol": "dpotrf_",
-      "bits": 64,
       "integer_arguments": true
     },
     {
@@ -114632,7 +114592,7 @@
     "test/lapacke_compact_qr_abi.jl": "5b53f9004c93a9a95015bcaf976e4c851c5ad3773c35d9755cfe856dceaafeb0",
     "test/lapacke_rfptri.jl": "28878f9409bfe7810b94f113c80c647e1fa021647e53984475e05f08f81930e7",
     "test/qr_pivoted.jl": "bd2b1b10ba212be4ed196c3d1d62b5a4cc4e4f60d2c4d2d2efb9f05181806227",
-    "deps/rust/src/lapack.rs": "50b934629892837f42962a69fe36bc41ab60bf27a53af5db0747b3bc5a5703c3",
+    "deps/rust/src/lapack.rs": "5967d5dd140c23068387e0b09310a11b34b0e94dbc49d964add5e8683b703398",
     "test/matrix_copy.jl": "6d42862987c8eb55be32c6b57047b15b4dedd0d6fa0ff4d595b42b794d38b5f1",
     "test/lapacke_gbequ.jl": "48362d36138001ceda8706e5595dea347877afe4a3fbd225e43e8f199a81954c",
     "test/lapacke_range_abi.jl": "1e40322d90ee58cdff955c658b700503ec6372246b6a5eaf640a33a7fae0439e",
