@@ -322,7 +322,9 @@ unsafe fn cholesky_upper_panels<T: Scalar>(
             temp,
         );
         if info != 0 {
-            return info;
+            // `info` is one-based inside this panel; LAPACK's INFO is the
+            // global leading-minor index.
+            return j0 + info;
         }
         if j1 == n {
             break;

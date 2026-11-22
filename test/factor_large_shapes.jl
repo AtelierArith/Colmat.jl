@@ -42,6 +42,14 @@ using LinearAlgebra: LAPACK
         @test F.L * F.U ≈ A[F.p, :]
         @test sort(F.p) == collect(1:n)
 
+        # A non-positive pivot past the first panel reports its global index.
+        diagonal = Matrix{T}(I, 200, 200)
+        diagonal[150, 150] = -one(T)
+        for uplo in ('U', 'L')
+            _, info = LAPACK.potrf!(uplo, copy(diagonal))
+            @test info == 150
+        end
+
         # QR factor and explicit Q across the panel boundaries.
         Fqr = qr(A)
         @test Matrix(Fqr.Q) * Fqr.R ≈ A
