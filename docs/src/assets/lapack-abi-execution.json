@@ -1624,7 +1624,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "517f52836d3cb9541a1980bef7f4947b7642ef2c5b92314076beb300f7b94f46",
+  "library_sha256": "fa174f5521cc60487a27afcfbc065b72209d881bf077cd708e57062f9568702b",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "c347870ca370517ad3349f11cff18ffbc5092bfb",
+  "revision": "d06c69e7ad1c337139258ba09624256eb5a2b623",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -114432,7 +114432,7 @@
     "test/lapacke_cholesky_abi.jl": "f6327028073b437d4731a3b3ab89a20427893697796a164025f12f3d27c2a013",
     "test/lapacke_pivoted_qr_policy.jl": "75e650256a3fde4d353e8e6bf5705ec80b30a3ff3cd37473bc53b4ba7a274931",
     "test/pivoted_cholesky.jl": "47a367accc2aacb484c38f25abf0553758114165ee0d260ebe87b44fe330fd1a",
-    "deps/rust/src/householder.rs": "28273674312d9eed9dfcb4d379896955e2770adedf698b21c9df922b169c0ad0",
+    "deps/rust/src/householder.rs": "88290668bada573ee77f5d9eb0952c5d0f909da7e83537ef0011e72e5788dc4f",
     "test/rook_interop.jl": "dab359e1e730b11dbbe93f5581771f9705d111ce8c59f3a7e94b4937cd6255ce",
     "deps/rust/src/triangular_product.rs": "e0c953eb0af7400c8fcb540f43996ea17c19fa4660aca9fd63e7a4a2ae880969",
     "test/lapacke_pentagonal_stress.jl": "d110b2101b0d59395e1244b060a86c11a635570f05bd460bc2289452083853aa",
@@ -114505,7 +114505,7 @@
     "test/tgevc.jl": "13af533ecb34e95b3d4b889eabeae983edd7e6aee23da3dca3a0d309e0f02723",
     "deps/rust/src/lapacke/lq.rs": "14e093b426d75698ab8d63102a43b4ae9d7995e618502614320ec2c6dea65ade",
     "test/lapacke_getrs.jl": "9b37997fac57fb0bb343da8c462aa906fc062432006d14859ecf1426eb299878",
-    "deps/rust/src/threading.rs": "a617fe677c36ca7606a41a468572de374937286e7bc9367ba909086f7f91b698",
+    "deps/rust/src/threading.rs": "635d08baee075dc41a85cc293747bb0e22d9544590ca0d66e83c6e0ca0102497",
     "test/abi_guard_pages.jl": "feb0054e2eb85a6e02ed1a2b80b22c6652dbd420f2c8950e25229f47e8ca054f",
     "test/structured_generalized_band_gvd.jl": "b338c60f85009c24ed4d4efea29119c9801ad1f4601b7f23453b81714e8a0ce9",
     "test/structured_generalized_band_gv.jl": "30afdc02f3578280142df271cacd99cb7133698881ac6f7ca67cb00311c9395c",
@@ -114655,7 +114655,7 @@
     "deps/rust/src/qz_reorder.rs": "5f4747cdda684ab43fe539f38b50a40a78fbf3769c0613c50277a1d228b20d65",
     "test/factor_large_shapes.jl": "0259a25980132508a5c4055f57747ed1198ff695786b8bf1d0f4ae3c7e89651b",
     "test/lapacke_self_adjoint_abi.jl": "341ed5583b82ccf2114ac8033cd7d64248e0fd951bcdd7a6f0736665bc4c8ed3",
-    "deps/rust/src/qr.rs": "bab5a8d78028194cef84eb7df0eda52739fd9d3dd25ae79e86c226f1e42b51c3",
+    "deps/rust/src/qr.rs": "d7f131e68c2253210354858e134ccacc0499239d31bed5fb43ec362c5eafba26",
     "deps/rust/src/least_squares.rs": "4bf905dfce295baeb18cc6bf79ad9bfa76ca64af64343b611f92f7a2440b5141",
     "test/lapacke_compact_qr_abi_worker.c": "8daf78fe7b0928a837470408912a23ba17ccda42e8f560fb75b43d755728b65d",
     "test/lapacke_matrix_aux_abi.jl": "8439f338327c9b5f1dfbb2f800437875f33b30026a34f8f255939d97f83637f0",
