@@ -7,6 +7,7 @@ harness, fetch revisions, or require a second checkout.
 
 ```sh
 ./benchmarks/run.sh                  # OpenBLAS, MKL, Colmat; 1/4/8 threads
+./benchmarks/run.sh --backends openblas mkl colmat apple   # + AppleAccelerate (macOS)
 ./benchmarks/run.sh --quick          # tiny smoke run
 ./benchmarks/run.sh --help
 ```
@@ -19,6 +20,11 @@ benchmarks/backends/results/runs/<timestamp>/summary.md
 benchmarks/backends/results/runs/<timestamp>/summary.csv
 benchmarks/backends/results/runs/<timestamp>/<backend>_t<N>.toml
 ```
+
+`apple` is a macOS-only arm backed by AppleAccelerate.jl; its 4T and 8T cells
+both use Accelerate's multi-threaded mode. The MKL arm calls
+`MKL_Set_Num_Threads` because the libblastrampoline setter does not cover MKL's
+LAPACK threading.
 
 The suite covers `gemm`, `lu`, `cholesky`, `qr` (factor and explicit Q),
 column-pivoted QR, `svdvals`, thin SVD, self-adjoint eigen and general eigen

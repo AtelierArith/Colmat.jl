@@ -1,4 +1,4 @@
-# Backend comparison: OpenBLAS, MKL and Colmat
+# Backend comparison: OpenBLAS, MKL, Colmat and AppleAccelerate
 
 A self-contained Julia benchmark for the dense kernels Colmat exposes through
 libblastrampoline. It does not use an external harness: `run.sh` builds/checks
@@ -13,6 +13,19 @@ the library, runs one process per backend and thread budget, and writes
 ./benchmarks/run.sh --build          # rebuild Colmat first
 ./benchmarks/run.sh --threads 1 8 --backends openblas colmat
 ```
+
+On macOS, `--backends ... apple` adds AppleAccelerate.jl (0.7.0). It forwards
+the Accelerate framework's ILP64/LP64 symbols. Its threading API is a
+single/multi toggle, not an exact count: `threads=1` is single-threaded and
+`threads=4`/`8` both use Accelerate-managed multi-threading (8 threads on the
+benchmark host), recorded as `vendor_threads`.
+
+MKL needs explicit LAPACK thread control: `BLAS.set_num_threads(n)` through
+libblastrampoline sets the BLAS domain but not MKL's LAPACK threading. `run.jl`
+also calls `MKL_Set_Num_Threads(n)`. Without it a "1 thread" MKL
+`potrf`/`gesdd`/`syevd` cell still uses 8 threads: at n=1024, `cholesky` measured
+1.57 ms with `BLAS.set_num_threads(1)` alone and 6.97 ms after
+`MKL_Set_Num_Threads(1)`; `svdvals` 88.5 ms vs 141.1 ms.
 
 Results go to `benchmarks/backends/results/runs/<timestamp>/` by default. An
 explicit `--out` directory must not already contain TOML results, so a report
@@ -55,9 +68,9 @@ factorizations/decompositions. General `eig` stops at 512. `--quick` uses
 Each case runs BenchmarkTools with five samples. One sample bundles enough
 calls to last about 20 ms for fast operations; slow operations use one call per
 sample. `GC.gc()` runs once before each case. The Markdown report shows the
-median table, a minimum-time table and geometric means for both: the minimum
-removes most of the Julia GC/allocation variance that dominates microsecond
-cells.
+median table, a minimum-time table and geometric means for both, with ratios
+written as `Colmat/<backend>`. The minimum removes most of the Julia
+GC/allocation variance that dominates microsecond cells.
 
 Every case has a probe outside the timed region: GEMM is checked with a plain
 loop, factorizations by reconstruction/orthogonality residual, and `svd_values`
