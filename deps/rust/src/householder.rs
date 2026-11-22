@@ -786,7 +786,7 @@ pub(crate) unsafe fn apply_block_with_basis<T: Scalar>(
     // One team acquisition for the three GEMMs of a block, as in
     // `apply_forward_column_block_adjoint_with_basis`; below the panel limit
     // the whole block stays sequential.
-    crate::threading::with_par_if(panel_work, crate::threading::QR_PANEL_WORK, |mut par| {
+    crate::threading::with_par_if(panel_work, crate::threading::Q_APPLY_WORK, |mut par| {
         if side == b'L' {
             // W = V^H C
             gemm_with_par(

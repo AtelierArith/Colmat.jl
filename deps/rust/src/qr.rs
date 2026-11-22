@@ -580,20 +580,40 @@ unsafe fn blocked_explicit_q<T: Scalar>(
             *a.offset(i as isize + j as isize * lda) = if i == j { T::o() } else { T::z() };
         }
     }
-    multiply_q(
-        b'L',
-        b'N',
-        m,
-        n,
-        k,
-        nb,
-        reflectors.as_ptr(),
-        m as isize,
-        triangular.as_ptr(),
-        nb as isize,
-        a,
-        lda,
-    );
+    // Apply the panels from the last one back, and only to the columns whose
+    // seeds start at or after the panel (as `apply_to_identity` does). Applying
+    // every panel to all n columns repeated the trailing work the earlier
+    // columns do not need, and that was the remaining explicit-Q gap.
+    let mut panel_triangular = vec![T::z(); nb * nb];
+    let mut work = vec![T::z(); nb * m.max(n)];
+    let mut transformed = vec![T::z(); nb * m.max(n)];
+    let mut end = k;
+    while end > 0 {
+        let start = (end - 1) / nb * nb;
+        let block = end - start;
+        let rows = m - start;
+        let cols = n - start;
+        let panel = reflectors.as_ptr().offset(start as isize * (m as isize + 1));
+        let basis = &mut basis[..rows * block];
+        crate::householder::basis_into(b'F', b'C', rows, block, panel, m as isize, basis);
+        crate::householder::apply_block_with_basis(
+            b'L',
+            b'N',
+            b'F',
+            rows,
+            cols,
+            block,
+            basis,
+            triangular.as_ptr().offset(start as isize * nb as isize),
+            nb as isize,
+            a.offset(start as isize + start as isize * lda),
+            lda,
+            &mut panel_triangular[..block * block],
+            &mut work[..block * rows.max(cols)],
+            &mut transformed[..block * rows.max(cols)],
+        );
+        end = start;
+    }
 }
 
 macro_rules! q_generate_exports {

@@ -42,6 +42,10 @@ pub const CHOLESKY_WORK_COMPLEX: usize = 4_000_000;
 pub const CHOLESKY_UPPER_WORK: usize = 2_000_000;
 pub const TRSM_WORK: usize = 2_000_000;
 pub const QR_PANEL_WORK: usize = 1_500_000;
+/// One explicit-Q block apply (`C -= V T^H V^H C` for a panel). Unlike a QR
+/// factorization panel, it is a pure GEMM sequence, so it pays the team entry
+/// back much earlier; OpenBLAS also threads `orgqr` at these sizes.
+pub const Q_APPLY_WORK: usize = 150_000;
 /// One dense self-adjoint eigendecomposition (reduction, tridiagonal solve and
 /// back-transformation), estimated as `n^3` real updates.
 ///
