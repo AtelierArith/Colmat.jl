@@ -12,7 +12,7 @@ const DIR = get(
     "COLMAT_BENCH_RESULTS_DIR",
     joinpath(@__DIR__, "results"),
 )
-const BACKENDS = ["openblas", "mkl", "colmat"]
+const BACKENDS = ["openblas", "mkl", "colmat", "apple"]
 const OPS = [
     "gemm" => "GEMM `mul!`",
     "lu" => "`lu`",
@@ -50,6 +50,7 @@ struct Meta
     machine::String
     blas_config::String
     samples::Int
+    vendor_threads::Int
     git_commit::String
     library_sha256::String
     library::String
@@ -70,6 +71,7 @@ for file in files
         string(get(data, "machine", "?")),
         string(get(data, "blas_config", "?")),
         Int(get(data, "samples", 0)),
+        Int(get(data, "vendor_threads", get(data, "blas_num_threads", threads))),
         string(get(data, "git_commit", "unknown")),
         string(get(data, "library_sha256", "n/a")),
         string(get(data, "library", "")),
@@ -140,15 +142,16 @@ close(csv)
 # Markdown helpers
 # ---------------------------------------------------------------------------
 
-fmt_ms(x) = x < 1.0 ? @sprintf("%.3f", x) : @sprintf("%.2f", x)
+fmt_ms(x) = isnan(x) ? "—" : (x < 1.0 ? @sprintf("%.3f", x) : @sprintf("%.2f", x))
+ratio(x, y) = (isnan(x) || isnan(y) || y == 0) ? "—" : @sprintf("%.2f", x / y)
 gm(v) = isempty(v) ? NaN : exp(mean(log.(v)))
 
 function medians_table(md, threads, T, op_label, op)
     println(
         md,
-        "| Operation | n | OpenBLAS | MKL | Colmat | MKL/OpenBLAS | Colmat/OpenBLAS |",
+        "| Operation | n | OpenBLAS | MKL | AppleAccelerate | Colmat | Colmat/OpenBLAS | Colmat/MKL | Colmat/Apple |",
     )
-    println(md, "|---|---:|---:|---:|---:|---:|---:|")
+    println(md, "|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     ns = sort(unique([
         r.n for r in rows if
         r.op == op && r.eltype == T && r.threads == threads
@@ -162,12 +165,15 @@ function medians_table(md, threads, T, op_label, op)
         o = get(vals, "openblas", NaN)
         m = get(vals, "mkl", NaN)
         c = get(vals, "colmat", NaN)
+        a = get(vals, "apple", NaN)
         println(
             md,
-            "| $(op_label) | $(n) | $(fmt_ms(o)) | $(fmt_ms(m)) | $(fmt_ms(c)) | ",
-            @sprintf("%.2f", m / o),
+            "| $(op_label) | $(n) | $(fmt_ms(o)) | $(fmt_ms(m)) | $(fmt_ms(a)) | $(fmt_ms(c)) | ",
+            ratio(c, o),
             " | ",
-            @sprintf("%.2f", c / o),
+            ratio(c, m),
+            " | ",
+            ratio(c, a),
             " |",
         )
     end
@@ -175,8 +181,9 @@ function medians_table(md, threads, T, op_label, op)
 end
 
 function aggregate_table(op::String, T::String, threads::Int; field=:median_ns)
+    ratios_o = Float64[]
     ratios_m = Float64[]
-    ratios_c = Float64[]
+    ratios_a = Float64[]
     for n in sort(unique([
         r.n for r in rows if
         r.op == op && r.eltype == T && r.threads == threads
@@ -184,17 +191,23 @@ function aggregate_table(op::String, T::String, threads::Int; field=:median_ns)
         o = get(lookup, ("openblas", threads, op, T, n), nothing)
         m = get(lookup, ("mkl", threads, op, T, n), nothing)
         c = get(lookup, ("colmat", threads, op, T, n), nothing)
-        o === nothing && continue
-        obase = field === :median_ns ? o.median_ns : o.min_ns
-        obase == 0 && continue
-        if m !== nothing
-            push!(ratios_m, (field === :median_ns ? m.median_ns : m.min_ns) / obase)
+        a = get(lookup, ("apple", threads, op, T, n), nothing)
+        c === nothing && continue
+        cbase = field === :median_ns ? c.median_ns : c.min_ns
+        if o !== nothing
+            ob = field === :median_ns ? o.median_ns : o.min_ns
+            ob != 0 && push!(ratios_o, cbase / ob)
         end
-        if c !== nothing
-            push!(ratios_c, (field === :median_ns ? c.median_ns : c.min_ns) / obase)
+        if m !== nothing
+            mb = field === :median_ns ? m.median_ns : m.min_ns
+            mb != 0 && push!(ratios_m, cbase / mb)
+        end
+        if a !== nothing
+            ab = field === :median_ns ? a.median_ns : a.min_ns
+            ab != 0 && push!(ratios_a, cbase / ab)
         end
     end
-    return (gm(ratios_m), gm(ratios_c))
+    return (gm(ratios_o), gm(ratios_m), gm(ratios_a))
 end
 
 # ---------------------------------------------------------------------------
@@ -203,7 +216,7 @@ end
 
 md = open(joinpath(DIR, "summary.md"), "w")
 println(md, "# Colmat backend comparison\n")
-println(md, "Median wall time per call in milliseconds, one process per backend and thread budget. `Colmat/OpenBLAS` is the time ratio, so values below 1.0 mean Colmat is faster. Timings include the allocations and input copies of the public Julia API.\n")
+println(md, "Median wall time per call in milliseconds, one process per backend and thread budget. `Colmat/<backend>` is the time ratio, so values below 1.0 mean Colmat is faster. Timings include the allocations and input copies of the public Julia API.\n")
 println(md, "Source directory: `$(DIR)`\n")
 if !isempty(meta)
     first_meta = first(sort(collect(values(meta)); by = m -> (m.threads, m.backend)))
@@ -211,11 +224,11 @@ if !isempty(meta)
 end
 
 println(md, "## Environment\n")
-println(md, "| backend | threads | BLAS library | samples | library sha256 |")
-println(md, "|---|---:|---|---:|---|")
+println(md, "| backend | threads | vendor threads | BLAS library | samples | library sha256 |")
+println(md, "|---|---:|---:|---|---:|---|")
 for (key, m) in sort(collect(meta); by = kv -> (kv[1][2], kv[1][1]))
     sha = m.library_sha256 == "n/a" ? "" : m.library_sha256[1:min(end, 12)]
-    println(md, "| $(m.backend) | $(m.threads) | `$(m.blas_config)` | $(m.samples) | `$(sha)` |")
+    println(md, "| $(m.backend) | $(m.threads) | $(m.vendor_threads) | `$(m.blas_config)` | $(m.samples) | `$(sha)` |")
 end
 println(md)
 
@@ -232,23 +245,23 @@ end
 
 println(md, "## Geometric mean time ratio across sizes (median)\n")
 println(md, "The median includes Julia GC/allocation. The minimum-time table after this one separates that from the steady-state kernel/adapter cost.\n")
-println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
-println(md, "|---:|---|---|---:|---:|")
+println(md, "| Threads | Operation | Type | Colmat/OpenBLAS | Colmat/MKL | Colmat/Apple |")
+println(md, "|---:|---|---|---:|---:|---:|")
 for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
-    m, c = aggregate_table(op, T, threads; field=:median_ns)
-    (isnan(m) && isnan(c)) && continue
-    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", m)) | $(@sprintf("%.2f", c)) |")
+    o, m, a = aggregate_table(op, T, threads; field=:median_ns)
+    (isnan(o) && isnan(m) && isnan(a)) && continue
+    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", o)) | $(@sprintf("%.2f", m)) | $(@sprintf("%.2f", a)) |")
 end
 println(md)
 
 println(md, "## Geometric mean time ratio across sizes (minimum)\n")
 println(md, "Each cell is the geometric mean of the per-size minimum times, which removes most of the GC/allocation variance that dominates microsecond cells.\n")
-println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
-println(md, "|---:|---|---|---:|---:|")
+println(md, "| Threads | Operation | Type | Colmat/OpenBLAS | Colmat/MKL | Colmat/Apple |")
+println(md, "|---:|---|---|---:|---:|---:|")
 for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
-    m, c = aggregate_table(op, T, threads; field=:min_ns)
-    (isnan(m) && isnan(c)) && continue
-    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", m)) | $(@sprintf("%.2f", c)) |")
+    o, m, a = aggregate_table(op, T, threads; field=:min_ns)
+    (isnan(o) && isnan(m) && isnan(a)) && continue
+    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", o)) | $(@sprintf("%.2f", m)) | $(@sprintf("%.2f", a)) |")
 end
 println(md)
 
