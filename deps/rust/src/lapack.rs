@@ -327,13 +327,8 @@ unsafe fn cholesky_upper_panels<T: Scalar>(
         if j1 == n {
             break;
         }
-        let mut panel = MatMut::from_raw_parts_mut(
-            a.offset(j0 as isize + j1 as isize * ld),
-            b,
-            n - j1,
-            1,
-            ld,
-        );
+        let mut panel =
+            MatMut::from_raw_parts_mut(a.offset(j0 as isize + j1 as isize * ld), b, n - j1, 1, ld);
         let lower = MatRef::from_raw_parts(temp, b, b, 1, b as isize);
         solve_lower_triangular_in_place(lower, panel.as_mut(), par.reborrow());
         let mut trailing = MatMut::from_raw_parts_mut(
@@ -367,12 +362,7 @@ unsafe fn cholesky_upper_panels<T: Scalar>(
 /// BLAS kernels. No pass over the full triangle is needed, so the upper layout
 /// costs nothing beyond the panel bookkeeping, and the caller's lower triangle
 /// stays untouched.
-unsafe fn cholesky_upper_blocked<T: Scalar>(
-    n: usize,
-    a: *mut T,
-    ld: isize,
-    block: usize,
-) -> usize {
+unsafe fn cholesky_upper_blocked<T: Scalar>(n: usize, a: *mut T, ld: isize, block: usize) -> usize {
     let work = crate::threading::real_work(n, n, n, T::COMPLEX);
     let limit = crate::threading::CHOLESKY_UPPER_WORK;
     let words = (block * block * core::mem::size_of::<T>()).div_ceil(8);
@@ -449,7 +439,11 @@ pub unsafe fn factor_cholesky<T: Scalar>(u: u8, n: usize, a: *mut T, ld: isize) 
         // Measured on the Zen 3 host, 16 is clearly better for c64 and 32 for
         // f64 at n = 96/128; the wider AVX-512 machines get one step more.
         let block = if prefer_narrow_llt_block() {
-            if T::COMPLEX { 16 } else { 32 }
+            if T::COMPLEX {
+                16
+            } else {
+                32
+            }
         } else if T::COMPLEX {
             32
         } else {

@@ -560,7 +560,9 @@ unsafe fn blocked_explicit_q<T: Scalar>(
     for start in (0..k).step_by(nb) {
         let block = nb.min(k - start);
         let rows = m - start;
-        let panel = reflectors.as_ptr().offset(start as isize * (m as isize + 1));
+        let panel = reflectors
+            .as_ptr()
+            .offset(start as isize * (m as isize + 1));
         let basis = &mut basis[..rows * block];
         crate::householder::basis_into(b'F', b'C', rows, block, panel, m as isize, basis);
         crate::householder::factor_with_basis(
