@@ -14,11 +14,11 @@ pub(crate) unsafe fn compact_qr<T: ReflectorScalar>(
     lda: isize,
     t: *mut T,
     ldt: isize,
-) {
+) -> Vec<T> {
     use colmat::linalg::qr::no_pivoting::factor::{qr_in_place, qr_in_place_scratch};
     let k = m.min(n);
     if k == 0 {
-        return;
+        return Vec::new();
     }
     let mut tau = vec![T::z(); k];
     let mut work = vec![T::z(); nb];
@@ -138,6 +138,7 @@ pub(crate) unsafe fn compact_qr<T: ReflectorScalar>(
             );
         }
     }
+    tau
 }
 
 unsafe fn multiply_q<T: Scalar>(
@@ -213,7 +214,7 @@ macro_rules! exports {
             for (arg,ok) in [(1,m>=0),(2,n>=0),(3,nb>=1 && (nb<=m.min(n)||m.min(n)==0)),(5,la>=m.max(1)),(7,lt>=nb)] {
                 if !ok {*info=-arg;return;}
             }
-            compact_qr(m as usize,n as usize,nb as usize,a,la,t,lt);
+            let _ = compact_qr(m as usize,n as usize,nb as usize,a,la,t,lt);
         }
         #[no_mangle]
         pub unsafe extern "C" fn [<$p geqrt2 $s>](m:*const $i,n:*const $i,a:*mut $t,lda:*const $i,
@@ -223,7 +224,7 @@ macro_rules! exports {
             for (arg,ok) in [(2,n>=0),(1,m>=n),(4,la>=m.max(1)),(6,lt>=n.max(1))] {
                 if !ok {*info=-arg;return;}
             }
-            compact_qr(m as usize,n as usize,n.max(1) as usize,a,la,t,lt);
+            let _ = compact_qr(m as usize,n as usize,n.max(1) as usize,a,la,t,lt);
         }
         #[no_mangle]
         pub unsafe extern "C" fn [<$p geqrt3 $s>](m:*const $i,n:*const $i,a:*mut $t,lda:*const $i,
@@ -254,6 +255,30 @@ exports!(s, f32, i64, _64_);
 exports!(d, f64, i64, _64_);
 exports!(c, c32, i64, _64_);
 exports!(z, c64, i64, _64_);
+
+/// LAPACK `geqrf` storage with compact-WY panels: factor `nb` columns at a
+/// time, keep the panel's `T` in scratch, and apply `H^H` to the trailing
+/// columns with the block kernels. Only the scalar `tau` values are exported,
+/// which is exactly what `geqrf` stores. The unblocked reflection loop was
+/// 1.3-1.7x slower than the native blocked QR at n = 96/128.
+pub(crate) unsafe fn blocked_qr<T: ReflectorScalar>(
+    m: usize,
+    n: usize,
+    a: *mut T,
+    lda: isize,
+    tau: *mut T,
+) {
+    let k = m.min(n);
+    if k == 0 {
+        return;
+    }
+    let nb = 32.min(k);
+    let mut t = vec![T::z(); k * nb];
+    let values = compact_qr(m, n, nb, a, lda, t.as_mut_ptr(), nb as isize);
+    for (j, value) in values.into_iter().enumerate() {
+        *tau.add(j) = value;
+    }
+}
 
 // Standard A/TAU storage shares the compact factorization's block-size-one path.
 pub(crate) unsafe fn standard_qr<T: ReflectorScalar>(
@@ -361,7 +386,11 @@ macro_rules! factor_exports {
             *work=crate::lapack::workspace::<$t>(minimum);
             if query {return;}
             if m==0||n==0 {*work=<$t>::o();return;}
-            standard_qr(m as usize,n as usize,a,la,tau,$positive);
+            if $positive {
+                standard_qr(m as usize,n as usize,a,la,tau,true);
+            } else {
+                blocked_qr(m as usize,n as usize,a,la,tau);
+            }
         }
     }};
     ($p:ident,$t:ty,$i:ty,$s:tt,$name:ident,$positive:expr,unblocked)=>{paste! {
@@ -495,6 +524,100 @@ unsafe fn explicit_q<T: Scalar>(
         lda,
     );
 }
+/// Blocked `orgqr`/`ungqr`: build the compact-WY `T` for each panel of
+/// reflectors, then apply the panels to the identity with the block kernels.
+/// The LAPACK entry point stores only `tau`; the block-`T` scratch is local.
+/// The per-reflector loop allocated a vector and ran a BLAS-2 update for every
+/// reflector, which was 1.5-2x slower than the native blocked Q.
+unsafe fn blocked_explicit_q<T: Scalar>(
+    m: usize,
+    n: usize,
+    k: usize,
+    a: *mut T,
+    lda: isize,
+    tau: *const T,
+) {
+    if n == 0 {
+        return;
+    }
+    if k == 0 {
+        for j in 0..n {
+            for i in 0..m {
+                *a.offset(i as isize + j as isize * lda) = if i == j { T::o() } else { T::z() };
+            }
+        }
+        return;
+    }
+    let nb = 32.min(k);
+    let mut reflectors = vec![T::z(); m * k];
+    for j in 0..k {
+        for i in j + 1..m {
+            reflectors[i + j * m] = *a.offset(i as isize + j as isize * lda);
+        }
+    }
+    let mut triangular = vec![T::z(); k * nb];
+    let mut basis = vec![T::z(); m * nb];
+    for start in (0..k).step_by(nb) {
+        let block = nb.min(k - start);
+        let rows = m - start;
+        let panel = reflectors
+            .as_ptr()
+            .offset(start as isize * (m as isize + 1));
+        let basis = &mut basis[..rows * block];
+        crate::householder::basis_into(b'F', b'C', rows, block, panel, m as isize, basis);
+        crate::householder::factor_with_basis(
+            b'F',
+            rows,
+            block,
+            basis,
+            tau.add(start),
+            triangular.as_mut_ptr().offset(start as isize * nb as isize),
+            nb as isize,
+        );
+    }
+    for j in 0..n {
+        for i in 0..m {
+            *a.offset(i as isize + j as isize * lda) = if i == j { T::o() } else { T::z() };
+        }
+    }
+    // Apply the panels from the last one back, and only to the columns whose
+    // seeds start at or after the panel (as `apply_to_identity` does). Applying
+    // every panel to all n columns repeated the trailing work the earlier
+    // columns do not need, and that was the remaining explicit-Q gap.
+    let mut panel_triangular = vec![T::z(); nb * nb];
+    let mut work = vec![T::z(); nb * m.max(n)];
+    let mut transformed = vec![T::z(); nb * m.max(n)];
+    let mut end = k;
+    while end > 0 {
+        let start = (end - 1) / nb * nb;
+        let block = end - start;
+        let rows = m - start;
+        let cols = n - start;
+        let panel = reflectors
+            .as_ptr()
+            .offset(start as isize * (m as isize + 1));
+        let basis = &mut basis[..rows * block];
+        crate::householder::basis_into(b'F', b'C', rows, block, panel, m as isize, basis);
+        crate::householder::apply_block_with_basis(
+            b'L',
+            b'N',
+            b'F',
+            rows,
+            cols,
+            block,
+            basis,
+            triangular.as_ptr().offset(start as isize * nb as isize),
+            nb as isize,
+            a.offset(start as isize + start as isize * lda),
+            lda,
+            &mut panel_triangular[..block * block],
+            &mut work[..block * rows.max(cols)],
+            &mut transformed[..block * rows.max(cols)],
+        );
+        end = start;
+    }
+}
+
 macro_rules! q_generate_exports {
     ($p:ident,$t:ty,$i:ty,$s:tt,$blocked:ident,$unblocked:ident)=>{paste! {
         #[no_mangle]
@@ -508,7 +631,7 @@ macro_rules! q_generate_exports {
             }
             *work=crate::lapack::workspace::<$t>(n.max(1));
             if query {return;}
-            explicit_q(m as usize,n as usize,k as usize,a,la,tau);
+            blocked_explicit_q(m as usize,n as usize,k as usize,a,la,tau);
         }
         #[no_mangle]
         pub unsafe extern "C" fn [<$p $unblocked $s>](m:*const $i,n:*const $i,k:*const $i,a:*mut $t,lda:*const $i,

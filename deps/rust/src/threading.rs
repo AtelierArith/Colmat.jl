@@ -31,8 +31,21 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 pub const GEMM_WORK: usize = 700_000;
 pub const LU_WORK: usize = 8_000_000;
 pub const CHOLESKY_WORK: usize = 9_000_000;
+/// Complex Cholesky threads earlier: the blocked `UPLO='U'` route spends more
+/// of its time in BLAS panels and pays the team entry back at n = 128, while
+/// the real route still does not at n = 192.
+pub const CHOLESKY_WORK_COMPLEX: usize = 4_000_000;
+/// The blocked `UPLO='U'` route is panel-heavy, so its crossover is much lower
+/// than the fused lower driver's: at 8 threads the 96-square (3.5M real
+/// updates complex, 0.9M real) already pays the team entry back, and the
+/// 128-square gains 30-40 %.
+pub const CHOLESKY_UPPER_WORK: usize = 2_000_000;
 pub const TRSM_WORK: usize = 2_000_000;
 pub const QR_PANEL_WORK: usize = 1_500_000;
+/// One explicit-Q block apply (`C -= V T^H V^H C` for a panel). Unlike a QR
+/// factorization panel, it is a pure GEMM sequence, so it pays the team entry
+/// back much earlier; OpenBLAS also threads `orgqr` at these sizes.
+pub const Q_APPLY_WORK: usize = 150_000;
 /// One dense self-adjoint eigendecomposition (reduction, tridiagonal solve and
 /// back-transformation), estimated as `n^3` real updates.
 ///
@@ -145,7 +158,16 @@ pub fn with_par<R>(f: impl FnOnce(Par<'_>) -> R) -> R {
         if held.0 != n || held.1.as_ref().is_none_or(|team| team.size().get() != n) {
             held.1 = None;
             held.0 = n;
+            // Per-call placement costs two `sched_setaffinity` calls. It pays
+            // when the team fills the caller's CPU set (stacking is then a real
+            // risk); with at least one spare CPU per two participants the
+            // scheduler already has room, and the syscalls are pure overhead.
+            let allowed = std::thread::available_parallelism()
+                .map(|v| v.get())
+                .unwrap_or(n);
+            let pin = allowed < n + n / 2;
             held.1 = threadteam::Pool::builder()
+                .pin_participants(pin)
                 .threads(n)
                 .thread_name(|i| format!("colmat-blas-{i}"))
                 .acquire_timeout(std::time::Duration::from_secs(30))
