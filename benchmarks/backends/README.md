@@ -34,12 +34,15 @@ libblastrampoline thread interface. Its pool is built from Julia threads, so
 the runner launches this arm with `-t $threads` (all other arms stay at
 `-t 1`), and `run.jl` calls `PureBLAS.set_num_threads(n)` before the first
 measured call. The value that call returns is recorded as `vendor_threads`;
-it is capped by `Threads.nthreads()` and by the physical cores in the process
-affinity mask. The mask is `threads + threads/2` **logical** CPUs, so on the
-16-logical-CPU / 8-core SMT benchmark host the pinned mask has 6 logical CPUs
-(3 physical cores) for a 4T run and 12 (6 cores) for an 8T run; PureBLAS then
-records 3 and 6. `PUREBLAS_MT_ALL_THREADS` is deliberately not set: the cap is
-part of what is being measured, and the run does not need it.
+it is capped by `Threads.nthreads()` and, by default, by the physical cores in
+the process affinity mask. The mask is `threads + threads/2` **logical** CPUs,
+so on the 16-logical-CPU / 8-core SMT host a 4T run gets 6 logical CPUs = 3
+physical cores and an 8T run gets 12 = 6 cores. Left alone, that default cap
+would silently run the 4T/8T cells at 3T/6T while every other backend runs
+4T/8T. The runner therefore sets `PUREBLAS_MT_ALL_THREADS=1` for this arm only,
+so the requested budget is honored like the other arms. The trade-off is that
+workers may then be placed on SMT siblings; that is the same CPU set the other
+backends are given, so the comparison is like-for-like.
 
 Results go to `benchmarks/backends/results/runs/<timestamp>/` by default. An
 explicit `--out` directory must not already contain TOML results, so a report
@@ -122,7 +125,9 @@ not be a sibling of a team member; 1T/4T/8T therefore use 2/6/12 CPUs on a
 intermittently serial. Use `--no-affinity` to disable this. On macOS no
 `taskset` is available and the runner runs unpinned. The `pureblas` arm is the
 one exception to `-t 1`: it gets `-t $threads` because its pool is built from
-Julia threads (see above); the affinity mask is unchanged.
+Julia threads, and it sets `PUREBLAS_MT_ALL_THREADS=1` so the mask's
+physical-core count does not cap the requested budget (see above); the
+affinity mask itself is unchanged.
 
 ## Environment
 

@@ -155,6 +155,10 @@ run_one() {
         openblas) envkv+=(OPENBLAS_NUM_THREADS="$threads") ;;
         mkl) envkv+=(MKL_NUM_THREADS="$threads" MKL_DYNAMIC=FALSE) ;;
         aocl) envkv+=(OMP_NUM_THREADS="$threads" BLIS_NUM_THREADS="$threads" FLA_NUM_THREADS="$threads") ;;
+        # The mask is logical CPUs; without this PureBLAS caps at physical cores
+        # in it and silently runs 3T/6T at the 4T/8T settings. Lift the cap so the
+        # requested budget is comparable to the other arms (same CPU set).
+        pureblas) envkv+=(PUREBLAS_MT_ALL_THREADS=1) ;;
     esac
     if [[ "$AFFINITY" == 1 ]]; then
         if ! taskset -c "$mask" env "${envkv[@]}" \

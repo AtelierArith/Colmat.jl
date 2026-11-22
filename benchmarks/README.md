@@ -30,7 +30,9 @@ LAPACK threading.
 MKL, it is not controlled by `BLAS.set_num_threads`: its pool is built from
 Julia threads, so the runner launches that arm with `-t $threads` and `run.jl`
 calls `PureBLAS.set_num_threads(n)`, recording the capped result as
-`vendor_threads`. Without `-t $threads` the pool is capped at one thread.
+`vendor_threads`. Without `-t $threads` the pool is capped at one thread. The
+runner also sets `PUREBLAS_MT_ALL_THREADS=1` so the affinity mask's
+physical-core count does not silently lower the requested budget.
 
 The suite covers `gemm`, `lu`, `cholesky`, `qr` (factor and explicit Q),
 column-pivoted QR, `svdvals`, thin SVD, self-adjoint eigen and general eigen
