@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run the Colmat backend comparison with no external harness.
 #
-#   ./benchmarks/run.sh                 # OpenBLAS, MKL, Colmat; 1/4/8 threads
+#   ./benchmarks/run.sh                 # OpenBLAS, MKL, AOCL, Colmat; 1/4/8 threads
 #   ./benchmarks/run.sh --quick         # tiny smoke run (~1 minute)
 #   ./benchmarks/run.sh --build         # rebuild Colmat first
 #   ./benchmarks/run.sh --threads 1 8 --backends openblas colmat
@@ -13,7 +13,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BENCH="$ROOT/benchmarks/backends"
 JULIA="${JULIA:-julia}"
-BACKENDS=(${COLMAT_BENCH_BACKENDS:-openblas mkl colmat})
+BACKENDS=(${COLMAT_BENCH_BACKENDS:-openblas mkl aocl colmat})
 THREADS=(${COLMAT_BENCH_THREADS_LIST:-1 4 8})
 SAMPLES="${COLMAT_BENCH_SAMPLES:-5}"
 QUICK="${COLMAT_BENCH_QUICK:-false}"
@@ -147,6 +147,11 @@ run_one() {
         COLMAT_BENCH_GIT_COMMIT="$GIT_COMMIT"
         COLMAT_BENCH_LIB_SHA="$LIB_SHA"
     )
+    case "$backend" in
+        openblas) envkv+=(OPENBLAS_NUM_THREADS="$threads") ;;
+        mkl) envkv+=(MKL_NUM_THREADS="$threads" MKL_DYNAMIC=FALSE) ;;
+        aocl) envkv+=(OMP_NUM_THREADS="$threads" BLIS_NUM_THREADS="$threads" FLA_NUM_THREADS="$threads") ;;
+    esac
     if [[ "$AFFINITY" == 1 ]]; then
         if ! taskset -c "$mask" env "${envkv[@]}" \
             "$JULIA" --startup-file=no -t 1 --project="$BENCH" "$BENCH/run.jl" \

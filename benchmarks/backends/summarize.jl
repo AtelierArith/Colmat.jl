@@ -12,7 +12,7 @@ const DIR = get(
     "COLMAT_BENCH_RESULTS_DIR",
     joinpath(@__DIR__, "results"),
 )
-const BACKENDS = ["openblas", "mkl", "colmat"]
+const BACKENDS = ["openblas", "mkl", "aocl", "colmat"]
 const OPS = [
     "gemm" => "GEMM `mul!`",
     "lu" => "`lu`",
@@ -146,9 +146,9 @@ gm(v) = isempty(v) ? NaN : exp(mean(log.(v)))
 function medians_table(md, threads, T, op_label, op)
     println(
         md,
-        "| Operation | n | OpenBLAS | MKL | Colmat | MKL/OpenBLAS | Colmat/OpenBLAS |",
+        "| Operation | n | OpenBLAS | MKL | AOCL | Colmat | Colmat/OpenBLAS | Colmat/MKL | Colmat/AOCL |",
     )
-    println(md, "|---|---:|---:|---:|---:|---:|---:|")
+    println(md, "|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     ns = sort(unique([
         r.n for r in rows if
         r.op == op && r.eltype == T && r.threads == threads
@@ -161,13 +161,16 @@ function medians_table(md, threads, T, op_label, op)
         end
         o = get(vals, "openblas", NaN)
         m = get(vals, "mkl", NaN)
+        a = get(vals, "aocl", NaN)
         c = get(vals, "colmat", NaN)
         println(
             md,
-            "| $(op_label) | $(n) | $(fmt_ms(o)) | $(fmt_ms(m)) | $(fmt_ms(c)) | ",
-            @sprintf("%.2f", m / o),
-            " | ",
+            "| $(op_label) | $(n) | $(fmt_ms(o)) | $(fmt_ms(m)) | $(fmt_ms(a)) | $(fmt_ms(c)) | ",
             @sprintf("%.2f", c / o),
+            " | ",
+            @sprintf("%.2f", c / m),
+            " | ",
+            @sprintf("%.2f", c / a),
             " |",
         )
     end
@@ -175,26 +178,27 @@ function medians_table(md, threads, T, op_label, op)
 end
 
 function aggregate_table(op::String, T::String, threads::Int; field=:median_ns)
-    ratios_m = Float64[]
-    ratios_c = Float64[]
+    keys = (:mkl_ob, :aocl_ob, :colmat_ob, :colmat_mkl, :colmat_aocl)
+    ratios = Dict(k => Float64[] for k in keys)
+    value(x) = field === :median_ns ? x.median_ns : x.min_ns
     for n in sort(unique([
         r.n for r in rows if
         r.op == op && r.eltype == T && r.threads == threads
     ]))
         o = get(lookup, ("openblas", threads, op, T, n), nothing)
         m = get(lookup, ("mkl", threads, op, T, n), nothing)
+        a = get(lookup, ("aocl", threads, op, T, n), nothing)
         c = get(lookup, ("colmat", threads, op, T, n), nothing)
         o === nothing && continue
-        obase = field === :median_ns ? o.median_ns : o.min_ns
+        obase = value(o)
         obase == 0 && continue
-        if m !== nothing
-            push!(ratios_m, (field === :median_ns ? m.median_ns : m.min_ns) / obase)
-        end
-        if c !== nothing
-            push!(ratios_c, (field === :median_ns ? c.median_ns : c.min_ns) / obase)
-        end
+        m !== nothing && push!(ratios[:mkl_ob], value(m) / obase)
+        a !== nothing && push!(ratios[:aocl_ob], value(a) / obase)
+        c !== nothing && push!(ratios[:colmat_ob], value(c) / obase)
+        c !== nothing && m !== nothing && value(m) != 0 && push!(ratios[:colmat_mkl], value(c) / value(m))
+        c !== nothing && a !== nothing && value(a) != 0 && push!(ratios[:colmat_aocl], value(c) / value(a))
     end
-    return (gm(ratios_m), gm(ratios_c))
+    return (; (k => gm(v) for (k, v) in ratios)...)
 end
 
 # ---------------------------------------------------------------------------
@@ -232,23 +236,23 @@ end
 
 println(md, "## Geometric mean time ratio across sizes (median)\n")
 println(md, "The median includes Julia GC/allocation. The minimum-time table after this one separates that from the steady-state kernel/adapter cost.\n")
-println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
-println(md, "|---:|---|---|---:|---:|")
+println(md, "| Threads | Operation | Type | MKL/OpenBLAS | AOCL/OpenBLAS | Colmat/OpenBLAS | Colmat/MKL | Colmat/AOCL |")
+println(md, "|---:|---|---|---:|---:|---:|---:|---:|")
 for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
-    m, c = aggregate_table(op, T, threads; field=:median_ns)
-    (isnan(m) && isnan(c)) && continue
-    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", m)) | $(@sprintf("%.2f", c)) |")
+    r = aggregate_table(op, T, threads; field=:median_ns)
+    (isnan(r.mkl_ob) && isnan(r.aocl_ob) && isnan(r.colmat_ob)) && continue
+    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", r.mkl_ob)) | $(@sprintf("%.2f", r.aocl_ob)) | $(@sprintf("%.2f", r.colmat_ob)) | $(@sprintf("%.2f", r.colmat_mkl)) | $(@sprintf("%.2f", r.colmat_aocl)) |")
 end
 println(md)
 
 println(md, "## Geometric mean time ratio across sizes (minimum)\n")
 println(md, "Each cell is the geometric mean of the per-size minimum times, which removes most of the GC/allocation variance that dominates microsecond cells.\n")
-println(md, "| Threads | Operation | Type | MKL/OpenBLAS | Colmat/OpenBLAS |")
-println(md, "|---:|---|---|---:|---:|")
+println(md, "| Threads | Operation | Type | MKL/OpenBLAS | AOCL/OpenBLAS | Colmat/OpenBLAS | Colmat/MKL | Colmat/AOCL |")
+println(md, "|---:|---|---|---:|---:|---:|---:|---:|")
 for threads in thread_list, (op, label) in OPS, T in ("Float64", "ComplexF64")
-    m, c = aggregate_table(op, T, threads; field=:min_ns)
-    (isnan(m) && isnan(c)) && continue
-    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", m)) | $(@sprintf("%.2f", c)) |")
+    r = aggregate_table(op, T, threads; field=:min_ns)
+    (isnan(r.mkl_ob) && isnan(r.aocl_ob) && isnan(r.colmat_ob)) && continue
+    println(md, "| $(threads) | $(label) | $(T) | $(@sprintf("%.2f", r.mkl_ob)) | $(@sprintf("%.2f", r.aocl_ob)) | $(@sprintf("%.2f", r.colmat_ob)) | $(@sprintf("%.2f", r.colmat_mkl)) | $(@sprintf("%.2f", r.colmat_aocl)) |")
 end
 println(md)
 
