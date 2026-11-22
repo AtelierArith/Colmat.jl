@@ -13,3 +13,6 @@
 __pycache__/
 
 /test-output/
+
+# Timestamped benchmark runs
+benchmarks/backends/results/runs/
