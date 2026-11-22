@@ -64,6 +64,17 @@ if BACKEND == "mkl"
     ccall((:MKL_Set_Num_Threads, MKL_jll.libmkl_rt), Cvoid, (Cint,), THREADS)
     vendor_threads = THREADS
 elseif BACKEND == "apple"
+    Sys.isapple() || error("the apple backend requires macOS")
+    # AppleAccelerate's threading API exists on macOS 15+. On 13.4-14 the
+    # setters only warn and return 1, so a requested 1T run could still be
+    # multi-threaded while being recorded as vendor_threads = 1.
+    version = AppleAccelerate.get_macos_version()
+    if version === nothing || version < v"15"
+        error(
+            "AppleAccelerate thread control requires macOS 15 or later " *
+            "(found $(version)); refusing to record an unverified thread budget",
+        )
+    end
     AppleAccelerate.set_num_threads(THREADS)
     vendor_threads = Int(AppleAccelerate.get_num_threads())
 end

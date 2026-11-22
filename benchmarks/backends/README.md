@@ -18,7 +18,9 @@ On macOS, `--backends ... apple` adds AppleAccelerate.jl (0.7.0). It forwards
 the Accelerate framework's ILP64/LP64 symbols. Its threading API is a
 single/multi toggle, not an exact count: `threads=1` is single-threaded and
 `threads=4`/`8` both use Accelerate-managed multi-threading (8 threads on the
-benchmark host), recorded as `vendor_threads`.
+benchmark host), recorded as `vendor_threads`. The threading API requires
+macOS 15 or later; `run.jl` refuses the Apple arm on 13.4–14 because the setters
+there only warn and return 1, which would mislabel a multi-threaded run as 1T.
 
 MKL needs explicit LAPACK thread control: `BLAS.set_num_threads(n)` through
 libblastrampoline sets the BLAS domain but not MKL's LAPACK threading. `run.jl`
