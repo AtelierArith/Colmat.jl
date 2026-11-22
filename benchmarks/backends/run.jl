@@ -48,10 +48,15 @@ function select_backend(name)
         @eval using Colmat
     elseif name == "aocl"
         @eval using AOCL
+    elseif name == "pureblas"
+        @eval using PureBLAS
+        # Both in Core.eval: a plain `PureBLAS.activate()` here would run in the
+        # world before `using PureBLAS` defined the binding.
+        @eval PureBLAS.activate()
     elseif name == "apple"
         @eval using AppleAccelerate
     else
-        error("unknown backend $(name); expected openblas, mkl, aocl, colmat or apple")
+        error("unknown backend $(name); expected openblas, mkl, aocl, pureblas, colmat or apple")
     end
     return nothing
 end
@@ -65,6 +70,12 @@ vendor_threads = BLAS.get_num_threads()
 if BACKEND == "mkl"
     ccall((:MKL_Set_Num_Threads, MKL_jll.libmkl_rt), Cvoid, (Cint,), THREADS)
     vendor_threads = THREADS
+elseif BACKEND == "pureblas"
+    # PureBLAS registers no LBT thread interface, so BLAS.set_num_threads above does not
+    # reach it. Its pool is built from Julia threads and capped at Threads.nthreads() and
+    # at the physical cores in the affinity mask; record the count it actually accepted.
+    # run.sh therefore launches this backend with `-t $threads`.
+    vendor_threads = Int(PureBLAS.set_num_threads(THREADS))
 elseif BACKEND == "apple"
     Sys.isapple() || error("the apple backend requires macOS")
     # AppleAccelerate's threading API exists on macOS 15+. On 13.4-14 the
@@ -342,6 +353,8 @@ result = Dict{String,Any}(
         Colmat.backend_library()
     elseif BACKEND == "aocl"
         string(AOCL.AOCL_jll.libaocl64)
+    elseif BACKEND == "pureblas"
+        "PureBLAS.jl (LBT function pointers)"
     else
         ""
     end,
