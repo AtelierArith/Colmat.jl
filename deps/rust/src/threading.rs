@@ -158,14 +158,22 @@ pub fn with_par<R>(f: impl FnOnce(Par<'_>) -> R) -> R {
         if held.0 != n || held.1.as_ref().is_none_or(|team| team.size().get() != n) {
             held.1 = None;
             held.0 = n;
-            // Per-call placement costs two `sched_setaffinity` calls. It pays
-            // when the team fills the caller's CPU set (stacking is then a real
-            // risk); with at least one spare CPU per two participants the
-            // scheduler already has room, and the syscalls are pure overhead.
+            // Per-call placement costs two `sched_setaffinity` calls per
+            // participant. It pays when the caller's set holds the team plus a
+            // spare CPU for the caller: placement keeps the members off each
+            // other's CPUs while the scheduler still has somewhere to run the
+            // caller. A set exactly as wide as the team has no spare CPU to
+            // keep in reserve, so the syscalls dominate short calls. On the
+            // 16-logical-CPU host a 16-thread `dgemm` measured 21.5 -> 9.6..16.5
+            // us at n=96, 25.3 -> 15.7..18.2 us at n=128, 37.5 -> 24.0..26.4 us
+            // at n=160 and 104 -> 95 us at n=256 without placement, while n=512
+            // and the large factorizations did not move (dgetrf 1024 4257 ->
+            // 4167 us, dsyevr 256 1835 -> 1748 us). Placement stays on whenever
+            // the set is wider than the team, where it still buys a reservation.
             let allowed = std::thread::available_parallelism()
                 .map(|v| v.get())
                 .unwrap_or(n);
-            let pin = allowed < n + n / 2;
+            let pin = n < allowed && allowed < n + n / 2;
             held.1 = threadteam::Pool::builder()
                 .pin_participants(pin)
                 .threads(n)
