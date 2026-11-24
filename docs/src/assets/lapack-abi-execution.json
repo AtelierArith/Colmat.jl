@@ -1624,7 +1624,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "fa174f5521cc60487a27afcfbc065b72209d881bf077cd708e57062f9568702b",
+  "library_sha256": "88a2830c0b9f80c33f2b96f5be92e46e9df78e5434d3347c9d97a445b87e838e",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "4091be1a2b6559ac3eabe96295b8f287c732aa37",
+  "revision": "1e16fd1a91b7ebd09fb5d3cff5022c36f8e05b17",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -114505,7 +114505,7 @@
     "test/tgevc.jl": "13af533ecb34e95b3d4b889eabeae983edd7e6aee23da3dca3a0d309e0f02723",
     "deps/rust/src/lapacke/lq.rs": "14e093b426d75698ab8d63102a43b4ae9d7995e618502614320ec2c6dea65ade",
     "test/lapacke_getrs.jl": "9b37997fac57fb0bb343da8c462aa906fc062432006d14859ecf1426eb299878",
-    "deps/rust/src/threading.rs": "635d08baee075dc41a85cc293747bb0e22d9544590ca0d66e83c6e0ca0102497",
+    "deps/rust/src/threading.rs": "68b3e7c851f8817153e6ad86f57d9455bd5201e79d0b277c040a2d6e37cf53c4",
     "test/abi_guard_pages.jl": "feb0054e2eb85a6e02ed1a2b80b22c6652dbd420f2c8950e25229f47e8ca054f",
     "test/structured_generalized_band_gvd.jl": "b338c60f85009c24ed4d4efea29119c9801ad1f4601b7f23453b81714e8a0ce9",
     "test/structured_generalized_band_gv.jl": "30afdc02f3578280142df271cacd99cb7133698881ac6f7ca67cb00311c9395c",
