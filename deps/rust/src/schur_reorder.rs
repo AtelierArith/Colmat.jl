@@ -368,19 +368,8 @@ unsafe fn trsen<T: MoveScalar, R: Scalar, I: LapackInt>(
 
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicPtr, Ordering};
-static EXPERT: [AtomicPtr<c_void>; 8] = [const { AtomicPtr::new(core::ptr::null_mut()) }; 8];
-#[no_mangle]
-pub extern "C" fn colmat_schur_expert_set_fallback(id: i32, p: *mut c_void) {
-    if let Some(slot) = EXPERT.get(id as usize) {
-        slot.store(p, Ordering::Release);
-    }
-}
-#[no_mangle]
-pub extern "C" fn colmat_schur_expert_has_fallback(id: i32) -> i32 {
-    EXPERT
-        .get(id as usize)
-        .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
-}
+pub(crate) static EXPERT: [AtomicPtr<c_void>; 8] =
+    [const { AtomicPtr::new(core::ptr::null_mut()) }; 8];
 fn expert(id: usize) -> *mut c_void {
     let p = EXPERT[id].load(Ordering::Acquire);
     assert!(
@@ -1429,7 +1418,11 @@ mod expert_bridge_tests {
     #[test]
     fn original_trsen_preserves_lp64_integer_gaps_and_scalar_guards() {
         unsafe {
-            colmat_schur_expert_set_fallback(1, mock_dtrsen as *const () as *mut c_void);
+            crate::fallbacks::set(
+                crate::fallbacks::SCHUR_EXPERT,
+                1,
+                mock_dtrsen as *const () as *mut c_void,
+            );
             let mut t = [1.0, -1.0, 1.0, 1.0];
             let old = t;
             let mut q = [1.0, 0.0, 0.0, 1.0];
@@ -1463,7 +1456,7 @@ mod expert_bridge_tests {
                 &4,
                 info.as_mut_ptr().add(1),
             );
-            colmat_schur_expert_set_fallback(1, core::ptr::null_mut());
+            crate::fallbacks::set(crate::fallbacks::SCHUR_EXPERT, 1, core::ptr::null_mut());
             assert_eq!(m, [-777, 2, -777]);
             assert_eq!(info, [-777, 0, -777]);
             assert_eq!(selected, [-777, -3, 1, -777]);

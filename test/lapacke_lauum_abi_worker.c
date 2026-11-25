@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 static int at(int layout,int i,int j,int ld){return layout==101?i*ld+j:i+j*ld;}
 #define CHECK(P,T,R,J,SUFFIX,TOL) do { \
@@ -27,9 +28,10 @@ static int at(int layout,int i,int j,int ld){return layout==101?i*ld+j:i+j*ld;}
         if(sizeof(J)==8){assert(call(102,'L',(J)INT64_C(-4294967293),NULL,1)==-3);} \
     } \
 }while(0)
-int main(int argc,char **argv){assert(argc==3);void *library=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL),*reference=dlopen(argv[2],RTLD_NOW|RTLD_LOCAL);assert(library&&reference);
-    typedef void (*register_fn)(int,void*);register_fn reg=(register_fn)dlsym(library,"colmat_triangular_product_set_fallback");assert(reg);
-    const char *names[]={"clauum_64_","zlauum_64_","clauu2_64_","zlauu2_64_"};for(int i=0;i<4;i++){void *p=dlsym(reference,names[i]);assert(p&&p!=dlsym(library,names[i]));reg(i,p);}
+int main(int argc,char **argv){assert(argc==4);void *library=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL),*reference=dlopen(argv[2],RTLD_NOW|RTLD_LOCAL);assert(library&&reference);
+    typedef void (*register_fn)(int,int,void*);register_fn reg=(register_fn)dlsym(library,"colmat_fallback_set");assert(reg);
+    int group=atoi(argv[3]);
+    const char *names[]={"clauum_64_","zlauum_64_","clauu2_64_","zlauu2_64_"};for(int i=0;i<4;i++){void *p=dlsym(reference,names[i]);assert(p&&p!=dlsym(library,names[i]));reg(group,i,p);}
     CHECK(s,float,float,int32_t,"",8e-5);CHECK(d,double,double,int32_t,"",8e-13);CHECK(c,float complex,float,int32_t,"",8e-5);CHECK(z,double complex,double,int32_t,"",8e-13);
     CHECK(s,float,float,int64_t,"64_",8e-5);CHECK(d,double,double,int64_t,"64_",8e-13);CHECK(c,float complex,float,int64_t,"64_",8e-5);CHECK(z,double complex,double,int64_t,"64_",8e-13);
     puts("LAPACKE LAUUM C ABI: 8 names verified");dlclose(library);dlclose(reference);return 0;}

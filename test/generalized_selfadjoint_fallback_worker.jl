@@ -2,9 +2,10 @@ using Test, LinearAlgebra, Libdl, Colmat
 
 @testset "Generalized self-adjoint backend requirement and native dispatch" begin
     handle=Libdl.dlopen(Colmat.backend_library())
-    setter=Libdl.dlsym(handle, :colmat_selfadjoint_gv_set_fallback)
+    setter=Libdl.dlsym(handle, :colmat_fallback_set)
+    group=Cint(Colmat._fallback_group("generalized self-adjoint EVD").group)
     before=BLAS.lbt_get_forward("ssygv_", :ilp64)
-    ccall(setter, Cvoid, (Cint, Ptr{Cvoid}), 0, C_NULL)
+    ccall(setter, Cvoid, (Cint, Cint, Ptr{Cvoid}), group, 0, C_NULL)
     err=try
         Colmat.load_backend()
         nothing
@@ -24,10 +25,10 @@ using Test, LinearAlgebra, Libdl, Colmat
         ),
     )
     pointer=Libdl.dlsym(Libdl.dlopen(external.libname), :ssygv_64_)
-    ccall(setter, Cvoid, (Cint, Ptr{Cvoid}), 0, pointer)
+    ccall(setter, Cvoid, (Cint, Cint, Ptr{Cvoid}), group, 0, pointer)
     @test Colmat.load_backend()===nothing
     for id in 0:11
-        ccall(setter, Cvoid, (Cint, Ptr{Cvoid}), id, C_NULL)
+        ccall(setter, Cvoid, (Cint, Cint, Ptr{Cvoid}), group, id, C_NULL)
     end
     for T in (Float32, Float64, ComplexF32, ComplexF64)
         a=T[2 0.125 0; 0.125 3 0.25; 0 0.25 4]

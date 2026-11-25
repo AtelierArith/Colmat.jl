@@ -78,11 +78,12 @@ static int at(int layout,int i,int j,int ld){return layout==101?i*ld+j:i+j*ld;}
 }while(0)
 
 int main(int argc,char **argv){
-    assert(argc==3);void *library=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);if(!library){fprintf(stderr,"%s\n",dlerror());return 3;}
+    assert(argc==4);void *library=dlopen(argv[1],RTLD_NOW|RTLD_LOCAL);if(!library){fprintf(stderr,"%s\n",dlerror());return 3;}
     void *reference=dlopen(argv[2],RTLD_NOW|RTLD_LOCAL);if(!reference){fprintf(stderr,"%s\n",dlerror());return 4;}
-    typedef void (*register_fn)(int,void*);register_fn reg=(register_fn)dlsym(library,"colmat_selfadjoint_vr_set_fallback");assert(reg);
+    typedef void (*register_fn)(int,int,void*);register_fn reg=(register_fn)dlsym(library,"colmat_fallback_set");assert(reg);
+    int group=atoi(argv[3]);
     const char *names[]={"ssyevr_64_","dsyevr_64_","cheevr_64_","zheevr_64_"};
-    for(int i=0;i<4;i++){void *p=dlsym(reference,names[i]);assert(p && p!=dlsym(library,names[i]));reg(i,p);}
+    for(int i=0;i<4;i++){void *p=dlsym(reference,names[i]);assert(p && p!=dlsym(library,names[i]));reg(group,i,p);}
     typedef void (*policy_fn)(int);policy_fn policy=(policy_fn)dlsym(library,"LAPACKE_set_nancheck");assert(policy);policy(1);
     CHECK(s,syevr,float,float,int32_t,"",REAL_DECL,REAL_ARG,5e-5);
     CHECK(d,syevr,double,double,int32_t,"",REAL_DECL,REAL_ARG,2e-12);

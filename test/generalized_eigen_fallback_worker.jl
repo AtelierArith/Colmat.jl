@@ -2,11 +2,12 @@ using Test, LinearAlgebra, Libdl, Colmat
 
 @testset "GGEVX requires an expert backend before registration" begin
     handle=Libdl.dlopen(Colmat.backend_library())
-    setter=Libdl.dlsym(handle, :colmat_ggevx_set_expert_fallback)
+    setter=Libdl.dlsym(handle, :colmat_fallback_set)
+    group=Cint(Colmat._fallback_group("GGEVX").group)
     before=BLAS.lbt_get_forward("sggevx_", :ilp64)
     # Inject a missing saved backend in an isolated process. Re-registration must
     # diagnose the configuration before changing the LBT table.
-    ccall(setter, Cvoid, (Cint, Ptr{Cvoid}), 0, C_NULL)
+    ccall(setter, Cvoid, (Cint, Cint, Ptr{Cvoid}), group, 0, C_NULL)
     err=try
         Colmat.load_backend()
         nothing
@@ -23,6 +24,6 @@ using Test, LinearAlgebra, Libdl, Colmat
         ),
     )
     pointer=Libdl.dlsym(Libdl.dlopen(external.libname), :sggevx_64_)
-    ccall(setter, Cvoid, (Cint, Ptr{Cvoid}), 0, pointer)
+    ccall(setter, Cvoid, (Cint, Cint, Ptr{Cvoid}), group, 0, pointer)
     @test Colmat.load_backend()===nothing
 end

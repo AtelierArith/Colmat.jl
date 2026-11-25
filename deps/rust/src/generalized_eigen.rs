@@ -350,17 +350,8 @@ complex_exports!(z, gegv, c64, f64, i64, _64_);
 
 use core::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, Ordering};
-static EXPERT: [AtomicPtr<c_void>; 4] = [const { AtomicPtr::new(core::ptr::null_mut()) }; 4];
-#[no_mangle]
-pub extern "C" fn colmat_ggevx_set_expert_fallback(id: i32, p: *mut c_void) {
-    if (0..4).contains(&id) {
-        EXPERT[id as usize].store(p, Ordering::Relaxed);
-    }
-}
-#[no_mangle]
-pub extern "C" fn colmat_ggevx_has_expert_fallback(id: i32) -> i32 {
-    ((0..4).contains(&id) && !EXPERT[id as usize].load(Ordering::Relaxed).is_null()) as i32
-}
+pub(crate) static EXPERT: [AtomicPtr<c_void>; 4] =
+    [const { AtomicPtr::new(core::ptr::null_mut()) }; 4];
 unsafe fn norm_one<T: crate::kernels::Scalar>(n: usize, a: *const T, lda: isize) -> f64 {
     let mut result = 0.0_f64;
     for j in 0..n {
@@ -383,7 +374,7 @@ for(arg,ok)in[(1,matches!(bal,b'N'|b'P'|b'S'|b'B')),(2,matches!(jl,b'N'|b'V')),(
 if bal!=b'N'||sens!=b'N'{
     // Colmat's Julia loader guarantees a configured ILP64 expert backend before
     // publishing this entry point. Integer scratch belongs to this call.
-    let pointer=EXPERT[$id].load(Ordering::Relaxed);
+    let pointer=EXPERT[$id].load(Ordering::Acquire);
     assert!(!pointer.is_null(),"initialize GGEVX expert fallback before using expert modes");
     let(n64,la64,lb64,ll64,lr64,lw64)=(nn as i64,la as i64,lb as i64,ll as i64,lr as i64,lw as i64);
     let(mut lo64,mut hi64,mut err64)=(0_i64,0_i64,0_i64);
@@ -411,7 +402,7 @@ for(arg,ok)in[(1,matches!(bal,b'N'|b'P'|b'S'|b'B')),(2,matches!(jl,b'N'|b'V')),(
 if bal!=b'N'||sens!=b'N'{
     // Colmat's Julia loader guarantees a configured ILP64 expert backend before
     // publishing this entry point. Integer scratch belongs to this call.
-    let pointer=EXPERT[$id].load(Ordering::Relaxed);
+    let pointer=EXPERT[$id].load(Ordering::Acquire);
     assert!(!pointer.is_null(),"initialize GGEVX expert fallback before using expert modes");
     let(n64,la64,lb64,ll64,lr64,lw64)=(nn as i64,la as i64,lb as i64,ll as i64,lr as i64,lw as i64);
     let(mut lo64,mut hi64,mut err64)=(0_i64,0_i64,0_i64);

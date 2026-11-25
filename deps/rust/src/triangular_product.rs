@@ -2,10 +2,10 @@
 use crate::kernels::Scalar;
 use core::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, Ordering};
-static SAVED: [AtomicPtr<c_void>; 4] = [const { AtomicPtr::new(core::ptr::null_mut()) }; 4];
+pub(crate) static SAVED: [AtomicPtr<c_void>; 4] =
+    [const { AtomicPtr::new(core::ptr::null_mut()) }; 4];
 
-#[no_mangle]
-pub extern "C" fn colmat_triangular_product_set_fallback(id: i32, p: *mut c_void) {
+pub(crate) fn set_fallback(id: i32, p: *mut c_void) {
     if !(0..4).contains(&id) {
         return;
     }
@@ -23,11 +23,7 @@ pub extern "C" fn colmat_triangular_product_set_fallback(id: i32, p: *mut c_void
     if own.contains(&p) {
         return;
     }
-    SAVED[id as usize].store(p, Ordering::Release);
-}
-#[no_mangle]
-pub extern "C" fn colmat_triangular_product_has_fallback(id: i32) -> i32 {
-    i32::from((0..4).contains(&id) && !SAVED[id as usize].load(Ordering::Acquire).is_null())
+    crate::fallbacks::set(crate::fallbacks::TRIANGULAR_PRODUCT, id, p);
 }
 
 pub(crate) unsafe fn maybe_saved<T: Scalar>(
@@ -125,8 +121,8 @@ mod tests {
             for family in 0..2 {
                 let id = (family * 2 + 1) as i32;
                 let pointer = fake as *const () as *mut c_void;
-                colmat_triangular_product_set_fallback(id, pointer);
-                colmat_triangular_product_set_fallback(
+                set_fallback(id, pointer);
+                set_fallback(
                     id,
                     crate::triangular_lapack::zlauum_64_ as *const () as *mut c_void,
                 );
@@ -137,12 +133,12 @@ mod tests {
                     Some(0)
                 );
                 assert_eq!(a[0], c64::new(17., 3.));
-                colmat_triangular_product_set_fallback(id, core::ptr::null_mut());
+                set_fallback(id, core::ptr::null_mut());
                 a[0] = c64::new(2., 3.);
                 assert_eq!(maybe_saved(family, b'U', 1, a.as_mut_ptr(), 1), Some(1));
                 assert_eq!(a[0], c64::new(2., 3.));
             }
-            colmat_triangular_product_set_fallback(1, huge as *const () as *mut c_void);
+            set_fallback(1, huge as *const () as *mut c_void);
             let mut a = [c64::new(2., 3.)];
             let mut info = [-777i32; 3];
             crate::triangular_lapack::zlauum_(
@@ -153,8 +149,14 @@ mod tests {
                 info.as_mut_ptr().add(1),
             );
             assert_eq!(info, [-777, 1, -777]);
-            assert_eq!(colmat_triangular_product_has_fallback(-1), 0);
-            assert_eq!(colmat_triangular_product_has_fallback(4), 0);
+            assert_eq!(
+                crate::fallbacks::has(crate::fallbacks::TRIANGULAR_PRODUCT, -1),
+                false
+            );
+            assert_eq!(
+                crate::fallbacks::has(crate::fallbacks::TRIANGULAR_PRODUCT, 4),
+                false
+            );
         }
     }
 }
