@@ -10,20 +10,8 @@ use colmat::{Mat, MatMut, MatRef};
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-static BDSDC_FALLBACKS: [AtomicPtr<c_void>; 2] =
+pub(crate) static BDSDC_FALLBACKS: [AtomicPtr<c_void>; 2] =
     [const { AtomicPtr::new(std::ptr::null_mut()) }; 2];
-#[no_mangle]
-pub extern "C" fn colmat_bdsdc_set_fallback(id: i32, pointer: *mut c_void) {
-    if let Some(slot) = BDSDC_FALLBACKS.get(id as usize) {
-        slot.store(pointer, Ordering::Release);
-    }
-}
-#[no_mangle]
-pub extern "C" fn colmat_bdsdc_has_fallback(id: i32) -> i32 {
-    BDSDC_FALLBACKS
-        .get(id as usize)
-        .is_some_and(|p| !p.load(Ordering::Acquire).is_null()) as i32
-}
 fn bdsdc_fallback(id: usize) -> *mut c_void {
     let pointer = BDSDC_FALLBACKS[id].load(Ordering::Acquire);
     assert!(

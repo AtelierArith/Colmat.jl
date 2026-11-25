@@ -187,19 +187,8 @@ unsafe fn packed_gv<T: GeneralizedScalar, R: Scalar, I: LapackInt>(
 }
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, Ordering};
-static FALLBACKS: [AtomicPtr<c_void>; 28] = [const { AtomicPtr::new(std::ptr::null_mut()) }; 28];
-#[no_mangle]
-pub extern "C" fn colmat_structured_gv_set_fallback(id: i32, pointer: *mut c_void) {
-    if let Some(slot) = FALLBACKS.get(id as usize) {
-        slot.store(pointer, Ordering::Release);
-    }
-}
-#[no_mangle]
-pub extern "C" fn colmat_structured_gv_has_fallback(id: i32) -> i32 {
-    FALLBACKS
-        .get(id as usize)
-        .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
-}
+pub(crate) static FALLBACKS: [AtomicPtr<c_void>; 28] =
+    [const { AtomicPtr::new(std::ptr::null_mut()) }; 28];
 pub(crate) fn fallback(id: usize) -> *mut c_void {
     let p = FALLBACKS[id].load(Ordering::Acquire);
     assert!(

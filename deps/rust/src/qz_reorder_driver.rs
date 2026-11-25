@@ -435,19 +435,8 @@ adjacent_complex_exports!(z, colmat::c64, i64, _64_);
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, Ordering};
-static EXPERT: [AtomicPtr<c_void>; 8] = [const { AtomicPtr::new(std::ptr::null_mut()) }; 8];
-#[no_mangle]
-pub extern "C" fn colmat_qz_reorder_set_fallback(id: i32, pointer: *mut c_void) {
-    if let Some(slot) = EXPERT.get(id as usize) {
-        slot.store(pointer, Ordering::Release);
-    }
-}
-#[no_mangle]
-pub extern "C" fn colmat_qz_reorder_has_fallback(id: i32) -> i32 {
-    EXPERT
-        .get(id as usize)
-        .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
-}
+pub(crate) static EXPERT: [AtomicPtr<c_void>; 8] =
+    [const { AtomicPtr::new(std::ptr::null_mut()) }; 8];
 macro_rules! selected_real_exports {($p:ident,$t:ty,$r:ty,$i:ty,$s:tt,$id:expr)=>{paste!{
 #[no_mangle]
 pub unsafe extern "C" fn [<$p tgsen $s>](ijob:*const $i,wq:*const $i,wz:*const $i,select:*const $i,n:*const $i,a:*mut $t,lda:*const $i,b:*mut $t,ldb:*const $i,ar:*mut $t,ai:*mut $t,beta:*mut $t,q:*mut $t,ldq:*const $i,z:*mut $t,ldz:*const $i,m:*mut $i,pl:*mut $r,pr:*mut $r,dif:*mut $r,work:*mut $t,lwork:*const $i,iwork:*mut $i,liwork:*const $i,info:*mut $i) {

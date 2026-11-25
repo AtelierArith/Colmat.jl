@@ -304,19 +304,8 @@ unsafe fn compute<T: SchurVectors, R: Scalar, I: LapackInt>(
 
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicPtr, Ordering};
-static FALLBACKS: [AtomicPtr<c_void>; 8] = [const { AtomicPtr::new(core::ptr::null_mut()) }; 8];
-#[no_mangle]
-pub extern "C" fn colmat_schur_vectors_set_fallback(id: i32, p: *mut c_void) {
-    if let Some(slot) = FALLBACKS.get(id as usize) {
-        slot.store(p, Ordering::Release);
-    }
-}
-#[no_mangle]
-pub extern "C" fn colmat_schur_vectors_has_fallback(id: i32) -> i32 {
-    FALLBACKS
-        .get(id as usize)
-        .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
-}
+pub(crate) static FALLBACKS: [AtomicPtr<c_void>; 8] =
+    [const { AtomicPtr::new(core::ptr::null_mut()) }; 8];
 fn fallback(id: usize) -> *mut c_void {
     let p = FALLBACKS[id].load(Ordering::Acquire);
     assert!(
@@ -452,7 +441,11 @@ mod tests {
     #[test]
     fn refusal_uses_original_ilp64_without_overwriting_lp64_guards() {
         unsafe {
-            colmat_schur_vectors_set_fallback(1, mock_original_dtrevc as *const () as *mut c_void);
+            crate::fallbacks::set(
+                crate::fallbacks::SCHUR_VECTORS,
+                1,
+                mock_original_dtrevc as *const () as *mut c_void,
+            );
             // Deliberately non-standard 2x2 block exercises dispatch, rather
             // than attributing a numerical defect to the native helper.
             let mut t = [1.0, 1.0, 2.0, 1.0];
@@ -479,7 +472,7 @@ mod tests {
                 work.as_mut_ptr().add(1),
                 info.as_mut_ptr().add(1),
             );
-            colmat_schur_vectors_set_fallback(1, core::ptr::null_mut());
+            crate::fallbacks::set(crate::fallbacks::SCHUR_VECTORS, 1, core::ptr::null_mut());
             assert_eq!(m, [-777, 2, -777]);
             assert_eq!(info, [-777, 0, -777]);
             assert_eq!(selected, [-777, 1, 0, -777]);

@@ -5,19 +5,8 @@ use colmat::{Conj, Mat};
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-static FALLBACKS: [AtomicPtr<c_void>; 12] = [const { AtomicPtr::new(std::ptr::null_mut()) }; 12];
-#[no_mangle]
-pub extern "C" fn colmat_selfadjoint_gv_set_fallback(id: i32, pointer: *mut c_void) {
-    if let Some(slot) = FALLBACKS.get(id as usize) {
-        slot.store(pointer, Ordering::Release);
-    }
-}
-#[no_mangle]
-pub extern "C" fn colmat_selfadjoint_gv_has_fallback(id: i32) -> i32 {
-    FALLBACKS
-        .get(id as usize)
-        .is_some_and(|p| !p.load(Ordering::Acquire).is_null()) as i32
-}
+pub(crate) static FALLBACKS: [AtomicPtr<c_void>; 12] =
+    [const { AtomicPtr::new(std::ptr::null_mut()) }; 12];
 fn fallback(id: usize) -> *mut c_void {
     let pointer = FALLBACKS[id].load(Ordering::Acquire);
     assert!(

@@ -18,10 +18,11 @@ using Test, Colmat, LinearAlgebra
                 ),
             )
             reference_library=reference.libname
+            group=Colmat._fallback_group("range self-adjoint EVD").group
             output = IOBuffer()
             process = run(
                 pipeline(
-                    ignorestatus(`$executable $library $reference_library`);
+                    ignorestatus(`$executable $library $reference_library $group`);
                     stdout=output,
                     stderr=output,
                 ),

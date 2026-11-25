@@ -518,14 +518,11 @@ end
         @test original*result.z[1:3, 1:3]≈result.z[1:3, 1:3]*Diagonal(result.values[2:4])
         structured_evd_guards(result, T, J)
     end
+    group=Cint(Colmat._fallback_group("band/packed selected EVD").group)
+    getter=Libdl.dlsym(
+        Libdl.dlopen(Colmat.backend_library()), :colmat_fallback_has
+    )
     for id in 0:7
-        @test ccall(
-            Libdl.dlsym(
-                Libdl.dlopen(Colmat.backend_library()), :colmat_structured_evd_has_fallback
-            ),
-            Cint,
-            (Cint,),
-            id,
-        )==1
+        @test ccall(getter, Cint, (Cint, Cint), group, id)==1
     end
 end

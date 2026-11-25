@@ -5,20 +5,8 @@ use crate::lapack::LapackInt;
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-static FALLBACKS: [AtomicPtr<c_void>; 4] = [const { AtomicPtr::new(core::ptr::null_mut()) }; 4];
-
-#[no_mangle]
-pub extern "C" fn colmat_selfadjoint_vr_set_fallback(id: i32, pointer: *mut c_void) {
-    if let Some(slot) = FALLBACKS.get(id as usize) {
-        slot.store(pointer, Ordering::Release);
-    }
-}
-#[no_mangle]
-pub extern "C" fn colmat_selfadjoint_vr_has_fallback(id: i32) -> i32 {
-    FALLBACKS
-        .get(id as usize)
-        .is_some_and(|slot| !slot.load(Ordering::Acquire).is_null()) as i32
-}
+pub(crate) static FALLBACKS: [AtomicPtr<c_void>; 4] =
+    [const { AtomicPtr::new(core::ptr::null_mut()) }; 4];
 
 pub(crate) fn uncertain_endpoint<T: Scalar>(values: &[f64], vl: f64, vu: f64) -> bool {
     let single = core::mem::size_of::<T>() / if T::COMPLEX { 2 } else { 1 } == 4;

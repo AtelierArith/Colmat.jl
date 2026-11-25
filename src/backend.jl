@@ -11,6 +11,164 @@ Return the absolute path of Colmat's BLAS shared library.
 """
 backend_library() = abspath(_library)
 
+# LAPACK entry points that colmat cannot satisfy for every argument combination
+# keep the implementation that was registered before Colmat so the Rust shim can
+# delegate the remaining modes. `group` is the registry index in
+# `deps/rust/src/lib.rs`; the fallback id is the 0-based position in `symbols`.
+struct _FallbackGroup
+    description::String
+    requirement::String
+    group::Int
+    symbols::Tuple{Vararg{String}}
+end
+
+function _FallbackGroup(description, group, symbols)
+    return _FallbackGroup(description, "ILP64 LAPACK backend", group, symbols)
+end
+
+function _fallback_group(description::AbstractString)
+    return only(group for group in _FALLBACK_GROUPS if group.description == description)
+end
+
+# Group the names by type family for readability; fallback ids still follow the
+# flattened order.
+_symbols(rows...) = Tuple(Iterators.flatten(rows))
+
+# Registration order only determines which error is reported first.
+const _FALLBACK_GROUPS = (
+    _FallbackGroup(
+        "GGEVX", "ILP64 expert backend", 0, ("sggevx_", "dggevx_", "cggevx_", "zggevx_")
+    ),
+    _FallbackGroup(
+        "tridiagonal EVD",
+        1,
+        _symbols(
+            ("ssteqr_", "dsteqr_", "csteqr_", "zsteqr_"),
+            ("ssterf_", "dsterf_"),
+            ("sstevd_", "dstevd_"),
+            ("spteqr_", "dpteqr_", "cpteqr_", "zpteqr_"),
+            ("sstedc_", "dstedc_", "cstedc_", "zstedc_"),
+            ("sstevr_", "dstevr_"),
+            ("sstevx_", "dstevx_"),
+            ("sstemr_", "dstemr_", "cstemr_", "zstemr_"),
+        ),
+    ),
+    _FallbackGroup(
+        "generalized self-adjoint EVD",
+        2,
+        _symbols(
+            ("ssygv_", "dsygv_", "chegv_", "zhegv_"),
+            ("ssygvd_", "dsygvd_", "chegvd_", "zhegvd_"),
+            ("ssygvx_", "dsygvx_", "chegvx_", "zhegvx_"),
+        ),
+    ),
+    _FallbackGroup(
+        "advanced SVD",
+        3,
+        _symbols(
+            ("sgesvdx_", "dgesvdx_", "cgesvdx_", "zgesvdx_"),
+            ("sgesvdq_", "dgesvdq_", "cgesvdq_", "zgesvdq_"),
+        ),
+    ),
+    _FallbackGroup(
+        "selected self-adjoint EVD", 4, ("ssyevx_", "dsyevx_", "cheevx_", "zheevx_")
+    ),
+    _FallbackGroup(
+        "range self-adjoint EVD", 5, ("ssyevr_", "dsyevr_", "cheevr_", "zheevr_")
+    ),
+    _FallbackGroup(
+        "complex triangular products", 6, ("clauum_", "zlauum_", "clauu2_", "zlauu2_")
+    ),
+    _FallbackGroup(
+        "band/packed selected EVD",
+        7,
+        _symbols(
+            ("ssbevx_", "dsbevx_", "chbevx_", "zhbevx_"),
+            ("sspevx_", "dspevx_", "chpevx_", "zhpevx_"),
+        ),
+    ),
+    _FallbackGroup(
+        "QZ reordering",
+        8,
+        _symbols(
+            ("stgsen_", "dtgsen_", "ctgsen_", "ztgsen_"),
+            ("sggesx_", "dggesx_", "cggesx_", "zggesx_"),
+        ),
+    ),
+    _FallbackGroup(
+        "structured generalized EVD",
+        9,
+        _symbols(
+            ("sspgv_", "dspgv_", "chpgv_", "zhpgv_"),
+            ("sspgvd_", "dspgvd_", "chpgvd_", "zhpgvd_"),
+            ("sspgvx_", "dspgvx_", "chpgvx_", "zhpgvx_"),
+            ("ssbgst_", "dsbgst_", "chbgst_", "zhbgst_"),
+            ("ssbgv_", "dsbgv_", "chbgv_", "zhbgv_"),
+            ("ssbgvd_", "dsbgvd_", "chbgvd_", "zhbgvd_"),
+            ("ssbgvx_", "dsbgvx_", "chbgvx_", "zhbgvx_"),
+        ),
+    ),
+    _FallbackGroup(
+        "Schur eigenvectors",
+        10,
+        _symbols(
+            ("strevc_", "dtrevc_", "ctrevc_", "ztrevc_"),
+            ("strevc3_", "dtrevc3_", "ctrevc3_", "ztrevc3_"),
+        ),
+    ),
+    _FallbackGroup("BDSDC compact mode", 11, ("sbdsdc_", "dbdsdc_")),
+    _FallbackGroup(
+        "Schur expert estimates",
+        12,
+        _symbols(
+            ("strsen_", "dtrsen_", "ctrsen_", "ztrsen_"),
+            ("sgeesx_", "dgeesx_", "cgeesx_", "zgeesx_"),
+        ),
+    ),
+)
+
+# Save the current ILP64 implementation for every symbol that still points at
+# another library, then require the Rust shim to have a fallback for each one.
+function _install_fallbacks!(own::AbstractString, group::_FallbackGroup)
+    register = Libdl.dlsym(_handle[], :colmat_fallback_set)
+    has = Libdl.dlsym(_handle[], :colmat_fallback_has)
+    id = Cint(group.group)
+    for (slot, symbol) in enumerate(group.symbols)
+        previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+        if previous !== nothing && realpath(previous.libname) != own
+            pointer = BLAS.lbt_get_forward(symbol, :ilp64)
+            ccall(register, Cvoid, (Cint, Cint, Ptr{Cvoid}), id, Cint(slot - 1), pointer)
+        end
+        ccall(has, Cint, (Cint, Cint), id, Cint(slot - 1)) != 0 || error(
+            "Colmat $(group.description) requires an existing $(group.requirement); configure one before loading Colmat.",
+        )
+    end
+    return nothing
+end
+
+# GEEVX is the only group that keeps both interfaces and distinguishes the
+# integer width. Its LP64 slot may fall back to the saved ILP64 implementation,
+# so availability is checked at ILP64 only.
+function _install_geevx_fallbacks!(own::AbstractString)
+    register = Libdl.dlsym(_handle[], :colmat_lapack_set_expert_fallback)
+    has = Libdl.dlsym(_handle[], :colmat_lapack_has_expert_fallback)
+    for (id, prefix) in enumerate(("s", "d", "c", "z")), interface in (:lp64, :ilp64)
+        symbol = prefix * "geevx_"
+        previous = BLAS.lbt_find_backing_library(symbol, interface)
+        if previous !== nothing && realpath(previous.libname) != own
+            pointer = BLAS.lbt_get_forward(symbol, interface)
+            bits = interface === :ilp64 ? 64 : 32
+            ccall(register, Cvoid, (Cint, Cint, Ptr{Cvoid}), id - 1, bits, pointer)
+        end
+    end
+    for id in 0:3
+        ccall(has, Cint, (Cint, Cint), id, 64) != 0 || error(
+            "Colmat GEEVX requires an existing ILP64 expert backend; configure one before loading Colmat.",
+        )
+    end
+    return nothing
+end
+
 """
     load_backend(; verbose=false)
 
@@ -56,311 +214,10 @@ function load_backend(; verbose::Bool=false)
         abi = ccall(Libdl.dlsym(_handle[], :colmat_blas_abi_version), Cint, ())
         abi == 2 ||
             error("Unsupported Colmat BLAS ABI $abi; rebuild Colmat and restart Julia.")
-        # Expert GEEVX condition estimates have no matching public colmat API.
-        # Retain the previous implementation for SENSE=E/V/B; SENSE=N is native.
-        register = Libdl.dlsym(_handle[], :colmat_lapack_set_expert_fallback)
-        has_expert = Libdl.dlsym(_handle[], :colmat_lapack_has_expert_fallback)
-        for (id, prefix) in enumerate(("s", "d", "c", "z")), interface in (:lp64, :ilp64)
-            symbol = prefix * "geevx_"
-            previous = BLAS.lbt_find_backing_library(symbol, interface)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, interface)
-                ccall(
-                    register,
-                    Cvoid,
-                    (Cint, Cint, Ptr{Cvoid}),
-                    id - 1,
-                    interface === :ilp64 ? 64 : 32,
-                    pointer,
-                )
-            end
-        end
-        for id in 0:3
-            ccall(has_expert, Cint, (Cint, Cint), id, 64) != 0 || error(
-                "Colmat GEEVX requires an existing ILP64 expert backend; configure one before loading Colmat.",
-            )
-        end
-        # Generalized expert balancing/condition estimates remain on the previous
-        # ILP64 backend. Rust bridges LP64 calls and owns integer scratch buffers.
-        register_generalized = Libdl.dlsym(_handle[], :colmat_ggevx_set_expert_fallback)
-        has_generalized = Libdl.dlsym(_handle[], :colmat_ggevx_has_expert_fallback)
-        for (id, prefix) in enumerate(("s", "d", "c", "z"))
-            symbol = prefix * "ggevx_"
-            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_generalized, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
-            end
-            ccall(has_generalized, Cint, (Cint,), id - 1) != 0 || error(
-                "Colmat GGEVX requires an existing ILP64 expert backend; configure one before loading Colmat.",
-            )
-        end
-        # Native tridiagonal EVD does not expose partial D/E on nonconvergence.
-        # Save a LAPACK implementation before forwarding; LP64 widens integers.
-        register_tridiagonal = Libdl.dlsym(_handle[], :colmat_tridiagonal_set_fallback)
-        has_tridiagonal = Libdl.dlsym(_handle[], :colmat_tridiagonal_has_fallback)
-        for (id, symbol) in enumerate((
-            "ssteqr_",
-            "dsteqr_",
-            "csteqr_",
-            "zsteqr_",
-            "ssterf_",
-            "dsterf_",
-            "sstevd_",
-            "dstevd_",
-            "spteqr_",
-            "dpteqr_",
-            "cpteqr_",
-            "zpteqr_",
-            "sstedc_",
-            "dstedc_",
-            "cstedc_",
-            "zstedc_",
-            "sstevr_",
-            "dstevr_",
-            "sstevx_",
-            "dstevx_",
-            "sstemr_",
-            "dstemr_",
-            "cstemr_",
-            "zstemr_",
-        ))
-            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_tridiagonal, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
-            end
-            ccall(has_tridiagonal, Cint, (Cint,), id - 1) != 0 || error(
-                "Colmat tridiagonal EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        # Retain complete generalized self-adjoint drivers for native failure
-        # recovery and the expert absolute-tolerance mode of the range drivers.
-        register_selfadjoint = Libdl.dlsym(_handle[], :colmat_selfadjoint_gv_set_fallback)
-        has_selfadjoint = Libdl.dlsym(_handle[], :colmat_selfadjoint_gv_has_fallback)
-        for (id, symbol) in enumerate((
-            "ssygv_",
-            "dsygv_",
-            "chegv_",
-            "zhegv_",
-            "ssygvd_",
-            "dsygvd_",
-            "chegvd_",
-            "zhegvd_",
-            "ssygvx_",
-            "dsygvx_",
-            "chegvx_",
-            "zhegvx_",
-        ))
-            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous!==nothing&&realpath(previous.libname)!=realpath(path)
-                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_selfadjoint, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
-            end
-            ccall(has_selfadjoint, Cint, (Cint,), id-1)!=0||error(
-                "Colmat generalized self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        # Preserve the expert estimate and failure-recovery drivers before forwarding.
-        register_svd=Libdl.dlsym(_handle[], :colmat_advanced_svd_set_fallback)
-        has_svd=Libdl.dlsym(_handle[], :colmat_advanced_svd_has_fallback)
-        for (id, symbol) in enumerate((
-            "sgesvdx_",
-            "dgesvdx_",
-            "cgesvdx_",
-            "zgesvdx_",
-            "sgesvdq_",
-            "dgesvdq_",
-            "cgesvdq_",
-            "zgesvdq_",
-        ))
-            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous!==nothing&&realpath(previous.libname)!=realpath(path)
-                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_svd, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
-            end
-            ccall(has_svd, Cint, (Cint,), id-1)!=0||error(
-                "Colmat advanced SVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        register_vx=Libdl.dlsym(_handle[], :colmat_selfadjoint_vx_set_fallback)
-        has_vx=Libdl.dlsym(_handle[], :colmat_selfadjoint_vx_has_fallback)
-        for (id, symbol) in enumerate(("ssyevx_", "dsyevx_", "cheevx_", "zheevx_"))
-            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous!==nothing && realpath(previous.libname)!=realpath(path)
-                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_vx, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
-            end
-            ccall(has_vx, Cint, (Cint,), id-1)!=0 || error(
-                "Colmat selected self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        register_vr=Libdl.dlsym(_handle[], :colmat_selfadjoint_vr_set_fallback)
-        has_vr=Libdl.dlsym(_handle[], :colmat_selfadjoint_vr_has_fallback)
-        for (id, symbol) in enumerate(("ssyevr_", "dsyevr_", "cheevr_", "zheevr_"))
-            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous!==nothing && realpath(previous.libname)!=realpath(path)
-                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_vr, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
-            end
-            ccall(has_vr, Cint, (Cint,), id-1)!=0 || error(
-                "Colmat range self-adjoint EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        register_product=Libdl.dlsym(_handle[], :colmat_triangular_product_set_fallback)
-        has_product=Libdl.dlsym(_handle[], :colmat_triangular_product_has_fallback)
-        for (id, symbol) in enumerate(("clauum_", "zlauum_", "clauu2_", "zlauu2_"))
-            previous=BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous!==nothing && realpath(previous.libname)!=realpath(path)
-                pointer=BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_product, Cvoid, (Cint, Ptr{Cvoid}), id-1, pointer)
-            end
-            ccall(has_product, Cint, (Cint,), id-1)!=0 || error(
-                "Colmat complex triangular products require an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        register_structured = Libdl.dlsym(_handle[], :colmat_structured_evd_set_fallback)
-        has_structured = Libdl.dlsym(_handle[], :colmat_structured_evd_has_fallback)
-        for (id, symbol) in enumerate((
-            "ssbevx_",
-            "dsbevx_",
-            "chbevx_",
-            "zhbevx_",
-            "sspevx_",
-            "dspevx_",
-            "chpevx_",
-            "zhpevx_",
-        ))
-            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_structured, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
-            end
-            ccall(has_structured, Cint, (Cint,), id - 1) != 0 || error(
-                "Colmat band/packed selected EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        # TGSEN and GGESX condition estimates use the original ILP64 LAPACK entry;
-        # Rust widens LP64 logical selections and integer workspace.
-        register_qz = Libdl.dlsym(_handle[], :colmat_qz_reorder_set_fallback)
-        has_qz = Libdl.dlsym(_handle[], :colmat_qz_reorder_has_fallback)
-        for (id, symbol) in enumerate((
-            "stgsen_",
-            "dtgsen_",
-            "ctgsen_",
-            "ztgsen_",
-            "sggesx_",
-            "dggesx_",
-            "cggesx_",
-            "zggesx_",
-        ))
-            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_qz, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
-            end
-            ccall(has_qz, Cint, (Cint,), id - 1) != 0 || error(
-                "Colmat QZ reordering requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        # Structured generalized routines retain original entries for native refusal.
-        register_structured_gv = Libdl.dlsym(_handle[], :colmat_structured_gv_set_fallback)
-        has_structured_gv = Libdl.dlsym(_handle[], :colmat_structured_gv_has_fallback)
-        for (id, symbol) in (
-            (0, "sspgv_"),
-            (1, "dspgv_"),
-            (2, "chpgv_"),
-            (3, "zhpgv_"),
-            (4, "sspgvd_"),
-            (5, "dspgvd_"),
-            (6, "chpgvd_"),
-            (7, "zhpgvd_"),
-            (8, "sspgvx_"),
-            (9, "dspgvx_"),
-            (10, "chpgvx_"),
-            (11, "zhpgvx_"),
-            (12, "ssbgst_"),
-            (13, "dsbgst_"),
-            (14, "chbgst_"),
-            (15, "zhbgst_"),
-            (16, "ssbgv_"),
-            (17, "dsbgv_"),
-            (18, "chbgv_"),
-            (19, "zhbgv_"),
-            (20, "ssbgvd_"),
-            (21, "dsbgvd_"),
-            (22, "chbgvd_"),
-            (23, "zhbgvd_"),
-            (24, "ssbgvx_"),
-            (25, "dsbgvx_"),
-            (26, "chbgvx_"),
-            (27, "zhbgvx_"),
-        )
-            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_structured_gv, Cvoid, (Cint, Ptr{Cvoid}), id, pointer)
-            end
-            ccall(has_structured_gv, Cint, (Cint,), id) != 0 || error(
-                "Colmat structured generalized EVD requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        # Schur eigenvector helpers preserve the original driver on refusal.
-        register_vectors = Libdl.dlsym(_handle[], :colmat_schur_vectors_set_fallback)
-        has_vectors = Libdl.dlsym(_handle[], :colmat_schur_vectors_has_fallback)
-        for (id, symbol) in enumerate((
-            "strevc_",
-            "dtrevc_",
-            "ctrevc_",
-            "ztrevc_",
-            "strevc3_",
-            "dtrevc3_",
-            "ctrevc3_",
-            "ztrevc3_",
-        ))
-            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_vectors, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
-            end
-            ccall(has_vectors, Cint, (Cint,), id - 1) != 0 || error(
-                "Colmat Schur eigenvectors require an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        # BDSDC COMPQ='P' compact output has no public native representation.
-        # Retain the original ILP64 driver for that mode only.
-        register_bdsdc = Libdl.dlsym(_handle[], :colmat_bdsdc_set_fallback)
-        has_bdsdc = Libdl.dlsym(_handle[], :colmat_bdsdc_has_fallback)
-        for (id, symbol) in enumerate(("sbdsdc_", "dbdsdc_"))
-            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_bdsdc, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
-            end
-            ccall(has_bdsdc, Cint, (Cint,), id - 1) != 0 || error(
-                "Colmat BDSDC compact mode requires an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
-        end
-        register_schur_expert = Libdl.dlsym(_handle[], :colmat_schur_expert_set_fallback)
-        has_schur_expert = Libdl.dlsym(_handle[], :colmat_schur_expert_has_fallback)
-        for (id, symbol) in enumerate((
-            "strsen_",
-            "dtrsen_",
-            "ctrsen_",
-            "ztrsen_",
-            "sgeesx_",
-            "dgeesx_",
-            "cgeesx_",
-            "zgeesx_",
-        ))
-            previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
-            if previous !== nothing && realpath(previous.libname) != realpath(path)
-                pointer = BLAS.lbt_get_forward(symbol, :ilp64)
-                ccall(register_schur_expert, Cvoid, (Cint, Ptr{Cvoid}), id - 1, pointer)
-            end
-            ccall(has_schur_expert, Cint, (Cint,), id - 1) != 0 || error(
-                "Colmat Schur expert estimates require an existing ILP64 LAPACK backend; configure one before loading Colmat.",
-            )
+        own = realpath(path)
+        _install_geevx_fallbacks!(own)
+        for group in _FALLBACK_GROUPS
+            _install_fallbacks!(own, group)
         end
         # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
         # Detect ILP64 first, then LP64, preserving the existing fallback table.

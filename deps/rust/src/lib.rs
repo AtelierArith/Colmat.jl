@@ -91,6 +91,69 @@ mod tridiagonal_lu;
 mod tsqr;
 mod tsqr_driver;
 
+/// Saved LAPACK entry points grouped by the adapter that delegates to them.
+/// Julia registers the previous backend by passing the group index and the
+/// 0-based slot within that group. GEEVX keeps its own interface because it
+/// also distinguishes the integer width.
+pub(crate) mod fallbacks {
+    use core::ffi::c_void;
+    use std::sync::atomic::{AtomicPtr, Ordering};
+
+    pub(crate) const GGEVX: i32 = 0;
+    pub(crate) const TRIDIAGONAL: i32 = 1;
+    pub(crate) const SELFADJOINT_GV: i32 = 2;
+    pub(crate) const ADVANCED_SVD: i32 = 3;
+    pub(crate) const SELFADJOINT_VX: i32 = 4;
+    pub(crate) const SELFADJOINT_VR: i32 = 5;
+    pub(crate) const TRIANGULAR_PRODUCT: i32 = 6;
+    pub(crate) const STRUCTURED_EVD: i32 = 7;
+    pub(crate) const QZ_REORDER: i32 = 8;
+    pub(crate) const STRUCTURED_GV: i32 = 9;
+    pub(crate) const SCHUR_VECTORS: i32 = 10;
+    pub(crate) const BDSDC: i32 = 11;
+    pub(crate) const SCHUR_EXPERT: i32 = 12;
+
+    static GROUPS: [&[AtomicPtr<c_void>]; 13] = [
+        &crate::generalized_eigen::EXPERT,
+        &crate::tridiagonal_evd::FALLBACKS,
+        &crate::generalized_selfadjoint_drivers::FALLBACKS,
+        &crate::advanced_svd::FALLBACKS,
+        &crate::selected_selfadjoint::FALLBACKS,
+        &crate::selfadjoint_range::FALLBACKS,
+        &crate::triangular_product::SAVED,
+        &crate::structured_selected_evd::FALLBACKS,
+        &crate::qz_reorder_driver::EXPERT,
+        &crate::structured_generalized::FALLBACKS,
+        &crate::schur_vectors::FALLBACKS,
+        &crate::bidiagonal_lapack::BDSDC_FALLBACKS,
+        &crate::schur_reorder::EXPERT,
+    ];
+
+    fn slot(group: i32, id: i32) -> Option<&'static AtomicPtr<c_void>> {
+        GROUPS.get(group as usize)?.get(id as usize)
+    }
+
+    pub(crate) fn set(group: i32, id: i32, pointer: *mut c_void) {
+        if let Some(entry) = slot(group, id) {
+            entry.store(pointer, Ordering::Release);
+        }
+    }
+
+    pub(crate) fn has(group: i32, id: i32) -> bool {
+        slot(group, id).is_some_and(|entry| !entry.load(Ordering::Acquire).is_null())
+    }
+
+    #[no_mangle]
+    pub extern "C" fn colmat_fallback_set(group: i32, id: i32, pointer: *mut c_void) {
+        set(group, id, pointer);
+    }
+
+    #[no_mangle]
+    pub extern "C" fn colmat_fallback_has(group: i32, id: i32) -> i32 {
+        i32::from(has(group, id))
+    }
+}
+
 use std::cell::Cell;
 
 // BLAS cannot return Rust exceptions. Keep invalid-argument diagnostics queryable
@@ -233,6 +296,16 @@ mod tests {
             );
             assert_eq!(b, [0.0; 6]);
         }
+    }
+    #[test]
+    fn fallback_registry_rejects_unknown_groups_and_slots() {
+        assert!(!fallbacks::has(-1, 0));
+        assert!(!fallbacks::has(fallbacks::GGEVX, -1));
+        assert!(!fallbacks::has(fallbacks::GGEVX, 4));
+        assert!(!fallbacks::has(fallbacks::SCHUR_EXPERT, 8));
+        // Writing an unknown slot is a no-op instead of a panic.
+        fallbacks::set(-1, 0, null_mut());
+        fallbacks::set(fallbacks::GGEVX, 4, null_mut());
     }
 }
 
