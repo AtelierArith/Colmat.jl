@@ -129,12 +129,12 @@ const _FALLBACK_GROUPS = (
 
 # Save the current ILP64 implementation for every symbol that still points at
 # another library, then require the Rust shim to have a fallback for each one.
-function _install_fallbacks!(own::AbstractString, group::_FallbackGroup)
+function _install_fallbacks!(own::AbstractString, group::_FallbackGroup, config)
     register = Libdl.dlsym(_handle[], :colmat_fallback_set)
     has = Libdl.dlsym(_handle[], :colmat_fallback_has)
     id = Cint(group.group)
     for (slot, symbol) in enumerate(group.symbols)
-        previous = BLAS.lbt_find_backing_library(symbol, :ilp64)
+        previous = BLAS.lbt_find_backing_library(symbol, :ilp64; config)
         if previous !== nothing && realpath(previous.libname) != own
             pointer = BLAS.lbt_get_forward(symbol, :ilp64)
             ccall(register, Cvoid, (Cint, Cint, Ptr{Cvoid}), id, Cint(slot - 1), pointer)
@@ -149,12 +149,12 @@ end
 # GEEVX is the only group that keeps both interfaces and distinguishes the
 # integer width. Its LP64 slot may fall back to the saved ILP64 implementation,
 # so availability is checked at ILP64 only.
-function _install_geevx_fallbacks!(own::AbstractString)
+function _install_geevx_fallbacks!(own::AbstractString, config)
     register = Libdl.dlsym(_handle[], :colmat_lapack_set_expert_fallback)
     has = Libdl.dlsym(_handle[], :colmat_lapack_has_expert_fallback)
     for (id, prefix) in enumerate(("s", "d", "c", "z")), interface in (:lp64, :ilp64)
         symbol = prefix * "geevx_"
-        previous = BLAS.lbt_find_backing_library(symbol, interface)
+        previous = BLAS.lbt_find_backing_library(symbol, interface; config)
         if previous !== nothing && realpath(previous.libname) != own
             pointer = BLAS.lbt_get_forward(symbol, interface)
             bits = interface === :ilp64 ? 64 : 32
@@ -165,6 +165,24 @@ function _install_geevx_fallbacks!(own::AbstractString)
         ccall(has, Cint, (Cint, Cint), id, 64) != 0 || error(
             "Colmat GEEVX requires an existing ILP64 expert backend; configure one before loading Colmat.",
         )
+    end
+    return nothing
+end
+
+# Capture fallback providers before either interface changes the LBT table.
+# Unlike a complete provider, Colmat must preserve forwards for missing routines.
+function _forward_to_colmat(path; verbose::Bool=false)
+    own = realpath(path)
+    config = BLAS.lbt_get_config()
+    _install_geevx_fallbacks!(own, config)
+    for group in _FALLBACK_GROUPS
+        _install_fallbacks!(own, group, config)
+    end
+    # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
+    for suffix in ("64_", "")
+        count = BLAS.lbt_forward(path; clear=false, suffix_hint=suffix, verbose)
+        count > 0 ||
+            error("Could not register Colmat BLAS symbols (suffix=$(repr(suffix))).")
     end
     return nothing
 end
@@ -214,18 +232,7 @@ function load_backend(; verbose::Bool=false)
         abi = ccall(Libdl.dlsym(_handle[], :colmat_blas_abi_version), Cint, ())
         abi == 2 ||
             error("Unsupported Colmat BLAS ABI $abi; rebuild Colmat and restart Julia.")
-        own = realpath(path)
-        _install_geevx_fallbacks!(own)
-        for group in _FALLBACK_GROUPS
-            _install_fallbacks!(own, group)
-        end
-        # LBT appends the suffix to the complete Fortran name: dgemm_ + 64_.
-        # Detect ILP64 first, then LP64, preserving the existing fallback table.
-        for suffix in ("64_", "")
-            count = BLAS.lbt_forward(path; clear=false, suffix_hint=suffix, verbose)
-            count > 0 ||
-                error("Could not register Colmat BLAS symbols (suffix=$(repr(suffix))).")
-        end
+        _forward_to_colmat(path; verbose)
         # Colmat's pool starts at one participant. On first load, adopt the
         # current BLAS width so loading the backend does not silently serialize
         # threaded work. Reloading keeps any narrower setting already chosen.
