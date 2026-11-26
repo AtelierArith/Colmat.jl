@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "aaf879ade4ba88b225e88046694f7d69c813bb48",
+  "revision": "350525ba22b94a5bf3d5aeaea052a29ff6100d8f",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -114220,7 +114220,7 @@
     "test/generalized_eigen.jl": "61f87d9adb758f7a86f4a4fd8c533d32df1c5db481b3eabeeb90775f0c46ebaa",
     "test/lapacke_matrix_permutation.jl": "4d5ff023c206714bf689fa89dd731e823e32a870770ec9b43d2578e6a049e5bb",
     "test/abi_execution_evidence.jl": "c6a7c5d37ec55133095b071a4ffc470f6d40d39c1173ad27cdeccf56abefabc8",
-    "src/backend.jl": "0ec6428694615e5368fe8d0f129b2b339320a5f80b67a7ed40d637d5f91e122d",
+    "src/backend.jl": "3cbfdc4a4bba132e51c7f3c01f8f2f16cbfa138a7f406e85832846afe2213003",
     "test/blas.jl": "2f6a876118fd68685ab8147b6e730149326f615b7f45093036cffe6b70f93165",
     "test/structured_lu.jl": "eadfc11787c2ec3c922ac6e58dd7039ff5acb1bca4e4daa640460c7e10c1d769",
     "deps/rust/src/balance.rs": "01304fd0effda54c4868ce4f85a0861d7c680e1d88472543f6ed308c58534af9",
