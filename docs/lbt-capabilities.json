@@ -142,7 +142,7 @@
       "source": "faer/src/linalg/cholesky/bunch_kaufman/factor.rs",
       "note": "Connects 20 Fortran symbols for real SY / complex HE to both ABIs. Uses public Rook pivoting and converts the two swap indices of each two-column block separately into ROOK IPIV. Verifies bidirectional solve/inverse with external LAPACK factors and reconstruction from element matrices. TRF/SV query and minimum caller work are 1, and internal scratch is natively owned. Symmetric congruence scaling for subnormal rows and common scaling for D/RHS blocks avoid native #212. LAPACKE waits for the shared conversion in #288. No claim of the same algorithm, pivot columns, or performance as the dedicated Fortran routines. Complex symmetric SY has a separate contract.",
       "evidence": {
-        "revision": "b376b3ce209184df8b46c734f7882a21e31d3f58",
+        "revision": "103d2788c44a62e71e14eadc497387374508f24a",
         "scalars": [
           "s",
           "d",
@@ -217,7 +217,7 @@
       "status": "composition",
       "api": "reversed native-backed QR / adjoint QR LQ / prefix Householder application",
       "source": "faer/src/linalg/qr/no_pivoting/factor.rs",
-      "note": "Forty-eight Fortran symbols connected for both integer ABIs. Both axes are reversed around existing standard QR/LQ, then triangular placement and TAU order are reversed back. QL uses H(k)...H(1); complex RQ uses H(1)^H...H(k)^H with conjugated row-vector storage. Thin Q uses the last columns (QL) or rows (RQ). Generation snapshots only stored reflector tails, and application skips zero coefficients and validates only active prefix extents. Blocked/unblocked names share an unblocked composition and own temporary storage; they do not claim dedicated native QL/RQ APIs or reference blocking performance. C API is separate."
+      "note": "Forty-eight Fortran symbols connected for both integer ABIs. Both axes are reversed around existing standard QR/LQ, then triangular placement and TAU order are reversed back. QL uses H(k)...H(1); complex RQ uses H(1)^H...H(k)^H with conjugated row-vector storage. Thin Q uses the last columns (QL) or rows (RQ). Generation snapshots only stored reflector tails, and application skips zero coefficients and validates only active prefix extents. Blocked/unblocked names share an unblocked composition and own temporary storage; the adapter does not use the dedicated upstream linalg::ql/linalg::rq API (#60) or claim reference blocking performance. C API is separate."
     },
     {
       "routines": [
@@ -1233,7 +1233,7 @@
       "note": "Connects 28 Fortran symbols to both ABIs. Converts packed/RFP triangular storage into an owned O(n^2) work matrix and uses native LLT and Cholesky solves. The inverse is obtained by solving with an identity matrix natively and restoring the stored triangle. Handles UPLO, real N/T versus complex N/C, odd/even RFP, and folded-block conjugation, without reading the imaginary diagonal. Verifies solve/inverse interoperability with external factors, the non-positive-definite INFO, and empty/zero RHS. Caller storage is not shared with the opposite-triangle scratch of native LLT. C ABI is a separate task."
     }
   ],
-  "assessment_revision": "b376b3ce209184df8b46c734f7882a21e31d3f58",
+  "assessment_revision": "103d2788c44a62e71e14eadc497387374508f24a",
   "scalar_overrides": [
     {
       "routines": [
@@ -1264,7 +1264,7 @@
       "source": "faer/src/linalg/cholesky/bunch_kaufman/mod.rs",
       "note": "Scope of review: the public Bunch-Kaufman factor/solve has a complex Hermitian LDL^H contract. It differs from the SY/SP family that passes complex symmetric LDL^T and its IPIV/factors. Does not conclude that the same compact factor contract can be obtained from a general LU.",
       "evidence": {
-        "revision": "b376b3ce209184df8b46c734f7882a21e31d3f58",
+        "revision": "103d2788c44a62e71e14eadc497387374508f24a",
         "scalars": [
           "c",
           "z"
