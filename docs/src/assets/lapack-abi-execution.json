@@ -1,6 +1,6 @@
 {
   "platform": "x86_64-apple-darwin24.6.0",
-  "native_revision": "b376b3ce209184df8b46c734f7882a21e31d3f58",
+  "native_revision": "103d2788c44a62e71e14eadc497387374508f24a",
   "inventory_registration_sha256": "bde69f0a94a168a01db21a5e6db9f1422eac979500a9c59b7d5775d1c4d5f0a2",
   "lapacke_target_symbols": [
     "LAPACKE_cbdsqr",
@@ -1624,7 +1624,7 @@
     "LAPACKE_zupmtr",
     "LAPACKE_zupmtr_work"
   ],
-  "library_sha256": "237ece22e6db2d38eabbff58707a8ef4ca1c0e40da9e53916d3531ce45630670",
+  "library_sha256": "036e8f445ce949c6a7ac61c1a542b38e90c49b6d86c9031303ff235336abca00",
   "julia_version": "1.13.4",
   "manifest_sha256": "b9491053c80731e1421da405042828641ab91ee485c6b64aeb67b8db9f9cc2b0",
   "ambiguous_shared_entries": [
@@ -1702,7 +1702,7 @@
     "test/triangular_lapack.jl:89 [(\"slauu2_\", 64, \"dll\"), (\"slauum_\", 64, \"dll\")] widths=Set([64])"
   ],
   "full_suite_passed": true,
-  "revision": "49b664667354c90db2fed5d765878eea899cbe5f",
+  "revision": "aaf879ade4ba88b225e88046694f7d69c813bb48",
   "schema_version": 1,
   "cblas_target_symbols": [
     "cblas_caxpby",
@@ -114331,7 +114331,7 @@
     "test/matrix_norms.jl": "24ac6c2a5eac74eb0c46399cad45cc5161230490cece32c7b8b0f2649807c821",
     "deps/rust/src/lq.rs": "dd4d60222f14f4297999067993631945a099697ef1353096a313eed78c51ca5b",
     "deps/rust/src/band_lu.rs": "f47cafd035ef78f0df2f61bc1f4af082f5b41b34fec54c73e48d6514deb3ce8f",
-    "deps/upstream.toml": "3c5ebb441075d002328a78edec2cdcc669106f2469c347b7f4f4a67f40a12438",
+    "deps/upstream.toml": "d4a8169ee552741326339f939bbeb76bef98afd41d04520bf65d561bbca146ff",
     "deps/rust/src/dense_extensions.rs": "3d94f1b720454c1f07fd301191afb5280c6f9d8b5b6e050533ba3264143cb10d",
     "test/lapacke_matrix_norms_abi_worker.c": "6cae1bdd18b6d263ae705a1b625afd0799cbb7430f995f6b099bfa55da74473c",
     "test/Project.toml": "84af0faef36b617dc3e92fba9c7d4afe252d16ebcd56d8291464e8bbd19cf98b",
@@ -114678,7 +114678,7 @@
     "test/lapacke_pentagonal_abi.jl": "9f142b82f9a7d0f963d302e67b32750e92297f9277586c865bd91e2ad189d30a",
     "test/lapacke_q_application_policy.jl": "9bd0379350a3b391c88c5b4880d47fe8c9cd8bea8cc8a8dfbc730f7e532e1250",
     "test/lapacke_selfadjoint_vectors.jl": "bdb1bda81d9246cd8a34991fd10cd41cb03e55fb7c194730da956e16522d77d8",
-    "deps/rust/Cargo.lock": "b8394dfdad22b987d1173c9b63bd412f3020f2db822bb95f71e591c1865800e3",
+    "deps/rust/Cargo.lock": "29c6c44a0ba9e865368d141d54e3f7f6d74e1b1352befd1c6962b24dcb35d72f",
     "Project.toml": "c8e3bec9107a96074fb05e31ff5f91bbc4e9ef5db844d4868e0db673b205fcd9",
     "test/cblas_triangular.jl": "460eff558fe6f84ac4c7f7c4fbe9d464d4d47d49670af4dc855f49a0715f7a31",
     "test/lapacke_gehrd.jl": "8597edb82ce0ea03b96b6f4a0b6b606ea09d334173ec1300a89e80834f92b94d",
