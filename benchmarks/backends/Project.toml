@@ -16,7 +16,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [sources]
 Colmat = {path = "../.."}
-PureBLAS = {rev = "bc3644ce4f201c138aeb1d4ff3bce19171b28c94", url = "https://github.com/el-oso/PureBLAS.jl"}
+PureBLAS = {rev = "4707cafecd47e9b4384ed7cbef7278b2769885c8", url = "https://github.com/el-oso/PureBLAS.jl"}
 
 [compat]
 MKL_jll = "=2023.2.0"

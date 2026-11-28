@@ -2,7 +2,7 @@
 
 julia_version = "1.13.4"
 manifest_format = "2.1"
-project_hash = "331f5be7bc9e65aa8bedf89dfe91d99653884929"
+project_hash = "ca9c354583bf2749a82a240df910417bbfaf334d"
 
 [[deps.AOCL]]
 deps = ["AOCL_jll", "LinearAlgebra"]
@@ -283,8 +283,8 @@ version = "1.11.0"
 
 [[deps.PureBLAS]]
 deps = ["CPUSummary", "CpuId", "LinearAlgebra", "PrecompileTools", "Preferences", "SIMD", "Scratch", "StrictMode", "TypeContracts"]
-git-tree-sha1 = "b67b66481a2765f23049e349532b0de8731c83cf"
-repo-rev = "bc3644ce4f201c138aeb1d4ff3bce19171b28c94"
+git-tree-sha1 = "fece9d5633e640b56db116ee7b1558bdcb9fddca"
+repo-rev = "4707cafecd47e9b4384ed7cbef7278b2769885c8"
 repo-url = "https://github.com/el-oso/PureBLAS.jl"
 uuid = "cc9e14db-574f-4602-bf53-1167cc4b26d2"
 version = "0.1.2"
@@ -354,10 +354,10 @@ weakdeps = ["SparseArrays"]
 
 [[deps.StrictMode]]
 deps = ["InteractiveUtils", "PrecompileTools", "Preferences", "Serialization", "TOML", "TypeContracts"]
-git-tree-sha1 = "fb2678b31b381ae32861007c71e2f4b6ebd971ee"
+git-tree-sha1 = "65d9dced15b6979cef0025eb432c4f28ae2938f0"
 registries = "General"
 uuid = "0e98b4f4-d0e6-42ac-af0a-707c24852f32"
-version = "0.5.19"
+version = "0.5.23"
 
     [deps.StrictMode.extensions]
     StrictModeCpuIdExt = "CpuId"

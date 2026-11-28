@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run the Colmat backend comparison with no external harness.
 #
-#   ./benchmarks/run.sh                 # OpenBLAS, MKL, AOCL, Colmat; 1/4/8 threads
+#   ./benchmarks/run.sh                 # OpenBLAS, MKL, AOCL (Linux), PureBLAS, Colmat; 1/4/8 threads
 #   ./benchmarks/run.sh --quick         # tiny smoke run (~1 minute)
 #   ./benchmarks/run.sh --build         # rebuild Colmat first
 #   ./benchmarks/run.sh --threads 1 8 --backends openblas colmat
@@ -13,7 +13,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BENCH="$ROOT/benchmarks/backends"
 JULIA="${JULIA:-julia}"
-BACKENDS=(${COLMAT_BENCH_BACKENDS:-openblas mkl aocl pureblas colmat})
+if [[ -n "${COLMAT_BENCH_BACKENDS:-}" ]]; then
+    BACKENDS=($COLMAT_BENCH_BACKENDS)
+elif [[ "$(uname -s)" == "Darwin" ]]; then
+    # AOCL ships Linux binaries only; AOCL_jll is unavailable on macOS, so leave
+    # it out of the default list instead of failing every AOCL cell.
+    BACKENDS=(openblas mkl pureblas colmat)
+else
+    BACKENDS=(openblas mkl aocl pureblas colmat)
+fi
 THREADS=(${COLMAT_BENCH_THREADS_LIST:-1 4 8})
 SAMPLES="${COLMAT_BENCH_SAMPLES:-5}"
 QUICK="${COLMAT_BENCH_QUICK:-false}"
@@ -133,6 +141,10 @@ mask_for() {
 
 run_one() {
     local backend="$1" threads="$2"
+    if [[ "$backend" == "aocl" && "$(uname -s)" == "Darwin" ]]; then
+        echo "-- aocl, ${threads}T: skipped (AOCL_jll is not available on macOS)" >&2
+        return 0
+    fi
     local toml="$OUT/${backend}_t${threads}.toml"
     local log="$OUT/logs/${backend}_t${threads}.log"
     local mask

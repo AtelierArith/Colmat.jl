@@ -8,7 +8,7 @@ the library, runs one process per backend and thread budget, and writes
 ## Quick start
 
 ```sh
-./benchmarks/run.sh                  # OpenBLAS, MKL, AOCL, PureBLAS, Colmat; 1/4/8 threads
+./benchmarks/run.sh                  # OpenBLAS, MKL, AOCL (Linux), PureBLAS, Colmat; 1/4/8 threads
 ./benchmarks/run.sh --quick          # tiny smoke run (still a few minutes with PureBLAS)
 ./benchmarks/run.sh --build          # rebuild Colmat first
 ./benchmarks/run.sh --threads 1 8 --backends openblas colmat
@@ -100,8 +100,12 @@ against `svd`. The residual is stored in the TOML/CSV.
   `Project.toml`).
 - `aocl`: AMD AOCL through `AOCL.jl`/`AOCL_jll` (5.3.x); the runner sets
   `OMP_NUM_THREADS`, `BLIS_NUM_THREADS` and `FLA_NUM_THREADS` for the process.
-- `pureblas`: the pure-Julia `PureBLAS.jl` (0.1.2, pinned by `rev` in
-  `Project.toml`/`Manifest.toml` because it is unregistered). `run.jl` calls
+  AOCL ships Linux binaries only, so this arm is in the default list on Linux
+  but omitted on macOS (`AOCL_jll` is unavailable there).
+- `pureblas`: the pure-Julia `PureBLAS.jl` (0.1.2, pinned by `rev` to a commit
+  reachable from upstream `master` in `Project.toml`/`Manifest.toml` because it
+  is unregistered; Pkg cannot fetch a dangling SHA that no branch or tag
+  contains). `run.jl` calls
   `PureBLAS.activate()`, which installs in-process libblastrampoline function
   pointers, so `BLAS.get_config()` still lists the originally loaded library.
   The library column records `PureBLAS.jl (LBT function pointers)` instead.

@@ -6,7 +6,7 @@ harness, fetch revisions, or require a second checkout.
 ## Backend comparison
 
 ```sh
-./benchmarks/run.sh                  # OpenBLAS, MKL, AOCL, PureBLAS, Colmat; 1/4/8 threads
+./benchmarks/run.sh                  # OpenBLAS, MKL, AOCL (Linux), PureBLAS, Colmat; 1/4/8 threads
 ./benchmarks/run.sh --backends openblas mkl aocl pureblas colmat apple   # + AppleAccelerate (macOS)
 ./benchmarks/run.sh --quick          # tiny smoke run
 ./benchmarks/run.sh --help
