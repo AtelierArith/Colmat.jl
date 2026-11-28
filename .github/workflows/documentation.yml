@@ -20,13 +20,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@v3
         with:
           version: '1.13'
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - name: Install documentation dependencies
         run: julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
       - name: Build documentation
@@ -37,7 +37,7 @@ jobs:
         run: julia --project=docs docs/make.jl --deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: documentation
           path: docs/build/

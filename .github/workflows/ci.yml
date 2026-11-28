@@ -12,12 +12,12 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@v3
         with:
           version: '1.13'
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - name: Build
         run: julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build("Colmat")'
       - name: Rust formatting and tests
